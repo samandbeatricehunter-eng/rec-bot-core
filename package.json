@@ -1,0 +1,19 @@
+{
+  "name": "rec-bot-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "REC League core API and Discord bot monorepo.",
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "dev:api": "pnpm --filter @rec/api dev",
+    "dev:bot": "pnpm --filter @rec/bot dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2"
+  }
+}
