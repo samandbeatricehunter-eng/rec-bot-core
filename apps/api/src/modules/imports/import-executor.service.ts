@@ -73,7 +73,8 @@ export async function executeImportJob(importJobId: string) {
       endpointKey,
       endpointLabel: label,
       status: "running",
-      attemptNumber: 1
+      attemptNumber: 1,
+      responseSummary: {}
     });
 
     const executor = EXECUTORS[endpointKey];
