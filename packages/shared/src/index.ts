@@ -17,10 +17,18 @@ export const REC_API_ROUTES = {
 
   createImportJob: "/v1/imports/create",
   importJob: (jobId: string) => `/v1/imports/${jobId}`,
+  importMissingResults: (jobId: string) => `/v1/imports/${jobId}/missing-results`,
   importStatus: (guildId: string) => `/v1/imports/guild/${guildId}/status`,
   importHistory: (guildId: string) => `/v1/imports/guild/${guildId}/history`,
   updateImportJobStatus: "/v1/imports/job/status",
-  updateImportEndpointAttempt: "/v1/imports/job/endpoint"
+  updateImportEndpointAttempt: "/v1/imports/job/endpoint",
+  executeImportJob: "/v1/imports/job/execute",
+  previewImportJob: "/v1/imports/job/preview",
+  approveImportJob: "/v1/imports/job/approve",
+  cancelImportJob: "/v1/imports/job/cancel",
+  requestMissingResultReimport: (gameId: string) => `/v1/imports/missing-results/${gameId}/reimport`,
+  manualMissingResultScore: (gameId: string) => `/v1/imports/missing-results/${gameId}/manual-score`,
+  ignoreMissingResult: (gameId: string) => `/v1/imports/missing-results/${gameId}/ignore`
 } as const;
 
 export type RecTeamAuthority = "member" | "commissioner" | "co_commissioner";
