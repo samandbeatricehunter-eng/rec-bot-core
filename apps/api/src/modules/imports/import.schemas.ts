@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const ImportModeSchema = z.enum(["manual", "ea_import", "companion_app_export"]);
 
-export const ImportScopeSchema = z.enum(["single_week", "selected_weeks", "full_available"]);
+export const ImportScopeSchema = z.enum(["single_week", "selected_weeks", "full_available", "full_regular_season_schedule"]);
 
 export const CoreImportEndpointSchema = z.enum([
   "league_metadata",
@@ -37,6 +37,13 @@ export const CreateImportJobSchema = z.object({
     }
     if (!input.weekTo) {
       context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekTo"], message: "Week range imports require weekTo." });
+    }
+  }
+
+  if (input.importScope === "full_regular_season_schedule" && input.selectedEndpointKeys.length > 0) {
+    const invalidEndpoints = input.selectedEndpointKeys.filter((endpoint) => endpoint !== "schedule");
+    if (invalidEndpoints.length > 0) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["selectedEndpointKeys"], message: "Full regular season schedule imports may only use the schedule endpoint." });
     }
   }
 
