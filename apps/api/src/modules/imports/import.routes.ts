@@ -8,6 +8,7 @@ import {
   UpdateImportJobStatusSchema
 } from "./import.schemas.js";
 import { createImportJob } from "./import-locked.service.js";
+import { executeImportJob } from "./import-executor.service.js";
 import {
   approveImportPreview,
   cancelImportJob,
@@ -77,6 +78,16 @@ export async function importRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await updateEndpointAttempt(UpdateEndpointAttemptSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/imports/job/execute", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { importJobId } = ImportJobIdBodySchema.parse(request.body);
+      return reply.send(await executeImportJob(importJobId));
     } catch (error) {
       return sendError(reply, error);
     }
