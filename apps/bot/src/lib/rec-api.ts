@@ -1,4 +1,4 @@
-import { REC_API_ROUTES, type RecTeamAuthority } from "@rec/shared";
+import { REC_API_ROUTES, type RecImportMode, type RecTeamAuthority } from "@rec/shared";
 import { env } from "../config/env.js";
 import type { LeagueSetupDraft } from "../ui/league-setup.js";
 
@@ -72,6 +72,51 @@ export const recApi = {
     requestedByDiscordId?: string;
   }) =>
     recFetch<any>(REC_API_ROUTES.createCustomTeamReplacement, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  createImportJob: (input: {
+    guildId: string;
+    importMode: RecImportMode;
+    importLabel?: string;
+    requestedByDiscordId?: string;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.createImportJob, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  getImportJob: (jobId: string) => recFetch<any>(REC_API_ROUTES.importJob(jobId)),
+  getImportStatus: (guildId: string) => recFetch<any>(REC_API_ROUTES.importStatus(guildId)),
+  getImportHistory: (guildId: string) => recFetch<any>(REC_API_ROUTES.importHistory(guildId)),
+
+  updateImportJobStatus: (input: {
+    importJobId: string;
+    status: string;
+    previewSummary?: Record<string, unknown>;
+    validationErrors?: unknown[];
+    validationWarnings?: unknown[];
+    failureReason?: string | null;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.updateImportJobStatus, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  updateImportEndpointAttempt: (input: {
+    importJobId: string;
+    endpointKey: string;
+    endpointLabel: string;
+    status: "pending" | "running" | "success" | "failed" | "skipped";
+    httpStatus?: number | null;
+    attemptNumber?: number;
+    durationMs?: number | null;
+    recordsFound?: number | null;
+    errorMessage?: string | null;
+    responseSummary?: Record<string, unknown>;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.updateImportEndpointAttempt, {
       method: "POST",
       body: JSON.stringify(input)
     })
