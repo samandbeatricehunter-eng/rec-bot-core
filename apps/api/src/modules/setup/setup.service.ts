@@ -85,16 +85,6 @@ function mapImportModeToTrustMode(importMode: CreateLeagueInput["importMode"]) {
   return "imported";
 }
 
-/**
- * Creates a new league for the guild and stores the complete league
- * configuration in rec_league_configuration.
- *
- * Note:
- * When a new league is created in an already registered guild, this marks older
- * server/league links as non-primary. Future cleanup should archive/wipe old
- * league-specific franchise data through a dedicated reset routine after the
- * affected table list is finalized.
- */
 export async function createLeagueForServer(input: CreateLeagueInput) {
   const serverResult = await registerServer({
     guildId: input.guildId,
@@ -151,7 +141,9 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     scouting_purchases_enabled: input.scoutingPurchasesEnabled,
     media_features_enabled: input.mediaFeaturesEnabled,
 
-    streaming_requirement: input.streamingRequirement,
+    streaming_requirement: input.regularSeasonStreamingRequirement,
+    regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
+    postseason_streaming_requirement: input.postseasonStreamingRequirement,
     streaming_scope: input.streamingScope,
     streaming_side: input.streamingSide,
 
