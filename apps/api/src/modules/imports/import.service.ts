@@ -245,7 +245,7 @@ export async function updateImportJobStatus(input: UpdateImportJobStatusInput) {
     entityId: input.importJobId,
     newValue: updatePayload,
     reason: "Import job status updated.",
-    source: "system"
+    source: "internal_import"
   });
 
   return getImportJob(input.importJobId);
