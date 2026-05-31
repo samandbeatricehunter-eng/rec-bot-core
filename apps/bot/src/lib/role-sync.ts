@@ -34,12 +34,42 @@ async function ensureRole(guild: Guild, input: { name: string; color: number }) 
   });
 }
 
+async function orderRecRoles(guild: Guild, roles: { member: Role; compCommittee: Role; commissioner: Role }) {
+  const botMember = guild.members.me;
+
+  if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    return;
+  }
+
+  const botHighestPosition = botMember.roles.highest.position;
+  const targetBasePosition = Math.min(botHighestPosition - 1, guild.roles.highest.position);
+
+  if (targetBasePosition <= 0) {
+    return;
+  }
+
+  await roles.commissioner
+    .setPosition(targetBasePosition, { reason: "REC authority role hierarchy" })
+    .catch(() => undefined);
+
+  await roles.compCommittee
+    .setPosition(Math.max(1, targetBasePosition - 1), { reason: "REC authority role hierarchy" })
+    .catch(() => undefined);
+
+  await roles.member
+    .setPosition(Math.max(1, targetBasePosition - 2), { reason: "REC authority role hierarchy" })
+    .catch(() => undefined);
+}
+
 export async function ensureRecBaseRoles(guild: Guild) {
-  return {
+  const roles = {
     member: await ensureRole(guild, REC_MANAGED_ROLES.member),
     compCommittee: await ensureRole(guild, REC_MANAGED_ROLES.compCommittee),
     commissioner: await ensureRole(guild, REC_MANAGED_ROLES.commissioner)
   };
+
+  await orderRecRoles(guild, roles);
+  return roles;
 }
 
 export async function syncMemberForTeam(input: {
