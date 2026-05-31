@@ -81,6 +81,12 @@ export const recApi = {
     importMode: RecImportMode;
     importLabel?: string;
     requestedByDiscordId?: string;
+    eaExternalLeagueId?: string;
+    eaExternalLeagueName?: string;
+    importScope?: "single_week" | "selected_weeks" | "full_available" | "full_regular_season_schedule";
+    weekFrom?: number;
+    weekTo?: number;
+    selectedEndpointKeys?: string[];
   }) =>
     recFetch<any>(REC_API_ROUTES.createImportJob, {
       method: "POST",
