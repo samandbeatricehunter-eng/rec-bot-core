@@ -15,6 +15,12 @@ import {
   generateImportPreview
 } from "./import-preview.service.js";
 import {
+  ignoreMissingImportedGameScore,
+  listMissingImportedGameScores,
+  manuallyResolveImportedGameScore,
+  requestMissingGameScoreReimport
+} from "./import-resolution.service.js";
+import {
   getImportJob,
   getLatestImportJobForGuild,
   listImportJobsForGuild,
@@ -24,6 +30,15 @@ import {
 
 const ImportJobIdBodySchema = z.object({ importJobId: z.string().uuid() });
 const CancelImportJobSchema = z.object({ importJobId: z.string().uuid(), reason: z.string().optional().nullable() });
+const MissingScoreParamsSchema = z.object({ gameId: z.string().uuid() });
+const ReimportMissingScoreBodySchema = z.object({ requestedByDiscordId: z.string().min(1), notes: z.string().optional().nullable() });
+const IgnoreMissingScoreBodySchema = z.object({ requestedByDiscordId: z.string().min(1), notes: z.string().optional().nullable() });
+const ManualScoreBodySchema = z.object({
+  homeScore: z.number().int().min(0).max(255),
+  awayScore: z.number().int().min(0).max(255),
+  resolvedByDiscordId: z.string().min(1),
+  notes: z.string().optional().nullable()
+});
 
 export async function importRoutes(app: FastifyInstance) {
   app.post("/v1/imports/create", async (request, reply) => {
@@ -40,6 +55,16 @@ export async function importRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { jobId } = request.params as { jobId: string };
       return reply.send(await getImportJob(jobId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.get("/v1/imports/:jobId/missing-results", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { jobId } = request.params as { jobId: string };
+      return reply.send(await listMissingImportedGameScores(jobId));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -118,6 +143,39 @@ export async function importRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { importJobId, reason } = CancelImportJobSchema.parse(request.body);
       return reply.send(await cancelImportJob(importJobId, reason));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/imports/missing-results/:gameId/reimport", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { gameId } = MissingScoreParamsSchema.parse(request.params);
+      const body = ReimportMissingScoreBodySchema.parse(request.body);
+      return reply.send(await requestMissingGameScoreReimport({ stagingGameId: gameId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/imports/missing-results/:gameId/manual-score", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { gameId } = MissingScoreParamsSchema.parse(request.params);
+      const body = ManualScoreBodySchema.parse(request.body);
+      return reply.send(await manuallyResolveImportedGameScore({ stagingGameId: gameId, ...body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/imports/missing-results/:gameId/ignore", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { gameId } = MissingScoreParamsSchema.parse(request.params);
+      const body = IgnoreMissingScoreBodySchema.parse(request.body);
+      return reply.send(await ignoreMissingImportedGameScore({ stagingGameId: gameId, ...body }));
     } catch (error) {
       return sendError(reply, error);
     }
