@@ -14,6 +14,11 @@ const EnvSchema = z.object({
   API_HOST: z.string().default("0.0.0.0"),
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  REC_INTERNAL_API_KEY: z.string().optional()
+  REC_INTERNAL_API_KEY: z.string().optional(),
+  EA_MCA_CLIENT_ID: z.string().default("MCA_26_COMP_APP"),
+  EA_MCA_CLIENT_SECRET: z.string().optional(),
+  EA_MCA_AUTH_SOURCE: z.coerce.number().int().default(317239),
+  EA_MCA_MACHINE_KEY: z.string().default("444d362e8e067fe2"),
+  EA_MCA_REDIRECT_URL: z.string().default("http://127.0.0.1/success")
 });
 export const env = EnvSchema.parse(process.env);
