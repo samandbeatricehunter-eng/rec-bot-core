@@ -9,12 +9,29 @@ export const RegisterServerSchema = z.object({
 
 const streamingRequirement = z.enum(["required", "recommended", "disabled"]);
 
+export const SeasonStageSchema = z.enum([
+  "preseason_training_camp",
+  "regular_season",
+  "wild_card",
+  "divisional",
+  "conference_championship",
+  "super_bowl",
+  "offseason",
+  "coach_hiring",
+  "free_agency",
+  "draft"
+]);
+
 export const CreateLeagueSchema = z.object({
   guildId: z.string().min(1),
   name: z.string().min(1),
 
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
   importMode: z.enum(["manual", "ea_import", "companion_app_export"]).default("manual"),
+
+  seasonNumber: z.number().int().min(1).default(1),
+  seasonStage: SeasonStageSchema.default("regular_season"),
+  currentWeek: z.number().int().min(1).max(30).default(1),
 
   currentPhase: z.enum([
     "fantasy_draft",
@@ -28,8 +45,7 @@ export const CreateLeagueSchema = z.object({
     "draft",
     "offseason",
     "completed"
-  ]).default("preseason"),
-  currentWeek: z.number().int().optional(),
+  ]).default("regular_season"),
 
   coinEconomyEnabled: z.boolean().default(false),
   customPlayersEnabled: z.boolean().default(false),
