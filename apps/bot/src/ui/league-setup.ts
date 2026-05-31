@@ -13,9 +13,28 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   importMode: "rec:league_setup:import_mode",
   featureToggles: "rec:league_setup:features",
   draftClassType: "rec:league_setup:draft_class_type",
-  streamingRequirement: "rec:league_setup:streaming_requirement",
+  regularSeasonStreaming: "rec:league_setup:streaming_regular",
+  postseasonStreaming: "rec:league_setup:streaming_postseason",
+  streamingSide: "rec:league_setup:streaming_side",
   fourthDownRule: "rec:league_setup:fourth_down_rule",
-  gameplayCore: "rec:league_setup:gameplay_core",
+  positionChangePolicy: "rec:league_setup:position_changes",
+  tradeApprovalPolicy: "rec:league_setup:trade_approval",
+  cpuRules: "rec:league_setup:cpu_rules",
+  difficulty: "rec:league_setup:difficulty",
+  quarterLength: "rec:league_setup:quarter_length",
+  acceleratedClockEnabled: "rec:league_setup:accelerated_clock_enabled",
+  acceleratedClockSeconds: "rec:league_setup:accelerated_clock_seconds",
+  salaryCap: "rec:league_setup:salary_cap",
+  tradeDeadline: "rec:league_setup:trade_deadline",
+  abilities: "rec:league_setup:abilities",
+  wearAndTear: "rec:league_setup:wear_and_tear",
+  injuryPolicy: "rec:league_setup:injury_policy",
+  offensiveLimitsEnabled: "rec:league_setup:off_limits_enabled",
+  offensiveLimit: "rec:league_setup:off_limit",
+  offensiveCooldown: "rec:league_setup:off_cooldown",
+  defensiveLimitsEnabled: "rec:league_setup:def_limits_enabled",
+  defensiveLimit: "rec:league_setup:def_limit",
+  defensiveCooldown: "rec:league_setup:def_cooldown",
   save: "rec:league_setup:save"
 } as const;
 
@@ -24,9 +43,28 @@ export type LeagueSetupStep =
   | "import_mode"
   | "features"
   | "draft_class_type"
-  | "streaming"
+  | "regular_season_streaming"
+  | "postseason_streaming"
+  | "streaming_side"
   | "fourth_down"
-  | "gameplay"
+  | "position_changes"
+  | "trade_approval"
+  | "cpu_rules"
+  | "difficulty"
+  | "quarter_length"
+  | "accelerated_clock_enabled"
+  | "accelerated_clock_seconds"
+  | "salary_cap"
+  | "trade_deadline"
+  | "abilities"
+  | "wear_and_tear"
+  | "injury_policy"
+  | "offensive_limits_enabled"
+  | "offensive_limit"
+  | "offensive_cooldown"
+  | "defensive_limits_enabled"
+  | "defensive_limit"
+  | "defensive_cooldown"
   | "review";
 
 export type LeagueSetupDraft = {
@@ -47,6 +85,8 @@ export type LeagueSetupDraft = {
   scoutingPurchasesEnabled: boolean;
   mediaFeaturesEnabled: boolean;
   streamingRequirement: "required" | "recommended" | "disabled";
+  regularSeasonStreamingRequirement: "required" | "recommended" | "disabled";
+  postseasonStreamingRequirement: "required" | "recommended" | "disabled";
   streamingScope: "every_game" | "playoffs_only";
   streamingSide: "home" | "away" | "either" | "both";
   fourthDownRuleType: "none" | "standard_rec" | "custom";
@@ -72,6 +112,36 @@ export type LeagueSetupDraft = {
   defensivePlayCallCooldown?: number | null;
 };
 
+const STEP_ORDER: LeagueSetupStep[] = [
+  "league_type",
+  "import_mode",
+  "features",
+  "draft_class_type",
+  "regular_season_streaming",
+  "postseason_streaming",
+  "streaming_side",
+  "fourth_down",
+  "position_changes",
+  "trade_approval",
+  "cpu_rules",
+  "difficulty",
+  "quarter_length",
+  "accelerated_clock_enabled",
+  "accelerated_clock_seconds",
+  "salary_cap",
+  "trade_deadline",
+  "abilities",
+  "wear_and_tear",
+  "injury_policy",
+  "offensive_limits_enabled",
+  "offensive_limit",
+  "offensive_cooldown",
+  "defensive_limits_enabled",
+  "defensive_limit",
+  "defensive_cooldown",
+  "review"
+];
+
 export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
   return {
     name,
@@ -91,6 +161,8 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     scoutingPurchasesEnabled: false,
     mediaFeaturesEnabled: true,
     streamingRequirement: "recommended",
+    regularSeasonStreamingRequirement: "recommended",
+    postseasonStreamingRequirement: "required",
     streamingScope: "every_game",
     streamingSide: "either",
     fourthDownRuleType: "standard_rec",
@@ -118,24 +190,18 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
 }
 
 export function getPreviousLeagueSetupStep(step: LeagueSetupStep): LeagueSetupStep | "admin_panel" {
-  switch (step) {
-    case "league_type":
-      return "admin_panel";
-    case "import_mode":
-      return "league_type";
-    case "features":
-      return "import_mode";
-    case "draft_class_type":
-      return "features";
-    case "streaming":
-      return "draft_class_type";
-    case "fourth_down":
-      return "streaming";
-    case "gameplay":
-      return "fourth_down";
-    case "review":
-      return "gameplay";
-  }
+  const index = STEP_ORDER.indexOf(step);
+  if (index <= 0) return "admin_panel";
+  return STEP_ORDER[index - 1];
+}
+
+export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
+  if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return "salary_cap";
+  if (step === "offensive_limits_enabled" && !draft.offensivePlayCallLimitsEnabled) return "defensive_limits_enabled";
+  if (step === "defensive_limits_enabled" && !draft.defensivePlayCallLimitsEnabled) return "review";
+
+  const index = STEP_ORDER.indexOf(step);
+  return STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)];
 }
 
 function baseEmbed(title: string, draft: LeagueSetupDraft) {
@@ -144,42 +210,67 @@ function baseEmbed(title: string, draft: LeagueSetupDraft) {
     .setDescription([
       `League: **${draft.name}**`,
       "",
-      "Use the selector below. You can go Back or return to Main Menu at any time."
+      "Use the selector below. Every screen includes Back and Main Menu controls."
     ].join("\n"));
 }
 
-export function buildLeagueTypeWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("League Setup: League Type", draft);
-
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+function selectRow(customId: string, placeholder: string, options: StringSelectMenuOptionBuilder[]) {
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.leagueType)
-      .setPlaceholder("Select league type")
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("Regular Rosters").setValue("regular_rosters"),
-        new StringSelectMenuOptionBuilder().setLabel("Fantasy Draft").setValue("fantasy_draft"),
-        new StringSelectMenuOptionBuilder().setLabel("Custom Rosters").setValue("custom_rosters")
-      )
+      .setCustomId(customId)
+      .setPlaceholder(placeholder)
+      .addOptions(...options)
   );
+}
 
-  return { embeds: [embed], components: [row, buildNavigationRow()] };
+function option(label: string, value: string, description?: string) {
+  const opt = new StringSelectMenuOptionBuilder().setLabel(label).setValue(value);
+  if (description) opt.setDescription(description);
+  return opt;
+}
+
+function yesNoOptions() {
+  return [option("On / Enabled", "yes"), option("Off / Disabled", "no")];
+}
+
+function boolText(value: boolean) {
+  return value ? "On" : "Off";
+}
+
+function yesNo(value: boolean) {
+  return value ? "Yes" : "No";
+}
+
+function fmt(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+export function buildLeagueTypeWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: League Type", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.leagueType, "Select league type", [
+        option("Regular Rosters", "regular_rosters"),
+        option("Fantasy Draft", "fantasy_draft"),
+        option("Custom Rosters", "custom_rosters")
+      ]),
+      buildNavigationRow()
+    ]
+  };
 }
 
 export function buildImportModeWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("League Setup: Import Mode", draft);
-
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.importMode)
-      .setPlaceholder("Select import mode")
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("Manual").setValue("manual"),
-        new StringSelectMenuOptionBuilder().setLabel("Import from EA").setValue("ea_import"),
-        new StringSelectMenuOptionBuilder().setLabel("Export from Companion App").setValue("companion_app_export")
-      )
-  );
-
-  return { embeds: [embed], components: [row, buildNavigationRow()] };
+  return {
+    embeds: [baseEmbed("League Setup: Import Mode", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.importMode, "Select import mode", [
+        option("Manual", "manual"),
+        option("Import from EA", "ea_import"),
+        option("Export from Companion App", "companion_app_export")
+      ]),
+      buildNavigationRow()
+    ]
+  };
 }
 
 export function buildFeatureTogglesWindow(draft: LeagueSetupDraft) {
@@ -200,16 +291,16 @@ export function buildFeatureTogglesWindow(draft: LeagueSetupDraft) {
       .setMinValues(0)
       .setMaxValues(10)
       .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("Coin Economy").setValue("coin_economy"),
-        new StringSelectMenuOptionBuilder().setLabel("Custom Players").setValue("custom_players"),
-        new StringSelectMenuOptionBuilder().setLabel("Legends").setValue("legends"),
-        new StringSelectMenuOptionBuilder().setLabel("Dev Upgrades").setValue("dev_upgrades"),
-        new StringSelectMenuOptionBuilder().setLabel("Age Resets").setValue("age_resets"),
-        new StringSelectMenuOptionBuilder().setLabel("Training & Packages").setValue("training_packages"),
-        new StringSelectMenuOptionBuilder().setLabel("Contract Adjustment Purchases").setValue("contract_purchases"),
-        new StringSelectMenuOptionBuilder().setLabel("Cap Management Assistant").setValue("cap_assistant"),
-        new StringSelectMenuOptionBuilder().setLabel("Draft Class Features").setValue("draft_class_features"),
-        new StringSelectMenuOptionBuilder().setLabel("Media Features").setValue("media_features")
+        option("Coin Economy", "coin_economy"),
+        option("Custom Players", "custom_players"),
+        option("Legends", "legends"),
+        option("Dev Upgrades", "dev_upgrades"),
+        option("Age Resets", "age_resets"),
+        option("Training & Packages", "training_packages"),
+        option("Contract Adjustment Purchases", "contract_purchases"),
+        option("Cap Management Assistant", "cap_assistant"),
+        option("Draft Class Features", "draft_class_features"),
+        option("Media Features", "media_features")
       )
   );
 
@@ -217,110 +308,202 @@ export function buildFeatureTogglesWindow(draft: LeagueSetupDraft) {
 }
 
 export function buildDraftClassTypeWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("League Setup: Draft Class Type", draft);
-
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.draftClassType)
-      .setPlaceholder("Select draft class type")
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("Auto-Gen").setValue("auto_gen"),
-        new StringSelectMenuOptionBuilder().setLabel("Custom").setValue("custom"),
-        new StringSelectMenuOptionBuilder().setLabel("Realistic").setValue("realistic"),
-        new StringSelectMenuOptionBuilder().setLabel("Other").setValue("other")
-      )
-  );
-
-  return { embeds: [embed], components: [row, buildNavigationRow()] };
+  return {
+    embeds: [baseEmbed("League Setup: Draft Class Type", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.draftClassType, "Select draft class type", [
+        option("Auto-Gen", "auto_gen"),
+        option("Custom", "custom"),
+        option("Realistic", "realistic"),
+        option("Other", "other")
+      ]),
+      buildNavigationRow()
+    ]
+  };
 }
 
-export function buildStreamingWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("League Setup: Streaming", draft)
-    .addFields({
-      name: "Note",
-      value: "Detailed home/away/every-game options default to Recommended / Every Game / Either Team for now and will be editable in the full Rules editor."
-    });
+export function buildRegularSeasonStreamingWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Regular Season Streaming", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming, "Regular season streaming requirement", [
+        option("Required", "required"),
+        option("Recommended", "recommended"),
+        option("Disabled", "disabled")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
 
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.streamingRequirement)
-      .setPlaceholder("Select streaming rule")
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("Required").setValue("required"),
-        new StringSelectMenuOptionBuilder().setLabel("Recommended").setValue("recommended"),
-        new StringSelectMenuOptionBuilder().setLabel("Disabled").setValue("disabled")
-      )
-  );
+export function buildPostseasonStreamingWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Postseason Streaming", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming, "Postseason streaming requirement", [
+        option("Required", "required"),
+        option("Recommended", "recommended"),
+        option("Disabled", "disabled")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
 
-  return { embeds: [embed], components: [row, buildNavigationRow()] };
+export function buildStreamingSideWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Required Streaming Side", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.streamingSide, "Who must stream when streaming is required?", [
+        option("Home Team", "home"),
+        option("Away Team", "away"),
+        option("Either Team", "either"),
+        option("Both Teams", "both")
+      ]),
+      buildNavigationRow()
+    ]
+  };
 }
 
 export function buildFourthDownWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("League Setup: 4th Down Rules", draft);
+  return {
+    embeds: [baseEmbed("League Setup: 4th Down Rules", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.fourthDownRule, "Select 4th down rule", [
+        option("No 4th Down Rules", "none"),
+        option("Standard REC Rule", "standard_rec", "Past midfield and 4th & 3 or less; trailing in second half can go anytime."),
+        option("Custom 4th Down Rules", "custom")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
 
+export function buildPositionChangeWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Position Changes", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.positionChangePolicy, "Select position change policy", [
+        option("Open", "open"),
+        option("Restricted", "restricted", "Realistic changes only."),
+        option("Highly Restricted", "highly_restricted", "Same-group changes only unless approved.")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildTradeApprovalWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Trade Approval", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy, "Select trade approval rule", [
+        option("No Approval Required", "no_approval_required"),
+        option("Commissioner Review", "commissioner_review"),
+        option("Competition Committee Review", "competition_committee_review")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildCpuRulesWindow(draft: LeagueSetupDraft) {
   const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
-      .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.fourthDownRule)
-      .setPlaceholder("Select 4th down rule")
+      .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.cpuRules)
+      .setPlaceholder("Select CPU rules")
+      .setMinValues(1)
+      .setMaxValues(2)
       .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("No 4th Down Rules").setValue("none"),
-        new StringSelectMenuOptionBuilder().setLabel("Standard REC Rule").setValue("standard_rec"),
-        new StringSelectMenuOptionBuilder().setLabel("Custom 4th Down Rules").setValue("custom")
+        option("CPU Trading Allowed", "cpu_trading"),
+        option("CPU Free Agency Open", "cpu_fa_open")
       )
   );
 
-  return { embeds: [embed], components: [row, buildNavigationRow()] };
+  return { embeds: [baseEmbed("League Setup: CPU Rules", draft)], components: [row, buildNavigationRow()] };
 }
 
-export function buildGameplayWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("League Setup: Gameplay Settings", draft)
-    .addFields({
-      name: "Current Defaults",
-      value: [
-        "Difficulty: All-Madden",
-        "Quarter Length: 8",
-        "Accelerated Clock: 20 seconds",
-        "Salary Cap: Off",
-        "Trade Deadline: Off",
-        "Abilities: On",
-        "Wear & Tear: On"
-      ].join("\n")
-    });
+export function buildDifficultyWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("Gameplay: Difficulty", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.difficulty, "Select difficulty", [
+        option("Rookie", "rookie"),
+        option("Pro", "pro"),
+        option("All-Pro", "all_pro"),
+        option("All-Madden", "all_madden")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
 
-  const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.gameplayCore)
-      .setPlaceholder("Select gameplay preset")
-      .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("REC Default").setValue("rec_default").setDescription("All-Madden, 8 min, accel clock, cap off."),
-        new StringSelectMenuOptionBuilder().setLabel("Salary Cap Enabled").setValue("salary_cap_on").setDescription("REC default with salary cap on."),
-        new StringSelectMenuOptionBuilder().setLabel("Casual Setup").setValue("casual").setDescription("All-Pro, 7 min, simplified settings.")
-      )
+export function buildQuarterLengthWindow(draft: LeagueSetupDraft) {
+  const options = Array.from({ length: 12 }, (_, index) => index + 4).map((minutes) =>
+    option(`${minutes} Minutes`, String(minutes))
   );
 
-  return { embeds: [embed], components: [row, buildNavigationRow()] };
+  return {
+    embeds: [baseEmbed("Gameplay: Quarter Length", draft)],
+    components: [selectRow(LEAGUE_SETUP_CUSTOM_IDS.quarterLength, "Select quarter length", options), buildNavigationRow()]
+  };
 }
 
-function yesNo(value: boolean) {
-  return value ? "Yes" : "No";
+export function buildAcceleratedClockEnabledWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("Gameplay: Accelerated Clock", draft)],
+    components: [selectRow(LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockEnabled, "Accelerated clock enabled?", yesNoOptions()), buildNavigationRow()]
+  };
+}
+
+export function buildAcceleratedClockSecondsWindow(draft: LeagueSetupDraft) {
+  const options = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25].map((seconds) =>
+    option(`${seconds} Seconds`, String(seconds))
+  );
+
+  return {
+    embeds: [baseEmbed("Gameplay: Accelerated Clock Seconds", draft)],
+    components: [selectRow(LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockSeconds, "Select minimum play clock seconds", options), buildNavigationRow()]
+  };
+}
+
+export function buildBooleanGameplayWindow(draft: LeagueSetupDraft, title: string, customId: string, placeholder: string) {
+  return {
+    embeds: [baseEmbed(title, draft)],
+    components: [selectRow(customId, placeholder, yesNoOptions()), buildNavigationRow()]
+  };
+}
+
+export function buildInjuryPolicyWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("Gameplay: Injuries", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.injuryPolicy, "Select injury setting", [
+        option("On", "on_standard"),
+        option("Reduced", "on_reduced"),
+        option("Off", "off")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildPlayCallNumberWindow(draft: LeagueSetupDraft, title: string, customId: string, placeholder: string) {
+  const options = Array.from({ length: 10 }, (_, index) => index + 1).map((value) => option(String(value), String(value)));
+  return {
+    embeds: [baseEmbed(title, draft)],
+    components: [selectRow(customId, placeholder, options), buildNavigationRow()]
+  };
 }
 
 export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
   const embed = new EmbedBuilder()
     .setTitle("Review League Setup")
-    .setDescription([
-      `League: **${draft.name}**`,
-      "",
-      "Review the configuration below, then save the league."
-    ].join("\n"))
+    .setDescription([`League: **${draft.name}**`, "", "Review the configuration below, then save the league."].join("\n"))
     .addFields(
       {
         name: "Identity",
-        value: [
-          `Type: ${draft.leagueType}`,
-          `Import Mode: ${draft.importMode}`,
-          `Draft Class Type: ${draft.draftClassType}`
-        ].join("\n"),
+        value: [`Type: ${fmt(draft.leagueType)}`, `Import Mode: ${fmt(draft.importMode)}`, `Draft Class Type: ${fmt(draft.draftClassType)}`].join("\n"),
         inline: true
       },
       {
@@ -339,13 +522,32 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
         inline: true
       },
       {
-        name: "Rules / Gameplay",
+        name: "Rules",
         value: [
-          `Streaming: ${draft.streamingRequirement}`,
-          `4th Down: ${draft.fourthDownRuleType}`,
-          `Difficulty: ${draft.difficulty}`,
+          `Regular Season Streaming: ${fmt(draft.regularSeasonStreamingRequirement)}`,
+          `Postseason Streaming: ${fmt(draft.postseasonStreamingRequirement)}`,
+          `Required Streaming Side: ${fmt(draft.streamingSide)}`,
+          `4th Down: ${fmt(draft.fourthDownRuleType)}`,
+          `Position Changes: ${fmt(draft.positionChangePolicy)}`,
+          `Trade Approval: ${fmt(draft.tradeApprovalPolicy)}`,
+          `CPU Trading: ${yesNo(draft.cpuTradingAllowed)}`,
+          `CPU Free Agency: ${fmt(draft.cpuFreeAgencyPolicy)}`
+        ].join("\n"),
+        inline: false
+      },
+      {
+        name: "Gameplay",
+        value: [
+          `Difficulty: ${fmt(draft.difficulty)}`,
           `Quarter Length: ${draft.quarterLengthMinutes}`,
-          `Salary Cap: ${yesNo(draft.salaryCapEnabled)}`
+          `Accelerated Clock: ${boolText(draft.acceleratedClockEnabled)}${draft.acceleratedClockEnabled ? ` (${draft.acceleratedClockMinimumSeconds}s)` : ""}`,
+          `Salary Cap: ${boolText(draft.salaryCapEnabled)}`,
+          `Trade Deadline: ${boolText(draft.tradeDeadlineEnabled)}`,
+          `Abilities: ${boolText(draft.abilitiesEnabled)}`,
+          `Wear & Tear: ${boolText(draft.wearAndTearEnabled)}`,
+          `Injuries: ${fmt(draft.injuryPolicy)}`,
+          `Offense Limits: ${draft.offensivePlayCallLimitsEnabled ? `${draft.offensivePlayCallLimit ?? "?"} / cooldown ${draft.offensivePlayCallCooldown ?? "?"}` : "Off"}`,
+          `Defense Limits: ${draft.defensivePlayCallLimitsEnabled ? `${draft.defensivePlayCallLimit ?? "?"} / cooldown ${draft.defensivePlayCallCooldown ?? "?"}` : "Off"}`
         ].join("\n"),
         inline: false
       }
@@ -364,26 +566,40 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
 
 export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
-    case "league_type":
-      return buildLeagueTypeWindow(draft);
-    case "import_mode":
-      return buildImportModeWindow(draft);
-    case "features":
-      return buildFeatureTogglesWindow(draft);
-    case "draft_class_type":
-      return buildDraftClassTypeWindow(draft);
-    case "streaming":
-      return buildStreamingWindow(draft);
-    case "fourth_down":
-      return buildFourthDownWindow(draft);
-    case "gameplay":
-      return buildGameplayWindow(draft);
-    case "review":
-      return buildLeagueSetupReviewWindow(draft);
+    case "league_type": return buildLeagueTypeWindow(draft);
+    case "import_mode": return buildImportModeWindow(draft);
+    case "features": return buildFeatureTogglesWindow(draft);
+    case "draft_class_type": return buildDraftClassTypeWindow(draft);
+    case "regular_season_streaming": return buildRegularSeasonStreamingWindow(draft);
+    case "postseason_streaming": return buildPostseasonStreamingWindow(draft);
+    case "streaming_side": return buildStreamingSideWindow(draft);
+    case "fourth_down": return buildFourthDownWindow(draft);
+    case "position_changes": return buildPositionChangeWindow(draft);
+    case "trade_approval": return buildTradeApprovalWindow(draft);
+    case "cpu_rules": return buildCpuRulesWindow(draft);
+    case "difficulty": return buildDifficultyWindow(draft);
+    case "quarter_length": return buildQuarterLengthWindow(draft);
+    case "accelerated_clock_enabled": return buildAcceleratedClockEnabledWindow(draft);
+    case "accelerated_clock_seconds": return buildAcceleratedClockSecondsWindow(draft);
+    case "salary_cap": return buildBooleanGameplayWindow(draft, "Gameplay: Salary Cap", LEAGUE_SETUP_CUSTOM_IDS.salaryCap, "Salary cap enabled?");
+    case "trade_deadline": return buildBooleanGameplayWindow(draft, "Gameplay: Trade Deadline", LEAGUE_SETUP_CUSTOM_IDS.tradeDeadline, "Trade deadline enabled?");
+    case "abilities": return buildBooleanGameplayWindow(draft, "Gameplay: Abilities", LEAGUE_SETUP_CUSTOM_IDS.abilities, "Abilities enabled?");
+    case "wear_and_tear": return buildBooleanGameplayWindow(draft, "Gameplay: Wear & Tear", LEAGUE_SETUP_CUSTOM_IDS.wearAndTear, "Wear & Tear enabled?");
+    case "injury_policy": return buildInjuryPolicyWindow(draft);
+    case "offensive_limits_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Offensive Play Call Limits", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled, "Offensive play call limits enabled?");
+    case "offensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit, "Select offensive play call limit");
+    case "offensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown, "Select offensive play call cooldown");
+    case "defensive_limits_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Defensive Play Call Limits", LEAGUE_SETUP_CUSTOM_IDS.defensiveLimitsEnabled, "Defensive play call limits enabled?");
+    case "defensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit, "Select defensive play call limit");
+    case "defensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown, "Select defensive play call cooldown");
+    case "review": return buildLeagueSetupReviewWindow(draft);
   }
 }
 
 export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
+  draft.streamingRequirement = draft.regularSeasonStreamingRequirement;
+  draft.streamingScope = draft.postseasonStreamingRequirement === "required" && draft.regularSeasonStreamingRequirement !== "required" ? "playoffs_only" : "every_game";
+
   if (!draft.coinEconomyEnabled) {
     draft.customPlayersEnabled = false;
     draft.legendsEnabled = false;
@@ -400,6 +616,20 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
   if (!draft.salaryCapEnabled) {
     draft.capManagementAssistantEnabled = false;
     draft.contractAdjustmentPurchasesEnabled = false;
+  }
+
+  if (!draft.acceleratedClockEnabled) {
+    draft.acceleratedClockMinimumSeconds = 0;
+  }
+
+  if (!draft.offensivePlayCallLimitsEnabled) {
+    draft.offensivePlayCallLimit = null;
+    draft.offensivePlayCallCooldown = null;
+  }
+
+  if (!draft.defensivePlayCallLimitsEnabled) {
+    draft.defensivePlayCallLimit = null;
+    draft.defensivePlayCallCooldown = null;
   }
 
   return draft;
