@@ -1,42 +1,27 @@
 # REC Bot Core
 
-REC Bot Core is the clean rebuild for REC League Discord/backend connectivity.
+Clean rebuild for REC League. REC Core API is the source of truth; Discord bot is a thin menu/UI client.
 
-## Architecture
-
-REC Core is the source of truth.
+## One Command
 
 ```txt
-apps/api  = REC Core API
-apps/bot  = REC Discord Bot client
-packages/shared = shared types, validation, constants
-supabase/migrations = REC Core database migrations
-docs = planning and operating notes
+/menu
 ```
 
-The Discord bot should remain a thin client. It should handle Discord interactions, call the API, and render responses. Business logic belongs in the API/services layer.
+All features branch through select menus, buttons, and modals.
 
-## Current Status
-
-- REC Core database schema has been installed in Supabase.
-- Approved legacy user baselines have been imported.
-- This repository starts the fresh codebase that will connect the API and bot to that database.
-
-## First Build Goals
-
-1. API health check
-2. Bot login and `/menu`
-3. Bot-to-API connection test
-4. Server setup flow
-5. League creation/linking flow
-6. Manual user/team linking flow
-7. Import run logging shell
-
-## Development
+## Install
 
 ```bash
-pnpm install
-pnpm dev
+pnpm install --network-concurrency 1
+pnpm --filter @rec/shared build
+pnpm typecheck
 ```
 
-Copy `.env.example` to `.env` and fill in the required values before running.
+## Run
+
+```bash
+pnpm dev:api
+pnpm --filter @rec/bot register
+pnpm dev:bot
+```

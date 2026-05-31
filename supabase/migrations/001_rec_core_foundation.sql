@@ -1,0 +1,2 @@
+-- REC Core foundation schema was applied directly during the rebuild.
+-- Future schema changes should be represented as numbered migrations.
