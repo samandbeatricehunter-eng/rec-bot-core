@@ -7,6 +7,8 @@ export const RegisterServerSchema = z.object({
   requestedByDiscordId: z.string().min(1).optional()
 });
 
+const streamingRequirement = z.enum(["required", "recommended", "disabled"]);
+
 export const CreateLeagueSchema = z.object({
   guildId: z.string().min(1),
   name: z.string().min(1),
@@ -43,7 +45,9 @@ export const CreateLeagueSchema = z.object({
   scoutingPurchasesEnabled: z.boolean().default(false),
   mediaFeaturesEnabled: z.boolean().default(true),
 
-  streamingRequirement: z.enum(["required", "recommended", "disabled"]).default("recommended"),
+  streamingRequirement: streamingRequirement.default("recommended"),
+  regularSeasonStreamingRequirement: streamingRequirement.default("recommended"),
+  postseasonStreamingRequirement: streamingRequirement.default("required"),
   streamingScope: z.enum(["every_game", "playoffs_only"]).default("every_game"),
   streamingSide: z.enum(["home", "away", "either", "both"]).default("either"),
 
