@@ -63,20 +63,24 @@ export function buildWeekScopeRow() {
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(IMPORT_CUSTOM_IDS.weekScope)
-      .setPlaceholder("Select import week scope")
+      .setPlaceholder("Select import scope")
       .addOptions(
         new StringSelectMenuOptionBuilder()
           .setLabel("Single Week")
           .setValue("single_week")
-          .setDescription("Import one Madden week."),
+          .setDescription("Import one completed Madden week."),
         new StringSelectMenuOptionBuilder()
           .setLabel("Week Range")
           .setValue("selected_weeks")
-          .setDescription("Import a span of weeks."),
+          .setDescription("Import a span of completed weeks."),
         new StringSelectMenuOptionBuilder()
           .setLabel("Full Available")
           .setValue("full_available")
-          .setDescription("Import all available core data.")
+          .setDescription("Import all available core data."),
+        new StringSelectMenuOptionBuilder()
+          .setLabel("Full Regular Season Schedule")
+          .setValue("full_regular_season_schedule")
+          .setDescription("Schedule-only import for all regular season matchups.")
       )
   );
 }
