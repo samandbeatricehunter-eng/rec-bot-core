@@ -2,11 +2,47 @@ import { z } from "zod";
 
 export const ImportModeSchema = z.enum(["manual", "ea_import", "companion_app_export"]);
 
+export const ImportScopeSchema = z.enum(["single_week", "selected_weeks", "full_available"]);
+
+export const CoreImportEndpointSchema = z.enum([
+  "league_metadata",
+  "teams",
+  "standings",
+  "schedule",
+  "rosters",
+  "players",
+  "player_stats",
+  "team_stats"
+]);
+
 export const CreateImportJobSchema = z.object({
   guildId: z.string().min(1),
   importMode: ImportModeSchema,
   importLabel: z.string().min(1).max(120).optional(),
-  requestedByDiscordId: z.string().min(1).optional()
+  requestedByDiscordId: z.string().min(1).optional(),
+  eaExternalLeagueId: z.string().min(1).max(160).optional(),
+  eaExternalLeagueName: z.string().min(1).max(160).optional(),
+  importScope: ImportScopeSchema.default("selected_weeks"),
+  weekFrom: z.number().int().min(1).max(30).optional(),
+  weekTo: z.number().int().min(1).max(30).optional(),
+  selectedEndpointKeys: z.array(CoreImportEndpointSchema).default([])
+}).superRefine((input, context) => {
+  if (input.importScope === "single_week" && !input.weekFrom) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekFrom"], message: "Single-week imports require weekFrom." });
+  }
+
+  if (input.importScope === "selected_weeks") {
+    if (!input.weekFrom) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekFrom"], message: "Week range imports require weekFrom." });
+    }
+    if (!input.weekTo) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekTo"], message: "Week range imports require weekTo." });
+    }
+  }
+
+  if (input.weekFrom && input.weekTo && input.weekFrom > input.weekTo) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekTo"], message: "weekTo must be greater than or equal to weekFrom." });
+  }
 });
 
 export const UpdateEndpointAttemptSchema = z.object({
