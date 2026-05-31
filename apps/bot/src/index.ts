@@ -20,19 +20,13 @@ import {
   applyLeagueSetupDependencies,
   buildLeagueSetupWindow,
   createDefaultLeagueSetupDraft,
+  getNextLeagueSetupStep,
   getPreviousLeagueSetupStep,
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft
 } from "./ui/league-setup.js";
 import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
 
-/**
- * The bot stays intentionally menu-driven.
- *
- * Important navigation rule:
- * Every window should either render Back/Main Menu controls directly or include
- * the shared navigation row from ui/navigation.ts.
- */
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
@@ -307,15 +301,15 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
     return;
   }
 
+  const value = interaction.values[0];
+
   switch (interaction.customId) {
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType:
-      draft.leagueType = interaction.values[0] as LeagueSetupDraft["leagueType"];
-      draft.step = "import_mode";
+      draft.leagueType = value as LeagueSetupDraft["leagueType"];
       break;
 
     case LEAGUE_SETUP_CUSTOM_IDS.importMode:
-      draft.importMode = interaction.values[0] as LeagueSetupDraft["importMode"];
-      draft.step = "features";
+      draft.importMode = value as LeagueSetupDraft["importMode"];
       break;
 
     case LEAGUE_SETUP_CUSTOM_IDS.featureToggles: {
@@ -331,71 +325,110 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
       draft.draftClassFeaturesEnabled = values.has("draft_class_features");
       draft.scoutingPurchasesEnabled = values.has("draft_class_features");
       draft.mediaFeaturesEnabled = values.has("media_features");
-      draft.step = "draft_class_type";
       break;
     }
 
     case LEAGUE_SETUP_CUSTOM_IDS.draftClassType:
-      draft.draftClassType = interaction.values[0] as LeagueSetupDraft["draftClassType"];
-      draft.step = "streaming";
+      draft.draftClassType = value as LeagueSetupDraft["draftClassType"];
       break;
 
-    case LEAGUE_SETUP_CUSTOM_IDS.streamingRequirement:
-      draft.streamingRequirement = interaction.values[0] as LeagueSetupDraft["streamingRequirement"];
-      draft.step = "fourth_down";
+    case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming:
+      draft.regularSeasonStreamingRequirement = value as LeagueSetupDraft["regularSeasonStreamingRequirement"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming:
+      draft.postseasonStreamingRequirement = value as LeagueSetupDraft["postseasonStreamingRequirement"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.streamingSide:
+      draft.streamingSide = value as LeagueSetupDraft["streamingSide"];
       break;
 
     case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRule:
-      draft.fourthDownRuleType = interaction.values[0] as LeagueSetupDraft["fourthDownRuleType"];
-      draft.step = "gameplay";
+      draft.fourthDownRuleType = value as LeagueSetupDraft["fourthDownRuleType"];
       break;
 
-    case LEAGUE_SETUP_CUSTOM_IDS.gameplayCore:
-      applyGameplayPreset(draft, interaction.values[0]);
-      draft.step = "review";
+    case LEAGUE_SETUP_CUSTOM_IDS.positionChangePolicy:
+      draft.positionChangePolicy = value as LeagueSetupDraft["positionChangePolicy"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy:
+      draft.tradeApprovalPolicy = value as LeagueSetupDraft["tradeApprovalPolicy"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.cpuRules: {
+      const values = new Set(interaction.values);
+      draft.cpuTradingAllowed = values.has("cpu_trading");
+      draft.cpuFreeAgencyPolicy = values.has("cpu_fa_open") ? "open" : "disabled";
+      break;
+    }
+
+    case LEAGUE_SETUP_CUSTOM_IDS.difficulty:
+      draft.difficulty = value as LeagueSetupDraft["difficulty"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.quarterLength:
+      draft.quarterLengthMinutes = Number(value);
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockEnabled:
+      draft.acceleratedClockEnabled = value === "yes";
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockSeconds:
+      draft.acceleratedClockMinimumSeconds = Number(value);
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.salaryCap:
+      draft.salaryCapEnabled = value === "yes";
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.tradeDeadline:
+      draft.tradeDeadlineEnabled = value === "yes";
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.abilities:
+      draft.abilitiesEnabled = value === "yes";
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.wearAndTear:
+      draft.wearAndTearEnabled = value === "yes";
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.injuryPolicy:
+      draft.injuryPolicy = value as LeagueSetupDraft["injuryPolicy"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled:
+      draft.offensivePlayCallLimitsEnabled = value === "yes";
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit:
+      draft.offensivePlayCallLimit = Number(value);
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown:
+      draft.offensivePlayCallCooldown = Number(value);
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveLimitsEnabled:
+      draft.defensivePlayCallLimitsEnabled = value === "yes";
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit:
+      draft.defensivePlayCallLimit = Number(value);
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown:
+      draft.defensivePlayCallCooldown = Number(value);
       break;
   }
 
+  draft.step = getNextLeagueSetupStep(draft.step, draft);
   applyLeagueSetupDependencies(draft);
   leagueSetupSessions.set(interaction.user.id, draft);
 
   await interaction.update(buildLeagueSetupWindow(draft));
-}
-
-function applyGameplayPreset(draft: LeagueSetupDraft, preset: string) {
-  if (preset === "salary_cap_on") {
-    draft.difficulty = "all_madden";
-    draft.quarterLengthMinutes = 8;
-    draft.acceleratedClockEnabled = true;
-    draft.acceleratedClockMinimumSeconds = 20;
-    draft.salaryCapEnabled = true;
-    draft.tradeDeadlineEnabled = false;
-    draft.abilitiesEnabled = true;
-    draft.wearAndTearEnabled = true;
-    draft.capManagementAssistantEnabled = draft.coinEconomyEnabled;
-    return;
-  }
-
-  if (preset === "casual") {
-    draft.difficulty = "all_pro";
-    draft.quarterLengthMinutes = 7;
-    draft.acceleratedClockEnabled = true;
-    draft.acceleratedClockMinimumSeconds = 20;
-    draft.salaryCapEnabled = false;
-    draft.tradeDeadlineEnabled = false;
-    draft.abilitiesEnabled = true;
-    draft.wearAndTearEnabled = false;
-    return;
-  }
-
-  draft.difficulty = "all_madden";
-  draft.quarterLengthMinutes = 8;
-  draft.acceleratedClockEnabled = true;
-  draft.acceleratedClockMinimumSeconds = 20;
-  draft.salaryCapEnabled = false;
-  draft.tradeDeadlineEnabled = false;
-  draft.abilitiesEnabled = true;
-  draft.wearAndTearEnabled = true;
 }
 
 async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButton(): boolean }>) {
@@ -441,6 +474,9 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
           `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`,
           `Media: ${result.configuration.media_features_enabled ? "Enabled" : "Disabled"}`,
           `Draft Classes: ${result.configuration.draft_class_features_enabled ? result.configuration.draft_class_type : "Disabled"}`,
+          `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`,
+          `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`,
+          `Injuries: ${result.configuration.injury_policy}`,
           "",
           "Economy payouts will remain inactive until at least 8 users are verified through Discord team links and imported game users."
         ].join("\n"))
