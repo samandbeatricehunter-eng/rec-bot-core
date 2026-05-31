@@ -96,6 +96,68 @@ export const recApi = {
   getImportJob: (jobId: string) => recFetch<any>(REC_API_ROUTES.importJob(jobId)),
   getImportStatus: (guildId: string) => recFetch<any>(REC_API_ROUTES.importStatus(guildId)),
   getImportHistory: (guildId: string) => recFetch<any>(REC_API_ROUTES.importHistory(guildId)),
+  getImportMissingResults: (jobId: string) => recFetch<any>(REC_API_ROUTES.importMissingResults(jobId)),
+
+  executeImportJob: (importJobId: string) =>
+    recFetch<any>(REC_API_ROUTES.executeImportJob, {
+      method: "POST",
+      body: JSON.stringify({ importJobId })
+    }),
+
+  previewImportJob: (importJobId: string) =>
+    recFetch<any>(REC_API_ROUTES.previewImportJob, {
+      method: "POST",
+      body: JSON.stringify({ importJobId })
+    }),
+
+  approveImportJob: (importJobId: string) =>
+    recFetch<any>(REC_API_ROUTES.approveImportJob, {
+      method: "POST",
+      body: JSON.stringify({ importJobId })
+    }),
+
+  cancelImportJob: (input: { importJobId: string; reason?: string | null }) =>
+    recFetch<any>(REC_API_ROUTES.cancelImportJob, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  requestMissingResultReimport: (input: {
+    gameId: string;
+    requestedByDiscordId: string;
+    notes?: string | null;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.requestMissingResultReimport(input.gameId), {
+      method: "POST",
+      body: JSON.stringify({ requestedByDiscordId: input.requestedByDiscordId, notes: input.notes ?? null })
+    }),
+
+  manuallyResolveMissingResult: (input: {
+    gameId: string;
+    homeScore: number;
+    awayScore: number;
+    resolvedByDiscordId: string;
+    notes?: string | null;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.manualMissingResultScore(input.gameId), {
+      method: "POST",
+      body: JSON.stringify({
+        homeScore: input.homeScore,
+        awayScore: input.awayScore,
+        resolvedByDiscordId: input.resolvedByDiscordId,
+        notes: input.notes ?? null
+      })
+    }),
+
+  ignoreMissingResult: (input: {
+    gameId: string;
+    requestedByDiscordId: string;
+    notes?: string | null;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.ignoreMissingResult(input.gameId), {
+      method: "POST",
+      body: JSON.stringify({ requestedByDiscordId: input.requestedByDiscordId, notes: input.notes ?? null })
+    }),
 
   updateImportJobStatus: (input: {
     importJobId: string;
