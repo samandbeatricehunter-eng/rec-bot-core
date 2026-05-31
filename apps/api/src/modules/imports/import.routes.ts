@@ -6,8 +6,8 @@ import {
   UpdateEndpointAttemptSchema,
   UpdateImportJobStatusSchema
 } from "./import.schemas.js";
+import { createImportJob } from "./import-locked.service.js";
 import {
-  createImportJob,
   getImportJob,
   getLatestImportJobForGuild,
   listImportJobsForGuild,
