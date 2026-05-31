@@ -35,6 +35,33 @@ export type StagedStandingInput = {
   rawPayload?: Record<string, unknown>;
 };
 
+export type StagedTeamStatInput = {
+  importJobId: string;
+  leagueId: string;
+  seasonNumber: number;
+  seasonStage?: string;
+  weekNumber?: number | null;
+  teamExternalId?: string | null;
+  teamName?: string | null;
+  stats?: Record<string, unknown>;
+  rawPayload?: Record<string, unknown>;
+};
+
+export type StagedPlayerStatInput = {
+  importJobId: string;
+  leagueId: string;
+  seasonNumber: number;
+  seasonStage?: string;
+  weekNumber?: number | null;
+  playerExternalId?: string | null;
+  playerName?: string | null;
+  teamExternalId?: string | null;
+  teamName?: string | null;
+  position?: string | null;
+  stats?: Record<string, unknown>;
+  rawPayload?: Record<string, unknown>;
+};
+
 export async function stageGames(games: StagedGameInput[]) {
   if (games.length === 0) return { count: 0, rows: [] };
 
@@ -96,6 +123,65 @@ export async function stageStandings(standings: StagedStandingInput[]) {
 
   if (result.error) {
     throw new ApiError(500, "Failed to stage imported standings.", result.error);
+  }
+
+  return { count: result.data?.length ?? 0, rows: result.data ?? [] };
+}
+
+export async function stageTeamStats(teamStats: StagedTeamStatInput[]) {
+  if (teamStats.length === 0) return { count: 0, rows: [] };
+
+  const result = await supabase
+    .from("rec_import_staging_team_stats")
+    .upsert(
+      teamStats.map((team) => ({
+        import_job_id: team.importJobId,
+        league_id: team.leagueId,
+        season_number: team.seasonNumber,
+        season_stage: team.seasonStage ?? "regular_season",
+        week_number: team.weekNumber ?? null,
+        team_external_id: team.teamExternalId ?? null,
+        team_name: team.teamName ?? null,
+        stats: team.stats ?? {},
+        raw_payload: team.rawPayload ?? {}
+      })),
+      { onConflict: "import_job_id,team_external_id,week_number" }
+    )
+    .select("*");
+
+  if (result.error) {
+    throw new ApiError(500, "Failed to stage imported team stats.", result.error);
+  }
+
+  return { count: result.data?.length ?? 0, rows: result.data ?? [] };
+}
+
+export async function stagePlayerStats(playerStats: StagedPlayerStatInput[]) {
+  if (playerStats.length === 0) return { count: 0, rows: [] };
+
+  const result = await supabase
+    .from("rec_import_staging_player_stats")
+    .upsert(
+      playerStats.map((player) => ({
+        import_job_id: player.importJobId,
+        league_id: player.leagueId,
+        season_number: player.seasonNumber,
+        season_stage: player.seasonStage ?? "regular_season",
+        week_number: player.weekNumber ?? null,
+        player_external_id: player.playerExternalId ?? null,
+        player_name: player.playerName ?? null,
+        team_external_id: player.teamExternalId ?? null,
+        team_name: player.teamName ?? null,
+        position: player.position ?? null,
+        stats: player.stats ?? {},
+        raw_payload: player.rawPayload ?? {}
+      })),
+      { onConflict: "import_job_id,player_external_id,week_number" }
+    )
+    .select("*");
+
+  if (result.error) {
+    throw new ApiError(500, "Failed to stage imported player stats.", result.error);
   }
 
   return { count: result.data?.length ?? 0, rows: result.data ?? [] };
