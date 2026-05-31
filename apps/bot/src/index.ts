@@ -26,9 +26,20 @@ import {
   type LeagueSetupDraft
 } from "./ui/league-setup.js";
 import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
+import {
+  handleCreateDefaultTeams,
+  handleTeamLinkSelect,
+  handleTeamLinkUserPage,
+  handleViewLinkedUsersTeams,
+  handleViewOpenTeams,
+  renderTeamLinkPanel,
+  startTeamLinkFlow,
+  teamLinkSessions
+} from "./flows/team-linking.js";
+import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
 const leagueSetupSessions = new Map<string, LeagueSetupDraft>();
@@ -51,6 +62,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) {
         await handleMainMenuSelect(interaction);
@@ -59,6 +71,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) {
         await handleLeagueSetupSelect(interaction);
+        return;
+      }
+
+      if (Object.values(TEAM_LINK_CUSTOM_IDS).includes(interaction.customId as any)) {
+        await handleTeamLinkSelect(interaction);
         return;
       }
     }
@@ -75,14 +92,35 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       }
 
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) {
-        await interaction.update({
-          embeds: [
-            new EmbedBuilder()
-              .setTitle("User / Team Linking")
-              .setDescription("This panel is available. The full link workflow is the next build target.")
-          ],
-          components: []
-        });
+        await renderTeamLinkPanel(interaction);
+        return;
+      }
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.createDefaultTeams) {
+        await handleCreateDefaultTeams(interaction);
+        return;
+      }
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.viewLinked) {
+        await handleViewLinkedUsersTeams(interaction);
+        return;
+      }
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.viewOpen) {
+        await handleViewOpenTeams(interaction);
+        return;
+      }
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.userTeamLinkPanel) {
+        await startTeamLinkFlow(interaction);
+        return;
+      }
+
+      if (
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.userPagePrev ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.userPageNext
+      ) {
+        await handleTeamLinkUserPage(interaction);
         return;
       }
 
@@ -172,6 +210,8 @@ async function renderMainMenuFromComponent(interaction: Extract<Interaction, { i
   if (!interaction.isButton()) return;
 
   const isAdmin = isDiscordAdminInteraction(interaction);
+  leagueSetupSessions.delete(interaction.user.id);
+  teamLinkSessions.delete(interaction.user.id);
   await interaction.update(await buildMainMenuPayload(interaction.user.id, isAdmin));
 }
 
@@ -186,6 +226,8 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
     return;
   }
 
+  leagueSetupSessions.delete(interaction.user.id);
+  teamLinkSessions.delete(interaction.user.id);
   await interaction.update({
     embeds: [buildAdminPanelEmbed()],
     components: buildAdminPanelRows()
@@ -485,6 +527,22 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
   });
 }
 
+function isTeamLinkMessage(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return false;
+
+  const title = interaction.message.embeds.at(0)?.title ?? "";
+
+  return [
+    "User / Team Linking",
+    "Link User to Team",
+    "Linked Users / Teams",
+    "Open Teams",
+    "NFL Teams Refreshed",
+    "User Linked to Team",
+    "Team Not Available"
+  ].some((teamLinkTitle) => title.includes(teamLinkTitle));
+}
+
 async function handleBackNavigation(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
 
@@ -505,6 +563,12 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
     draft.step = previous;
     leagueSetupSessions.set(interaction.user.id, draft);
     await interaction.update(buildLeagueSetupWindow(draft));
+    return;
+  }
+
+  if (teamLinkSessions.has(interaction.user.id) || isTeamLinkMessage(interaction)) {
+    teamLinkSessions.delete(interaction.user.id);
+    await renderTeamLinkPanel(interaction);
     return;
   }
 
