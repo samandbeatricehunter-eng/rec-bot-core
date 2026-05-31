@@ -1,15 +1,78 @@
 import { REC_API_ROUTES, type RecTeamAuthority } from "@rec/shared";
 import { env } from "../config/env.js";
-async function recFetch<T>(path:string, init?:RequestInit): Promise<T> { const response = await fetch(`${env.REC_CORE_API_URL}${path}`, { ...init, headers:{ "content-type":"application/json", "x-rec-api-key": env.REC_INTERNAL_API_KEY ?? "", ...(init?.headers ?? {}) } }); if (!response.ok) throw new Error(`REC API request failed: ${response.status} ${await response.text()}`); return response.json() as Promise<T>; }
+import type { LeagueSetupDraft } from "../ui/league-setup.js";
+
+async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${env.REC_CORE_API_URL}${path}`, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      "x-rec-api-key": env.REC_INTERNAL_API_KEY ?? "",
+      ...(init?.headers ?? {})
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`REC API request failed: ${response.status} ${await response.text()}`);
+  }
+
+  return response.json() as Promise<T>;
+}
+
 export const recApi = {
- health: () => recFetch<{ok:boolean;service:string}>(REC_API_ROUTES.health),
- getBaseline: (discordId:string) => recFetch<any>(REC_API_ROUTES.userBaseline(discordId)),
- getWallet: (discordId:string) => recFetch<any>(REC_API_ROUTES.userWallet(discordId)),
- registerServer: (input:{guildId:string;name:string;setupMode?:string;requestedByDiscordId?:string}) => recFetch<any>(REC_API_ROUTES.registerServer,{method:"POST",body:JSON.stringify(input)}),
- createLeague: (input:{guildId:string;name:string;leagueType?:string;currentPhase?:string;currentWeek?:number;trustMode?:"imported"|"manual"|"hybrid";importEnabled?:boolean;requestedByDiscordId?:string}) => recFetch<any>(REC_API_ROUTES.createLeague,{method:"POST",body:JSON.stringify(input)}),
- createDefaultTeams: (guildId:string) => recFetch<any>(REC_API_ROUTES.createDefaultTeams,{method:"POST",body:JSON.stringify({guildId})}),
- getLinkedUsersTeams: (guildId:string) => recFetch<any>(REC_API_ROUTES.linkedUsersTeams(guildId)),
- getOpenTeams: (guildId:string) => recFetch<any>(REC_API_ROUTES.openTeams(guildId)),
- linkUserToTeam: (input:{guildId:string;discordId:string;teamId:string;authority:RecTeamAuthority;requestedByDiscordId?:string}) => recFetch<any>(REC_API_ROUTES.linkUserToTeam,{method:"POST",body:JSON.stringify(input)}),
- createCustomTeamReplacement: (input:{guildId:string;replacementTeamAbbreviation:string;customTeamName:string;requestedByDiscordId?:string}) => recFetch<any>(REC_API_ROUTES.createCustomTeamReplacement,{method:"POST",body:JSON.stringify(input)})
+  health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),
+  getBaseline: (discordId: string) => recFetch<any>(REC_API_ROUTES.userBaseline(discordId)),
+  getWallet: (discordId: string) => recFetch<any>(REC_API_ROUTES.userWallet(discordId)),
+
+  registerServer: (input: {
+    guildId: string;
+    name: string;
+    setupMode?: string;
+    requestedByDiscordId?: string;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.registerServer, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  createLeague: (input: LeagueSetupDraft & {
+    guildId: string;
+    requestedByDiscordId?: string;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.createLeague, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  createDefaultTeams: (guildId: string) =>
+    recFetch<any>(REC_API_ROUTES.createDefaultTeams, {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  getLinkedUsersTeams: (guildId: string) => recFetch<any>(REC_API_ROUTES.linkedUsersTeams(guildId)),
+  getOpenTeams: (guildId: string) => recFetch<any>(REC_API_ROUTES.openTeams(guildId)),
+
+  linkUserToTeam: (input: {
+    guildId: string;
+    discordId: string;
+    teamId: string;
+    authority: RecTeamAuthority;
+    requestedByDiscordId?: string;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.linkUserToTeam, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  createCustomTeamReplacement: (input: {
+    guildId: string;
+    replacementTeamAbbreviation: string;
+    customTeamName: string;
+    requestedByDiscordId?: string;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.createCustomTeamReplacement, {
+      method: "POST",
+      body: JSON.stringify(input)
+    })
 };

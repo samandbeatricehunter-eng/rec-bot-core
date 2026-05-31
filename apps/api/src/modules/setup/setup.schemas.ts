@@ -10,8 +10,10 @@ export const RegisterServerSchema = z.object({
 export const CreateLeagueSchema = z.object({
   guildId: z.string().min(1),
   name: z.string().min(1),
+
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
   importMode: z.enum(["manual", "ea_import", "companion_app_export"]).default("manual"),
+
   currentPhase: z.enum([
     "fantasy_draft",
     "preseason",
@@ -26,9 +28,7 @@ export const CreateLeagueSchema = z.object({
     "completed"
   ]).default("preseason"),
   currentWeek: z.number().int().optional(),
-  draftClassFeaturesEnabled: z.boolean().default(false),
-  draftClassType: z.enum(["custom", "auto_gen", "realistic", "other"]).default("auto_gen"),
-  mediaFeaturesEnabled: z.boolean().default(true),
+
   coinEconomyEnabled: z.boolean().default(false),
   customPlayersEnabled: z.boolean().default(false),
   legendsEnabled: z.boolean().default(false),
@@ -36,6 +36,46 @@ export const CreateLeagueSchema = z.object({
   ageResetsEnabled: z.boolean().default(false),
   trainingPackagesEnabled: z.boolean().default(false),
   contractAdjustmentPurchasesEnabled: z.boolean().default(false),
+  capManagementAssistantEnabled: z.boolean().default(false),
+
+  draftClassFeaturesEnabled: z.boolean().default(false),
+  draftClassType: z.enum(["custom", "auto_gen", "realistic", "other"]).default("auto_gen"),
+  scoutingPurchasesEnabled: z.boolean().default(false),
+  mediaFeaturesEnabled: z.boolean().default(true),
+
+  streamingRequirement: z.enum(["required", "recommended", "disabled"]).default("recommended"),
+  streamingScope: z.enum(["every_game", "playoffs_only"]).default("every_game"),
+  streamingSide: z.enum(["home", "away", "either", "both"]).default("either"),
+
+  fourthDownRuleType: z.enum(["none", "standard_rec", "custom"]).default("standard_rec"),
+  customFourthDownRule: z.string().optional().nullable(),
+
+  positionChangePolicy: z.enum(["open", "restricted", "highly_restricted"]).default("restricted"),
+  positionChangePolicyDescription: z.string().optional(),
+
+  customPlaybooksAllowed: z.boolean().default(false),
+  tradeApprovalPolicy: z.enum(["no_approval_required", "commissioner_review", "competition_committee_review"]).default("competition_committee_review"),
+  cpuTradingAllowed: z.boolean().default(true),
+  cpuFreeAgencyPolicy: z.enum(["open", "restricted", "disabled"]).default("open"),
+  injuryPolicy: z.enum(["off", "on_standard", "on_reduced"]).default("on_standard"),
+
+  difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden"]).default("all_madden"),
+  quarterLengthMinutes: z.number().int().min(1).max(15).default(8),
+  acceleratedClockEnabled: z.boolean().default(true),
+  acceleratedClockMinimumSeconds: z.number().int().min(0).max(40).default(20),
+  salaryCapEnabled: z.boolean().default(false),
+  tradeDeadlineEnabled: z.boolean().default(false),
+  abilitiesEnabled: z.boolean().default(true),
+  wearAndTearEnabled: z.boolean().default(true),
+
+  offensivePlayCallLimitsEnabled: z.boolean().default(false),
+  offensivePlayCallLimit: z.number().int().min(1).max(50).optional().nullable(),
+  offensivePlayCallCooldown: z.number().int().min(1).max(50).optional().nullable(),
+
+  defensivePlayCallLimitsEnabled: z.boolean().default(false),
+  defensivePlayCallLimit: z.number().int().min(1).max(50).optional().nullable(),
+  defensivePlayCallCooldown: z.number().int().min(1).max(50).optional().nullable(),
+
   requestedByDiscordId: z.string().min(1).optional()
 });
 

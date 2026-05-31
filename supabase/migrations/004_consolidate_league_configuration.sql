@@ -1,0 +1,12 @@
+-- Consolidates per-league settings into one source of truth.
+-- This migration mirrors the applied Supabase migration named:
+-- consolidate_league_configuration
+--
+-- It creates rec_league_configuration for:
+-- - feature flags
+-- - rule settings
+-- - gameplay settings
+-- - dependency enforcement
+
+-- Migration already applied through Supabase in this build session.
+-- Kept in repository so the schema history is auditable.
