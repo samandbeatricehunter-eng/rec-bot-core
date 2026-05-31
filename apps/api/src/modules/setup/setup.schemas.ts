@@ -74,10 +74,12 @@ export const CreateLeagueSchema = z.object({
 
   offensivePlayCallLimitsEnabled: z.boolean().default(false),
   offensivePlayCallLimit: z.number().int().min(1).max(50).optional().nullable(),
+  offensivePlayCallCooldownEnabled: z.boolean().default(false),
   offensivePlayCallCooldown: z.number().int().min(1).max(50).optional().nullable(),
 
   defensivePlayCallLimitsEnabled: z.boolean().default(false),
   defensivePlayCallLimit: z.number().int().min(1).max(50).optional().nullable(),
+  defensivePlayCallCooldownEnabled: z.boolean().default(false),
   defensivePlayCallCooldown: z.number().int().min(1).max(50).optional().nullable(),
 
   requestedByDiscordId: z.string().min(1).optional()
