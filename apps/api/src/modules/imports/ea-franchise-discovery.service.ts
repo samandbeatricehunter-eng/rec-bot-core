@@ -7,18 +7,42 @@ export type DiscoverEaFranchisesInput = {
   console?: RecEaConsole;
 };
 
-function toCompanionToken(account: Record<string, any>): EaCompanionToken {
+type EaAccountRecord = Record<string, any>;
+
+function getAccountConsole(account: EaAccountRecord): RecEaConsole {
+  return (account.console ?? account.platform ?? "xbsx") as RecEaConsole;
+}
+
+function toCompanionToken(account: EaAccountRecord): EaCompanionToken {
   if (!account.access_token || !account.refresh_token || !account.expires_at || !account.blaze_id) {
-    throw new ApiError(409, "EA account is missing token data. Reconnect EA before discovering franchises.");
+    throw new ApiError(409, "EA account is connected, but OAuth token data is missing. Reconnect EA before discovering franchises.");
   }
 
   return {
     accessToken: account.access_token,
     refreshToken: account.refresh_token,
     expiry: new Date(account.expires_at),
-    console: account.console as RecEaConsole,
+    console: getAccountConsole(account),
     blazeId: String(account.blaze_id)
   };
+}
+
+async function loadRecUserIdForDiscordId(discordId: string) {
+  const account = await supabase
+    .from("rec_discord_accounts")
+    .select("user_id")
+    .eq("discord_id", discordId)
+    .maybeSingle();
+
+  if (account.error) {
+    throw new ApiError(500, "Failed to load Discord account for EA discovery.", account.error);
+  }
+
+  if (!account.data?.user_id) {
+    throw new ApiError(404, "Discord account was not found in REC Core. Open /menu once before connecting EA.");
+  }
+
+  return account.data.user_id as string;
 }
 
 async function loadRecentImports(externalLeagueIds: string[]) {
@@ -47,14 +71,16 @@ async function loadRecentImports(externalLeagueIds: string[]) {
 }
 
 export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
+  const userId = await loadRecUserIdForDiscordId(input.discordId);
+
   const accountQuery = supabase
     .from("rec_ea_accounts")
     .select("*")
-    .eq("discord_id", input.discordId)
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
   const accounts = input.console
-    ? await accountQuery.eq("console", input.console).limit(1)
+    ? await accountQuery.eq("platform", input.console).limit(1)
     : await accountQuery.limit(1);
 
   if (accounts.error) {
@@ -63,7 +89,7 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
 
   const account = accounts.data?.[0];
   if (!account) {
-    throw new ApiError(404, "No connected EA account was found for this Discord user.");
+    throw new ApiError(404, "No connected EA account was found for this REC user.");
   }
 
   const discovered = await getEaFranchises(toCompanionToken(account));
@@ -72,9 +98,6 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
   const updatedAccount = await supabase
     .from("rec_ea_accounts")
     .update({
-      access_token: discovered.token.accessToken,
-      refresh_token: discovered.token.refreshToken,
-      expires_at: discovered.token.expiry.toISOString(),
       blaze_id: discovered.token.blazeId,
       updated_at: now
     })
@@ -83,7 +106,7 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
     .single();
 
   if (updatedAccount.error) {
-    throw new ApiError(500, "Failed to update EA account token after discovery.", updatedAccount.error);
+    throw new ApiError(500, "Failed to update EA account after discovery.", updatedAccount.error);
   }
 
   const rows = discovered.franchises.map((franchise) => ({
@@ -119,8 +142,10 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
   return {
     account: {
       id: updatedAccount.data.id,
-      discordId: updatedAccount.data.discord_id,
-      console: updatedAccount.data.console,
+      userId,
+      discordId: input.discordId,
+      platform: updatedAccount.data.platform,
+      gamertag: updatedAccount.data.gamertag,
       blazeId: updatedAccount.data.blaze_id
     },
     franchises: (upserted.data ?? []).map((franchise: any) => ({
