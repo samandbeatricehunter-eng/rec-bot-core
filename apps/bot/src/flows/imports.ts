@@ -3,7 +3,8 @@ import type { RecImportMode } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import {
-  buildDiscoverFranchisesRows,
+  buildEaConnectCodeModal,
+  buildEaConnectRows,
   buildEndpointSelectRow,
   buildFranchiseSelectRow,
   buildImportFlowNavigationRows,
@@ -20,6 +21,8 @@ export type ImportDraft = {
   eaExternalLeagueId?: string;
   eaExternalLeagueName?: string;
   franchises?: any[];
+  eaLoginUrl?: string;
+  eaConsole?: "xone" | "ps4" | "pc" | "ps5" | "xbsx" | "stadia";
 };
 
 export const importSessions = new Map<string, ImportDraft>();
@@ -40,12 +43,12 @@ export function buildImportPanelPayload() {
 }
 
 function statusIcon(status: string) {
-  if (status === "success" || status === "completed") return "✅";
-  if (status === "failed") return "❌";
-  if (status === "running" || status === "validating" || status === "reconciling") return "⏳";
-  if (status === "skipped" || status === "completed_with_warnings") return "⚠️";
-  if (status === "cancelled") return "🚫";
-  return "•";
+  if (status === "success" || status === "completed") return "OK";
+  if (status === "failed") return "FAILED";
+  if (status === "running" || status === "validating" || status === "reconciling") return "RUNNING";
+  if (status === "skipped" || status === "completed_with_warnings") return "WARN";
+  if (status === "cancelled") return "CANCELLED";
+  return "-";
 }
 
 function extractApiErrorMessage(error: unknown) {
@@ -64,12 +67,24 @@ function extractApiErrorMessage(error: unknown) {
   return message.replace(/^REC API request failed:\s*/i, "");
 }
 
+function normalizeEaAuthCode(raw: string) {
+  const trimmed = raw.trim();
+
+  try {
+    const url = new URL(trimmed);
+    return url.searchParams.get("code") ?? trimmed;
+  } catch {
+    const match = trimmed.match(/[?&]code=([^&\s]+)/);
+    return match ? decodeURIComponent(match[1]) : trimmed;
+  }
+}
+
 function formatEndpointAttempts(attempts: any[]) {
   if (!attempts?.length) return "No endpoint attempts recorded yet.";
 
   return attempts
     .map((attempt) => {
-      const records = typeof attempt.records_found === "number" ? ` — ${attempt.records_found} records` : "";
+      const records = typeof attempt.records_found === "number" ? ` - ${attempt.records_found} records` : "";
       const http = attempt.http_status ? ` (${attempt.http_status})` : "";
       return `${statusIcon(attempt.status)} ${attempt.endpoint_label}${http}${records}`;
     })
@@ -84,7 +99,7 @@ function formatImportJob(job: any) {
     `Status: **${String(job.status).replaceAll("_", " ")}**`,
     job.import_label ? `Label: **${job.import_label}**` : undefined,
     job.ea_external_league_name ? `EA League: **${job.ea_external_league_name}**` : undefined,
-    job.week_from || job.week_to ? `Weeks: **${job.week_from ?? "?"} → ${job.week_to ?? "?"}**` : undefined,
+    job.week_from || job.week_to ? `Weeks: **${job.week_from ?? "?"} -> ${job.week_to ?? "?"}**` : undefined,
     `Created: ${job.created_at ? new Date(job.created_at).toLocaleString() : "Unknown"}`
   ].filter(Boolean).join("\n");
 }
@@ -99,7 +114,7 @@ function formatRecentImports(franchise: any) {
     const endpoints = Array.isArray(job.selected_endpoint_keys) && job.selected_endpoint_keys.length
       ? job.selected_endpoint_keys.join(", ")
       : "No endpoint list recorded";
-    return `${index + 1}. ${dateText} — ${String(job.status).replaceAll("_", " ")} — ${endpoints}`;
+    return `${index + 1}. ${dateText} - ${String(job.status).replaceAll("_", " ")} - ${endpoints}`;
   }).join("\n");
 }
 
@@ -115,7 +130,7 @@ function buildFranchiseDiscoveryDescription(result: any) {
 
   const preview = franchises.slice(0, 5).map((franchise: any, index: number) => {
     const name = franchise.league_name ?? franchise.leagueName ?? "Unknown Franchise";
-    const team = franchise.user_team_name ? ` — ${franchise.user_team_name}` : "";
+    const team = franchise.user_team_name ? ` - ${franchise.user_team_name}` : "";
     const members = typeof franchise.num_members === "number" ? ` (${franchise.num_members} members)` : "";
     return `${index + 1}. **${name}**${team}${members}`;
   });
@@ -127,6 +142,40 @@ function buildFranchiseDiscoveryDescription(result: any) {
     "",
     "Select the franchise to import from. The next screen will show recent import history before endpoint selection."
   ].join("\n");
+}
+
+function buildEaConnectDescription(status: any) {
+  return [
+    "EA login is required before franchise discovery can continue.",
+    "",
+    "1. Open this EA login URL:",
+    status.loginUrl,
+    "",
+    "2. Complete the EA login.",
+    "3. After EA redirects you, copy the full redirected URL or the `code=` value.",
+    "4. Click **Enter EA Auth Code** and paste it.",
+    "",
+    "After the code is accepted, REC will save the EA token and automatically discover your franchises."
+  ].join("\n");
+}
+
+async function discoverAndRenderFranchises(interaction: Extract<Interaction, { editReply: any; user: any }>, input?: { guildId?: string | null }) {
+  const result = await recApi.discoverEaFranchises({ discordId: interaction.user.id });
+  const franchises = result.franchises ?? [];
+  importSessions.set(interaction.user.id, {
+    ...(importSessions.get(interaction.user.id) ?? {}),
+    importMode: "ea_import",
+    franchises
+  });
+
+  await interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Discovered EA Franchises")
+        .setDescription(buildFranchiseDiscoveryDescription(result))
+    ],
+    components: franchises.length ? [buildFranchiseSelectRow(franchises), ...buildImportFlowNavigationRows()] : buildEaConnectRows()
+  });
 }
 
 export async function renderImportPanel(interaction: Extract<Interaction, { isButton(): boolean }>) {
@@ -174,8 +223,8 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     await interaction.deferUpdate();
     const result = await recApi.getImportHistory(interaction.guildId);
     const rows = (result.jobs ?? []).slice(0, 10).map((job: any, index: number) => {
-      const label = job.import_label ? ` — ${job.import_label}` : "";
-      return `${index + 1}. ${statusIcon(job.status)} **${String(job.import_mode).replaceAll("_", " ")}** — ${String(job.status).replaceAll("_", " ")}${label}`;
+      const label = job.import_label ? ` - ${job.import_label}` : "";
+      return `${index + 1}. ${statusIcon(job.status)} **${String(job.import_mode).replaceAll("_", " ")}** - ${String(job.status).replaceAll("_", " ")}${label}`;
     });
 
     await interaction.editReply({
@@ -193,39 +242,24 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     return;
   }
 
+  if (interaction.customId === IMPORT_CUSTOM_IDS.connectEaAccount) {
+    await interaction.showModal(buildEaConnectCodeModal());
+    return;
+  }
+
   if (interaction.customId === IMPORT_CUSTOM_IDS.discoverFranchises) {
     await interaction.deferUpdate();
-
     try {
-      const result = await recApi.discoverEaFranchises({ discordId: interaction.user.id });
-      const franchises = result.franchises ?? [];
-      importSessions.set(interaction.user.id, {
-        importMode: "ea_import",
-        franchises
-      });
-
-      await interaction.editReply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("Discovered EA Franchises")
-            .setDescription(buildFranchiseDiscoveryDescription(result))
-        ],
-        components: franchises.length ? [buildFranchiseSelectRow(franchises), ...buildImportFlowNavigationRows()] : buildDiscoverFranchisesRows()
-      });
+      await discoverAndRenderFranchises(interaction, { guildId: interaction.guildId });
     } catch (error) {
+      const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id }).catch(() => null);
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
-            .setTitle("EA Franchise Discovery Needs Setup")
-            .setDescription([
-              extractApiErrorMessage(error),
-              "",
-              "This means the Discord import workflow is connected, but this REC user does not yet have a usable EA account/OAuth connection for franchise discovery.",
-              "",
-              "Next build target: EA account connection / OAuth setup."
-            ].join("\n"))
+            .setTitle("Connect EA Account")
+            .setDescription(status?.loginUrl ? buildEaConnectDescription(status) : extractApiErrorMessage(error))
         ],
-        components: buildDiscoverFranchisesRows()
+        components: buildEaConnectRows()
       });
     }
     return;
@@ -240,19 +274,35 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   const importMode = modeByButton[interaction.customId];
 
   if (importMode === "ea_import") {
-    importSessions.set(interaction.user.id, { importMode });
-    await interaction.update({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Import Franchise")
-          .setDescription([
-            "Start by discovering the Madden franchises available from the connected EA account.",
-            "",
-            "After discovery, select the franchise to import from, review recent imports, choose scope/endpoints, then run the import."
-          ].join("\n"))
-      ],
-      components: buildDiscoverFranchisesRows()
-    });
+    importSessions.set(interaction.user.id, { importMode: "ea_import" });
+    await interaction.deferUpdate();
+
+    try {
+      const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id });
+      if (status.connected) {
+        await discoverAndRenderFranchises(interaction, { guildId: interaction.guildId });
+        return;
+      }
+
+      importSessions.set(interaction.user.id, { importMode: "ea_import", eaLoginUrl: status.loginUrl });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Connect EA Account")
+            .setDescription(buildEaConnectDescription(status))
+        ],
+        components: buildEaConnectRows()
+      });
+    } catch (error) {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("EA Account Check Failed")
+            .setDescription(extractApiErrorMessage(error))
+        ],
+        components: buildImportPanelRows()
+      });
+    }
     return;
   }
 
@@ -275,13 +325,45 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   }
 }
 
+export async function handleImportModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || interaction.customId !== IMPORT_CUSTOM_IDS.eaConnectCodeModal) return;
+
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can connect EA accounts for imports.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferUpdate();
+
+  try {
+    const rawCode = interaction.fields.getTextInputValue(IMPORT_CUSTOM_IDS.eaAuthCodeInput);
+    const code = normalizeEaAuthCode(rawCode);
+    await recApi.connectEaAccount({ discordId: interaction.user.id, code });
+    await discoverAndRenderFranchises(interaction);
+  } catch (error) {
+    const draft = importSessions.get(interaction.user.id);
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("EA Connection Failed")
+          .setDescription([
+            extractApiErrorMessage(error),
+            "",
+            draft?.eaLoginUrl ? "Open the EA login URL again, complete login, then paste the newest code." : "Try the EA login again and paste the newest auth code."
+          ].join("\n"))
+      ],
+      components: buildEaConnectRows()
+    });
+  }
+}
+
 export async function handleImportSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
 
   const draft = importSessions.get(interaction.user.id);
 
   if (!draft) {
-    await interaction.reply({ content: "Import session expired. Open Admin Panel → Import Data again.", ephemeral: true });
+    await interaction.reply({ content: "Import session expired. Open Admin Panel -> Import Data again.", ephemeral: true });
     return;
   }
 
@@ -360,7 +442,7 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
     const result = await recApi.createImportJob({
       guildId: interaction.guildId,
       importMode: draft.importMode,
-      importLabel: `${draft.eaExternalLeagueName ? `${draft.eaExternalLeagueName} — ` : ""}${draft.importMode.replaceAll("_", " ")} — ${draft.weekScope?.replaceAll("_", " ") ?? "selected scope"}`,
+      importLabel: `${draft.eaExternalLeagueName ? `${draft.eaExternalLeagueName} - ` : ""}${draft.importMode.replaceAll("_", " ")} - ${draft.weekScope?.replaceAll("_", " ") ?? "selected scope"}`,
       requestedByDiscordId: interaction.user.id,
       eaExternalLeagueId: draft.eaExternalLeagueId,
       eaExternalLeagueName: draft.eaExternalLeagueName,
