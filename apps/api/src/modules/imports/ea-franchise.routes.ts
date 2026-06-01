@@ -2,11 +2,17 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
+import {
+  completeEaConnect,
+  getEaConnectStatus
+} from "./ea-account-connect.service.js";
 import { discoverEaFranchises } from "./ea-franchise-discovery.service.js";
 import {
   listEaFranchisesForGuild,
   selectEaFranchiseForGuild
 } from "./ea-franchise-selection.service.js";
+
+const EaConsoleSchema = z.enum(["xone", "ps4", "pc", "ps5", "xbsx", "stadia"]);
 
 const SelectEaFranchiseBodySchema = z.object({
   guildId: z.string().min(1),
@@ -17,10 +23,39 @@ const SelectEaFranchiseBodySchema = z.object({
 
 const DiscoverEaFranchisesBodySchema = z.object({
   discordId: z.string().min(1),
-  console: z.enum(["xone", "ps4", "pc", "ps5", "xbsx", "stadia"]).optional()
+  console: EaConsoleSchema.optional()
+});
+
+const EaConnectStatusBodySchema = z.object({
+  discordId: z.string().min(1),
+  console: EaConsoleSchema.optional()
+});
+
+const EaConnectCompleteBodySchema = z.object({
+  discordId: z.string().min(1),
+  code: z.string().min(1),
+  console: EaConsoleSchema.optional()
 });
 
 export async function eaFranchiseRoutes(app: FastifyInstance) {
+  app.post("/v1/imports/ea-account/status", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await getEaConnectStatus(EaConnectStatusBodySchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/imports/ea-account/connect", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await completeEaConnect(EaConnectCompleteBodySchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/imports/ea-franchise/discover", async (request, reply) => {
     try {
       requireInternalApiKey(request);
