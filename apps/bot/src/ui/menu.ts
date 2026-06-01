@@ -21,6 +21,7 @@ export const MENU_CUSTOM_IDS = {
   adminServerSetup: "rec:admin:server_setup",
   adminLeagueSetup: "rec:admin:league_setup",
   adminUserTeamLinking: "rec:admin:user_team_linking",
+  adminImports: "rec:admin:imports",
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input"
@@ -114,6 +115,12 @@ export function buildAdminPanelRows() {
         .setCustomId(MENU_CUSTOM_IDS.adminUserTeamLinking)
         .setLabel("User / Team Linking")
         .setStyle(ButtonStyle.Primary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(MENU_CUSTOM_IDS.adminImports)
+        .setLabel("Imports")
+        .setStyle(ButtonStyle.Success)
     )
   ];
 }
