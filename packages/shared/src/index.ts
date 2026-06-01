@@ -20,6 +20,8 @@ export const REC_API_ROUTES = {
   importMissingResults: (jobId: string) => `/v1/imports/${jobId}/missing-results`,
   importStatus: (guildId: string) => `/v1/imports/guild/${guildId}/status`,
   importHistory: (guildId: string) => `/v1/imports/guild/${guildId}/history`,
+  eaAccountStatus: "/v1/imports/ea-account/status",
+  eaAccountConnect: "/v1/imports/ea-account/connect",
   discoverEaFranchises: "/v1/imports/ea-franchise/discover",
   eaFranchises: (guildId: string) => `/v1/imports/guild/${guildId}/ea-franchises`,
   selectEaFranchise: "/v1/imports/ea-franchise/select",
