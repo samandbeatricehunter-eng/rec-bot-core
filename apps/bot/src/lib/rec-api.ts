@@ -76,6 +76,28 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  discoverEaFranchises: (input: {
+    discordId: string;
+    console?: "xone" | "ps4" | "pc" | "ps5" | "xbsx" | "stadia";
+  }) =>
+    recFetch<any>(REC_API_ROUTES.discoverEaFranchises, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  getEaFranchises: (guildId: string) => recFetch<any>(REC_API_ROUTES.eaFranchises(guildId)),
+
+  selectEaFranchise: (input: {
+    guildId: string;
+    eaFranchiseId: string;
+    selectedByDiscordId: string;
+    replacementReason?: string | null;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.selectEaFranchise, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   createImportJob: (input: {
     guildId: string;
     importMode: RecImportMode;
