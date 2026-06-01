@@ -2,8 +2,11 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ModalBuilder,
   StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder
+  StringSelectMenuOptionBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } from "discord.js";
 import { buildNavigationRow } from "./navigation.js";
 
@@ -12,6 +15,9 @@ export const IMPORT_CUSTOM_IDS = {
   eaImport: "rec:imports:ea",
   companionImport: "rec:imports:companion",
   manualImport: "rec:imports:manual",
+  connectEaAccount: "rec:imports:ea_connect",
+  eaConnectCodeModal: "rec:imports:ea_connect_code_modal",
+  eaAuthCodeInput: "rec:imports:ea_auth_code",
   discoverFranchises: "rec:imports:discover_franchises",
   franchiseSelect: "rec:imports:franchise_select",
   status: "rec:imports:status",
@@ -59,6 +65,34 @@ export function buildImportPanelRows() {
     ),
     buildNavigationRow({ includeAdminPanel: true })
   ];
+}
+
+export function buildEaConnectRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.connectEaAccount)
+        .setLabel("Enter EA Auth Code")
+        .setStyle(ButtonStyle.Primary)
+    ),
+    ...buildImportFlowNavigationRows()
+  ];
+}
+
+export function buildEaConnectCodeModal() {
+  return new ModalBuilder()
+    .setCustomId(IMPORT_CUSTOM_IDS.eaConnectCodeModal)
+    .setTitle("Connect EA Account")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(IMPORT_CUSTOM_IDS.eaAuthCodeInput)
+          .setLabel("Paste the EA auth code from the redirect URL")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setPlaceholder("Paste the code= value from the EA redirect URL.")
+      )
+    );
 }
 
 export function buildDiscoverFranchisesRows() {
