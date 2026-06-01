@@ -12,6 +12,8 @@ export const IMPORT_CUSTOM_IDS = {
   eaImport: "rec:imports:ea",
   companionImport: "rec:imports:companion",
   manualImport: "rec:imports:manual",
+  discoverFranchises: "rec:imports:discover_franchises",
+  franchiseSelect: "rec:imports:franchise_select",
   status: "rec:imports:status",
   history: "rec:imports:history",
   weekScope: "rec:imports:week_scope",
@@ -34,7 +36,7 @@ export function buildImportPanelRows() {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(IMPORT_CUSTOM_IDS.eaImport)
-        .setLabel("EA Import")
+        .setLabel("Import Franchise")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(IMPORT_CUSTOM_IDS.companionImport)
@@ -57,6 +59,40 @@ export function buildImportPanelRows() {
     ),
     buildNavigationRow({ includeAdminPanel: true })
   ];
+}
+
+export function buildDiscoverFranchisesRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.discoverFranchises)
+        .setLabel("Discover Franchises")
+        .setStyle(ButtonStyle.Primary)
+    ),
+    ...buildImportFlowNavigationRows()
+  ];
+}
+
+export function buildFranchiseSelectRow(franchises: any[]) {
+  const options = franchises.slice(0, 25).map((franchise) => {
+    const name = String(franchise.league_name ?? franchise.leagueName ?? "Unknown Franchise").slice(0, 100);
+    const memberCount = typeof franchise.num_members === "number" ? `${franchise.num_members} members` : "Madden franchise";
+    const teamName = franchise.user_team_name ? ` — ${franchise.user_team_name}` : "";
+
+    return new StringSelectMenuOptionBuilder()
+      .setLabel(name)
+      .setValue(String(franchise.id))
+      .setDescription(`${memberCount}${teamName}`.slice(0, 100));
+  });
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(IMPORT_CUSTOM_IDS.franchiseSelect)
+      .setPlaceholder("Select the franchise to import from")
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions(...options)
+  );
 }
 
 export function buildWeekScopeRow() {
