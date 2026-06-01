@@ -2,6 +2,8 @@ import { REC_API_ROUTES, type RecImportMode, type RecTeamAuthority } from "@rec/
 import { env } from "../config/env.js";
 import type { LeagueSetupDraft } from "../ui/league-setup.js";
 
+type RecEaConsole = "xone" | "ps4" | "pc" | "ps5" | "xbsx" | "stadia";
+
 async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${env.REC_CORE_API_URL}${path}`, {
     ...init,
@@ -76,10 +78,19 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
-  discoverEaFranchises: (input: {
-    discordId: string;
-    console?: "xone" | "ps4" | "pc" | "ps5" | "xbsx" | "stadia";
-  }) =>
+  getEaAccountStatus: (input: { discordId: string; console?: RecEaConsole }) =>
+    recFetch<any>(REC_API_ROUTES.eaAccountStatus, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  connectEaAccount: (input: { discordId: string; code: string; console?: RecEaConsole }) =>
+    recFetch<any>(REC_API_ROUTES.eaAccountConnect, {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  discoverEaFranchises: (input: { discordId: string; console?: RecEaConsole }) =>
     recFetch<any>(REC_API_ROUTES.discoverEaFranchises, {
       method: "POST",
       body: JSON.stringify(input)
