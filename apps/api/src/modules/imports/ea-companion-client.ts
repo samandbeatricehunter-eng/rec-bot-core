@@ -118,6 +118,59 @@ export function getEaLoginUrl() {
   return `https://accounts.ea.com/connect/auth?${params.toString()}`;
 }
 
+export async function exchangeEaAuthCode(input: { code: string; console: RecEaConsole }) {
+  if (!env.EA_MCA_CLIENT_SECRET) {
+    throw new ApiError(500, "EA_MCA_CLIENT_SECRET is required to connect EA accounts.");
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: input.code,
+    client_id: env.EA_MCA_CLIENT_ID,
+    client_secret: env.EA_MCA_CLIENT_SECRET,
+    redirect_uri: env.EA_MCA_REDIRECT_URL,
+    release_type: "prod",
+    authentication_source: String(env.EA_MCA_AUTH_SOURCE),
+    token_format: "JWS"
+  });
+
+  const response = await fetch("https://accounts.ea.com/connect/token", {
+    method: "POST",
+    headers: {
+      "Accept-Charset": "UTF-8",
+      "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 13; sdk_gphone_x86_64 Build/TE1A.220922.031)",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "Accept-Encoding": "gzip"
+    },
+    body: body.toString()
+  });
+
+  const parsed = await response.json() as EaAccountTokenResponse;
+
+  if (!response.ok || !parsed.access_token || !parsed.refresh_token || !parsed.expires_in) {
+    throw new ApiError(502, "EA auth code exchange failed.", parsed);
+  }
+
+  const partialToken: EaCompanionToken = {
+    accessToken: parsed.access_token,
+    refreshToken: parsed.refresh_token,
+    expiry: new Date(Date.now() + parsed.expires_in * 1000),
+    console: input.console,
+    blazeId: "0"
+  };
+
+  const session = await retrieveBlazeSession(partialToken);
+
+  return {
+    token: {
+      ...partialToken,
+      blazeId: String(session.blazeId)
+    },
+    session,
+    raw: parsed
+  };
+}
+
 export async function refreshCompanionToken(token: EaCompanionToken): Promise<EaCompanionToken> {
   if (new Date() <= token.expiry) return token;
 
