@@ -22,6 +22,13 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft
 } from "./ui/league-setup.js";
+import {
+  handleImportButton,
+  handleImportSelect,
+  importSessions,
+  renderImportPanel
+} from "./flows/imports.js";
+import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const menuSessions = new ExpiringSessionStore<true>();
@@ -57,6 +64,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
+      importSessions.delete(interaction.user.id);
       await expired(interaction);
       return;
     }
@@ -64,6 +72,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) return handleLeagueSetupSelect(interaction);
+      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportSelect(interaction);
     }
 
     if (interaction.isButton()) {
@@ -72,6 +81,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) {
         return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
       }
+      if (interaction.customId === MENU_CUSTOM_IDS.adminImports) return renderImportPanel(interaction);
+      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
@@ -117,12 +128,14 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
 
 async function renderMainMenuFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
+  importSessions.delete(interaction.user.id);
   await interaction.update(await buildMainMenuPayload(interaction.user.id, isDiscordAdminInteraction(interaction)));
 }
 
 async function renderAdminPanelFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", ephemeral: true });
+  importSessions.delete(interaction.user.id);
   await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
 }
 
@@ -230,6 +243,12 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
   }
+
+  if (importSessions.has(interaction.user.id)) {
+    importSessions.delete(interaction.user.id);
+    return renderImportPanel(interaction);
+  }
+
   await renderMainMenuFromComponent(interaction);
 }
 
