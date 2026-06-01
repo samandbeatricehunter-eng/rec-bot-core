@@ -48,6 +48,22 @@ function statusIcon(status: string) {
   return "•";
 }
 
+function extractApiErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  const jsonStart = message.indexOf("{");
+
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(message.slice(jsonStart));
+      if (typeof parsed.error === "string") return parsed.error;
+    } catch {
+      // Keep the raw message if the API response cannot be parsed.
+    }
+  }
+
+  return message.replace(/^REC API request failed:\s*/i, "");
+}
+
 function formatEndpointAttempts(attempts: any[]) {
   if (!attempts?.length) return "No endpoint attempts recorded yet.";
 
@@ -179,21 +195,39 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.discoverFranchises) {
     await interaction.deferUpdate();
-    const result = await recApi.discoverEaFranchises({ discordId: interaction.user.id });
-    const franchises = result.franchises ?? [];
-    importSessions.set(interaction.user.id, {
-      importMode: "ea_import",
-      franchises
-    });
 
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Discovered EA Franchises")
-          .setDescription(buildFranchiseDiscoveryDescription(result))
-      ],
-      components: franchises.length ? [buildFranchiseSelectRow(franchises), ...buildImportFlowNavigationRows()] : buildDiscoverFranchisesRows()
-    });
+    try {
+      const result = await recApi.discoverEaFranchises({ discordId: interaction.user.id });
+      const franchises = result.franchises ?? [];
+      importSessions.set(interaction.user.id, {
+        importMode: "ea_import",
+        franchises
+      });
+
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Discovered EA Franchises")
+            .setDescription(buildFranchiseDiscoveryDescription(result))
+        ],
+        components: franchises.length ? [buildFranchiseSelectRow(franchises), ...buildImportFlowNavigationRows()] : buildDiscoverFranchisesRows()
+      });
+    } catch (error) {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("EA Franchise Discovery Needs Setup")
+            .setDescription([
+              extractApiErrorMessage(error),
+              "",
+              "This means the Discord import workflow is connected, but this REC user does not yet have a usable EA account/OAuth connection for franchise discovery.",
+              "",
+              "Next build target: EA account connection / OAuth setup."
+            ].join("\n"))
+        ],
+        components: buildDiscoverFranchisesRows()
+      });
+    }
     return;
   }
 
