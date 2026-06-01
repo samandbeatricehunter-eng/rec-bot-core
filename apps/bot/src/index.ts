@@ -36,7 +36,14 @@ import {
   startTeamLinkFlow,
   teamLinkSessions
 } from "./flows/team-linking.js";
+import {
+  handleImportButton,
+  handleImportSelect,
+  importSessions,
+  renderImportPanel
+} from "./flows/imports.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
+import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
@@ -62,7 +69,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) {
         await handleMainMenuSelect(interaction);
@@ -76,6 +82,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (Object.values(TEAM_LINK_CUSTOM_IDS).includes(interaction.customId as any)) {
         await handleTeamLinkSelect(interaction);
+        return;
+      }
+
+      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) {
+        await handleImportSelect(interaction);
         return;
       }
     }
@@ -93,6 +104,16 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) {
         await renderTeamLinkPanel(interaction);
+        return;
+      }
+
+      if (interaction.customId === MENU_CUSTOM_IDS.adminImports) {
+        await renderImportPanel(interaction);
+        return;
+      }
+
+      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) {
+        await handleImportButton(interaction);
         return;
       }
 
@@ -212,6 +233,7 @@ async function renderMainMenuFromComponent(interaction: Extract<Interaction, { i
   const isAdmin = isDiscordAdminInteraction(interaction);
   leagueSetupSessions.delete(interaction.user.id);
   teamLinkSessions.delete(interaction.user.id);
+  importSessions.delete(interaction.user.id);
   await interaction.update(await buildMainMenuPayload(interaction.user.id, isAdmin));
 }
 
@@ -228,6 +250,7 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
 
   leagueSetupSessions.delete(interaction.user.id);
   teamLinkSessions.delete(interaction.user.id);
+  importSessions.delete(interaction.user.id);
   await interaction.update({
     embeds: [buildAdminPanelEmbed()],
     components: buildAdminPanelRows()
@@ -543,6 +566,23 @@ function isTeamLinkMessage(interaction: Extract<Interaction, { isButton(): boole
   ].some((teamLinkTitle) => title.includes(teamLinkTitle));
 }
 
+function isImportMessage(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return false;
+
+  const title = interaction.message.embeds.at(0)?.title ?? "";
+
+  return [
+    "Import Data",
+    "Import Franchise",
+    "Discovered EA Franchises",
+    "Franchise Selected",
+    "Create Import Job",
+    "Import Job Created",
+    "Import Status",
+    "Import History"
+  ].some((importTitle) => title.includes(importTitle));
+}
+
 async function handleBackNavigation(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
 
@@ -569,6 +609,12 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
   if (teamLinkSessions.has(interaction.user.id) || isTeamLinkMessage(interaction)) {
     teamLinkSessions.delete(interaction.user.id);
     await renderTeamLinkPanel(interaction);
+    return;
+  }
+
+  if (importSessions.has(interaction.user.id) || isImportMessage(interaction)) {
+    importSessions.delete(interaction.user.id);
+    await renderImportPanel(interaction);
     return;
   }
 
