@@ -97,7 +97,7 @@ export async function completeEaConnect(input: EaConnectCompleteInput) {
     access_token: exchanged.token.accessToken,
     refresh_token: exchanged.token.refreshToken,
     expires_at: exchanged.token.expiry.toISOString(),
-    source: "ea_oauth",
+    source: "madden_companion_export",
     verified_at: now,
     updated_at: now,
     raw_payload: exchanged.raw
