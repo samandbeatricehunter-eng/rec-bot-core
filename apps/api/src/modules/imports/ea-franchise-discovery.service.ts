@@ -10,7 +10,7 @@ export type DiscoverEaFranchisesInput = {
 type EaAccountRecord = Record<string, any>;
 
 function getAccountConsole(account: EaAccountRecord): RecEaConsole {
-  return (account.console ?? account.platform ?? "xbsx") as RecEaConsole;
+  return (account.console ?? account.platform ?? "pc") as RecEaConsole;
 }
 
 function toCompanionToken(account: EaAccountRecord): EaCompanionToken {
@@ -55,6 +55,7 @@ async function loadRecentImports(externalLeagueIds: string[]) {
     .order("created_at", { ascending: false });
 
   if (result.error) {
+    console.error("[EA RECENT IMPORT HISTORY FAILED]", result.error);
     throw new ApiError(500, "Failed to load recent import history for discovered franchises.", result.error);
   }
 
@@ -84,6 +85,7 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
     : await accountQuery.limit(1);
 
   if (accounts.error) {
+    console.error("[EA ACCOUNT LOAD FAILED]", accounts.error);
     throw new ApiError(500, "Failed to load EA account.", accounts.error);
   }
 
@@ -94,6 +96,13 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
 
   const discovered = await getEaFranchises(toCompanionToken(account));
   const now = new Date().toISOString();
+
+  console.log("[EA FRANCHISE PERSIST START]", {
+    userId,
+    accountId: account.id,
+    platform: discovered.token.console,
+    franchiseCount: discovered.franchises.length
+  });
 
   const updatedAccount = await supabase
     .from("rec_ea_accounts")
@@ -106,6 +115,7 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
     .single();
 
   if (updatedAccount.error) {
+    console.error("[EA ACCOUNT UPDATE AFTER DISCOVERY FAILED]", updatedAccount.error);
     throw new ApiError(500, "Failed to update EA account after discovery.", updatedAccount.error);
   }
 
@@ -134,8 +144,13 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
     : { data: [], error: null };
 
   if (upserted.error) {
+    console.error("[EA FRANCHISE UPSERT FAILED]", upserted.error, { sampleRow: rows[0] ?? null });
     throw new ApiError(500, "Failed to store discovered EA franchises.", upserted.error);
   }
+
+  console.log("[EA FRANCHISE PERSIST COMPLETE]", {
+    storedCount: upserted.data?.length ?? 0
+  });
 
   const importHistory = await loadRecentImports((upserted.data ?? []).map((row: any) => String(row.external_league_id)));
 
