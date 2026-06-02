@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import type { LeagueSetupDraft } from "../ui/league-setup.js";
 
 type RecEaConsole = "xone" | "ps4" | "pc" | "ps5" | "xbsx" | "stadia";
+type RecImportScope = "current_week" | "single_week" | "selected_weeks" | "full_available" | "full_regular_season_schedule";
 
 async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${env.REC_CORE_API_URL}${path}`, {
@@ -116,7 +117,7 @@ export const recApi = {
     requestedByDiscordId?: string;
     eaExternalLeagueId?: string;
     eaExternalLeagueName?: string;
-    importScope?: "single_week" | "selected_weeks" | "full_available" | "full_regular_season_schedule";
+    importScope?: RecImportScope;
     weekFrom?: number;
     weekTo?: number;
     selectedEndpointKeys?: string[];
