@@ -60,11 +60,12 @@ type BlazeRequest = {
 };
 
 type GetMyLeaguesResponse = {
-  responseInfo: {
-    value: {
-      leagues: Array<Record<string, unknown>>;
+  responseInfo?: {
+    value?: {
+      leagues?: Array<Record<string, unknown>>;
     };
   };
+  error?: Record<string, unknown>;
 };
 
 const YEAR = "2026";
@@ -385,6 +386,12 @@ async function sendBlazeRequest<T>(token: EaCompanionToken, session: EaBlazeSess
   });
 
   const text = await response.text();
+  console.log("[EA BLAZE REQUEST]", {
+    commandName: request.commandName,
+    status: response.status,
+    hasResponse: Boolean(text),
+    responsePreview: text.slice(0, 500)
+  });
 
   try {
     const parsed = JSON.parse(text);
@@ -422,9 +429,22 @@ export async function getEaFranchises(token: EaCompanionToken, session?: EaBlaze
     componentName: "careermode"
   });
 
+  const leagues = response.responseInfo?.value?.leagues;
+  console.log("[EA FRANCHISE DISCOVERY]", {
+    hasResponseInfo: Boolean(response.responseInfo),
+    leagueCount: Array.isArray(leagues) ? leagues.length : 0,
+    hasError: Boolean(response.error)
+  });
+
+  if (!Array.isArray(leagues)) {
+    throw new ApiError(502, "EA franchise discovery response did not include a league list.", {
+      response
+    });
+  }
+
   return {
     token: validToken,
     session: validSession,
-    franchises: response.responseInfo.value.leagues.map(normalizeLeague)
+    franchises: leagues.map(normalizeLeague)
   };
 }
