@@ -24,6 +24,7 @@ import {
 } from "./ui/league-setup.js";
 import {
   handleImportButton,
+  handleImportModal,
   handleImportSelect,
   importSessions,
   renderImportPanel
@@ -89,7 +90,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
     }
 
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
+    if (interaction.isModalSubmit()) {
+      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportModal(interaction);
+      if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
+    }
   } catch (error) {
     console.error("Interaction handling failed", error);
     if (!interaction.isRepliable()) return;
