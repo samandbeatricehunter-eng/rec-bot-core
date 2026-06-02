@@ -39,6 +39,8 @@ export const IMPORT_CUSTOM_IDS = {
   missingScoreNotesInput: "rec:imports:missing_score_notes"
 } as const;
 
+export const ALL_ENDPOINTS_KEY = "__all_core_endpoints";
+
 export const CORE_IMPORT_ENDPOINTS = [
   { key: "league_metadata", label: "League Metadata" },
   { key: "teams", label: "Teams" },
@@ -82,10 +84,10 @@ export function buildEaConnectCodeModal() {
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId(IMPORT_CUSTOM_IDS.eaAuthCodeInput)
-          .setLabel("Paste the EA auth code from the redirect URL")
+          .setLabel("Paste the EA auth code or full redirect URL")
           .setStyle(TextInputStyle.Paragraph)
           .setRequired(true)
-          .setPlaceholder("Paste the code= value from the EA redirect URL.")
+          .setPlaceholder("Paste the full http://127.0.0.1/success?code=... URL or just the code.")
       )
     );
 }
@@ -96,25 +98,13 @@ export function buildManualMissingScoreModal() {
     .setTitle("Manual Missing Game Score")
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(IMPORT_CUSTOM_IDS.awayScoreInput)
-          .setLabel("Away Score")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
+        new TextInputBuilder().setCustomId(IMPORT_CUSTOM_IDS.awayScoreInput).setLabel("Away Score").setStyle(TextInputStyle.Short).setRequired(true)
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(IMPORT_CUSTOM_IDS.homeScoreInput)
-          .setLabel("Home Score")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
+        new TextInputBuilder().setCustomId(IMPORT_CUSTOM_IDS.homeScoreInput).setLabel("Home Score").setStyle(TextInputStyle.Short).setRequired(true)
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(IMPORT_CUSTOM_IDS.missingScoreNotesInput)
-          .setLabel("Notes")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(false)
+        new TextInputBuilder().setCustomId(IMPORT_CUSTOM_IDS.missingScoreNotesInput).setLabel("Notes").setStyle(TextInputStyle.Paragraph).setRequired(false)
       )
     );
 }
@@ -174,22 +164,30 @@ export function buildWeekScopeRow() {
       .setCustomId(IMPORT_CUSTOM_IDS.weekScope)
       .setPlaceholder("Select import scope")
       .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("Single Week").setValue("single_week").setDescription("Import one completed Madden week."),
-        new StringSelectMenuOptionBuilder().setLabel("Week Range").setValue("selected_weeks").setDescription("Import a span of completed weeks."),
-        new StringSelectMenuOptionBuilder().setLabel("Full Available").setValue("full_available").setDescription("Import all available core data."),
+        new StringSelectMenuOptionBuilder().setLabel("Current Week").setValue("current_week").setDescription("Import the league's current Madden week."),
+        new StringSelectMenuOptionBuilder().setLabel("Single Week").setValue("single_week").setDescription("Import one specific completed Madden week."),
+        new StringSelectMenuOptionBuilder().setLabel("Week Range").setValue("selected_weeks").setDescription("Import a specific span of completed weeks."),
+        new StringSelectMenuOptionBuilder().setLabel("Full Available").setValue("full_available").setDescription("Import all selected endpoints for every available Madden week."),
         new StringSelectMenuOptionBuilder().setLabel("Full Regular Season Schedule").setValue("full_regular_season_schedule").setDescription("Schedule-only import for all regular season matchups.")
       )
   );
 }
 
 export function buildEndpointSelectRow() {
+  const allOption = new StringSelectMenuOptionBuilder()
+    .setLabel("All Core Endpoints")
+    .setValue(ALL_ENDPOINTS_KEY)
+    .setDescription("Select every endpoint below.");
+
+  const endpointOptions = CORE_IMPORT_ENDPOINTS.map((endpoint) => new StringSelectMenuOptionBuilder().setLabel(endpoint.label).setValue(endpoint.key));
+
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(IMPORT_CUSTOM_IDS.endpoints)
       .setPlaceholder("Select endpoints to import")
       .setMinValues(1)
-      .setMaxValues(CORE_IMPORT_ENDPOINTS.length)
-      .addOptions(...CORE_IMPORT_ENDPOINTS.map((endpoint) => new StringSelectMenuOptionBuilder().setLabel(endpoint.label).setValue(endpoint.key)))
+      .setMaxValues(CORE_IMPORT_ENDPOINTS.length + 1)
+      .addOptions(allOption, ...endpointOptions)
   );
 }
 
