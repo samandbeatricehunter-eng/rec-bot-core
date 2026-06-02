@@ -112,15 +112,30 @@ function parseEaTokenResponse(rawText: string) {
   }
 }
 
-function logEaTokenExchange(label: string, response: { status: number }, rawText: string) {
+function logEaTokenExchange(label: string, response: { status: number }, parsed: Record<string, unknown>) {
   console.log(label, {
     clientId: env.EA_MCA_CLIENT_ID,
     hasClientSecret: Boolean(env.EA_MCA_CLIENT_SECRET),
     redirectUri: env.EA_MCA_REDIRECT_URL,
     authSource: env.EA_MCA_AUTH_SOURCE,
     status: response.status,
-    body: rawText
+    tokenType: parsed.token_type ?? null,
+    expiresIn: parsed.expires_in ?? null,
+    hasAccessToken: Boolean(parsed.access_token),
+    hasRefreshToken: Boolean(parsed.refresh_token),
+    error: parsed.error ?? null,
+    errorDescription: parsed.error_description ?? null,
+    code: parsed.code ?? null
   });
+}
+
+function redactEaTokenResponse(parsed: Record<string, unknown>) {
+  return {
+    ...parsed,
+    access_token: parsed.access_token ? "[redacted]" : undefined,
+    refresh_token: parsed.refresh_token ? "[redacted]" : undefined,
+    id_token: parsed.id_token ? "[redacted]" : parsed.id_token
+  };
 }
 
 export function getEaLoginUrl() {
@@ -164,14 +179,13 @@ export async function exchangeEaAuthCode(input: { code: string; console: RecEaCo
   });
 
   const rawText = await response.text();
-  logEaTokenExchange("[EA AUTH EXCHANGE]", response, rawText);
   const parsed = parseEaTokenResponse(rawText);
+  logEaTokenExchange("[EA AUTH EXCHANGE]", response, parsed);
 
   if (!response.ok || !parsed.access_token || !parsed.refresh_token || !parsed.expires_in) {
     throw new ApiError(502, "EA auth code exchange failed.", {
       status: response.status,
-      response: rawText,
-      parsed
+      parsed: redactEaTokenResponse(parsed)
     });
   }
 
@@ -183,16 +197,25 @@ export async function exchangeEaAuthCode(input: { code: string; console: RecEaCo
     blazeId: "0"
   };
 
-  const session = await retrieveBlazeSession(partialToken);
+  try {
+    const session = await retrieveBlazeSession(partialToken);
 
-  return {
-    token: {
-      ...partialToken,
-      blazeId: String(session.blazeId)
-    },
-    session,
-    raw: parsed
-  };
+    return {
+      token: {
+        ...partialToken,
+        blazeId: String(session.blazeId)
+      },
+      session,
+      raw: parsed
+    };
+  } catch (error) {
+    throw new ApiError(502, "EA OAuth succeeded, but Blaze session creation failed.", {
+      console: input.console,
+      blazeService: BLAZE_SERVICE[input.console],
+      blazeProductName: BLAZE_PRODUCT_NAME[input.console],
+      cause: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 
 export async function refreshCompanionToken(token: EaCompanionToken): Promise<EaCompanionToken> {
@@ -223,14 +246,13 @@ export async function refreshCompanionToken(token: EaCompanionToken): Promise<Ea
   });
 
   const rawText = await response.text();
-  logEaTokenExchange("[EA TOKEN REFRESH]", response, rawText);
   const parsed = parseEaTokenResponse(rawText);
+  logEaTokenExchange("[EA TOKEN REFRESH]", response, parsed);
 
   if (!response.ok || !parsed.access_token || !parsed.refresh_token || !parsed.expires_in) {
     throw new ApiError(502, "EA token refresh failed.", {
       status: response.status,
-      response: rawText,
-      parsed
+      parsed: redactEaTokenResponse(parsed)
     });
   }
 
@@ -254,6 +276,13 @@ export async function retrieveBlazeSession(token: EaCompanionToken): Promise<EaB
   });
 
   const text = await response.text();
+  console.log("[EA BLAZE LOGIN]", {
+    status: response.status,
+    console: token.console,
+    blazeService: BLAZE_SERVICE[token.console],
+    productName: BLAZE_PRODUCT_NAME[token.console],
+    response: text
+  });
 
   try {
     const parsed = JSON.parse(text) as BlazeAuthenticatedResponse;
@@ -263,7 +292,13 @@ export async function retrieveBlazeSession(token: EaCompanionToken): Promise<EaB
       requestId: 1
     };
   } catch {
-    throw new ApiError(502, "Could not create EA Blaze session.", { response: text });
+    throw new ApiError(502, "Could not create EA Blaze session.", {
+      status: response.status,
+      response: text,
+      console: token.console,
+      blazeService: BLAZE_SERVICE[token.console],
+      productName: BLAZE_PRODUCT_NAME[token.console]
+    });
   }
 }
 
