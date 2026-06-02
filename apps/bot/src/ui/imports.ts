@@ -23,7 +23,11 @@ export const IMPORT_CUSTOM_IDS = {
   status: "rec:imports:status",
   history: "rec:imports:history",
   weekScope: "rec:imports:week_scope",
-  endpoints: "rec:imports:endpoints"
+  endpoints: "rec:imports:endpoints",
+  previewJob: "rec:imports:preview_job",
+  executeJob: "rec:imports:execute_job",
+  approveJob: "rec:imports:approve_job",
+  cancelJob: "rec:imports:cancel_job"
 } as const;
 
 export const CORE_IMPORT_ENDPOINTS = [
@@ -170,6 +174,54 @@ export function buildEndpointSelectRow() {
         )
       )
   );
+}
+
+export function buildImportJobCreatedRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.previewJob)
+        .setLabel("Preview Import")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.cancelJob)
+        .setLabel("Cancel Import")
+        .setStyle(ButtonStyle.Danger)
+    ),
+    ...buildImportFlowNavigationRows()
+  ];
+}
+
+export function buildImportPreviewRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.executeJob)
+        .setLabel("Execute Import")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.cancelJob)
+        .setLabel("Cancel Import")
+        .setStyle(ButtonStyle.Danger)
+    ),
+    ...buildImportFlowNavigationRows()
+  ];
+}
+
+export function buildImportExecutedRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.approveJob)
+        .setLabel("Approve Import")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(IMPORT_CUSTOM_IDS.cancelJob)
+        .setLabel("Cancel Import")
+        .setStyle(ButtonStyle.Danger)
+    ),
+    ...buildImportFlowNavigationRows()
+  ];
 }
 
 export function buildImportFlowNavigationRows() {
