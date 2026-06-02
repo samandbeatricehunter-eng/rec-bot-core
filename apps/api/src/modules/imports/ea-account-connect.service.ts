@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import {
@@ -33,6 +34,10 @@ async function loadRecUserIdForDiscordId(discordId: string) {
   }
 
   return account.data.user_id as string;
+}
+
+function getDefaultConsole() {
+  return (env.EA_MCA_DEFAULT_CONSOLE ?? "pc") as RecEaConsole;
 }
 
 function hasUsableToken(account: Record<string, any> | null | undefined) {
@@ -78,13 +83,14 @@ export async function getEaConnectStatus(input: EaConnectStatusInput) {
     userId,
     account: publicAccount(account),
     connected: hasUsableToken(account),
-    loginUrl: getEaLoginUrl()
+    loginUrl: getEaLoginUrl(),
+    defaultConsole: getDefaultConsole()
   };
 }
 
 export async function completeEaConnect(input: EaConnectCompleteInput) {
   const userId = await loadRecUserIdForDiscordId(input.discordId);
-  const console = input.console ?? "xbsx";
+  const console = input.console ?? getDefaultConsole();
   const exchanged = await exchangeEaAuthCode({ code: input.code.trim(), console });
   const now = new Date().toISOString();
 
