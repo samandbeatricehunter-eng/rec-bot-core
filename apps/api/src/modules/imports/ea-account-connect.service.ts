@@ -84,13 +84,13 @@ export async function getEaConnectStatus(input: EaConnectStatusInput) {
 
 export async function completeEaConnect(input: EaConnectCompleteInput) {
   const userId = await loadRecUserIdForDiscordId(input.discordId);
-  const console = input.console ?? "pc";
-  const exchanged = await exchangeEaAuthCode({ code: input.code.trim(), console });
+  const platform = input.console ?? "pc";
+  const exchanged = await exchangeEaAuthCode({ code: input.code.trim(), console: platform });
   const now = new Date().toISOString();
 
   const payload = {
     user_id: userId,
-    platform: console,
+    platform,
     ea_persona_name: exchanged.session.blazeId ? String(exchanged.session.blazeId) : null,
     gamertag: exchanged.session.blazeId ? String(exchanged.session.blazeId) : null,
     blaze_id: exchanged.token.blazeId,
@@ -105,7 +105,7 @@ export async function completeEaConnect(input: EaConnectCompleteInput) {
 
   console.log("[EA ACCOUNT SAVE]", {
     userId,
-    platform: console,
+    platform,
     blazeId: payload.blaze_id,
     hasAccessToken: Boolean(payload.access_token),
     hasRefreshToken: Boolean(payload.refresh_token),
