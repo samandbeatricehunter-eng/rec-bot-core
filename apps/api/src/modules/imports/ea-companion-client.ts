@@ -104,6 +104,25 @@ function companionHeaders(token: EaCompanionToken) {
   };
 }
 
+function parseEaTokenResponse(rawText: string) {
+  try {
+    return JSON.parse(rawText) as EaAccountTokenResponse & Record<string, unknown>;
+  } catch {
+    return {} as EaAccountTokenResponse & Record<string, unknown>;
+  }
+}
+
+function logEaTokenExchange(label: string, response: { status: number }, rawText: string) {
+  console.log(label, {
+    clientId: env.EA_MCA_CLIENT_ID,
+    hasClientSecret: Boolean(env.EA_MCA_CLIENT_SECRET),
+    redirectUri: env.EA_MCA_REDIRECT_URL,
+    authSource: env.EA_MCA_AUTH_SOURCE,
+    status: response.status,
+    body: rawText
+  });
+}
+
 export function getEaLoginUrl() {
   const params = new URLSearchParams({
     hide_create: "true",
@@ -119,20 +138,19 @@ export function getEaLoginUrl() {
 }
 
 export async function exchangeEaAuthCode(input: { code: string; console: RecEaConsole }) {
-  if (!env.EA_MCA_CLIENT_SECRET) {
-    throw new ApiError(500, "EA_MCA_CLIENT_SECRET is required to connect EA accounts.");
-  }
-
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code: input.code,
     client_id: env.EA_MCA_CLIENT_ID,
-    client_secret: env.EA_MCA_CLIENT_SECRET,
     redirect_uri: env.EA_MCA_REDIRECT_URL,
     release_type: "prod",
     authentication_source: String(env.EA_MCA_AUTH_SOURCE),
     token_format: "JWS"
   });
+
+  if (env.EA_MCA_CLIENT_SECRET) {
+    body.set("client_secret", env.EA_MCA_CLIENT_SECRET);
+  }
 
   const response = await fetch("https://accounts.ea.com/connect/token", {
     method: "POST",
@@ -145,16 +163,22 @@ export async function exchangeEaAuthCode(input: { code: string; console: RecEaCo
     body: body.toString()
   });
 
-  const parsed = await response.json() as EaAccountTokenResponse;
+  const rawText = await response.text();
+  logEaTokenExchange("[EA AUTH EXCHANGE]", response, rawText);
+  const parsed = parseEaTokenResponse(rawText);
 
   if (!response.ok || !parsed.access_token || !parsed.refresh_token || !parsed.expires_in) {
-    throw new ApiError(502, "EA auth code exchange failed.", parsed);
+    throw new ApiError(502, "EA auth code exchange failed.", {
+      status: response.status,
+      response: rawText,
+      parsed
+    });
   }
 
   const partialToken: EaCompanionToken = {
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
-    expiry: new Date(Date.now() + parsed.expires_in * 1000),
+    expiry: new Date(Date.now() + Number(parsed.expires_in) * 1000),
     console: input.console,
     blazeId: "0"
   };
@@ -174,19 +198,18 @@ export async function exchangeEaAuthCode(input: { code: string; console: RecEaCo
 export async function refreshCompanionToken(token: EaCompanionToken): Promise<EaCompanionToken> {
   if (new Date() <= token.expiry) return token;
 
-  if (!env.EA_MCA_CLIENT_SECRET) {
-    throw new ApiError(500, "EA_MCA_CLIENT_SECRET is required to refresh Madden Companion tokens.");
-  }
-
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     client_id: env.EA_MCA_CLIENT_ID,
-    client_secret: env.EA_MCA_CLIENT_SECRET,
     release_type: "prod",
     refresh_token: token.refreshToken,
     authentication_source: String(env.EA_MCA_AUTH_SOURCE),
     token_format: "JWS"
   });
+
+  if (env.EA_MCA_CLIENT_SECRET) {
+    body.set("client_secret", env.EA_MCA_CLIENT_SECRET);
+  }
 
   const response = await fetch("https://accounts.ea.com/connect/token", {
     method: "POST",
@@ -199,17 +222,23 @@ export async function refreshCompanionToken(token: EaCompanionToken): Promise<Ea
     body: body.toString()
   });
 
-  const parsed = await response.json() as EaAccountTokenResponse;
+  const rawText = await response.text();
+  logEaTokenExchange("[EA TOKEN REFRESH]", response, rawText);
+  const parsed = parseEaTokenResponse(rawText);
 
   if (!response.ok || !parsed.access_token || !parsed.refresh_token || !parsed.expires_in) {
-    throw new ApiError(502, "EA token refresh failed.", parsed);
+    throw new ApiError(502, "EA token refresh failed.", {
+      status: response.status,
+      response: rawText,
+      parsed
+    });
   }
 
   return {
     ...token,
     accessToken: parsed.access_token,
     refreshToken: parsed.refresh_token,
-    expiry: new Date(Date.now() + parsed.expires_in * 1000)
+    expiry: new Date(Date.now() + Number(parsed.expires_in) * 1000)
   };
 }
 
