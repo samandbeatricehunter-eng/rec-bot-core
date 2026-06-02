@@ -15,7 +15,9 @@ type StagedGameRow = {
 function formatMatchupResult(game: StagedGameRow) {
   const home = game.home_team_name ?? "Home Team";
   const away = game.away_team_name ?? "Away Team";
-  const hasScore = typeof game.home_score === "number" && typeof game.away_score === "number";
+  const hasHomeScore = typeof game.home_score === "number";
+  const hasAwayScore = typeof game.away_score === "number";
+  const hasScore = hasHomeScore && hasAwayScore;
 
   if (!hasScore) {
     return {
@@ -25,7 +27,11 @@ function formatMatchupResult(game: StagedGameRow) {
       winner: null,
       loser: null,
       status: game.game_status ?? "staged",
-      externalGameId: game.external_game_id
+      externalGameId: game.external_game_id,
+      missingFields: [
+        !hasHomeScore ? "home_score" : null,
+        !hasAwayScore ? "away_score" : null
+      ].filter(Boolean)
     };
   }
 
@@ -42,7 +48,8 @@ function formatMatchupResult(game: StagedGameRow) {
     winner,
     loser,
     status: tied ? "tie" : "final",
-    externalGameId: game.external_game_id
+    externalGameId: game.external_game_id,
+    missingFields: []
   };
 }
 
@@ -65,19 +72,152 @@ async function buildImportedMatchupResults(importJobId: string) {
     totalGamesImported: games.length,
     gamesWithFinalScores: results.filter((game) => game.winner || game.status === "tie").length,
     gamesMissingScores: results.filter((game) => game.result === "No final score imported").length,
+    missingResultGames: results.filter((game) => game.result === "No final score imported"),
     results
   };
+}
+
+async function countRows(table: string, importJobId: string) {
+  const result = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("import_job_id", importJobId);
+
+  if (result.error) {
+    throw new ApiError(500, `Failed to count ${table}.`, result.error);
+  }
+
+  return result.count ?? 0;
+}
+
+async function loadRows(table: string, importJobId: string, columns: string) {
+  const result = await supabase
+    .from(table)
+    .select(columns)
+    .eq("import_job_id", importJobId)
+    .limit(25);
+
+  if (result.error) {
+    throw new ApiError(500, `Failed to inspect ${table}.`, result.error);
+  }
+
+  return result.data ?? [];
+}
+
+function missingFieldList(row: Record<string, unknown>, fields: string[]) {
+  return fields.filter((field) => row[field] === null || row[field] === undefined || row[field] === "");
+}
+
+async function buildEndpointMissingData(importJobId: string) {
+  const [games, standings, teamStats, playerStats] = await Promise.all([
+    loadRows("rec_import_staging_games", importJobId, "week_number,external_game_id,home_team_name,away_team_name,home_score,away_score,game_status"),
+    loadRows("rec_import_staging_standings", importJobId, "team_name,team_external_id,wins,losses,ties,points_for,points_against"),
+    loadRows("rec_import_staging_team_stats", importJobId, "team_name,team_external_id,week_number,stats"),
+    loadRows("rec_import_staging_player_stats", importJobId, "player_name,player_external_id,team_name,position,week_number,stats")
+  ]);
+
+  const gameMissing = games
+    .map((row: any) => ({
+      label: `${row.away_team_name ?? "Away"} at ${row.home_team_name ?? "Home"}${row.week_number ? `, Week ${row.week_number}` : ""}`,
+      missingFields: missingFieldList(row, ["external_game_id", "home_team_name", "away_team_name", "home_score", "away_score", "game_status"])
+    }))
+    .filter((row) => row.missingFields.length > 0);
+
+  const standingMissing = standings
+    .map((row: any) => ({
+      label: row.team_name ?? row.team_external_id ?? "Unknown Team",
+      missingFields: missingFieldList(row, ["team_name", "team_external_id", "wins", "losses", "ties", "points_for", "points_against"])
+    }))
+    .filter((row) => row.missingFields.length > 0);
+
+  const teamStatMissing = teamStats
+    .map((row: any) => ({
+      label: `${row.team_name ?? row.team_external_id ?? "Unknown Team"}${row.week_number ? `, Week ${row.week_number}` : ""}`,
+      missingFields: [
+        ...missingFieldList(row, ["team_name", "team_external_id", "stats"]),
+        row.stats && Object.keys(row.stats).length === 0 ? "stats_payload_empty" : null
+      ].filter(Boolean)
+    }))
+    .filter((row) => row.missingFields.length > 0);
+
+  const playerStatMissing = playerStats
+    .map((row: any) => ({
+      label: `${row.player_name ?? row.player_external_id ?? "Unknown Player"}${row.team_name ? `, ${row.team_name}` : ""}${row.week_number ? `, Week ${row.week_number}` : ""}`,
+      missingFields: [
+        ...missingFieldList(row, ["player_name", "player_external_id", "team_name", "position", "stats"]),
+        row.stats && Object.keys(row.stats).length === 0 ? "stats_payload_empty" : null
+      ].filter(Boolean)
+    }))
+    .filter((row) => row.missingFields.length > 0);
+
+  return [
+    { endpointKey: "schedule", endpointLabel: "Schedule / Games", affectedRows: gameMissing.length, rows: gameMissing },
+    { endpointKey: "standings", endpointLabel: "Standings", affectedRows: standingMissing.length, rows: standingMissing },
+    { endpointKey: "team_stats", endpointLabel: "Team Stats", affectedRows: teamStatMissing.length, rows: teamStatMissing },
+    { endpointKey: "player_stats", endpointLabel: "Player Stats", affectedRows: playerStatMissing.length, rows: playerStatMissing }
+  ].filter((endpoint) => endpoint.affectedRows > 0);
+}
+
+async function buildEndpointRecordCounts(importJobId: string) {
+  const [games, standings, teamStats, playerStats] = await Promise.all([
+    countRows("rec_import_staging_games", importJobId),
+    countRows("rec_import_staging_standings", importJobId),
+    countRows("rec_import_staging_team_stats", importJobId),
+    countRows("rec_import_staging_player_stats", importJobId)
+  ]);
+
+  return {
+    games,
+    standings,
+    teamStats,
+    playerStats
+  };
+}
+
+function calculateImportConfidence(input: {
+  recordCounts: Record<string, number>;
+  gamesMissingScores: number;
+  endpointMissingDataCount: number;
+  warningCount: number;
+}) {
+  let score = 100;
+  if (input.recordCounts.games === 0) score -= 25;
+  score -= Math.min(input.gamesMissingScores * 5, 30);
+  score -= Math.min(input.endpointMissingDataCount * 3, 25);
+  score -= Math.min(input.warningCount * 2, 10);
+  return Math.max(0, score);
 }
 
 export async function generateImportPreview(importJobId: string) {
   const details = await getImportJob(importJobId);
   const job = details.job;
   const matchupResults = await buildImportedMatchupResults(importJobId);
+  const endpointRecordCounts = await buildEndpointRecordCounts(importJobId);
+  const endpointMissingData = await buildEndpointMissingData(importJobId);
+  const existingWarnings = job.validation_warnings ?? [];
+  const generatedWarnings = matchupResults.totalGamesImported === 0
+    ? [
+        {
+          code: "no_staged_games",
+          message: "No staged games were found for this import job."
+        }
+      ]
+    : [];
+  const validationWarnings = [...existingWarnings, ...generatedWarnings];
+  const importConfidence = calculateImportConfidence({
+    recordCounts: endpointRecordCounts,
+    gamesMissingScores: matchupResults.gamesMissingScores,
+    endpointMissingDataCount: endpointMissingData.reduce((sum, endpoint) => sum + endpoint.affectedRows, 0),
+    warningCount: validationWarnings.length
+  });
 
   const previewSummary = {
     ...(job.preview_summary ?? {}),
     importJobId,
     previewStatus: "generated",
+    importConfidence,
+    endpointRecordCounts,
+    endpointMissingData,
     matchupResults,
     gamesFound: matchupResults.totalGamesImported,
     gamesAdded: 0,
@@ -92,16 +232,9 @@ export async function generateImportPreview(importJobId: string) {
 
   return updateImportJobStatus({
     importJobId,
-    status: "validating",
+    status: validationWarnings.length ? "completed_with_warnings" : "validating",
     previewSummary,
-    validationWarnings: matchupResults.totalGamesImported === 0
-      ? [
-          {
-            code: "no_staged_games",
-            message: "No staged games were found for this import job."
-          }
-        ]
-      : [],
+    validationWarnings,
     validationErrors: []
   });
 }
