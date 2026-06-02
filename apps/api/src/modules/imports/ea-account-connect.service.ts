@@ -91,6 +91,8 @@ export async function completeEaConnect(input: EaConnectCompleteInput) {
   const payload = {
     user_id: userId,
     platform: console,
+    ea_persona_name: exchanged.session.blazeId ? String(exchanged.session.blazeId) : null,
+    gamertag: exchanged.session.blazeId ? String(exchanged.session.blazeId) : null,
     blaze_id: exchanged.token.blazeId,
     access_token: exchanged.token.accessToken,
     refresh_token: exchanged.token.refreshToken,
@@ -101,6 +103,15 @@ export async function completeEaConnect(input: EaConnectCompleteInput) {
     raw_payload: exchanged.raw
   };
 
+  console.log("[EA ACCOUNT SAVE]", {
+    userId,
+    platform: console,
+    blazeId: payload.blaze_id,
+    hasAccessToken: Boolean(payload.access_token),
+    hasRefreshToken: Boolean(payload.refresh_token),
+    expiresAt: payload.expires_at
+  });
+
   const saved = await supabase
     .from("rec_ea_accounts")
     .upsert(payload, { onConflict: "user_id,platform" })
@@ -108,6 +119,7 @@ export async function completeEaConnect(input: EaConnectCompleteInput) {
     .single();
 
   if (saved.error) {
+    console.error("[EA ACCOUNT SAVE FAILED]", saved.error);
     throw new ApiError(500, "Failed to save EA account connection.", saved.error);
   }
 
