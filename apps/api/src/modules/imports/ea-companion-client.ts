@@ -40,13 +40,15 @@ type EaAccountTokenResponse = {
 };
 
 type BlazeAuthenticatedResponse = {
-  userLoginInfo: {
-    sessionKey: string;
-    personaDetails: {
-      personaId: number;
+  userLoginInfo?: {
+    sessionKey?: string;
+    blazeId?: number;
+    personaDetails?: {
+      personaId?: number;
       displayName?: string;
     };
   };
+  error?: Record<string, unknown>;
 };
 
 type BlazeRequest = {
@@ -138,6 +140,25 @@ function redactEaTokenResponse(parsed: Record<string, unknown>) {
   };
 }
 
+export function extractEaAuthCode(raw: string) {
+  const trimmed = raw.trim();
+
+  try {
+    const url = new URL(trimmed);
+    return url.searchParams.get("code") ?? trimmed;
+  } catch {
+    const queryStart = trimmed.indexOf("?");
+    if (queryStart >= 0) {
+      const params = new URLSearchParams(trimmed.slice(queryStart + 1));
+      const code = params.get("code");
+      if (code) return code;
+    }
+
+    const standalone = trimmed.match(/(?:^|[?&\s])code=([^&\s]+)/i);
+    return standalone ? decodeURIComponent(standalone[1]) : trimmed;
+  }
+}
+
 export function getEaLoginUrl() {
   const params = new URLSearchParams({
     hide_create: "true",
@@ -153,9 +174,10 @@ export function getEaLoginUrl() {
 }
 
 export async function exchangeEaAuthCode(input: { code: string; console: RecEaConsole }) {
+  const code = extractEaAuthCode(input.code);
   const body = new URLSearchParams({
     grant_type: "authorization_code",
-    code: input.code,
+    code,
     client_id: env.EA_MCA_CLIENT_ID,
     redirect_uri: env.EA_MCA_REDIRECT_URL,
     release_type: "prod",
@@ -281,18 +303,14 @@ export async function retrieveBlazeSession(token: EaCompanionToken): Promise<EaB
     console: token.console,
     blazeService: BLAZE_SERVICE[token.console],
     productName: BLAZE_PRODUCT_NAME[token.console],
-    response: text
+    hasResponse: Boolean(text)
   });
 
+  let parsed: BlazeAuthenticatedResponse;
   try {
-    const parsed = JSON.parse(text) as BlazeAuthenticatedResponse;
-    return {
-      blazeId: parsed.userLoginInfo.personaDetails.personaId,
-      sessionKey: parsed.userLoginInfo.sessionKey,
-      requestId: 1
-    };
+    parsed = JSON.parse(text) as BlazeAuthenticatedResponse;
   } catch {
-    throw new ApiError(502, "Could not create EA Blaze session.", {
+    throw new ApiError(502, "Could not parse EA Blaze session response.", {
       status: response.status,
       response: text,
       console: token.console,
@@ -300,6 +318,25 @@ export async function retrieveBlazeSession(token: EaCompanionToken): Promise<EaB
       productName: BLAZE_PRODUCT_NAME[token.console]
     });
   }
+
+  const sessionKey = parsed.userLoginInfo?.sessionKey;
+  const blazeId = parsed.userLoginInfo?.personaDetails?.personaId ?? parsed.userLoginInfo?.blazeId;
+
+  if (!sessionKey || !blazeId || parsed.error) {
+    throw new ApiError(502, "Could not create EA Blaze session.", {
+      status: response.status,
+      error: parsed.error ?? null,
+      console: token.console,
+      blazeService: BLAZE_SERVICE[token.console],
+      productName: BLAZE_PRODUCT_NAME[token.console]
+    });
+  }
+
+  return {
+    blazeId,
+    sessionKey,
+    requestId: 1
+  };
 }
 
 function calculateMessageAuthData(blazeId: number, requestId: number) {
