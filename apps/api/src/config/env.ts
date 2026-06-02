@@ -19,6 +19,8 @@ const EnvSchema = z.object({
   EA_MCA_CLIENT_SECRET: z.string().optional(),
   EA_MCA_AUTH_SOURCE: z.coerce.number().int().default(317239),
   EA_MCA_MACHINE_KEY: z.string().default("444d362e8e067fe2"),
-  EA_MCA_REDIRECT_URL: z.string().default("http://127.0.0.1/success")
+  EA_MCA_REDIRECT_URL: z.string().default("http://127.0.0.1/success"),
+  EA_MCA_TWO_DIGIT_YEAR: z.string().default("26"),
+  EA_MCA_FULL_YEAR: z.string().default("2026")
 });
 export const env = EnvSchema.parse(process.env);
