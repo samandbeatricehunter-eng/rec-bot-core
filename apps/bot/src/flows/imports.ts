@@ -3,6 +3,8 @@ import type { RecImportMode } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import {
+  ALL_ENDPOINTS_KEY,
+  CORE_IMPORT_ENDPOINTS,
   buildEaConnectCodeModal,
   buildEaConnectRows,
   buildEndpointSelectRow,
@@ -19,7 +21,9 @@ import {
 export type ImportDraft = {
   importMode?: RecImportMode;
   importJobId?: string;
-  weekScope?: "single_week" | "selected_weeks" | "full_available" | "full_regular_season_schedule";
+  weekScope?: "current_week" | "single_week" | "selected_weeks" | "full_available" | "full_regular_season_schedule";
+  weekFrom?: number;
+  weekTo?: number;
   endpointKeys?: string[];
   eaFranchiseId?: string;
   eaExternalLeagueId?: string;
@@ -273,6 +277,22 @@ async function requireCurrentImportJob(interaction: Extract<Interaction, { user:
   return importJobId;
 }
 
+function expandEndpointKeys(values: string[]) {
+  if (values.includes(ALL_ENDPOINTS_KEY)) return CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
+  return values;
+}
+
+function applyDefaultWeeks(draft: ImportDraft) {
+  if (draft.weekScope === "single_week") {
+    draft.weekFrom = draft.weekFrom ?? 1;
+    draft.weekTo = draft.weekTo ?? draft.weekFrom;
+  }
+  if (draft.weekScope === "selected_weeks") {
+    draft.weekFrom = draft.weekFrom ?? 1;
+    draft.weekTo = draft.weekTo ?? 23;
+  }
+}
+
 export async function renderImportPanel(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   if (!isDiscordAdminInteraction(interaction)) {
@@ -309,7 +329,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
       return `${index + 1}. ${statusIcon(job.status)} **${String(job.import_mode).replaceAll("_", " ")}** - ${String(job.status).replaceAll("_", " ")}${label}`;
     });
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Import History").setDescription([`League: **${result.league?.name ?? "Unknown"}**`, "", rows.length ? rows.join("\n") : "No current-season import jobs found."].join("\n"))],
+      embeds: [new EmbedBuilder().setTitle("Import History").setDescription(rows.length ? rows.join("\n") : "No recent import jobs found.")],
       components: buildImportPanelRows()
     });
     return;
@@ -331,17 +351,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     const executed = await recApi.executeImportJob(importJobId);
     const refreshed = await recApi.getImportJob(importJobId).catch(() => executed);
     await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Import Executed")
-          .setDescription([
-            "The import execution request completed.",
-            "",
-            formatImportJob(refreshed.job ?? executed.job),
-            "",
-            "Review Import Status and the preview details before approval."
-          ].join("\n"))
-      ],
+      embeds: [new EmbedBuilder().setTitle("Import Executed").setDescription(["The import execution request completed.", "", formatImportJob(refreshed.job ?? executed.job), "", "Review Import Status and the preview details before approval."].join("\n"))],
       components: buildImportExecutedRows()
     });
     return;
@@ -366,10 +376,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     await interaction.deferUpdate();
     const cancelled = await recApi.cancelImportJob({ importJobId, reason: "Cancelled from Discord import workflow." });
     importSessions.delete(interaction.user.id);
-    await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Import Cancelled").setDescription(formatImportJob(cancelled.job))],
-      components: buildImportPanelRows()
-    });
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Import Cancelled").setDescription(formatImportJob(cancelled.job))], components: buildImportPanelRows() });
     return;
   }
 
@@ -384,10 +391,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
       await discoverAndRenderFranchises(interaction);
     } catch (error) {
       const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id }).catch(() => null);
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(status?.loginUrl ? buildEaConnectDescription(status) : extractApiErrorMessage(error))],
-        components: buildEaConnectRows()
-      });
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(status?.loginUrl ? buildEaConnectDescription(status) : extractApiErrorMessage(error))], components: buildEaConnectRows() });
     }
     return;
   }
@@ -476,16 +480,17 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.weekScope) {
     draft.weekScope = interaction.values[0] as ImportDraft["weekScope"];
+    applyDefaultWeeks(draft);
     importSessions.set(interaction.user.id, draft);
     await interaction.update({
-      embeds: [new EmbedBuilder().setTitle("Create Import Job").setDescription([draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined, `Mode: **${draft.importMode?.replaceAll("_", " ")}**`, `Week Scope: **${draft.weekScope?.replaceAll("_", " ")}**`, "", "Select the core endpoints to include."].filter(Boolean).join("\n"))],
+      embeds: [new EmbedBuilder().setTitle("Create Import Job").setDescription([draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined, `Mode: **${draft.importMode?.replaceAll("_", " ")}**`, `Week Scope: **${draft.weekScope?.replaceAll("_", " ")}**`, draft.weekFrom ? `Weeks: **${draft.weekFrom}${draft.weekTo && draft.weekTo !== draft.weekFrom ? ` -> ${draft.weekTo}` : ""}**` : undefined, "", "Select the core endpoints to include."].filter(Boolean).join("\n"))],
       components: [buildEndpointSelectRow(), ...buildImportFlowNavigationRows()]
     });
     return;
   }
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.endpoints) {
-    draft.endpointKeys = interaction.values;
+    draft.endpointKeys = expandEndpointKeys(interaction.values);
     importSessions.set(interaction.user.id, draft);
     if (!draft.importMode) {
       await interaction.reply({ content: "Import mode is missing. Restart the import flow.", ephemeral: true });
@@ -500,12 +505,14 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
       eaExternalLeagueId: draft.eaExternalLeagueId,
       eaExternalLeagueName: draft.eaExternalLeagueName,
       importScope: draft.weekScope,
+      weekFrom: draft.weekFrom,
+      weekTo: draft.weekTo,
       selectedEndpointKeys: draft.endpointKeys
     });
     draft.importJobId = result.job?.id;
     importSessions.set(interaction.user.id, draft);
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Import Job Created").setDescription([`League: **${result.job?.league?.name ?? "Current League"}**`, draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined, `Mode: **${draft.importMode.replaceAll("_", " ")}**`, `Week Scope: **${draft.weekScope?.replaceAll("_", " ")}**`, `Endpoints: **${draft.endpointKeys.length} selected**`, "", "Next step: preview the import to inspect missing scores and endpoint data before execution.", "", "Economy payouts remain deferred until the league advance workflow."].filter(Boolean).join("\n"))],
+      embeds: [new EmbedBuilder().setTitle("Import Job Created").setDescription([`League: **${result.job?.league?.name ?? "Current League"}**`, draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined, `Mode: **${draft.importMode.replaceAll("_", " ")}**`, `Week Scope: **${draft.weekScope?.replaceAll("_", " ")}**`, draft.weekFrom ? `Weeks: **${draft.weekFrom}${draft.weekTo && draft.weekTo !== draft.weekFrom ? ` -> ${draft.weekTo}` : ""}**` : undefined, `Endpoints: **${draft.endpointKeys.length} selected**`, "", "Next step: preview the import to inspect missing scores and endpoint data before execution.", "", "Economy payouts remain deferred until the league advance workflow."].filter(Boolean).join("\n"))],
       components: buildImportJobCreatedRows()
     });
   }
