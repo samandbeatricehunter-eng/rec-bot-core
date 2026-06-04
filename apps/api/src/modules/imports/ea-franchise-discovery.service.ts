@@ -15,7 +15,10 @@ function getAccountConsole(account: EaAccountRecord): RecEaConsole {
 
 function toCompanionToken(account: EaAccountRecord): EaCompanionToken {
   if (!account.access_token || !account.refresh_token || !account.expires_at || !account.blaze_id) {
-    throw new ApiError(409, "EA account is connected, but OAuth token data is missing. Reconnect EA before discovering franchises.");
+    throw new ApiError(409, "EA account is connected, but OAuth token data is missing. Reconnect EA before discovering franchises.", {
+      reconnectRequired: true,
+      reason: "missing_token_data"
+    });
   }
 
   return {
@@ -25,6 +28,37 @@ function toCompanionToken(account: EaAccountRecord): EaCompanionToken {
     console: getAccountConsole(account),
     blazeId: String(account.blaze_id)
   };
+}
+
+function isReconnectRequiredError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return message.includes("refresh_token is invalid")
+    || message.includes("ea token refresh failed")
+    || message.includes("missing_token_data")
+    || message.includes("reconnect ea");
+}
+
+async function markEaAccountReconnectRequired(accountId: string) {
+  const now = new Date().toISOString();
+  const result = await supabase
+    .from("rec_ea_accounts")
+    .update({
+      access_token: null,
+      refresh_token: null,
+      expires_at: null,
+      updated_at: now,
+      raw_payload: {
+        reconnect_required: true,
+        reason: "refresh_token_invalid",
+        marked_at: now
+      }
+    })
+    .eq("id", accountId);
+
+  if (result.error) {
+    console.error("[EA ACCOUNT RECONNECT MARK FAILED]", result.error);
+  }
 }
 
 async function loadRecUserIdForDiscordId(discordId: string) {
@@ -91,10 +125,33 @@ export async function discoverEaFranchises(input: DiscoverEaFranchisesInput) {
 
   const account = accounts.data?.[0];
   if (!account) {
-    throw new ApiError(404, "No connected EA account was found for this REC user.");
+    throw new ApiError(404, "No connected EA account was found for this REC user.", {
+      reconnectRequired: true,
+      reason: "no_connected_account"
+    });
   }
 
-  const discovered = await getEaFranchises(toCompanionToken(account));
+  let discovered: Awaited<ReturnType<typeof getEaFranchises>>;
+  try {
+    discovered = await getEaFranchises(toCompanionToken(account));
+  } catch (error) {
+    if (isReconnectRequiredError(error)) {
+      console.warn("[EA RECONNECT REQUIRED]", {
+        accountId: account.id,
+        userId,
+        platform: account.platform,
+        reason: error instanceof Error ? error.message : String(error)
+      });
+      await markEaAccountReconnectRequired(account.id);
+      throw new ApiError(401, "EA reconnect required. The saved EA refresh token is invalid or expired. Open the EA login URL again and paste the fresh redirect URL.", {
+        reconnectRequired: true,
+        reason: "refresh_token_invalid"
+      });
+    }
+
+    throw error;
+  }
+
   const now = new Date().toISOString();
 
   console.log("[EA FRANCHISE PERSIST START]", {
