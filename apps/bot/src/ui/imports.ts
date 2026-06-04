@@ -204,7 +204,7 @@ export function buildImportJobCreatedRows() {
 export function buildImportPreviewRows(hasMissingResults = false) {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.executeJob).setLabel("Execute Import").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.executeJob).setLabel("Commit Import").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.refreshMissingResults).setLabel("Resolve Missing Results").setStyle(ButtonStyle.Primary).setDisabled(!hasMissingResults),
       new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)
     ),

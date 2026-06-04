@@ -68,6 +68,24 @@ type GetMyLeaguesResponse = {
   error?: Record<string, unknown>;
 };
 
+export type WeeklyExportPayloads = {
+  schedules: unknown;
+  teamStats: unknown;
+  passing: unknown;
+  rushing: unknown;
+  receiving: unknown;
+  defense: unknown;
+  kicking: unknown;
+  punting: unknown;
+  errors: Record<string, string>;
+};
+
+export type RosterExportPayloads = {
+  leagueTeams: unknown;
+  teamRosters: Array<{ teamId: number; listIndex: number; data: unknown }>;
+  freeAgents: unknown;
+};
+
 const YEAR = "2026";
 
 const BLAZE_SERVICE: Record<RecEaConsole, string> = {
@@ -87,6 +105,20 @@ const BLAZE_PRODUCT_NAME: Record<RecEaConsole, string> = {
   xbsx: `madden-${YEAR}-xbsx-mca`,
   stadia: `madden-${YEAR}-stadia-mca`
 };
+
+const EXPORT_ENDPOINTS = {
+  passing: "CareerMode_GetWeeklyPassingStatsExport",
+  rushing: "CareerMode_GetWeeklyRushingStatsExport",
+  receiving: "CareerMode_GetWeeklyReceivingStatsExport",
+  defense: "CareerMode_GetWeeklyDefensiveStatsExport",
+  kicking: "CareerMode_GetWeeklyKickingStatsExport",
+  punting: "CareerMode_GetWeeklyPuntingStatsExport",
+  teamStats: "CareerMode_GetWeeklyTeamStatsExport",
+  schedules: "CareerMode_GetWeeklySchedulesExport",
+  leagueTeams: "CareerMode_GetLeagueTeamsExport",
+  standings: "CareerMode_GetStandingsExport",
+  teamRoster: "CareerMode_GetTeamRostersExport"
+} as const;
 
 const dispatcher = new Agent({
   connect: {
@@ -447,4 +479,253 @@ export async function getEaFranchises(token: EaCompanionToken, session?: EaBlaze
     session: validSession,
     franchises: leagues.map(normalizeLeague)
   };
+}
+
+function formatExportError(error: unknown) {
+  const anyError = error as any;
+  return String(anyError?.message ?? anyError?.errorname ?? error).slice(0, 500);
+}
+
+function stripControlCharacters(text: string) {
+  return text.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+}
+
+export async function fetchEaExportData(
+  token: EaCompanionToken,
+  session: EaBlazeSession,
+  exportType: string,
+  body: Record<string, unknown>
+): Promise<unknown> {
+  const response = await fetch(`https://wal2.tools.gos.bio-iad.ea.com/wal/mca/${exportType}/${session.sessionKey}`, {
+    dispatcher,
+    method: "POST",
+    headers: companionHeaders(token),
+    body: JSON.stringify(body)
+  });
+
+  const text = stripControlCharacters(await response.text());
+  console.log("[EA EXPORT FETCH]", {
+    exportType,
+    status: response.status,
+    responsePreview: text.slice(0, 300)
+  });
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new ApiError(502, "Could not parse EA export response.", {
+      exportType,
+      status: response.status,
+      responsePreview: text.slice(0, 500)
+    });
+  }
+
+  if (!response.ok || parsed?.error) {
+    throw new ApiError(502, "EA export endpoint returned an error.", {
+      exportType,
+      status: response.status,
+      error: parsed?.error ?? null,
+      responsePreview: text.slice(0, 500)
+    });
+  }
+
+  return parsed;
+}
+
+async function fetchEaExportDataSoft(
+  token: EaCompanionToken,
+  session: EaBlazeSession,
+  exportType: string,
+  body: Record<string, unknown>
+): Promise<unknown | null> {
+  try {
+    return await fetchEaExportData(token, session, exportType, body);
+  } catch (error) {
+    console.warn("[EA EXPORT SOFT SKIP]", {
+      exportType,
+      error: formatExportError(error)
+    });
+    return null;
+  }
+}
+
+export async function fetchEaWeeklyStats(input: {
+  token: EaCompanionToken;
+  eaLeagueId: number;
+  weekIndex: number;
+  stageIndex: number;
+  session?: EaBlazeSession;
+}): Promise<{ token: EaCompanionToken; session: EaBlazeSession; payloads: WeeklyExportPayloads }> {
+  const validToken = input.session ? input.token : await refreshCompanionToken(input.token);
+  const validSession = input.session ?? await retrieveBlazeSession(validToken);
+  const body = { leagueId: input.eaLeagueId, stageIndex: input.stageIndex, weekIndex: input.weekIndex };
+  const errors: Record<string, string> = {};
+
+  const fetchRequired = async (key: keyof typeof EXPORT_ENDPOINTS) => {
+    try {
+      return await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS[key], body);
+    } catch (error) {
+      errors[key] = formatExportError(error);
+      return null;
+    }
+  };
+
+  const fetchOptional = async (key: keyof typeof EXPORT_ENDPOINTS) => {
+    const result = await fetchEaExportDataSoft(validToken, validSession, EXPORT_ENDPOINTS[key], body);
+    if (result == null) errors[key] = "Endpoint unavailable or returned no data.";
+    return result;
+  };
+
+  const [schedules, teamStats, passing, rushing, receiving, defense, kicking, punting] = await Promise.all([
+    fetchOptional("schedules"),
+    fetchRequired("teamStats"),
+    fetchRequired("passing"),
+    fetchRequired("rushing"),
+    fetchRequired("receiving"),
+    fetchRequired("defense"),
+    fetchOptional("kicking"),
+    fetchOptional("punting")
+  ]);
+
+  return {
+    token: validToken,
+    session: validSession,
+    payloads: {
+      schedules,
+      teamStats,
+      passing,
+      rushing,
+      receiving,
+      defense,
+      kicking,
+      punting,
+      errors
+    }
+  };
+}
+
+export async function fetchEaAllWeekSchedules(input: {
+  token: EaCompanionToken;
+  eaLeagueId: number;
+  startWeek?: number;
+  totalWeeks?: number;
+  stageIndex?: number;
+  session?: EaBlazeSession;
+}) {
+  const validToken = input.session ? input.token : await refreshCompanionToken(input.token);
+  const validSession = input.session ?? await retrieveBlazeSession(validToken);
+  const startWeek = input.startWeek ?? 1;
+  const totalWeeks = input.totalWeeks ?? 18;
+  const stageIndex = input.stageIndex ?? 1;
+  const weekResults: Array<{ weekNumber: number; weekIndex: number; data: unknown }> = [];
+
+  for (let weekNumber = startWeek; weekNumber <= totalWeeks; weekNumber += 1) {
+    const weekIndex = weekNumber - 1;
+    const data = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS.schedules, {
+      leagueId: input.eaLeagueId,
+      stageIndex,
+      weekIndex
+    });
+    weekResults.push({ weekNumber, weekIndex, data });
+  }
+
+  return { token: validToken, session: validSession, weekResults };
+}
+
+export async function fetchEaLeagueTeams(input: {
+  token: EaCompanionToken;
+  eaLeagueId: number;
+  session?: EaBlazeSession;
+}) {
+  const validToken = input.session ? input.token : await refreshCompanionToken(input.token);
+  const validSession = input.session ?? await retrieveBlazeSession(validToken);
+  const data = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS.leagueTeams, {
+    leagueId: input.eaLeagueId
+  });
+  return { token: validToken, session: validSession, data };
+}
+
+export async function fetchEaStandings(input: {
+  token: EaCompanionToken;
+  eaLeagueId: number;
+  session?: EaBlazeSession;
+}) {
+  const validToken = input.session ? input.token : await refreshCompanionToken(input.token);
+  const validSession = input.session ?? await retrieveBlazeSession(validToken);
+  const data = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS.standings, {
+    leagueId: input.eaLeagueId
+  });
+  return { token: validToken, session: validSession, data };
+}
+
+export async function fetchEaLeagueTeamsAndRosters(input: {
+  token: EaCompanionToken;
+  eaLeagueId: number;
+  session?: EaBlazeSession;
+}): Promise<{ token: EaCompanionToken; session: EaBlazeSession; payloads: RosterExportPayloads }> {
+  const validToken = input.session ? input.token : await refreshCompanionToken(input.token);
+  const validSession = input.session ?? await retrieveBlazeSession(validToken);
+  const leagueTeams = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS.leagueTeams, {
+    leagueId: input.eaLeagueId
+  });
+
+  const teamList = extractArray(leagueTeams, ["leagueTeamInfoList", "teamInfoList", "teams"]);
+  const teamRosters: Array<{ teamId: number; listIndex: number; data: unknown }> = [];
+
+  for (let index = 0; index < teamList.length; index += 4) {
+    const chunk = teamList.slice(index, index + 4);
+    const results = await Promise.all(chunk.map(async (team, chunkIndex) => {
+      const listIndex = index + chunkIndex;
+      const teamId = Number((team as any).teamId ?? (team as any).id ?? listIndex);
+      const data = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS.teamRoster, {
+        leagueId: input.eaLeagueId,
+        listIndex,
+        returnFreeAgents: false,
+        teamId
+      });
+      return { teamId, listIndex, data };
+    }));
+
+    teamRosters.push(...results);
+  }
+
+  const freeAgents = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS.teamRoster, {
+    leagueId: input.eaLeagueId,
+    listIndex: -1,
+    returnFreeAgents: true,
+    teamId: 0
+  });
+
+  return {
+    token: validToken,
+    session: validSession,
+    payloads: {
+      leagueTeams,
+      teamRosters,
+      freeAgents
+    }
+  };
+}
+
+export function extractArray(payload: unknown, candidateKeys: string[]): any[] {
+  if (Array.isArray(payload)) return payload;
+
+  if (payload && typeof payload === "object") {
+    const objectPayload = payload as Record<string, unknown>;
+    for (const key of candidateKeys) {
+      const value = objectPayload[key];
+      if (Array.isArray(value)) return value;
+    }
+
+    for (const value of Object.values(objectPayload)) {
+      if (Array.isArray(value)) return value;
+      if (value && typeof value === "object") {
+        const nested = extractArray(value, candidateKeys);
+        if (nested.length > 0) return nested;
+      }
+    }
+  }
+
+  return [];
 }

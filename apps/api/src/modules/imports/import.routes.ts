@@ -118,15 +118,16 @@ export async function importRoutes(app: FastifyInstance) {
     }
   });
 
-  app.post("/v1/imports/job/preview", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const { importJobId } = ImportJobIdBodySchema.parse(request.body);
-      return reply.send(await generateImportPreview(importJobId));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
+app.post("/v1/imports/job/preview", async (request, reply) => {
+  try {
+    requireInternalApiKey(request);
+    const { importJobId } = ImportJobIdBodySchema.parse(request.body);
+    await executeImportJob(importJobId);
+    return reply.send(await generateImportPreview(importJobId));
+  } catch (error) {
+    return sendError(reply, error);
+  }
+});
 
   app.post("/v1/imports/job/approve", async (request, reply) => {
     try {

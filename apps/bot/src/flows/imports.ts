@@ -351,7 +351,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     const executed = await recApi.executeImportJob(importJobId);
     const refreshed = await recApi.getImportJob(importJobId).catch(() => executed);
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Import Executed").setDescription(["The import execution request completed.", "", formatImportJob(refreshed.job ?? executed.job), "", "Review Import Status and the preview details before approval."].join("\n"))],
+      embeds: [new EmbedBuilder().setTitle("Import Committed").setDescription(["The staged import commit request completed.", "", formatImportJob(refreshed.job ?? executed.job), "", "Review Import Status before final approval."].join("\n"))],
       components: buildImportExecutedRows()
     });
     return;
