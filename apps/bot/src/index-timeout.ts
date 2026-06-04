@@ -38,7 +38,7 @@ const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Pleas
 async function expireWindow(interaction: Interaction) {
   if (!interaction.isRepliable()) return;
   const payload = { content: EXPIRED_WINDOW_MESSAGE, embeds: [], components: [] };
-  if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
+  if (interaction.isMessageComponent()) {
     if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
     else await interaction.update(payload).catch(async () => interaction.reply({ content: EXPIRED_WINDOW_MESSAGE, flags: MessageFlags.Ephemeral }).catch(() => undefined));
     return;
