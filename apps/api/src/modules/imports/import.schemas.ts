@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const ImportModeSchema = z.enum(["manual", "ea_import", "companion_app_export"]);
 
-export const ImportScopeSchema = z.enum(["single_week", "selected_weeks", "full_available", "full_regular_season_schedule"]);
+export const ImportScopeSchema = z.enum(["current_week", "single_week", "selected_weeks", "full_available", "full_regular_season_schedule"]);
 
 export const CoreImportEndpointSchema = z.enum([
   "league_metadata",
@@ -22,7 +22,7 @@ export const CreateImportJobSchema = z.object({
   requestedByDiscordId: z.string().min(1).optional(),
   eaExternalLeagueId: z.string().min(1).max(160).optional(),
   eaExternalLeagueName: z.string().min(1).max(160).optional(),
-  importScope: ImportScopeSchema.default("selected_weeks"),
+  importScope: ImportScopeSchema.default("current_week"),
   weekFrom: z.number().int().min(1).max(30).optional(),
   weekTo: z.number().int().min(1).max(30).optional(),
   selectedEndpointKeys: z.array(CoreImportEndpointSchema).default([])
