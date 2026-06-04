@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, GatewayIntentBits, Interaction } from "discord.js";
+import { Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags } from "discord.js";
 import { env } from "./config/env.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
@@ -22,13 +22,7 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft
 } from "./ui/league-setup.js";
-import {
-  handleImportButton,
-  handleImportModal,
-  handleImportSelect,
-  importSessions,
-  renderImportPanel
-} from "./flows/imports.js";
+import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel } from "./flows/imports.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -39,11 +33,32 @@ setInterval(() => {
   leagueSetupSessions.cleanup();
 }, 60_000).unref();
 
-async function expired(interaction: Interaction) {
+const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please reopen /menu to proceed.";
+
+async function expireWindow(interaction: Interaction) {
   if (!interaction.isRepliable()) return;
-  const payload = { content: "This menu session expired after 5 minutes of inactivity. Run `/menu` again to continue.", ephemeral: true };
-  if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => undefined);
-  else await interaction.reply(payload).catch(() => undefined);
+  const payload = { content: EXPIRED_WINDOW_MESSAGE, embeds: [], components: [] };
+  if (interaction.isMessageComponent() || interaction.isModalSubmit()) {
+    if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
+    else await interaction.update(payload).catch(async () => interaction.reply({ content: EXPIRED_WINDOW_MESSAGE, flags: MessageFlags.Ephemeral }).catch(() => undefined));
+    return;
+  }
+  if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
+  else await interaction.reply({ content: EXPIRED_WINDOW_MESSAGE, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+}
+
+async function safeInteractionError(interaction: Interaction, error: unknown) {
+  console.error("Interaction handling failed", error);
+  if (!interaction.isRepliable()) return;
+  const content = "REC Bot hit an error while handling that action. Please reopen /menu and try again.";
+  if (interaction.isMessageComponent()) {
+    const payload = { content, embeds: [], components: [] };
+    if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
+    else await interaction.update(payload).catch(async () => interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined));
+    return;
+  }
+  if (interaction.deferred || interaction.replied) await interaction.followUp({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
 }
 
 client.once("clientReady", async () => {
@@ -56,6 +71,10 @@ client.once("clientReady", async () => {
   }
 });
 
+client.on("error", (error) => {
+  console.error("Discord client error", error);
+});
+
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
     if (interaction.isChatInputCommand() && interaction.commandName === "menu") {
@@ -66,7 +85,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       importSessions.delete(interaction.user.id);
-      await expired(interaction);
+      await expireWindow(interaction);
       return;
     }
 
@@ -79,9 +98,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton()) {
       if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) return interaction.showModal(buildSetupDangerModal("server_setup"));
       if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
-      if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) {
-        return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
-      }
+      if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
       if (interaction.customId === MENU_CUSTOM_IDS.adminImports) return renderImportPanel(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
@@ -95,11 +112,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
     }
   } catch (error) {
-    console.error("Interaction handling failed", error);
-    if (!interaction.isRepliable()) return;
-    const payload = { content: "REC Bot hit an error while handling that action.", ephemeral: true };
-    if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => undefined);
-    else await interaction.reply(payload).catch(() => undefined);
+    await safeInteractionError(interaction, error);
   }
 });
 
@@ -125,7 +138,7 @@ async function buildMainMenuPayload(userId: string, isAdmin: boolean) {
 
 async function handleMenuCommand(interaction: Extract<Interaction, { isChatInputCommand(): boolean }>) {
   if (!interaction.isChatInputCommand()) return;
-  await interaction.deferReply({ ephemeral: true });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   menuSessions.set(interaction.user.id, true);
   await interaction.editReply(await buildMainMenuPayload(interaction.user.id, isDiscordAdminInteraction(interaction)));
 }
@@ -138,7 +151,7 @@ async function renderMainMenuFromComponent(interaction: Extract<Interaction, { i
 
 async function renderAdminPanelFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", ephemeral: true });
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
   importSessions.delete(interaction.user.id);
   await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
 }
@@ -147,7 +160,7 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
   if (!interaction.isStringSelectMenu()) return;
   const selected = interaction.values[0];
   if (selected === "admin_panel") {
-    if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", ephemeral: true });
+    if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
     return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   }
   const labels: Record<string, string> = { rosters: "Rosters", manage_team: "Manage My Team", standings_stats: "Standings & Stats", rec_bank: "REC Bank", media_center: "Media Center", help_rules: "Help / Rules" };
@@ -156,24 +169,24 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
 
 async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can use setup workflows.", ephemeral: true });
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Setup workflows must be run inside a Discord server.", ephemeral: true });
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can use setup workflows.", flags: MessageFlags.Ephemeral });
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Setup workflows must be run inside a Discord server.", flags: MessageFlags.Ephemeral });
   const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
   if (action === "server_setup") {
     const result = await recApi.registerServer({ guildId: interaction.guildId, name: interaction.guild.name, setupMode: "manual_first", requestedByDiscordId: interaction.user.id });
-    return interaction.reply({ content: ["**Server Setup confirmed.**", "", `Server: ${result.server.name}`, `Status: ${result.server.setup_status}`, `Created: ${result.created ? "Yes" : "No, existing server record updated"}`].join("\n"), ephemeral: true });
+    return interaction.reply({ content: ["**Server Setup confirmed.**", "", `Server: ${result.server.name}`, `Status: ${result.server.setup_status}`, `Created: ${result.created ? "Yes" : "No, existing server record updated"}`].join("\n"), flags: MessageFlags.Ephemeral });
   }
   if (action === "league_setup") {
     const draft = createDefaultLeagueSetupDraft(interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leagueNameInput).trim());
     leagueSetupSessions.set(interaction.user.id, draft);
-    return interaction.reply({ ...buildLeagueSetupWindow(draft), ephemeral: true });
+    return interaction.reply({ ...buildLeagueSetupWindow(draft), flags: MessageFlags.Ephemeral });
   }
 }
 
 async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", ephemeral: true });
+  if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   const value = interaction.values[0];
   switch (interaction.customId) {
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
@@ -225,9 +238,9 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
 
 async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can save League Setup.", ephemeral: true });
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can save League Setup.", flags: MessageFlags.Ephemeral });
   const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", ephemeral: true });
+  if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
   const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
   leagueSetupSessions.delete(interaction.user.id);
