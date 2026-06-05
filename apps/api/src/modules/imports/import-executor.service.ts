@@ -211,8 +211,12 @@ function extractGameRows(payload: unknown, importJobId: string, leagueId: string
   return games.map((game: any, index) => {
     const homeScore = game.homeScore ?? game.homeTeamScore ?? game.home?.score ?? game.seasonGameInfo?.homeScore;
     const awayScore = game.awayScore ?? game.awayTeamScore ?? game.away?.score ?? game.seasonGameInfo?.awayScore;
-    const isPlayed = Boolean(game.isGamePlayed ?? game.played ?? game.seasonGameInfo?.isGamePlayed ?? game.status === 2 ?? (homeScore != null && awayScore != null));
-
+    const isPlayed = Boolean(
+      game.isGamePlayed ?? 
+      game.played ?? 
+      game.seasonGameInfo?.isGamePlayed ?? 
+      ((game.status === 2) || (homeScore != null && awayScore != null))
+    );
     return {
       importJobId,
       leagueId,
