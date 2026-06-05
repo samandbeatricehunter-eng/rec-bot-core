@@ -8,7 +8,7 @@ import {
   UpdateImportJobStatusSchema
 } from "./import.schemas.js";
 import { createImportJob } from "./import-locked.service.js";
-import { executeImportJob } from "./import-executor.service.js";
+import { executeImportEndpoint, executeImportJob } from "./import-executor.service.js";
 import {
   approveImportPreview,
   cancelImportJob,
@@ -29,6 +29,10 @@ import {
 } from "./import.service.js";
 
 const ImportJobIdBodySchema = z.object({ importJobId: z.string().uuid() });
+const StageImportEndpointBodySchema = z.object({
+  importJobId: z.string().uuid(),
+  endpointKey: z.string().min(1)
+});
 const CancelImportJobSchema = z.object({ importJobId: z.string().uuid(), reason: z.string().optional().nullable() });
 const MissingScoreParamsSchema = z.object({ gameId: z.string().uuid() });
 const ReimportMissingScoreBodySchema = z.object({ requestedByDiscordId: z.string().min(1), notes: z.string().optional().nullable() });
@@ -108,6 +112,16 @@ export async function importRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/v1/imports/job/stage-endpoint", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { importJobId, endpointKey } = StageImportEndpointBodySchema.parse(request.body);
+      return reply.send(await executeImportEndpoint(importJobId, endpointKey));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/imports/job/execute", async (request, reply) => {
     try {
       requireInternalApiKey(request);
@@ -118,16 +132,15 @@ export async function importRoutes(app: FastifyInstance) {
     }
   });
 
-app.post("/v1/imports/job/preview", async (request, reply) => {
-  try {
-    requireInternalApiKey(request);
-    const { importJobId } = ImportJobIdBodySchema.parse(request.body);
-    await executeImportJob(importJobId);
-    return reply.send(await generateImportPreview(importJobId));
-  } catch (error) {
-    return sendError(reply, error);
-  }
-});
+  app.post("/v1/imports/job/preview", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { importJobId } = ImportJobIdBodySchema.parse(request.body);
+      return reply.send(await generateImportPreview(importJobId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
 
   app.post("/v1/imports/job/approve", async (request, reply) => {
     try {

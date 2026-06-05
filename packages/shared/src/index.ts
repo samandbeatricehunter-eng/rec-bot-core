@@ -5,8 +5,6 @@ export const REC_API_ROUTES = {
   userBaseline: (discordId: string) => `/v1/users/${discordId}/baseline`,
   userWallet: (discordId: string) => `/v1/users/${discordId}/wallet`,
 
-
-  
   registerServer: "/v1/setup/server/register",
   createLeague: "/v1/setup/league/create",
   updateServerRoutes: "/v1/setup/server/routes",
@@ -22,17 +20,21 @@ export const REC_API_ROUTES = {
   importMissingResults: (jobId: string) => `/v1/imports/${jobId}/missing-results`,
   importStatus: (guildId: string) => `/v1/imports/guild/${guildId}/status`,
   importHistory: (guildId: string) => `/v1/imports/guild/${guildId}/history`,
+
   eaAccountStatus: "/v1/imports/ea-account/status",
-eaAccountConnect: "/v1/imports/ea-account/connect",
-discoverEaFranchises: "/v1/imports/ea-franchise/discover",
-eaFranchises: (guildId: string) => `/v1/imports/ea-franchise/${guildId}`,
-selectEaFranchise: "/v1/imports/ea-franchise/select",
+  eaAccountConnect: "/v1/imports/ea-account/connect",
+  discoverEaFranchises: "/v1/imports/ea-franchise/discover",
+  eaFranchises: (guildId: string) => `/v1/imports/ea-franchise/${guildId}`,
+  selectEaFranchise: "/v1/imports/ea-franchise/select",
+
   updateImportJobStatus: "/v1/imports/job/status",
   updateImportEndpointAttempt: "/v1/imports/job/endpoint",
+  stageImportEndpoint: "/v1/imports/job/stage-endpoint",
   executeImportJob: "/v1/imports/job/execute",
   previewImportJob: "/v1/imports/job/preview",
   approveImportJob: "/v1/imports/job/approve",
   cancelImportJob: "/v1/imports/job/cancel",
+
   requestMissingResultReimport: (gameId: string) => `/v1/imports/missing-results/${gameId}/reimport`,
   manualMissingResultScore: (gameId: string) => `/v1/imports/missing-results/${gameId}/manual-score`,
   ignoreMissingResult: (gameId: string) => `/v1/imports/missing-results/${gameId}/ignore`

@@ -16,8 +16,10 @@ import { getImportJob, updateEndpointAttempt, updateImportJobStatus } from "./im
 import {
   stageGames,
   stagePlayerStats,
+  stageRosters,
   stageStandings,
-  stageTeamStats
+  stageTeamStats,
+  stageTeams
 } from "./import-staging.service.js";
 
 export type ImportEndpointExecutionResult = {
@@ -34,6 +36,7 @@ type EaExecutionContext = {
   token: EaCompanionToken;
   eaLeagueId: number;
   seasonNumber: number;
+  seasonIndex: number | null;
   weekFrom: number;
   weekTo: number;
   stageIndex: number;
@@ -47,6 +50,7 @@ type ExecutorContext = {
   token: EaCompanionToken;
   eaLeagueId: number;
   seasonNumber: number;
+  seasonIndex: number | null;
   weekFrom: number;
   weekTo: number;
   stageIndex: number;
@@ -55,7 +59,44 @@ type ExecutorContext = {
 
 type EndpointExecutor = (context: ExecutorContext) => Promise<ImportEndpointExecutionResult & { session?: EaBlazeSession }>;
 
-const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "players", "player_stats", "team_stats"];
+const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "player_stats", "team_stats"];
+
+const IMPORT_PROGRESS_ENDPOINTS = [
+  "league_metadata",
+  "teams",
+  "standings",
+  "schedule",
+  "rosters",
+  "team_stats",
+  "player_stats"
+] as const;
+
+const POS_NUM: Record<number, string> = {
+  0: "QB",
+  1: "HB",
+  2: "FB",
+  3: "WR",
+  4: "TE",
+  5: "LT",
+  6: "LG",
+  7: "C",
+  8: "RG",
+  9: "RT",
+  10: "LE",
+  11: "RE",
+  12: "DT",
+  13: "LOLB",
+  14: "MLB",
+  15: "ROLB",
+  16: "CB",
+  17: "FS",
+  18: "SS",
+  19: "K",
+  20: "P",
+  21: "KR",
+  22: "PR",
+  23: "LS"
+};
 
 function endpointLabel(endpointKey: string) {
   return endpointKey
@@ -71,14 +112,81 @@ function toNumber(value: unknown, fallback = 0) {
 
 function toStringOrNull(value: unknown) {
   if (value == null) return null;
-  const text = String(value);
+  const text = String(value).trim();
   return text.length > 0 ? text : null;
+}
+
+function getN(obj: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = obj[key];
+    if (value != null && value !== "") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return 0;
+}
+
+function getStr(obj: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = obj[key];
+    if (value != null && value !== "") return String(value);
+  }
+  return "";
+}
+
+function getBool(obj: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    if (typeof value === "string") return ["true", "1", "yes"].includes(value.toLowerCase());
+  }
+  return false;
+}
+
+function getPosition(row: Record<string, unknown>) {
+  const raw = row.position ?? row.pos ?? row.playerPosition;
+  if (raw == null || raw === "") {
+    const numeric = Number(row.positionId ?? row.posId ?? row.playerPositionId);
+    return Number.isFinite(numeric) ? POS_NUM[numeric] ?? String(numeric) : null;
+  }
+
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && POS_NUM[numeric]) return POS_NUM[numeric];
+  return String(raw);
 }
 
 function summarizePayload(payload: unknown) {
   if (!payload || typeof payload !== "object") return { type: typeof payload };
   const keys = Object.keys(payload as Record<string, unknown>).slice(0, 20);
   return { keys };
+}
+
+function extractSeasonIndex(payload: unknown, rows: Record<string, unknown>[]) {
+  if (payload && typeof payload === "object") {
+    const body = payload as Record<string, unknown>;
+    for (const key of ["seasonIndex", "leagueSeasonIndex", "cfmSeasonIndex", "season", "seasonNum"]) {
+      if (body[key] != null) return toNumber(body[key], 0);
+    }
+  }
+
+  if (rows.length > 0) {
+    const first = rows[0];
+    for (const key of ["seasonIndex", "leagueSeasonIndex", "cfmSeasonIndex"]) {
+      if (first[key] != null) return toNumber(first[key], 0);
+    }
+  }
+
+  return null;
+}
+
+function getSeasonNumber(context: ExecutorContext, payload: unknown, rows: Record<string, unknown>[]) {
+  const seasonIndex = extractSeasonIndex(payload, rows);
+  return {
+    seasonIndex,
+    seasonNumber: seasonIndex == null ? context.seasonNumber : seasonIndex + 1
+  };
 }
 
 function getWeekBounds(job: any) {
@@ -137,14 +245,18 @@ async function loadEaContext(importJobId: string, job: any): Promise<EaExecution
     blazeId: String(account.blaze_id)
   };
 
-  const seasonNumber = toNumber(franchise.data.calendar_year, new Date().getFullYear());
   const { weekFrom, weekTo } = getWeekBounds(job);
+  const seasonIndex = franchise.data.season_index == null ? null : toNumber(franchise.data.season_index, 0);
+  const seasonNumber = seasonIndex == null
+    ? toNumber(job.season_number ?? franchise.data.calendar_year, 1)
+    : seasonIndex + 1;
 
   return {
     accountId: account.id,
     token,
     eaLeagueId: Number(franchise.data.external_league_id),
     seasonNumber,
+    seasonIndex,
     weekFrom,
     weekTo,
     stageIndex: 1
@@ -168,142 +280,254 @@ async function persistRefreshedEaToken(accountId: string, token: EaCompanionToke
   }
 }
 
-function extractTeamRows(payload: unknown, importJobId: string, leagueId: string, seasonNumber: number) {
-  const teams = extractArray(payload, ["leagueTeamInfoList", "teamInfoList", "teams"]);
+function extractTeamRows(payload: unknown, context: ExecutorContext) {
+  const teams = extractArray(payload, ["leagueTeamInfoList", "teamInfoList", "teams", "leagueTeams"]) as Record<string, unknown>[];
+  const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, teams);
 
-  return teams.map((team: any) => ({
-    importJobId,
-    leagueId,
-    seasonNumber,
-    seasonStage: "regular_season",
-    teamExternalId: toStringOrNull(team.teamId ?? team.id ?? team.teamInfo?.teamId),
-    teamName: toStringOrNull(
-      team.displayName && team.cityName
-        ? `${team.cityName} ${team.displayName}`
-        : team.displayName ?? team.nickName ?? team.teamName ?? team.fullName ?? team.cityName ?? team.abbrName ?? team.abbrev
-    ),
-    stats: team,
-    rawPayload: team
-  }));
+  return teams.map((team) => {
+    const teamId = getN(team, "teamId", "id", "rosterId");
+    const cityName = getStr(team, "cityName");
+    const nickName = getStr(team, "nickName", "displayName", "teamName");
+    const teamName = cityName && nickName ? `${cityName} ${nickName}` : nickName || cityName || `Team ${teamId}`;
+
+    return {
+      importJobId: context.importJobId,
+      leagueId: context.job.league_id,
+      eaLeagueId: context.eaLeagueId,
+      seasonNumber,
+      seasonIndex,
+      teamExternalId: teamId ? String(teamId) : toStringOrNull(team.teamExternalId ?? team.abbrName),
+      teamName,
+      cityName: cityName || null,
+      nickName: nickName || null,
+      abbrName: getStr(team, "abbrName", "teamAbbr", "abbrev") || null,
+      conference: getStr(team, "conferenceName", "conference", "confName") || null,
+      divisionName: getStr(team, "divisionName", "divName") || null,
+      userName: getStr(team, "userName", "user") || null,
+      isHuman: getBool(team, "isUserControlled", "isHuman"),
+      normalized: {
+        teamId,
+        teamName,
+        cityName,
+        nickName,
+        abbrName: getStr(team, "abbrName", "teamAbbr", "abbrev") || null
+      },
+      rawPayload: team
+    };
+  });
 }
 
-function extractStandingRows(payload: unknown, importJobId: string, leagueId: string, seasonNumber: number) {
-  const standings = extractArray(payload, ["teamStandingInfoList", "standingInfoList", "standings", "items"]);
-  return standings.map((standing: any) => ({
-    importJobId,
-    leagueId,
-    seasonNumber,
-    seasonStage: "regular_season",
-    teamExternalId: toStringOrNull(standing.teamId ?? standing.teamExternalId ?? standing.id),
-    teamName: toStringOrNull(standing.teamName ?? standing.displayName ?? standing.abbrName ?? standing.team?.teamName),
-    wins: toNumber(standing.totalWins ?? standing.wins ?? standing.win),
-    losses: toNumber(standing.totalLosses ?? standing.losses ?? standing.loss),
-    ties: toNumber(standing.totalTies ?? standing.ties ?? standing.tie),
-    pointsFor: toNumber(standing.ptsFor ?? standing.pointsFor ?? standing.pf),
-    pointsAgainst: toNumber(standing.ptsAgainst ?? standing.pointsAgainst ?? standing.pa),
-    rawPayload: standing
-  }));
+function extractStandingRows(payload: unknown, context: ExecutorContext) {
+  const standings = extractArray(payload, ["teamStandingInfoList", "standingInfoList", "standings", "items"]) as Record<string, unknown>[];
+  const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, standings);
+
+  return standings.map((standing) => {
+    const teamId = getN(standing, "teamId", "id", "rosterId");
+    const teamName = getStr(standing, "teamName", "displayName", "abbrName") || (teamId ? `Team ${teamId}` : "");
+
+    return {
+      importJobId: context.importJobId,
+      leagueId: context.job.league_id,
+      eaLeagueId: context.eaLeagueId,
+      seasonNumber,
+      seasonIndex,
+      seasonStage: "regular_season",
+      weekNumber: null,
+      teamExternalId: teamId ? String(teamId) : toStringOrNull(standing.teamExternalId),
+      teamName: teamName || null,
+      wins: getN(standing, "totalWins", "wins", "win"),
+      losses: getN(standing, "totalLosses", "losses", "loss"),
+      ties: getN(standing, "totalTies", "ties", "tie"),
+      pointsFor: getN(standing, "ptsFor", "pointsFor", "pf"),
+      pointsAgainst: getN(standing, "ptsAgainst", "pointsAgainst", "pa"),
+      normalized: {
+        teamId,
+        teamName,
+        conferenceName: getStr(standing, "conferenceName", "confName") || null,
+        divisionName: getStr(standing, "divisionName", "divName") || null
+      },
+      rawPayload: standing
+    };
+  });
 }
 
-function extractGameRows(payload: unknown, importJobId: string, leagueId: string, seasonNumber: number, weekNumber: number) {
-  const games = extractArray(payload, ["gameScheduleInfoList", "leagueSchedule", "scheduleInfoList", "games", "items"]);
+function extractGameRows(payload: unknown, context: ExecutorContext, weekNumber: number) {
+  const games = extractArray(payload, ["gameScheduleInfoList", "leagueSchedule", "scheduleInfoList", "games", "items"]) as Record<string, unknown>[];
+  const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, games);
 
-  return games.map((game: any, index) => {
-    const homeScore = game.homeScore ?? game.homeTeamScore ?? game.home?.score ?? game.seasonGameInfo?.homeScore;
-    const awayScore = game.awayScore ?? game.awayTeamScore ?? game.away?.score ?? game.seasonGameInfo?.awayScore;
+  return games.map((game, index) => {
+    const homeScore = game.homeScore ?? game.homeTeamScore ?? (game.home as any)?.score ?? (game.seasonGameInfo as any)?.homeScore;
+    const awayScore = game.awayScore ?? game.awayTeamScore ?? (game.away as any)?.score ?? (game.seasonGameInfo as any)?.awayScore;
     const isPlayed = Boolean(
-      game.isGamePlayed ?? 
-      game.played ?? 
-      game.seasonGameInfo?.isGamePlayed ?? 
+      game.isGamePlayed ??
+      game.played ??
+      (game.seasonGameInfo as any)?.isGamePlayed ??
       ((game.status === 2) || (homeScore != null && awayScore != null))
     );
+
     return {
-      importJobId,
-      leagueId,
+      importJobId: context.importJobId,
+      leagueId: context.job.league_id,
+      eaLeagueId: context.eaLeagueId,
       seasonNumber,
+      seasonIndex,
       seasonStage: "regular_season",
       weekNumber,
-      externalGameId: toStringOrNull(game.scheduleId ?? game.gameId ?? game.id ?? `${weekNumber}-${index}`),
-      homeTeamExternalId: toStringOrNull(game.homeTeamId ?? game.home?.teamId ?? game.seasonGameInfo?.homeTeamId),
-      awayTeamExternalId: toStringOrNull(game.awayTeamId ?? game.away?.teamId ?? game.seasonGameInfo?.awayTeamId),
-      homeTeamName: toStringOrNull(game.homeTeamName ?? game.home?.teamName ?? game.homeDisplayName),
-      awayTeamName: toStringOrNull(game.awayTeamName ?? game.away?.teamName ?? game.awayDisplayName),
+      externalGameId: toStringOrNull(game.scheduleId ?? game.gameId ?? game.id) ?? `${weekNumber}-${index}`,
+      homeTeamExternalId: toStringOrNull(game.homeTeamId ?? (game.home as any)?.teamId ?? (game.seasonGameInfo as any)?.homeTeamId),
+      awayTeamExternalId: toStringOrNull(game.awayTeamId ?? (game.away as any)?.teamId ?? (game.seasonGameInfo as any)?.awayTeamId),
+      homeTeamName: toStringOrNull(game.homeTeamName ?? (game.home as any)?.teamName ?? game.homeDisplayName),
+      awayTeamName: toStringOrNull(game.awayTeamName ?? (game.away as any)?.teamName ?? game.awayDisplayName),
       homeScore: homeScore == null ? null : toNumber(homeScore),
       awayScore: awayScore == null ? null : toNumber(awayScore),
       gameStatus: isPlayed ? "complete" : "scheduled",
+      normalized: {
+        weekNumber,
+        isPlayed
+      },
       rawPayload: game
     };
   });
 }
 
-function extractTeamStatRows(payload: unknown, importJobId: string, leagueId: string, seasonNumber: number, weekNumber: number) {
-  const rows = extractArray(payload, ["teamStatInfoList", "teamStatsInfoList", "teamStats", "items"]);
-  return rows.map((row: any) => ({
-    importJobId,
-    leagueId,
-    seasonNumber,
-    seasonStage: "regular_season",
-    weekNumber,
-    teamExternalId: toStringOrNull(row.teamId ?? row.teamExternalId ?? row.id),
-    teamName: toStringOrNull(row.teamName ?? row.displayName ?? row.abbrName),
-    stats: row,
-    rawPayload: row
-  }));
+function extractTeamStatRows(payload: unknown, context: ExecutorContext, weekNumber: number) {
+  const rows = extractArray(payload, ["teamStatInfoList", "teamStatsInfoList", "teamStats", "items"]) as Record<string, unknown>[];
+  const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, rows);
+
+  return rows.map((row, index) => {
+    const teamId = getN(row, "teamId", "id", "rosterId");
+
+    return {
+      importJobId: context.importJobId,
+      leagueId: context.job.league_id,
+      eaLeagueId: context.eaLeagueId,
+      seasonNumber,
+      seasonIndex,
+      seasonStage: "regular_season",
+      weekNumber,
+      statCategory: "team",
+      teamExternalId: teamId ? String(teamId) : toStringOrNull(row.teamExternalId ?? `team-stat-${index}`),
+      teamName: getStr(row, "teamName", "displayName", "abbrName") || null,
+      stats: row,
+      normalized: {
+        teamId,
+        weekNumber
+      },
+      rawPayload: row
+    };
+  });
 }
 
-function extractPlayerStatRows(payload: unknown, category: string, importJobId: string, leagueId: string, seasonNumber: number, weekNumber: number) {
+function extractPlayerStatRows(payload: unknown, category: string, context: ExecutorContext, weekNumber: number) {
   const rows = extractArray(payload, [
     "playerPassingStatInfoList",
+    "playerPassStatInfoList",
+    "playerPassingStatsInfoList",
     "playerRushingStatInfoList",
+    "playerRushStatInfoList",
+    "playerRushingStatsInfoList",
     "playerReceivingStatInfoList",
+    "playerRecStatInfoList",
+    "playerReceivingStatsInfoList",
     "playerDefensiveStatInfoList",
+    "playerDefenseStatInfoList",
+    "playerDefStatInfoList",
     "playerKickingStatInfoList",
+    "playerKickStatInfoList",
     "playerPuntingStatInfoList",
+    "playerPuntStatInfoList",
     "playerStatInfoList",
     "playerStatsInfoList",
     "statInfoList",
     "items"
-  ]);
+  ]) as Record<string, unknown>[];
 
-  return rows.map((row: any) => ({
-    importJobId,
-    leagueId,
-    seasonNumber,
-    seasonStage: "regular_season",
-    weekNumber,
-    playerExternalId: toStringOrNull(row.rosterId ?? row.playerId ?? row.id ?? row.playerExternalId),
-    playerName: toStringOrNull(row.fullName ?? row.playerName ?? row.name ?? [row.firstName, row.lastName].filter(Boolean).join(" ")),
-    teamExternalId: toStringOrNull(row.teamId ?? row.teamExternalId),
-    teamName: toStringOrNull(row.teamName ?? row.displayName ?? row.abbrName),
-    position: toStringOrNull(row.position ?? row.pos),
-    stats: { category, ...row },
-    rawPayload: row
-  }));
+  const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, rows);
+
+  return rows.map((row, index) => {
+    const playerId = getN(row, "rosterId", "playerId", "id");
+    const teamId = getN(row, "teamId", "teamExternalId");
+    const firstName = getStr(row, "firstName", "first");
+    const lastName = getStr(row, "lastName", "last");
+    const playerName = getStr(row, "fullName", "playerName", "name") || [firstName, lastName].filter(Boolean).join(" ");
+
+    return {
+      importJobId: context.importJobId,
+      leagueId: context.job.league_id,
+      eaLeagueId: context.eaLeagueId,
+      seasonNumber,
+      seasonIndex,
+      seasonStage: "regular_season",
+      weekNumber,
+      statCategory: category,
+      playerExternalId: playerId ? String(playerId) : toStringOrNull(row.playerExternalId ?? `${category}-${weekNumber}-${index}`),
+      playerName: playerName || null,
+      teamExternalId: teamId ? String(teamId) : toStringOrNull(row.teamExternalId),
+      teamName: getStr(row, "teamName", "displayName", "abbrName") || null,
+      position: getPosition(row),
+      stats: row,
+      normalized: {
+        playerId,
+        teamId,
+        playerName,
+        weekNumber,
+        category
+      },
+      rawPayload: row
+    };
+  });
 }
 
-function extractRosterPlayerRows(payload: unknown, importJobId: string, leagueId: string, seasonNumber: number, teamId?: number) {
-  const rows = extractArray(payload, ["rosterInfoList", "playerInfoList", "players", "items"]);
+function extractRosterPlayerRows(payload: unknown, context: ExecutorContext, teamId?: number) {
+  const rows = extractArray(payload, [
+    "rosterInfoList",
+    "playerArray",
+    "teamRosterInfoList",
+    "activeRosterInfoList",
+    "playerInfoList",
+    "rosters",
+    "players",
+    "rosterArray",
+    "teamPlayerInfoList",
+    "playerRosterInfoList",
+    "items"
+  ]) as Record<string, unknown>[];
 
-  return rows.map((row: any) => ({
-    importJobId,
-    leagueId,
-    seasonNumber,
-    seasonStage: "regular_season",
-    weekNumber: null,
-    playerExternalId: toStringOrNull(row.rosterId ?? row.playerId ?? row.id ?? row.playerExternalId),
-    playerName: toStringOrNull(row.fullName ?? row.playerName ?? row.name ?? [row.firstName, row.lastName].filter(Boolean).join(" ")),
-    teamExternalId: toStringOrNull(row.teamId ?? teamId ?? row.teamExternalId),
-    teamName: toStringOrNull(row.teamName ?? row.displayName ?? row.abbrName),
-    position: toStringOrNull(row.position ?? row.pos),
-    stats: row,
-    rawPayload: row
-  }));
-}
+  const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, rows);
 
-async function stageTeamsAsTeamStats(context: ExecutorContext, payload: unknown) {
-  const rows = extractTeamRows(payload, context.importJobId, context.job.league_id, context.seasonNumber);
-  const staged = await stageTeamStats(rows);
-  return staged.count;
+  return rows.map((row, index) => {
+    const playerId = getN(row, "rosterId", "playerId", "id");
+    const resolvedTeamId = getN(row, "teamId", "teamExternalId") || teamId || 0;
+    const firstName = getStr(row, "firstName", "first");
+    const lastName = getStr(row, "lastName", "last");
+    const playerName = getStr(row, "fullName", "playerName", "name") || [firstName, lastName].filter(Boolean).join(" ");
+
+    return {
+      importJobId: context.importJobId,
+      leagueId: context.job.league_id,
+      eaLeagueId: context.eaLeagueId,
+      seasonNumber,
+      seasonIndex,
+      teamExternalId: resolvedTeamId ? String(resolvedTeamId) : toStringOrNull(row.teamExternalId),
+      teamName: getStr(row, "teamName", "displayName", "abbrName") || null,
+      playerExternalId: playerId ? String(playerId) : toStringOrNull(row.playerExternalId ?? `roster-player-${index}`),
+      playerName: playerName || null,
+      firstName: firstName || null,
+      lastName: lastName || null,
+      position: getPosition(row),
+      jerseyNumber: getN(row, "jerseyNum", "jerseyNumber", "uniformNumber") || null,
+      overallRating: getN(row, "overallRating", "ovrRating", "overall") || null,
+      age: getN(row, "age") || null,
+      devTrait: getStr(row, "devTrait", "devTraitName", "developmentTrait") || null,
+      normalized: {
+        playerId,
+        teamId: resolvedTeamId,
+        playerName,
+        position: getPosition(row)
+      },
+      rawPayload: row
+    };
+  });
 }
 
 const EXECUTORS: Record<string, EndpointExecutor> = {
@@ -326,13 +550,16 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
       eaLeagueId: context.eaLeagueId,
       session: context.session
     });
-    const recordsFound = await stageTeamsAsTeamStats(context, result.data);
+
+    const rows = extractTeamRows(result.data, context);
+    const staged = await stageTeams(rows);
+
     return {
       endpointKey: context.endpointKey,
       endpointLabel: context.endpointLabel,
       status: "success",
-      recordsFound,
-      responseSummary: { payload: summarizePayload(result.data), stagingWrites: recordsFound },
+      recordsFound: staged.count,
+      responseSummary: { payload: summarizePayload(result.data), stagingWrites: staged.count },
       session: result.session
     };
   },
@@ -343,8 +570,10 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
       eaLeagueId: context.eaLeagueId,
       session: context.session
     });
-    const rows = extractStandingRows(result.data, context.importJobId, context.job.league_id, context.seasonNumber);
+
+    const rows = extractStandingRows(result.data, context);
     const staged = await stageStandings(rows);
+
     return {
       endpointKey: context.endpointKey,
       endpointLabel: context.endpointLabel,
@@ -356,49 +585,50 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
   },
 
   schedule: async (context) => {
-    const result = context.weekFrom === context.weekTo
-      ? {
-          ...(await fetchEaWeeklyStats({
-            token: context.token,
-            eaLeagueId: context.eaLeagueId,
-            weekIndex: context.weekFrom - 1,
-            stageIndex: context.stageIndex,
-            session: context.session
-          })),
-          weekResults: undefined
-        }
-      : await fetchEaAllWeekSchedules({
-          token: context.token,
-          eaLeagueId: context.eaLeagueId,
-          startWeek: context.weekFrom,
-          totalWeeks: context.weekTo,
-          stageIndex: context.stageIndex,
-          session: context.session
-        });
-
+    let session = context.session;
     const allRows: any[] = [];
-    if ("payloads" in result) {
-      allRows.push(...extractGameRows(result.payloads.schedules, context.importJobId, context.job.league_id, context.seasonNumber, context.weekFrom));
+
+    if (context.weekFrom === context.weekTo) {
+      const result = await fetchEaWeeklyStats({
+        token: context.token,
+        eaLeagueId: context.eaLeagueId,
+        weekIndex: context.weekFrom - 1,
+        stageIndex: context.stageIndex,
+        session
+      });
+      session = result.session;
+      allRows.push(...extractGameRows(result.payloads.schedules, context, context.weekFrom));
     } else {
+      const result = await fetchEaAllWeekSchedules({
+        token: context.token,
+        eaLeagueId: context.eaLeagueId,
+        startWeek: context.weekFrom,
+        totalWeeks: context.weekTo,
+        stageIndex: context.stageIndex,
+        session
+      });
+      session = result.session;
       for (const week of result.weekResults) {
-        allRows.push(...extractGameRows(week.data, context.importJobId, context.job.league_id, context.seasonNumber, week.weekNumber));
+        allRows.push(...extractGameRows(week.data, context, week.weekNumber));
       }
     }
 
     const staged = await stageGames(allRows);
+
     return {
       endpointKey: context.endpointKey,
       endpointLabel: context.endpointLabel,
       status: "success",
       recordsFound: staged.count,
       responseSummary: { stagingWrites: staged.count },
-      session: result.session
+      session
     };
   },
 
   team_stats: async (context) => {
     let total = 0;
     let session = context.session;
+
     for (let week = context.weekFrom; week <= context.weekTo; week += 1) {
       const result = await fetchEaWeeklyStats({
         token: context.token,
@@ -407,8 +637,9 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
         stageIndex: context.stageIndex,
         session
       });
+
       session = result.session;
-      const rows = extractTeamStatRows(result.payloads.teamStats, context.importJobId, context.job.league_id, context.seasonNumber, week);
+      const rows = extractTeamStatRows(result.payloads.teamStats, context, week);
       const staged = await stageTeamStats(rows);
       total += staged.count;
     }
@@ -426,6 +657,7 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
   player_stats: async (context) => {
     let total = 0;
     let session = context.session;
+
     for (let week = context.weekFrom; week <= context.weekTo; week += 1) {
       const result = await fetchEaWeeklyStats({
         token: context.token,
@@ -434,15 +666,16 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
         stageIndex: context.stageIndex,
         session
       });
+
       session = result.session;
 
       const rows = [
-        ...extractPlayerStatRows(result.payloads.passing, "passing", context.importJobId, context.job.league_id, context.seasonNumber, week),
-        ...extractPlayerStatRows(result.payloads.rushing, "rushing", context.importJobId, context.job.league_id, context.seasonNumber, week),
-        ...extractPlayerStatRows(result.payloads.receiving, "receiving", context.importJobId, context.job.league_id, context.seasonNumber, week),
-        ...extractPlayerStatRows(result.payloads.defense, "defense", context.importJobId, context.job.league_id, context.seasonNumber, week),
-        ...extractPlayerStatRows(result.payloads.kicking, "kicking", context.importJobId, context.job.league_id, context.seasonNumber, week),
-        ...extractPlayerStatRows(result.payloads.punting, "punting", context.importJobId, context.job.league_id, context.seasonNumber, week)
+        ...extractPlayerStatRows(result.payloads.passing, "passing", context, week),
+        ...extractPlayerStatRows(result.payloads.rushing, "rushing", context, week),
+        ...extractPlayerStatRows(result.payloads.receiving, "receiving", context, week),
+        ...extractPlayerStatRows(result.payloads.defense, "defense", context, week),
+        ...extractPlayerStatRows(result.payloads.kicking, "kicking", context, week),
+        ...extractPlayerStatRows(result.payloads.punting, "punting", context, week)
       ];
 
       const staged = await stagePlayerStats(rows);
@@ -468,12 +701,13 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
 
     const rows = [
       ...result.payloads.teamRosters.flatMap((teamRoster) =>
-        extractRosterPlayerRows(teamRoster.data, context.importJobId, context.job.league_id, context.seasonNumber, teamRoster.teamId)
+        extractRosterPlayerRows(teamRoster.data, context, teamRoster.teamId)
       ),
-      ...extractRosterPlayerRows(result.payloads.freeAgents, context.importJobId, context.job.league_id, context.seasonNumber)
+      ...extractRosterPlayerRows(result.payloads.freeAgents, context)
     ];
 
-    const staged = await stagePlayerStats(rows);
+    const staged = await stageRosters(rows);
+
     return {
       endpointKey: context.endpointKey,
       endpointLabel: context.endpointLabel,
@@ -487,10 +721,200 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
     };
   },
 
-  players: async (context) => {
-    return EXECUTORS.rosters(context);
-  }
+  players: async (context) => EXECUTORS.rosters(context)
 };
+
+export function getDefaultImportEndpointKeys() {
+  return [...IMPORT_PROGRESS_ENDPOINTS];
+}
+
+async function prepareEaExecution(importJobId: string, job: any) {
+  const eaContext = await loadEaContext(importJobId, job);
+
+  try {
+    eaContext.token = await refreshCompanionToken(eaContext.token);
+    await persistRefreshedEaToken(eaContext.accountId, eaContext.token);
+  } catch (error) {
+    throw new ApiError(
+      401,
+      "EA reconnect required. The saved EA refresh token is invalid or expired. Open the EA login URL again and paste a fresh redirect URL.",
+      {
+        reconnectRequired: true,
+        cause: error instanceof Error ? error.message : String(error)
+      }
+    );
+  }
+
+  let session: EaBlazeSession | undefined;
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      session = await retrieveBlazeSession(eaContext.token);
+      break;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 750 * attempt));
+    }
+  }
+
+  if (!session) {
+    throw new ApiError(502, "Could not create EA Blaze session after retries.");
+  }
+
+  return { eaContext, session };
+}
+
+async function runSingleEndpoint(input: {
+  importJobId: string;
+  job: any;
+  endpointKey: string;
+  eaContext: EaExecutionContext;
+  session?: EaBlazeSession;
+}) {
+  const label = endpointLabel(input.endpointKey);
+  const startedAt = Date.now();
+
+  await updateEndpointAttempt({
+    importJobId: input.importJobId,
+    endpointKey: input.endpointKey,
+    endpointLabel: label,
+    status: "running",
+    attemptNumber: 1,
+    responseSummary: {}
+  });
+
+  const executor = EXECUTORS[input.endpointKey];
+
+  if (!executor) {
+    const skipped = {
+      endpointKey: input.endpointKey,
+      endpointLabel: label,
+      status: "skipped" as const,
+      recordsFound: 0,
+      responseSummary: { reason: "endpoint_not_registered" },
+      errorMessage: "Endpoint is not registered in the execution registry."
+    };
+
+    await updateEndpointAttempt({
+      importJobId: input.importJobId,
+      endpointKey: input.endpointKey,
+      endpointLabel: label,
+      status: skipped.status,
+      attemptNumber: 1,
+      durationMs: Date.now() - startedAt,
+      recordsFound: skipped.recordsFound,
+      errorMessage: skipped.errorMessage,
+      responseSummary: skipped.responseSummary
+    });
+
+    return { ...skipped, session: input.session };
+  }
+
+  try {
+    const result = await executor({
+      importJobId: input.importJobId,
+      endpointKey: input.endpointKey,
+      endpointLabel: label,
+      job: input.job,
+      ...input.eaContext,
+      session: input.session
+    });
+
+    await updateEndpointAttempt({
+      importJobId: input.importJobId,
+      endpointKey: input.endpointKey,
+      endpointLabel: label,
+      status: result.status,
+      attemptNumber: 1,
+      durationMs: Date.now() - startedAt,
+      recordsFound: result.recordsFound,
+      errorMessage: result.errorMessage ?? null,
+      responseSummary: result.responseSummary ?? {}
+    });
+
+    console.log("[IMPORT ENDPOINT COMPLETE]", {
+      importJobId: input.importJobId,
+      endpointKey: input.endpointKey,
+      status: result.status,
+      recordsFound: result.recordsFound,
+      responseSummary: result.responseSummary ?? {}
+    });
+
+    return result;
+  } catch (error) {
+    const failed = {
+      endpointKey: input.endpointKey,
+      endpointLabel: label,
+      status: "failed" as const,
+      recordsFound: 0,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      responseSummary: {
+        error: error instanceof Error ? error.message : String(error)
+      },
+      session: input.session
+    };
+
+    await updateEndpointAttempt({
+      importJobId: input.importJobId,
+      endpointKey: input.endpointKey,
+      endpointLabel: label,
+      status: "failed",
+      attemptNumber: 1,
+      durationMs: Date.now() - startedAt,
+      recordsFound: 0,
+      errorMessage: failed.errorMessage,
+      responseSummary: failed.responseSummary
+    });
+
+    console.error("[IMPORT ENDPOINT FAILED]", {
+      importJobId: input.importJobId,
+      endpointKey: input.endpointKey,
+      error: failed.errorMessage
+    });
+
+    return failed;
+  }
+}
+
+export async function executeImportEndpoint(importJobId: string, endpointKey: string) {
+  const details = await getImportJob(importJobId);
+  const job = details.job;
+
+  if (!["created", "queued", "running", "completed_with_warnings", "validating"].includes(job.status)) {
+    throw new ApiError(409, "Import job is not in an executable state.", { currentStatus: job.status });
+  }
+
+  const { eaContext, session } = await prepareEaExecution(importJobId, job);
+
+  await updateImportJobStatus({ importJobId, status: "running" });
+
+  const result = await runSingleEndpoint({
+    importJobId,
+    job,
+    endpointKey,
+    eaContext,
+    session
+  });
+
+  return updateImportJobStatus({
+    importJobId,
+    status: result.status === "failed" ? "completed_with_warnings" : "validating",
+    previewSummary: {
+      ...(job.preview_summary ?? {}),
+      latestEndpoint: {
+        endpointKey,
+        status: result.status,
+        recordsFound: result.recordsFound,
+        responseSummary: result.responseSummary ?? {}
+      },
+      payouts: "Deferred until league advance."
+    },
+    validationWarnings: result.status === "failed"
+      ? [{ code: "endpoint_execution_failed", message: `${endpointLabel(endpointKey)} failed during staging.` }]
+      : [],
+    validationErrors: []
+  });
+}
 
 export async function executeImportJob(importJobId: string) {
   const details = await getImportJob(importJobId);
@@ -504,111 +928,25 @@ export async function executeImportJob(importJobId: string) {
     ? job.selected_endpoint_keys as string[]
     : DEFAULT_ENDPOINT_KEYS;
 
-  const eaContext = await loadEaContext(importJobId, job);
-
-  try {
-    eaContext.token = await refreshCompanionToken(eaContext.token);
-    await persistRefreshedEaToken(eaContext.accountId, eaContext.token);
-  } catch (error) {
-    throw new ApiError(401, "EA reconnect required. The saved EA refresh token is invalid or expired. Open the EA login URL again and paste a fresh redirect URL.", {
-      reconnectRequired: true,
-      cause: error instanceof Error ? error.message : String(error)
-    });
-  }
-
-  let session: EaBlazeSession | undefined = await retrieveBlazeSession(eaContext.token);
+  const { eaContext, session: initialSession } = await prepareEaExecution(importJobId, job);
 
   await updateImportJobStatus({ importJobId, status: "running" });
 
   const results: ImportEndpointExecutionResult[] = [];
+  let session: EaBlazeSession | undefined = initialSession;
 
   for (const endpointKey of endpointKeys) {
-    const label = endpointLabel(endpointKey);
-    const startedAt = Date.now();
-
-    await updateEndpointAttempt({
+    const result = await runSingleEndpoint({
       importJobId,
+      job,
       endpointKey,
-      endpointLabel: label,
-      status: "running",
-      attemptNumber: 1,
-      responseSummary: {}
+      eaContext,
+      session
     });
 
-    const executor = EXECUTORS[endpointKey];
-
-    if (!executor) {
-      const skipped = {
-        endpointKey,
-        endpointLabel: label,
-        status: "skipped" as const,
-        recordsFound: 0,
-        responseSummary: { reason: "endpoint_not_registered" },
-        errorMessage: "Endpoint is not registered in the execution registry."
-      };
-      results.push(skipped);
-      await updateEndpointAttempt({
-        importJobId,
-        endpointKey,
-        endpointLabel: label,
-        status: skipped.status,
-        attemptNumber: 1,
-        durationMs: Date.now() - startedAt,
-        recordsFound: skipped.recordsFound,
-        errorMessage: skipped.errorMessage,
-        responseSummary: skipped.responseSummary
-      });
-      continue;
-    }
-
-    try {
-      const result = await executor({
-        importJobId,
-        endpointKey,
-        endpointLabel: label,
-        job,
-        ...eaContext,
-        session
-      });
-
-      session = result.session ?? session;
-      const { session: _session, ...withoutSession } = result;
-      results.push(withoutSession);
-
-      await updateEndpointAttempt({
-        importJobId,
-        endpointKey,
-        endpointLabel: label,
-        status: result.status,
-        attemptNumber: 1,
-        durationMs: Date.now() - startedAt,
-        recordsFound: result.recordsFound,
-        errorMessage: result.errorMessage ?? null,
-        responseSummary: result.responseSummary ?? {}
-      });
-    } catch (error) {
-      const failed = {
-        endpointKey,
-        endpointLabel: label,
-        status: "failed" as const,
-        recordsFound: 0,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        responseSummary: {}
-      };
-      results.push(failed);
-
-      await updateEndpointAttempt({
-        importJobId,
-        endpointKey,
-        endpointLabel: label,
-        status: "failed",
-        attemptNumber: 1,
-        durationMs: Date.now() - startedAt,
-        recordsFound: 0,
-        errorMessage: failed.errorMessage,
-        responseSummary: {}
-      });
-    }
+    session = result.session ?? session;
+    const { session: _session, ...withoutSession } = result;
+    results.push(withoutSession);
   }
 
   const failed = results.filter((result) => result.status === "failed").length;
@@ -618,7 +956,7 @@ export async function executeImportJob(importJobId: string) {
 
   return updateImportJobStatus({
     importJobId,
-    status: failed > 0 ? "failed" : skipped > 0 ? "completed_with_warnings" : "validating",
+    status: failed > 0 ? "completed_with_warnings" : skipped > 0 ? "completed_with_warnings" : "validating",
     previewSummary: {
       ...(job.preview_summary ?? {}),
       endpointExecution: {
@@ -630,7 +968,10 @@ export async function executeImportJob(importJobId: string) {
       stagingWrites,
       payouts: "Deferred until league advance."
     },
-    validationWarnings: skipped > 0 ? [{ code: "endpoint_execution_skipped", message: "One or more endpoints were skipped." }] : [],
-    validationErrors: failed > 0 ? [{ code: "endpoint_execution_failed", message: "One or more endpoints failed." }] : []
+    validationWarnings: [
+      ...(skipped > 0 ? [{ code: "endpoint_execution_skipped", message: "One or more endpoints were skipped." }] : []),
+      ...(failed > 0 ? [{ code: "endpoint_execution_failed", message: "One or more endpoints failed." }] : [])
+    ],
+    validationErrors: []
   });
 }

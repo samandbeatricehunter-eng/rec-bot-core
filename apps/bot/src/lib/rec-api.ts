@@ -132,6 +132,12 @@ export const recApi = {
   getImportHistory: (guildId: string) => recFetch<any>(REC_API_ROUTES.importHistory(guildId)),
   getImportMissingResults: (jobId: string) => recFetch<any>(REC_API_ROUTES.importMissingResults(jobId)),
 
+  stageImportEndpoint: (input: { importJobId: string; endpointKey: string }) =>
+    recFetch<any>("/v1/imports/job/stage-endpoint", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   executeImportJob: (importJobId: string) =>
     recFetch<any>(REC_API_ROUTES.executeImportJob, {
       method: "POST",
