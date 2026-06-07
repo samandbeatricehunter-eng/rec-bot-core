@@ -46,8 +46,7 @@ export const CORE_IMPORT_ENDPOINTS = [
   { key: "teams", label: "Teams" },
   { key: "standings", label: "Standings" },
   { key: "schedule", label: "Schedule" },
-  { key: "rosters", label: "Rosters" },
-  { key: "players", label: "Players" },
+  { key: "rosters", label: "Rosters / Players" },
   { key: "player_stats", label: "Player Stats" },
   { key: "team_stats", label: "Team Stats" }
 ] as const;
@@ -168,7 +167,7 @@ export function buildWeekScopeRow() {
         new StringSelectMenuOptionBuilder().setLabel("Single Week").setValue("single_week").setDescription("Import one specific completed Madden week."),
         new StringSelectMenuOptionBuilder().setLabel("Week Range").setValue("selected_weeks").setDescription("Import a specific span of completed weeks."),
         new StringSelectMenuOptionBuilder().setLabel("Full Available").setValue("full_available").setDescription("Import all selected endpoints for every available Madden week."),
-        new StringSelectMenuOptionBuilder().setLabel("Full Regular Season Schedule").setValue("full_regular_season_schedule").setDescription("Schedule-only import for all regular season matchups.")
+        new StringSelectMenuOptionBuilder().setLabel("Full Regular Season Schedule").setValue("full_regular_season_schedule").setDescription("Schedule-only import for all regular season matchups. Expected NFL total: 272 games.")
       )
   );
 }
