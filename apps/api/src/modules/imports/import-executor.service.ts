@@ -61,6 +61,21 @@ type EndpointExecutor = (context: ExecutorContext) => Promise<ImportEndpointExec
 
 const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "player_stats", "team_stats"];
 
+const ENDPOINT_RETRY_ATTEMPTS = 3;
+
+function isTransientEaError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ERR_SYSTEM|Could not create EA Blaze session|timeout|timed out|ECONNRESET|ETIMEDOUT|fetch failed/i.test(message);
+}
+
+function retryDelayMs(attempt: number) {
+  return 1000 * attempt;
+}
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const IMPORT_PROGRESS_ENDPOINTS = [
   "league_metadata",
   "teams",
@@ -274,12 +289,16 @@ async function persistRefreshedEaToken(accountId: string, token: EaCompanionToke
   }
 }
 
+function teamIdFromRaw(row: Record<string, unknown>) {
+  return getN(row, "teamId", "id", "rosterId", "teamExternalId", "homeTeamId", "awayTeamId");
+}
+
 function extractTeamRows(payload: unknown, context: ExecutorContext) {
   const teams = extractArray(payload, ["leagueTeamInfoList", "teamInfoList", "teams", "leagueTeams"]) as Record<string, unknown>[];
   const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, teams);
 
   return teams.map((team) => {
-    const teamId = getN(team, "teamId", "id", "rosterId");
+    const teamId = teamIdFromRaw(team);
     const cityName = getStr(team, "cityName");
     const nickName = getStr(team, "nickName", "displayName", "teamName");
     const teamName = cityName && nickName ? `${cityName} ${nickName}` : nickName || cityName || `Team ${teamId}`;
@@ -316,7 +335,7 @@ function extractStandingRows(payload: unknown, context: ExecutorContext) {
   const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, standings);
 
   return standings.map((standing) => {
-    const teamId = getN(standing, "teamId", "id", "rosterId");
+    const teamId = teamIdFromRaw(standing);
     const teamName = getStr(standing, "teamName", "displayName", "abbrName") || (teamId ? `Team ${teamId}` : "");
 
     return {
@@ -389,7 +408,7 @@ function extractTeamStatRows(payload: unknown, context: ExecutorContext, weekNum
   const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, rows);
 
   return rows.map((row, index) => {
-    const teamId = getN(row, "teamId", "id", "rosterId");
+    const teamId = teamIdFromRaw(row);
 
     return {
       importJobId: context.importJobId,
@@ -633,9 +652,12 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
       });
 
       session = result.session;
-      const rows = extractTeamStatRows(result.payloads.teamStats, context, week);
-      const staged = await stageTeamStats(rows);
-      total += staged.count;
+      const statRows = extractTeamStatRows(result.payloads.teamStats, context, week);
+      const stagedStats = await stageTeamStats(statRows);
+      total += stagedStats.count;
+
+      const gameRows = extractGameRows(result.payloads.schedules, context, week);
+      if (gameRows.length) await stageGames(gameRows);
     }
 
     return {
@@ -674,6 +696,9 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
 
       const staged = await stagePlayerStats(rows);
       total += staged.count;
+
+      const gameRows = extractGameRows(result.payloads.schedules, context, week);
+      if (gameRows.length) await stageGames(gameRows);
     }
 
     return {
@@ -876,6 +901,34 @@ export async function executeImportEndpoint(importJobId: string, endpointKey: st
 
   if (!["created", "queued", "running", "completed_with_warnings", "validating"].includes(job.status)) {
     throw new ApiError(409, "Import job is not in an executable state.", { currentStatus: job.status });
+  }
+
+  const endpointKeys = Array.isArray(job.selected_endpoint_keys) && job.selected_endpoint_keys.length > 0
+    ? job.selected_endpoint_keys as string[]
+    : DEFAULT_ENDPOINT_KEYS;
+
+  const attempts = Array.isArray(details.endpointAttempts) ? details.endpointAttempts : [];
+  const selectedAttempts = attempts.filter((attempt: any) => endpointKeys.includes(attempt.endpoint_key));
+  const successfulKeys = new Set(selectedAttempts.filter((attempt: any) => attempt.status === "success").map((attempt: any) => attempt.endpoint_key));
+
+  if (successfulKeys.has(endpointKey)) {
+    return updateImportJobStatus({
+      importJobId,
+      status: "validating",
+      previewSummary: {
+        ...(job.preview_summary ?? {}),
+        latestEndpoint: {
+          endpointKey,
+          status: "success",
+          recordsFound: selectedAttempts.find((attempt: any) => attempt.endpoint_key === endpointKey)?.records_found ?? 0,
+          responseSummary: { skippedBecauseAlreadyStaged: true }
+        },
+        successfulEndpointKeys: Array.from(successfulKeys),
+        payouts: "Deferred until league advance."
+      },
+      validationWarnings: [],
+      validationErrors: []
+    });
   }
 
   const { eaContext, session } = await prepareEaExecution(importJobId, job);

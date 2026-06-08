@@ -135,8 +135,7 @@ export function buildMainMenuEmbed(input: {
 
   return new EmbedBuilder()
     .setTitle("REC League HQ")
-    .setDescription(description.slice(0, 4096))
-    .setFooter({ text: input.isAdmin ? "Admin Panel available below" : "REC Core connected" });
+    .setDescription(description.slice(0, 4096));
 }
 
 export function buildMainMenuRows(isAdmin: boolean) {

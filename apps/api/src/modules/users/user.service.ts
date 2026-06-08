@@ -34,12 +34,29 @@ export async function getUserBaselineByDiscordId(discordId: string) {
 
 export async function getWalletByDiscordId(discordId: string) {
   const baseline = await getUserBaselineByDiscordId(discordId);
+  const transactions = await getRecentTransactionsByUserId(baseline.user.id);
 
   return {
     user: baseline.user,
     discord: baseline.discord,
-    wallet: baseline.wallet ?? { wallet_balance: 0, savings_balance: 0 }
+    wallet: baseline.wallet ?? { wallet_balance: 0, savings_balance: 0 },
+    transactions
   };
+}
+
+export async function getRecentTransactionsByUserId(userId: string, limit = 25) {
+  const ledger = await supabase
+    .from("rec_dollar_ledger")
+    .select("id,amount,transaction_type,description,source,source_reference,created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (ledger.error) {
+    throw new ApiError(500, "Failed to load wallet transactions", ledger.error);
+  }
+
+  return ledger.data ?? [];
 }
 
 function recordText(record: any) {
@@ -78,16 +95,40 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   const baseline = await getUserBaselineByDiscordId(discordId);
   const userId = baseline.user.id;
 
-  const link = await supabase
-    .from("rec_server_league_links")
-    .select("server_id,league_id,rec_discord_servers(name,guild_id),rec_leagues(*)")
-    .eq("rec_discord_servers.guild_id", guildId)
-    .limit(1)
+  const serverResult = await supabase
+    .from("rec_discord_servers")
+    .select("id,name,guild_id")
+    .eq("guild_id", guildId)
     .maybeSingle();
 
-  if (link.error) throw new ApiError(500, "Failed to load current league context", link.error);
+  if (serverResult.error) throw new ApiError(500, "Failed to load Discord server", serverResult.error);
 
-  const league = (link.data as any)?.rec_leagues ?? null;
+  const server = serverResult.data;
+  let league: any = null;
+
+  if (server?.id) {
+    const leagueLinkResult = await supabase
+      .from("rec_server_league_links")
+      .select("league_id")
+      .eq("server_id", server.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (leagueLinkResult.error) {
+      throw new ApiError(500, "Failed to load server league link", leagueLinkResult.error);
+    }
+
+    if (leagueLinkResult.data?.league_id) {
+      const leagueResult = await supabase
+        .from("rec_leagues")
+        .select("*")
+        .eq("id", leagueLinkResult.data.league_id)
+        .maybeSingle();
+
+      if (leagueResult.error) throw new ApiError(500, "Failed to load current league", leagueResult.error);
+      league = leagueResult.data;
+    }
+  }
 
   let assignment: any = null;
   let membership: any = null;
@@ -100,6 +141,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   let badges: any[] = [];
 
   if (league?.id) {
+    const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+    const currentWeek = league.current_week ?? 1;
+    const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+    const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "playoffs"].includes(stage);
+
     const [assignmentResult, membershipResult, seasonRecordResult] = await Promise.all([
       supabase
         .from("rec_team_assignments")
@@ -119,7 +165,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         .from("rec_season_user_records")
         .select("*")
         .eq("league_id", league.id)
-        .eq("season_number", league.season_number ?? league.display_season_number ?? 1)
         .eq("user_id", userId)
         .maybeSingle()
     ]);
@@ -138,7 +183,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         .from("rec_games")
         .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation), away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
         .eq("league_id", league.id)
-        .eq("week_number", league.current_week ?? 1)
+        .eq("week_number", currentWeek)
         .or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
         .limit(1)
         .maybeSingle();
@@ -156,19 +201,15 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
           .from("rec_game_of_week_candidates")
           .select("id,is_selected,selection_source,strength_rating")
           .eq("league_id", league.id)
-          .eq("season_number", league.season_number ?? league.display_season_number ?? 1)
-          .eq("week_number", league.current_week ?? 1)
+          .eq("season_number", seasonNumber)
+          .eq("week_number", currentWeek)
           .eq("game_id", game.id)
           .eq("is_selected", true)
           .maybeSingle();
 
         if (!gotw.error && gotw.data) {
           gotwStatus = `Yes${gotw.data.strength_rating ? ` (${Number(gotw.data.strength_rating).toFixed(1)} rating)` : ""}`;
-        } else if (
-          ["wild_card", "divisional", "conference_championship", "super_bowl", "playoffs"].includes(
-            String(league.season_stage ?? league.current_phase)
-          )
-        ) {
+        } else if (isPostseason) {
           gotwStatus = "Yes - Playoff GOTW";
         }
 
@@ -176,29 +217,19 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
           .from("rec_weekly_challenges")
           .select("challenge_side,s_tier_goal,a_tier_goal,b_tier_goal,status,earned_tier,earned_amount")
           .eq("league_id", league.id)
-          .eq("season_number", league.season_number ?? league.display_season_number ?? 1)
-          .eq("week_number", league.current_week ?? 1)
+          .eq("season_number", seasonNumber)
+          .eq("week_number", currentWeek)
           .eq("user_id", userId)
           .in("challenge_side", ["offense", "defense"]);
 
         if (!challenges.error && Array.isArray(challenges.data)) {
-          offensiveChallenge =
-            challenges.data.find((challenge: any) => challenge.challenge_side === "offense") ?? null;
-          defensiveChallenge =
-            challenges.data.find((challenge: any) => challenge.challenge_side === "defense") ?? null;
+          offensiveChallenge = challenges.data.find((challenge: any) => challenge.challenge_side === "offense") ?? null;
+          defensiveChallenge = challenges.data.find((challenge: any) => challenge.challenge_side === "defense") ?? null;
         }
-      } else if (
-        ["wild_card", "divisional", "conference_championship", "super_bowl", "playoffs"].includes(
-          String(league.season_stage ?? league.current_phase)
-        )
-      ) {
+      } else if (isPostseason) {
         currentMatchup = "Season Concluded";
-      } else if (
-        !["regular_season", "preseason_training_camp", "preseason"].includes(
-          String(league.season_stage ?? league.current_phase)
-        )
-      ) {
-        currentMatchup = stageDisplay(league.season_stage ?? league.current_phase);
+      } else if (!["regular_season", "preseason_training_camp", "preseason"].includes(stage)) {
+        currentMatchup = stageDisplay(stage);
       } else {
         currentMatchup = "BYE WEEK";
       }
@@ -213,6 +244,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     user: baseline.user,
     discord: baseline.discord,
     wallet: baseline.wallet ?? { wallet_balance: 0, savings_balance: 0 },
+    server,
     league,
     team: assignment?.team ?? null,
     role: membership?.role ?? null,

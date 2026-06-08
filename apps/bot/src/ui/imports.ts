@@ -16,6 +16,7 @@ export const IMPORT_CUSTOM_IDS = {
   companionImport: "rec:imports:companion",
   manualImport: "rec:imports:manual",
   connectEaAccount: "rec:imports:ea_connect",
+  openEaLogin: "rec:imports:ea_open_login",
   eaConnectCodeModal: "rec:imports:ea_connect_code_modal",
   eaAuthCodeInput: "rec:imports:ea_auth_code",
   discoverFranchises: "rec:imports:discover_franchises",
@@ -24,6 +25,7 @@ export const IMPORT_CUSTOM_IDS = {
   resumePending: "rec:imports:resume_pending",
   cancelPendingStartNew: "rec:imports:cancel_pending_start_new",
   weekScope: "rec:imports:week_scope",
+  weekSelect: "rec:imports:week_select",
   endpoints: "rec:imports:endpoints",
   previewJob: "rec:imports:preview_job",
   executeJob: "rec:imports:execute_job",
@@ -76,13 +78,21 @@ export function buildPendingImportRows() {
   ];
 }
 
-export function buildEaConnectRows() {
-  return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
+export function buildEaConnectRows(loginUrl?: string | null) {
+  const firstRow = new ActionRowBuilder<ButtonBuilder>();
+
+  if (loginUrl) {
+    firstRow.addComponents(
+      new ButtonBuilder().setLabel("Open EA Login").setStyle(ButtonStyle.Link).setURL(loginUrl),
       new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.connectEaAccount).setLabel("Enter EA Auth Code").setStyle(ButtonStyle.Primary)
-    ),
-    ...buildImportFlowNavigationRows()
-  ];
+    );
+  } else {
+    firstRow.addComponents(
+      new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.connectEaAccount).setLabel("Enter EA Auth Code").setStyle(ButtonStyle.Primary)
+    );
+  }
+
+  return [firstRow, ...buildImportFlowNavigationRows()];
 }
 
 export function buildEaConnectCodeModal() {
@@ -177,6 +187,25 @@ export function buildWeekScopeRow() {
         new StringSelectMenuOptionBuilder().setLabel("Single Week").setValue("single_week").setDescription("Import one completed Madden week for catch-up/advance processing."),
         new StringSelectMenuOptionBuilder().setLabel("Full Regular Season Schedule").setValue("full_regular_season_schedule").setDescription("Schedule-only import for all regular season matchups. Expected NFL total: 272 games.")
       )
+  );
+}
+
+export function buildWeekSelectRow() {
+  const labels = [
+    ...Array.from({ length: 18 }, (_, index) => ({ label: `Week ${index + 1}`, value: String(index + 1), description: `Import regular season Week ${index + 1}.` })),
+    { label: "Wild Card", value: "19", description: "Import Wild Card playoff week." },
+    { label: "Divisional", value: "20", description: "Import Divisional playoff week." },
+    { label: "Conference Championship", value: "21", description: "Import Conference Championship week." },
+    { label: "Super Bowl", value: "22", description: "Import Super Bowl week." }
+  ];
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(IMPORT_CUSTOM_IDS.weekSelect)
+      .setPlaceholder("Select the exact Madden week to import")
+      .setMinValues(1)
+      .setMaxValues(1)
+      .addOptions(...labels.map((week) => new StringSelectMenuOptionBuilder().setLabel(week.label).setValue(week.value).setDescription(week.description)))
   );
 }
 

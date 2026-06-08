@@ -15,17 +15,35 @@ type StagedGameRow = {
   away_score: number | null;
   game_status: string | null;
   external_game_id: string | null;
+  raw_payload?: Record<string, unknown> | null;
 };
 
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function toText(value: unknown) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text.length ? text : null;
+}
+
+function rawTeamId(game: StagedGameRow, side: "home" | "away") {
+  const raw = asObject(game.raw_payload);
+  return toText(side === "home" ? raw.homeTeamId : raw.awayTeamId);
+}
+
 function getTeamName(teamMap: TeamNameMap, id: string | null, fallback: string | null, defaultLabel: string) {
-  if (fallback) return fallback;
   if (id && teamMap.has(id)) return teamMap.get(id) as string;
+  if (fallback && !/^\s*(Home|Away) Team \d+\s*$/i.test(fallback)) return fallback;
   return id ? `${defaultLabel} ${id}` : defaultLabel;
 }
 
 function formatMatchupResult(game: StagedGameRow, teamMap: TeamNameMap) {
-  const home = getTeamName(teamMap, game.home_team_external_id, game.home_team_name, "Home Team");
-  const away = getTeamName(teamMap, game.away_team_external_id, game.away_team_name, "Away Team");
+  const homeId = game.home_team_external_id ?? rawTeamId(game, "home");
+  const awayId = game.away_team_external_id ?? rawTeamId(game, "away");
+  const home = getTeamName(teamMap, homeId, game.home_team_name, "Home Team");
+  const away = getTeamName(teamMap, awayId, game.away_team_name, "Away Team");
   const hasHomeScore = typeof game.home_score === "number";
   const hasAwayScore = typeof game.away_score === "number";
   const hasScore = hasHomeScore && hasAwayScore;
@@ -39,8 +57,8 @@ function formatMatchupResult(game: StagedGameRow, teamMap: TeamNameMap) {
       loser: null,
       status: game.game_status ?? "staged",
       externalGameId: game.external_game_id,
-      homeTeamId: game.home_team_external_id,
-      awayTeamId: game.away_team_external_id,
+      homeTeamId: homeId,
+      awayTeamId: awayId,
       missingFields: [
         !hasHomeScore ? "home_score" : null,
         !hasAwayScore ? "away_score" : null
@@ -62,8 +80,8 @@ function formatMatchupResult(game: StagedGameRow, teamMap: TeamNameMap) {
     loser,
     status: tied ? "tie" : "final",
     externalGameId: game.external_game_id,
-    homeTeamId: game.home_team_external_id,
-    awayTeamId: game.away_team_external_id,
+    homeTeamId: homeId,
+    awayTeamId: awayId,
     missingFields: []
   };
 }
@@ -71,25 +89,31 @@ function formatMatchupResult(game: StagedGameRow, teamMap: TeamNameMap) {
 async function loadTeamNameMap(importJobId: string) {
   const result = await supabase
     .from("rec_import_staging_teams")
-    .select("team_external_id, team_name")
+    .select("team_external_id, external_team_id, team_name, raw_payload")
     .eq("import_job_id", importJobId);
 
   if (result.error) {
     throw new ApiError(500, "Failed to load staged team names.", result.error);
   }
 
-  return new Map(
-    (result.data ?? [])
-      .filter((team: any) => team.team_external_id && team.team_name)
-      .map((team: any) => [String(team.team_external_id), String(team.team_name)])
-  );
+  const map = new Map<string, string>();
+  for (const team of result.data ?? []) {
+    const raw = asObject((team as any).raw_payload);
+    const id = toText((team as any).team_external_id) ?? toText((team as any).external_team_id) ?? toText((team as any).madden_team_id) ?? toText(raw.teamId) ?? toText(raw.id);
+    const joinedName = [raw.cityName, raw.nickName].map(toText).filter(Boolean).join(" ");
+    const name = joinedName || toText(raw.displayName) || toText(raw.nickName) || toText(raw.abbrName) || toText((team as any).team_name);
+    if (toText(raw.homeTeamId) && toText(raw.homeTeamName)) map.set(String(toText(raw.homeTeamId)), String(toText(raw.homeTeamName)));
+    if (toText(raw.awayTeamId) && toText(raw.awayTeamName)) map.set(String(toText(raw.awayTeamId)), String(toText(raw.awayTeamName)));
+    if (id && name) map.set(String(id), String(name));
+  }
+  return map;
 }
 
 async function buildImportedMatchupResults(importJobId: string) {
   const [stagedGames, teamMap] = await Promise.all([
     supabase
       .from("rec_import_staging_games")
-      .select("week_number, home_team_external_id, away_team_external_id, home_team_name, away_team_name, home_score, away_score, game_status, external_game_id")
+      .select("week_number, home_team_external_id, away_team_external_id, home_team_name, away_team_name, home_score, away_score, game_status, external_game_id, raw_payload")
       .eq("import_job_id", importJobId)
       .order("week_number", { ascending: true })
       .order("created_at", { ascending: true }),
@@ -146,7 +170,7 @@ function missingFieldList(row: Record<string, unknown>, fields: string[]) {
 async function buildEndpointMissingData(importJobId: string) {
   const teamMap = await loadTeamNameMap(importJobId);
   const [games, standings, teamStats, playerStats] = await Promise.all([
-    loadRows("rec_import_staging_games", importJobId, "week_number,external_game_id,home_team_external_id,away_team_external_id,home_team_name,away_team_name,home_score,away_score,game_status"),
+    loadRows("rec_import_staging_games", importJobId, "week_number,external_game_id,home_team_external_id,away_team_external_id,home_team_name,away_team_name,home_score,away_score,game_status,raw_payload"),
     loadRows("rec_import_staging_standings", importJobId, "team_name,team_external_id,wins,losses,ties,points_for,points_against"),
     loadRows("rec_import_staging_team_stats", importJobId, "team_name,team_external_id,week_number,stats"),
     loadRows("rec_import_staging_player_stats", importJobId, "player_name,player_external_id,team_name,position,week_number,stats")
@@ -154,10 +178,13 @@ async function buildEndpointMissingData(importJobId: string) {
 
   const gameMissing = games
     .map((row: any) => {
-      const hasHomeName = Boolean(row.home_team_name) || Boolean(row.home_team_external_id && teamMap.has(String(row.home_team_external_id)));
-      const hasAwayName = Boolean(row.away_team_name) || Boolean(row.away_team_external_id && teamMap.has(String(row.away_team_external_id)));
-      const home = getTeamName(teamMap, row.home_team_external_id ?? null, row.home_team_name ?? null, "Home Team");
-      const away = getTeamName(teamMap, row.away_team_external_id ?? null, row.away_team_name ?? null, "Away Team");
+      const raw = asObject(row.raw_payload);
+      const homeId = row.home_team_external_id ?? toText(raw.homeTeamId);
+      const awayId = row.away_team_external_id ?? toText(raw.awayTeamId);
+      const hasHomeName = Boolean(homeId && teamMap.has(String(homeId))) || Boolean(row.home_team_name && !/^\s*Home Team \d+\s*$/i.test(String(row.home_team_name)));
+      const hasAwayName = Boolean(awayId && teamMap.has(String(awayId))) || Boolean(row.away_team_name && !/^\s*Away Team \d+\s*$/i.test(String(row.away_team_name)));
+      const home = getTeamName(teamMap, homeId ?? null, row.home_team_name ?? null, "Home Team");
+      const away = getTeamName(teamMap, awayId ?? null, row.away_team_name ?? null, "Away Team");
       return {
         label: `${away} at ${home}${row.week_number ? `, Week ${row.week_number}` : ""}`,
         missingFields: [

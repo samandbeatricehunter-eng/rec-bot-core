@@ -104,6 +104,7 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
       "",
       "Payouts:",
       ...(payload.payouts?.length ? payload.payouts.map((payout: any) => `• ${payout.label}: +$${payout.amount}`) : ["No automatic payouts recorded in this summary."]),
+      `Wallet Balance: $${payload.walletBalance ?? 0}`,
       "",
       payload.gotw?.isParticipant ? "Your game is the H2H Game of the Week." : payload.gotw?.message
     ].filter(Boolean).join("\n");

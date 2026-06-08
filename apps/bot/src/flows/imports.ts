@@ -1,4 +1,4 @@
-import { EmbedBuilder, Interaction } from "discord.js";
+import { ButtonInteraction, EmbedBuilder, Interaction, StringSelectMenuInteraction } from "discord.js";
 import type { RecImportMode } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
@@ -15,7 +15,9 @@ import {
   buildImportPanelRows,
   buildPendingImportRows,
   buildImportPreviewRows,
+  buildDiscoverFranchisesRows,
   buildWeekScopeRow,
+  buildWeekSelectRow,
   IMPORT_CUSTOM_IDS
 } from "../ui/imports.js";
 
@@ -71,16 +73,38 @@ function statusIcon(status: string) {
   return "-";
 }
 
-function extractApiErrorMessage(error: unknown) {
+function parseApiErrorPayload(error: unknown): any | null {
   const message = error instanceof Error ? error.message : String(error);
   const jsonStart = message.indexOf("{");
-  if (jsonStart >= 0) {
-    try {
-      const parsed = JSON.parse(message.slice(jsonStart));
-      if (typeof parsed.error === "string") return parsed.error;
-    } catch {}
+  if (jsonStart < 0) return null;
+
+  try {
+    return JSON.parse(message.slice(jsonStart));
+  } catch {
+    return null;
   }
+}
+
+function extractApiErrorMessage(error: unknown) {
+  const parsed = parseApiErrorPayload(error);
+  if (typeof parsed?.error === "string") return parsed.error;
+
+  const message = error instanceof Error ? error.message : String(error);
   return message.replace(/^REC API request failed:\s*/i, "");
+}
+
+function isEaReconnectRequired(error: unknown) {
+  const message = extractApiErrorMessage(error).toLowerCase();
+  const parsed = parseApiErrorPayload(error);
+  const details = parsed?.details ?? {};
+
+  return Boolean(
+    details?.reconnectRequired ||
+    message.includes("could not create ea blaze session") ||
+    message.includes("ea reconnect required") ||
+    message.includes("saved ea refresh token") ||
+    details?.error?.errorname === "ERR_SYSTEM"
+  );
 }
 
 function normalizeEaAuthCode(raw: string) {
@@ -323,17 +347,18 @@ function expandEndpointKeys(values: string[]) {
 }
 
 function applyDefaultWeeks(draft: ImportDraft) {
-  if (draft.weekScope === "single_week") {
-    draft.weekFrom = draft.weekFrom ?? 1;
-    draft.weekTo = draft.weekTo ?? draft.weekFrom;
+  if (draft.weekScope === "current_week") {
+    draft.weekFrom = undefined;
+    draft.weekTo = undefined;
   }
 
-
+  if (draft.weekScope === "full_regular_season_schedule") {
+    draft.weekFrom = undefined;
+    draft.weekTo = undefined;
+  }
 }
 
-export async function renderImportPanel(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-
+export async function renderImportPanel(interaction: ButtonInteraction | StringSelectMenuInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
     await interaction.reply({ content: "Only authorized admins can manage imports.", ephemeral: true });
     return;
@@ -417,19 +442,130 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
 
     await interaction.deferUpdate();
 
-    const progressLines: string[] = [];
+    const jobDetails = await recApi.getImportJob(importJobId).catch(() => null);
+    const selectedKeys = Array.isArray(jobDetails?.job?.selected_endpoint_keys)
+      ? jobDetails.job.selected_endpoint_keys
+      : Array.isArray(jobDetails?.job?.selectedEndpointKeys)
+        ? jobDetails.job.selectedEndpointKeys
+        : IMPORT_PROGRESS_STEPS.map((step) => step.key);
+    const successfulKeys = new Set(
+      (jobDetails?.endpointAttempts ?? [])
+        .filter((attempt: any) => attempt.status === "success")
+        .map((attempt: any) => attempt.endpoint_key)
+    );
+    const stepsToRun = IMPORT_PROGRESS_STEPS.filter((step) => selectedKeys.includes(step.key) && !successfulKeys.has(step.key));
+    const progressLines: string[] = Array.from(successfulKeys)
+      .filter((key) => selectedKeys.includes(key))
+      .map((key) => `${statusIcon("success")} ${IMPORT_PROGRESS_STEPS.find((step) => step.key === key)?.label ?? key}: already staged`);
 
-    for (const step of IMPORT_PROGRESS_STEPS) {
+    if (stepsToRun.length === 0) {
       await interaction.editReply({
-        embeds: [buildProgressEmbed(step.label, progressLines)],
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Generating Import Preview")
+            .setDescription([
+              "All selected EA endpoints are already staged for this import job.",
+              "No data was re-pulled from EA.",
+              "",
+              ...progressLines,
+              "",
+              "Generating preview now..."
+            ].join("\n"))
+        ],
         components: []
       });
 
-      const result = await recApi.stageImportEndpoint({ importJobId, endpointKey: step.key });
-      const latest = result.job?.preview_summary?.latestEndpoint ?? result.job?.previewSummary?.latestEndpoint;
-      const count = latest?.recordsFound ?? 0;
-      const status = latest?.status ?? "complete";
-      progressLines.push(`${statusIcon(status)} ${step.label}: **${count}** staged (${status})`);
+      const preview = await recApi.previewImportJob(importJobId);
+      await interaction.editReply({
+        embeds: buildPreviewEmbeds(preview),
+        components: buildImportPreviewRows(preview)
+      });
+      return;
+    }
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Staging Import")
+          .setDescription([
+            "Running selected endpoints in one API execution so the EA Blaze session can be reused across the full pull.",
+            "",
+            ...stepsToRun.map((step) => `- ${step.label}: pending`)
+          ].join("\n"))
+      ],
+      components: []
+    });
+
+    try {
+      const result = await recApi.executeImportJob(importJobId);
+      const execution = result.job?.preview_summary?.endpointExecution ?? result.job?.previewSummary?.endpointExecution;
+      const results = Array.isArray(execution?.results) ? execution.results : [];
+      progressLines.push(
+        ...stepsToRun.map((step) => {
+          const endpointResult = results.find((item: any) => item.endpointKey === step.key || item.endpoint_key === step.key);
+          const status = endpointResult?.status ?? "complete";
+          const count = endpointResult?.recordsFound ?? endpointResult?.records_found ?? 0;
+          return `${statusIcon(status)} ${step.label}: **${count}** staged (${status})`;
+        })
+      );
+
+      const failed = results.find((item: any) => item.status === "failed");
+      if (failed) {
+        throw new Error(failed.errorMessage ?? failed.error_message ?? "One EA endpoint failed during staging.");
+      }
+    } catch (error) {
+      const message = extractApiErrorMessage(error);
+      if (!progressLines.some((line) => line.includes("failed"))) {
+        progressLines.push(`X Import execution: **failed**`);
+      }
+
+      if (isEaReconnectRequired(error)) {
+        const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id }).catch(() => null);
+        const existingDraft = importSessions.get(interaction.user.id) ?? {};
+        importSessions.set(interaction.user.id, {
+          ...existingDraft,
+          importMode: existingDraft.importMode ?? draft?.importMode ?? "ea_import",
+          eaLoginUrl: status?.loginUrl ?? existingDraft.eaLoginUrl
+        });
+
+        await interaction.editReply({
+          embeds: [
+            new EmbedBuilder()
+              .setTitle("EA Login Refresh Required")
+              .setDescription([
+                ...progressLines,
+                "",
+                "The import stopped before preview because EA could not create or keep a valid Blaze session.",
+                "Successful endpoints remain staged and Resume Import will skip them.",
+                "No data was committed.",
+                "",
+                `Error: ${message}`,
+                "",
+                "Click **Open EA Login**, complete EA sign-in, then click **Enter EA Auth Code** and paste the fresh redirect URL/code before trying again."
+              ].join("\n"))
+          ],
+          components: status?.loginUrl ? buildEaConnectRows(status.loginUrl) : buildDiscoverFranchisesRows()
+        });
+        return;
+      }
+
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Import Staging Failed")
+            .setDescription([
+              ...progressLines,
+              "",
+              "The import stopped before preview because one EA endpoint failed.",
+              "Successful endpoints remain staged and Resume Import will skip them.",
+              "No data was committed.",
+              "",
+              `Error: ${message}`
+            ].join("\n"))
+        ],
+        components: buildImportJobCreatedRows()
+      });
+      return;
     }
 
     await interaction.editReply({
@@ -437,7 +573,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
         new EmbedBuilder()
           .setTitle("Generating Import Preview")
           .setDescription([
-            "All selected EA endpoint staging steps completed.",
+            "Selected EA endpoint staging steps completed.",
             "",
             ...progressLines,
             "",
@@ -489,11 +625,27 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     const approved = await recApi.approveImportJob(importJobId);
     importSessions.delete(interaction.user.id);
 
+    const summary = previewSummary(approved.job);
+    const counts = summary.committedCounts ?? {};
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setTitle("Import Approved")
-          .setDescription(["Import preview approved and moved into reconciliation.", "", formatImportJob(approved.job)].join("\n"))
+          .setDescription([
+            "Import preview approved and committed into REC Core.",
+            "",
+            formatImportJob(approved.job),
+            "",
+            "**Committed Counts**",
+            `Teams: **${counts.teams ?? 0}**`,
+            `Games: **${counts.games ?? summary.gamesAdded ?? 0}**`,
+            `League Games Stored: **${counts.committedLeagueGames ?? 0}**`,
+            `Game Results: **${counts.gameResults ?? 0}**`,
+            `Players: **${counts.players ?? 0}**`,
+            `Roster Snapshots: **${counts.rosterSnapshots ?? 0}**`,
+            `Player Weekly Stats: **${counts.playerWeeklyStats ?? 0}**`,
+            `Team Weekly Stats: **${counts.teamWeeklyStats ?? 0}**`
+          ].join("\n"))
       ],
       components: buildImportPanelRows()
     });
@@ -533,7 +685,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
             .setTitle("Connect EA Account")
             .setDescription(status?.loginUrl ? buildEaConnectDescription(status) : extractApiErrorMessage(error))
         ],
-        components: buildEaConnectRows()
+        components: buildEaConnectRows(status?.loginUrl)
       });
     }
     return;
@@ -568,15 +720,19 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     importSessions.set(interaction.user.id, { importMode: "ea_import" });
     try {
       const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id });
-      if (status.connected) {
-        await discoverAndRenderFranchises(interaction);
-        return;
-      }
-
       importSessions.set(interaction.user.id, { importMode: "ea_import", eaLoginUrl: status.loginUrl });
+
       await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(buildEaConnectDescription(status))],
-        components: buildEaConnectRows()
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Refresh EA Login")
+            .setDescription([
+              "Start each EA import with a fresh EA auth code so the full import job can use a valid Blaze session.",
+              "",
+              buildEaConnectDescription(status)
+            ].join("\n"))
+        ],
+        components: buildEaConnectRows(status?.loginUrl)
       });
     } catch (error) {
       await interaction.editReply({
@@ -657,7 +813,7 @@ export async function handleImportModal(interaction: Extract<Interaction, { isMo
               : "Try the EA login again and paste the newest auth code."
           ].join("\n"))
       ],
-      components: buildEaConnectRows()
+      components: buildEaConnectRows(draft?.eaLoginUrl)
     });
   }
 }
@@ -717,6 +873,68 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
     applyDefaultWeeks(draft);
     importSessions.set(interaction.user.id, draft);
 
+    if (draft.weekScope === "single_week") {
+      await interaction.update({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Select Import Week")
+            .setDescription([
+              draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined,
+              `Mode: **${draft.importMode?.replaceAll("_", " ")}**`,
+              "Week Scope: **Single Week**",
+              "",
+              "Select the exact regular season or playoff week to import."
+            ].filter(Boolean).join("\n"))
+        ],
+        components: [buildWeekSelectRow(), ...buildImportFlowNavigationRows()]
+      });
+      return;
+    }
+
+    if (draft.weekScope === "full_regular_season_schedule") {
+      draft.endpointKeys = ["schedule"];
+      importSessions.set(interaction.user.id, draft);
+
+      if (!draft.importMode) {
+        await interaction.reply({ content: "Import mode is missing. Restart the import flow.", ephemeral: true });
+        return;
+      }
+
+      await interaction.deferUpdate();
+      const result = await recApi.createImportJob({
+        guildId: interaction.guildId,
+        importMode: draft.importMode,
+        importLabel: `${draft.eaExternalLeagueName ? `${draft.eaExternalLeagueName} - ` : ""}${draft.importMode.replaceAll("_", " ")} - full regular season schedule`,
+        requestedByDiscordId: interaction.user.id,
+        eaExternalLeagueId: draft.eaExternalLeagueId,
+        eaExternalLeagueName: draft.eaExternalLeagueName,
+        importScope: draft.weekScope,
+        weekFrom: draft.weekFrom,
+        weekTo: draft.weekTo,
+        selectedEndpointKeys: draft.endpointKeys
+      });
+
+      draft.importJobId = result.job?.id;
+      importSessions.set(interaction.user.id, draft);
+
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Schedule Import Job Created")
+            .setDescription([
+              `League: **${result.job?.league?.name ?? "Current League"}**`,
+              draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined,
+              "Scope: **Full Regular Season Schedule**",
+              "Endpoints: **Schedule only**",
+              "",
+              "Next step: preview the schedule import. This should stage the full regular-season schedule."
+            ].filter(Boolean).join("\n"))
+        ],
+        components: buildImportJobCreatedRows()
+      });
+      return;
+    }
+
     await interaction.update({
       embeds: [
         new EmbedBuilder()
@@ -727,7 +945,37 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
             `Week Scope: **${draft.weekScope?.replaceAll("_", " ")}**`,
             draft.weekFrom ? `Weeks: **${draft.weekFrom}${draft.weekTo && draft.weekTo !== draft.weekFrom ? ` -> ${draft.weekTo}` : ""}**` : undefined,
             "",
-            "Select the core endpoints to include."
+            "Select the core endpoints to include. Weekly imports also stage matchup/result details for the selected week."
+          ].filter(Boolean).join("\n"))
+      ],
+      components: [buildEndpointSelectRow(), ...buildImportFlowNavigationRows()]
+    });
+    return;
+  }
+
+  if (interaction.customId === IMPORT_CUSTOM_IDS.weekSelect) {
+    const selectedWeek = Number(interaction.values[0]);
+    if (!Number.isInteger(selectedWeek) || selectedWeek < 1 || selectedWeek > 22) {
+      await interaction.reply({ content: "Invalid week selection. Select a week from the menu again.", ephemeral: true });
+      return;
+    }
+
+    draft.weekScope = "single_week";
+    draft.weekFrom = selectedWeek;
+    draft.weekTo = selectedWeek;
+    importSessions.set(interaction.user.id, draft);
+
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Create Import Job")
+          .setDescription([
+            draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined,
+            `Mode: **${draft.importMode?.replaceAll("_", " ")}**`,
+            "Week Scope: **Single Week**",
+            `Week: **${selectedWeek <= 18 ? `Week ${selectedWeek}` : selectedWeek === 19 ? "Wild Card" : selectedWeek === 20 ? "Divisional" : selectedWeek === 21 ? "Conference Championship" : "Super Bowl"}**`,
+            "",
+            "Select the core endpoints to include. Weekly imports also stage matchup/result details for the selected week."
           ].filter(Boolean).join("\n"))
       ],
       components: [buildEndpointSelectRow(), ...buildImportFlowNavigationRows()]

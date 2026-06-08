@@ -5,6 +5,7 @@ import type { CreateImportJobInput } from "./import.schemas.js";
 import { createImportJob as createBaseImportJob } from "./import.service.js";
 
 const ACTIVE_IMPORT_STATUSES = ["created", "queued", "running", "validating", "reconciling"];
+const RESUMABLE_IMPORT_STATUSES = ["created", "queued", "running", "validating", "reconciling", "completed_with_warnings"];
 
 const CORE_ENDPOINT_KEYS = [
   "league_metadata",
@@ -19,7 +20,15 @@ const CORE_ENDPOINT_KEYS = [
 
 function selectedEndpointKeys(input: CreateImportJobInput) {
   if (input.importScope === "full_regular_season_schedule") return ["schedule"];
-  if (input.selectedEndpointKeys.length > 0) return input.selectedEndpointKeys;
+  if (input.selectedEndpointKeys.length > 0) {
+    const keys = input.importScope === "current_week" || input.importScope === "single_week"
+      ? input.selectedEndpointKeys.filter((key) => key !== "schedule")
+      : input.selectedEndpointKeys;
+    return keys.length > 0 ? keys : ["league_metadata", "standings", "team_stats", "player_stats"];
+  }
+  if (input.importScope === "current_week" || input.importScope === "single_week") {
+    return ["league_metadata", "standings", "team_stats", "player_stats"];
+  }
   return [...CORE_ENDPOINT_KEYS];
 }
 
@@ -36,7 +45,7 @@ export async function createImportJob(input: CreateImportJobInput) {
     .select("id, import_mode, status, import_label, created_at")
     .eq("server_id", server.id)
     .eq("league_id", league.id)
-    .in("status", ACTIVE_IMPORT_STATUSES)
+     .in("status", ACTIVE_IMPORT_STATUSES)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -52,14 +61,35 @@ export async function createImportJob(input: CreateImportJobInput) {
   }
 
   const keys = selectedEndpointKeys(input);
+  let eaExternalLeagueId = input.eaExternalLeagueId ?? null;
+  let eaExternalLeagueName = input.eaExternalLeagueName ?? null;
+
+  if (input.importMode === "ea_import" && !eaExternalLeagueId) {
+    const activeLink = await supabase
+      .from("rec_league_ea_franchise_links")
+      .select("franchise:rec_ea_franchises(external_league_id,league_name,raw_payload)")
+      .eq("league_id", league.id)
+      .eq("server_id", server.id)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (activeLink.error) {
+      throw new ApiError(500, "Failed to load selected EA franchise for this league.", activeLink.error);
+    }
+
+    const franchise = (activeLink.data as any)?.franchise;
+    eaExternalLeagueId = franchise?.external_league_id ? String(franchise.external_league_id) : null;
+    eaExternalLeagueName = franchise?.league_name ?? franchise?.raw_payload?.leagueName ?? franchise?.raw_payload?.name ?? eaExternalLeagueName;
+  }
+
   const created = await createBaseImportJob(input);
   const importJobId = created.job.id;
 
   const updated = await supabase
     .from("rec_import_jobs")
     .update({
-      ea_external_league_id: input.eaExternalLeagueId ?? null,
-      ea_external_league_name: input.eaExternalLeagueName ?? null,
+      ea_external_league_id: eaExternalLeagueId,
+      ea_external_league_name: eaExternalLeagueName,
       import_scope: input.importScope,
       week_from: input.importScope === "full_regular_season_schedule" ? null : input.weekFrom ?? null,
       week_to: normalizedWeekTo(input),
@@ -70,8 +100,8 @@ export async function createImportJob(input: CreateImportJobInput) {
         importScope: input.importScope,
         weekFrom: input.importScope === "full_regular_season_schedule" ? null : input.weekFrom ?? null,
         weekTo: normalizedWeekTo(input),
-        eaExternalLeagueId: input.eaExternalLeagueId ?? null,
-        eaExternalLeagueName: input.eaExternalLeagueName ?? null,
+        eaExternalLeagueId,
+        eaExternalLeagueName,
         selectedEndpointKeys: keys,
         payouts: "Deferred until league advance. Imports never issue economy payouts directly."
       },
@@ -80,8 +110,8 @@ export async function createImportJob(input: CreateImportJobInput) {
         importScope: input.importScope,
         weekFrom: input.importScope === "full_regular_season_schedule" ? null : input.weekFrom ?? null,
         weekTo: normalizedWeekTo(input),
-        eaExternalLeagueId: input.eaExternalLeagueId ?? null,
-        eaExternalLeagueName: input.eaExternalLeagueName ?? null,
+        eaExternalLeagueId,
+        eaExternalLeagueName,
         selectedEndpointKeys: keys
       }
     })

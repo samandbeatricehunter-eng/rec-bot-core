@@ -1,4 +1,4 @@
-import { REC_POTW_PAYOUT_AMOUNT, calculateDefensivePotwScore, calculateOffensivePotwScore } from "@rec/shared";
+import { REC_GOTW_CORRECT_GUESS_PAYOUT, REC_POTW_PAYOUT_AMOUNT, REC_WEEKLY_CHALLENGE_PAYOUTS, calculateDefensivePotwScore, calculateOffensivePotwScore } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 
 const TIME_ZONES = [
@@ -41,15 +41,37 @@ function slug(input: string) {
 }
 
 async function getLeagueContext(guildId: string) {
-  const { data, error } = await supabase
+  const serverResult = await supabase
+    .from("rec_discord_servers")
+    .select("id,name,guild_id")
+    .eq("guild_id", guildId)
+    .maybeSingle();
+  if (serverResult.error) throw serverResult.error;
+  if (!serverResult.data) throw new Error("No REC Discord server record found for this guild.");
+
+  const linkResult = await supabase
     .from("rec_server_league_links")
-    .select("server_id, league_id, rec_discord_servers(name,guild_id), rec_leagues(*)")
-    .eq("rec_discord_servers.guild_id", guildId)
+    .select("server_id, league_id")
+    .eq("server_id", serverResult.data.id)
     .limit(1)
     .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("No league linked to this Discord server.");
-  return data as any;
+  if (linkResult.error) throw linkResult.error;
+  if (!linkResult.data?.league_id) throw new Error("No league linked to this Discord server.");
+
+  const leagueResult = await supabase
+    .from("rec_leagues")
+    .select("*")
+    .eq("id", linkResult.data.league_id)
+    .maybeSingle();
+  if (leagueResult.error) throw leagueResult.error;
+  if (!leagueResult.data) throw new Error("Linked REC league was not found.");
+
+  return {
+    server_id: serverResult.data.id,
+    league_id: linkResult.data.league_id,
+    rec_discord_servers: serverResult.data,
+    rec_leagues: leagueResult.data
+  } as any;
 }
 
 async function getRoutes(serverId: string) {
@@ -82,6 +104,110 @@ async function getLinkedActiveTeamUsers(leagueId: string) {
     .is("ended_at", null);
   if (error) throw error;
   return (data ?? []) as any[];
+}
+
+async function getWalletBalance(userId: string) {
+  const { data } = await supabase.from("rec_wallets").select("wallet_balance,savings_balance").eq("user_id", userId).maybeSingle();
+  return { wallet: asNumber(data?.wallet_balance), savings: asNumber(data?.savings_balance) };
+}
+
+async function creditUserWallet(input: {
+  userId: string;
+  leagueId: string;
+  seasonNumber: number;
+  amount: number;
+  transactionType: string;
+  description: string;
+  sourceReference: Record<string, unknown>;
+}) {
+  if (!input.amount) return { ledger: null, wallet: await getWalletBalance(input.userId), created: false };
+
+  const idempotencyKey = String(input.sourceReference.idempotencyKey ?? "");
+  if (idempotencyKey) {
+    const existing = await supabase
+      .from("rec_dollar_ledger")
+      .select("*")
+      .eq("user_id", input.userId)
+      .eq("transaction_type", input.transactionType)
+      .contains("source_reference", { idempotencyKey })
+      .maybeSingle();
+    if (existing.data) return { ledger: existing.data, wallet: await getWalletBalance(input.userId), created: false };
+  }
+
+  const { data: currentWallet, error: walletReadError } = await supabase
+    .from("rec_wallets")
+    .select("*")
+    .eq("user_id", input.userId)
+    .maybeSingle();
+  if (walletReadError) throw walletReadError;
+
+  if (currentWallet) {
+    const { error: walletError } = await supabase
+      .from("rec_wallets")
+      .update({ wallet_balance: asNumber(currentWallet.wallet_balance) + input.amount, updated_at: nowIso() })
+      .eq("id", currentWallet.id);
+    if (walletError) throw walletError;
+  } else {
+    const { error: walletError } = await supabase
+      .from("rec_wallets")
+      .insert({ user_id: input.userId, wallet_balance: input.amount, savings_balance: 0 });
+    if (walletError) throw walletError;
+  }
+
+  const { data: ledger, error: ledgerError } = await supabase.from("rec_dollar_ledger").insert({
+    user_id: input.userId,
+    league_id: input.leagueId,
+    season_id: null,
+    amount: input.amount,
+    transaction_type: input.transactionType,
+    description: input.description,
+    source: "internal_import",
+    source_reference: input.sourceReference
+  }).select("*").single();
+  if (ledgerError) throw ledgerError;
+
+  return { ledger, wallet: await getWalletBalance(input.userId), created: true };
+}
+
+function statValue(stats: any, keys: string[]) {
+  return pickStat(stats ?? {}, keys);
+}
+
+function wonGame(game: any, teamId: string) {
+  if (String(game.home_team_id) === String(teamId)) return asNumber(game.home_score) > asNumber(game.away_score);
+  if (String(game.away_team_id) === String(teamId)) return asNumber(game.away_score) > asNumber(game.home_score);
+  return false;
+}
+
+function userTeamSide(game: any, userId: string) {
+  if (game.home_user_id === userId) return { teamId: game.home_team_id, opponentTeamId: game.away_team_id, score: asNumber(game.home_score), oppScore: asNumber(game.away_score), location: "Home" };
+  if (game.away_user_id === userId) return { teamId: game.away_team_id, opponentTeamId: game.home_team_id, score: asNumber(game.away_score), oppScore: asNumber(game.home_score), location: "Away" };
+  return null;
+}
+
+async function getCompletedResultForChallenge(challenge: any) {
+  if (challenge.game_id) {
+    const byTeams = await supabase
+      .from("rec_game_results")
+      .select("*")
+      .eq("league_id", challenge.league_id)
+      .eq("season_number", challenge.season_number)
+      .eq("week_number", challenge.week_number)
+      .or(`home_team_id.eq.${challenge.team_id},away_team_id.eq.${challenge.team_id}`)
+      .limit(1)
+      .maybeSingle();
+    if (byTeams.data) return byTeams.data as any;
+  }
+  const result = await supabase
+    .from("rec_game_results")
+    .select("*")
+    .eq("league_id", challenge.league_id)
+    .eq("season_number", challenge.season_number)
+    .eq("week_number", challenge.week_number)
+    .or(`home_team_id.eq.${challenge.team_id},away_team_id.eq.${challenge.team_id}`)
+    .limit(1)
+    .maybeSingle();
+  return result.data as any;
 }
 
 export async function viewLeagueWeek(guildId: string) {
@@ -454,6 +580,221 @@ export async function calculateRecPotw(guildId: string) {
   return { awards };
 }
 
+
+export async function evaluateWeeklyChallenges(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const completedWeek = Math.max(1, (league.current_week ?? 1) - 1);
+  const { data: challenges, error } = await supabase
+    .from("rec_weekly_challenges")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek)
+    .eq("status", "active");
+  if (error) throw error;
+
+  let evaluated = 0;
+  let paid = 0;
+
+  for (const challenge of challenges ?? []) {
+    const game = await getCompletedResultForChallenge(challenge);
+    if (!game || typeof game.home_score !== "number" || typeof game.away_score !== "number") continue;
+    const side = userTeamSide(game, challenge.user_id);
+    if (!side) continue;
+    const didWin = side.score > side.oppScore;
+    let earnedTier: "S" | "A" | "B" | null = didWin ? "B" : null;
+    const details: Record<string, unknown> = { didWin, score: side.score, opponentScore: side.oppScore };
+
+    if (didWin) {
+      if (challenge.challenge_key === "fallback_pass_yards") {
+        const { data: passRows } = await supabase
+          .from("rec_import_staging_player_stats")
+          .select("*")
+          .eq("league_id", context.league_id)
+          .eq("season_number", seasonNumber)
+          .eq("week_number", completedWeek)
+          .eq("stat_category", "passing");
+        const teamPassingYards = (passRows ?? [])
+          .filter((row: any) => String(row.raw_payload?.teamId ?? row.team_external_id ?? row.team_id) === String(side.teamId) || String(row.team_id) === String(side.teamId))
+          .reduce((sum: number, row: any) => sum + statValue(row.stats ?? row.raw_payload, ["passYds"]), 0);
+        details.teamPassingYards = teamPassingYards;
+        if (teamPassingYards >= 350) earnedTier = "S";
+        else if (teamPassingYards >= 250) earnedTier = "A";
+      } else if (challenge.challenge_key === "fallback_hold_qb") {
+        const { data: passRows } = await supabase
+          .from("rec_import_staging_player_stats")
+          .select("*")
+          .eq("league_id", context.league_id)
+          .eq("season_number", seasonNumber)
+          .eq("week_number", completedWeek)
+          .eq("stat_category", "passing");
+        const opponentPassingYards = (passRows ?? [])
+          .filter((row: any) => String(row.raw_payload?.teamId ?? row.team_external_id ?? row.team_id) === String(side.opponentTeamId) || String(row.team_id) === String(side.opponentTeamId))
+          .reduce((sum: number, row: any) => sum + statValue(row.stats ?? row.raw_payload, ["passYds"]), 0);
+        details.opponentPassingYards = opponentPassingYards;
+        if (opponentPassingYards < 225) earnedTier = "S";
+        else if (opponentPassingYards < 275) earnedTier = "A";
+      }
+    }
+
+    const amount = earnedTier ? REC_WEEKLY_CHALLENGE_PAYOUTS[earnedTier] : 0;
+    let ledgerId: string | null = null;
+    if (amount > 0) {
+      const credit = await creditUserWallet({
+        userId: challenge.user_id,
+        leagueId: context.league_id,
+        seasonNumber,
+        amount,
+        transactionType: "weekly_challenge",
+        description: `${challenge.challenge_side === "offense" ? "Offensive" : "Defensive"} Weekly Challenge - ${earnedTier} Tier`,
+        sourceReference: {
+          idempotencyKey: `weekly_challenge:${challenge.id}:${earnedTier}`,
+          type: "weekly_challenge",
+          challengeId: challenge.id,
+          tier: earnedTier,
+          weekNumber: completedWeek
+        }
+      });
+      ledgerId = credit.ledger?.id ?? null;
+      if (credit.created) paid += amount;
+    }
+
+    const { error: updateError } = await supabase
+      .from("rec_weekly_challenges")
+      .update({
+        status: "evaluated",
+        earned_tier: earnedTier,
+        earned_amount: amount,
+        evaluation_details: details,
+        evaluated_at: nowIso(),
+        paid_ledger_id: ledgerId,
+        updated_at: nowIso()
+      })
+      .eq("id", challenge.id);
+    if (updateError) throw updateError;
+    evaluated += 1;
+  }
+
+  return { evaluated, paid, weekNumber: completedWeek, seasonNumber };
+}
+
+export async function issueRecPotwPayouts(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const completedWeek = Math.max(1, (league.current_week ?? 1) - 1);
+  const { data: awards, error } = await supabase
+    .from("rec_weekly_player_awards")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek)
+    .is("paid_ledger_id", null)
+    .not("user_id", "is", null);
+  if (error) throw error;
+  let issued = 0;
+  for (const award of awards ?? []) {
+    const amount = asNumber(award.payout_amount || REC_POTW_PAYOUT_AMOUNT);
+    const credit = await creditUserWallet({
+      userId: award.user_id,
+      leagueId: context.league_id,
+      seasonNumber,
+      amount,
+      transactionType: "potw",
+      description: `${award.conference} ${award.award_side === "offense" ? "Offensive" : "Defensive"} REC POTW - ${award.player_name}`,
+      sourceReference: {
+        idempotencyKey: `potw:${award.id}`,
+        type: "rec_potw",
+        awardId: award.id,
+        weekNumber: completedWeek
+      }
+    });
+    if (credit.ledger?.id) {
+      await supabase.from("rec_weekly_player_awards").update({ paid_ledger_id: credit.ledger.id, updated_at: nowIso() }).eq("id", award.id);
+    }
+    if (credit.created) issued += amount;
+  }
+  return { issued, awards: awards?.length ?? 0, weekNumber: completedWeek };
+}
+
+export async function evaluateStreamCompliance(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const completedWeek = Math.max(1, (league.current_week ?? 1) - 1);
+  const features = await getLeagueFeatureSettings(context.league_id).catch(() => null);
+  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const requirement = stage === "regular_season" ? features?.regular_season_streaming_requirement ?? features?.streaming_requirement : features?.postseason_streaming_requirement ?? features?.streaming_requirement;
+  const streamingRequired = requirement === "required";
+  if (!streamingRequired) return { checked: 0, missed: 0, required: false };
+
+  const sidePolicy = features?.streaming_side ?? "either";
+  const { data: games, error } = await supabase
+    .from("rec_game_results")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek);
+  if (error) throw error;
+
+  let checked = 0;
+  let missed = 0;
+  for (const game of games ?? []) {
+    const sides = [
+      { key: "home", userId: game.home_user_id, teamId: game.home_team_id },
+      { key: "away", userId: game.away_user_id, teamId: game.away_team_id }
+    ].filter((side) => side.userId);
+    if (!sides.length) continue;
+
+    const requiredSides = sidePolicy === "home" ? sides.filter((s) => s.key === "home")
+      : sidePolicy === "away" ? sides.filter((s) => s.key === "away")
+      : sidePolicy === "both" ? sides
+      : sides;
+
+    const { data: streamLogs } = await supabase
+      .from("rec_stream_compliance_logs")
+      .select("*")
+      .eq("league_id", context.league_id)
+      .eq("season_number", seasonNumber)
+      .eq("week_number", completedWeek)
+      .in("status", ["posted", "required_complied"]);
+
+    for (const side of requiredSides) {
+      const hasStream = (streamLogs ?? []).some((log: any) => log.user_id === side.userId);
+      checked += 1;
+      if (hasStream) {
+        await supabase.from("rec_stream_compliance_logs").insert({
+          league_id: context.league_id,
+          season_number: seasonNumber,
+          week_number: completedWeek,
+          user_id: side.userId,
+          team_id: side.teamId,
+          required: true,
+          complied: true,
+          status: "required_complied",
+          details: { gameId: game.id, streamingSide: sidePolicy, source: "advance_evaluation" }
+        });
+      } else {
+        missed += 1;
+        await supabase.from("rec_stream_compliance_logs").insert({
+          league_id: context.league_id,
+          season_number: seasonNumber,
+          week_number: completedWeek,
+          user_id: side.userId,
+          team_id: side.teamId,
+          required: true,
+          complied: false,
+          status: "required_missed",
+          details: { gameId: game.id, streamingSide: sidePolicy, source: "advance_evaluation" }
+        });
+      }
+    }
+  }
+  return { checked, missed, required: true };
+}
+
 export async function buildAdvanceDmPayloads(guildId: string) {
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;
@@ -462,7 +803,16 @@ export async function buildAdvanceDmPayloads(guildId: string) {
   const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
   const { data: challenges } = await supabase.from("rec_weekly_challenges").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
   const { data: channels } = await supabase.from("rec_game_channels").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
-  const { data: awards } = await supabase.from("rec_weekly_player_awards").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", Math.max(1, weekNumber - 1));
+  const completedWeek = Math.max(1, weekNumber - 1);
+  const { data: awards } = await supabase.from("rec_weekly_player_awards").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", completedWeek);
+  const { data: payouts } = await supabase
+    .from("rec_dollar_ledger")
+    .select("user_id,amount,transaction_type,description,source_reference,created_at")
+    .eq("league_id", context.league_id)
+    .eq("season_id", null)
+    .in("transaction_type", ["weekly_challenge", "potw", "gotw_correct_guess", "stream_payout"]);
+  const { data: wallets } = await supabase.from("rec_wallets").select("user_id,wallet_balance,savings_balance");
+  const walletByUser = new Map((wallets ?? []).map((wallet: any) => [wallet.user_id, wallet]));
   const { data: discordAccounts } = await supabase.from("rec_discord_accounts").select("user_id,discord_id");
   const discordByUser = new Map((discordAccounts ?? []).map((d: any) => [d.user_id, d.discord_id]));
   const payloads: any[] = [];
@@ -485,7 +835,10 @@ export async function buildAdvanceDmPayloads(guildId: string) {
         matchup: { opponent: side.opponentTeam, location: side.location, gameType: side.opponentUserId ? "User H2H" : "CPU", gameChannelId: gameChannel?.discord_channel_id ?? null },
         streaming: { required: false, requirement: "Based on league settings" },
         challenges: (challenges ?? []).filter((c: any) => c.user_id === side.userId),
-        payouts: [],
+        payouts: (payouts ?? [])
+          .filter((payout: any) => payout.user_id === side.userId && asNumber(payout.source_reference?.weekNumber) === completedWeek)
+          .map((payout: any) => ({ label: payout.description ?? payout.transaction_type, amount: payout.amount ?? 0, type: payout.transaction_type })),
+        walletBalance: walletByUser.get(side.userId)?.wallet_balance ?? 0,
         potwAwards: (awards ?? []).filter((a: any) => a.user_id === side.userId).map((a: any) => ({ label: `${a.conference} ${a.award_side === "offense" ? "Offensive" : "Defensive"} REC POTW`, playerName: a.player_name, amount: a.payout_amount ?? REC_POTW_PAYOUT_AMOUNT })),
         gotw: { isParticipant: false, message: "Go to /menu to vote for the H2H GOTW winner. Correct guesses may earn a payout." },
         deadlines: []
@@ -500,7 +853,10 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
   const mode = typeof input === "string" ? "normal" : input.mode ?? "normal";
   await applyAdvanceRecords(guildId);
   await settleGotwVotes(guildId);
+  await evaluateWeeklyChallenges(guildId);
   await calculateRecPotw(guildId);
+  await issueRecPotwPayouts(guildId);
+  await evaluateStreamCompliance(guildId);
   await generateWeeklyChallenges({ guildId, regenerate: false });
 
   if (mode === "catch_up") {
