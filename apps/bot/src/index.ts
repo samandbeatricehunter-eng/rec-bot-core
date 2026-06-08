@@ -44,9 +44,13 @@ import {
 } from "./flows/imports.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
+import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } from "./ui/economy-admin.js";
+import { WEEKLY_CHALLENGE_CUSTOM_IDS, buildWeeklyChallengesPanel } from "./ui/weekly-challenges.js";
+import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekPanel, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
+import { recordGameChannelMessage, sendAdvanceDmsForGuild, startGameChannelReminderLoop } from "./flows/game-channels.js";
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages]
 });
 
 const leagueSetupSessions = new Map<string, LeagueSetupDraft>();
@@ -57,6 +61,7 @@ client.once("clientReady", async () => {
   try {
     const health = await recApi.health();
     console.log(`Connected to ${health.service}`);
+    startGameChannelReminderLoop(client);
   } catch (error) {
     console.error("REC Core API health check failed", error);
   }
@@ -67,6 +72,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === "menu") {
       await handleMenuCommand(interaction);
       return;
+    }
+
+    if (interaction.isChannelSelectMenu()) {
+      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
+        await handleEconomyChannelSelect(interaction);
+        return;
+      }
     }
 
     if (interaction.isStringSelectMenu()) {
@@ -89,6 +101,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         await handleImportSelect(interaction);
         return;
       }
+
+      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.stageSelect) {
+        await interaction.showModal(buildLeagueWeekSetModal(interaction.values[0]));
+        return;
+      }
     }
 
     if (interaction.isButton()) {
@@ -109,6 +126,21 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (interaction.customId === MENU_CUSTOM_IDS.adminImports) {
         await renderImportPanel(interaction);
+        return;
+      }
+
+      if (interaction.customId === MENU_CUSTOM_IDS.adminEconomyReviews) {
+        await interaction.update(buildEconomyAdminPanel());
+        return;
+      }
+
+      if (interaction.customId === MENU_CUSTOM_IDS.adminWeeklyChallenges) {
+        await interaction.update(buildWeeklyChallengesPanel());
+        return;
+      }
+
+      if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueWeek) {
+        await interaction.update(buildLeagueWeekPanel());
         return;
       }
 
@@ -150,6 +182,41 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return;
       }
 
+      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEos) {
+        await interaction.showModal(buildClearEosModal());
+        return;
+      }
+
+      if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.regenerate) {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.deferReply({ ephemeral: true });
+        const result = await recApi.regenerateWeeklyChallenges(interaction.guildId);
+        await interaction.editReply(`Weekly challenges regenerated. Rows affected: ${result.generated ?? 0}. Corrected challenge DMs should be sent by the advance automation path.`);
+        return;
+      }
+
+      if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.audit) {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.deferReply({ ephemeral: true });
+        const result = await recApi.getChallengeAudit(interaction.guildId);
+        const lines = (result.challenges ?? []).slice(0, 20).map((c: any) => `Week ${c.week_number} - ${c.challenge_side}: ${c.earned_tier ?? "Not earned"} $${c.earned_amount ?? 0}`);
+        await interaction.editReply(lines.length ? lines.join("\n") : "No challenge audit rows found for the last 2 in-game weeks.");
+        return;
+      }
+
+      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.view) {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.deferReply({ ephemeral: true });
+        const result = await recApi.viewLeagueWeek(interaction.guildId);
+        await interaction.editReply(`League: ${result.league?.name ?? "Unknown"}\nSeason: ${result.league?.season_number ?? "?"}\nWeek: ${result.league?.current_week ?? "?"}\nStage: ${result.league?.season_stage ?? result.league?.current_phase ?? "?"}`);
+        return;
+      }
+
+      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.set) {
+        await interaction.reply({ content: "Choose the stage first.", components: [buildLeagueWeekStageRow()], ephemeral: true });
+        return;
+      }
+
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) {
         await renderMainMenuFromComponent(interaction);
         return;
@@ -171,6 +238,17 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)
     ) {
       await handleSetupModal(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEosModal) {
+      await handleClearEosModal(interaction);
+      return;
+    }
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${LEAGUE_WEEK_CUSTOM_IDS.setModal}:`)) {
+      await handleLeagueWeekSetModal(interaction);
+      return;
     }
   } catch (error) {
     console.error("Interaction handling failed", error);
@@ -189,6 +267,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
   }
 });
+
+client.on("messageCreate", recordGameChannelMessage);
 
 async function buildMainMenuPayload(userId: string, isAdmin: boolean) {
   let menuEmbed = buildMainMenuEmbed({ isAdmin });
@@ -622,3 +702,45 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
 }
 
 await client.login(env.DISCORD_TOKEN);
+
+async function handleEconomyChannelSelect(interaction: any) {
+  if (!interaction.isChannelSelectMenu() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can change economy routing.", ephemeral: true });
+    return;
+  }
+  const channelId = interaction.values[0];
+  if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, pendingEconomyChannelId: channelId });
+    await interaction.reply({ content: `Pending Purchases / Payouts channel set to <#${channelId}>.`, ephemeral: true });
+    return;
+  }
+  await recApi.setEconomyConfig({ guildId: interaction.guildId, gameChannelsCategoryId: channelId });
+  await interaction.reply({ content: `Game Channels category set to <#${channelId}>.`, ephemeral: true });
+}
+
+async function handleClearEosModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can clear EOS batches.", ephemeral: true });
+    return;
+  }
+  const clearReason = interaction.fields.getTextInputValue(ECONOMY_ADMIN_CUSTOM_IDS.clearReasonInput);
+  const result = await recApi.clearPendingEosBatch({ guildId: interaction.guildId, clearReason });
+  await interaction.reply({ content: result.cleared ? "Pending EOS batch cleared. Reissue after correcting payout logic." : result.reason ?? "No pending EOS batch found.", ephemeral: true });
+}
+
+async function handleLeagueWeekSetModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can set league week.", ephemeral: true });
+    return;
+  }
+  const seasonStage = interaction.customId.split(":").at(-1) ?? "regular_season";
+  const weekNumber = Number(interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.weekInput));
+  const seasonRaw = interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.seasonInput).trim();
+  const seasonNumber = seasonRaw ? Number(seasonRaw) : undefined;
+  await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage, seasonNumber });
+  await sendAdvanceDmsForGuild(interaction.guild);
+  await interaction.reply({ content: `League week set to ${seasonStage} week ${weekNumber}. Advance DMs and game-channel recreation were triggered automatically.`, ephemeral: true });
+}

@@ -64,3 +64,4 @@ export type RecGlobalRecord = {
   superbowl_losses: number;
   point_differential: number;
 };
+export * from "./economy.js";

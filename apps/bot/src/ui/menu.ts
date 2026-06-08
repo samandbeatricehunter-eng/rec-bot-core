@@ -22,6 +22,9 @@ export const MENU_CUSTOM_IDS = {
   adminLeagueSetup: "rec:admin:league_setup",
   adminUserTeamLinking: "rec:admin:user_team_linking",
   adminImports: "rec:admin:imports",
+  adminEconomyReviews: "rec:admin:economy_reviews",
+  adminWeeklyChallenges: "rec:admin:weekly_challenges",
+  adminLeagueWeek: "rec:admin:league_week",
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input"
@@ -120,7 +123,19 @@ export function buildAdminPanelRows() {
       new ButtonBuilder()
         .setCustomId(MENU_CUSTOM_IDS.adminImports)
         .setLabel("Imports")
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(MENU_CUSTOM_IDS.adminEconomyReviews)
+        .setLabel("Economy Reviews")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(MENU_CUSTOM_IDS.adminWeeklyChallenges)
+        .setLabel("Weekly Challenges")
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(MENU_CUSTOM_IDS.adminLeagueWeek)
+        .setLabel("League Week")
+        .setStyle(ButtonStyle.Secondary)
     )
   ];
 }

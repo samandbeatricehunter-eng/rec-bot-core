@@ -227,5 +227,34 @@ export const recApi = {
     recFetch<any>(REC_API_ROUTES.updateImportEndpointAttempt, {
       method: "POST",
       body: JSON.stringify(input)
-    })
+    }),
+  setEconomyConfig: (input: { guildId: string; pendingEconomyChannelId?: string; gameChannelsCategoryId?: string }) =>
+    recFetch<any>("/v1/economy/config/set", { method: "POST", body: JSON.stringify(input) }),
+  clearPendingEosBatch: (input: { guildId: string; clearReason: string }) =>
+    recFetch<any>("/v1/eos/clear-pending", { method: "POST", body: JSON.stringify(input) }),
+  viewLeagueWeek: (guildId: string) =>
+    recFetch<any>("/v1/league-week/view", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setLeagueWeek: (input: { guildId: string; weekNumber: number; seasonStage: string; seasonNumber?: number }) =>
+    recFetch<any>("/v1/league-week/set", { method: "POST", body: JSON.stringify(input) }),
+  regenerateWeeklyChallenges: (guildId: string) =>
+    recFetch<any>("/v1/challenges/regenerate", { method: "POST", body: JSON.stringify({ guildId, regenerate: true }) }),
+  getChallengeAudit: (guildId: string) =>
+    recFetch<any>("/v1/challenges/audit", { method: "POST", body: JSON.stringify({ guildId }) }),
+  postAdvanceAutomation: (guildId: string) =>
+    recFetch<any>("/v1/advance/post-advance", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getGameChannelPlans: (guildId: string) =>
+    recFetch<any>("/v1/game-channels/plans", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getActiveGameChannels: (guildId: string) =>
+    recFetch<any>("/v1/game-channels/active", { method: "POST", body: JSON.stringify({ guildId }) }),
+  recordGameChannel: (input: any) =>
+    recFetch<any>("/v1/game-channels/record", { method: "POST", body: JSON.stringify(input) }),
+  markGameChannelDeleted: (discordChannelId: string) =>
+    recFetch<any>("/v1/game-channels/deleted", { method: "POST", body: JSON.stringify({ discordChannelId }) }),
+  recordGameChannelCheckin: (input: { discordChannelId: string; discordUserId: string }) =>
+    recFetch<any>("/v1/game-channels/checkin", { method: "POST", body: JSON.stringify(input) }),
+  getReminderState: (guildId: string) =>
+    recFetch<any>("/v1/game-channels/reminder-state", { method: "POST", body: JSON.stringify({ guildId }) }),
+  recordGameChannelReminder: (input: any) =>
+    recFetch<any>("/v1/game-channels/reminder", { method: "POST", body: JSON.stringify(input) })
+
 };
