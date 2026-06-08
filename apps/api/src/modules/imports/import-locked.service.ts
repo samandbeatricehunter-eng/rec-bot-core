@@ -109,3 +109,40 @@ export async function createImportJob(input: CreateImportJobInput) {
     endpointAttempts: (created.endpointAttempts ?? []).filter((attempt: any) => keys.includes(attempt.endpoint_key))
   };
 }
+
+export async function getActiveImportJobForGuild(guildId: string) {
+  const { server, league } = await getCurrentLeagueForGuild(guildId);
+  const activeJob = await supabase
+    .from("rec_import_jobs")
+    .select("id, import_mode, status, import_label, created_at, week_from, week_to, import_scope, selected_endpoint_keys")
+    .eq("server_id", server.id)
+    .eq("league_id", league.id)
+    .in("status", ACTIVE_IMPORT_STATUSES)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activeJob.error) {
+    throw new ApiError(500, "Failed to check active import jobs.", activeJob.error);
+  }
+
+  return { server, league, job: activeJob.data ?? null };
+}
+
+export async function cancelActiveImportForGuild(input: { guildId: string; reason?: string | null }) {
+  const active = await getActiveImportJobForGuild(input.guildId);
+  if (!active.job?.id) return { ...active, cancelled: false };
+  const cancelled = await supabase
+    .from("rec_import_jobs")
+    .update({
+      status: "cancelled",
+      failure_reason: input.reason ?? "Cancelled before starting a new import.",
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", active.job.id)
+    .select("*")
+    .single();
+  if (cancelled.error) throw new ApiError(500, "Failed to cancel active import job.", cancelled.error);
+  return { server: active.server, league: active.league, job: cancelled.data, cancelled: true };
+}

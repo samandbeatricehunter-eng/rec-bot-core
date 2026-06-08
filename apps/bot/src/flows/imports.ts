@@ -13,6 +13,7 @@ import {
   buildImportFlowNavigationRows,
   buildImportJobCreatedRows,
   buildImportPanelRows,
+  buildPendingImportRows,
   buildImportPreviewRows,
   buildWeekScopeRow,
   IMPORT_CUSTOM_IDS
@@ -31,6 +32,7 @@ export type ImportDraft = {
   franchises?: any[];
   eaLoginUrl?: string;
   eaConsole?: "xone" | "ps4" | "pc" | "ps5" | "xbsx" | "stadia";
+  pendingStartMode?: RecImportMode;
 };
 
 export const importSessions = new Map<string, ImportDraft>();
@@ -349,28 +351,42 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     return;
   }
 
-  if (interaction.customId === IMPORT_CUSTOM_IDS.status) {
+  if (interaction.customId === IMPORT_CUSTOM_IDS.resumePending) {
+    if (!interaction.inCachedGuild()) return;
     await interaction.deferUpdate();
-    const result = await recApi.getImportStatus(interaction.guildId);
-
+    const result = await recApi.getActiveImport(interaction.guildId);
     if (result.job?.id) {
       importSessions.set(interaction.user.id, { ...(importSessions.get(interaction.user.id) ?? {}), importJobId: result.job.id });
+      const previewable = ["validating", "completed_with_warnings", "reconciling"].includes(String(result.job.status));
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Previous Import Pending").setDescription([
+          "Resumed the active import job.",
+          "",
+          formatImportJob(result.job),
+          "",
+          previewable ? "Use **Preview Import** to return to commit controls." : "Continue staging endpoints, then preview the import."
+        ].join("\n"))],
+        components: previewable ? buildImportJobCreatedRows() : buildImportJobCreatedRows()
+      });
+    } else {
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("No Pending Import").setDescription("No active uncommitted import was found. Start a new import from Import / Enter Data.")], components: buildImportPanelRows() });
     }
+    return;
+  }
 
+  if (interaction.customId === IMPORT_CUSTOM_IDS.cancelPendingStartNew) {
+    if (!interaction.inCachedGuild()) return;
+    await interaction.deferUpdate();
+    const session = importSessions.get(interaction.user.id);
+    const result = await recApi.cancelActiveImport({ guildId: interaction.guildId, reason: "Admin selected Cancel Previous Import and Start New." });
+    importSessions.set(interaction.user.id, { importMode: session?.pendingStartMode ?? session?.importMode });
     await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Import Status")
-          .setDescription([
-            `League: **${result.league?.name ?? "Unknown"}**`,
-            "",
-            formatImportJob(result.job),
-            "",
-            "**Endpoint Attempts**",
-            formatEndpointAttempts(result.endpointAttempts ?? [])
-          ].join("\n"))
-      ],
-      components: buildImportPanelRows()
+      embeds: [new EmbedBuilder().setTitle("Previous Import Cancelled").setDescription([
+        result.cancelled ? "The pending import was cancelled." : "No active import needed to be cancelled.",
+        "",
+        "Continue normal import setup below."
+      ].join("\n"))],
+      components: [buildWeekScopeRow(), ...buildImportFlowNavigationRows()]
     });
     return;
   }
@@ -531,9 +547,25 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   const importMode = modeByButton[interaction.customId];
 
   if (importMode === "ea_import") {
-    importSessions.set(interaction.user.id, { importMode: "ea_import" });
+    if (!interaction.inCachedGuild()) return;
     await interaction.deferUpdate();
+    const active = await recApi.getActiveImport(interaction.guildId).catch(() => null);
+    if (active?.job?.id) {
+      importSessions.set(interaction.user.id, { importMode: "ea_import", pendingStartMode: "ea_import", importJobId: active.job.id });
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Previous Import Pending").setDescription([
+          "An uncommitted import is already active for this league.",
+          "",
+          formatImportJob(active.job),
+          "",
+          "Choose whether to resume it or cancel it and start a new import."
+        ].join("\n"))],
+        components: buildPendingImportRows()
+      });
+      return;
+    }
 
+    importSessions.set(interaction.user.id, { importMode: "ea_import" });
     try {
       const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id });
       if (status.connected) {
@@ -556,8 +588,30 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   }
 
   if (importMode) {
+    if (!interaction.inCachedGuild()) return;
+    await interaction.deferUpdate();
+    const active = await recApi.getActiveImport(interaction.guildId).catch(() => null);
+    if (active?.job?.id) {
+      importSessions.set(interaction.user.id, { importMode, pendingStartMode: importMode, importJobId: active.job.id });
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Previous Import Pending")
+            .setDescription([
+              "An uncommitted import is already active for this league.",
+              "",
+              formatImportJob(active.job),
+              "",
+              "Choose whether to resume it or cancel it and start a new import."
+            ].join("\n"))
+        ],
+        components: buildPendingImportRows()
+      });
+      return;
+    }
+
     importSessions.set(interaction.user.id, { importMode });
-    await interaction.update({
+    await interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setTitle("Create Import Job")

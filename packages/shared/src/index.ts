@@ -4,6 +4,7 @@ export const REC_API_ROUTES = {
   health: "/health",
   userBaseline: (discordId: string) => `/v1/users/${discordId}/baseline`,
   userWallet: (discordId: string) => `/v1/users/${discordId}/wallet`,
+  menuProfile: (discordId: string, guildId: string) => `/v1/users/${discordId}/menu-profile?guildId=${encodeURIComponent(guildId)}`,
 
   registerServer: "/v1/setup/server/register",
   createLeague: "/v1/setup/league/create",
@@ -20,6 +21,8 @@ export const REC_API_ROUTES = {
   importMissingResults: (jobId: string) => `/v1/imports/${jobId}/missing-results`,
   importStatus: (guildId: string) => `/v1/imports/guild/${guildId}/status`,
   importHistory: (guildId: string) => `/v1/imports/guild/${guildId}/history`,
+  activeImport: (guildId: string) => `/v1/imports/guild/${guildId}/active`,
+  cancelActiveImport: "/v1/imports/guild/cancel-active",
 
   eaAccountStatus: "/v1/imports/ea-account/status",
   eaAccountConnect: "/v1/imports/ea-account/connect",

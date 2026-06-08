@@ -1,4 +1,4 @@
-import { ChannelType, Client, EmbedBuilder, Guild, TextChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, Guild, TextChannel } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
 
 function splitText(text: string, max = 3600) {
@@ -116,7 +116,39 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
 export async function recordGameChannelMessage(message: any) {
   if (!message.guildId || message.author?.bot) return;
   await recApi.recordGameChannelCheckin({ discordChannelId: message.channelId, discordUserId: message.author.id }).catch(() => undefined);
-  await recApi.recordStreamPost({ guildId: message.guildId, discordId: message.author.id, discordChannelId: message.channelId, discordMessageId: message.id, messageUrl: message.url ?? null }).catch(() => undefined);
+  const streamResult = await recApi.recordStreamPost({
+    guildId: message.guildId,
+    discordId: message.author.id,
+    discordChannelId: message.channelId,
+    discordMessageId: message.id,
+    messageUrl: message.url ?? null,
+    content: message.content ?? null
+  }).catch(() => null);
+  if (streamResult?.invalidStreamPost || streamResult?.shouldDelete) {
+    await message.delete().catch(() => undefined);
+    await message.author.send("Your message was removed from the streams channel. That channel is only for posting streaming links, or if you are streaming live on Discord, post a message advising that your stream is on Discord. Example: Away vs Home LIVE on discord.").catch(() => undefined);
+    return;
+  }
+
+  if (streamResult?.needsReview && streamResult.pendingEconomyChannelId) {
+    const channel = await message.guild.channels.fetch(streamResult.pendingEconomyChannelId).catch(() => null);
+    if (channel?.isTextBased()) {
+      await channel.send({
+        embeds: [new EmbedBuilder()
+          .setTitle("Pending Stream Payout Review")
+          .setDescription([
+            `User: <@${message.author.id}>`,
+            `Week: ${streamResult.log?.week_number ?? "?"}`,
+            `Reason: User mentioned Discord as their stream source but no supported stream link was detected.`,
+            `Original Message: ${message.url ?? "Unavailable"}`
+          ].join("\n"))],
+        components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`rec:stream_review:approve:${streamResult.review?.id}`).setLabel("Approve Stream Payout").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`rec:stream_review:deny:${streamResult.review?.id}`).setLabel("Deny Stream Payout").setStyle(ButtonStyle.Danger)
+        )]
+      }).catch(() => undefined);
+    }
+  }
 }
 
 export function startGameChannelReminderLoop(client: Client) {

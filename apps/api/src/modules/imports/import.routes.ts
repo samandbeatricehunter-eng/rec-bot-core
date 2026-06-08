@@ -7,7 +7,7 @@ import {
   UpdateEndpointAttemptSchema,
   UpdateImportJobStatusSchema
 } from "./import.schemas.js";
-import { createImportJob } from "./import-locked.service.js";
+import { cancelActiveImportForGuild, createImportJob, getActiveImportJobForGuild } from "./import-locked.service.js";
 import { executeImportEndpoint, executeImportJob } from "./import-executor.service.js";
 import {
   approveImportPreview,
@@ -34,6 +34,7 @@ const StageImportEndpointBodySchema = z.object({
   endpointKey: z.string().min(1)
 });
 const CancelImportJobSchema = z.object({ importJobId: z.string().uuid(), reason: z.string().optional().nullable() });
+const CancelActiveImportSchema = z.object({ guildId: z.string().min(1), reason: z.string().optional().nullable() });
 const MissingScoreParamsSchema = z.object({ gameId: z.string().uuid() });
 const ReimportMissingScoreBodySchema = z.object({ requestedByDiscordId: z.string().min(1), notes: z.string().optional().nullable() });
 const IgnoreMissingScoreBodySchema = z.object({ requestedByDiscordId: z.string().min(1), notes: z.string().optional().nullable() });
@@ -79,6 +80,25 @@ export async function importRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { guildId } = request.params as { guildId: string };
       return reply.send(await getLatestImportJobForGuild(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.get("/v1/imports/guild/:guildId/active", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId } = request.params as { guildId: string };
+      return reply.send(await getActiveImportJobForGuild(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/imports/guild/cancel-active", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await cancelActiveImportForGuild(CancelActiveImportSchema.parse(request.body)));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes } from "./advance.service.js";
+import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes, reviewStreamPayout } from "./advance.service.js";
 
 export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/advance/post-advance", async (request) => runPostAdvanceAutomation(request.body as any));
@@ -34,4 +34,5 @@ export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/active-check/close", async (request) => closeActiveCheck(request.body as any));
   app.post("/v1/active-check/open", async (request) => getOpenActiveChecks((request.body as any).guildId));
   app.post("/v1/streams/post", async (request) => recordStreamPost(request.body as any));
+  app.post("/v1/streams/review", async (request) => reviewStreamPayout(request.body as any));
 }

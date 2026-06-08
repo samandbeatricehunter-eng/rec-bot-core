@@ -20,8 +20,9 @@ export const IMPORT_CUSTOM_IDS = {
   eaAuthCodeInput: "rec:imports:ea_auth_code",
   discoverFranchises: "rec:imports:discover_franchises",
   franchiseSelect: "rec:imports:franchise_select",
-  status: "rec:imports:status",
   history: "rec:imports:history",
+  resumePending: "rec:imports:resume_pending",
+  cancelPendingStartNew: "rec:imports:cancel_pending_start_new",
   weekScope: "rec:imports:week_scope",
   endpoints: "rec:imports:endpoints",
   previewJob: "rec:imports:preview_job",
@@ -59,10 +60,19 @@ export function buildImportPanelRows() {
       new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.manualImport).setLabel("Manual Entry").setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.status).setLabel("Import Status").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.history).setLabel("Import History").setStyle(ButtonStyle.Secondary)
     ),
     buildNavigationRow({ includeAdminPanel: true })
+  ];
+}
+
+export function buildPendingImportRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.resumePending).setLabel("Resume Previous Import").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelPendingStartNew).setLabel("Cancel Previous Import and Start New").setStyle(ButtonStyle.Danger)
+    ),
+    ...buildImportFlowNavigationRows()
   ];
 }
 

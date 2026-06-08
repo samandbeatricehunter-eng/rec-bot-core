@@ -1,8 +1,8 @@
-import { ChannelType, EmbedBuilder, Interaction, TextChannel } from "discord.js";
+import { ChannelType, EmbedBuilder, TextChannel, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
 import { buildGotwAnnouncementContent, buildGotwSelectionPayload, buildGotwVoteEmbed, buildGotwVoteRows, GOTW_CUSTOM_IDS } from "../ui/gotw.js";
 
-export async function renderGotwSelection(interaction: Extract<Interaction, { inCachedGuild(): boolean; deferReply: any; editReply: any }>) {
+export async function renderGotwSelection(interaction: StringSelectMenuInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   await interaction.deferReply({ ephemeral: true });
   const result = await recApi.getGotwCandidates(interaction.guildId);
@@ -18,7 +18,7 @@ export async function renderGotwSelection(interaction: Extract<Interaction, { in
   await interaction.editReply(buildGotwSelectionPayload(result.candidates));
 }
 
-export async function handleGotwSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+export async function handleGotwSelect(interaction: StringSelectMenuInteraction) {
   if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
   const result = await recApi.selectGotwCandidate({ guildId: interaction.guildId, candidateId: interaction.values[0], selectedByDiscordId: interaction.user.id });
@@ -47,7 +47,7 @@ export async function handleGotwSelect(interaction: Extract<Interaction, { isStr
   });
 }
 
-export async function handleGotwVote(interaction: Extract<Interaction, { isButton(): boolean }>) {
+export async function handleGotwVote(interaction: ButtonInteraction) {
   if (!interaction.isButton()) return;
   const isAway = interaction.customId.startsWith(GOTW_CUSTOM_IDS.voteAwayPrefix);
   const prefix = isAway ? GOTW_CUSTOM_IDS.voteAwayPrefix : GOTW_CUSTOM_IDS.voteHomePrefix;

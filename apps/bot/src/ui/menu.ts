@@ -18,13 +18,19 @@ import {
  */
 export const MENU_CUSTOM_IDS = {
   mainSelect: "rec:menu:main_select",
+  adminSelect: "rec:admin:select",
   adminServerSetup: "rec:admin:server_setup",
   adminLeagueSetup: "rec:admin:league_setup",
   adminUserTeamLinking: "rec:admin:user_team_linking",
+  adminImportEnterData: "rec:admin:import_enter_data",
   adminImports: "rec:admin:imports",
-  adminEconomyReviews: "rec:admin:economy_reviews",
+  adminAdvanceMenu: "rec:admin:advance_menu",
   adminWeeklyChallenges: "rec:admin:weekly_challenges",
   adminLeagueWeek: "rec:admin:league_week",
+  adminActiveCheck: "rec:admin:active_check",
+  adminRules: "rec:admin:rules",
+  adminReselectGotw: "rec:admin:reselect_gotw",
+  adminEconomyReviews: "rec:admin:economy_reviews",
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input"
@@ -32,40 +38,105 @@ export const MENU_CUSTOM_IDS = {
 
 export type SetupDangerAction = "server_setup" | "league_setup";
 
+function formatRoleLabel(role?: string | null) {
+  if (role === "commissioner") return "Commissioner";
+  if (role === "co_commissioner" || role === "comp_committee") return "Comp Committee";
+  if (role === "member" || role === "approved_member") return "Approved Member";
+  return "None";
+}
+
+
+function formatChallenge(challenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null) {
+  if (!challenge) return "Not generated yet";
+  return [`S: ${challenge.s_tier_goal ?? "Not set"} ($50)`, `A: ${challenge.a_tier_goal ?? "Not set"} ($25)`, `B: ${challenge.b_tier_goal ?? "Win the game"} ($10)`].join("\n");
+}
+
+function formatBadgeList(badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>) {
+  if (!badges?.length) return "None yet";
+  return badges
+    .map((badge) => {
+      const name = badge.name ?? badge.badge_name ?? badge.label ?? "Badge";
+      return badge.tier ? `${name} (${badge.tier})` : name;
+    })
+    .join("\n");
+}
+
 export function buildMainMenuEmbed(input: {
-  displayName?: string;
-  recordText?: string;
-  playoffText?: string;
-  superbowlText?: string;
-  pointDifferential?: number;
+  discordUsername?: string;
+  teamName?: string | null;
+  highestRole?: string | null;
   wallet?: number;
   savings?: number;
+  leagueName?: string;
+  seasonNumber?: number | string | null;
+  currentWeek?: number | string | null;
+  seasonStage?: string | null;
+  leagueSeasonRecordText?: string;
+  leagueSeasonPointDifferential?: number;
+  currentMatchupText?: string;
+  gotwStatus?: string;
+  offensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
+  defensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
+  globalRecordText?: string;
+  globalPlayoffText?: string;
+  globalSuperbowlText?: string;
+  globalPointDifferential?: number;
+  badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>;
   isAdmin: boolean;
 }) {
-  const description = input.displayName
-    ? [
-        `Coach: ${input.displayName}`,
-        "",
-        `Record: ${input.recordText ?? "0-0-0"}`,
-        `Playoffs: ${input.playoffText ?? "0-0"}`,
-        `Super Bowls: ${input.superbowlText ?? "0-0"}`,
-        `Point Differential: ${input.pointDifferential ?? 0}`,
-        "",
-        `Wallet: $${input.wallet ?? 0}`,
-        `Savings: $${input.savings ?? 0}`,
-        "",
-        input.isAdmin ? "Admin Panel available below." : "Select a department below."
-      ].join("\n")
-    : [
-        "Your Discord account is not linked to a migrated REC Core profile yet.",
-        "",
-        "Select a department below."
-      ].join("\n");
+  const userText = input.discordUsername ?? "Unlinked User";
+  const teamText = input.teamName ?? "None";
+  const roleText = formatRoleLabel(input.highestRole);
+  const seasonText = input.seasonNumber ?? "?";
+  const weekText = input.currentWeek ?? "?";
+  const stageText = input.seasonStage ? String(input.seasonStage).replaceAll("_", " ") : "regular season";
+
+  const description = [
+    `User: ${userText}`,
+    `Team: ${teamText}`,
+    `Role: ${roleText}`,
+    `Wallet: $${input.wallet ?? 0}`,
+    `Savings: $${input.savings ?? 0}`,
+    "",
+    "**League Data**",
+    `League: ${input.leagueName ?? "Current League"}`,
+    `Season ${seasonText}, Week ${weekText}`,
+    `Stage: ${stageText}`,
+    `Season Record: ${input.leagueSeasonRecordText ?? "0-0-0"}`,
+    `Season Point Differential: ${input.leagueSeasonPointDifferential ?? 0}`,
+    `Current Matchup: ${input.currentMatchupText ?? "None"}`,
+    `Game of the Week: ${input.gotwStatus ?? "No"}`,
+    "",
+    "**Current Weekly Challenges**",
+    "Offense:",
+    formatChallenge(input.offensiveChallenge),
+    "",
+    "Defense:",
+    formatChallenge(input.defensiveChallenge),
+    "",
+    "**Global Data**",
+    `Global Record: ${input.globalRecordText ?? "0-0-0"}`,
+    `Global Playoffs: ${input.globalPlayoffText ?? "0-0"}`,
+    `Global Super Bowls: ${input.globalSuperbowlText ?? "0-0"}`,
+    `Global Point Differential: ${input.globalPointDifferential ?? 0}`,
+    "",
+    "**Badges**",
+    formatBadgeList(input.badges),
+    "",
+    "**Menu Guide**",
+    "Use Rosters below to view players and rosters in the league.",
+    "Use Manage My Team to manage purchases, players and other facets of your team.",
+    "Use Standings & Stats to view league standings, player/team stats and other details of this league.",
+    "Use REC Bank to move funds between your savings and wallet.",
+    "Use Media Center to vote on Play of the Year nominations, Game of the Year nominations and review historical data from this league.",
+    "Use Help / Rules to view league rules and FAQs for more info.",
+    "If you're an admin/commissioner/co-commissioner, use Admin Menu to view the Admin controls."
+  ].join("\n");
 
   return new EmbedBuilder()
     .setTitle("REC League HQ")
-    .setDescription(description)
-    .setFooter({ text: "REC Core connected" });
+    .setDescription(description.slice(0, 4096))
+    .setFooter({ text: input.isAdmin ? "Admin Panel available below" : "REC Core connected" });
 }
 
 export function buildMainMenuRows(isAdmin: boolean) {
@@ -97,47 +168,29 @@ export function buildAdminPanelEmbed() {
   return new EmbedBuilder()
     .setTitle("REC Admin Panel")
     .setDescription([
-      "Choose an administrative workflow.",
+      "Choose an administrative workflow from the dropdown below.",
       "",
       "Server Setup and League Setup will open a warning modal first because rerunning setup can affect existing league data."
     ].join("\n"));
 }
 
 export function buildAdminPanelRows() {
-  return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(MENU_CUSTOM_IDS.adminServerSetup)
-        .setLabel("Server Setup")
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(MENU_CUSTOM_IDS.adminLeagueSetup)
-        .setLabel("League Setup")
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId(MENU_CUSTOM_IDS.adminUserTeamLinking)
-        .setLabel("User / Team Linking")
-        .setStyle(ButtonStyle.Primary)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(MENU_CUSTOM_IDS.adminImports)
-        .setLabel("Imports")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(MENU_CUSTOM_IDS.adminEconomyReviews)
-        .setLabel("Economy Reviews")
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(MENU_CUSTOM_IDS.adminWeeklyChallenges)
-        .setLabel("Weekly Challenges")
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
-        .setCustomId(MENU_CUSTOM_IDS.adminLeagueWeek)
-        .setLabel("League Week")
-        .setStyle(ButtonStyle.Secondary)
-    )
-  ];
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(MENU_CUSTOM_IDS.adminSelect)
+    .setPlaceholder("Select an admin workflow")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("Import / Enter Data").setValue("import_enter_data").setDescription("Imports, companion exports, manual data, and import history."),
+      new StringSelectMenuOptionBuilder().setLabel("Advance Menu").setValue("advance_menu").setDescription("Advance, catch-up, week/stage, channels, challenges, and audit tools."),
+      new StringSelectMenuOptionBuilder().setLabel("Active Check").setValue("active_check").setDescription("Post a 24-hour activity confirmation check."),
+      new StringSelectMenuOptionBuilder().setLabel("View / Edit Rules").setValue("rules").setDescription("Review the REC rule base and editable league rule settings."),
+      new StringSelectMenuOptionBuilder().setLabel("User / Team Linking").setValue("user_team_linking").setDescription("Link Discord users to Madden teams."),
+      new StringSelectMenuOptionBuilder().setLabel("Economy Reviews").setValue("economy_reviews").setDescription("Pending channels, routes, and EOS review controls."),
+      new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Register/update this Discord server."),
+      new StringSelectMenuOptionBuilder().setLabel("League Setup").setValue("league_setup").setDescription("Create/update league settings."),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
+    );
+
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
 }
 
 /**

@@ -119,13 +119,15 @@ export async function viewEconomyConfig(guildId: string) {
   return { routes: await getRoutes(context.server_id), league: context.rec_leagues };
 }
 
-export async function setEconomyConfig(input: { guildId: string; pendingEconomyChannelId?: string; gameChannelsCategoryId?: string; commissionerOfficeChannelId?: string; streamsChannelId?: string }) {
+export async function setEconomyConfig(input: { guildId: string; pendingEconomyChannelId?: string; gameChannelsCategoryId?: string; commissionerOfficeChannelId?: string; streamsChannelId?: string; commissionerRoleId?: string; compCommitteeRoleId?: string }) {
   const context = await getLeagueContext(input.guildId);
   const patch: Record<string, unknown> = { server_id: context.server_id, updated_at: new Date().toISOString() };
   if (input.pendingEconomyChannelId !== undefined) patch.pending_economy_channel_id = input.pendingEconomyChannelId;
   if (input.gameChannelsCategoryId !== undefined) patch.game_channels_category_id = input.gameChannelsCategoryId;
   if (input.commissionerOfficeChannelId !== undefined) patch.commissioner_office_channel_id = input.commissionerOfficeChannelId;
   if (input.streamsChannelId !== undefined) patch.streams_channel_id = input.streamsChannelId;
+  if (input.commissionerRoleId !== undefined) patch.commissioner_role_id = input.commissionerRoleId;
+  if (input.compCommitteeRoleId !== undefined) patch.comp_committee_role_id = input.compCommitteeRoleId;
   const existing = await getRoutes(context.server_id);
   const query = existing
     ? supabase.from("rec_server_routes").update(patch).eq("server_id", context.server_id)
@@ -761,7 +763,7 @@ export async function getOpenActiveChecks(guildId: string) {
   return { events: data ?? [] };
 }
 
-export async function recordStreamPost(input: { guildId: string; discordId: string; discordChannelId: string; discordMessageId: string; messageUrl?: string | null }) {
+export async function recordStreamPost(input: { guildId: string; discordId: string; discordChannelId: string; discordMessageId: string; messageUrl?: string | null; content?: string | null }) {
   const context = await getLeagueContext(input.guildId);
   const league = context.rec_leagues;
   const routes = await getRoutes(context.server_id);
@@ -770,6 +772,11 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
   if (!discord?.user_id) return { recorded: false, reason: "unlinked_user" };
   const { data: assignment } = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", context.league_id).eq("user_id", discord.user_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
   if (!assignment) return { recorded: false, reason: "no_active_team" };
+  const content = input.content ?? "";
+  const linkMatch = content.match(/https?:\/\/[^\s<>]+/i);
+  const hasLegitStreamLink = Boolean(linkMatch && /(twitch\.tv|youtube\.com|youtu\.be|kick\.com|facebook\.com\/gaming|discord\.gg|discord\.com\/channels)/i.test(linkMatch[0]));
+  const mentionsDiscordStream = !hasLegitStreamLink && /\bdiscord\b/i.test(content);
+  const status = hasLegitStreamLink ? "posted" : mentionsDiscordStream ? "pending_review" : "invalid";
   const row = {
     league_id: context.league_id,
     season_number: league.season_number ?? league.display_season_number ?? 1,
@@ -778,16 +785,63 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
     team_id: assignment.team_id,
     discord_channel_id: input.discordChannelId,
     discord_message_id: input.discordMessageId,
-    message_url: input.messageUrl ?? null,
+    message_url: input.messageUrl ?? linkMatch?.[0] ?? null,
     posted_at: nowIso(),
-    status: "posted",
-    details: {},
+    status,
+    details: { hasLegitStreamLink, mentionsDiscordStream, contentPreview: content.slice(0, 300), detectedUrl: linkMatch?.[0] ?? null },
     created_at: nowIso(),
     updated_at: nowIso()
   };
   const { data, error } = await supabase.from("rec_stream_compliance_logs").insert(row).select("*").single();
   if (error) throw error;
-  return { recorded: true, log: data };
+  let review = null;
+  if (mentionsDiscordStream) {
+    const { data: reviewRow, error: reviewError } = await supabase.from("rec_stream_payout_reviews").upsert({
+      stream_log_id: data.id,
+      league_id: context.league_id,
+      user_id: discord.user_id,
+      team_id: assignment.team_id,
+      season_number: row.season_number,
+      week_number: row.week_number,
+      status: "pending",
+      amount: 5,
+      created_at: nowIso(),
+      updated_at: nowIso()
+    }, { onConflict: "stream_log_id" }).select("*").single();
+    if (reviewError) throw reviewError;
+    review = reviewRow;
+  }
+  return { recorded: true, log: data, review, needsReview: mentionsDiscordStream, invalidStreamPost: status === "invalid", shouldDelete: status === "invalid", pendingEconomyChannelId: routes?.pending_economy_channel_id ?? null };
+}
+
+export async function reviewStreamPayout(input: { reviewId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
+  const { data: review, error } = await supabase.from("rec_stream_payout_reviews").select("*").eq("id", input.reviewId).single();
+  if (error) throw error;
+  if (review.status !== "pending") return { updated: false, reason: "Review is not pending.", review };
+  if (input.action === "deny") {
+    const { data, error: updateError } = await supabase.from("rec_stream_payout_reviews").update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, denied_reason: input.deniedReason ?? null, reviewed_at: nowIso(), updated_at: nowIso() }).eq("id", input.reviewId).select("*").single();
+    if (updateError) throw updateError;
+    return { updated: true, review: data };
+  }
+  const { data: ledger, error: ledgerError } = await supabase.from("rec_dollar_ledger").insert({
+    user_id: review.user_id,
+    league_id: review.league_id,
+    amount: review.amount,
+    transaction_type: "credit",
+    description: `Approved stream payout - Week ${review.week_number}`,
+    source: "system_award",
+    source_reference: { type: "stream_payout_review", reviewId: review.id, streamLogId: review.stream_log_id },
+    created_at: nowIso()
+  }).select("id").single();
+  if (ledgerError) throw ledgerError;
+  const { data, error: updateError } = await supabase.from("rec_stream_payout_reviews").update({ status: "issued", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: nowIso(), issued_at: nowIso(), issued_ledger_id: ledger?.id ?? null, updated_at: nowIso() }).eq("id", input.reviewId).select("*").single();
+  if (updateError) throw updateError;
+  const { data: streamLog } = await supabase
+    .from("rec_stream_compliance_logs")
+    .select("discord_channel_id, discord_message_id")
+    .eq("id", review.stream_log_id)
+    .maybeSingle();
+  return { updated: true, review: data, ledger, streamLog };
 }
 
 export async function settleGotwVotes(guildId: string) {

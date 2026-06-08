@@ -117,23 +117,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 });
 
 async function buildMainMenuPayload(userId: string, isAdmin: boolean) {
-  let menuEmbed = buildMainMenuEmbed({ isAdmin });
-  try {
-    const baseline = await recApi.getBaseline(userId);
-    const record = baseline.globalRecord;
-    const wallet = baseline.wallet;
-    menuEmbed = buildMainMenuEmbed({
-      displayName: baseline.user.display_name,
-      recordText: `${record?.wins ?? 0}-${record?.losses ?? 0}-${record?.ties ?? 0}`,
-      playoffText: `${record?.playoff_wins ?? 0}-${record?.playoff_losses ?? 0}`,
-      superbowlText: `${record?.superbowl_wins ?? 0}-${record?.superbowl_losses ?? 0}`,
-      pointDifferential: record?.point_differential ?? 0,
-      wallet: wallet?.wallet_balance ?? 0,
-      savings: wallet?.savings_balance ?? 0,
-      isAdmin
-    });
-  } catch {}
-  return { embeds: [menuEmbed], components: buildMainMenuRows(isAdmin) };
+  return {
+    embeds: [buildMainMenuEmbed({ discordUsername: "Unlinked User", isAdmin })],
+    components: buildMainMenuRows(isAdmin)
+  };
 }
 
 async function handleMenuCommand(interaction: Extract<Interaction, { isChatInputCommand(): boolean }>) {
