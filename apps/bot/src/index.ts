@@ -48,6 +48,9 @@ import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } 
 import { WEEKLY_CHALLENGE_CUSTOM_IDS, buildWeeklyChallengesPanel } from "./ui/weekly-challenges.js";
 import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekPanel, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
 import { recordGameChannelMessage, sendAdvanceDmsForGuild, startGameChannelReminderLoop } from "./flows/game-channels.js";
+import { GOTW_CUSTOM_IDS } from "./ui/gotw.js";
+import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
+import { ACTIVE_CHECK_CUSTOM_IDS, buildActiveCheckAnnouncement } from "./ui/active-check.js";
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages]
@@ -75,7 +78,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
 
     if (interaction.isChannelSelectMenu()) {
-      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
+      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setCommissionerOffice || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setStreamsChannel) {
         await handleEconomyChannelSelect(interaction);
         return;
       }
@@ -99,6 +102,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) {
         await handleImportSelect(interaction);
+        return;
+      }
+
+      if (interaction.customId === GOTW_CUSTOM_IDS.select) {
+        await handleGotwSelect(interaction);
         return;
       }
 
@@ -187,6 +195,26 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return;
       }
 
+      if (interaction.customId.startsWith(GOTW_CUSTOM_IDS.voteAwayPrefix) || interaction.customId.startsWith(GOTW_CUSTOM_IDS.voteHomePrefix)) {
+        await handleGotwVote(interaction);
+        return;
+      }
+
+      if (interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.activePrefix)) {
+        await handleActiveCheckResponse(interaction);
+        return;
+      }
+
+      if (interaction.customId === ACTIVE_CHECK_CUSTOM_IDS.start) {
+        await handleStartActiveCheck(interaction);
+        return;
+      }
+
+      if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.selectGotw) {
+        await renderGotwSelection(interaction);
+        return;
+      }
+
       if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.regenerate) {
         if (!interaction.inCachedGuild()) return;
         await interaction.deferReply({ ephemeral: true });
@@ -201,6 +229,21 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         const result = await recApi.getChallengeAudit(interaction.guildId);
         const lines = (result.challenges ?? []).slice(0, 20).map((c: any) => `Week ${c.week_number} - ${c.challenge_side}: ${c.earned_tier ?? "Not earned"} $${c.earned_amount ?? 0}`);
         await interaction.editReply(lines.length ? lines.join("\n") : "No challenge audit rows found for the last 2 in-game weeks.");
+        return;
+      }
+
+      if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.catchUpAdvance) {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.deferReply({ ephemeral: true });
+        const result = await recApi.postAdvanceAutomation(interaction.guildId, "catch_up");
+        await interaction.editReply([
+          "Catch-up advance processing completed.",
+          "",
+          "Records, eligible automatic payouts, POTW, and weekly challenges were processed from the current imported week data.",
+          "Advance DMs, GOTW scheduling/polls, and game-channel recreation were skipped.",
+          "",
+          `Skipped: ${(result.skipped ?? []).join(", ") || "None"}`
+        ].join("\n"));
         return;
       }
 
@@ -602,8 +645,12 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
   const result = await recApi.createLeague({
     ...applyLeagueSetupDependencies(draft),
     guildId: interaction.guildId,
-    requestedByDiscordId: interaction.user.id
-  });
+    requestedByDiscordId: interaction.user.id,
+    seasonNumber: 1,
+    seasonStage: "regular_season",
+    currentPhase: "regular_season",
+    currentWeek: 1
+  } as any);
 
   leagueSetupSessions.delete(interaction.user.id);
 
@@ -623,7 +670,8 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
           `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`,
           `Injuries: ${result.configuration.injury_policy}`,
           "",
-          "Economy payouts will remain inactive until at least 8 users are verified through Discord team links and imported game users."
+          "League week defaults to Season 1, Week 1, Regular Season so imports can proceed week by week.",
+          "Economy payouts will remain inactive until the league meets the configured linked-user minimum and imported game-user requirements."
         ].join("\n"))
     ],
     components: buildAdminPanelRows()
@@ -701,6 +749,8 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
   await renderMainMenuFromComponent(interaction);
 }
 
+startActiveCheckCloseoutLoop(client);
+
 await client.login(env.DISCORD_TOKEN);
 
 async function handleEconomyChannelSelect(interaction: any) {
@@ -715,8 +765,18 @@ async function handleEconomyChannelSelect(interaction: any) {
     await interaction.reply({ content: `Pending Purchases / Payouts channel set to <#${channelId}>.`, ephemeral: true });
     return;
   }
-  await recApi.setEconomyConfig({ guildId: interaction.guildId, gameChannelsCategoryId: channelId });
-  await interaction.reply({ content: `Game Channels category set to <#${channelId}>.`, ephemeral: true });
+  if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, gameChannelsCategoryId: channelId });
+    await interaction.reply({ content: `Game Channels category set to <#${channelId}>.`, ephemeral: true });
+    return;
+  }
+  if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setCommissionerOffice) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, commissionerOfficeChannelId: channelId });
+    await interaction.reply({ content: `Commissioner Office channel set to <#${channelId}>.`, ephemeral: true });
+    return;
+  }
+  await recApi.setEconomyConfig({ guildId: interaction.guildId, streamsChannelId: channelId });
+  await interaction.reply({ content: `Streams channel set to <#${channelId}>.`, ephemeral: true });
 }
 
 async function handleClearEosModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
@@ -740,7 +800,70 @@ async function handleLeagueWeekSetModal(interaction: Extract<Interaction, { isMo
   const weekNumber = Number(interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.weekInput));
   const seasonRaw = interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.seasonInput).trim();
   const seasonNumber = seasonRaw ? Number(seasonRaw) : undefined;
-  await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage, seasonNumber });
-  await sendAdvanceDmsForGuild(interaction.guild);
-  await interaction.reply({ content: `League week set to ${seasonStage} week ${weekNumber}. Advance DMs and game-channel recreation were triggered automatically.`, ephemeral: true });
+  const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage, seasonNumber });
+  await interaction.reply({
+    content: [
+      `League week set to ${seasonStage} week ${weekNumber}.`,
+      result.warning ? "" : undefined,
+      result.warning ? `Warning: ${result.warning}` : undefined
+    ].filter(Boolean).join("\n"),
+    ephemeral: true
+  });
+}
+
+
+async function handleStartActiveCheck(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can start an Active Check.", ephemeral: true });
+    return;
+  }
+  await interaction.deferReply({ ephemeral: true });
+  const result = await recApi.createActiveCheck({ guildId: interaction.guildId, createdByDiscordId: interaction.user.id });
+  if (!result.channelId) {
+    await interaction.editReply("No league announcements channel is configured. Set announcements during server/league setup before starting an Active Check.");
+    return;
+  }
+  const channel = await interaction.guild.channels.fetch(result.channelId).catch(() => null);
+  if (!channel || !("send" in channel)) {
+    await interaction.editReply("The configured announcements channel could not be accessed.");
+    return;
+  }
+  const sent = await (channel as any).send(buildActiveCheckAnnouncement(result.event, result.deadlineDisplay ?? {}));
+  await recApi.recordActiveCheckMessage({ eventId: result.event.id, discordChannelId: result.channelId, discordMessageId: sent.id });
+  await interaction.editReply(`Active Check posted in <#${result.channelId}>. It closes in 24 hours.`);
+}
+
+async function handleActiveCheckResponse(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  const eventId = interaction.customId.slice(ACTIVE_CHECK_CUSTOM_IDS.activePrefix.length);
+  await interaction.deferReply({ ephemeral: true });
+  const result = await recApi.recordActiveCheckResponse({ eventId, discordId: interaction.user.id });
+  await interaction.editReply(result.recorded ? "Active Check recorded. You are marked active for this league." : result.reason ?? "Your Active Check could not be recorded.");
+}
+
+function startActiveCheckCloseoutLoop(activeClient: Client) {
+  setInterval(async () => {
+    for (const guild of activeClient.guilds.cache.values()) {
+      const result = await recApi.getOpenActiveChecks(guild.id).catch(() => null);
+      for (const event of result?.events ?? []) {
+        if (!event.closes_at || new Date(event.closes_at).getTime() > Date.now()) continue;
+        const closed = await recApi.closeActiveCheck(event.id).catch(() => null);
+        if (!closed?.closed) continue;
+        if (closed.event?.discord_channel_id && closed.event?.discord_message_id) {
+          const channel = await guild.channels.fetch(closed.event.discord_channel_id).catch(() => null) as any;
+          const message = channel?.messages ? await channel.messages.fetch(closed.event.discord_message_id).catch(() => null) : null;
+          await message?.edit({ components: [] }).catch(() => undefined);
+        }
+        if (closed.commissionerOfficeChannelId) {
+          const office = await guild.channels.fetch(closed.commissionerOfficeChannelId).catch(() => null) as any;
+          const missing = closed.missing ?? [];
+          const lines = missing.length
+            ? missing.map((user: any) => user.discord_id ? `<@${user.discord_id}>` : user.rec_users?.display_name ?? user.user_id)
+            : ["All linked team users responded as active."];
+          await office?.send?.(["Active Check Closed", "", "Users who did not respond:", ...lines].join("\n")).catch(() => undefined);
+        }
+      }
+    }
+  }, 10 * 60 * 1000).unref();
 }

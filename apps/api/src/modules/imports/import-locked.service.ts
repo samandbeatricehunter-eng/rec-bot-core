@@ -25,7 +25,6 @@ function selectedEndpointKeys(input: CreateImportJobInput) {
 
 function normalizedWeekTo(input: CreateImportJobInput) {
   if (input.importScope === "single_week") return input.weekFrom ?? null;
-  if (input.importScope === "selected_weeks") return input.weekTo ?? null;
   return null;
 }
 

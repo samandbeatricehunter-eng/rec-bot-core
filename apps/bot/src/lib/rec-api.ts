@@ -3,7 +3,7 @@ import { env } from "../config/env.js";
 import type { LeagueSetupDraft } from "../ui/league-setup.js";
 
 type RecEaConsole = "xone" | "ps4" | "pc" | "ps5" | "xbsx" | "stadia";
-type RecImportScope = "current_week" | "single_week" | "selected_weeks" | "full_available" | "full_regular_season_schedule";
+type RecImportScope = "current_week" | "single_week" | "full_regular_season_schedule";
 
 async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${env.REC_CORE_API_URL}${path}`, {
@@ -228,7 +228,7 @@ export const recApi = {
       method: "POST",
       body: JSON.stringify(input)
     }),
-  setEconomyConfig: (input: { guildId: string; pendingEconomyChannelId?: string; gameChannelsCategoryId?: string }) =>
+  setEconomyConfig: (input: { guildId: string; pendingEconomyChannelId?: string; gameChannelsCategoryId?: string; commissionerOfficeChannelId?: string; streamsChannelId?: string }) =>
     recFetch<any>("/v1/economy/config/set", { method: "POST", body: JSON.stringify(input) }),
   clearPendingEosBatch: (input: { guildId: string; clearReason: string }) =>
     recFetch<any>("/v1/eos/clear-pending", { method: "POST", body: JSON.stringify(input) }),
@@ -240,8 +240,8 @@ export const recApi = {
     recFetch<any>("/v1/challenges/regenerate", { method: "POST", body: JSON.stringify({ guildId, regenerate: true }) }),
   getChallengeAudit: (guildId: string) =>
     recFetch<any>("/v1/challenges/audit", { method: "POST", body: JSON.stringify({ guildId }) }),
-  postAdvanceAutomation: (guildId: string) =>
-    recFetch<any>("/v1/advance/post-advance", { method: "POST", body: JSON.stringify({ guildId }) }),
+  postAdvanceAutomation: (guildId: string, mode: "normal" | "catch_up" = "normal") =>
+    recFetch<any>("/v1/advance/post-advance", { method: "POST", body: JSON.stringify({ guildId, mode }) }),
   getGameChannelPlans: (guildId: string) =>
     recFetch<any>("/v1/game-channels/plans", { method: "POST", body: JSON.stringify({ guildId }) }),
   getActiveGameChannels: (guildId: string) =>
@@ -255,6 +255,31 @@ export const recApi = {
   getReminderState: (guildId: string) =>
     recFetch<any>("/v1/game-channels/reminder-state", { method: "POST", body: JSON.stringify({ guildId }) }),
   recordGameChannelReminder: (input: any) =>
-    recFetch<any>("/v1/game-channels/reminder", { method: "POST", body: JSON.stringify(input) })
+    recFetch<any>("/v1/game-channels/reminder", { method: "POST", body: JSON.stringify(input) }),
+
+  getGotwCandidates: (guildId: string) =>
+    recFetch<any>("/v1/gotw/candidates", { method: "POST", body: JSON.stringify({ guildId }) }),
+  selectGotwCandidate: (input: { guildId: string; candidateId: string; selectedByDiscordId: string }) =>
+    recFetch<any>("/v1/gotw/select", { method: "POST", body: JSON.stringify(input) }),
+  recordGotwPollMessage: (input: { pollId: string; discordChannelId: string; discordMessageId?: string | null; discordThreadId?: string | null }) =>
+    recFetch<any>("/v1/gotw/poll-message", { method: "POST", body: JSON.stringify(input) }),
+  recordGotwVote: (input: { pollId: string; discordId: string; selectedTeamId: string }) =>
+    recFetch<any>("/v1/gotw/vote", { method: "POST", body: JSON.stringify(input) }),
+  getGotwVotes: (pollId: string) =>
+    recFetch<any>("/v1/gotw/votes", { method: "POST", body: JSON.stringify({ pollId }) }),
+  settleGotwVotes: (guildId: string) =>
+    recFetch<any>("/v1/gotw/settle", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createActiveCheck: (input: { guildId: string; createdByDiscordId: string }) =>
+    recFetch<any>("/v1/active-check/create", { method: "POST", body: JSON.stringify(input) }),
+  recordActiveCheckMessage: (input: { eventId: string; discordChannelId: string; discordMessageId: string }) =>
+    recFetch<any>("/v1/active-check/message", { method: "POST", body: JSON.stringify(input) }),
+  recordActiveCheckResponse: (input: { eventId: string; discordId: string }) =>
+    recFetch<any>("/v1/active-check/respond", { method: "POST", body: JSON.stringify(input) }),
+  closeActiveCheck: (eventId: string) =>
+    recFetch<any>("/v1/active-check/close", { method: "POST", body: JSON.stringify({ eventId }) }),
+  getOpenActiveChecks: (guildId: string) =>
+    recFetch<any>("/v1/active-check/open", { method: "POST", body: JSON.stringify({ guildId }) }),
+  recordStreamPost: (input: { guildId: string; discordId: string; discordChannelId: string; discordMessageId: string; messageUrl?: string | null }) =>
+    recFetch<any>("/v1/streams/post", { method: "POST", body: JSON.stringify(input) }),
 
 };

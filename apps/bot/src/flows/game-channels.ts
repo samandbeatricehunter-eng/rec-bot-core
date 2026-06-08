@@ -116,6 +116,7 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
 export async function recordGameChannelMessage(message: any) {
   if (!message.guildId || message.author?.bot) return;
   await recApi.recordGameChannelCheckin({ discordChannelId: message.channelId, discordUserId: message.author.id }).catch(() => undefined);
+  await recApi.recordStreamPost({ guildId: message.guildId, discordId: message.author.id, discordChannelId: message.channelId, discordMessageId: message.id, messageUrl: message.url ?? null }).catch(() => undefined);
 }
 
 export function startGameChannelReminderLoop(client: Client) {
@@ -147,9 +148,10 @@ export function startGameChannelReminderLoop(client: Client) {
         }
         if (ageMs >= 12 * 60 * 60 * 1000 && !reminderKeys.has(`${channelRecord.id}:twelve_hour:all`)) {
           const missing = users.filter((userId) => !posted.has(userId));
-          if (missing.length === 2) await channel.send("Commissioner/Comp Committee: Neither user has checked in within 12 hours. This may be a Fair Sim.").catch(() => undefined);
-          else if (missing.length === 1) await channel.send(`Commissioner/Comp Committee: <@${missing[0]}> has not checked in within 12 hours. This may be a Force Win.`).catch(() => undefined);
-          await recApi.recordGameChannelReminder({ gameChannelId: channelRecord.id, reminderType: "twelve_hour", targetUserId: null, details: { missing } }).catch(() => undefined);
+          const roleText = [channelRecord.commissioner_role_id ? `<@&${channelRecord.commissioner_role_id}>` : null, channelRecord.comp_committee_role_id ? `<@&${channelRecord.comp_committee_role_id}>` : null].filter(Boolean).join(" ") || "Commissioner/Comp Committee";
+          if (missing.length === 2) await channel.send(`${roleText}: Neither user has checked in within 12 hours. This may be a Fair Sim.`).catch(() => undefined);
+          else if (missing.length === 1) await channel.send(`${roleText}: <@${missing[0]}> has not checked in within 12 hours. This may be a Force Win.`).catch(() => undefined);
+          await recApi.recordGameChannelReminder({ gameChannelId: channelRecord.id, reminderType: "twelve_hour", targetUserId: null, details: { missing, missingUserIds: missing } }).catch(() => undefined);
         }
       }
     }

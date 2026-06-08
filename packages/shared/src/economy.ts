@@ -92,3 +92,34 @@ export function calculateDefensivePotwScore(input: {
 }) {
   return (input.sacks ?? 0) * 50 + (input.ints ?? 0) * 75 + (input.defensiveTDs ?? 0) * 100 + (input.forcedFumbles ?? 0) * 50 + (input.tackles ?? 0) * 3 + (input.tacklesForLoss ?? 0) * 10;
 }
+
+
+export const REC_GOTW_CORRECT_GUESS_PAYOUT = 10;
+
+export function calculateGotwMatchupStrength(input: {
+  awayWinPct?: number;
+  homeWinPct?: number;
+  awayPointDifferentialPerGame?: number;
+  homePointDifferentialPerGame?: number;
+  awayPowerRank?: number | null;
+  homePowerRank?: number | null;
+  isDivisionGame?: boolean;
+  playoffImpact?: boolean;
+  divisionLeadImpact?: boolean;
+  previousGotwUserFlag?: boolean;
+}) {
+  const awayWinPct = input.awayWinPct ?? 0;
+  const homeWinPct = input.homeWinPct ?? 0;
+  const pdg = Math.min(20, Math.max(-20, (input.awayPointDifferentialPerGame ?? 0) + (input.homePointDifferentialPerGame ?? 0)));
+  const powerScore = [input.awayPowerRank, input.homePowerRank].reduce<number>((sum, rank) => {
+    if (!rank || rank <= 0) return sum;
+    return sum + Math.max(0, 33 - rank) / 32 * 10;
+  }, 0);
+  const base = (awayWinPct + homeWinPct) * 40 + pdg + powerScore;
+  const modifiers =
+    (input.isDivisionGame ? 3 : 0) +
+    (input.playoffImpact ? 8 : 0) +
+    (input.divisionLeadImpact ? 5 : 0) -
+    (input.previousGotwUserFlag ? 3 : 0);
+  return Math.round((base + modifiers) * 10) / 10;
+}

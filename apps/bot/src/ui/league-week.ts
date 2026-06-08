@@ -13,7 +13,7 @@ export const LEAGUE_WEEK_CUSTOM_IDS = {
 
 export function buildLeagueWeekPanel() {
   return {
-    embeds: [new EmbedBuilder().setTitle("League Week").setDescription("View or manually correct current league week/stage.")],
+    embeds: [new EmbedBuilder().setTitle("League Week").setDescription("View or manually correct current league week/stage. If economy is active, manually setting the week will warn admins that prior-week payouts require week-by-week catch-up processing.")],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(LEAGUE_WEEK_CUSTOM_IDS.view).setLabel("View Current Week").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(LEAGUE_WEEK_CUSTOM_IDS.set).setLabel("Set Current Week / Stage").setStyle(ButtonStyle.Danger),

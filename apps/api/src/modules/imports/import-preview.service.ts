@@ -1,5 +1,6 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { commitApprovedImport } from "./import-commit.service.js";
 import { getImportJob, updateImportJobStatus } from "./import.service.js";
 
 type TeamNameMap = Map<string, string>;
@@ -292,24 +293,28 @@ export async function generateImportPreview(importJobId: string) {
 export async function approveImportPreview(importJobId: string) {
   const details = await getImportJob(importJobId);
 
-  if (!["validating", "completed_with_warnings"].includes(details.job.status)) {
-    throw new ApiError(409, "Import must have a generated preview before approval.", {
+  if (!["validating", "completed_with_warnings", "reconciling"].includes(details.job.status)) {
+    throw new ApiError(409, "Import must have a generated preview before commit.", {
       currentStatus: details.job.status
     });
   }
 
-  return updateImportJobStatus({
-    importJobId,
-    status: "reconciling",
-    previewSummary: {
-      ...(details.job.preview_summary ?? {}),
-      approvalStatus: "approved",
-      economyTransactions: 0,
-      payouts: "Deferred until league advance."
-    },
-    validationWarnings: details.job.validation_warnings ?? [],
-    validationErrors: details.job.validation_errors ?? []
-  });
+  if (details.job.status !== "reconciling") {
+    await updateImportJobStatus({
+      importJobId,
+      status: "reconciling",
+      previewSummary: {
+        ...(details.job.preview_summary ?? {}),
+        approvalStatus: "approved",
+        economyTransactions: 0,
+        payouts: "Deferred until league advance."
+      },
+      validationWarnings: details.job.validation_warnings ?? [],
+      validationErrors: details.job.validation_errors ?? []
+    });
+  }
+
+  return commitApprovedImport(importJobId);
 }
 
 export async function cancelImportJob(importJobId: string, reason?: string | null) {

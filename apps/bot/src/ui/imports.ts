@@ -164,9 +164,7 @@ export function buildWeekScopeRow() {
       .setPlaceholder("Select import scope")
       .addOptions(
         new StringSelectMenuOptionBuilder().setLabel("Current Week").setValue("current_week").setDescription("Import the league's current Madden week."),
-        new StringSelectMenuOptionBuilder().setLabel("Single Week").setValue("single_week").setDescription("Import one specific completed Madden week."),
-        new StringSelectMenuOptionBuilder().setLabel("Week Range").setValue("selected_weeks").setDescription("Import a specific span of completed weeks."),
-        new StringSelectMenuOptionBuilder().setLabel("Full Available").setValue("full_available").setDescription("Import all selected endpoints for every available Madden week."),
+        new StringSelectMenuOptionBuilder().setLabel("Single Week").setValue("single_week").setDescription("Import one completed Madden week for catch-up/advance processing."),
         new StringSelectMenuOptionBuilder().setLabel("Full Regular Season Schedule").setValue("full_regular_season_schedule").setDescription("Schedule-only import for all regular season matchups. Expected NFL total: 272 games.")
       )
   );

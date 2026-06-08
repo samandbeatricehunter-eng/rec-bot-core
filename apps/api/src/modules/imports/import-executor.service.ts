@@ -190,23 +190,17 @@ function getSeasonNumber(context: ExecutorContext, payload: unknown, rows: Recor
 }
 
 function getWeekBounds(job: any) {
-  if (job.import_scope === "selected_weeks") {
-    return {
-      weekFrom: toNumber(job.week_from, 1),
-      weekTo: toNumber(job.week_to, 18)
-    };
-  }
-
   if (job.import_scope === "single_week") {
     const week = toNumber(job.week_from, 1);
     return { weekFrom: week, weekTo: week };
   }
 
-  if (job.import_scope === "full_available" || job.import_scope === "full_regular_season_schedule") {
+  if (job.import_scope === "full_regular_season_schedule") {
     return { weekFrom: 1, weekTo: 18 };
   }
 
-  return { weekFrom: toNumber(job.week_from, 1), weekTo: toNumber(job.week_to, toNumber(job.week_from, 1)) };
+  const week = toNumber(job.week_from, 1);
+  return { weekFrom: week, weekTo: week };
 }
 
 async function loadEaContext(importJobId: string, job: any): Promise<EaExecutionContext> {

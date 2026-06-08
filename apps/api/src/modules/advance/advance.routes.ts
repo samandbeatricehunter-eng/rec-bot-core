@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, viewEconomyConfig, viewLeagueWeek } from "./advance.service.js";
+import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes } from "./advance.service.js";
 
 export async function advanceRoutes(app: FastifyInstance) {
-  app.post("/v1/advance/post-advance", async (request) => runPostAdvanceAutomation((request.body as any).guildId));
+  app.post("/v1/advance/post-advance", async (request) => runPostAdvanceAutomation(request.body as any));
+  app.post("/v1/advance/apply-records", async (request) => applyAdvanceRecords((request.body as any).guildId));
   app.post("/v1/advance/dm-payloads", async (request) => buildAdvanceDmPayloads((request.body as any).guildId));
   app.post("/v1/league-week/view", async (request) => viewLeagueWeek((request.body as any).guildId));
   app.post("/v1/league-week/set", async (request) => setLeagueWeek(request.body as any));
@@ -20,4 +21,17 @@ export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/game-channels/checkin", async (request) => recordGameChannelCheckin(request.body as any));
   app.post("/v1/game-channels/reminder-state", async (request) => getReminderState((request.body as any).guildId));
   app.post("/v1/game-channels/reminder", async (request) => recordReminder(request.body as any));
+  app.post("/v1/gotw/candidates", async (request) => getGotwCandidates((request.body as any).guildId));
+  app.post("/v1/gotw/select", async (request) => selectGotwCandidate(request.body as any));
+  app.post("/v1/gotw/poll-message", async (request) => recordGotwPollMessage(request.body as any));
+  app.post("/v1/gotw/vote", async (request) => recordGotwVote(request.body as any));
+  app.post("/v1/gotw/votes", async (request) => getGotwVotes((request.body as any).pollId));
+  app.post("/v1/gotw/settle", async (request) => settleGotwVotes((request.body as any).guildId));
+  app.post("/v1/active-check/create", async (request) => createActiveCheck(request.body as any));
+  app.post("/v1/active-check/message", async (request) => recordActiveCheckMessage(request.body as any));
+  app.post("/v1/active-check/respond", async (request) => recordActiveCheckResponse(request.body as any));
+  app.post("/v1/active-check/status", async (request) => getActiveCheckStatus((request.body as any).eventId));
+  app.post("/v1/active-check/close", async (request) => closeActiveCheck(request.body as any));
+  app.post("/v1/active-check/open", async (request) => getOpenActiveChecks((request.body as any).guildId));
+  app.post("/v1/streams/post", async (request) => recordStreamPost(request.body as any));
 }

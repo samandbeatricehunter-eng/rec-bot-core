@@ -21,7 +21,7 @@ import {
 export type ImportDraft = {
   importMode?: RecImportMode;
   importJobId?: string;
-  weekScope?: "current_week" | "single_week" | "selected_weeks" | "full_available" | "full_regular_season_schedule";
+  weekScope?: "current_week" | "single_week" | "full_regular_season_schedule";
   weekFrom?: number;
   weekTo?: number;
   endpointKeys?: string[];
@@ -326,10 +326,7 @@ function applyDefaultWeeks(draft: ImportDraft) {
     draft.weekTo = draft.weekTo ?? draft.weekFrom;
   }
 
-  if (draft.weekScope === "selected_weeks") {
-    draft.weekFrom = draft.weekFrom ?? 1;
-    draft.weekTo = draft.weekTo ?? 23;
-  }
+
 }
 
 export async function renderImportPanel(interaction: Extract<Interaction, { isButton(): boolean }>) {

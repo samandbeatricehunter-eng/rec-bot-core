@@ -109,8 +109,10 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     .insert({
       name: input.name,
       league_type: input.leagueType,
-      current_phase: input.currentPhase,
-      current_week: input.currentWeek ?? null,
+      current_phase: "regular_season",
+      season_stage: "regular_season",
+      season_number: input.seasonNumber ?? 1,
+      current_week: input.currentWeek ?? 1,
       trust_mode: mapImportModeToTrustMode(input.importMode),
       import_enabled: input.importMode !== "manual",
       fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable"

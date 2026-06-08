@@ -174,3 +174,97 @@ create table if not exists public.rec_weekly_player_awards (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists rec_weekly_player_awards_unique_key on public.rec_weekly_player_awards(league_id, season_number, week_number, conference, award_side, award_source);
+alter table public.rec_server_routes
+  add column if not exists commissioner_role_id text,
+  add column if not exists comp_committee_role_id text;
+
+create table if not exists public.rec_game_of_week_candidates (
+  id uuid primary key default gen_random_uuid(),
+  league_id uuid not null references public.rec_leagues(id) on delete cascade,
+  season_number integer not null,
+  week_number integer not null,
+  game_id uuid references public.rec_games(id) on delete cascade,
+  stage text not null default 'regular_season',
+  away_team_id uuid references public.rec_teams(id),
+  home_team_id uuid references public.rec_teams(id),
+  away_user_id uuid references public.rec_users(id),
+  home_user_id uuid references public.rec_users(id),
+  away_team_name text not null default '',
+  home_team_name text not null default '',
+  matchup_title text not null default '',
+  strength_rating numeric not null default 0,
+  rating_breakdown jsonb not null default '{}'::jsonb,
+  previous_gotw_user_flag boolean not null default false,
+  impact_modifier numeric not null default 0,
+  is_selected boolean not null default false,
+  selection_source text not null default 'admin_select' check (selection_source in ('admin_select', 'auto_playoffs', 'auto_super_bowl')),
+  selected_by_discord_id text,
+  selected_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists rec_gotw_candidates_league_week_idx on public.rec_game_of_week_candidates(league_id, season_number, week_number, stage);
+create unique index if not exists rec_gotw_candidates_game_key on public.rec_game_of_week_candidates(league_id, season_number, week_number, game_id);
+
+create table if not exists public.rec_game_of_week_polls (
+  id uuid primary key default gen_random_uuid(),
+  league_id uuid not null references public.rec_leagues(id) on delete cascade,
+  season_number integer not null,
+  week_number integer not null,
+  stage text not null,
+  game_id uuid references public.rec_games(id) on delete cascade,
+  candidate_id uuid references public.rec_game_of_week_candidates(id) on delete set null,
+  question text not null,
+  away_team_id uuid references public.rec_teams(id),
+  home_team_id uuid references public.rec_teams(id),
+  away_team_name text not null default '',
+  home_team_name text not null default '',
+  discord_channel_id text,
+  discord_thread_id text,
+  discord_message_id text,
+  poll_expires_at timestamptz,
+  status text not null default 'open' check (status in ('open', 'closed', 'cancelled', 'settled')),
+  winning_team_id uuid references public.rec_teams(id),
+  created_at timestamptz not null default now(),
+  closed_at timestamptz,
+  settled_at timestamptz,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists rec_gotw_polls_league_week_idx on public.rec_game_of_week_polls(league_id, season_number, week_number, stage, status);
+create unique index if not exists rec_gotw_polls_game_key on public.rec_game_of_week_polls(league_id, season_number, week_number, game_id);
+
+create table if not exists public.rec_game_of_week_votes (
+  id uuid primary key default gen_random_uuid(),
+  poll_id uuid not null references public.rec_game_of_week_polls(id) on delete cascade,
+  league_id uuid not null references public.rec_leagues(id) on delete cascade,
+  season_number integer not null,
+  week_number integer not null,
+  user_id uuid references public.rec_users(id),
+  discord_id text not null,
+  selected_team_id uuid references public.rec_teams(id),
+  selected_team_name text not null default '',
+  is_correct boolean,
+  payout_amount integer not null default 0,
+  paid_ledger_id uuid references public.rec_dollar_ledger(id),
+  voted_at timestamptz not null default now(),
+  settled_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists rec_gotw_votes_poll_discord_key on public.rec_game_of_week_votes(poll_id, discord_id);
+create index if not exists rec_gotw_votes_user_idx on public.rec_game_of_week_votes(user_id, league_id, season_number, week_number);
+
+create table if not exists public.rec_global_gotw_guessing_records (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.rec_users(id) on delete cascade,
+  correct_guesses integer not null default 0,
+  wrong_guesses integer not null default 0,
+  total_guesses integer generated always as (correct_guesses + wrong_guesses) stored,
+  last_result_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(user_id)
+);
