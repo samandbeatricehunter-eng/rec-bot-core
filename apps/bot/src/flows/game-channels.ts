@@ -57,7 +57,23 @@ export async function recreateGameChannelsForGuild(guild: Guild) {
     for (const plan of result.plans ?? []) {
       const channel = await guild.channels.create({ name: plan.channelName, type: ChannelType.GuildText, parent: categoryId, reason: "REC weekly H2H matchup channel" });
       if (channel instanceof TextChannel) {
+        // Send game embeds
         await channel.send({ embeds: buildGameEmbeds(plan) });
+
+        // Tag both users and request scheduling
+        const awayUser = plan.awayUserId ? `<@${plan.awayUserId}>` : "Away Player";
+        const homeUser = plan.homeUserId ? `<@${plan.homeUserId}>` : "Home Player";
+        await channel.send({
+          content: [
+            `${awayUser} vs ${homeUser}`,
+            "",
+            "**Please schedule your game this week!**",
+            `${awayUser} (Away) and ${homeUser} (Home) - coordinate in this channel to schedule your matchup.`,
+            "",
+            `Advance deadline: ${plan.nextAdvanceTimes?.length ? plan.nextAdvanceTimes.map((t: any) => `${t.label}: ${t.value}`).join(" | ") : "See /menu for details"}`
+          ].join("\n")
+        });
+
         await recApi.recordGameChannel({ ...plan, discordChannelId: channel.id });
         created.push({ matchup: `${plan.awayTeamName} vs ${plan.homeTeamName}`, channelId: channel.id });
       }

@@ -112,6 +112,94 @@ async function getWalletBalance(userId: string) {
   return { wallet: asNumber(data?.wallet_balance), savings: asNumber(data?.savings_balance) };
 }
 
+// GOTW Sophisticated Scoring System
+// Used for: GOTW selection, strength of schedule, power rankings
+async function calculateUserPowerRanking(userId: string, leagueId: string, seasonNumber: number) {
+  const { data: record } = await supabase
+    .from("rec_league_user_records")
+    .select("wins,losses,ties,point_differential,games_played")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!record || record.games_played === 0) return { ranking: 0.5, wins: 0, losses: 0, pd: 0 };
+
+  const winPct = record.wins / record.games_played;
+  const avgPd = record.point_differential / record.games_played;
+
+  // Simple power ranking: (win% * 0.7 + normalized PD * 0.3)
+  // Normalized PD: +5 per point (so 10 PD per game = +0.5 boost)
+  const pdBoost = Math.max(-0.3, Math.min(0.3, avgPd / 30));
+  const ranking = (winPct * 0.7) + (0.5 + pdBoost * 0.3);
+
+  return {
+    ranking: Math.max(0, Math.min(1, ranking)),
+    wins: record.wins,
+    losses: record.losses,
+    pd: record.point_differential,
+    winPct,
+    avgPd
+  };
+}
+
+async function calculateH2hHistory(userId1: string, userId2: string) {
+  const ids = [userId1, userId2].sort();
+  const { data } = await supabase
+    .from("rec_user_h2h_global_records")
+    .select("wins,losses,ties,pointDifferential")
+    .eq("user_a_id", ids[0])
+    .eq("user_b_id", ids[1])
+    .maybeSingle();
+
+  if (!data) return { history: null, recency: null };
+
+  const totalGames = (data.wins ?? 0) + (data.losses ?? 0) + (data.ties ?? 0);
+  return {
+    history: { wins: data.wins ?? 0, losses: data.losses ?? 0, ties: data.ties ?? 0, pd: data.pointDifferential ?? 0 },
+    competitiveness: totalGames > 0 ? Math.abs(data.pointDifferential ?? 0) / totalGames : 0
+  };
+}
+
+async function calculateMatchupStrength(game: any, leagueId: string, seasonNumber: number, weekNumber: number) {
+  const homeRanking = await calculateUserPowerRanking(game.home_user_id, leagueId, seasonNumber);
+  const awayRanking = await calculateUserPowerRanking(game.away_user_id, leagueId, seasonNumber);
+  const h2hHistory = await calculateH2hHistory(game.home_user_id, game.away_user_id);
+
+  // Matchup competitiveness: how close the teams are in power ranking
+  const rankingDiff = Math.abs(homeRanking.ranking - awayRanking.ranking);
+  const competitiveness = 1 - Math.min(1, rankingDiff * 2); // Closer rankings = more competitive
+
+  // Calculate strength of schedule (quality of wins)
+  const sosBoost = ((homeRanking.wins + awayRanking.wins) / Math.max(1, weekNumber + 1)) * 0.1;
+
+  // Recent history (H2H competitiveness boost if they've played close games)
+  const h2hBoost = h2hHistory.history ? (1 - h2hHistory.competitiveness / 50) * 0.15 : 0;
+
+  // Division game bonus (if applicable)
+  const divisionBonus = game.home_team?.division === game.away_team?.division ? 0.2 : 0;
+
+  // Calculate overall strength rating (0-100 scale)
+  const baseScore = 50;
+  const powerScore = (homeRanking.ranking + awayRanking.ranking) / 2 * 30;
+  const competitiveScore = competitiveness * 20;
+  const totalScore = baseScore + powerScore + competitiveScore + (sosBoost * 10) + (h2hBoost * 5) + (divisionBonus * 10);
+
+  return {
+    strengthRating: Math.min(100, Math.max(0, totalScore)),
+    homeRanking,
+    awayRanking,
+    competitiveness,
+    h2hHistory,
+    details: {
+      powerScore,
+      competitiveScore,
+      sosBoost,
+      h2hBoost,
+      divisionBonus
+    }
+  };
+}
+
 async function creditUserWallet(input: {
   userId: string;
   leagueId: string;
@@ -556,19 +644,25 @@ export async function calculateRecPotw(guildId: string) {
   const { data: assignments, error: assignmentError } = await supabase.from("rec_team_assignments").select("team_id,user_id,rec_teams(conference)").eq("league_id", context.league_id).eq("assignment_status", "active").is("ended_at", null);
   if (assignmentError) throw assignmentError;
   const eligible = new Map((assignments ?? []).map((a: any) => [a.team_id, a]));
-  const { data: statsRows, error } = await supabase.from("rec_import_staging_player_stats").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber);
+  // Use committed player weekly stats instead of staging data
+  const { data: statsRows, error } = await supabase
+    .from("rec_player_weekly_stats")
+    .select("*, rec_players(id,player_external_id,position,player_name,league_id), rec_teams(id,name,abbreviation)")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber);
   if (error) throw error;
   const candidates: any[] = [];
   for (const row of statsRows ?? []) {
     const stats = row.stats ?? row.raw_payload ?? {};
-    const teamExternal = String(stats.teamId ?? row.team_external_id ?? "");
-    const assignment = [...eligible.values()].find((a: any) => String(a.team_id) === String(row.team_id) || String(a.team_id) === teamExternal);
+    const assignment = [...eligible.values()].find((a: any) => String(a.team_id) === String(row.team_id));
     if (!assignment) continue;
     const conference = assignment.rec_teams?.conference ?? "Unknown";
-    const position = row.position ?? stats.position ?? null;
-    const offensiveScore = calculateOffensivePotwScore({ position, passYds: pickStat(stats, ["passYds"]), passTDs: pickStat(stats, ["passTDs"]), passInts: pickStat(stats, ["passInts"]), rushYds: pickStat(stats, ["rushYds"]), rushTDs: pickStat(stats, ["rushTDs"]), recYds: pickStat(stats, ["recYds", "receivingYds"]), recTDs: pickStat(stats, ["recTDs", "receivingTDs"]), receptions: pickStat(stats, ["receptions", "recCatches"]) });
-    const defensiveScore = calculateDefensivePotwScore({ sacks: pickStat(stats, ["defSacks", "sacks"]), ints: pickStat(stats, ["defInts", "ints"]), defensiveTDs: pickStat(stats, ["defTDs", "defensiveTDs"]), forcedFumbles: pickStat(stats, ["forcedFumbles", "ffum"]), tackles: pickStat(stats, ["tackles", "defTotalTackles"]), tacklesForLoss: pickStat(stats, ["tacklesForLoss", "tfl"]) });
-    candidates.push({ row, assignment, conference, position, offensiveScore, defensiveScore });
+    const position = row.rec_players?.position ?? row.position ?? null;
+    const playerName = row.rec_players?.player_name ?? row.player_name ?? "Unknown Player";
+    const offensiveScore = calculateOffensivePotwScore({ position, passYds: asNumber(row.pass_yards), passTDs: asNumber(row.pass_touchdowns), passInts: asNumber(row.pass_interceptions), rushYds: asNumber(row.rush_yards), rushTDs: asNumber(row.rush_touchdowns), recYds: asNumber(row.receiving_yards), recTDs: asNumber(row.receiving_touchdowns), receptions: asNumber(row.receptions) });
+    const defensiveScore = calculateDefensivePotwScore({ sacks: asNumber(row.sacks), ints: asNumber(row.interceptions), defensiveTDs: asNumber(row.defensive_touchdowns), forcedFumbles: asNumber(row.forced_fumbles), tackles: asNumber(row.tackles), tacklesForLoss: asNumber(row.tackles_for_loss) });
+    candidates.push({ row, assignment, conference, position, playerName, offensiveScore, defensiveScore });
   }
   const awards: any[] = [];
   for (const conference of [...new Set(candidates.map((c) => c.conference))]) {
@@ -577,7 +671,7 @@ export async function calculateRecPotw(guildId: string) {
     const defense = group.sort((a, b) => b.defensiveScore - a.defensiveScore)[0];
     for (const [side, winner, score] of [["offense", offense, offense?.offensiveScore], ["defense", defense, defense?.defensiveScore]] as const) {
       if (!winner || !score || score <= 0) continue;
-      awards.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, conference, award_side: side, award_source: "rec_calculated", player_external_id: String(winner.row.player_external_id ?? winner.row.external_player_id ?? winner.row.rosterId ?? ""), player_name: winner.row.player_name ?? winner.row.player_display_name ?? winner.row.raw_payload?.fullName ?? "Unknown Player", position: winner.position, team_id: winner.assignment.team_id, user_id: winner.assignment.user_id, score, payout_amount: REC_POTW_PAYOUT_AMOUNT, raw_payload: winner.row.raw_payload ?? {} });
+      awards.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, conference, award_side: side, award_source: "rec_calculated", player_external_id: String(winner.row.rec_players?.player_external_id ?? winner.row.player_external_id ?? ""), player_name: winner.playerName, position: winner.position, team_id: winner.assignment.team_id, user_id: winner.assignment.user_id, score, payout_amount: REC_POTW_PAYOUT_AMOUNT, raw_payload: winner.row.raw_payload ?? {} });
     }
   }
   if (awards.length) await supabase.from("rec_weekly_player_awards").upsert(awards, { onConflict: "league_id,season_number,week_number,conference,award_side,award_source" });
@@ -971,6 +1065,40 @@ export async function getGotwCandidates(guildId: string) {
   const stage = league.season_stage ?? league.current_phase ?? "regular_season";
   const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
   const h2hGames = games.filter((game) => game.home_user_id && game.away_user_id);
+
+  // Pre-fetch all user records for this league to avoid N+1 queries
+  const { data: allRecords } = await supabase
+    .from("rec_league_user_records")
+    .select("user_id,wins,losses,ties,point_differential,games_played")
+    .eq("league_id", context.league_id);
+  const recordsByUser = new Map((allRecords ?? []).map((r: any) => [r.user_id, r]));
+
+  // Calculate power rankings for all users in this league
+  const powerRankings = new Map<string, any>();
+  for (const record of allRecords ?? []) {
+    const user_id = record.user_id;
+    const winPct = record.games_played > 0 ? record.wins / record.games_played : 0;
+    const avgPd = record.games_played > 0 ? record.point_differential / record.games_played : 0;
+    const pdBoost = Math.max(-0.3, Math.min(0.3, avgPd / 30));
+    const ranking = (winPct * 0.7) + (0.5 + pdBoost * 0.3);
+    powerRankings.set(user_id, {
+      ranking: Math.max(0, Math.min(1, ranking)),
+      wins: record.wins,
+      losses: record.losses,
+      pd: record.point_differential,
+      winPct,
+      avgPd
+    });
+  }
+
+  // Fetch all H2H records to check history
+  const { data: h2hRecords } = await supabase.from("rec_user_h2h_global_records").select("user_a_id,user_b_id,wins,losses,ties,pointDifferential");
+  const h2hMap = new Map<string, any>();
+  for (const record of h2hRecords ?? []) {
+    const key = [record.user_a_id, record.user_b_id].sort().join(":");
+    h2hMap.set(key, record);
+  }
+
   const previousWeek = Math.max(1, weekNumber - 1);
   const { data: previousGotw } = await supabase
     .from("rec_game_of_week_candidates")
@@ -980,11 +1108,39 @@ export async function getGotwCandidates(guildId: string) {
     .eq("week_number", previousWeek)
     .eq("is_selected", true);
   const previousUsers = new Set((previousGotw ?? []).flatMap((row: any) => [row.away_user_id, row.home_user_id]).filter(Boolean));
+
   const rows = h2hGames.map((game) => {
+    const homeRanking = powerRankings.get(game.home_user_id) ?? { ranking: 0.5, wins: 0, losses: 0 };
+    const awayRanking = powerRankings.get(game.away_user_id) ?? { ranking: 0.5, wins: 0, losses: 0 };
+
+    // Matchup competitiveness: how close the teams are in power ranking
+    const rankingDiff = Math.abs(homeRanking.ranking - awayRanking.ranking);
+    const competitiveness = 1 - Math.min(1, rankingDiff * 2);
+
+    // Strength of schedule boost
+    const sosBoost = ((homeRanking.wins + awayRanking.wins) / Math.max(1, weekNumber)) * 0.1;
+
+    // H2H history boost (close historical matches are more interesting)
+    const h2hKey = [game.home_user_id, game.away_user_id].sort().join(":");
+    const h2h = h2hMap.get(h2hKey);
+    const h2hBoost = h2h ? (1 - Math.abs(h2h.pointDifferential ?? 0) / Math.max(1, (h2h.wins + h2h.losses + h2h.ties) * 30)) * 0.15 : 0;
+
+    // Division game bonus
+    const isDivisionGame = game.away_team?.division === game.home_team?.division;
+    const divisionBonus = isDivisionGame ? 0.2 : 0;
+
+    // Previous GOTW penalty (give others a chance)
     const previousGotwUserFlag = previousUsers.has(game.away_user_id) || previousUsers.has(game.home_user_id);
-    const isDivisionGame = Boolean(game.away_team?.division && game.home_team?.division && game.away_team.division === game.home_team.division);
-    const impactModifier = (isDivisionGame ? 3 : 0) + (previousGotwUserFlag ? -3 : 0);
-    const strengthRating = 50 + impactModifier;
+    const previousGotwPenalty = previousGotwUserFlag ? -0.1 : 0;
+
+    // Calculate overall strength rating (0-100 scale)
+    const baseScore = 50;
+    const powerScore = (homeRanking.ranking + awayRanking.ranking) / 2 * 30;
+    const competitiveScore = competitiveness * 20;
+    const totalScore = baseScore + powerScore + competitiveScore + (sosBoost * 10) + (h2hBoost * 5) + (divisionBonus * 10) + (previousGotwPenalty * 10);
+
+    const strengthRating = Math.min(100, Math.max(0, totalScore));
+
     return {
       league_id: context.league_id,
       season_number: seasonNumber,
@@ -999,17 +1155,24 @@ export async function getGotwCandidates(guildId: string) {
       home_team_name: game.home_team?.name ?? "Home Team",
       matchup_title: `${game.away_team?.name ?? "Away Team"} vs ${game.home_team?.name ?? "Home Team"}`,
       strength_rating: strengthRating,
-      rating_breakdown: { isDivisionGame, previousGotwUserFlag, note: "Initial GOTW formula. SOS/power-ranking modifiers can be layered in once available." },
+      rating_breakdown: {
+        powerScore: Number(powerScore.toFixed(1)),
+        competitiveness: Number(competitiveness.toFixed(2)),
+        divisionGame: isDivisionGame,
+        h2hHistory: h2h ? { wins: h2h.wins, losses: h2h.losses, ties: h2h.ties } : null,
+        previousGotwUser: previousGotwUserFlag
+      },
       previous_gotw_user_flag: previousGotwUserFlag,
-      impact_modifier: impactModifier,
       is_selected: false,
       selection_source: "admin_select"
     };
   });
+
   if (rows.length) {
     const { error } = await supabase.from("rec_game_of_week_candidates").upsert(rows, { onConflict: "league_id,season_number,week_number,game_id" });
     if (error) throw error;
   }
+
   const { data, error } = await supabase
     .from("rec_game_of_week_candidates")
     .select("*")
@@ -1017,6 +1180,7 @@ export async function getGotwCandidates(guildId: string) {
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
     .order("strength_rating", { ascending: false });
+
   if (error) throw error;
   return { candidates: data ?? [], league, stage, seasonNumber, weekNumber };
 }

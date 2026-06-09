@@ -186,7 +186,8 @@ export async function handleViewLinkedUsersTeams(interaction: Extract<Interactio
   const rows = (result.linked ?? []).slice(0, 25).map((row: any) => {
     const authority = String(row.notes ?? "Authority: member").replace("Authority: ", "");
     const userLabel = row.discordId ? `<@${row.discordId}>` : row.user?.display_name ?? row.user_id;
-    return `• **${row.team?.name ?? "Unknown Team"}** → ${userLabel} (${authority})`;
+    const teamDisplay = row.team?.abbreviation ?? row.team?.name ?? "Unknown Team";
+    return `• **${teamDisplay}** → ${userLabel} (${authority})`;
   });
 
   await interaction.editReply({
@@ -210,7 +211,7 @@ export async function handleViewOpenTeams(interaction: Extract<Interaction, { is
   const result = await recApi.getOpenTeams(interaction.guildId);
   const rows = (result.openTeams ?? [])
     .slice(0, 32)
-    .map((team: any) => `• ${team.conference ?? ""} **${team.name}**`);
+    .map((team: any) => `• ${team.conference ?? ""} **${team.abbreviation ?? team.name}**`);
 
   await interaction.editReply({
     embeds: [
@@ -373,7 +374,7 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
           .setTitle("User Linked to Team")
           .setDescription([
             `League: **${result.league.name}**`,
-            `Team: **${result.team.name}**`,
+            `Team: **${result.team.abbreviation ?? result.team.name}**`,
             `User: <@${draft.discordId}>`,
             `Authority: **${draft.authority.replace("_", " ")}**`,
             `Nickname: **${syncResult.nickname}**`,
