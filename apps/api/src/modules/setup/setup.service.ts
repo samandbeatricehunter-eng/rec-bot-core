@@ -93,35 +93,38 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     requestedByDiscordId: input.requestedByDiscordId
   });
 
-  const oldLinks = await supabase
+  // Reuse the server's existing primary league if one exists so that re-running League Setup
+  // updates the league in place instead of creating duplicate leagues for the same server.
+  const existingPrimaryLink = await supabase
     .from("rec_server_league_links")
-    .update({ is_primary: false })
+    .select("league_id")
     .eq("server_id", serverResult.server.id)
     .eq("is_primary", true)
-    .select("*");
+    .limit(1)
+    .maybeSingle();
 
-  if (oldLinks.error) {
-    throw new ApiError(500, "Failed to retire previous primary league link", oldLinks.error);
+  if (existingPrimaryLink.error) {
+    throw new ApiError(500, "Failed to look up existing primary league", existingPrimaryLink.error);
   }
 
-  const league = await supabase
-    .from("rec_leagues")
-    .insert({
-      name: input.name,
-      league_type: input.leagueType,
-      current_phase: "regular_season",
-      season_stage: "regular_season",
-      season_number: input.seasonNumber ?? 1,
-      current_week: input.currentWeek ?? 1,
-      trust_mode: mapImportModeToTrustMode(input.importMode),
-      import_enabled: input.importMode !== "manual",
-      fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable"
-    })
-    .select("*")
-    .single();
+  const leagueFields = {
+    name: input.name,
+    league_type: input.leagueType,
+    current_phase: "regular_season",
+    season_stage: "regular_season",
+    season_number: input.seasonNumber ?? 1,
+    current_week: input.currentWeek ?? 1,
+    trust_mode: mapImportModeToTrustMode(input.importMode),
+    import_enabled: input.importMode !== "manual",
+    fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable"
+  };
+
+  const league = existingPrimaryLink.data?.league_id
+    ? await supabase.from("rec_leagues").update(leagueFields).eq("id", existingPrimaryLink.data.league_id).select("*").single()
+    : await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
 
   if (league.error) {
-    throw new ApiError(500, "Failed to create REC league", league.error);
+    throw new ApiError(500, "Failed to save REC league", league.error);
   }
 
   const configurationPayload = {
@@ -190,15 +193,23 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     throw new ApiError(500, "Failed to save REC league configuration", configuration.error);
   }
 
-  const link = await supabase
-    .from("rec_server_league_links")
-    .insert({
-      server_id: serverResult.server.id,
-      league_id: league.data.id,
-      is_primary: true
-    })
-    .select("*")
-    .single();
+  const link = existingPrimaryLink.data?.league_id
+    ? await supabase
+        .from("rec_server_league_links")
+        .select("*")
+        .eq("server_id", serverResult.server.id)
+        .eq("league_id", league.data.id)
+        .limit(1)
+        .single()
+    : await supabase
+        .from("rec_server_league_links")
+        .insert({
+          server_id: serverResult.server.id,
+          league_id: league.data.id,
+          is_primary: true
+        })
+        .select("*")
+        .single();
 
   if (link.error) {
     throw new ApiError(500, "Failed to link league to server", link.error);
@@ -212,7 +223,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
       league: league.data,
       configuration: configuration.data,
       serverLeagueLink: link.data,
-      retiredLinks: oldLinks.data ?? []
+      reused: Boolean(existingPrimaryLink.data?.league_id)
     },
     reason: "League Setup Wizard completed through Discord Admin Panel.",
     source: "manual_admin_entry"
