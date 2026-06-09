@@ -112,6 +112,125 @@ async function getWalletBalance(userId: string) {
   return { wallet: asNumber(data?.wallet_balance), savings: asNumber(data?.savings_balance) };
 }
 
+// BADGES SYSTEM
+// Weekly and seasonal badge definitions and auto-assignment
+const BADGE_DEFINITIONS = {
+  // Weekly badges
+  hot_streak: { name: "Hot Streak", tier: "gold", category: "weekly", description: "3+ wins in a row this season" },
+  unstoppable: { name: "Unstoppable", tier: "gold", category: "weekly", description: "500+ points scored this week" },
+  defensive_wall: { name: "Defensive Wall", tier: "silver", category: "weekly", description: "Opponent scored <10 points" },
+  grind: { name: "Grind", tier: "bronze", category: "weekly", description: "Won a close game (≤7 point margin)" },
+  shutout_king: { name: "Shutout King", tier: "platinum", category: "weekly", description: "Held opponent to 0 points" },
+  challenge_master: { name: "Challenge Master", tier: "gold", category: "weekly", description: "Completed all 3 weekly challenge tiers" },
+  perfect_week: { name: "Perfect Week", tier: "platinum", category: "weekly", description: "Won game + all 3 challenge tiers" },
+
+  // Season-end badges
+  champion: { name: "🏆 Champion", tier: "platinum", category: "season_end", description: "League champion" },
+  runner_up: { name: "🥈 Runner-Up", tier: "gold", category: "season_end", description: "Playoff finals runner-up" },
+  finals_appearance: { name: "Finals Appearance", tier: "gold", category: "season_end", description: "Made playoff finals" },
+  playoff_clinch: { name: "Playoff Clinch", tier: "silver", category: "season_end", description: "Made playoffs" },
+  most_points: { name: "Scoring Machine", tier: "gold", category: "season_end", description: "Most total points scored" },
+  best_defense: { name: "Fort Knox", tier: "gold", category: "season_end", description: "Best defensive record" },
+  comeback_king: { name: "Comeback King", tier: "silver", category: "season_end", description: "Won final game after losing streak" },
+  iron_man: { name: "Iron Man", tier: "bronze", category: "season_end", description: "Played all games" }
+};
+
+async function assignWeeklyBadges(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const weekNumber = league.current_week ?? 1;
+  const completedWeek = Math.max(1, weekNumber - 1);
+
+  const badgesToAssign: any[] = [];
+
+  // Get all user records for this season
+  const { data: seasonRecords } = await supabase
+    .from("rec_season_user_records")
+    .select("user_id,wins,losses,point_differential")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber);
+
+  // Get this week's game results for individual game analysis
+  const { data: weekGames } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_score,away_score")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek);
+
+  // Get this week's challenge completions
+  const { data: challenges } = await supabase
+    .from("rec_weekly_challenges")
+    .select("user_id,earned_tier,status")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek)
+    .eq("status", "evaluated");
+
+  const recordsByUser = new Map((seasonRecords ?? []).map((r: any) => [r.user_id, r]));
+  const challengesByUser = new Map<string, any[]>();
+  for (const challenge of challenges ?? []) {
+    if (!challengesByUser.has(challenge.user_id)) challengesByUser.set(challenge.user_id, []);
+    challengesByUser.get(challenge.user_id)?.push(challenge);
+  }
+
+  // Assign badges based on criteria
+  for (const [userId, record] of recordsByUser) {
+    const userChallenges = challengesByUser.get(userId) ?? [];
+    const completedTiers = new Set(userChallenges.filter((c: any) => c.earned_tier).map((c: any) => c.earned_tier));
+
+    // Hot Streak: 3+ consecutive wins
+    if (record.wins >= 3) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "hot_streak", earned_week: weekNumber });
+
+    // Unstoppable: 500+ points this week (check against game scores)
+    const userWeekGames = (weekGames ?? []).filter((g: any) => g.home_user_id === userId || g.away_user_id === userId);
+    const weekScore = userWeekGames.reduce((sum: number, g: any) => sum + (g.home_user_id === userId ? g.home_score : g.away_score), 0);
+    if (weekScore >= 500) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "unstoppable", earned_week: weekNumber });
+
+    // Defensive Wall: opponent <10 points
+    for (const game of userWeekGames) {
+      const oppScore = game.home_user_id === userId ? game.away_score : game.home_score;
+      if (oppScore < 10) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "defensive_wall", earned_week: weekNumber });
+    }
+
+    // Grind: close game win (≤7 margin)
+    for (const game of userWeekGames) {
+      const isHome = game.home_user_id === userId;
+      const userScore = isHome ? game.home_score : game.away_score;
+      const oppScore = isHome ? game.away_score : game.home_score;
+      if (userScore > oppScore && (userScore - oppScore) <= 7) {
+        badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "grind", earned_week: weekNumber });
+      }
+    }
+
+    // Shutout King: opponent 0 points
+    for (const game of userWeekGames) {
+      const oppScore = game.home_user_id === userId ? game.away_score : game.home_score;
+      if (oppScore === 0) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "shutout_king", earned_week: weekNumber });
+    }
+
+    // Challenge Master: completed all 3 tiers (O-S, O-A, O-B, D-S, D-A, D-B)
+    if (completedTiers.size >= 3) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "challenge_master", earned_week: weekNumber });
+
+    // Perfect Week: won + all challenge tiers
+    if (record.wins > 0 && completedTiers.size >= 3) {
+      badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "perfect_week", earned_week: weekNumber });
+    }
+  }
+
+  // Batch insert badges (avoiding duplicates)
+  if (badgesToAssign.length > 0) {
+    try {
+      await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,earned_week" });
+    } catch {
+      // Badge assignment errors are non-fatal
+    }
+  }
+
+  return { assigned: badgesToAssign.length };
+}
+
 // GOTW Sophisticated Scoring System
 // Used for: GOTW selection, strength of schedule, power rankings
 async function calculateUserPowerRanking(userId: string, leagueId: string, seasonNumber: number) {
@@ -1029,6 +1148,7 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
   await issueRecPotwPayouts(guildId);
   await evaluateStreamCompliance(guildId);
   await generateWeeklyChallenges({ guildId, regenerate: false });
+  await assignWeeklyBadges(guildId);
 
   if (mode === "catch_up") {
     return {

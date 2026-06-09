@@ -75,6 +75,7 @@ export function buildMainMenuEmbed(input: {
   leagueSeasonPointDifferential?: number;
   currentMatchupText?: string;
   gotwStatus?: string;
+  gotwVotingRecordText?: string;
   offensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
   defensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
   globalRecordText?: string;
@@ -106,6 +107,7 @@ export function buildMainMenuEmbed(input: {
     `Season Point Differential: ${input.leagueSeasonPointDifferential ?? 0}`,
     `Current Matchup: ${input.currentMatchupText ?? "None"}`,
     `Game of the Week: ${input.gotwStatus ?? "No"}`,
+    `GOTW Voting Record: ${input.gotwVotingRecordText ?? "No votes yet"}`,
     "",
     "**Current Weekly Challenges**",
     "Offense:",

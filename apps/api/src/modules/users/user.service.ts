@@ -240,6 +240,26 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
 
   const globalRecord = baseline.globalRecord ?? {};
 
+  // Get GOTW voting record for league
+  let gotwVotingRecord = null;
+  if (league?.id) {
+    const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+    const { data: votes } = await supabase
+      .from("rec_game_of_week_votes")
+      .select("id,is_correct,settled_at")
+      .eq("league_id", league.id)
+      .eq("user_id", userId)
+      .eq("season_number", seasonNumber)
+      .not("settled_at", "is", null);
+
+    if (votes && votes.length > 0) {
+      const correct = votes.filter((v: any) => v.is_correct).length;
+      const total = votes.length;
+      const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+      gotwVotingRecord = { correct, total, accuracy };
+    }
+  }
+
   return {
     user: baseline.user,
     discord: baseline.discord,
@@ -253,6 +273,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     currentGame,
     globalRecord,
     badges,
+    gotwVotingRecord,
     display: {
       discordUsername: baseline.discord.global_name ?? baseline.discord.username ?? baseline.user.display_name,
       teamName: assignment?.team?.name ?? null,
@@ -267,6 +288,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       leagueSeasonPointDifferential: seasonRecord?.point_differential ?? 0,
       currentMatchupText: currentMatchup,
       gotwStatus,
+      gotwVotingRecordText: gotwVotingRecord ? `${gotwVotingRecord.correct}-${gotwVotingRecord.total - gotwVotingRecord.correct} (${gotwVotingRecord.accuracy}%)` : "No votes yet",
       offensiveChallenge,
       defensiveChallenge,
       globalRecordText: recordText(globalRecord),
