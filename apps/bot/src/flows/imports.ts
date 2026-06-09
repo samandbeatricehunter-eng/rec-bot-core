@@ -10,6 +10,7 @@ import {
   buildImportJobCreatedRows,
   buildImportPanelRows,
   buildImportPreviewRows,
+  buildWeekScopeRow,
   buildWeekSelectRow,
   IMPORT_CUSTOM_IDS,
   parseApproveImportCustomId
@@ -146,6 +147,23 @@ export async function renderImportPanel(interaction: ButtonInteraction | StringS
 export async function handleImportButton(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) { await interaction.reply({ content: "Only authorized admins can manage imports.", ephemeral: true }); return; }
+
+  if (interaction.customId === IMPORT_CUSTOM_IDS.eaImport) {
+    importSessions.set(interaction.user.id, { importMode: "ea_import" });
+    await interaction.update({ embeds: [new EmbedBuilder().setTitle("Import Franchise").setDescription(["Select the import scope.", "", "Use Full Regular Season Schedule for schedule-only import.", "Use Current Week or Single Week for weekly stats/results imports."].join("\n"))], components: [buildWeekScopeRow(), ...buildImportFlowNavigationRows()] });
+    return;
+  }
+
+  if (interaction.customId === IMPORT_CUSTOM_IDS.companionImport) {
+    await interaction.reply({ content: "Companion export flow is separate and is not enabled in this import path yet.", ephemeral: true });
+    return;
+  }
+
+  if (interaction.customId === IMPORT_CUSTOM_IDS.manualImport) {
+    await interaction.reply({ content: "Manual import flow is not enabled yet.", ephemeral: true });
+    return;
+  }
+
   if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) {
     const embeddedJobId = parseApproveImportCustomId(interaction.customId);
     const importJobId = embeddedJobId ?? getCurrentImportJobId(interaction.user.id);
@@ -165,6 +183,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     }
     return;
   }
+
   if (interaction.customId === IMPORT_CUSTOM_IDS.previewJob) {
     const importJobId = await requireCurrentImportJob(interaction); if (!importJobId) return;
     await interaction.deferUpdate();
@@ -172,6 +191,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     await interaction.editReply({ embeds: buildPreviewEmbeds(preview), components: buildImportPreviewRows(preview) });
     return;
   }
+
   if (interaction.customId === IMPORT_CUSTOM_IDS.executeJob) {
     const importJobId = await requireCurrentImportJob(interaction); if (!importJobId) return;
     await interaction.deferUpdate();
@@ -214,9 +234,5 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
 export async function handleImportModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
   if (interaction.customId !== IMPORT_CUSTOM_IDS.eaConnectCodeModal) return;
-  await interaction.deferUpdate();
-  const raw = interaction.fields.getTextInputValue(IMPORT_CUSTOM_IDS.eaAuthCodeInput);
-  const code = (() => { const trimmed = raw.trim(); try { const url = new URL(trimmed); return url.searchParams.get("code") ?? trimmed; } catch { const match = trimmed.match(/[?&]code=([^&\s]+)/); return match ? decodeURIComponent(match[1]) : trimmed; } })();
-  await recApi.connectEaAccount({ discordId: interaction.user.id, code });
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EA Account Connected").setDescription("EA account connection was saved. Return to Import Franchise and discover franchises again.")], components: buildImportPanelRows() });
+  await interaction.reply({ content: "EA auth modal handling is currently available through the EA reconnect flow. Reopen Import Franchise if needed.", ephemeral: true });
 }
