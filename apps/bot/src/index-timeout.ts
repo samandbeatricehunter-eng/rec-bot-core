@@ -381,15 +381,23 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
 
   if (selected === "advance_week") {
     const result = await recApi.postAdvanceAutomation(interaction.guildId, "normal");
+    const completed: string[] = result?.completed ?? [];
+    const warnings: string[] = result?.warnings ?? [];
+    const lines = [
+      warnings.length === 0 ? "Advance processed successfully." : "Advance processed with warnings.",
+      "",
+      `Mode: **${result?.mode ?? "normal"}**`,
+      completed.length ? `Completed: ${completed.join(", ")}` : undefined,
+      warnings.length ? "" : undefined,
+      warnings.length ? `**Warnings (${warnings.length}):**` : undefined,
+      ...warnings.slice(0, 8).map((w) => `• ${w}`)
+    ].filter((l): l is string => l !== undefined);
+
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
-          .setTitle("Post-Advance Automation Processed")
-          .setDescription([
-            "Ran the normal post-advance automation queue.",
-            "",
-            `Mode: **${result?.mode ?? "normal"}**`
-          ].join("\n"))
+          .setTitle(warnings.length === 0 ? "Advance Week Processed" : "Advance Week Processed (with warnings)")
+          .setDescription(lines.join("\n").slice(0, 4000))
       ],
       components: buildAdvanceMenuPanel().components
     });

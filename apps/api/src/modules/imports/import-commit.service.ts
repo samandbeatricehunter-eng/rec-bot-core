@@ -214,7 +214,7 @@ async function loadAssignmentMap(leagueId: string) {
   return assignmentMap;
 }
 
-async function upsertGamesAndResults(importJobId: string, leagueId: string, teamMap: Map<string, string>, assignmentMap: Map<string, string>) {
+async function upsertGamesAndResults(importJobId: string, leagueId: string, teamMap: Map<string, string>, assignmentMap: Map<string, string>, seasonNumber: number) {
   const stagedGames = await loadStagedRows("rec_import_staging_games", importJobId);
   if (stagedGames.length === 0) return { gamesAddedOrUpdated: 0, resultsAddedOrUpdated: 0, gamesSkipped: 0 };
 
@@ -386,7 +386,7 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
       return {
         league_id: leagueId,
         import_job_id: importJobId,
-        season_number: null,
+        season_number: seasonNumber,
         week_number: savedGame.week_number,
         game_type: savedGame.phase ?? "regular_season",
         external_game_id: savedGame.external_game_id,
@@ -661,6 +661,12 @@ export async function commitApprovedImport(importJobId: string) {
   const details = await getImportJob(importJobId);
   const leagueId = details.job.league_id as string;
 
+  // Resolve the league's season so committed results carry season_number (advance records/payouts
+  // filter results by season_number; null would silently match nothing).
+  const leagueRow = await supabase.from("rec_leagues").select("season_number,display_season_number").eq("id", leagueId).single();
+  if (leagueRow.error) throw new ApiError(500, "Failed to load league for import commit.", leagueRow.error);
+  const seasonNumber = Number(leagueRow.data?.season_number ?? leagueRow.data?.display_season_number ?? 1) || 1;
+
   // Resolve team maps (sequential — each depends on the previous)
   const teams = await upsertTeams(importJobId, leagueId);
   const committedTeamMap = await loadTeamMap(leagueId);
@@ -671,7 +677,7 @@ export async function commitApprovedImport(importJobId: string) {
 
   // Run all entity upserts in parallel — they only depend on the team map, not each other
   const [gameCommit, standings, players, stats] = await Promise.all([
-    upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap),
+    upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap, seasonNumber),
     upsertStandings(importJobId, leagueId, committedTeamMap),
     upsertPlayers(importJobId, leagueId, committedTeamMap),
     upsertWeeklyStats(importJobId, leagueId, committedTeamMap)

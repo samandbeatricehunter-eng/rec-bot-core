@@ -1353,7 +1353,7 @@ export async function calculateRecPotw(guildId: string) {
   // Use committed player weekly stats instead of staging data
   const { data: statsRows, error } = await supabase
     .from("rec_player_weekly_stats")
-    .select("*, rec_players(id,player_external_id,position,player_name,league_id), rec_teams(id,name,abbreviation)")
+    .select("*, rec_players(id,madden_player_id,position,full_name,league_id), rec_teams(id,name,abbreviation)")
     .eq("league_id", context.league_id)
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber);
@@ -1365,7 +1365,7 @@ export async function calculateRecPotw(guildId: string) {
     if (!assignment) continue;
     const conference = assignment.rec_teams?.conference ?? "Unknown";
     const position = row.rec_players?.position ?? row.position ?? null;
-    const playerName = row.rec_players?.player_name ?? row.player_name ?? "Unknown Player";
+    const playerName = row.rec_players?.full_name ?? row.player_name ?? "Unknown Player";
     const offensiveScore = calculateOffensivePotwScore({ position, passYds: asNumber(row.pass_yards), passTDs: asNumber(row.pass_touchdowns), passInts: asNumber(row.pass_interceptions), rushYds: asNumber(row.rush_yards), rushTDs: asNumber(row.rush_touchdowns), recYds: asNumber(row.receiving_yards), recTDs: asNumber(row.receiving_touchdowns), receptions: asNumber(row.receptions) });
     const defensiveScore = calculateDefensivePotwScore({ sacks: asNumber(row.sacks), ints: asNumber(row.interceptions), defensiveTDs: asNumber(row.defensive_touchdowns), forcedFumbles: asNumber(row.forced_fumbles), tackles: asNumber(row.tackles), tacklesForLoss: asNumber(row.tackles_for_loss) });
     candidates.push({ row, assignment, conference, position, playerName, offensiveScore, defensiveScore });
@@ -1377,7 +1377,7 @@ export async function calculateRecPotw(guildId: string) {
     const defense = group.sort((a, b) => b.defensiveScore - a.defensiveScore)[0];
     for (const [side, winner, score] of [["offense", offense, offense?.offensiveScore], ["defense", defense, defense?.defensiveScore]] as const) {
       if (!winner || !score || score <= 0) continue;
-      awards.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, conference, award_side: side, award_source: "rec_calculated", player_external_id: String(winner.row.rec_players?.player_external_id ?? winner.row.player_external_id ?? ""), player_name: winner.playerName, position: winner.position, team_id: winner.assignment.team_id, user_id: winner.assignment.user_id, score, payout_amount: REC_POTW_PAYOUT_AMOUNT, raw_payload: winner.row.raw_payload ?? {} });
+      awards.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, conference, award_side: side, award_source: "rec_calculated", player_external_id: String(winner.row.rec_players?.madden_player_id ?? winner.row.madden_player_id ?? ""), player_name: winner.playerName, position: winner.position, team_id: winner.assignment.team_id, user_id: winner.assignment.user_id, score, payout_amount: REC_POTW_PAYOUT_AMOUNT, raw_payload: winner.row.raw_payload ?? {} });
     }
   }
   if (awards.length) await supabase.from("rec_weekly_player_awards").upsert(awards, { onConflict: "league_id,season_number,week_number,conference,award_side,award_source" });
@@ -1735,20 +1735,37 @@ export async function assignPlayoffBadgesForSeason(leagueId: string, seasonNumbe
 export async function runPostAdvanceAutomation(input: string | { guildId: string; mode?: "normal" | "catch_up" }) {
   const guildId = typeof input === "string" ? input : input.guildId;
   const mode = typeof input === "string" ? "normal" : input.mode ?? "normal";
-  await applyAdvanceRecords(guildId);
-  await issueWeeklyGamePayouts(guildId);
-  await settleGotwVotes(guildId);
-  await evaluateWeeklyChallenges(guildId);
-  await calculateRecPotw(guildId);
-  await issueRecPotwPayouts(guildId);
-  await evaluateStreamCompliance(guildId);
-  await generateWeeklyChallenges({ guildId, regenerate: false });
-  await assignWeeklyBadges(guildId);
+
+  // Run each step independently so one failing step (e.g. POTW with no player stats imported)
+  // does not abort records/payouts or the rest of the advance. Failures surface as warnings.
+  const warnings: string[] = [];
+  const completed: string[] = [];
+  const step = async (name: string, fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      completed.push(name);
+    } catch (error) {
+      console.error(`[ADVANCE] step "${name}" failed:`, error);
+      warnings.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  await step("apply_records", () => applyAdvanceRecords(guildId));
+  await step("game_payouts", () => issueWeeklyGamePayouts(guildId));
+  await step("settle_gotw", () => settleGotwVotes(guildId));
+  await step("evaluate_challenges", () => evaluateWeeklyChallenges(guildId));
+  await step("calculate_potw", () => calculateRecPotw(guildId));
+  await step("potw_payouts", () => issueRecPotwPayouts(guildId));
+  await step("stream_compliance", () => evaluateStreamCompliance(guildId));
+  await step("generate_challenges", () => generateWeeklyChallenges({ guildId, regenerate: false }));
+  await step("assign_badges", () => assignWeeklyBadges(guildId));
 
   if (mode === "catch_up") {
     return {
-      ok: true,
+      ok: warnings.length === 0,
       mode,
+      completed,
+      warnings,
       gameChannels: { plans: [] },
       dmPayloads: { payloads: [] },
       gotw: { pendingApproval: false, candidates: [] },
@@ -1760,8 +1777,10 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
   const gameChannels = await getGameChannelPlans(guildId);
   const dmPayloads = await buildAdvanceDmPayloads(guildId);
   return {
-    ok: true,
+    ok: warnings.length === 0,
     mode,
+    completed,
+    warnings,
     gameChannels,
     dmPayloads,
     gotw: {
