@@ -440,27 +440,12 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
   return { gamesAddedOrUpdated: savedGames.length, resultsAddedOrUpdated, gamesSkipped: skipped.length, skippedGames: skipped };
 }
 
-async function upsertStandings(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
+async function upsertStandings(importJobId: string, leagueId: string, _teamMap: Map<string, string>) {
+  // There is no committed standings table in the deployed schema (standings are derived from
+  // rec_game_results / rec_league_user_records during advance). Staged standings remain in
+  // rec_import_staging_standings for reference; nothing to commit here.
   const staged = await loadStagedRows("rec_import_staging_standings", importJobId);
-  if (staged.length === 0) return 0;
-  const rows = (staged as any[]).map((row: any) => ({
-    league_id: leagueId,
-    team_id: teamMap.get(String(row.team_external_id)) ?? null,
-    team_external_id: row.team_external_id ?? null,
-    team_name: row.team_name ?? null,
-    wins: toNumber(row.wins),
-    losses: toNumber(row.losses),
-    ties: toNumber(row.ties),
-    points_for: toNumber(row.points_for),
-    points_against: toNumber(row.points_against),
-    season_stage: row.season_stage ?? "regular_season",
-    week_number: row.week_number ?? null,
-    raw_payload: row.raw_payload ?? null,
-    imported_at: new Date().toISOString()
-  }));
-  const result = await supabase.from("rec_standings_snapshots").insert(rows);
-  if (result.error) throw new ApiError(500, "Failed to commit imported standings.", result.error);
-  return rows.length;
+  return staged.length === 0 ? 0 : 0;
 }
 
 async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
@@ -468,41 +453,42 @@ async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map
   if (staged.length === 0) return 0;
 
   const now = new Date().toISOString();
+  // Map to the deployed slim rec_players schema. Detailed ratings/traits/contract live in raw_payload.
   const playerRows = (staged as any[]).map((row: any) => {
     const raw = asObject(row.raw_payload);
+    const maddenPlayerId = toNullableText(row.player_external_id ?? row.external_player_id ?? raw.rosterId ?? raw.playerId);
+    const firstName = toNullableText(row.first_name ?? raw.firstName);
+    const lastName = toNullableText(row.last_name ?? raw.lastName);
+    const fullName = toNullableText(row.player_name ?? row.player_display_name) ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
     return {
       league_id: leagueId,
-      team_id: teamMap.get(String(row.team_external_id)) ?? null,
-      team_external_id: row.team_external_id ?? null,
-      player_external_id: row.player_external_id ?? raw.rosterId ?? raw.playerId ?? null,
-      full_name: row.player_name ?? [raw.firstName, raw.lastName].map(toNullableText).filter(Boolean).join(" ") ?? null,
-      position: row.position ?? raw.position ?? null,
-      jersey_number: toNullableInt(row.jersey_number ?? raw.jerseyNum),
-      overall_rating: toNullableInt(row.overall_rating ?? raw.overallRating),
-      dev_trait: row.dev_trait ?? raw.devTrait ?? null,
-      ratings: buildRatings(raw),
-      traits: buildTraits(raw),
-      contract: buildContract(raw),
+      madden_player_id: maddenPlayerId,
+      first_name: firstName,
+      last_name: lastName,
+      full_name: fullName,
+      position: toNullableText(row.position ?? raw.position),
+      college: toNullableText(raw.college),
+      height_inches: toNullableInt(raw.height),
+      weight_lbs: toNullableInt(raw.weight),
       raw_payload: row.raw_payload ?? null,
-      source: SOURCE_TYPE,
       updated_at: now
     };
-  });
+  }).filter((p) => p.madden_player_id && p.full_name);
 
-  // Bulk load existing players by player_external_id
-  const externalIds = playerRows.map((r) => r.player_external_id).filter(Boolean);
-  const existingByExternalId = new Map<string, string>();
+  // Bulk load existing players by madden_player_id
+  const maddenIds = playerRows.map((r) => r.madden_player_id).filter(Boolean) as string[];
+  const existingById = new Map<string, string>();
 
-  if (externalIds.length > 0) {
-    const existing = await supabase.from("rec_players").select("id,player_external_id").eq("league_id", leagueId).in("player_external_id", externalIds);
+  if (maddenIds.length > 0) {
+    const existing = await supabase.from("rec_players").select("id,madden_player_id").eq("league_id", leagueId).in("madden_player_id", maddenIds);
     if (existing.error) throw new ApiError(500, "Failed to bulk-load existing players.", existing.error);
     for (const p of existing.data ?? []) {
-      if (p.player_external_id) existingByExternalId.set(String(p.player_external_id), p.id);
+      if (p.madden_player_id) existingById.set(String(p.madden_player_id), p.id);
     }
   }
 
-  const toInsert = playerRows.filter((r) => !existingByExternalId.has(String(r.player_external_id)));
-  const toUpdate = playerRows.filter((r) => existingByExternalId.has(String(r.player_external_id)));
+  const toInsert = playerRows.filter((r) => !existingById.has(String(r.madden_player_id)));
+  const toUpdate = playerRows.filter((r) => existingById.has(String(r.madden_player_id)));
 
   let count = 0;
 
@@ -515,7 +501,7 @@ async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map
   if (toUpdate.length > 0) {
     const results = await Promise.all(
       toUpdate.map((row) => {
-        const id = existingByExternalId.get(String(row.player_external_id))!;
+        const id = existingById.get(String(row.madden_player_id))!;
         return supabase.from("rec_players").update(row).eq("id", id).select("id").single();
       })
     );
@@ -528,7 +514,7 @@ async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map
   return count;
 }
 
-async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
+async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number) {
   const [playerStats, teamStats] = await Promise.all([
     loadStagedRows("rec_import_staging_player_stats", importJobId),
     loadStagedRows("rec_import_staging_team_stats", importJobId)
@@ -536,54 +522,60 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
 
   const now = new Date().toISOString();
 
-  // ---- Player stats ----
+  // ---- Player stats → rec_player_weekly_stats (keyed on madden_player_id) ----
   const playerStatRows = (playerStats as any[]).map((row: any) => {
-    const externalId = row.player_external_id ? String(row.player_external_id) : null;
+    const maddenPlayerId = toNullableText(row.player_external_id ?? row.external_player_id);
+    const maddenTeamId = toNullableText(row.team_external_id ?? row.external_team_id);
     return {
       league_id: leagueId,
-      team_id: teamMap.get(String(row.team_external_id)) ?? null,
-      player_id: null as string | null, // filled below after bulk lookup
-      player_external_id: externalId,
-      player_name: row.player_name ?? null,
-      position: row.position ?? null,
+      import_job_id: importJobId,
+      season_number: seasonNumber,
+      season_stage: row.season_stage ?? "regular_season",
       week_number: row.week_number ?? null,
+      player_id: null as string | null, // filled below after bulk lookup
+      team_id: maddenTeamId ? teamMap.get(maddenTeamId) ?? null : null,
+      madden_player_id: maddenPlayerId,
+      madden_team_id: maddenTeamId,
+      player_name: row.player_name ?? row.player_display_name ?? null,
+      team_name: row.team_name ?? row.team_display_name ?? null,
+      position: row.position ?? null,
       stat_category: row.stat_category ?? "general",
       stats: row.stats ?? {},
       raw_payload: row.raw_payload ?? null,
-      imported_at: now
+      updated_at: now
     };
-  });
+  }).filter((r) => r.madden_player_id);
 
-  // Bulk load player ids for stats
-  const statExternalIds = [...new Set(playerStatRows.map((r) => r.player_external_id).filter(Boolean))] as string[];
-  const playerIdByExternalId = new Map<string, string>();
-  if (statExternalIds.length > 0) {
-    const pResult = await supabase.from("rec_players").select("id,player_external_id").eq("league_id", leagueId).in("player_external_id", statExternalIds);
+  // Resolve player_id (FK to rec_players) by madden_player_id
+  const statMaddenIds = [...new Set(playerStatRows.map((r) => r.madden_player_id).filter(Boolean))] as string[];
+  const playerIdByMaddenId = new Map<string, string>();
+  if (statMaddenIds.length > 0) {
+    const pResult = await supabase.from("rec_players").select("id,madden_player_id").eq("league_id", leagueId).in("madden_player_id", statMaddenIds);
     if (!pResult.error) {
-      for (const p of pResult.data ?? []) if (p.player_external_id) playerIdByExternalId.set(String(p.player_external_id), p.id);
+      for (const p of pResult.data ?? []) if (p.madden_player_id) playerIdByMaddenId.set(String(p.madden_player_id), p.id);
     }
   }
   for (const row of playerStatRows) {
-    if (row.player_external_id) row.player_id = playerIdByExternalId.get(row.player_external_id) ?? null;
+    if (row.madden_player_id) row.player_id = playerIdByMaddenId.get(String(row.madden_player_id)) ?? null;
   }
 
-  // Bulk load existing player stats using composite keys
-  const existingPlayerStatIds = new Map<string, string>(); // key: `${externalId}|${week}|${category}` → id
-  if (statExternalIds.length > 0) {
+  // Dedup existing player stats by (madden_player_id, week, category)
+  const existingPlayerStatIds = new Map<string, string>();
+  if (statMaddenIds.length > 0) {
     const existing = await supabase
       .from("rec_player_weekly_stats")
-      .select("id,player_external_id,week_number,stat_category")
+      .select("id,madden_player_id,week_number,stat_category")
       .eq("league_id", leagueId)
-      .in("player_external_id", statExternalIds);
+      .in("madden_player_id", statMaddenIds);
     if (!existing.error) {
       for (const r of existing.data ?? []) {
-        existingPlayerStatIds.set(`${r.player_external_id}|${r.week_number}|${r.stat_category}`, r.id);
+        existingPlayerStatIds.set(`${r.madden_player_id}|${r.week_number}|${r.stat_category}`, r.id);
       }
     }
   }
 
-  const toInsertPS = playerStatRows.filter((r) => !existingPlayerStatIds.has(`${r.player_external_id}|${r.week_number}|${r.stat_category}`));
-  const toUpdatePS = playerStatRows.filter((r) => existingPlayerStatIds.has(`${r.player_external_id}|${r.week_number}|${r.stat_category}`));
+  const toInsertPS = playerStatRows.filter((r) => !existingPlayerStatIds.has(`${r.madden_player_id}|${r.week_number}|${r.stat_category}`));
+  const toUpdatePS = playerStatRows.filter((r) => existingPlayerStatIds.has(`${r.madden_player_id}|${r.week_number}|${r.stat_category}`));
 
   let playerCount = 0;
   if (toInsertPS.length > 0) {
@@ -594,7 +586,7 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
   if (toUpdatePS.length > 0) {
     const results = await Promise.all(
       toUpdatePS.map((row) => {
-        const id = existingPlayerStatIds.get(`${row.player_external_id}|${row.week_number}|${row.stat_category}`)!;
+        const id = existingPlayerStatIds.get(`${row.madden_player_id}|${row.week_number}|${row.stat_category}`)!;
         return supabase.from("rec_player_weekly_stats").update(row).eq("id", id).select("id").single();
       })
     );
@@ -604,36 +596,42 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
     }
   }
 
-  // ---- Team stats ----
-  const teamStatRows = (teamStats as any[]).map((row: any) => ({
-    league_id: leagueId,
-    team_id: teamMap.get(String(row.team_external_id)) ?? null,
-    team_external_id: row.team_external_id ?? null,
-    team_name: row.team_name ?? null,
-    week_number: row.week_number ?? null,
-    stat_category: row.stat_category ?? "general",
-    stats: row.stats ?? {},
-    raw_payload: row.raw_payload ?? null,
-    imported_at: now
-  }));
+  // ---- Team stats → rec_team_weekly_stats (keyed on madden_team_id) ----
+  const teamStatRows = (teamStats as any[]).map((row: any) => {
+    const maddenTeamId = toNullableText(row.team_external_id ?? row.external_team_id);
+    return {
+      league_id: leagueId,
+      import_job_id: importJobId,
+      season_number: seasonNumber,
+      season_stage: row.season_stage ?? "regular_season",
+      week_number: row.week_number ?? null,
+      team_id: maddenTeamId ? teamMap.get(maddenTeamId) ?? null : null,
+      madden_team_id: maddenTeamId,
+      team_name: row.team_name ?? row.team_display_name ?? null,
+      stat_category: row.stat_category ?? "general",
+      stats: row.stats ?? {},
+      raw_payload: row.raw_payload ?? null,
+      updated_at: now
+    };
+  }).filter((r) => r.madden_team_id);
 
-  const teamStatExternalIds = [...new Set(teamStatRows.map((r) => r.team_external_id).filter(Boolean))] as string[];
+  const teamStatMaddenIds = [...new Set(teamStatRows.map((r) => r.madden_team_id).filter(Boolean))] as string[];
   const existingTeamStatIds = new Map<string, string>();
-  if (teamStatExternalIds.length > 0) {
+  if (teamStatMaddenIds.length > 0) {
     const existing = await supabase
       .from("rec_team_weekly_stats")
-      .select("id,team_external_id,week_number,stat_category")
+      .select("id,madden_team_id,week_number,stat_category")
       .eq("league_id", leagueId)
-      .in("team_external_id", teamStatExternalIds);
+      .in("madden_team_id", teamStatMaddenIds);
     if (!existing.error) {
       for (const r of existing.data ?? []) {
-        existingTeamStatIds.set(`${r.team_external_id}|${r.week_number}|${r.stat_category}`, r.id);
+        existingTeamStatIds.set(`${r.madden_team_id}|${r.week_number}|${r.stat_category}`, r.id);
       }
     }
   }
 
-  const toInsertTS = teamStatRows.filter((r) => !existingTeamStatIds.has(`${r.team_external_id}|${r.week_number}|${r.stat_category}`));
-  const toUpdateTS = teamStatRows.filter((r) => existingTeamStatIds.has(`${r.team_external_id}|${r.week_number}|${r.stat_category}`));
+  const toInsertTS = teamStatRows.filter((r) => !existingTeamStatIds.has(`${r.madden_team_id}|${r.week_number}|${r.stat_category}`));
+  const toUpdateTS = teamStatRows.filter((r) => existingTeamStatIds.has(`${r.madden_team_id}|${r.week_number}|${r.stat_category}`));
 
   let teamCount = 0;
   if (toInsertTS.length > 0) {
@@ -644,7 +642,7 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
   if (toUpdateTS.length > 0) {
     const results = await Promise.all(
       toUpdateTS.map((row) => {
-        const id = existingTeamStatIds.get(`${row.team_external_id}|${row.week_number}|${row.stat_category}`)!;
+        const id = existingTeamStatIds.get(`${row.madden_team_id}|${row.week_number}|${row.stat_category}`)!;
         return supabase.from("rec_team_weekly_stats").update(row).eq("id", id).select("id").single();
       })
     );
@@ -675,12 +673,24 @@ export async function commitApprovedImport(importJobId: string) {
   for (const [externalId, teamId] of teams.teamMap.entries()) committedTeamMap.set(externalId, teamId);
   const assignmentMap = await loadAssignmentMap(leagueId);
 
-  // Run all entity upserts in parallel — they only depend on the team map, not each other
-  const [gameCommit, standings, players, stats] = await Promise.all([
-    upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap, seasonNumber),
-    upsertStandings(importJobId, leagueId, committedTeamMap),
-    upsertPlayers(importJobId, leagueId, committedTeamMap),
-    upsertWeeklyStats(importJobId, leagueId, committedTeamMap)
+  // Games/results are the critical commit — let failures surface. Standings/players/stats are
+  // secondary; isolate them so one failing entity cannot abort the game commit.
+  const commitWarnings: string[] = [];
+  const safe = async <T>(name: string, fn: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await fn();
+    } catch (error) {
+      console.error(`[IMPORT COMMIT] "${name}" failed:`, error);
+      commitWarnings.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
+      return fallback;
+    }
+  };
+
+  const gameCommit = await upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap, seasonNumber);
+  const [standings, players, stats] = await Promise.all([
+    safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap), 0),
+    safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap), 0),
+    safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0 })
   ]);
 
   const previousSummary = details.job.preview_summary ?? {};
@@ -693,7 +703,8 @@ export async function commitApprovedImport(importJobId: string) {
     standings,
     players,
     playerWeeklyStats: stats.playerCount,
-    teamWeeklyStats: stats.teamCount
+    teamWeeklyStats: stats.teamCount,
+    warnings: commitWarnings
   };
 
   if ((previousSummary as any).gamesFound > 0 && committedCounts.games === 0) {
