@@ -240,24 +240,19 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
 
   const globalRecord = baseline.globalRecord ?? {};
 
-  // Get GOTW voting record for league
+  // Get GOTW voting record (GLOBAL across all servers/leagues)
   let gotwVotingRecord = null;
-  if (league?.id) {
-    const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
-    const { data: votes } = await supabase
-      .from("rec_game_of_week_votes")
-      .select("id,is_correct,settled_at")
-      .eq("league_id", league.id)
-      .eq("user_id", userId)
-      .eq("season_number", seasonNumber)
-      .not("settled_at", "is", null);
+  const { data: votes } = await supabase
+    .from("rec_game_of_week_votes")
+    .select("id,is_correct,settled_at")
+    .eq("user_id", userId)
+    .not("settled_at", "is", null);
 
-    if (votes && votes.length > 0) {
-      const correct = votes.filter((v: any) => v.is_correct).length;
-      const total = votes.length;
-      const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-      gotwVotingRecord = { correct, total, accuracy };
-    }
+  if (votes && votes.length > 0) {
+    const correct = votes.filter((v: any) => v.is_correct).length;
+    const total = votes.length;
+    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+    gotwVotingRecord = { correct, total, accuracy };
   }
 
   return {
