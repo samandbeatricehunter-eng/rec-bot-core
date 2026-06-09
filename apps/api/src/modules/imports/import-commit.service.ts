@@ -51,22 +51,33 @@ async function upsertTeams(importJobId: string, leagueId: string) {
     };
   }).filter((team) => team.name && team.madden_team_id);
 
-  // Bulk load all existing teams for this league matching any of the staged madden_team_ids or names
+  // Bulk load all existing teams for this league matching staged madden_team_ids, abbreviations, or names.
+  // Abbreviation matching is critical: EA franchises often use custom team names ("Green Bay Pack"),
+  // so name matching alone would create duplicates of the league's existing standard teams.
   const maddenIds = rows.map((r) => r.madden_team_id).filter(Boolean) as string[];
   const names = rows.map((r) => r.name).filter(Boolean);
+  const abbrs = rows.map((r) => r.abbreviation).filter(Boolean).map((a) => String(a).toUpperCase());
 
   const existingByMaddenId = new Map<string, any>();
+  const existingByAbbr = new Map<string, any>();
   const existingByName = new Map<string, any>();
 
   if (maddenIds.length > 0) {
-    const byId = await supabase.from("rec_teams").select("id,name,madden_team_id").eq("league_id", leagueId).in("madden_team_id", maddenIds);
+    const byId = await supabase.from("rec_teams").select("id,name,abbreviation,madden_team_id").eq("league_id", leagueId).in("madden_team_id", maddenIds);
     if (byId.error) throw new ApiError(500, "Failed to load existing teams by madden_team_id.", byId.error);
     for (const t of byId.data ?? []) {
       if (t.madden_team_id) existingByMaddenId.set(String(t.madden_team_id), t);
     }
   }
+  if (abbrs.length > 0) {
+    const byAbbr = await supabase.from("rec_teams").select("id,name,abbreviation,madden_team_id").eq("league_id", leagueId).in("abbreviation", abbrs);
+    if (byAbbr.error) throw new ApiError(500, "Failed to load existing teams by abbreviation.", byAbbr.error);
+    for (const t of byAbbr.data ?? []) {
+      if (t.abbreviation) existingByAbbr.set(String(t.abbreviation).toUpperCase(), t);
+    }
+  }
   if (names.length > 0) {
-    const byName = await supabase.from("rec_teams").select("id,name,madden_team_id").eq("league_id", leagueId).in("name", names);
+    const byName = await supabase.from("rec_teams").select("id,name,abbreviation,madden_team_id").eq("league_id", leagueId).in("name", names);
     if (byName.error) throw new ApiError(500, "Failed to load existing teams by name.", byName.error);
     for (const t of byName.data ?? []) {
       if (t.name) existingByName.set(t.name, t);
@@ -77,7 +88,10 @@ async function upsertTeams(importJobId: string, leagueId: string) {
   const toUpdate: Array<{ id: string; row: typeof rows[number] }> = [];
 
   for (const row of rows) {
-    const existing = (row.madden_team_id ? existingByMaddenId.get(row.madden_team_id) : null) ?? existingByName.get(row.name);
+    const existing =
+      (row.madden_team_id ? existingByMaddenId.get(row.madden_team_id) : null) ??
+      (row.abbreviation ? existingByAbbr.get(String(row.abbreviation).toUpperCase()) : null) ??
+      existingByName.get(row.name);
     if (existing?.id) {
       toUpdate.push({ id: existing.id, row });
     } else {
@@ -96,11 +110,21 @@ async function upsertTeams(importJobId: string, leagueId: string) {
     }
   }
 
-  // Parallel update existing teams
+  // Parallel update existing teams. Preserve the league's existing team name and only fill
+  // conference/division when EA provides them, so matching an EA franchise to standard teams
+  // never renames them or wipes their conference.
   const updateResults = await Promise.all(
-    toUpdate.map(({ id, row }) =>
-      supabase.from("rec_teams").update(row).eq("id", id).select("id,name,madden_team_id").single()
-    )
+    toUpdate.map(({ id, row }) => {
+      const patch: Record<string, unknown> = {
+        madden_team_id: row.madden_team_id,
+        source: row.source,
+        updated_at: row.updated_at
+      };
+      if (row.abbreviation) patch.abbreviation = row.abbreviation;
+      if (row.conference) patch.conference = row.conference;
+      if (row.division) patch.division = row.division;
+      return supabase.from("rec_teams").update(patch).eq("id", id).select("id,name,madden_team_id").single();
+    })
   );
   for (const result of updateResults) {
     if (result.error) throw new ApiError(500, "Failed to update existing team.", result.error);
