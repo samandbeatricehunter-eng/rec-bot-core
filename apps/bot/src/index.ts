@@ -59,7 +59,7 @@ import { ADVANCE_MENU_CUSTOM_IDS, buildAdvanceMenuPanel } from "./ui/advance-men
 import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
 import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekPanel, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
 import { recordGameChannelMessage, recreateGameChannelsForGuild, sendAdvanceDmsForGuild, startGameChannelReminderLoop } from "./flows/game-channels.js";
-import { GOTW_CUSTOM_IDS } from "./ui/gotw.js";
+import { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
 import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, buildActiveCheckAnnouncement } from "./ui/active-check.js";
 
@@ -128,7 +128,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
           if (channelId) {
             const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
             if (channel?.isTextBased()) {
-              const { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows } = await import("./ui/gotw.js");
               const sent = await (channel as any).send({
                 content: buildGotwAnnouncementContent(poll),
                 embeds: [buildGotwVoteEmbed(poll, [])],
