@@ -19,7 +19,10 @@ const CORE_ENDPOINT_KEYS = [
 ] as const;
 
 function selectedEndpointKeys(input: CreateImportJobInput) {
-  if (input.importScope === "full_regular_season_schedule") return ["schedule"];
+  if (input.importScope === "full_regular_season_schedule") {
+    // Always stage Teams alongside Schedule so EA team IDs resolve to existing league teams.
+    return ["teams", "schedule"];
+  }
   if (input.selectedEndpointKeys.length > 0) {
     const keys = input.importScope === "current_week" || input.importScope === "single_week"
       ? input.selectedEndpointKeys.filter((key) => key !== "schedule")
