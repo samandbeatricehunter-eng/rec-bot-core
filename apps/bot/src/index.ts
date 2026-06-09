@@ -742,22 +742,18 @@ async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmi
   const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
 
   if (action === "server_setup") {
-    const result = await recApi.registerServer({
+    // Register the server record if not already registered
+    await recApi.registerServer({
       guildId: interaction.guildId,
       name: interaction.guild.name,
       setupMode: "manual_first",
       requestedByDiscordId: interaction.user.id
     });
 
+    // Show the server setup panel with channel/role selectors
     await interaction.reply({
-      content: [
-        "**Server Setup confirmed.**",
-        "",
-        `Server: ${result.server.name}`,
-        `Status: ${result.server.setup_status}`,
-        `Created: ${result.created ? "Yes" : "No, existing server record updated"}`
-      ].join("\n"),
-      ephemeral: true
+      ...buildServerSetupAdminPanel(),
+      ephemeral: false
     });
     return;
   }

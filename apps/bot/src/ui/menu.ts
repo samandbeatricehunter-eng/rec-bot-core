@@ -199,17 +199,22 @@ export function buildAdminPanelRows() {
  * Discord-provided Submit button as "Continue" and the Cancel/X controls as
  * "Cancel". No typed confirmation is required.
  */
+/**
+ * Build setup modal for server or league configuration
+ * Server setup: Simple acknowledgement, no warning (just configures channels/roles)
+ * League setup: Requires league name input (creates new league record)
+ */
 export function buildSetupDangerModal(action: SetupDangerAction) {
-  const actionLabel = action === "server_setup" ? "Server Setup" : "League Setup";
-
   const modal = new ModalBuilder()
-    .setCustomId(`${MENU_CUSTOM_IDS.setupModal}:${action}`)
-    .setTitle(`${actionLabel} Warning`);
+    .setCustomId(`${MENU_CUSTOM_IDS.setupModal}:${action}`);
 
   if (action === "league_setup") {
+    // League setup modal with warning (creates new league, may be destructive)
+    modal.setTitle("League Setup");
+
     const leagueNameInput = new TextInputBuilder()
       .setCustomId(MENU_CUSTOM_IDS.leagueNameInput)
-      .setLabel("League Name")
+      .setLabel("League Name (Required)")
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
       .setPlaceholder("Use exact in-game Madden league name if known.");
@@ -218,12 +223,15 @@ export function buildSetupDangerModal(action: SetupDangerAction) {
     return modal;
   }
 
+  // Server setup modal (no warning - just configures channels/roles, not destructive)
+  modal.setTitle("Server Setup");
+
   const acknowledgementInput = new TextInputBuilder()
     .setCustomId(MENU_CUSTOM_IDS.serverSetupAcknowledgeInput)
-    .setLabel("Submit continues setup. Cancel stops here.")
+    .setLabel("Ready to configure channels?")
     .setStyle(TextInputStyle.Short)
     .setRequired(false)
-    .setPlaceholder("Rerunning setup may overwrite server routing/configuration.");
+    .setPlaceholder("Press Submit to proceed to channel configuration.");
 
   modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(acknowledgementInput));
   return modal;
