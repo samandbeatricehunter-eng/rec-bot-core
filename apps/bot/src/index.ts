@@ -742,19 +742,34 @@ async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmi
   const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
 
   if (action === "server_setup") {
-    // Register the server record if not already registered
-    await recApi.registerServer({
-      guildId: interaction.guildId,
-      name: interaction.guild.name,
-      setupMode: "manual_first",
-      requestedByDiscordId: interaction.user.id
-    });
+    console.log("[DEBUG] Server setup modal submitted");
 
-    // Show the server setup panel with channel/role selectors
-    await interaction.reply({
-      ...buildServerSetupAdminPanel(),
-      ephemeral: false
-    });
+    try {
+      // Register the server record if not already registered
+      const result = await recApi.registerServer({
+        guildId: interaction.guildId,
+        name: interaction.guild.name,
+        setupMode: "manual_first",
+        requestedByDiscordId: interaction.user.id
+      });
+      console.log("[DEBUG] Server registered:", result.server?.name);
+
+      // Show the server setup panel with channel/role selectors
+      const panelData = buildServerSetupAdminPanel();
+      console.log("[DEBUG] Panel data built, components count:", panelData.components?.length);
+
+      await interaction.reply({
+        ...panelData,
+        ephemeral: false
+      });
+      console.log("[DEBUG] Server setup panel sent");
+    } catch (error) {
+      console.error("[ERROR] Server setup failed:", error);
+      await interaction.reply({
+        content: `Error setting up server: ${error instanceof Error ? error.message : String(error)}`,
+        ephemeral: true
+      });
+    }
     return;
   }
 
