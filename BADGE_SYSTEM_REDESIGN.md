@@ -162,23 +162,26 @@
 
 ## SEASON-END BADGE TRANSITION FLOW
 
-**Week 17 (Regular Season End):**
-- Auto-assign all regular-season badges
-- Track any Record Breaker badges if records were set
+**Regular Season → Playoffs Transition (Week 17 → 18):**
+- Regular season is weeks 1-17 in an 18-week season
+- When advancing from regular_season stage to any playoff stage (wildcard, divisional, etc.):
+  - Auto-assign all regular-season cumulative badges
+  - Track any Record Breaker badges if records were set
 
-**Week 18 (Super Bowl / Wildcard Transition):**
-- Determine playoff qualifiers
-- Assign Playoff Qualifier badges
-- Determine Super Bowl winner/loser
-- Assign Championship badges
-- **CRITICAL**: Convert Record Breaker → Record Holder for users who maintained records through season end
-- Clear Record Breaker badges for any records that were since broken
-- Clear Comeback Artist badges (removed at season start/end)
-- Clear all other regular season badges (reset for new season)
+**Super Bowl → Offseason Transition (Week 21 → Offseason):**
+- When season ends and moving to offseason:
+  - Determine playoff qualifiers and Super Bowl winner/loser
+  - Assign Championship badges (Super Bowl Champion, Runner-Up, Playoff Qualifier)
+  - **CRITICAL**: Convert Record Breaker → Record Holder for users who maintained records through season end
+  - Clear Record Breaker badges for any records that were since broken
+  - Clear Comeback Artist badges (removed at season start/end)
+  - Clear all other regular season badges (reset for new season)
 
-**Offseason (After Wildcard):**
+**Season Start (Offseason → Regular Season):**
 - Record Holder badges persist into next season (shown as legacy achievement)
 - All other badges cleared
+- Comeback Artist can be earned again in new season
+- Record tracking resets with new baseline records or continues from previous highs
 - New season tracking begins at Week 1
 
 ---

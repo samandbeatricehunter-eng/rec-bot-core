@@ -135,10 +135,26 @@ const BADGE_DEFINITIONS = {
   iron_man: { name: "Iron Man", tier: "bronze", category: "season_end", description: "Played all games" }
 };
 
+/**
+ * Assigns Record Breaker badges when users break existing league records
+ * Called dynamically per advance to track record-breaking moments in real-time
+ *
+ * Records tracked:
+ * - points_for: Total season points scored (highest wins)
+ * - points_against: Total season points allowed (lowest wins)
+ * - wins: Total wins in season (highest wins)
+ *
+ * Behavior:
+ * - When a new record is set, previous holder's Record Breaker badge is removed
+ * - New Record Breaker badge assigned to current record holder
+ * - League record updated with new value and previous holder info
+ * - At season end, Record Breaker → Record Holder badge conversion via assignPlayoffBadges()
+ *
+ * @param leagueId - League to check records for
+ * @param seasonNumber - Current season
+ * @returns Count of badges assigned
+ */
 async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number) {
-  // Track record-breaking moments and assign Record Breaker badges dynamically per advance
-  // This runs after game results are recorded but before season end
-
   const { data: allRecords } = await supabase
     .from("rec_season_user_records")
     .select("user_id,points_for,points_against,games_played,wins")
@@ -150,7 +166,7 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
   const badgesToAssign: any[] = [];
   const recordsToUpdate: any[] = [];
 
-  // Track each record type
+  // Define all records to track with their value getters and comparison logic
   const records = [
     { metric: "points_for", label: "Points Scored", getter: (r: any) => r.points_for },
     { metric: "points_against", label: "Points Allowed", getter: (r: any) => r.points_against, isLowest: true },
@@ -158,7 +174,7 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
   ];
 
   for (const recordType of records) {
-    // Get current league record
+    // Get current league record holder
     const { data: existingRecord } = await supabase
       .from("rec_league_records")
       .select("*")
@@ -167,11 +183,11 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
       .eq("record_name", recordType.label)
       .maybeSingle();
 
-    let recordHolder = existingRecord?.record_holder_id;
-    let currentBestValue = existingRecord?.record_value ?? 0;
+    const recordHolder = existingRecord?.record_holder_id;
+    const currentBestValue = existingRecord?.record_value ?? 0;
 
-    // Find best value in current season
-    let bestUser = null;
+    // Find the best value in current season (highest for points_for/wins, lowest for points_against)
+    let bestUser: string | null = null;
     let bestValue = currentBestValue;
 
     for (const record of allRecords) {
@@ -184,9 +200,9 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
       }
     }
 
-    // If a new record was set
+    // If a new record was set (different from current)
     if (bestUser && bestValue !== currentBestValue) {
-      // Remove previous Record Breaker badge if different user
+      // Remove previous Record Breaker badge from old holder if different user
       if (recordHolder && recordHolder !== bestUser) {
         try {
           await supabase
@@ -197,11 +213,11 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
             .eq("badge_name", `record_breaker_${recordType.metric}`)
             .eq("season_number", seasonNumber);
         } catch {
-          // Badge removal is non-fatal
+          // Badge removal non-fatal; continue execution
         }
       }
 
-      // Assign Record Breaker badge to new holder
+      // Assign Record Breaker badge to new record holder
       badgesToAssign.push({
         user_id: bestUser,
         league_id: leagueId,
@@ -212,7 +228,7 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
         earned_at: nowIso()
       });
 
-      // Update league record
+      // Update league record tracking with new value and previous holder info
       recordsToUpdate.push({
         league_id: leagueId,
         season_number: seasonNumber,
@@ -226,34 +242,48 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
     }
   }
 
-  // Batch operations
+  // Batch upsert all new badges (idempotent on unique constraint)
   if (badgesToAssign.length > 0) {
     try {
       await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
-      // Badge assignment errors are non-fatal
+      // Non-fatal; badge assignment errors don't block advance
     }
   }
 
+  // Batch upsert all record updates
   if (recordsToUpdate.length > 0) {
     try {
       await supabase.from("rec_league_records").upsert(recordsToUpdate, { onConflict: "league_id,season_number,record_name" });
     } catch {
-      // Record tracking is non-fatal
+      // Non-fatal; record tracking errors don't block advance
     }
   }
 
   return { assigned: badgesToAssign.length };
 }
 
+/**
+ * Assigns Comeback Artist badge when user wins a game after 3+ consecutive losses
+ * Called per advance to detect when users break losing streaks
+ *
+ * Badge behavior:
+ * - Can only be earned once per season
+ * - Assigned when threshold is first reached (win after 3+ loss streak)
+ * - Removed at season end (cleared during offseason transition)
+ * - Does not carry over to next season
+ *
+ * Threshold: Win a game after losing 3+ consecutive games in same season
+ *
+ * @param guildId - Guild context to get league
+ * @returns Count of badges assigned
+ */
 async function assignCombackArtistBadges(guildId: string) {
-  // Assign Comeback Artist badge when user wins after 3+ consecutive losses
-  // Can only be earned once per season, assigned when threshold first reached
-
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
 
+  // Get all users in league for this season
   const { data: allUsers } = await supabase
     .from("rec_league_user_records")
     .select("user_id")
@@ -265,7 +295,7 @@ async function assignCombackArtistBadges(guildId: string) {
   const badgesToAssign: any[] = [];
 
   for (const user of allUsers) {
-    // Check if already earned Comeback Artist this season
+    // Check if user already has Comeback Artist badge this season
     const { data: existingBadge } = await supabase
       .from("rec_user_badges")
       .select("id")
@@ -275,9 +305,9 @@ async function assignCombackArtistBadges(guildId: string) {
       .eq("season_number", seasonNumber)
       .maybeSingle();
 
-    if (existingBadge) continue; // Already earned
+    if (existingBadge) continue; // Skip if already earned
 
-    // Get game results in chronological order
+    // Get all game results in chronological order to track losing streaks
     const { data: games } = await supabase
       .from("rec_game_results")
       .select("id,home_user_id,away_user_id,winning_user_id,losing_user_id,played_at")
@@ -287,7 +317,7 @@ async function assignCombackArtistBadges(guildId: string) {
 
     if (!games) continue;
 
-    // Find losing streaks and check for break
+    // Scan game history to detect losing streak followed by win
     let lossStreak = 0;
     let hasComebackArtist = false;
 
@@ -298,9 +328,11 @@ async function assignCombackArtistBadges(guildId: string) {
       if (isLoss) {
         lossStreak++;
       } else if (isWin && lossStreak >= 3) {
+        // Found a win after 3+ losses → Comeback Artist earned!
         hasComebackArtist = true;
         break;
       } else if (isWin) {
+        // Win but no 3+ streak → reset counter
         lossStreak = 0;
       }
     }
@@ -317,11 +349,12 @@ async function assignCombackArtistBadges(guildId: string) {
     }
   }
 
+  // Batch upsert all Comeback Artist badges (idempotent)
   if (badgesToAssign.length > 0) {
     try {
       await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
-      // Badge assignment errors are non-fatal
+      // Non-fatal; badge assignment errors don't block advance
     }
   }
 
@@ -342,13 +375,43 @@ async function assignWeeklyBadges(guildId: string) {
   return { assigned: comebackResult.assigned + recordResult.assigned };
 }
 
+/**
+ * SEASON-END BADGE ASSIGNMENT - Regular Season Cumulative Badges
+ *
+ * Called when regular season ends and league transitions to playoffs (Week 17 → 18)
+ * Assigns all cumulative badges based on full season statistics
+ *
+ * BADGE THRESHOLDS:
+ * ─────────────────────────────────────────────────────────────────────
+ * WINS/RECORDS (per user):
+ *   Undefeated        → 17-0 regular season record (perfect)
+ *   Dominant          → 80%+ win rate (14+ wins in 17 games)
+ *   Winning Season    → More wins than losses (breakeven: 9-8)
+ *
+ * OFFENSIVE (cumulative season stats):
+ *   Scoring Leader    → Most total points scored in season (league-wide)
+ *   High Octane       → 40+ points per game average (40*17 = 680 min pts)
+ *   Blowout Master    → 50%+ of wins by 21+ point margin (8+ wins required)
+ *
+ * DEFENSIVE (cumulative season stats):
+ *   Defensive Power   → Fewest total points allowed in season (league-wide)
+ *   Shutout King      → 3+ games where opponent scored 0 points
+ *
+ * HEAD-TO-HEAD (global stats, not league-specific):
+ *   H2H Dominator     → 0 losses in H2H matchups (8+ H2H games minimum)
+ *   H2H Specialist    → 85%+ win rate in H2H matchups (8+ H2H games minimum)
+ *
+ * CLUTCH:
+ *   Closer            → 50%+ of wins by ≤7 points (10+ wins required)
+ *
+ * @param leagueId - League to assign badges for
+ * @param seasonNumber - Season to assign badges for
+ * @returns Count of badges assigned
+ */
 async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
-  // Assign all regular-season cumulative badges at Week 17 (season end)
-  // Called at regular_season → playoffs transition
-
   const badgesToAssign: any[] = [];
 
-  // Get all user season records
+  // Pre-fetch all season records for this league (single query, used by all badge logic)
   const { data: seasonRecords } = await supabase
     .from("rec_season_user_records")
     .select("user_id,wins,losses,ties,points_for,points_against,games_played,point_differential")
@@ -357,21 +420,22 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
 
   if (!seasonRecords || seasonRecords.length === 0) return { assigned: 0 };
 
-  // Get all games for detailed analysis
+  // Pre-fetch all regular season games (not playoff) for this league
   const { data: allGames } = await supabase
     .from("rec_game_results")
     .select("home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,point_differential")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
-    .eq("is_playoff", false); // Regular season only
+    .eq("is_playoff", false); // Regular season only (not playoff games)
 
-  // Get H2H records for each user
+  // Pre-fetch global H2H records (used for H2H Dominator/Specialist badges)
   const { data: h2hRecords } = await supabase
     .from("rec_user_h2h_global_records")
     .select("user_a_id,user_b_id,wins,losses,ties")
     .in("user_a_id", seasonRecords.map((r: any) => r.user_id))
     .or(`user_b_id.in.(${seasonRecords.map((r: any) => r.user_id).join(",")})`);
 
+  // Build index of games by user for efficient O(1) lookups
   const gamesByUser = new Map<string, any[]>();
   for (const game of allGames ?? []) {
     if (game.home_user_id) {
@@ -384,12 +448,12 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
     }
   }
 
-  // Assign badges based on season-long metrics
+  // === INDIVIDUAL USER BADGES (per-user logic) ===
   for (const record of seasonRecords) {
     const userId = record.user_id;
     const userGames = gamesByUser.get(userId) ?? [];
 
-    // Undefeated: 17-0 regular season
+    // UNDEFEATED: 17-0 regular season
     if (record.wins === 17 && record.losses === 0) {
       badgesToAssign.push({
         user_id: userId,
@@ -401,7 +465,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
-    // Dominant: 80%+ win rate (14+ wins in 17 games)
+    // DOMINANT: 80%+ win rate (threshold = 14 wins in 17 games minimum)
     const winPct = record.games_played > 0 ? record.wins / record.games_played : 0;
     if (winPct >= 0.80) {
       badgesToAssign.push({
@@ -414,7 +478,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
-    // Winning Season: more wins than losses
+    // WINNING SEASON: More wins than losses (breakeven = 9-8)
     if (record.wins > record.losses) {
       badgesToAssign.push({
         user_id: userId,
@@ -426,7 +490,8 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
-    // High Octane: 40+ PPG average
+    // HIGH OCTANE: 40+ points per game average
+    // e.g., 680+ total points in 17 games = 40 PPG minimum
     const ppg = record.games_played > 0 ? record.points_for / record.games_played : 0;
     if (ppg >= 40) {
       badgesToAssign.push({
@@ -440,7 +505,8 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
-    // Blowout Master: 50%+ of wins by 21+ point margin
+    // BLOWOUT MASTER: 50%+ of wins by 21+ point margin
+    // Requires 8+ wins minimum (50% of 16 = 8 blowout wins needed)
     const blowoutWins = userGames.filter((g: any) => {
       const isHome = g.home_user_id === userId;
       const userScore = isHome ? g.home_score : g.away_score;
@@ -458,7 +524,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
-    // Shutout King: 3+ shutout games
+    // SHUTOUT KING: 3+ games where opponent scored 0 points
     const shutouts = userGames.filter((g: any) => {
       const oppScore = g.home_user_id === userId ? g.away_score : g.home_score;
       return oppScore === 0;
@@ -474,7 +540,8 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
-    // Closer: 50%+ of wins by ≤7 point margin
+    // CLOSER: 50%+ of wins by ≤7 points
+    // Requires 10+ wins minimum to prevent low sample-size bias
     const closeWins = userGames.filter((g: any) => {
       const isHome = g.home_user_id === userId;
       const userScore = isHome ? g.home_score : g.away_score;
@@ -493,8 +560,9 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
     }
   }
 
-  // Find Scoring Leader and Defensive Powerhouse (highest/lowest single metrics)
+  // === LEAGUE-WIDE BADGES (only one winner per league) ===
   if (seasonRecords.length > 0) {
+    // SCORING LEADER: Most total points scored in season (league-wide)
     const sortedByPf = [...seasonRecords].sort((a: any, b: any) => b.points_for - a.points_for);
     if (sortedByPf[0]) {
       badgesToAssign.push({
@@ -508,6 +576,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
+    // DEFENSIVE POWERHOUSE: Fewest points allowed in season (league-wide)
     const sortedByPa = [...seasonRecords].sort((a: any, b: any) => a.points_against - b.points_against);
     if (sortedByPa[0]) {
       badgesToAssign.push({
@@ -522,21 +591,23 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
     }
   }
 
-  // H2H Dominator: 0 losses in H2H matchups (8+ games minimum)
-  // H2H Specialist: 85%+ H2H win rate (8+ games minimum)
+  // === H2H BADGES (global head-to-head records) ===
+  // H2H records are stored globally (not league-specific), aggregating all matchups across seasons
   for (const record of seasonRecords) {
     const userId = record.user_id;
     let h2hWins = 0;
     let h2hLosses = 0;
     let h2hTies = 0;
 
+    // Sum up H2H record: handle both user_a and user_b orientations
     for (const h2h of h2hRecords ?? []) {
       if (h2h.user_a_id === userId) {
         h2hWins += h2h.wins ?? 0;
         h2hLosses += h2h.losses ?? 0;
         h2hTies += h2h.ties ?? 0;
       } else if (h2h.user_b_id === userId) {
-        h2hWins += h2h.losses ?? 0; // Swap because we're user B
+        // Swap wins/losses when we're user_b (database stores from user_a perspective)
+        h2hWins += h2h.losses ?? 0;
         h2hLosses += h2h.wins ?? 0;
         h2hTies += h2h.ties ?? 0;
       }
@@ -544,8 +615,8 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
 
     const h2hTotal = h2hWins + h2hLosses + h2hTies;
 
+    // H2H DOMINATOR: 0 losses in H2H matchups (8+ games minimum)
     if (h2hTotal >= 8) {
-      // H2H Dominator: no losses
       if (h2hLosses === 0) {
         badgesToAssign.push({
           user_id: userId,
@@ -557,7 +628,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
         });
       }
 
-      // H2H Specialist: 85%+ win rate
+      // H2H SPECIALIST: 85%+ win rate in H2H matchups (8+ games minimum)
       const h2hWinPct = h2hWins / h2hTotal;
       if (h2hWinPct >= 0.85) {
         badgesToAssign.push({
@@ -572,11 +643,12 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
     }
   }
 
+  // Batch upsert all badges (idempotent on unique constraint)
   if (badgesToAssign.length > 0) {
     try {
       await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
-      // Badge assignment errors are non-fatal
+      // Non-fatal; badge assignment errors don't block season transition
     }
   }
 
@@ -935,8 +1007,9 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
   // Trigger badge assignments at appropriate season transitions
   const previousStage = currentLeague.season_stage;
 
-  // Assign regular-season badges at Week 17 (regular_season → playoffs)
-  if (previousStage === "regular_season" && input.seasonStage !== "regular_season" && input.weekNumber === 17) {
+  // Assign regular-season cumulative badges when regular season ends (transitioning out of regular_season)
+  // Regular season = weeks 1-17, so when we move to wildcard (week 18) or beyond, assign the badges
+  if (previousStage === "regular_season" && input.seasonStage !== "regular_season") {
     try {
       await assignSeasonEndBadges(context.league_id, seasonNumber);
     } catch {
@@ -944,8 +1017,9 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
     }
   }
 
-  // Assign playoff badges and convert Record Breaker → Record Holder at Week 18 (super_bowl → wildcard)
-  if (previousStage === "super_bowl" && input.seasonStage === "wildcard") {
+  // Assign championship badges and convert Record Breaker → Record Holder when season ends
+  // This happens when transitioning from super_bowl (week 21) to offseason
+  if (previousStage === "super_bowl" && input.seasonStage === "offseason") {
     try {
       await assignPlayoffBadges(context.league_id, seasonNumber);
     } catch {
