@@ -1,6 +1,20 @@
+import { NFL_TEAMS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getImportJob, updateImportJobStatus } from "./import.service.js";
+
+// Canonical NFL conference/division alignment, keyed by normalized name and abbreviation, so imports
+// resolve EA team variations (custom names, "AZ" vs "ARI") to correct conference/division regardless
+// of what EA reports.
+const canonicalTeamByAbbr = new Map(NFL_TEAMS.map((t) => [t.abbreviation.toUpperCase(), t]));
+const canonicalTeamByName = new Map(NFL_TEAMS.map((t) => [t.name.toLowerCase().replace(/[^a-z0-9]/g, ""), t]));
+
+function canonicalTeam(name: string | null | undefined, abbreviation: string | null | undefined) {
+  const byAbbr = abbreviation ? canonicalTeamByAbbr.get(String(abbreviation).toUpperCase()) : undefined;
+  if (byAbbr) return byAbbr;
+  const key = name ? String(name).toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+  return key ? canonicalTeamByName.get(key) : undefined;
+}
 
 type JsonObject = Record<string, unknown>;
 type TeamRow = { id: string; name?: string | null; madden_team_id: string | null };
@@ -39,12 +53,16 @@ async function upsertTeams(importJobId: string, leagueId: string) {
 
   const rows = (stagedTeams as any[]).map((team: any) => {
     const raw = asObject(team.raw_payload);
+    const name = stagedTeamDisplayName(team);
+    const abbreviation = team.abbr_name ?? team.abbreviation ?? raw.abbrName ?? null;
+    // Prefer canonical NFL alignment so conference/division are always correct.
+    const canonical = canonicalTeam(name, abbreviation);
     return {
       league_id: leagueId,
-      name: stagedTeamDisplayName(team),
-      abbreviation: team.abbr_name ?? team.abbreviation ?? raw.abbrName ?? null,
-      conference: team.conference ?? raw.conferenceName ?? null,
-      division: team.division_name ?? raw.divName ?? null,
+      name,
+      abbreviation,
+      conference: canonical?.conference ?? team.conference ?? raw.conferenceName ?? null,
+      division: canonical?.division ?? team.division_name ?? raw.divName ?? null,
       madden_team_id: teamExternalId(team),
       source: SOURCE_TYPE,
       updated_at: new Date().toISOString()
