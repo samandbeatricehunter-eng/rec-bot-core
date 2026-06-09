@@ -135,100 +135,588 @@ const BADGE_DEFINITIONS = {
   iron_man: { name: "Iron Man", tier: "bronze", category: "season_end", description: "Played all games" }
 };
 
-async function assignWeeklyBadges(guildId: string) {
-  const context = await getLeagueContext(guildId);
-  const league = context.rec_leagues;
-  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
-  const weekNumber = league.current_week ?? 1;
-  const completedWeek = Math.max(1, weekNumber - 1);
+async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number) {
+  // Track record-breaking moments and assign Record Breaker badges dynamically per advance
+  // This runs after game results are recorded but before season end
 
-  const badgesToAssign: any[] = [];
-
-  // Get all user records for this season
-  const { data: seasonRecords } = await supabase
+  const { data: allRecords } = await supabase
     .from("rec_season_user_records")
-    .select("user_id,wins,losses,point_differential")
-    .eq("league_id", context.league_id)
+    .select("user_id,points_for,points_against,games_played,wins")
+    .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
 
-  // Get this week's game results for individual game analysis
-  const { data: weekGames } = await supabase
-    .from("rec_game_results")
-    .select("home_user_id,away_user_id,home_score,away_score")
-    .eq("league_id", context.league_id)
-    .eq("season_number", seasonNumber)
-    .eq("week_number", completedWeek);
+  if (!allRecords || allRecords.length === 0) return { assigned: 0 };
 
-  // Get this week's challenge completions
-  const { data: challenges } = await supabase
-    .from("rec_weekly_challenges")
-    .select("user_id,earned_tier,status")
-    .eq("league_id", context.league_id)
-    .eq("season_number", seasonNumber)
-    .eq("week_number", completedWeek)
-    .eq("status", "evaluated");
+  const badgesToAssign: any[] = [];
+  const recordsToUpdate: any[] = [];
 
-  const recordsByUser = new Map((seasonRecords ?? []).map((r: any) => [r.user_id, r]));
-  const challengesByUser = new Map<string, any[]>();
-  for (const challenge of challenges ?? []) {
-    if (!challengesByUser.has(challenge.user_id)) challengesByUser.set(challenge.user_id, []);
-    challengesByUser.get(challenge.user_id)?.push(challenge);
-  }
+  // Track each record type
+  const records = [
+    { metric: "points_for", label: "Points Scored", getter: (r: any) => r.points_for },
+    { metric: "points_against", label: "Points Allowed", getter: (r: any) => r.points_against, isLowest: true },
+    { metric: "wins", label: "Wins", getter: (r: any) => r.wins }
+  ];
 
-  // Assign badges based on criteria
-  for (const [userId, record] of recordsByUser) {
-    const userChallenges = challengesByUser.get(userId) ?? [];
-    const completedTiers = new Set(userChallenges.filter((c: any) => c.earned_tier).map((c: any) => c.earned_tier));
+  for (const recordType of records) {
+    // Get current league record
+    const { data: existingRecord } = await supabase
+      .from("rec_league_records")
+      .select("*")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .eq("record_name", recordType.label)
+      .maybeSingle();
 
-    // Hot Streak: 3+ consecutive wins
-    if (record.wins >= 3) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "hot_streak", earned_week: weekNumber });
+    let recordHolder = existingRecord?.record_holder_id;
+    let currentBestValue = existingRecord?.record_value ?? 0;
 
-    // Unstoppable: 500+ points this week (check against game scores)
-    const userWeekGames = (weekGames ?? []).filter((g: any) => g.home_user_id === userId || g.away_user_id === userId);
-    const weekScore = userWeekGames.reduce((sum: number, g: any) => sum + (g.home_user_id === userId ? g.home_score : g.away_score), 0);
-    if (weekScore >= 500) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "unstoppable", earned_week: weekNumber });
+    // Find best value in current season
+    let bestUser = null;
+    let bestValue = currentBestValue;
 
-    // Defensive Wall: opponent <10 points
-    for (const game of userWeekGames) {
-      const oppScore = game.home_user_id === userId ? game.away_score : game.home_score;
-      if (oppScore < 10) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "defensive_wall", earned_week: weekNumber });
-    }
+    for (const record of allRecords) {
+      const value = recordType.getter(record);
+      const isBetter = recordType.isLowest ? value < bestValue : value > bestValue;
 
-    // Grind: close game win (≤7 margin)
-    for (const game of userWeekGames) {
-      const isHome = game.home_user_id === userId;
-      const userScore = isHome ? game.home_score : game.away_score;
-      const oppScore = isHome ? game.away_score : game.home_score;
-      if (userScore > oppScore && (userScore - oppScore) <= 7) {
-        badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "grind", earned_week: weekNumber });
+      if (isBetter) {
+        bestValue = value;
+        bestUser = record.user_id;
       }
     }
 
-    // Shutout King: opponent 0 points
-    for (const game of userWeekGames) {
-      const oppScore = game.home_user_id === userId ? game.away_score : game.home_score;
-      if (oppScore === 0) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "shutout_king", earned_week: weekNumber });
-    }
+    // If a new record was set
+    if (bestUser && bestValue !== currentBestValue) {
+      // Remove previous Record Breaker badge if different user
+      if (recordHolder && recordHolder !== bestUser) {
+        try {
+          await supabase
+            .from("rec_user_badges")
+            .delete()
+            .eq("user_id", recordHolder)
+            .eq("league_id", leagueId)
+            .eq("badge_name", `record_breaker_${recordType.metric}`)
+            .eq("season_number", seasonNumber);
+        } catch {
+          // Badge removal is non-fatal
+        }
+      }
 
-    // Challenge Master: completed all 3 tiers (O-S, O-A, O-B, D-S, D-A, D-B)
-    if (completedTiers.size >= 3) badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "challenge_master", earned_week: weekNumber });
+      // Assign Record Breaker badge to new holder
+      badgesToAssign.push({
+        user_id: bestUser,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: `record_breaker_${recordType.metric}`,
+        badge_label: `Record Breaker - ${recordType.label}`,
+        earned_value: bestValue,
+        earned_at: nowIso()
+      });
 
-    // Perfect Week: won + all challenge tiers
-    if (record.wins > 0 && completedTiers.size >= 3) {
-      badgesToAssign.push({ user_id: userId, league_id: context.league_id, badge_name: "perfect_week", earned_week: weekNumber });
+      // Update league record
+      recordsToUpdate.push({
+        league_id: leagueId,
+        season_number: seasonNumber,
+        record_name: recordType.label,
+        record_value: bestValue,
+        record_holder_id: bestUser,
+        previous_holder_id: recordHolder,
+        previous_value: currentBestValue,
+        updated_at: nowIso()
+      });
     }
   }
 
-  // Batch insert badges (avoiding duplicates)
+  // Batch operations
   if (badgesToAssign.length > 0) {
     try {
-      await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,earned_week" });
+      await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
+    } catch {
+      // Badge assignment errors are non-fatal
+    }
+  }
+
+  if (recordsToUpdate.length > 0) {
+    try {
+      await supabase.from("rec_league_records").upsert(recordsToUpdate, { onConflict: "league_id,season_number,record_name" });
+    } catch {
+      // Record tracking is non-fatal
+    }
+  }
+
+  return { assigned: badgesToAssign.length };
+}
+
+async function assignCombackArtistBadges(guildId: string) {
+  // Assign Comeback Artist badge when user wins after 3+ consecutive losses
+  // Can only be earned once per season, assigned when threshold first reached
+
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+
+  const { data: allUsers } = await supabase
+    .from("rec_league_user_records")
+    .select("user_id")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber);
+
+  if (!allUsers) return { assigned: 0 };
+
+  const badgesToAssign: any[] = [];
+
+  for (const user of allUsers) {
+    // Check if already earned Comeback Artist this season
+    const { data: existingBadge } = await supabase
+      .from("rec_user_badges")
+      .select("id")
+      .eq("user_id", user.user_id)
+      .eq("league_id", context.league_id)
+      .eq("badge_name", "comeback_artist")
+      .eq("season_number", seasonNumber)
+      .maybeSingle();
+
+    if (existingBadge) continue; // Already earned
+
+    // Get game results in chronological order
+    const { data: games } = await supabase
+      .from("rec_game_results")
+      .select("id,home_user_id,away_user_id,winning_user_id,losing_user_id,played_at")
+      .eq("league_id", context.league_id)
+      .eq("season_number", seasonNumber)
+      .order("played_at", { ascending: true });
+
+    if (!games) continue;
+
+    // Find losing streaks and check for break
+    let lossStreak = 0;
+    let hasComebackArtist = false;
+
+    for (const game of games) {
+      const isLoss = game.losing_user_id === user.user_id;
+      const isWin = game.winning_user_id === user.user_id;
+
+      if (isLoss) {
+        lossStreak++;
+      } else if (isWin && lossStreak >= 3) {
+        hasComebackArtist = true;
+        break;
+      } else if (isWin) {
+        lossStreak = 0;
+      }
+    }
+
+    if (hasComebackArtist) {
+      badgesToAssign.push({
+        user_id: user.user_id,
+        league_id: context.league_id,
+        season_number: seasonNumber,
+        badge_name: "comeback_artist",
+        badge_label: "Comeback Artist",
+        earned_at: nowIso()
+      });
+    }
+  }
+
+  if (badgesToAssign.length > 0) {
+    try {
+      await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
       // Badge assignment errors are non-fatal
     }
   }
 
   return { assigned: badgesToAssign.length };
+}
+
+async function assignWeeklyBadges(guildId: string) {
+  // Assign mid-season dynamic badges (currently just Comeback Artist)
+  // Record Breaker badges assigned separately in assignRecordBreakerBadges
+
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+
+  const comebackResult = await assignCombackArtistBadges(guildId);
+  const recordResult = await assignRecordBreakerBadges(context.league_id, seasonNumber);
+
+  return { assigned: comebackResult.assigned + recordResult.assigned };
+}
+
+async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
+  // Assign all regular-season cumulative badges at Week 17 (season end)
+  // Called at regular_season → playoffs transition
+
+  const badgesToAssign: any[] = [];
+
+  // Get all user season records
+  const { data: seasonRecords } = await supabase
+    .from("rec_season_user_records")
+    .select("user_id,wins,losses,ties,points_for,points_against,games_played,point_differential")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber);
+
+  if (!seasonRecords || seasonRecords.length === 0) return { assigned: 0 };
+
+  // Get all games for detailed analysis
+  const { data: allGames } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,point_differential")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("is_playoff", false); // Regular season only
+
+  // Get H2H records for each user
+  const { data: h2hRecords } = await supabase
+    .from("rec_user_h2h_global_records")
+    .select("user_a_id,user_b_id,wins,losses,ties")
+    .in("user_a_id", seasonRecords.map((r: any) => r.user_id))
+    .or(`user_b_id.in.(${seasonRecords.map((r: any) => r.user_id).join(",")})`);
+
+  const gamesByUser = new Map<string, any[]>();
+  for (const game of allGames ?? []) {
+    if (game.home_user_id) {
+      if (!gamesByUser.has(game.home_user_id)) gamesByUser.set(game.home_user_id, []);
+      gamesByUser.get(game.home_user_id)?.push(game);
+    }
+    if (game.away_user_id) {
+      if (!gamesByUser.has(game.away_user_id)) gamesByUser.set(game.away_user_id, []);
+      gamesByUser.get(game.away_user_id)?.push(game);
+    }
+  }
+
+  // Assign badges based on season-long metrics
+  for (const record of seasonRecords) {
+    const userId = record.user_id;
+    const userGames = gamesByUser.get(userId) ?? [];
+
+    // Undefeated: 17-0 regular season
+    if (record.wins === 17 && record.losses === 0) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "undefeated",
+        badge_label: "Undefeated",
+        earned_at: nowIso()
+      });
+    }
+
+    // Dominant: 80%+ win rate (14+ wins in 17 games)
+    const winPct = record.games_played > 0 ? record.wins / record.games_played : 0;
+    if (winPct >= 0.80) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "dominant",
+        badge_label: "Dominant",
+        earned_at: nowIso()
+      });
+    }
+
+    // Winning Season: more wins than losses
+    if (record.wins > record.losses) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "winning_season",
+        badge_label: "Winning Season",
+        earned_at: nowIso()
+      });
+    }
+
+    // High Octane: 40+ PPG average
+    const ppg = record.games_played > 0 ? record.points_for / record.games_played : 0;
+    if (ppg >= 40) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "high_octane",
+        badge_label: "High Octane",
+        earned_value: Number(ppg.toFixed(1)),
+        earned_at: nowIso()
+      });
+    }
+
+    // Blowout Master: 50%+ of wins by 21+ point margin
+    const blowoutWins = userGames.filter((g: any) => {
+      const isHome = g.home_user_id === userId;
+      const userScore = isHome ? g.home_score : g.away_score;
+      const oppScore = isHome ? g.away_score : g.home_score;
+      return userScore > oppScore && (userScore - oppScore) >= 21;
+    }).length;
+    if (record.wins > 0 && (blowoutWins / record.wins) >= 0.5) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "blowout_master",
+        badge_label: "Blowout Master",
+        earned_at: nowIso()
+      });
+    }
+
+    // Shutout King: 3+ shutout games
+    const shutouts = userGames.filter((g: any) => {
+      const oppScore = g.home_user_id === userId ? g.away_score : g.home_score;
+      return oppScore === 0;
+    }).length;
+    if (shutouts >= 3) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "shutout_king",
+        badge_label: "Shutout King",
+        earned_at: nowIso()
+      });
+    }
+
+    // Closer: 50%+ of wins by ≤7 point margin
+    const closeWins = userGames.filter((g: any) => {
+      const isHome = g.home_user_id === userId;
+      const userScore = isHome ? g.home_score : g.away_score;
+      const oppScore = isHome ? g.away_score : g.home_score;
+      return userScore > oppScore && (userScore - oppScore) <= 7;
+    }).length;
+    if (record.wins >= 10 && (closeWins / record.wins) >= 0.5) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "closer",
+        badge_label: "Closer",
+        earned_at: nowIso()
+      });
+    }
+  }
+
+  // Find Scoring Leader and Defensive Powerhouse (highest/lowest single metrics)
+  if (seasonRecords.length > 0) {
+    const sortedByPf = [...seasonRecords].sort((a: any, b: any) => b.points_for - a.points_for);
+    if (sortedByPf[0]) {
+      badgesToAssign.push({
+        user_id: sortedByPf[0].user_id,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "scoring_leader",
+        badge_label: "Scoring Leader",
+        earned_value: sortedByPf[0].points_for,
+        earned_at: nowIso()
+      });
+    }
+
+    const sortedByPa = [...seasonRecords].sort((a: any, b: any) => a.points_against - b.points_against);
+    if (sortedByPa[0]) {
+      badgesToAssign.push({
+        user_id: sortedByPa[0].user_id,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "defensive_powerhouse",
+        badge_label: "Defensive Powerhouse",
+        earned_value: sortedByPa[0].points_against,
+        earned_at: nowIso()
+      });
+    }
+  }
+
+  // H2H Dominator: 0 losses in H2H matchups (8+ games minimum)
+  // H2H Specialist: 85%+ H2H win rate (8+ games minimum)
+  for (const record of seasonRecords) {
+    const userId = record.user_id;
+    let h2hWins = 0;
+    let h2hLosses = 0;
+    let h2hTies = 0;
+
+    for (const h2h of h2hRecords ?? []) {
+      if (h2h.user_a_id === userId) {
+        h2hWins += h2h.wins ?? 0;
+        h2hLosses += h2h.losses ?? 0;
+        h2hTies += h2h.ties ?? 0;
+      } else if (h2h.user_b_id === userId) {
+        h2hWins += h2h.losses ?? 0; // Swap because we're user B
+        h2hLosses += h2h.wins ?? 0;
+        h2hTies += h2h.ties ?? 0;
+      }
+    }
+
+    const h2hTotal = h2hWins + h2hLosses + h2hTies;
+
+    if (h2hTotal >= 8) {
+      // H2H Dominator: no losses
+      if (h2hLosses === 0) {
+        badgesToAssign.push({
+          user_id: userId,
+          league_id: leagueId,
+          season_number: seasonNumber,
+          badge_name: "h2h_dominator",
+          badge_label: "H2H Dominator",
+          earned_at: nowIso()
+        });
+      }
+
+      // H2H Specialist: 85%+ win rate
+      const h2hWinPct = h2hWins / h2hTotal;
+      if (h2hWinPct >= 0.85) {
+        badgesToAssign.push({
+          user_id: userId,
+          league_id: leagueId,
+          season_number: seasonNumber,
+          badge_name: "h2h_specialist",
+          badge_label: "H2H Specialist",
+          earned_at: nowIso()
+        });
+      }
+    }
+  }
+
+  if (badgesToAssign.length > 0) {
+    try {
+      await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
+    } catch {
+      // Badge assignment errors are non-fatal
+    }
+  }
+
+  return { assigned: badgesToAssign.length };
+}
+
+async function assignPlayoffBadges(leagueId: string, seasonNumber: number) {
+  // Assign playoff/championship badges at Week 18 (super bowl transition)
+  // Also converts Record Breaker → Record Holder
+  // Called at super_bowl → wildcard transition
+
+  const badgesToAssign: any[] = [];
+  const badgesToRemove: any[] = [];
+
+  // Get final standings from season results
+  const { data: seasonResults } = await supabase
+    .from("rec_league_season_results")
+    .select("*")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .maybeSingle();
+
+  if (seasonResults) {
+    // Super Bowl Champion
+    if (seasonResults.sb_winner) {
+      badgesToAssign.push({
+        user_id: seasonResults.sb_winner,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "sb_champion",
+        badge_label: "🏆 Super Bowl Champion",
+        earned_at: nowIso()
+      });
+    }
+
+    // Super Bowl Runner-Up
+    if (seasonResults.sb_loser) {
+      badgesToAssign.push({
+        user_id: seasonResults.sb_loser,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "sb_runner_up",
+        badge_label: "🥈 Super Bowl Runner-Up",
+        earned_at: nowIso()
+      });
+    }
+  }
+
+  // Playoff Qualifier: top 8 teams (get from standings)
+  const { data: standings } = await supabase
+    .from("rec_league_user_records")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .order("wins", { ascending: false })
+    .limit(8);
+
+  for (const record of standings ?? []) {
+    badgesToAssign.push({
+      user_id: record.user_id,
+      league_id: leagueId,
+      season_number: seasonNumber,
+      badge_name: "playoff_qualifier",
+      badge_label: "Playoff Qualifier",
+      earned_at: nowIso()
+    });
+  }
+
+  // Convert Record Breaker → Record Holder
+  const { data: recordBreakers } = await supabase
+    .from("rec_user_badges")
+    .select("*")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .like("badge_name", "record_breaker_%");
+
+  for (const breaker of recordBreakers ?? []) {
+    // Add Record Holder badge
+    badgesToAssign.push({
+      user_id: breaker.user_id,
+      league_id: leagueId,
+      season_number: seasonNumber,
+      badge_name: breaker.badge_name.replace("record_breaker_", "record_holder_"),
+      badge_label: breaker.badge_label?.replace("Record Breaker", "Record Holder") ?? "Record Holder",
+      earned_value: breaker.earned_value,
+      earned_at: nowIso()
+    });
+
+    // Remove Record Breaker badge (it was temporary for this season)
+    badgesToRemove.push({
+      user_id: breaker.user_id,
+      league_id: leagueId,
+      season_number: seasonNumber,
+      badge_name: breaker.badge_name
+    });
+  }
+
+  // Remove Comeback Artist badges (reset at season end)
+  const { data: comebackArtists } = await supabase
+    .from("rec_user_badges")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("badge_name", "comeback_artist");
+
+  for (const user of comebackArtists ?? []) {
+    badgesToRemove.push({
+      user_id: user.user_id,
+      league_id: leagueId,
+      season_number: seasonNumber,
+      badge_name: "comeback_artist"
+    });
+  }
+
+  // Batch operations
+  if (badgesToAssign.length > 0) {
+    try {
+      await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
+    } catch {
+      // Badge assignment errors are non-fatal
+    }
+  }
+
+  if (badgesToRemove.length > 0) {
+    try {
+      for (const badge of badgesToRemove) {
+        await supabase
+          .from("rec_user_badges")
+          .delete()
+          .eq("user_id", badge.user_id)
+          .eq("league_id", badge.league_id)
+          .eq("season_number", badge.season_number)
+          .eq("badge_name", badge.badge_name);
+      }
+    } catch {
+      // Badge removal is non-fatal
+    }
+  }
+
+  return { assigned: badgesToAssign.length, removed: badgesToRemove.length };
 }
 
 // GOTW Sophisticated Scoring System
@@ -431,6 +919,9 @@ async function getLeagueFeatureSettings(leagueId: string) {
 
 export async function setLeagueWeek(input: { guildId: string; seasonNumber?: number; weekNumber: number; seasonStage: string }) {
   const context = await getLeagueContext(input.guildId);
+  const currentLeague = context.rec_leagues;
+  const seasonNumber = input.seasonNumber ?? currentLeague.season_number ?? currentLeague.display_season_number ?? 1;
+
   const patch: Record<string, unknown> = {
     current_week: input.weekNumber,
     season_stage: input.seasonStage,
@@ -440,6 +931,28 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
   if (input.seasonNumber) patch.season_number = input.seasonNumber;
   const { data, error } = await supabase.from("rec_leagues").update(patch).eq("id", context.league_id).select("*").single();
   if (error) throw error;
+
+  // Trigger badge assignments at appropriate season transitions
+  const previousStage = currentLeague.season_stage;
+
+  // Assign regular-season badges at Week 17 (regular_season → playoffs)
+  if (previousStage === "regular_season" && input.seasonStage !== "regular_season" && input.weekNumber === 17) {
+    try {
+      await assignSeasonEndBadges(context.league_id, seasonNumber);
+    } catch {
+      // Non-fatal badge assignment
+    }
+  }
+
+  // Assign playoff badges and convert Record Breaker → Record Holder at Week 18 (super_bowl → wildcard)
+  if (previousStage === "super_bowl" && input.seasonStage === "wildcard") {
+    try {
+      await assignPlayoffBadges(context.league_id, seasonNumber);
+    } catch {
+      // Non-fatal badge assignment
+    }
+  }
+
   const features = await getLeagueFeatureSettings(context.league_id);
   const economyEnabled = Boolean(features?.coin_economy_enabled);
   const warning = economyEnabled
@@ -1135,6 +1648,14 @@ export async function issueWeeklyGamePayouts(guildId: string) {
   }
 
   return { issued, skipped, weekNumber, seasonNumber };
+}
+
+export async function assignSeasonEndBadgesForSeason(leagueId: string, seasonNumber: number) {
+  return assignSeasonEndBadges(leagueId, seasonNumber);
+}
+
+export async function assignPlayoffBadgesForSeason(leagueId: string, seasonNumber: number) {
+  return assignPlayoffBadges(leagueId, seasonNumber);
 }
 
 export async function runPostAdvanceAutomation(input: string | { guildId: string; mode?: "normal" | "catch_up" }) {
