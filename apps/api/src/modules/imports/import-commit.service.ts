@@ -28,7 +28,8 @@ type CommittedGameRow = {
   phase: string | null;
 };
 
-const IMPORT_SOURCE = "ea_import";
+const SOURCE_TYPE = "madden_companion_export";
+const RESULT_SOURCE = "ea_import";
 
 function asObject(value: unknown): JsonObject {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
@@ -47,24 +48,12 @@ function toNullableInt(value: unknown) {
 function teamExternalId(row: any) {
   const raw = asObject(row.raw_payload);
   const normalized = asObject(row.normalized);
-  return toNullableText(
-    row.team_external_id ??
-    row.external_team_id ??
-    row.madden_team_id ??
-    normalized.teamId ??
-    raw.teamId ??
-    raw.id ??
-    raw.rosterId
-  );
+  return toNullableText(row.team_external_id ?? row.external_team_id ?? row.madden_team_id ?? normalized.teamId ?? raw.teamId ?? raw.id ?? raw.rosterId);
 }
 
 function gameTeamExternalId(row: any, side: "home" | "away") {
   const raw = asObject(row.raw_payload);
-  return toNullableText(
-    side === "home"
-      ? row.home_team_external_id ?? raw.homeTeamId ?? (asObject(raw.home).teamId) ?? (asObject(raw.seasonGameInfo).homeTeamId)
-      : row.away_team_external_id ?? raw.awayTeamId ?? (asObject(raw.away).teamId) ?? (asObject(raw.seasonGameInfo).awayTeamId)
-  );
+  return toNullableText(side === "home" ? row.home_team_external_id ?? raw.homeTeamId ?? (asObject(raw.home).teamId) ?? (asObject(raw.seasonGameInfo).homeTeamId) : row.away_team_external_id ?? raw.awayTeamId ?? (asObject(raw.away).teamId) ?? (asObject(raw.seasonGameInfo).awayTeamId));
 }
 
 function normalizeTeamName(value: unknown, fallback: string) {
@@ -76,10 +65,7 @@ function normalizeTeamName(value: unknown, fallback: string) {
 function stagedTeamDisplayName(row: any) {
   const raw = asObject(row.raw_payload);
   const cityNick = [raw.cityName, raw.nickName].map(toNullableText).filter(Boolean).join(" ");
-  return normalizeTeamName(
-    cityNick || row.team_name || row.team_display_name || raw.displayName || raw.nickName || raw.abbrName,
-    `Team ${teamExternalId(row) ?? "Unknown"}`
-  );
+  return normalizeTeamName(cityNick || row.team_name || row.team_display_name || raw.displayName || raw.nickName || raw.abbrName, `Team ${teamExternalId(row) ?? "Unknown"}`);
 }
 
 function normalizedLookup(value: unknown) {
@@ -111,34 +97,14 @@ function gameStatus(row: any) {
 
 function collectPrefixed(raw: JsonObject, suffixes: string[]) {
   const out: JsonObject = {};
-  for (const [key, value] of Object.entries(raw)) {
-    if (suffixes.some((suffix) => key.endsWith(suffix))) out[key] = value;
-  }
+  for (const [key, value] of Object.entries(raw)) if (suffixes.some((suffix) => key.endsWith(suffix))) out[key] = value;
   return out;
 }
 
-function buildRatings(raw: JsonObject) {
-  return collectPrefixed(raw, ["Rating", "Grade"]);
-}
-
-function buildTraits(raw: JsonObject) {
-  return collectPrefixed(raw, ["Trait"]);
-}
-
+function buildRatings(raw: JsonObject) { return collectPrefixed(raw, ["Rating", "Grade"]); }
+function buildTraits(raw: JsonObject) { return collectPrefixed(raw, ["Trait"]); }
 function buildContract(raw: JsonObject) {
-  const keys = [
-    "capHit",
-    "capReleaseNetSavings",
-    "capReleasePenalty",
-    "contractBonus",
-    "contractSalary",
-    "contractYearsLeft",
-    "contractLength",
-    "desiredBonus",
-    "desiredSalary",
-    "desiredLength",
-    "reSignStatus"
-  ];
+  const keys = ["capHit", "capReleaseNetSavings", "capReleasePenalty", "contractBonus", "contractSalary", "contractYearsLeft", "contractLength", "desiredBonus", "desiredSalary", "desiredLength", "reSignStatus"];
   return Object.fromEntries(keys.filter((key) => key in raw).map((key) => [key, raw[key]]));
 }
 
@@ -151,91 +117,48 @@ async function loadStagedRows(table: string, importJobId: string) {
 async function upsertTeams(importJobId: string, leagueId: string) {
   const stagedTeams = await loadStagedRows("rec_import_staging_teams", importJobId);
   if (stagedTeams.length === 0) return { addedOrUpdated: 0, teamMap: new Map<string, string>() };
-
-  const rows = (stagedTeams as any[])
-    .map((team: any) => {
-      const raw = asObject(team.raw_payload);
-      const maddenTeamId = teamExternalId(team);
-      const name = stagedTeamDisplayName(team);
-
-      return {
-        league_id: leagueId,
-        name,
-        abbreviation: team.abbr_name ?? team.abbreviation ?? raw.abbrName ?? null,
-        conference: team.conference ?? raw.conferenceName ?? null,
-        division: team.division_name ?? raw.divName ?? null,
-        madden_team_id: maddenTeamId,
-        source: IMPORT_SOURCE,
-        updated_at: new Date().toISOString()
-      };
-    })
-    .filter((team) => team.name && team.madden_team_id);
-
+  const rows = (stagedTeams as any[]).map((team: any) => {
+    const raw = asObject(team.raw_payload);
+    return {
+      league_id: leagueId,
+      name: stagedTeamDisplayName(team),
+      abbreviation: team.abbr_name ?? team.abbreviation ?? raw.abbrName ?? null,
+      conference: team.conference ?? raw.conferenceName ?? null,
+      division: team.division_name ?? raw.divName ?? null,
+      madden_team_id: teamExternalId(team),
+      source: SOURCE_TYPE,
+      updated_at: new Date().toISOString()
+    };
+  }).filter((team) => team.name && team.madden_team_id);
   const teamMap = new Map<string, string>();
   let addedOrUpdated = 0;
-
   for (const row of rows) {
-    const existingByName = await supabase
-      .from("rec_teams")
-      .select("id,name,madden_team_id")
-      .eq("league_id", leagueId)
-      .or(`name.eq.${row.name},madden_team_id.eq.${row.madden_team_id}`)
-      .maybeSingle();
-
+    const existingByName = await supabase.from("rec_teams").select("id,name,madden_team_id").eq("league_id", leagueId).or(`name.eq.${row.name},madden_team_id.eq.${row.madden_team_id}`).maybeSingle();
     if (existingByName.error) throw new ApiError(500, "Failed to check imported team by name.", existingByName.error);
-
-    const saved = existingByName.data?.id
-      ? await supabase
-        .from("rec_teams")
-        .update(row)
-        .eq("id", existingByName.data.id)
-        .select("id,name,madden_team_id")
-        .single()
-      : await supabase
-        .from("rec_teams")
-        .insert(row)
-        .select("id,name,madden_team_id")
-        .single();
-
+    const saved = existingByName.data?.id ? await supabase.from("rec_teams").update(row).eq("id", existingByName.data.id).select("id,name,madden_team_id").single() : await supabase.from("rec_teams").insert(row).select("id,name,madden_team_id").single();
     if (saved.error) throw new ApiError(500, "Failed to commit imported team.", saved.error);
     if (saved.data?.madden_team_id) teamMap.set(String(saved.data.madden_team_id), String(saved.data.id));
     addedOrUpdated += saved.data ? 1 : 0;
   }
-
   return { addedOrUpdated, teamMap };
 }
 
 async function loadTeamMap(leagueId: string) {
-  const result = await supabase
-    .from("rec_teams")
-    .select("id,madden_team_id")
-    .eq("league_id", leagueId)
-    .not("madden_team_id", "is", null);
-
+  const result = await supabase.from("rec_teams").select("id,madden_team_id").eq("league_id", leagueId).not("madden_team_id", "is", null);
   if (result.error) throw new ApiError(500, "Failed to load committed team map.", result.error);
-
   const teamMap = new Map<string, string>();
-  for (const team of (result.data ?? []) as TeamRow[]) {
-    if (team.madden_team_id) teamMap.set(String(team.madden_team_id), team.id);
-  }
+  for (const team of (result.data ?? []) as TeamRow[]) if (team.madden_team_id) teamMap.set(String(team.madden_team_id), team.id);
   return teamMap;
 }
 
 async function buildTeamMapFromStaging(importJobId: string, leagueId: string) {
   const stagedTeams = await loadStagedRows("rec_import_staging_teams", importJobId);
   if (stagedTeams.length === 0) return new Map<string, string>();
-
-  const committedTeams = await supabase
-    .from("rec_teams")
-    .select("id,name,abbreviation,madden_team_id")
-    .eq("league_id", leagueId);
-
+  const committedTeams = await supabase.from("rec_teams").select("id,name,abbreviation,madden_team_id").eq("league_id", leagueId);
   if (committedTeams.error) throw new ApiError(500, "Failed to load committed teams for staged map.", committedTeams.error);
-
   const byName = new Map<string, any>();
   const byAbbr = new Map<string, any>();
   const map = new Map<string, string>();
-
   for (const team of (committedTeams.data ?? []) as any[]) {
     const nameKey = normalizedLookup(team.name);
     const abbrKey = normalizedLookup(team.abbreviation);
@@ -243,228 +166,85 @@ async function buildTeamMapFromStaging(importJobId: string, leagueId: string) {
     if (abbrKey) byAbbr.set(abbrKey, team);
     if (team.madden_team_id) map.set(String(team.madden_team_id), team.id);
   }
-
   for (const staged of stagedTeams as any[]) {
     const raw = asObject(staged.raw_payload);
     const externalId = teamExternalId(staged);
     if (!externalId) continue;
-
-    const name = stagedTeamDisplayName(staged);
-    const abbr = staged.abbr_name ?? staged.abbreviation ?? raw.abbrName;
-    const committed = byName.get(normalizedLookup(name) ?? "") ?? byAbbr.get(normalizedLookup(abbr) ?? "");
-
+    const committed = byName.get(normalizedLookup(stagedTeamDisplayName(staged)) ?? "") ?? byAbbr.get(normalizedLookup(staged.abbr_name ?? staged.abbreviation ?? raw.abbrName) ?? "");
     if (committed?.id) {
       map.set(String(externalId), committed.id);
-      if (!committed.madden_team_id) {
-        await supabase.from("rec_teams").update({ madden_team_id: String(externalId), updated_at: new Date().toISOString() }).eq("id", committed.id);
-      }
+      if (!committed.madden_team_id) await supabase.from("rec_teams").update({ madden_team_id: String(externalId), updated_at: new Date().toISOString() }).eq("id", committed.id);
     }
   }
-
   return map;
 }
 
 async function loadAssignmentMap(leagueId: string) {
-  const result = await supabase
-    .from("rec_team_assignments")
-    .select("team_id,user_id")
-    .eq("league_id", leagueId)
-    .eq("assignment_status", "active")
-    .is("ended_at", null);
-
+  const result = await supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null);
   if (result.error) throw new ApiError(500, "Failed to load active team assignments.", result.error);
-
   const assignmentMap = new Map<string, string>();
-  for (const assignment of (result.data ?? []) as AssignmentRow[]) {
-    if (assignment.team_id && assignment.user_id) assignmentMap.set(assignment.team_id, assignment.user_id);
-  }
+  for (const assignment of (result.data ?? []) as AssignmentRow[]) if (assignment.team_id && assignment.user_id) assignmentMap.set(assignment.team_id, assignment.user_id);
   return assignmentMap;
 }
 
 async function upsertGamesAndResults(importJobId: string, leagueId: string, teamMap: Map<string, string>, assignmentMap: Map<string, string>) {
   const stagedGames = await loadStagedRows("rec_import_staging_games", importJobId);
   if (stagedGames.length === 0) return { gamesAddedOrUpdated: 0, resultsAddedOrUpdated: 0, gamesSkipped: 0 };
-
   const gameRows = [];
   const skipped = [];
-
   for (const game of stagedGames as any[]) {
     const homeExternalId = gameTeamExternalId(game, "home");
     const awayExternalId = gameTeamExternalId(game, "away");
     let homeTeamId = homeExternalId ? teamMap.get(String(homeExternalId)) ?? null : null;
     let awayTeamId = awayExternalId ? teamMap.get(String(awayExternalId)) ?? null : null;
-
     if (!homeTeamId && homeExternalId) {
-      const fallbackName = normalizeTeamName(game.home_team_name, `Home Team ${homeExternalId}`);
-      const existingFallback = await supabase
-        .from("rec_teams")
-        .select("id")
-        .eq("league_id", leagueId)
-        .eq("madden_team_id", String(homeExternalId))
-        .maybeSingle();
+      const existingFallback = await supabase.from("rec_teams").select("id").eq("league_id", leagueId).eq("madden_team_id", String(homeExternalId)).maybeSingle();
       if (existingFallback.error) throw new ApiError(500, "Failed to check fallback home team for imported game.", existingFallback.error);
-      const inserted = existingFallback.data?.id ? { data: existingFallback.data, error: null } as any : await supabase
-        .from("rec_teams")
-        .insert({
-          league_id: leagueId,
-          name: fallbackName,
-          abbreviation: null,
-          madden_team_id: String(homeExternalId),
-          source: IMPORT_SOURCE,
-          updated_at: new Date().toISOString()
-        })
-        .select("id")
-        .single();
+      const inserted = existingFallback.data?.id ? { data: existingFallback.data, error: null } as any : await supabase.from("rec_teams").insert({ league_id: leagueId, name: normalizeTeamName(game.home_team_name, `Home Team ${homeExternalId}`), abbreviation: null, madden_team_id: String(homeExternalId), source: SOURCE_TYPE, updated_at: new Date().toISOString() }).select("id").single();
       if (inserted.error) throw new ApiError(500, "Failed to create fallback home team for imported game.", inserted.error);
       homeTeamId = inserted.data?.id ?? null;
       if (homeTeamId) teamMap.set(String(homeExternalId), homeTeamId);
     }
-
     if (!awayTeamId && awayExternalId) {
-      const fallbackName = normalizeTeamName(game.away_team_name, `Away Team ${awayExternalId}`);
-      const existingFallback = await supabase
-        .from("rec_teams")
-        .select("id")
-        .eq("league_id", leagueId)
-        .eq("madden_team_id", String(awayExternalId))
-        .maybeSingle();
+      const existingFallback = await supabase.from("rec_teams").select("id").eq("league_id", leagueId).eq("madden_team_id", String(awayExternalId)).maybeSingle();
       if (existingFallback.error) throw new ApiError(500, "Failed to check fallback away team for imported game.", existingFallback.error);
-      const inserted = existingFallback.data?.id ? { data: existingFallback.data, error: null } as any : await supabase
-        .from("rec_teams")
-        .insert({
-          league_id: leagueId,
-          name: fallbackName,
-          abbreviation: null,
-          madden_team_id: String(awayExternalId),
-          source: IMPORT_SOURCE,
-          updated_at: new Date().toISOString()
-        })
-        .select("id")
-        .single();
+      const inserted = existingFallback.data?.id ? { data: existingFallback.data, error: null } as any : await supabase.from("rec_teams").insert({ league_id: leagueId, name: normalizeTeamName(game.away_team_name, `Away Team ${awayExternalId}`), abbreviation: null, madden_team_id: String(awayExternalId), source: SOURCE_TYPE, updated_at: new Date().toISOString() }).select("id").single();
       if (inserted.error) throw new ApiError(500, "Failed to create fallback away team for imported game.", inserted.error);
       awayTeamId = inserted.data?.id ?? null;
       if (awayTeamId) teamMap.set(String(awayExternalId), awayTeamId);
     }
-
     if (!homeTeamId || !awayTeamId) {
-      skipped.push({
-        externalGameId: game.external_game_id ?? String(asObject(game.raw_payload).scheduleId ?? ""),
-        homeExternalId,
-        awayExternalId,
-        reason: "unresolved_team"
-      });
+      skipped.push({ externalGameId: game.external_game_id ?? String(asObject(game.raw_payload).scheduleId ?? ""), homeExternalId, awayExternalId, reason: "unresolved_team" });
       continue;
     }
-
     const status = gameStatus(game);
-    const phase = gamePhase(game.week_number, game.season_stage);
-
-    gameRows.push({
-      league_id: leagueId,
-      week_number: game.week_number ?? null,
-      phase,
-      home_team_id: homeTeamId,
-      away_team_id: awayTeamId,
-      home_user_id: assignmentMap.get(homeTeamId) ?? null,
-      away_user_id: assignmentMap.get(awayTeamId) ?? null,
-      home_score: isFinalScore(game.home_score, game.away_score) ? toNumber(game.home_score) : null,
-      away_score: isFinalScore(game.home_score, game.away_score) ? toNumber(game.away_score) : null,
-      status,
-      source: IMPORT_SOURCE,
-      import_verified: true,
-      manual_entered: false,
-      result_payout_eligible: status === "completed",
-      eos_payout_eligible: true,
-      external_game_id: game.external_game_id ?? String(asObject(game.raw_payload).scheduleId ?? ""),
-      locked: false,
-      updated_at: new Date().toISOString()
-    });
+    gameRows.push({ league_id: leagueId, week_number: game.week_number ?? null, phase: gamePhase(game.week_number, game.season_stage), home_team_id: homeTeamId, away_team_id: awayTeamId, home_user_id: assignmentMap.get(homeTeamId) ?? null, away_user_id: assignmentMap.get(awayTeamId) ?? null, home_score: isFinalScore(game.home_score, game.away_score) ? toNumber(game.home_score) : null, away_score: isFinalScore(game.home_score, game.away_score) ? toNumber(game.away_score) : null, status, source: SOURCE_TYPE, import_verified: true, manual_entered: false, result_payout_eligible: status === "completed", eos_payout_eligible: true, external_game_id: game.external_game_id ?? String(asObject(game.raw_payload).scheduleId ?? ""), locked: false, updated_at: new Date().toISOString() });
   }
-
   let gamesAddedOrUpdated = 0;
   let resultsAddedOrUpdated = 0;
-
   for (const row of gameRows) {
-    const existing = row.external_game_id
-      ? await supabase
-        .from("rec_games")
-        .select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase")
-        .eq("league_id", leagueId)
-        .eq("external_game_id", row.external_game_id)
-        .maybeSingle()
-      : { data: null, error: null } as any;
-
+    const existing = row.external_game_id ? await supabase.from("rec_games").select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase").eq("league_id", leagueId).eq("external_game_id", row.external_game_id).maybeSingle() : { data: null, error: null } as any;
     if (existing.error) throw new ApiError(500, "Failed to check existing imported game.", existing.error);
-
-    const saved = existing.data?.id
-      ? await supabase.from("rec_games").update(row).eq("id", existing.data.id).select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase").single()
-      : await supabase.from("rec_games").insert(row).select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase").single();
-
+    const saved = existing.data?.id ? await supabase.from("rec_games").update(row).eq("id", existing.data.id).select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase").single() : await supabase.from("rec_games").insert(row).select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase").single();
     if (saved.error) throw new ApiError(500, "Failed to commit imported game.", saved.error);
     const savedGame = saved.data as CommittedGameRow;
     gamesAddedOrUpdated += savedGame ? 1 : 0;
-
     if (row.status === "completed" && savedGame?.external_game_id) {
-      const resultPayload = {
-        league_id: leagueId,
-        game_id: savedGame.id,
-        external_game_id: savedGame.external_game_id,
-        week_number: savedGame.week_number,
-        phase: savedGame.phase,
-        home_team_id: savedGame.home_team_id,
-        away_team_id: savedGame.away_team_id,
-        home_user_id: savedGame.home_user_id,
-        away_user_id: savedGame.away_user_id,
-        home_score: savedGame.home_score,
-        away_score: savedGame.away_score,
-        winner_team_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.home_team_id : savedGame.away_team_id,
-        loser_team_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.away_team_id : savedGame.home_team_id,
-        winner_user_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.home_user_id : savedGame.away_user_id,
-        loser_user_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.away_user_id : savedGame.home_user_id,
-        source: IMPORT_SOURCE,
-        imported_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-
-      const existingResult = await supabase
-        .from("rec_game_results")
-        .select("id")
-        .eq("league_id", leagueId)
-        .eq("external_game_id", savedGame.external_game_id)
-        .maybeSingle();
-
+      const resultPayload = { league_id: leagueId, game_id: savedGame.id, external_game_id: savedGame.external_game_id, week_number: savedGame.week_number, phase: savedGame.phase, home_team_id: savedGame.home_team_id, away_team_id: savedGame.away_team_id, home_user_id: savedGame.home_user_id, away_user_id: savedGame.away_user_id, home_score: savedGame.home_score, away_score: savedGame.away_score, winner_team_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.home_team_id : savedGame.away_team_id, loser_team_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.away_team_id : savedGame.home_team_id, winner_user_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.home_user_id : savedGame.away_user_id, loser_user_id: (savedGame.home_score ?? 0) === (savedGame.away_score ?? 0) ? null : (savedGame.home_score ?? 0) > (savedGame.away_score ?? 0) ? savedGame.away_user_id : savedGame.home_user_id, source: RESULT_SOURCE, imported_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      const existingResult = await supabase.from("rec_game_results").select("id").eq("league_id", leagueId).eq("external_game_id", savedGame.external_game_id).maybeSingle();
       if (existingResult.error) throw new ApiError(500, "Failed to check imported game result.", existingResult.error);
-
-      const resultWrite = existingResult.data?.id
-        ? await supabase.from("rec_game_results").update(resultPayload).eq("id", existingResult.data.id).select("id").single()
-        : await supabase.from("rec_game_results").insert(resultPayload).select("id").single();
-
+      const resultWrite = existingResult.data?.id ? await supabase.from("rec_game_results").update(resultPayload).eq("id", existingResult.data.id).select("id").single() : await supabase.from("rec_game_results").insert(resultPayload).select("id").single();
       if (resultWrite.error) throw new ApiError(500, "Failed to commit imported game results.", resultWrite.error);
       resultsAddedOrUpdated += resultWrite.data ? 1 : 0;
     }
   }
-
   return { gamesAddedOrUpdated, resultsAddedOrUpdated, gamesSkipped: skipped.length, skippedGames: skipped };
 }
 
 async function upsertStandings(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
   const staged = await loadStagedRows("rec_import_staging_standings", importJobId);
   if (staged.length === 0) return 0;
-  const rows = (staged as any[]).map((row: any) => ({
-    league_id: leagueId,
-    team_id: teamMap.get(String(row.team_external_id)) ?? null,
-    team_external_id: row.team_external_id ?? null,
-    team_name: row.team_name ?? null,
-    wins: toNumber(row.wins),
-    losses: toNumber(row.losses),
-    ties: toNumber(row.ties),
-    points_for: toNumber(row.points_for),
-    points_against: toNumber(row.points_against),
-    season_stage: row.season_stage ?? "regular_season",
-    week_number: row.week_number ?? null,
-    raw_payload: row.raw_payload ?? null,
-    imported_at: new Date().toISOString()
-  }));
+  const rows = (staged as any[]).map((row: any) => ({ league_id: leagueId, team_id: teamMap.get(String(row.team_external_id)) ?? null, team_external_id: row.team_external_id ?? null, team_name: row.team_name ?? null, wins: toNumber(row.wins), losses: toNumber(row.losses), ties: toNumber(row.ties), points_for: toNumber(row.points_for), points_against: toNumber(row.points_against), season_stage: row.season_stage ?? "regular_season", week_number: row.week_number ?? null, raw_payload: row.raw_payload ?? null, imported_at: new Date().toISOString() }));
   const result = await supabase.from("rec_standings_snapshots").insert(rows);
   if (result.error) throw new ApiError(500, "Failed to commit imported standings.", result.error);
   return rows.length;
@@ -473,39 +253,12 @@ async function upsertStandings(importJobId: string, leagueId: string, teamMap: M
 async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
   const staged = await loadStagedRows("rec_import_staging_rosters", importJobId);
   if (staged.length === 0) return 0;
-
   let count = 0;
   for (const row of staged as any[]) {
     const raw = asObject(row.raw_payload);
-    const payload = {
-      league_id: leagueId,
-      team_id: teamMap.get(String(row.team_external_id)) ?? null,
-      team_external_id: row.team_external_id ?? null,
-      player_external_id: row.player_external_id ?? raw.rosterId ?? raw.playerId ?? null,
-      full_name: row.player_name ?? [raw.firstName, raw.lastName].map(toNullableText).filter(Boolean).join(" ") ?? null,
-      position: row.position ?? raw.position ?? null,
-      jersey_number: toNullableInt(row.jersey_number ?? raw.jerseyNum),
-      overall_rating: toNullableInt(row.overall_rating ?? raw.overallRating),
-      dev_trait: row.dev_trait ?? raw.devTrait ?? null,
-      ratings: buildRatings(raw),
-      traits: buildTraits(raw),
-      contract: buildContract(raw),
-      raw_payload: row.raw_payload ?? null,
-      source: IMPORT_SOURCE,
-      updated_at: new Date().toISOString()
-    };
-
-    const existing = await supabase
-      .from("rec_players")
-      .select("id")
-      .eq("league_id", leagueId)
-      .eq("player_external_id", payload.player_external_id)
-      .maybeSingle();
-
-    const write = existing.data?.id
-      ? await supabase.from("rec_players").update(payload).eq("id", existing.data.id).select("id").single()
-      : await supabase.from("rec_players").insert(payload).select("id").single();
-
+    const payload = { league_id: leagueId, team_id: teamMap.get(String(row.team_external_id)) ?? null, team_external_id: row.team_external_id ?? null, player_external_id: row.player_external_id ?? raw.rosterId ?? raw.playerId ?? null, full_name: row.player_name ?? [raw.firstName, raw.lastName].map(toNullableText).filter(Boolean).join(" ") ?? null, position: row.position ?? raw.position ?? null, jersey_number: toNullableInt(row.jersey_number ?? raw.jerseyNum), overall_rating: toNullableInt(row.overall_rating ?? raw.overallRating), dev_trait: row.dev_trait ?? raw.devTrait ?? null, ratings: buildRatings(raw), traits: buildTraits(raw), contract: buildContract(raw), raw_payload: row.raw_payload ?? null, source: SOURCE_TYPE, updated_at: new Date().toISOString() };
+    const existing = await supabase.from("rec_players").select("id").eq("league_id", leagueId).eq("player_external_id", payload.player_external_id).maybeSingle();
+    const write = existing.data?.id ? await supabase.from("rec_players").update(payload).eq("id", existing.data.id).select("id").single() : await supabase.from("rec_players").insert(payload).select("id").single();
     if (write.error) throw new ApiError(500, "Failed to commit imported roster player.", write.error);
     count += write.data ? 1 : 0;
   }
@@ -513,126 +266,43 @@ async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map
 }
 
 async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
-  const [playerStats, teamStats] = await Promise.all([
-    loadStagedRows("rec_import_staging_player_stats", importJobId),
-    loadStagedRows("rec_import_staging_team_stats", importJobId)
-  ]);
-
+  const [playerStats, teamStats] = await Promise.all([loadStagedRows("rec_import_staging_player_stats", importJobId), loadStagedRows("rec_import_staging_team_stats", importJobId)]);
   let playerCount = 0;
   for (const row of playerStats as any[]) {
     const externalId = row.player_external_id ? String(row.player_external_id) : null;
-    const existingPlayer = externalId
-      ? await supabase.from("rec_players").select("id").eq("league_id", leagueId).eq("player_external_id", externalId).maybeSingle()
-      : { data: null } as any;
-    const payload = {
-      league_id: leagueId,
-      team_id: teamMap.get(String(row.team_external_id)) ?? null,
-      player_id: existingPlayer.data?.id ?? null,
-      player_external_id: externalId,
-      player_name: row.player_name ?? null,
-      position: row.position ?? null,
-      week_number: row.week_number ?? null,
-      stat_category: row.stat_category ?? "general",
-      stats: row.stats ?? {},
-      raw_payload: row.raw_payload ?? null,
-      imported_at: new Date().toISOString()
-    };
-    const existing = await supabase
-      .from("rec_player_weekly_stats")
-      .select("id")
-      .eq("league_id", leagueId)
-      .eq("player_external_id", externalId ?? "")
-      .eq("week_number", payload.week_number ?? -1)
-      .eq("stat_category", payload.stat_category)
-      .maybeSingle();
-    const write = existing.data?.id
-      ? await supabase.from("rec_player_weekly_stats").update(payload).eq("id", existing.data.id).select("id").single()
-      : await supabase.from("rec_player_weekly_stats").insert(payload).select("id").single();
+    const existingPlayer = externalId ? await supabase.from("rec_players").select("id").eq("league_id", leagueId).eq("player_external_id", externalId).maybeSingle() : { data: null } as any;
+    const payload = { league_id: leagueId, team_id: teamMap.get(String(row.team_external_id)) ?? null, player_id: existingPlayer.data?.id ?? null, player_external_id: externalId, player_name: row.player_name ?? null, position: row.position ?? null, week_number: row.week_number ?? null, stat_category: row.stat_category ?? "general", stats: row.stats ?? {}, raw_payload: row.raw_payload ?? null, imported_at: new Date().toISOString() };
+    const existing = await supabase.from("rec_player_weekly_stats").select("id").eq("league_id", leagueId).eq("player_external_id", externalId ?? "").eq("week_number", payload.week_number ?? -1).eq("stat_category", payload.stat_category).maybeSingle();
+    const write = existing.data?.id ? await supabase.from("rec_player_weekly_stats").update(payload).eq("id", existing.data.id).select("id").single() : await supabase.from("rec_player_weekly_stats").insert(payload).select("id").single();
     if (write.error) throw new ApiError(500, "Failed to commit imported player weekly stats.", write.error);
     playerCount += write.data ? 1 : 0;
   }
-
   let teamCount = 0;
   for (const row of teamStats as any[]) {
-    const teamId = teamMap.get(String(row.team_external_id)) ?? null;
-    const payload = {
-      league_id: leagueId,
-      team_id: teamId,
-      team_external_id: row.team_external_id ?? null,
-      team_name: row.team_name ?? null,
-      week_number: row.week_number ?? null,
-      stat_category: row.stat_category ?? "general",
-      stats: row.stats ?? {},
-      raw_payload: row.raw_payload ?? null,
-      imported_at: new Date().toISOString()
-    };
-    const existing = await supabase
-      .from("rec_team_weekly_stats")
-      .select("id")
-      .eq("league_id", leagueId)
-      .eq("team_external_id", row.team_external_id ?? "")
-      .eq("week_number", payload.week_number ?? -1)
-      .eq("stat_category", payload.stat_category)
-      .maybeSingle();
-    const write = existing.data?.id
-      ? await supabase.from("rec_team_weekly_stats").update(payload).eq("id", existing.data.id).select("id").single()
-      : await supabase.from("rec_team_weekly_stats").insert(payload).select("id").single();
+    const payload = { league_id: leagueId, team_id: teamMap.get(String(row.team_external_id)) ?? null, team_external_id: row.team_external_id ?? null, team_name: row.team_name ?? null, week_number: row.week_number ?? null, stat_category: row.stat_category ?? "general", stats: row.stats ?? {}, raw_payload: row.raw_payload ?? null, imported_at: new Date().toISOString() };
+    const existing = await supabase.from("rec_team_weekly_stats").select("id").eq("league_id", leagueId).eq("team_external_id", row.team_external_id ?? "").eq("week_number", payload.week_number ?? -1).eq("stat_category", payload.stat_category).maybeSingle();
+    const write = existing.data?.id ? await supabase.from("rec_team_weekly_stats").update(payload).eq("id", existing.data.id).select("id").single() : await supabase.from("rec_team_weekly_stats").insert(payload).select("id").single();
     if (write.error) throw new ApiError(500, "Failed to commit imported team weekly stats.", write.error);
     teamCount += write.data ? 1 : 0;
   }
-
   return { playerCount, teamCount };
 }
 
 export async function commitApprovedImport(importJobId: string) {
   const details = await getImportJob(importJobId);
   const leagueId = details.job.league_id as string;
-
   const teams = await upsertTeams(importJobId, leagueId);
   const committedTeamMap = await loadTeamMap(leagueId);
   const stagedTeamMap = await buildTeamMapFromStaging(importJobId, leagueId);
   for (const [externalId, teamId] of stagedTeamMap.entries()) committedTeamMap.set(externalId, teamId);
   for (const [externalId, teamId] of teams.teamMap.entries()) committedTeamMap.set(externalId, teamId);
   const assignmentMap = await loadAssignmentMap(leagueId);
-
   const gameCommit = await upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap);
   const standings = await upsertStandings(importJobId, leagueId, committedTeamMap);
   const players = await upsertPlayers(importJobId, leagueId, committedTeamMap);
   const stats = await upsertWeeklyStats(importJobId, leagueId, committedTeamMap);
-
   const previousSummary = details.job.preview_summary ?? {};
-  const committedCounts = {
-    teams: teams.addedOrUpdated,
-    games: gameCommit.gamesAddedOrUpdated,
-    leagueGamesStored: gameCommit.gamesAddedOrUpdated,
-    gameResults: gameCommit.resultsAddedOrUpdated,
-    gamesSkipped: gameCommit.gamesSkipped,
-    standings,
-    players,
-    playerWeeklyStats: stats.playerCount,
-    teamWeeklyStats: stats.teamCount
-  };
-
-  if ((previousSummary as any).gamesFound > 0 && committedCounts.games === 0) {
-    throw new ApiError(500, "Schedule import approval failed: staged games were found but no games were written to rec_games.", {
-      stagedGameCount: (previousSummary as any).gamesFound,
-      committedGameCount: committedCounts.games,
-      gamesSkipped: gameCommit.gamesSkipped,
-      skippedGames: gameCommit.skippedGames?.slice?.(0, 10) ?? []
-    });
-  }
-
-  return updateImportJobStatus({
-    importJobId,
-    status: "completed",
-    previewSummary: {
-      ...previousSummary,
-      approvalStatus: "committed",
-      committedCounts,
-      committedAt: new Date().toISOString(),
-      payouts: "Deferred until league advance. Imports do not issue payouts."
-    },
-    validationWarnings: details.job.validation_warnings ?? [],
-    validationErrors: []
-  });
+  const committedCounts = { teams: teams.addedOrUpdated, games: gameCommit.gamesAddedOrUpdated, leagueGamesStored: gameCommit.gamesAddedOrUpdated, gameResults: gameCommit.resultsAddedOrUpdated, gamesSkipped: gameCommit.gamesSkipped, standings, players, playerWeeklyStats: stats.playerCount, teamWeeklyStats: stats.teamCount };
+  if ((previousSummary as any).gamesFound > 0 && committedCounts.games === 0) throw new ApiError(500, "Schedule import approval failed: staged games were found but no games were written to rec_games.", { stagedGameCount: (previousSummary as any).gamesFound, committedGameCount: committedCounts.games, gamesSkipped: gameCommit.gamesSkipped, skippedGames: gameCommit.skippedGames?.slice?.(0, 10) ?? [] });
+  return updateImportJobStatus({ importJobId, status: "completed", previewSummary: { ...previousSummary, approvalStatus: "committed", committedCounts, committedAt: new Date().toISOString(), payouts: "Deferred until league advance. Imports do not issue payouts." }, validationWarnings: details.job.validation_warnings ?? [], validationErrors: [] });
 }
