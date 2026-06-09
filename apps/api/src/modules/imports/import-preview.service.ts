@@ -87,17 +87,20 @@ function formatMatchupResult(game: StagedGameRow, teamMap: TeamNameMap) {
 }
 
 async function loadTeamNameMap(importJobId: string) {
-  const result = await supabase
+  // For schedule-only imports, teams may not be staged. Fall back to extracting from game payloads.
+  const stagedTeams = await supabase
     .from("rec_import_staging_teams")
     .select("team_external_id, external_team_id, team_name, raw_payload")
     .eq("import_job_id", importJobId);
 
-  if (result.error) {
-    throw new ApiError(500, "Failed to load staged team names.", result.error);
+  if (stagedTeams.error) {
+    throw new ApiError(500, "Failed to load staged team names.", stagedTeams.error);
   }
 
   const map = new Map<string, string>();
-  for (const team of result.data ?? []) {
+
+  // Add teams from staging
+  for (const team of stagedTeams.data ?? []) {
     const raw = asObject((team as any).raw_payload);
     const id = toText((team as any).team_external_id) ?? toText((team as any).external_team_id) ?? toText((team as any).madden_team_id) ?? toText(raw.teamId) ?? toText(raw.id);
     const joinedName = [raw.cityName, raw.nickName].map(toText).filter(Boolean).join(" ");
@@ -106,6 +109,25 @@ async function loadTeamNameMap(importJobId: string) {
     if (toText(raw.awayTeamId) && toText(raw.awayTeamName)) map.set(String(toText(raw.awayTeamId)), String(toText(raw.awayTeamName)));
     if (id && name) map.set(String(id), String(name));
   }
+
+  // Fallback: if map is empty (schedule-only imports), extract team names from games
+  if (map.size === 0) {
+    const games = await supabase.from("rec_import_staging_games").select("home_team_external_id,away_team_external_id,home_team_name,away_team_name,raw_payload").eq("import_job_id", importJobId).limit(1000);
+    if (!games.error) {
+      for (const game of games.data ?? []) {
+        const raw = asObject((game as any).raw_payload);
+        if (toText((game as any).home_team_external_id) && toText((game as any).home_team_name)) {
+          map.set(String(toText((game as any).home_team_external_id)), String(toText((game as any).home_team_name)));
+        }
+        if (toText((game as any).away_team_external_id) && toText((game as any).away_team_name)) {
+          map.set(String(toText((game as any).away_team_external_id)), String(toText((game as any).away_team_name)));
+        }
+        if (toText(raw.homeTeamId) && toText(raw.homeTeamName)) map.set(String(toText(raw.homeTeamId)), String(toText(raw.homeTeamName)));
+        if (toText(raw.awayTeamId) && toText(raw.awayTeamName)) map.set(String(toText(raw.awayTeamId)), String(toText(raw.awayTeamName)));
+      }
+    }
+  }
+
   return map;
 }
 
