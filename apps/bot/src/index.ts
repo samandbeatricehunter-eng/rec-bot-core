@@ -1,4 +1,7 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   Client,
   EmbedBuilder,
   GatewayIntentBits,
@@ -29,6 +32,7 @@ import {
 } from "./ui/league-setup.js";
 import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
 import {
+  buildTeamLinkPanelPayload,
   handleCreateDefaultTeams,
   handleTeamLinkSelect,
   handleTeamLinkUserPage,
@@ -247,6 +251,20 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) {
         await handleLeagueSetupSave(interaction);
+        return;
+      }
+
+      if (interaction.customId === "rec:league_setup:link_teams_now") {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.update(buildTeamLinkPanelPayload());
+        const draft = { userPage: 0 } as any;
+        teamLinkSessions.set(interaction.user.id, draft);
+        return;
+      }
+
+      if (interaction.customId === "rec:league_setup:skip_linking") {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
         return;
       }
 
@@ -824,6 +842,9 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
 
   leagueSetupSessions.delete(interaction.user.id);
 
+  const linkTeamsCustomId = "rec:league_setup:link_teams_now";
+  const skipLinkingCustomId = "rec:league_setup:skip_linking";
+
   await interaction.editReply({
     embeds: [
       new EmbedBuilder()
@@ -841,10 +862,17 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
           `Injuries: ${result.configuration.injury_policy}`,
           "",
           "League week defaults to Season 1, Week 1, Regular Season so imports can proceed week by week.",
-          "Economy payouts will remain inactive until the league meets the configured linked-user minimum and imported game-user requirements."
+          "Economy payouts will remain inactive until the league meets the configured linked-user minimum and imported game-user requirements.",
+          "",
+          "**Next Step:** Link Discord users to league teams?"
         ].join("\n"))
     ],
-    components: buildAdminPanelRows()
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(linkTeamsCustomId).setLabel("Link Teams Now").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(skipLinkingCustomId).setLabel("Skip for Now").setStyle(ButtonStyle.Secondary)
+      )
+    ]
   });
 }
 
