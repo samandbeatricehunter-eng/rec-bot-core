@@ -49,16 +49,22 @@ export async function recreateGameChannelsForGuild(guild: Guild) {
   const result = await recApi.getGameChannelPlans(guild.id);
   const categoryId = result.routes?.game_channels_category_id ?? result.plans?.[0]?.categoryId;
   const created: any[] = [];
-  for (const plan of result.plans ?? []) {
-    if (!categoryId) continue;
-    const channel = await guild.channels.create({ name: plan.channelName, type: ChannelType.GuildText, parent: categoryId, reason: "REC weekly H2H matchup channel" });
-    if (channel instanceof TextChannel) {
-      await channel.send({ embeds: buildGameEmbeds(plan) });
-      await recApi.recordGameChannel({ ...plan, discordChannelId: channel.id });
-      created.push({ plan, channelId: channel.id });
+  const skipped: any[] = [];
+
+  if (!categoryId) {
+    skipped.push({ reason: "Game channels category not configured in server setup" });
+  } else {
+    for (const plan of result.plans ?? []) {
+      const channel = await guild.channels.create({ name: plan.channelName, type: ChannelType.GuildText, parent: categoryId, reason: "REC weekly H2H matchup channel" });
+      if (channel instanceof TextChannel) {
+        await channel.send({ embeds: buildGameEmbeds(plan) });
+        await recApi.recordGameChannel({ ...plan, discordChannelId: channel.id });
+        created.push({ matchup: `${plan.awayTeamName} vs ${plan.homeTeamName}`, channelId: channel.id });
+      }
     }
   }
-  return { created };
+
+  return { created, skipped, totalPlans: result.plans?.length ?? 0 };
 }
 
 export async function sendAdvanceDmsForGuild(guild: Guild) {
@@ -110,8 +116,8 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
     ].filter(Boolean).join("\n");
     try { await user.send(lines); sent++; } catch { failed++; }
   }
-  await recreateGameChannelsForGuild(guild);
-  return { sent, failed };
+  const gameChannels = await recreateGameChannelsForGuild(guild);
+  return { sent, failed, gameChannels };
 }
 
 export async function recordGameChannelMessage(message: any) {

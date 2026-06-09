@@ -430,7 +430,17 @@ async function handleAdvanceMenuSelect(interaction: StringSelectMenuInteraction)
     if (!interaction.inCachedGuild()) return;
     await interaction.deferReply({ ephemeral: true });
     const result = await sendAdvanceDmsForGuild(interaction.guild);
-    await interaction.editReply(`Advance automation completed. DMs sent: ${result.sent}. Failed: ${result.failed}.`);
+    const lines = [
+      "**Advance Week Completed**",
+      "",
+      `DMs sent: ${result.sent}`,
+      `DMs failed: ${result.failed}`,
+      "",
+      `Game channels total available: ${result.gameChannels.totalPlans}`,
+      `Game channels created: ${result.gameChannels.created.length}`,
+      ...(result.gameChannels.skipped.length ? [`Game channels skipped: ${result.gameChannels.skipped.length} - ${result.gameChannels.skipped[0].reason}`] : [])
+    ];
+    await interaction.editReply(lines.join("\n"));
   }
 }
 
