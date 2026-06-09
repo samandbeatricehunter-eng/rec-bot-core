@@ -88,7 +88,15 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return;
       }
 
-      if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setCommissionerOffice || interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setStreamsChannel) {
+      const serverSetupChannelCustomIds = [
+        SERVER_SETUP_ADMIN_CUSTOM_IDS.setCommissionerOffice,
+        SERVER_SETUP_ADMIN_CUSTOM_IDS.setStreamsChannel,
+        SERVER_SETUP_ADMIN_CUSTOM_IDS.setHighlightsChannel,
+        SERVER_SETUP_ADMIN_CUSTOM_IDS.setPendingPayoutsChannel,
+        SERVER_SETUP_ADMIN_CUSTOM_IDS.setAnnouncementsChannel,
+        SERVER_SETUP_ADMIN_CUSTOM_IDS.setGameChannelsCategory
+      ];
+      if (serverSetupChannelCustomIds.some(id => interaction.customId === id)) {
         await handleServerSetupChannelSelect(interaction);
         return;
       }
@@ -912,14 +920,33 @@ async function handleServerSetupChannelSelect(interaction: any) {
     await interaction.reply({ content: "Only authorized admins can change server setup routing.", ephemeral: true });
     return;
   }
-  const channelId = interaction.values[0];
+  const value = interaction.values[0];
+  let label = "";
+
   if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setCommissionerOffice) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, commissionerOfficeChannelId: channelId });
-    await interaction.reply({ content: `Commissioner Office channel set to <#${channelId}>.`, ephemeral: true });
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, commissionerOfficeChannelId: value });
+    label = "Commissioner Office";
+  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setStreamsChannel) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, streamsChannelId: value });
+    label = "Streams";
+  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setHighlightsChannel) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, highlightsChannelId: value });
+    label = "Highlights";
+  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setPendingPayoutsChannel) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, pendingPayoutsChannelId: value });
+    label = "Pending Payouts";
+  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setAnnouncementsChannel) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, announcementsChannelId: value });
+    label = "Announcements";
+  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setGameChannelsCategory) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, gameChannelsCategoryId: value });
+    label = "Game Channels Category";
+  } else {
+    await interaction.reply({ content: "Unknown channel selector.", ephemeral: true });
     return;
   }
-  await recApi.setEconomyConfig({ guildId: interaction.guildId, streamsChannelId: channelId });
-  await interaction.reply({ content: `Streams channel set to <#${channelId}>.`, ephemeral: true });
+
+  await interaction.reply({ content: `${label} set to <#${value}>.`, ephemeral: true });
 }
 
 async function handleServerSetupRoleSelect(interaction: any) {

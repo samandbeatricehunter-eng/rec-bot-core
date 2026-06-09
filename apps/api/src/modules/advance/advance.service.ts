@@ -246,13 +246,16 @@ export async function viewEconomyConfig(guildId: string) {
   return { routes: await getRoutes(context.server_id), league: context.rec_leagues };
 }
 
-export async function setEconomyConfig(input: { guildId: string; pendingEconomyChannelId?: string; gameChannelsCategoryId?: string; commissionerOfficeChannelId?: string; streamsChannelId?: string; commissionerRoleId?: string; compCommitteeRoleId?: string }) {
+export async function setEconomyConfig(input: { guildId: string; pendingEconomyChannelId?: string; pendingPayoutsChannelId?: string; gameChannelsCategoryId?: string; commissionerOfficeChannelId?: string; streamsChannelId?: string; highlightsChannelId?: string; announcementsChannelId?: string; commissionerRoleId?: string; compCommitteeRoleId?: string }) {
   const context = await getLeagueContext(input.guildId);
   const patch: Record<string, unknown> = { server_id: context.server_id, updated_at: new Date().toISOString() };
   if (input.pendingEconomyChannelId !== undefined) patch.pending_economy_channel_id = input.pendingEconomyChannelId;
+  if (input.pendingPayoutsChannelId !== undefined) patch.pending_payouts_channel_id = input.pendingPayoutsChannelId;
   if (input.gameChannelsCategoryId !== undefined) patch.game_channels_category_id = input.gameChannelsCategoryId;
   if (input.commissionerOfficeChannelId !== undefined) patch.commissioner_office_channel_id = input.commissionerOfficeChannelId;
   if (input.streamsChannelId !== undefined) patch.streams_channel_id = input.streamsChannelId;
+  if (input.highlightsChannelId !== undefined) patch.highlights_channel_id = input.highlightsChannelId;
+  if (input.announcementsChannelId !== undefined) patch.announcements_channel_id = input.announcementsChannelId;
   if (input.commissionerRoleId !== undefined) patch.commissioner_role_id = input.commissionerRoleId;
   if (input.compCommitteeRoleId !== undefined) patch.comp_committee_role_id = input.compCommitteeRoleId;
   const existing = await getRoutes(context.server_id);

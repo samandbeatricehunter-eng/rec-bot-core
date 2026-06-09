@@ -248,7 +248,11 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
     media_channel_id: input.mediaChannelId ?? null,
     rules_channel_id: input.rulesChannelId ?? null,
     announcements_channel_id: input.announcementsChannelId ?? null,
-    economy_channel_id: input.economyChannelId ?? null
+    streams_channel_id: input.streamsChannelId ?? null,
+    highlights_channel_id: input.highlightsChannelId ?? null,
+    pending_payouts_channel_id: input.pendingPayoutsChannelId ?? null,
+    game_channels_category_id: input.gameChannelsCategoryId ?? null,
+    commissioner_office_channel_id: input.commissionerOfficeChannelId ?? null
   };
 
   const routes = await supabase
