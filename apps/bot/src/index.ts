@@ -199,6 +199,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return;
       }
 
+      if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) {
+        await handleImportButton(interaction);
+        return;
+      }
+
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) {
         await handleImportButton(interaction);
         return;
