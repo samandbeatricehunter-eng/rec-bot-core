@@ -831,8 +831,12 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
       draft.streamingSide = value as LeagueSetupDraft["streamingSide"];
       break;
 
-    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRule:
-      draft.fourthDownRuleType = value as LeagueSetupDraft["fourthDownRuleType"];
+    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRuleRegular:
+      draft.fourthDownRuleTypeRegular = value as LeagueSetupDraft["fourthDownRuleTypeRegular"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRulePlayoff:
+      draft.fourthDownRuleTypePlayoff = value as LeagueSetupDraft["fourthDownRuleTypePlayoff"];
       break;
 
     case LEAGUE_SETUP_CUSTOM_IDS.positionChangePolicy:

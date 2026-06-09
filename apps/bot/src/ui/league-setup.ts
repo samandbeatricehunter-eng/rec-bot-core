@@ -16,7 +16,8 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   regularSeasonStreaming: "rec:league_setup:streaming_regular",
   postseasonStreaming: "rec:league_setup:streaming_postseason",
   streamingSide: "rec:league_setup:streaming_side",
-  fourthDownRule: "rec:league_setup:fourth_down_rule",
+  fourthDownRuleRegular: "rec:league_setup:fourth_down_rule_regular",
+  fourthDownRulePlayoff: "rec:league_setup:fourth_down_rule_playoff",
   positionChangePolicy: "rec:league_setup:position_changes",
   tradeApprovalPolicy: "rec:league_setup:trade_approval",
   cpuRules: "rec:league_setup:cpu_rules",
@@ -35,6 +36,8 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   defensiveLimitsEnabled: "rec:league_setup:def_limits_enabled",
   defensiveLimit: "rec:league_setup:def_limit",
   defensiveCooldown: "rec:league_setup:def_cooldown",
+  commissionerRole: "rec:league_setup:commissioner_role",
+  compCommitteeRole: "rec:league_setup:comp_committee_role",
   save: "rec:league_setup:save"
 } as const;
 
@@ -46,7 +49,8 @@ export type LeagueSetupStep =
   | "regular_season_streaming"
   | "postseason_streaming"
   | "streaming_side"
-  | "fourth_down"
+  | "fourth_down_regular"
+  | "fourth_down_playoff"
   | "position_changes"
   | "trade_approval"
   | "cpu_rules"
@@ -65,6 +69,8 @@ export type LeagueSetupStep =
   | "defensive_limits_enabled"
   | "defensive_limit"
   | "defensive_cooldown"
+  | "commissioner_role"
+  | "committee_role"
   | "review";
 
 export type LeagueSetupDraft = {
@@ -89,7 +95,8 @@ export type LeagueSetupDraft = {
   postseasonStreamingRequirement: "required" | "recommended" | "disabled";
   streamingScope: "every_game" | "playoffs_only";
   streamingSide: "home" | "away" | "either" | "both";
-  fourthDownRuleType: "none" | "standard_rec" | "custom";
+  fourthDownRuleTypeRegular: "none" | "standard_rec" | "custom";
+  fourthDownRuleTypePlayoff: "none" | "standard_rec" | "custom";
   positionChangePolicy: "open" | "restricted" | "highly_restricted";
   customPlaybooksAllowed: boolean;
   tradeApprovalPolicy: "no_approval_required" | "commissioner_review" | "competition_committee_review";
@@ -110,6 +117,9 @@ export type LeagueSetupDraft = {
   defensivePlayCallLimitsEnabled: boolean;
   defensivePlayCallLimit?: number | null;
   defensivePlayCallCooldown?: number | null;
+  // Role assignment (set during league setup, stored in Discord server settings)
+  commissionerRoleId?: string | null;
+  compCommitteeRoleId?: string | null;
 };
 
 const STEP_ORDER: LeagueSetupStep[] = [
@@ -120,7 +130,8 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "regular_season_streaming",
   "postseason_streaming",
   "streaming_side",
-  "fourth_down",
+  "fourth_down_regular",
+  "fourth_down_playoff",
   "position_changes",
   "trade_approval",
   "cpu_rules",
@@ -139,6 +150,8 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "defensive_limits_enabled",
   "defensive_limit",
   "defensive_cooldown",
+  "commissioner_role",
+  "committee_role",
   "review"
 ];
 
@@ -165,7 +178,8 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     postseasonStreamingRequirement: "required",
     streamingScope: "every_game",
     streamingSide: "either",
-    fourthDownRuleType: "standard_rec",
+    fourthDownRuleTypeRegular: "standard_rec",
+    fourthDownRuleTypePlayoff: "standard_rec",
     positionChangePolicy: "restricted",
     customPlaybooksAllowed: false,
     tradeApprovalPolicy: "competition_committee_review",
@@ -185,7 +199,9 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     offensivePlayCallCooldown: null,
     defensivePlayCallLimitsEnabled: false,
     defensivePlayCallLimit: null,
-    defensivePlayCallCooldown: null
+    defensivePlayCallCooldown: null,
+    commissionerRoleId: null,
+    compCommitteeRoleId: null
   };
 }
 
@@ -195,10 +211,21 @@ export function getPreviousLeagueSetupStep(step: LeagueSetupStep): LeagueSetupSt
   return STEP_ORDER[index - 1];
 }
 
+/**
+ * Gets the next setup step in sequence
+ * NOTE: Even if limits are disabled, we still ask for limit/cooldown values
+ * This allows admins to set defaults that can be used later if limits are enabled
+ *
+ * @param step Current setup step
+ * @param draft Current setup draft
+ * @returns Next step to display
+ */
 export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
+  // Skip accelerated clock seconds question if accelerated clock is disabled
   if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return "salary_cap";
-  if (step === "offensive_limits_enabled" && !draft.offensivePlayCallLimitsEnabled) return "defensive_limits_enabled";
-  if (step === "defensive_limits_enabled" && !draft.defensivePlayCallLimitsEnabled) return "review";
+
+  // Always show limit and cooldown prompts (even if disabled, users may want to set defaults)
+  // So we removed the skip logic that was preventing them from being asked
 
   const index = STEP_ORDER.indexOf(step);
   return STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)];
@@ -365,11 +392,22 @@ export function buildStreamingSideWindow(draft: LeagueSetupDraft) {
   };
 }
 
-export function buildFourthDownWindow(draft: LeagueSetupDraft) {
+/**
+ * Build 4th down rules window for either regular season or playoff
+ * Allows different rules to apply in different phases of the season
+ *
+ * @param draft Current setup draft
+ * @param phase "Regular Season" or "Playoff" to show in title
+ * @returns Embed and components for 4th down rule selection
+ */
+export function buildFourthDownWindow(draft: LeagueSetupDraft, phase: "Regular Season" | "Playoff" = "Regular Season") {
+  // Determine which rule to display based on phase
+  const customId = phase === "Playoff" ? LEAGUE_SETUP_CUSTOM_IDS.fourthDownRulePlayoff : LEAGUE_SETUP_CUSTOM_IDS.fourthDownRuleRegular;
+
   return {
-    embeds: [baseEmbed("League Setup: 4th Down Rules", draft)],
+    embeds: [baseEmbed(`League Setup: 4th Down Rules - ${phase}`, draft)],
     components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.fourthDownRule, "Select 4th down rule", [
+      selectRow(customId, "Select 4th down rule", [
         option("No 4th Down Rules", "none"),
         option("Standard REC Rule", "standard_rec", "Past midfield and 4th & 3 or less; trailing in second half can go anytime."),
         option("Custom 4th Down Rules", "custom")
@@ -496,6 +534,33 @@ export function buildPlayCallNumberWindow(draft: LeagueSetupDraft, title: string
   };
 }
 
+/**
+ * Build role selection window for commissioner or committee role
+ * NOTE: In a full implementation, this would fetch available Discord roles
+ * and display a role select menu. For now, this stores the role ID from
+ * the subsequent role-assign handler in index.ts
+ *
+ * @param draft Current setup draft
+ * @param title Role name (e.g., "Commissioner Role")
+ * @param customId Custom ID for this role selection
+ * @param placeholder Placeholder text
+ * @returns Embed and components for role info/next button
+ */
+export function buildRoleWindow(draft: LeagueSetupDraft, title: string, customId: string, placeholder: string) {
+  return {
+    embeds: [baseEmbed(`League Setup: ${title}`, draft)],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(customId)
+          .setLabel(`Select ${title}`)
+          .setStyle(ButtonStyle.Primary)
+      ),
+      buildNavigationRow()
+    ]
+  };
+}
+
 export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
   const embed = new EmbedBuilder()
     .setTitle("Review League Setup")
@@ -527,7 +592,8 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Regular Season Streaming: ${fmt(draft.regularSeasonStreamingRequirement)}`,
           `Postseason Streaming: ${fmt(draft.postseasonStreamingRequirement)}`,
           `Required Streaming Side: ${fmt(draft.streamingSide)}`,
-          `4th Down: ${fmt(draft.fourthDownRuleType)}`,
+          `4th Down (Regular Season): ${fmt(draft.fourthDownRuleTypeRegular)}`,
+          `4th Down (Playoff): ${fmt(draft.fourthDownRuleTypePlayoff)}`,
           `Position Changes: ${fmt(draft.positionChangePolicy)}`,
           `Trade Approval: ${fmt(draft.tradeApprovalPolicy)}`,
           `CPU Trading: ${yesNo(draft.cpuTradingAllowed)}`,
@@ -573,7 +639,8 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "regular_season_streaming": return buildRegularSeasonStreamingWindow(draft);
     case "postseason_streaming": return buildPostseasonStreamingWindow(draft);
     case "streaming_side": return buildStreamingSideWindow(draft);
-    case "fourth_down": return buildFourthDownWindow(draft);
+    case "fourth_down_regular": return buildFourthDownWindow(draft, "Regular Season");
+    case "fourth_down_playoff": return buildFourthDownWindow(draft, "Playoff");
     case "position_changes": return buildPositionChangeWindow(draft);
     case "trade_approval": return buildTradeApprovalWindow(draft);
     case "cpu_rules": return buildCpuRulesWindow(draft);
@@ -588,10 +655,12 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "injury_policy": return buildInjuryPolicyWindow(draft);
     case "offensive_limits_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Offensive Play Call Limits", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled, "Offensive play call limits enabled?");
     case "offensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit, "Select offensive play call limit");
-    case "offensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown, "Select offensive play call cooldown");
+    case "offensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown, "Select offensive play call cooldown (seconds)");
     case "defensive_limits_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Defensive Play Call Limits", LEAGUE_SETUP_CUSTOM_IDS.defensiveLimitsEnabled, "Defensive play call limits enabled?");
     case "defensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit, "Select defensive play call limit");
-    case "defensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown, "Select defensive play call cooldown");
+    case "defensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown, "Select defensive play call cooldown (seconds)");
+    case "commissioner_role": return buildRoleWindow(draft, "Commissioner Role", LEAGUE_SETUP_CUSTOM_IDS.commissionerRole, "Select or create commissioner role");
+    case "committee_role": return buildRoleWindow(draft, "Competitive Committee Role", LEAGUE_SETUP_CUSTOM_IDS.compCommitteeRole, "Select or create committee role");
     case "review": return buildLeagueSetupReviewWindow(draft);
   }
 }
