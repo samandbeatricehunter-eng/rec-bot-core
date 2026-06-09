@@ -11,6 +11,7 @@ import { buildNavigationRow } from "./navigation.js";
 export const LEAGUE_SETUP_CUSTOM_IDS = {
   leagueType: "rec:league_setup:league_type",
   importMode: "rec:league_setup:import_mode",
+  seasonWeek: "rec:league_setup:season_week",
   featureToggles: "rec:league_setup:features",
   draftClassType: "rec:league_setup:draft_class_type",
   regularSeasonStreaming: "rec:league_setup:streaming_regular",
@@ -32,18 +33,20 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   injuryPolicy: "rec:league_setup:injury_policy",
   offensiveLimitsEnabled: "rec:league_setup:off_limits_enabled",
   offensiveLimit: "rec:league_setup:off_limit",
+  offensiveCooldownEnabled: "rec:league_setup:off_cooldown_enabled",
   offensiveCooldown: "rec:league_setup:off_cooldown",
   defensiveLimitsEnabled: "rec:league_setup:def_limits_enabled",
   defensiveLimit: "rec:league_setup:def_limit",
+  defensiveCooldownEnabled: "rec:league_setup:def_cooldown_enabled",
   defensiveCooldown: "rec:league_setup:def_cooldown",
-  commissionerRole: "rec:league_setup:commissioner_role",
-  compCommitteeRole: "rec:league_setup:comp_committee_role",
+  teamLinkingOptional: "rec:league_setup:team_linking_optional",
   save: "rec:league_setup:save"
 } as const;
 
 export type LeagueSetupStep =
   | "league_type"
   | "import_mode"
+  | "season_week"
   | "features"
   | "draft_class_type"
   | "regular_season_streaming"
@@ -65,12 +68,13 @@ export type LeagueSetupStep =
   | "injury_policy"
   | "offensive_limits_enabled"
   | "offensive_limit"
+  | "offensive_cooldown_enabled"
   | "offensive_cooldown"
   | "defensive_limits_enabled"
   | "defensive_limit"
+  | "defensive_cooldown_enabled"
   | "defensive_cooldown"
-  | "commissioner_role"
-  | "committee_role"
+  | "team_linking_optional"
   | "review";
 
 export type LeagueSetupDraft = {
@@ -78,6 +82,7 @@ export type LeagueSetupDraft = {
   step: LeagueSetupStep;
   leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters";
   importMode: "manual" | "ea_import" | "companion_app_export";
+  seasonWeek: string;
   coinEconomyEnabled: boolean;
   customPlayersEnabled: boolean;
   legendsEnabled: boolean;
@@ -113,18 +118,20 @@ export type LeagueSetupDraft = {
   wearAndTearEnabled: boolean;
   offensivePlayCallLimitsEnabled: boolean;
   offensivePlayCallLimit?: number | null;
+  offensivePlayCallCooldownEnabled: boolean;
   offensivePlayCallCooldown?: number | null;
   defensivePlayCallLimitsEnabled: boolean;
   defensivePlayCallLimit?: number | null;
+  defensivePlayCallCooldownEnabled: boolean;
   defensivePlayCallCooldown?: number | null;
-  // Role assignment (set during league setup, stored in Discord server settings)
-  commissionerRoleId?: string | null;
-  compCommitteeRoleId?: string | null;
+  // Whether to open the team-linking flow after the league is saved (chosen at the optional step).
+  linkTeamsAfterSetup: boolean;
 };
 
 const STEP_ORDER: LeagueSetupStep[] = [
   "league_type",
   "import_mode",
+  "season_week",
   "features",
   "draft_class_type",
   "regular_season_streaming",
@@ -146,12 +153,13 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "injury_policy",
   "offensive_limits_enabled",
   "offensive_limit",
+  "offensive_cooldown_enabled",
   "offensive_cooldown",
   "defensive_limits_enabled",
   "defensive_limit",
+  "defensive_cooldown_enabled",
   "defensive_cooldown",
-  "commissioner_role",
-  "committee_role",
+  "team_linking_optional",
   "review"
 ];
 
@@ -161,6 +169,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     step: "league_type",
     leagueType: "regular_rosters",
     importMode: "manual",
+    seasonWeek: "week_1",
     coinEconomyEnabled: false,
     customPlayersEnabled: false,
     legendsEnabled: false,
@@ -196,12 +205,13 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     wearAndTearEnabled: true,
     offensivePlayCallLimitsEnabled: false,
     offensivePlayCallLimit: null,
+    offensivePlayCallCooldownEnabled: false,
     offensivePlayCallCooldown: null,
     defensivePlayCallLimitsEnabled: false,
     defensivePlayCallLimit: null,
+    defensivePlayCallCooldownEnabled: false,
     defensivePlayCallCooldown: null,
-    commissionerRoleId: null,
-    compCommitteeRoleId: null
+    linkTeamsAfterSetup: false
   };
 }
 
@@ -213,8 +223,6 @@ export function getPreviousLeagueSetupStep(step: LeagueSetupStep): LeagueSetupSt
 
 /**
  * Gets the next setup step in sequence
- * NOTE: Even if limits are disabled, we still ask for limit/cooldown values
- * This allows admins to set defaults that can be used later if limits are enabled
  *
  * @param step Current setup step
  * @param draft Current setup draft
@@ -224,8 +232,13 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   // Skip accelerated clock seconds question if accelerated clock is disabled
   if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return "salary_cap";
 
-  // Always show limit and cooldown prompts (even if disabled, users may want to set defaults)
-  // So we removed the skip logic that was preventing them from being asked
+  // Offensive: limit and cooldown are independent features, each with its own enable toggle.
+  if (step === "offensive_limits_enabled" && !draft.offensivePlayCallLimitsEnabled) return "offensive_cooldown_enabled";
+  if (step === "offensive_cooldown_enabled" && !draft.offensivePlayCallCooldownEnabled) return "defensive_limits_enabled";
+
+  // Defensive: limit and cooldown are independent features, each with its own enable toggle.
+  if (step === "defensive_limits_enabled" && !draft.defensivePlayCallLimitsEnabled) return "defensive_cooldown_enabled";
+  if (step === "defensive_cooldown_enabled" && !draft.defensivePlayCallCooldownEnabled) return "team_linking_optional";
 
   const index = STEP_ORDER.indexOf(step);
   return STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)];
@@ -295,6 +308,34 @@ export function buildImportModeWindow(draft: LeagueSetupDraft) {
         option("Import from EA", "ea_import"),
         option("Export from Companion App", "companion_app_export")
       ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildSeasonWeekWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Current Season Week", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek, "Select the current week/stage", [
+        ...Array.from({ length: 18 }, (_, i) => option(`Regular Season Week ${i + 1}`, `week_${i + 1}`)),
+        option("Wildcard Round", "wildcard"),
+        option("Divisional Round", "divisional"),
+        option("Conference Championship", "conference"),
+        option("Super Bowl", "super_bowl"),
+        option("Coach Hiring Stage", "coach_hiring"),
+        option("Final Resigning Stage", "final_resigning")
+      ]),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.seasonWeek}:postseason`)
+          .setPlaceholder("Or select offseason stage")
+          .addOptions(
+            option("Free Agency", "free_agency"),
+            option("Draft", "draft"),
+            option("Training Camp / Preseason", "training_camp")
+          )
+      ),
       buildNavigationRow()
     ]
   };
@@ -526,8 +567,10 @@ export function buildInjuryPolicyWindow(draft: LeagueSetupDraft) {
   };
 }
 
-export function buildPlayCallNumberWindow(draft: LeagueSetupDraft, title: string, customId: string, placeholder: string) {
-  const options = Array.from({ length: 10 }, (_, index) => index + 1).map((value) => option(String(value), String(value)));
+export function buildPlayCallNumberWindow(draft: LeagueSetupDraft, title: string, customId: string, placeholder: string, isCooldown: boolean = false) {
+  const options = Array.from({ length: 10 }, (_, index) => index + 1).map((value) =>
+    option(String(value), String(value), isCooldown ? `${value} plays required before repeating` : undefined)
+  );
   return {
     embeds: [baseEmbed(title, draft)],
     components: [selectRow(customId, placeholder, options), buildNavigationRow()]
@@ -561,6 +604,20 @@ export function buildRoleWindow(draft: LeagueSetupDraft, title: string, customId
   };
 }
 
+export function buildTeamLinkingOptionalWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Link Teams (Optional)", draft)
+      .setFooter({ text: "Linking opens right after you save the league on the next screen." })],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.teamLinkingOptional, "Link teams to users after saving?", [
+        option("Yes, link teams after saving", "yes"),
+        option("No, I'll link later", "no")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
 export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
   const embed = new EmbedBuilder()
     .setTitle("Review League Setup")
@@ -568,7 +625,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
     .addFields(
       {
         name: "Identity",
-        value: [`Type: ${fmt(draft.leagueType)}`, `Import Mode: ${fmt(draft.importMode)}`, `Draft Class Type: ${fmt(draft.draftClassType)}`].join("\n"),
+        value: [`Type: ${fmt(draft.leagueType)}`, `Import Mode: ${fmt(draft.importMode)}`, `Current Week: ${fmt(draft.seasonWeek)}`, `Draft Class Type: ${fmt(draft.draftClassType)}`].join("\n"),
         inline: true
       },
       {
@@ -612,8 +669,10 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Abilities: ${boolText(draft.abilitiesEnabled)}`,
           `Wear & Tear: ${boolText(draft.wearAndTearEnabled)}`,
           `Injuries: ${fmt(draft.injuryPolicy)}`,
-          `Offense Limits: ${draft.offensivePlayCallLimitsEnabled ? `${draft.offensivePlayCallLimit ?? "?"} / cooldown ${draft.offensivePlayCallCooldown ?? "?"}` : "Off"}`,
-          `Defense Limits: ${draft.defensivePlayCallLimitsEnabled ? `${draft.defensivePlayCallLimit ?? "?"} / cooldown ${draft.defensivePlayCallCooldown ?? "?"}` : "Off"}`
+          `Offense Limit: ${draft.offensivePlayCallLimitsEnabled ? `${draft.offensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
+          `Offense Cooldown: ${draft.offensivePlayCallCooldownEnabled ? `${draft.offensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`,
+          `Defense Limit: ${draft.defensivePlayCallLimitsEnabled ? `${draft.defensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
+          `Defense Cooldown: ${draft.defensivePlayCallCooldownEnabled ? `${draft.defensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`
         ].join("\n"),
         inline: false
       }
@@ -634,6 +693,7 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
     case "league_type": return buildLeagueTypeWindow(draft);
     case "import_mode": return buildImportModeWindow(draft);
+    case "season_week": return buildSeasonWeekWindow(draft);
     case "features": return buildFeatureTogglesWindow(draft);
     case "draft_class_type": return buildDraftClassTypeWindow(draft);
     case "regular_season_streaming": return buildRegularSeasonStreamingWindow(draft);
@@ -654,13 +714,14 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "wear_and_tear": return buildBooleanGameplayWindow(draft, "Gameplay: Wear & Tear", LEAGUE_SETUP_CUSTOM_IDS.wearAndTear, "Wear & Tear enabled?");
     case "injury_policy": return buildInjuryPolicyWindow(draft);
     case "offensive_limits_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Offensive Play Call Limits", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled, "Offensive play call limits enabled?");
-    case "offensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit, "Select offensive play call limit");
-    case "offensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown, "Select offensive play call cooldown (seconds)");
+    case "offensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit, "Select max times a play can be called per game");
+    case "offensive_cooldown_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Offensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldownEnabled, "Offensive play call cooldown enabled?");
+    case "offensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown, "Select plays required before repeating", true);
     case "defensive_limits_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Defensive Play Call Limits", LEAGUE_SETUP_CUSTOM_IDS.defensiveLimitsEnabled, "Defensive play call limits enabled?");
-    case "defensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit, "Select defensive play call limit");
-    case "defensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown, "Select defensive play call cooldown (seconds)");
-    case "commissioner_role": return buildRoleWindow(draft, "Commissioner Role", LEAGUE_SETUP_CUSTOM_IDS.commissionerRole, "Select or create commissioner role");
-    case "committee_role": return buildRoleWindow(draft, "Competitive Committee Role", LEAGUE_SETUP_CUSTOM_IDS.compCommitteeRole, "Select or create committee role");
+    case "defensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit, "Select max times a play can be called per game");
+    case "defensive_cooldown_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldownEnabled, "Defensive play call cooldown enabled?");
+    case "defensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown, "Select plays required before repeating", true);
+    case "team_linking_optional": return buildTeamLinkingOptionalWindow(draft);
     case "review": return buildLeagueSetupReviewWindow(draft);
   }
 }
@@ -693,11 +754,15 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
 
   if (!draft.offensivePlayCallLimitsEnabled) {
     draft.offensivePlayCallLimit = null;
+  }
+  if (!draft.offensivePlayCallCooldownEnabled) {
     draft.offensivePlayCallCooldown = null;
   }
 
   if (!draft.defensivePlayCallLimitsEnabled) {
     draft.defensivePlayCallLimit = null;
+  }
+  if (!draft.defensivePlayCallCooldownEnabled) {
     draft.defensivePlayCallCooldown = null;
   }
 

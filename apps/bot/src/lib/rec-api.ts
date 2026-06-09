@@ -73,6 +73,12 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  unlinkAllTeams: (guildId: string, requestedByDiscordId?: string) =>
+    recFetch<any>("/v1/team-ownership/unlink-all", {
+      method: "POST",
+      body: JSON.stringify({ guildId, requestedByDiscordId })
+    }),
+
   createCustomTeamReplacement: (input: {
     guildId: string;
     replacementTeamAbbreviation: string;

@@ -1,4 +1,4 @@
-import { Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
 import { env } from "./config/env.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
@@ -12,6 +12,7 @@ import {
   MENU_CUSTOM_IDS,
   type SetupDangerAction
 } from "./ui/menu.js";
+import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel, buildChannelIdModal } from "./ui/server-setup-admin.js";
 import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
 import {
   applyLeagueSetupDependencies,
@@ -26,10 +27,13 @@ import { handleImportButton, handleImportModal, handleImportSelect, importSessio
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { buildAdvanceMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
 import { recreateGameChannelsForGuild } from "./flows/game-channels.js";
+import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks } from "./flows/team-linking.js";
+import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 const menuSessions = new ExpiringSessionStore<true>();
 const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
+const serverSetupChannelSessions = new Map<string, string>();
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
@@ -92,27 +96,51 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
 
     if (interaction.isStringSelectMenu()) {
+      const { TEAM_LINK_CUSTOM_IDS } = await import("./ui/team-options.js");
+      if (
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
+      ) return handleSimpleTeamLinkSelect(interaction);
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleUserSelect) return handleSimpleTeamLinkUserSelect(interaction);
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.roleSelect) return handleSimpleTeamLinkRoleSelect(interaction);
+
+      if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.selectChannelType) {
+        const channelType = interaction.values[0];
+        serverSetupChannelSessions.set(interaction.user.id, channelType);
+        const { buildChannelIdModal } = await import("./ui/server-setup-admin.js");
+        return interaction.showModal(buildChannelIdModal(channelType));
+      }
+
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
-      if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) return handleLeagueSetupSelect(interaction);
+      if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportSelect(interaction);
       if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.select) return handleAdvanceMenuSelect(interaction);
     }
 
     if (interaction.isButton()) {
-      if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) return interaction.showModal(buildSetupDangerModal("server_setup"));
+      if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) return interaction.reply(buildServerSetupPanel());
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) return handleClearAllTeamLinks(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
       if (interaction.customId === MENU_CUSTOM_IDS.adminImports) return renderImportPanel(interaction);
       if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) return handleImportButton(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
+      if (interaction.customId === "rec:league_setup:skip_team_linking") {
+        // League is already saved by this point; this button just closes the linking step.
+        return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+      }
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
     }
 
     if (interaction.isModalSubmit()) {
+      if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.channelIdModal) return handleServerSetupChannelIdModal(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
     }
@@ -259,13 +287,11 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
   if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
   if (selected === "import_enter_data") return renderImportPanel(interaction);
   if (selected === "advance_menu") return interaction.update(buildAdvanceMenuPanel());
-  if (selected === "server_setup") return interaction.showModal(buildSetupDangerModal("server_setup"));
+  if (selected === "server_setup") return interaction.update(buildServerSetupPanel());
   if (selected === "league_setup") return interaction.showModal(buildSetupDangerModal("league_setup"));
   if (selected === "user_team_linking") {
-    return interaction.update({
-      embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")],
-      components: buildAdminPanelRows()
-    });
+    const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
+    return interaction.update(buildSimpleTeamLinkPanel());
   }
 
   const labels: Record<string, string> = {
@@ -415,10 +441,6 @@ async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmi
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can use setup workflows.", flags: MessageFlags.Ephemeral });
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Setup workflows must be run inside a Discord server.", flags: MessageFlags.Ephemeral });
   const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
-  if (action === "server_setup") {
-    const result = await recApi.registerServer({ guildId: interaction.guildId, name: interaction.guild.name, setupMode: "manual_first", requestedByDiscordId: interaction.user.id });
-    return interaction.reply({ content: ["**Server Setup confirmed.**", "", `Server: ${result.server.name}`, `Status: ${result.server.setup_status}`, `Created: ${result.created ? "Yes" : "No, existing server record updated"}`].join("\n"), flags: MessageFlags.Ephemeral });
-  }
   if (action === "league_setup") {
     const draft = createDefaultLeagueSetupDraft(interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leagueNameInput).trim());
     leagueSetupSessions.set(interaction.user.id, draft);
@@ -431,6 +453,26 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   const value = interaction.values[0];
+
+  // Season week (and its offseason ":postseason" variant) both set the same field.
+  if (interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) {
+    draft.seasonWeek = value;
+    draft.step = getNextLeagueSetupStep(draft.step, draft);
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  // Optional team-linking step: record the choice and advance to review.
+  // Linking can only happen once the league exists, so it opens after Save (see handleLeagueSetupSave).
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.teamLinkingOptional) {
+    draft.linkTeamsAfterSetup = value === "yes";
+    draft.step = "review";
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
   switch (interaction.customId) {
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.importMode: draft.importMode = value as LeagueSetupDraft["importMode"]; break;
@@ -469,15 +511,38 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
     case LEAGUE_SETUP_CUSTOM_IDS.injuryPolicy: draft.injuryPolicy = value as LeagueSetupDraft["injuryPolicy"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled: draft.offensivePlayCallLimitsEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit: draft.offensivePlayCallLimit = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldownEnabled: draft.offensivePlayCallCooldownEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown: draft.offensivePlayCallCooldown = Number(value); break;
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveLimitsEnabled: draft.defensivePlayCallLimitsEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit: draft.defensivePlayCallLimit = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldownEnabled: draft.defensivePlayCallCooldownEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown: draft.defensivePlayCallCooldown = Number(value); break;
   }
   draft.step = getNextLeagueSetupStep(draft.step, draft);
   applyLeagueSetupDependencies(draft);
   leagueSetupSessions.set(interaction.user.id, draft);
   await interaction.update(buildLeagueSetupWindow(draft));
+}
+
+// Maps the setup season-week selection to the league's current_week + season_stage.
+// Stage must be one of: regular_season | playoffs | super_bowl | offseason (see advance.service setLeagueWeek).
+function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; seasonStage: string } {
+  if (seasonWeek.startsWith("week_")) {
+    const n = Number(seasonWeek.slice("week_".length));
+    return { weekNumber: Number.isFinite(n) && n > 0 ? n : 1, seasonStage: "regular_season" };
+  }
+  switch (seasonWeek) {
+    case "wildcard": return { weekNumber: 19, seasonStage: "playoffs" };
+    case "divisional": return { weekNumber: 20, seasonStage: "playoffs" };
+    case "conference": return { weekNumber: 21, seasonStage: "playoffs" };
+    case "super_bowl": return { weekNumber: 22, seasonStage: "super_bowl" };
+    case "coach_hiring":
+    case "final_resigning":
+    case "free_agency":
+    case "draft":
+    case "training_camp": return { weekNumber: 1, seasonStage: "offseason" };
+    default: return { weekNumber: 1, seasonStage: "regular_season" };
+  }
 }
 
 async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButton(): boolean }>) {
@@ -487,8 +552,52 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
   const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+
+  // Persist the starting week/stage chosen during setup (defaults to regular-season week 1).
+  const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek(draft.seasonWeek);
+  try {
+    await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
+  } catch (error) {
+    console.error("[ERROR] Failed to set league starting week:", error);
+  }
+
+  const wantsLinking = draft.linkTeamsAfterSetup;
   leagueSetupSessions.delete(interaction.user.id);
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription([`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, `Import Mode: ${result.configuration.import_mode}`, `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Media: ${result.configuration.media_features_enabled ? "Enabled" : "Disabled"}`, `Draft Classes: ${result.configuration.draft_class_features_enabled ? result.configuration.draft_class_type : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Economy payouts will remain inactive until at least 8 users are verified through Discord team links and imported game users."].join("\n"))], components: buildAdminPanelRows() });
+
+  const savedDescription = [`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, `Import Mode: ${result.configuration.import_mode}`, `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Media: ${result.configuration.media_features_enabled ? "Enabled" : "Disabled"}`, `Draft Classes: ${result.configuration.draft_class_features_enabled ? result.configuration.draft_class_type : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Economy payouts will remain inactive until at least 8 users are verified through Discord team links and imported game users."].join("\n");
+
+  if (!wantsLinking) {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)], components: buildAdminPanelRows() });
+    return;
+  }
+
+  // League now exists — ensure default teams are present, then open the linking selector.
+  try {
+    const openTeams = await recApi.getOpenTeams(interaction.guildId);
+    if (!openTeams?.openTeams || openTeams.openTeams.length === 0) {
+      await recApi.createDefaultTeams(interaction.guildId);
+    }
+  } catch (error) {
+    console.error("[ERROR] Failed to ensure default teams before linking:", error);
+  }
+
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("League Setup Saved — Link Teams").setDescription([savedDescription, "", "Select a conference to begin linking users to teams, or click Done."].join("\n"))],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect)
+          .setPlaceholder("Select conference")
+          .addOptions(
+            new StringSelectMenuOptionBuilder().setLabel("AFC Teams").setValue("AFC"),
+            new StringSelectMenuOptionBuilder().setLabel("NFC Teams").setValue("NFC")
+          )
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId("rec:league_setup:skip_team_linking").setLabel("Done").setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
 }
 
 async function handleBackNavigation(interaction: Extract<Interaction, { isButton(): boolean }>) {
@@ -511,6 +620,43 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
   }
 
   await renderMainMenuFromComponent(interaction);
+}
+
+async function handleServerSetupChannelIdModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
+
+  try {
+    const { SERVER_SETUP_CUSTOM_IDS } = await import("./ui/server-setup-admin.js");
+    const channelId = interaction.fields.getTextInputValue(SERVER_SETUP_CUSTOM_IDS.channelIdInput).trim();
+    const channelType = serverSetupChannelSessions.get(interaction.user.id);
+
+    if (!channelType) {
+      return interaction.reply({
+        content: "Channel type selection expired. Please try again.",
+        flags: MessageFlags.Ephemeral
+      });
+    }
+
+    // TODO: Call API to store the channel/category mapping
+    // await recApi.assignServerChannel({ guildId: interaction.guildId, channelType, channelId });
+
+    serverSetupChannelSessions.delete(interaction.user.id);
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Channel Assigned")
+          .setDescription(`Assigned Discord ID \`${channelId}\` to **${channelType}**.`)
+      ],
+      flags: MessageFlags.Ephemeral
+    });
+  } catch (error) {
+    console.error("[ERROR] Server setup channel assignment failed:", error);
+    await interaction.reply({
+      content: `Error assigning channel: ${error instanceof Error ? error.message : String(error)}`,
+      flags: MessageFlags.Ephemeral
+    });
+  }
 }
 
 await client.login(env.DISCORD_TOKEN);

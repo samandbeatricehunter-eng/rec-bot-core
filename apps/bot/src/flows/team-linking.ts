@@ -23,6 +23,13 @@ export type TeamLinkDraft = {
 };
 
 export const teamLinkSessions = new Map<string, TeamLinkDraft>();
+export const simpleTeamLinkSessions = new Map<string, {
+  guildId: string;
+  teamId: string;
+  teamAbbr: string;
+  teamName: string;
+  selectedUserId?: string;
+}>();
 
 type CachedGuildUserList = {
   expiresAt: number;
@@ -382,6 +389,364 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
           ].join("\n"))
       ],
       components: buildTeamLinkHomeRows()
+    });
+  }
+}
+
+export async function startSimpleTeamLink(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can manage team links.", ephemeral: true });
+    return;
+  }
+
+  // Ensure default 32 NFL teams exist for this league
+  const openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
+  if (!openTeamsResult.openTeams || openTeamsResult.openTeams.length === 0) {
+    await recApi.createDefaultTeams(interaction.guildId);
+  }
+
+  const { buildSimpleTeamLinkPanel } = await import("../ui/team-options.js");
+  await interaction.update(buildSimpleTeamLinkPanel());
+}
+
+export async function handleSimpleTeamLinkSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+
+  const { TEAM_LINK_CUSTOM_IDS, buildSimpleTeamSelectPanel, buildUserSelectionPanel } = await import("../ui/team-options.js");
+
+  if (interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect) {
+    const conference = interaction.values[0] as "AFC" | "NFC";
+
+    // Get linked users to show in team descriptions.
+    // API shape: row.team = { id, name, abbreviation, ... }, row.discordId, row.discordAccount = { username, global_name }.
+    const linkedResult = await recApi.getLinkedUsersTeams(interaction.guildId);
+    const linkedUsers = new Map<string, { discordUsername: string; discordId: string }>();
+    (linkedResult.linked ?? []).forEach((row: any) => {
+      const abbr = row.team?.abbreviation;
+      if (abbr && row.discordId) {
+        const username = row.discordAccount?.global_name || row.discordAccount?.username;
+        linkedUsers.set(abbr, {
+          discordUsername: username ? `@${username}` : `<@${row.discordId}>`,
+          discordId: row.discordId
+        });
+      }
+    });
+
+    await interaction.update(buildSimpleTeamSelectPanel(conference, linkedUsers));
+    return;
+  }
+
+  if (
+    interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ||
+    interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
+  ) {
+    await interaction.deferUpdate();
+
+    const teamAbbr = interaction.values[0];
+    const conference = interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ? "AFC" : "NFC";
+    const teams = conference === "AFC"
+      ? (await import("@rec/shared")).AFC_TEAMS
+      : (await import("@rec/shared")).NFC_TEAMS;
+    const selectedTeam = teams.find((t: any) => t.abbreviation === teamAbbr);
+
+    if (!selectedTeam) {
+      await interaction.editReply({ content: "Team not found." });
+      return;
+    }
+
+    // Get linked users to check if this team already has someone
+    const linkedResult = await recApi.getLinkedUsersTeams(interaction.guildId);
+    const currentLinkedUser = (linkedResult.linked ?? []).find((row: any) => row.team?.abbreviation === teamAbbr);
+
+    if (currentLinkedUser) {
+      // Team already has a user, so unlink them
+      const guildMember = await interaction.guild.members.fetch(currentLinkedUser.discordId).catch(() => null);
+      if (guildMember) {
+        await guildMember.setNickname(null).catch(() => undefined);
+      }
+
+      simpleTeamLinkSessions.delete(interaction.user.id);
+      clearTeamLinkGuildUserCache(interaction.guildId);
+
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("User Unlinked")
+            .setDescription(`<@${currentLinkedUser.discordId}> has been unlinked from **${selectedTeam.name}**.`)
+        ],
+        components: []
+      });
+      return;
+    }
+
+    // Use the cached member list. getCachedGuildUsers reuses a 5-minute cache and falls back to
+    // the gateway member cache when a full fetch would be gateway-rate-limited (opcode 8), so
+    // linking many users in a row no longer triggers repeated expensive member fetches.
+    const cachedUsers = await getCachedGuildUsers(interaction);
+    const availableUsers = cachedUsers.map((u) => ({ label: u.label, discordId: u.discordId }));
+
+    if (availableUsers.length === 0) {
+      await interaction.editReply({
+        content: "No server members are available to link yet. Wait a few seconds and try again.",
+        components: []
+      });
+      return;
+    }
+
+    // Get team ID from league
+    let openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
+    let allTeams = openTeamsResult.openTeams ?? [];
+
+    // If no teams found, create default NFL teams
+    if (allTeams.length === 0) {
+      await recApi.createDefaultTeams(interaction.guildId);
+      openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
+      allTeams = openTeamsResult.openTeams ?? [];
+    }
+
+    // Find the team in the list
+    let teamData = allTeams.find((t: any) => t.abbreviation === selectedTeam.abbreviation);
+
+    if (!teamData) {
+      // If still not found in open teams, try to find in linked teams
+      const linkedResult2 = await recApi.getLinkedUsersTeams(interaction.guildId);
+      const linkedTeams = linkedResult2.linked?.map((link: any) => ({
+        id: link.team?.id,
+        abbreviation: link.team?.abbreviation,
+        name: link.team?.name
+      })) ?? [];
+
+      teamData = linkedTeams.find((t: any) => t.abbreviation === selectedTeam.abbreviation);
+
+      if (!teamData) {
+        await interaction.editReply({ content: "Team not found in league. Please try again.", components: [] });
+        return;
+      }
+    }
+
+    simpleTeamLinkSessions.set(interaction.user.id, {
+      guildId: interaction.guildId,
+      teamId: teamData.id,
+      teamAbbr: selectedTeam.abbreviation,
+      teamName: selectedTeam.name
+    });
+
+    await interaction.editReply(buildUserSelectionPanel(selectedTeam.name, availableUsers, 0));
+  }
+}
+
+export async function handleSimpleTeamLinkUserSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+
+  const { TEAM_LINK_CUSTOM_IDS, buildRoleSelectionPanel } = await import("../ui/team-options.js");
+  const session = simpleTeamLinkSessions.get(interaction.user.id);
+
+  if (!session) {
+    await interaction.reply({ content: "Team selection expired. Please try again.", ephemeral: true });
+    return;
+  }
+
+  try {
+    const discordId = interaction.values[0];
+
+    // Store the selected user ID in the session
+    simpleTeamLinkSessions.set(interaction.user.id, {
+      ...session,
+      selectedUserId: discordId
+    });
+
+    // Find the league roles by name pattern
+    const allRoles = await interaction.guild.roles.fetch();
+    const commissionerRole = allRoles.find(r => r.name === "REC League Commissioner");
+    const compCommitteeRole = allRoles.find(r => r.name === "REC League Comp. Committee");
+    const memberRole = allRoles.find(r => r.name === "REC League Member");
+
+    const roles = {
+      commissioner: commissionerRole ? `${commissionerRole.name}:${commissionerRole.id}` : "Commissioner",
+      coCommissioner: compCommitteeRole ? `${compCommitteeRole.name}:${compCommitteeRole.id}` : "Comp. Committee",
+      member: memberRole ? `${memberRole.name}:${memberRole.id}` : "Member"
+    };
+
+    await interaction.update(buildRoleSelectionPanel(discordId, session.teamName, roles));
+  } catch (error) {
+    console.error("[ERROR] Simple team link user select failed:", error);
+    await interaction.reply({
+      content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+      ephemeral: true
+    });
+    simpleTeamLinkSessions.delete(interaction.user.id);
+  }
+}
+
+export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+
+  const { TEAM_LINK_CUSTOM_IDS } = await import("../ui/team-options.js");
+  const session = simpleTeamLinkSessions.get(interaction.user.id);
+
+  if (!session || !session.selectedUserId) {
+    await interaction.reply({ content: "Session expired. Please try again.", ephemeral: true });
+    return;
+  }
+
+  // Acknowledge immediately — the role/nickname/API work below exceeds Discord's 3s window.
+  await interaction.deferUpdate();
+
+  try {
+    const roleValue = interaction.values[0];
+    // Parse role value (format: "role_type:roleId" or just "role_type")
+    const [roleType, roleId] = roleValue.split(":");
+    const role = roleType as "member" | "commissioner" | "co_commissioner";
+
+    // Fetch the guild member
+    const guildMember = await interaction.guild.members.fetch(session.selectedUserId).catch(() => null);
+
+    if (guildMember) {
+      // Find all REC League roles
+      const allRoles = await interaction.guild.roles.fetch();
+      const commissionerRole = allRoles.find(r => r.name === "REC League Commissioner");
+      const compCommitteeRole = allRoles.find(r => r.name === "REC League Comp. Committee");
+      const memberRole = allRoles.find(r => r.name === "REC League Member");
+
+      // Remove all league roles first
+      const rolesToRemove = [commissionerRole, compCommitteeRole, memberRole].filter(Boolean);
+      for (const r of rolesToRemove) {
+        if (r && guildMember.roles.cache.has(r.id)) {
+          await guildMember.roles.remove(r.id).catch(() => undefined);
+        }
+      }
+
+      // Add roles based on hierarchy: Commissioner > Comp. Committee > Member
+      if (role === "commissioner" && commissionerRole) {
+        // Commissioner gets all three roles
+        await guildMember.roles.add(commissionerRole.id).catch(() => undefined);
+        if (compCommitteeRole) await guildMember.roles.add(compCommitteeRole.id).catch(() => undefined);
+        if (memberRole) await guildMember.roles.add(memberRole.id).catch(() => undefined);
+      } else if (role === "co_commissioner" && compCommitteeRole) {
+        // Comp. Committee gets Comp. Committee and Member
+        await guildMember.roles.add(compCommitteeRole.id).catch(() => undefined);
+        if (memberRole) await guildMember.roles.add(memberRole.id).catch(() => undefined);
+      } else if (role === "member" && memberRole) {
+        // Member gets just Member role
+        await guildMember.roles.add(memberRole.id).catch(() => undefined);
+      }
+    }
+
+    // Link the user to the team with the selected role
+    await recApi.linkUserToTeam({
+      guildId: interaction.guildId,
+      discordId: session.selectedUserId,
+      teamId: session.teamId,
+      authority: role,
+      requestedByDiscordId: interaction.user.id
+    });
+
+    // Extract team name (last word of team name, e.g., "Ravens" from "Baltimore Ravens")
+    const teamNameWords = session.teamName.split(" ");
+    const nickname = teamNameWords[teamNameWords.length - 1];
+
+    if (guildMember) {
+      await guildMember.setNickname(nickname).catch(() => undefined);
+    }
+
+    simpleTeamLinkSessions.delete(interaction.user.id);
+    // Do NOT clear the member cache here: linking does not change guild membership, and clearing
+    // it would force an expensive members.fetch() on the next link, re-triggering gateway rate limits
+    // when linking many users in a row.
+
+    const roleText = role === "commissioner" ? "Commissioner" : role === "co_commissioner" ? "Comp. Committee" : "Member";
+
+    const { buildSimpleTeamLinkPanel } = await import("../ui/team-options.js");
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("User Linked to Team")
+          .setDescription(
+            [
+              `User: <@${session.selectedUserId}>`,
+              `Team: **${session.teamName}** (${session.teamAbbr})`,
+              `Role: **${roleText}**`,
+              `Nickname: **${nickname}**`,
+              "",
+              "Select a conference to link another team, or go back."
+            ].join("\n")
+          )
+      ],
+      components: buildSimpleTeamLinkPanel().components
+    });
+  } catch (error) {
+    console.error("[ERROR] Simple team link role select failed:", error);
+    await interaction.editReply({
+      content: `Error linking user: ${error instanceof Error ? error.message : String(error)}`,
+      components: []
+    });
+    simpleTeamLinkSessions.delete(interaction.user.id);
+  }
+}
+
+export async function handleClearAllTeamLinks(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can clear team links.", ephemeral: true });
+    return;
+  }
+
+  try {
+    // Get all linked users
+    const linkedResult = await recApi.getLinkedUsersTeams(interaction.guildId);
+    const linkedUsers = linkedResult.linked ?? [];
+
+    if (linkedUsers.length === 0) {
+      await interaction.reply({ content: "No team links to clear.", ephemeral: true });
+      return;
+    }
+
+    // Unlink all users from database
+    await recApi.unlinkAllTeams(interaction.guildId, interaction.user.id);
+
+    // Clear Discord nicknames and roles
+    for (const link of linkedUsers) {
+      const guildMember = await interaction.guild.members.fetch(link.discordId).catch(() => null);
+      if (guildMember) {
+        await guildMember.setNickname(null).catch(() => undefined);
+
+        // Remove all REC League roles
+        const allRoles = await interaction.guild.roles.fetch();
+        const leagueRoles = [
+          allRoles.find(r => r.name === "REC League Commissioner"),
+          allRoles.find(r => r.name === "REC League Comp. Committee"),
+          allRoles.find(r => r.name === "REC League Member")
+        ].filter(Boolean);
+
+        for (const role of leagueRoles) {
+          if (role && guildMember.roles.cache.has(role.id)) {
+            await guildMember.roles.remove(role.id).catch(() => undefined);
+          }
+        }
+      }
+    }
+
+    clearTeamLinkGuildUserCache(interaction.guildId);
+
+    // Update the message to show refreshed team list
+    // Go back to conference selection so teams can be viewed again
+    const { buildSimpleTeamLinkPanel } = await import("../ui/team-options.js");
+    await interaction.update({
+      ...buildSimpleTeamLinkPanel(),
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("All Links Cleared")
+          .setDescription(`Cleared ${linkedUsers.length} team links and removed Discord roles and nicknames. Select a conference to view available teams.`)
+      ]
+    });
+  } catch (error) {
+    console.error("[ERROR] Clear all team links failed:", error);
+    await interaction.reply({
+      content: `Error clearing links: ${error instanceof Error ? error.message : String(error)}`,
+      ephemeral: true
     });
   }
 }

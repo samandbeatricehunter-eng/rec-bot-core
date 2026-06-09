@@ -42,6 +42,11 @@ import {
   handleViewOpenTeams,
   renderTeamLinkPanel,
   startTeamLinkFlow,
+  startSimpleTeamLink,
+  handleSimpleTeamLinkSelect,
+  handleSimpleTeamLinkUserSelect,
+  handleSimpleTeamLinkRoleSelect,
+  handleClearAllTeamLinks,
   teamLinkSessions
 } from "./flows/team-linking.js";
 import {
@@ -53,7 +58,7 @@ import {
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } from "./ui/economy-admin.js";
-import { SERVER_SETUP_ADMIN_CUSTOM_IDS, buildServerSetupAdminPanel } from "./ui/server-setup-admin.js";
+import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel, buildChannelIdModal } from "./ui/server-setup-admin.js";
 import { WEEKLY_CHALLENGE_CUSTOM_IDS, buildWeeklyChallengesPanel } from "./ui/weekly-challenges.js";
 import { ADVANCE_MENU_CUSTOM_IDS, buildAdvanceMenuPanel } from "./ui/advance-menu.js";
 import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
@@ -68,6 +73,7 @@ const client = new Client({
 });
 
 const leagueSetupSessions = new Map<string, LeagueSetupDraft>();
+const serverSetupChannelSessions = new Map<string, string>();
 
 client.once("clientReady", async () => {
   console.log(`REC Bot logged in as ${client.user?.tag ?? "unknown"}`);
@@ -91,26 +97,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isChannelSelectMenu()) {
       if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
         await handleEconomyChannelSelect(interaction);
-        return;
-      }
-
-      const serverSetupChannelCustomIds = [
-        SERVER_SETUP_ADMIN_CUSTOM_IDS.setCommissionerOffice,
-        SERVER_SETUP_ADMIN_CUSTOM_IDS.setStreamsChannel,
-        SERVER_SETUP_ADMIN_CUSTOM_IDS.setHighlightsChannel,
-        SERVER_SETUP_ADMIN_CUSTOM_IDS.setPendingPayoutsChannel,
-        SERVER_SETUP_ADMIN_CUSTOM_IDS.setAnnouncementsChannel,
-        SERVER_SETUP_ADMIN_CUSTOM_IDS.setGameChannelsCategory
-      ];
-      if (serverSetupChannelCustomIds.some(id => interaction.customId === id)) {
-        await handleServerSetupChannelSelect(interaction);
-        return;
-      }
-    }
-
-    if (interaction.isRoleSelectMenu()) {
-      if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setCommissionerRole || interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setCompCommitteeRole) {
-        await handleServerSetupRoleSelect(interaction);
         return;
       }
     }
@@ -187,8 +173,27 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return;
       }
 
-      if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) {
+      if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) {
         await handleLeagueSetupSelect(interaction);
+        return;
+      }
+
+      if (
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
+      ) {
+        await handleSimpleTeamLinkSelect(interaction);
+        return;
+      }
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleUserSelect) {
+        await handleSimpleTeamLinkUserSelect(interaction);
+        return;
+      }
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.roleSelect) {
+        await handleSimpleTeamLinkRoleSelect(interaction);
         return;
       }
 
@@ -199,6 +204,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) {
         await handleImportSelect(interaction);
+        return;
+      }
+
+      if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.selectChannelType) {
+        const channelType = interaction.values[0];
+        serverSetupChannelSessions.set(interaction.user.id, channelType);
+        await interaction.showModal(buildChannelIdModal(channelType));
         return;
       }
 
@@ -215,7 +227,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isButton()) {
       if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) {
-        await interaction.showModal(buildSetupDangerModal("server_setup"));
+        await interaction.reply(buildServerSetupPanel());
+        return;
+      }
+
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) {
+        await handleClearAllTeamLinks(interaction);
         return;
       }
 
@@ -316,6 +333,17 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return;
       }
 
+      if (interaction.customId === "rec:league_setup:skip_team_linking") {
+        if (!interaction.inCachedGuild()) return;
+        const draft = leagueSetupSessions.get(interaction.user.id);
+        if (draft) {
+          draft.step = "review";
+          leagueSetupSessions.set(interaction.user.id, draft);
+          await interaction.update(buildLeagueSetupWindow(draft));
+        }
+        return;
+      }
+
       if (interaction.customId === "rec:advance:skip_gotw") {
         if (!interaction.inCachedGuild()) return;
         await interaction.deferUpdate();
@@ -400,9 +428,16 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       interaction.isModalSubmit() &&
       interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)
     ) {
+      console.log("[DEBUG] Setup modal route matched, customId:", interaction.customId);
       await handleSetupModal(interaction);
       return;
     }
+
+    if (interaction.isModalSubmit() && interaction.customId === SERVER_SETUP_CUSTOM_IDS.channelIdModal) {
+      await handleServerSetupChannelIdModal(interaction);
+      return;
+    }
+
 
     if (interaction.isModalSubmit() && interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEosModal) {
       await handleClearEosModal(interaction);
@@ -447,7 +482,8 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
     return;
   }
   if (selected === "server_setup") {
-    await interaction.update(buildServerSetupAdminPanel());
+    const { buildServerSetupPanel } = await import("./ui/server-setup-admin.js");
+    await interaction.update(buildServerSetupPanel());
     return;
   }
   if (selected === "league_setup") {
@@ -455,7 +491,7 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
     return;
   }
   if (selected === "user_team_linking") {
-    await renderTeamLinkPanel(interaction as any);
+    await startSimpleTeamLink(interaction as any);
     return;
   }
   if (selected === "import_enter_data") {
@@ -722,6 +758,7 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
 
 async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
+  console.log("[DEBUG] handleSetupModal called, customId:", interaction.customId);
 
   if (!isDiscordAdminInteraction(interaction)) {
     await interaction.reply({
@@ -741,38 +778,6 @@ async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmi
 
   const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
 
-  if (action === "server_setup") {
-    console.log("[DEBUG] Server setup modal submitted");
-
-    try {
-      // Register the server record if not already registered
-      const result = await recApi.registerServer({
-        guildId: interaction.guildId,
-        name: interaction.guild.name,
-        setupMode: "manual_first",
-        requestedByDiscordId: interaction.user.id
-      });
-      console.log("[DEBUG] Server registered:", result.server?.name);
-
-      // Show the server setup panel with channel/role selectors
-      const panelData = buildServerSetupAdminPanel();
-      console.log("[DEBUG] Panel data built, components count:", panelData.components?.length);
-
-      await interaction.reply({
-        ...panelData,
-        ephemeral: false
-      });
-      console.log("[DEBUG] Server setup panel sent");
-    } catch (error) {
-      console.error("[ERROR] Server setup failed:", error);
-      await interaction.reply({
-        content: `Error setting up server: ${error instanceof Error ? error.message : String(error)}`,
-        ephemeral: true
-      });
-    }
-    return;
-  }
-
   if (action === "league_setup") {
     const leagueName = interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leagueNameInput).trim();
     const draft = createDefaultLeagueSetupDraft(leagueName);
@@ -781,6 +786,43 @@ async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmi
 
     await interaction.reply({
       ...buildLeagueSetupWindow(draft),
+      ephemeral: true
+    });
+  }
+}
+
+async function handleServerSetupChannelIdModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
+
+  try {
+    const channelId = interaction.fields.getTextInputValue(SERVER_SETUP_CUSTOM_IDS.channelIdInput).trim();
+    const channelType = serverSetupChannelSessions.get(interaction.user.id);
+
+    if (!channelType) {
+      await interaction.reply({
+        content: "Channel type selection expired. Please try again.",
+        ephemeral: true
+      });
+      return;
+    }
+
+    // TODO: Call API to store the channel/category mapping
+    // await recApi.assignServerChannel({ guildId: interaction.guildId, channelType, channelId });
+
+    serverSetupChannelSessions.delete(interaction.user.id);
+
+    await interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Channel Assigned")
+          .setDescription(`Assigned Discord ID \`${channelId}\` to **${channelType}**.`)
+      ],
+      ephemeral: true
+    });
+  } catch (error) {
+    console.error("[ERROR] Server setup channel assignment failed:", error);
+    await interaction.reply({
+      content: `Error assigning channel: ${error instanceof Error ? error.message : String(error)}`,
       ephemeral: true
     });
   }
@@ -808,6 +850,10 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
 
     case LEAGUE_SETUP_CUSTOM_IDS.importMode:
       draft.importMode = value as LeagueSetupDraft["importMode"];
+      break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.seasonWeek:
+      draft.seasonWeek = value;
       break;
 
     case LEAGUE_SETUP_CUSTOM_IDS.featureToggles: {
@@ -924,11 +970,53 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown:
       draft.defensivePlayCallCooldown = Number(value);
       break;
+
+    case LEAGUE_SETUP_CUSTOM_IDS.teamLinkingOptional:
+      // If user selected "yes", stay on team_linking_optional step (will be handled separately)
+      // If user selected "no", move to review
+      if (value === "no") {
+        draft.step = "review";
+      }
+      // If value === "yes", stay on team_linking_optional and handle in separate logic
+      break;
   }
 
-  draft.step = getNextLeagueSetupStep(draft.step, draft);
+  // Don't auto-advance if on team_linking_optional with "yes" - will be handled separately
+  if (draft.step !== "team_linking_optional" || interaction.customId !== LEAGUE_SETUP_CUSTOM_IDS.teamLinkingOptional) {
+    draft.step = getNextLeagueSetupStep(draft.step, draft);
+  }
+
   applyLeagueSetupDependencies(draft);
   leagueSetupSessions.set(interaction.user.id, draft);
+
+  // If user selected "yes" on team linking, show a message that we're starting team linking
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.teamLinkingOptional && value === "yes") {
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Team Linking")
+          .setDescription("You can now link Discord users to teams. Select a conference to begin, or skip to proceed to review.")
+      ],
+      components: [
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId("rec:teamlink:simple_conference")
+            .setPlaceholder("Select conference")
+            .addOptions(
+              new StringSelectMenuOptionBuilder().setLabel("AFC Teams").setValue("AFC"),
+              new StringSelectMenuOptionBuilder().setLabel("NFC Teams").setValue("NFC")
+            )
+        ),
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId("rec:league_setup:skip_team_linking")
+            .setLabel("Skip Team Linking")
+            .setStyle(ButtonStyle.Secondary)
+        )
+      ]
+    });
+    return;
+  }
 
   await interaction.update(buildLeagueSetupWindow(draft));
 }
@@ -1076,58 +1164,6 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
 startActiveCheckCloseoutLoop(client);
 
 await client.login(env.DISCORD_TOKEN);
-
-
-async function handleServerSetupChannelSelect(interaction: any) {
-  if (!interaction.isChannelSelectMenu() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can change server setup routing.", ephemeral: true });
-    return;
-  }
-  const value = interaction.values[0];
-  let label = "";
-
-  if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setCommissionerOffice) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, commissionerOfficeChannelId: value });
-    label = "Commissioner Office";
-  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setStreamsChannel) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, streamsChannelId: value });
-    label = "Streams";
-  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setHighlightsChannel) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, highlightsChannelId: value });
-    label = "Highlights";
-  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setPendingPayoutsChannel) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, pendingPayoutsChannelId: value });
-    label = "Pending Payouts";
-  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setAnnouncementsChannel) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, announcementsChannelId: value });
-    label = "Announcements";
-  } else if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setGameChannelsCategory) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, gameChannelsCategoryId: value });
-    label = "Game Channels Category";
-  } else {
-    await interaction.reply({ content: "Unknown channel selector.", ephemeral: true });
-    return;
-  }
-
-  await interaction.reply({ content: `${label} set to <#${value}>.`, ephemeral: true });
-}
-
-async function handleServerSetupRoleSelect(interaction: any) {
-  if (!interaction.isRoleSelectMenu() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can change server setup routing.", ephemeral: true });
-    return;
-  }
-  const roleId = interaction.values[0];
-  if (interaction.customId === SERVER_SETUP_ADMIN_CUSTOM_IDS.setCommissionerRole) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, commissionerRoleId: roleId });
-    await interaction.reply({ content: `Commissioner role set to <@&${roleId}>.`, ephemeral: true });
-    return;
-  }
-  await recApi.setEconomyConfig({ guildId: interaction.guildId, compCommitteeRoleId: roleId });
-  await interaction.reply({ content: `Comp Committee role set to <@&${roleId}>.`, ephemeral: true });
-}
 
 async function handleEconomyChannelSelect(interaction: any) {
   if (!interaction.isChannelSelectMenu() || !interaction.inCachedGuild()) return;
