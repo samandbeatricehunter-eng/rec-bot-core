@@ -2,7 +2,7 @@ import { AFC_TEAMS, NFC_TEAMS, getTeamByAbbreviation } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
-import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, UnlinkAllTeamsInput } from "./team-ownership.schemas.js";
+import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 
 export async function getCurrentLeagueForGuild(guildId: string) {
   const server = await supabase
@@ -205,6 +205,30 @@ export async function listOpenTeams(guildId: string) {
 
   const assigned = new Set(assignments.data.map((row) => row.team_id));
   return { league, openTeams: teams.data.filter((team) => !assigned.has(team.id)) };
+}
+
+export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
+  const { league } = await getCurrentLeagueForGuild(input.guildId);
+
+  const result = await supabase
+    .from("rec_team_assignments")
+    .update({ assignment_status: "unlinked", ended_at: new Date().toISOString() })
+    .eq("league_id", league.id)
+    .eq("team_id", input.teamId)
+    .is("ended_at", null)
+    .select("*");
+
+  if (result.error) throw new ApiError(500, "Failed to unlink team assignment.", result.error);
+
+  await writeAuditLog({
+    action: "teams.unlinked",
+    entityType: "rec_team_assignments",
+    newValue: { guildId: input.guildId, leagueId: league.id, teamId: input.teamId, unlinkCount: result.data?.length ?? 0 },
+    reason: "Single team assignment unlinked through Team Ownership admin command.",
+    source: "manual_admin_entry"
+  });
+
+  return { league, unlinkedCount: result.data?.length ?? 0 };
 }
 
 export async function unlinkAllTeamsForGuild(input: UnlinkAllTeamsInput) {

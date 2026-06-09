@@ -419,6 +419,10 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
   if (interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect) {
     const conference = interaction.values[0] as "AFC" | "NFC";
 
+    // Acknowledge immediately — the linked-users API call below can exceed Discord's 3s window
+    // (especially on a cold API), which previously caused Unknown interaction (10062) on update.
+    await interaction.deferUpdate();
+
     // Get linked users to show in team descriptions.
     // API shape: row.team = { id, name, abbreviation, ... }, row.discordId, row.discordAccount = { username, global_name }.
     const linkedResult = await recApi.getLinkedUsersTeams(interaction.guildId);
@@ -434,7 +438,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
       }
     });
 
-    await interaction.update(buildSimpleTeamSelectPanel(conference, linkedUsers));
+    await interaction.editReply(buildSimpleTeamSelectPanel(conference, linkedUsers));
     return;
   }
 
@@ -461,22 +465,57 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     const currentLinkedUser = (linkedResult.linked ?? []).find((row: any) => row.team?.abbreviation === teamAbbr);
 
     if (currentLinkedUser) {
-      // Team already has a user, so unlink them
+      // Team already has a user — actually delete the DB assignment, then clear Discord roles/nickname.
+      const teamId = currentLinkedUser.team?.id;
+      if (teamId) {
+        try {
+          await recApi.unlinkTeam({ guildId: interaction.guildId, teamId, requestedByDiscordId: interaction.user.id });
+        } catch (error) {
+          console.error("[ERROR] Failed to unlink team:", error);
+          await interaction.editReply({
+            content: `Failed to unlink: ${error instanceof Error ? error.message : String(error)}`,
+            components: []
+          });
+          return;
+        }
+      }
+
       const guildMember = await interaction.guild.members.fetch(currentLinkedUser.discordId).catch(() => null);
       if (guildMember) {
         await guildMember.setNickname(null).catch(() => undefined);
+        const allRoles = await interaction.guild.roles.fetch();
+        for (const roleName of ["REC League Commissioner", "REC League Comp. Committee", "REC League Member"]) {
+          const r = allRoles.find((role) => role.name === roleName);
+          if (r && guildMember.roles.cache.has(r.id)) {
+            await guildMember.roles.remove(r.id).catch(() => undefined);
+          }
+        }
       }
 
       simpleTeamLinkSessions.delete(interaction.user.id);
-      clearTeamLinkGuildUserCache(interaction.guildId);
 
+      // Rebuild the conference team panel so the freed team shows as Unassigned and linking can continue.
+      const refreshed = await recApi.getLinkedUsersTeams(interaction.guildId);
+      const linkedUsers = new Map<string, { discordUsername: string; discordId: string }>();
+      (refreshed.linked ?? []).forEach((row: any) => {
+        const abbr = row.team?.abbreviation;
+        if (abbr && row.discordId) {
+          const username = row.discordAccount?.global_name || row.discordAccount?.username;
+          linkedUsers.set(abbr, {
+            discordUsername: username ? `@${username}` : `<@${row.discordId}>`,
+            discordId: row.discordId
+          });
+        }
+      });
+
+      const panel = buildSimpleTeamSelectPanel(conference, linkedUsers);
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setTitle("User Unlinked")
-            .setDescription(`<@${currentLinkedUser.discordId}> has been unlinked from **${selectedTeam.name}**.`)
+            .setDescription(`<@${currentLinkedUser.discordId}> has been unlinked from **${selectedTeam.name}**. Select another team to link or unlink.`)
         ],
-        components: []
+        components: panel.components
       });
       return;
     }
@@ -643,9 +682,18 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
       requestedByDiscordId: interaction.user.id
     });
 
-    // Extract team name (last word of team name, e.g., "Ravens" from "Baltimore Ravens")
+    // Extract team name (last word of team name, e.g., "Ravens" from "Baltimore Ravens"),
+    // then append a leadership-role suffix so their title is visible in the member list.
     const teamNameWords = session.teamName.split(" ");
-    const nickname = teamNameWords[teamNameWords.length - 1];
+    const baseNickname = teamNameWords[teamNameWords.length - 1];
+    let nickname = baseNickname;
+    if (role === "commissioner") {
+      nickname = `${baseNickname} (Commissioner)`;
+    } else if (role === "co_commissioner") {
+      nickname = `${baseNickname} (Co-Commissioner)`;
+    }
+    // Discord nicknames cap at 32 characters.
+    nickname = nickname.slice(0, 32);
 
     if (guildMember) {
       await guildMember.setNickname(nickname).catch(() => undefined);

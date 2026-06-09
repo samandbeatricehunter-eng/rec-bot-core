@@ -645,7 +645,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
               "**Committed Counts**",
               `Teams: **${counts.teams ?? 0}**`,
               `Games: **${counts.games ?? summary.gamesAdded ?? 0}**`,
-              `League Games Stored: **${counts.committedLeagueGames ?? 0}**`,
+              `League Games Stored: **${counts.leagueGamesStored ?? counts.committedLeagueGames ?? 0}**`,
               `Game Results: **${counts.gameResults ?? 0}**`,
               `Players: **${counts.players ?? 0}**`,
               `Roster Snapshots: **${counts.rosterSnapshots ?? 0}**`,
@@ -918,7 +918,10 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
     }
 
     if (draft.weekScope === "full_regular_season_schedule") {
-      draft.endpointKeys = ["schedule"];
+      // Stage Teams alongside Schedule so EA team IDs resolve to the league's existing teams
+      // (matched by abbreviation/name). Without Teams, every game falls back to placeholder
+      // teams and never maps to linked users.
+      draft.endpointKeys = ["teams", "schedule"];
       importSessions.set(interaction.user.id, draft);
 
       if (!draft.importMode) {
@@ -951,9 +954,9 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
               `League: **${result.job?.league?.name ?? "Current League"}**`,
               draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined,
               "Scope: **Full Regular Season Schedule**",
-              "Endpoints: **Schedule only**",
+              "Endpoints: **Teams + Schedule**",
               "",
-              "Next step: preview the schedule import. This should stage the full regular-season schedule."
+              "Next step: preview the schedule import. This stages the league teams and full regular-season schedule."
             ].filter(Boolean).join("\n"))
         ],
         components: buildImportJobCreatedRows()
