@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes, reviewStreamPayout, evaluateWeeklyChallenges, evaluateStreamCompliance, issueRecPotwPayouts } from "./advance.service.js";
+import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes, reviewStreamPayout, evaluateWeeklyChallenges, evaluateStreamCompliance, issueRecPotwPayouts, issueWeeklyGamePayouts } from "./advance.service.js";
 
 export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/advance/post-advance", async (request) => runPostAdvanceAutomation(request.body as any));
   app.post("/v1/advance/apply-records", async (request) => applyAdvanceRecords((request.body as any).guildId));
+  app.post("/v1/advance/issue-game-payouts", async (request) => issueWeeklyGamePayouts((request.body as any).guildId));
   app.post("/v1/advance/dm-payloads", async (request) => buildAdvanceDmPayloads((request.body as any).guildId));
   app.post("/v1/league-week/view", async (request) => viewLeagueWeek((request.body as any).guildId));
   app.post("/v1/league-week/set", async (request) => setLeagueWeek(request.body as any));

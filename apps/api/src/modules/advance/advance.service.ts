@@ -1,5 +1,6 @@
 import { REC_GOTW_CORRECT_GUESS_PAYOUT, REC_POTW_PAYOUT_AMOUNT, REC_WEEKLY_CHALLENGE_PAYOUTS, calculateDefensivePotwScore, calculateOffensivePotwScore } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
+import { calculateAdvanceGamePayouts } from "./advance-payouts.service.js";
 
 const TIME_ZONES = [
   ["EST", "America/New_York"],
@@ -848,10 +849,83 @@ export async function buildAdvanceDmPayloads(guildId: string) {
   return { payloads };
 }
 
+export async function issueWeeklyGamePayouts(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const leagueId = context.league_id;
+  const seasonNumber = asNumber(league.season_number ?? league.display_season_number ?? 1);
+  const weekNumber = asNumber(league.current_week ?? 1);
+
+  const { data: results, error } = await supabase
+    .from("rec_game_results")
+    .select("id,home_user_id,away_user_id,home_score,away_score,is_tie,is_cpu_game,is_user_h2h,week_number,home_team_id,away_team_id")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber);
+  if (error) throw error;
+
+  const assignments = await getLinkedActiveTeamUsers(leagueId);
+  const teamIdToDiscordId = new Map<string, string>();
+  for (const a of assignments) {
+    if (a.team_id && a.user_id) {
+      const { data: discord } = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", a.user_id).maybeSingle();
+      if (discord?.discord_id) teamIdToDiscordId.set(String(a.team_id), discord.discord_id);
+    }
+  }
+
+  const issued: Array<{ userId: string; amount: number; reason: string; created: boolean }> = [];
+  const skipped: Array<{ resultId: string; reason: string }> = [];
+
+  for (const result of results ?? []) {
+    if (result.is_tie) { skipped.push({ resultId: result.id, reason: "tie" }); continue; }
+
+    const homeUserId = result.home_user_id;
+    const awayUserId = result.away_user_id;
+    const homeScore = asNumber(result.home_score);
+    const awayScore = asNumber(result.away_score);
+    const homeWon = homeScore > awayScore;
+
+    const candidates: Array<{ userId: string | null; won: boolean; isCpu: boolean }> = [
+      { userId: homeUserId, won: homeWon, isCpu: !homeUserId },
+      { userId: awayUserId, won: !homeWon, isCpu: !awayUserId }
+    ];
+
+    for (const side of candidates) {
+      if (!side.userId) continue;
+      const isH2H = Boolean(homeUserId && awayUserId);
+      let amount = 0;
+      let reason = "";
+      if (isH2H) {
+        amount = side.won ? 50 : 20;
+        reason = side.won ? "H2H win" : "H2H loss";
+      } else if (side.won) {
+        amount = 20;
+        reason = "CPU win";
+      }
+      if (!amount) { skipped.push({ resultId: result.id, reason: "cpu_loss_no_payout" }); continue; }
+
+      const idempotencyKey = `game_payout:${result.id}:${side.userId}`;
+      const credit = await creditUserWallet({
+        userId: side.userId,
+        leagueId,
+        seasonNumber,
+        amount,
+        transactionType: "weekly_game_payout",
+        description: `Week ${weekNumber} ${reason}`,
+        sourceReference: { idempotencyKey, resultId: result.id, weekNumber, seasonNumber }
+      });
+      issued.push({ userId: side.userId, amount, reason, created: credit.created });
+    }
+  }
+
+  return { issued, skipped, weekNumber, seasonNumber };
+}
+
 export async function runPostAdvanceAutomation(input: string | { guildId: string; mode?: "normal" | "catch_up" }) {
   const guildId = typeof input === "string" ? input : input.guildId;
   const mode = typeof input === "string" ? "normal" : input.mode ?? "normal";
   await applyAdvanceRecords(guildId);
+  await issueWeeklyGamePayouts(guildId);
   await settleGotwVotes(guildId);
   await evaluateWeeklyChallenges(guildId);
   await calculateRecPotw(guildId);

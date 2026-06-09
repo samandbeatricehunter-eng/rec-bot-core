@@ -19,9 +19,9 @@ export type AdvancePayout = {
   reason: string;
 };
 
-const H2H_WIN = 75;
-const H2H_LOSS = 25;
-const CPU_WIN = 25;
+const H2H_WIN = 50;
+const H2H_LOSS = 20;
+const CPU_WIN = 20;
 
 function findLinkedTeam(teams: LinkedTeam[], externalId: string | null, teamName: string | null) {
   return teams.find((team) => {
