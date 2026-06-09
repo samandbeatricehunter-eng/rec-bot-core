@@ -942,13 +942,25 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
       mode,
       gameChannels: { plans: [] },
       dmPayloads: { payloads: [] },
+      gotw: { pendingApproval: false, candidates: [] },
       skipped: ["advance_dms", "gotw_scheduling", "game_channel_recreation"]
     };
   }
 
+  const gotwResult = await getGotwCandidates(guildId);
   const gameChannels = await getGameChannelPlans(guildId);
   const dmPayloads = await buildAdvanceDmPayloads(guildId);
-  return { ok: true, mode, gameChannels, dmPayloads };
+  return {
+    ok: true,
+    mode,
+    gameChannels,
+    dmPayloads,
+    gotw: {
+      candidates: gotwResult.candidates,
+      recommendedCandidate: gotwResult.candidates?.[0] ?? null,
+      pendingApproval: gotwResult.candidates?.length > 0 && gotwResult.stage === "regular_season"
+    }
+  };
 }
 
 export async function getGotwCandidates(guildId: string) {

@@ -6,6 +6,8 @@ import {
   EmbedBuilder,
   GatewayIntentBits,
   Interaction,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   type ButtonInteraction,
   type StringSelectMenuInteraction
 } from "discord.js";
@@ -114,6 +116,53 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
 
     if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === "rec:advance:select_gotw") {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.deferUpdate();
+        const candidateId = interaction.values[0];
+        const selectResult = await recApi.selectGotwCandidate({ guildId: interaction.guildId, candidateId, selectedByDiscordId: interaction.user.id });
+
+        if (selectResult.poll) {
+          const poll = selectResult.poll;
+          const channelId = selectResult.channelId;
+          if (channelId) {
+            const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+            if (channel?.isTextBased()) {
+              const { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows } = await import("./ui/gotw.js");
+              const sent = await (channel as any).send({
+                content: buildGotwAnnouncementContent(poll),
+                embeds: [buildGotwVoteEmbed(poll, [])],
+                components: buildGotwVoteRows(poll),
+                allowedMentions: { parse: ["everyone"], users: [poll.away_user_id, poll.home_user_id].filter(Boolean) }
+              });
+              await recApi.recordGotwPollMessage({ pollId: poll.id, discordChannelId: channel.id, discordMessageId: sent.id });
+            }
+          }
+        }
+
+        await interaction.editReply({
+          embeds: [new EmbedBuilder().setTitle("GOTW Selected").setDescription(`Selected **${selectResult.candidate.matchup_title}** and posted the vote poll.`)],
+          components: []
+        });
+
+        const result = await sendAdvanceDmsForGuild(interaction.guild);
+        const lines = [
+          "**Advance Week Completed**",
+          "",
+          `DMs sent: ${result.sent}`,
+          `DMs failed: ${result.failed}`,
+          "",
+          `Game channels total available: ${result.gameChannels.totalPlans}`,
+          `Game channels created: ${result.gameChannels.created.length}`,
+          ...(result.gameChannels.skipped.length ? [`Game channels skipped: ${result.gameChannels.skipped.length} - ${result.gameChannels.skipped[0].reason}`] : [])
+        ];
+        await interaction.followUp({
+          embeds: [new EmbedBuilder().setTitle("Game Channels & DMs").setDescription(lines.join("\n"))],
+          ephemeral: true
+        });
+        return;
+      }
+
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) {
         await handleMainMenuSelect(interaction);
         return;
@@ -265,6 +314,27 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === "rec:league_setup:skip_linking") {
         if (!interaction.inCachedGuild()) return;
         await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+        return;
+      }
+
+      if (interaction.customId === "rec:advance:skip_gotw") {
+        if (!interaction.inCachedGuild()) return;
+        await interaction.deferUpdate();
+        const result = await sendAdvanceDmsForGuild(interaction.guild);
+        const lines = [
+          "**Advance Week Completed (GOTW Skipped)**",
+          "",
+          `DMs sent: ${result.sent}`,
+          `DMs failed: ${result.failed}`,
+          "",
+          `Game channels total available: ${result.gameChannels.totalPlans}`,
+          `Game channels created: ${result.gameChannels.created.length}`,
+          ...(result.gameChannels.skipped.length ? [`Game channels skipped: ${result.gameChannels.skipped.length} - ${result.gameChannels.skipped[0].reason}`] : [])
+        ];
+        await interaction.editReply({
+          embeds: [new EmbedBuilder().setTitle("Advance Complete").setDescription(lines.join("\n"))],
+          components: []
+        });
         return;
       }
 
@@ -447,6 +517,48 @@ async function handleAdvanceMenuSelect(interaction: StringSelectMenuInteraction)
   if (selected === "advance_week") {
     if (!interaction.inCachedGuild()) return;
     await interaction.deferReply({ ephemeral: true });
+
+    const automationResult = await recApi.postAdvanceAutomation(interaction.guildId);
+
+    if (automationResult.gotw?.pendingApproval && automationResult.gotw?.recommendedCandidate) {
+      const recommended = automationResult.gotw.recommendedCandidate;
+      await interaction.editReply({
+        embeds: [new EmbedBuilder()
+          .setTitle("GOTW Approval Required")
+          .setDescription([
+            "Advance automation has processed the previous week's records and payouts.",
+            "",
+            "**Recommended Game of the Week:**",
+            `**${recommended.matchup_title}**`,
+            `Strength Rating: ${recommended.strength_rating}`,
+            "",
+            "Approve this selection or choose a different H2H matchup from the dropdown below."
+          ].join("\n"))
+        ],
+        components: [
+          new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId("rec:advance:select_gotw")
+              .setPlaceholder("Select a GOTW matchup")
+              .addOptions(
+                (automationResult.gotw.candidates ?? []).map((candidate: any) => new StringSelectMenuOptionBuilder()
+                  .setLabel(candidate.matchup_title)
+                  .setValue(candidate.id)
+                  .setDescription(`Rating: ${candidate.strength_rating}${candidate.id === recommended.id ? " (Recommended)" : ""}`)
+                )
+              )
+          ),
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId("rec:advance:skip_gotw")
+              .setLabel("Skip GOTW for This Week")
+              .setStyle(ButtonStyle.Secondary)
+          )
+        ]
+      });
+      return;
+    }
+
     const result = await sendAdvanceDmsForGuild(interaction.guild);
     const lines = [
       "**Advance Week Completed**",
