@@ -2783,3 +2783,373 @@ export async function previewEosPayouts(guildId: string) {
 
   return { seasonNumber, weekNumber: league.current_week, items, totalPayout: items.reduce((sum, i) => sum + i.projectedPayout, 0) };
 }
+
+// ─── Power Rankings ────────────────────────────────────────────────────────────
+
+const OFFENSE_POSITIONS = new Set(["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT"]);
+const DEFENSE_POSITIONS = new Set(["LE", "RE", "DT", "NT", "MLB", "LOLB", "ROLB", "CB", "FS", "SS"]);
+
+function recentFormScore(userGames: Array<{ score: number; oppScore: number }>): number {
+  // Last 3 games, most-recent weighted 3×, middle 2×, oldest 1×
+  const last3 = userGames.slice(0, 3);
+  const weights = [3, 2, 1];
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (let i = 0; i < last3.length; i++) {
+    const { score, oppScore } = last3[i];
+    const margin = score - oppScore;
+    const gameScore = margin >= 14 ? 1.0 : margin >= 7 ? 0.85 : margin > 0 ? 0.70
+      : margin === 0 ? 0.50 : margin >= -6 ? 0.30 : margin >= -13 ? 0.15 : 0.0;
+    weightedSum += gameScore * weights[i];
+    totalWeight += weights[i];
+  }
+  return totalWeight > 0 ? weightedSum / totalWeight : 0.5;
+}
+
+interface OvrAccum { sum: number; count: number }
+function ovrAvg(a: OvrAccum) { return a.count > 0 ? a.sum / a.count : 0; }
+
+export async function calculateAndStorePowerRankings(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const leagueId = context.league_id;
+  const seasonNumber = asNumber(league.season_number ?? league.display_season_number ?? 1);
+  // Rankings are "as of" the week just completed (after advance, current_week is the NEW week)
+  const completedWeek = Math.max(1, asNumber(league.current_week ?? 1) - 1);
+  const newWeek = asNumber(league.current_week ?? 1);
+
+  // ── 1. All teams in this league ─────────────────────────────────────────────
+  const { data: teams, error: teamErr } = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,conference,division")
+    .eq("league_id", leagueId);
+  if (teamErr) throw teamErr;
+  if (!teams?.length) return { rankings: [], leagueName: league.name ?? "League", completedWeek, newWeek };
+
+  // ── 2. All completed regular-season game results up through completed week ───
+  const { data: allGames } = await supabase
+    .from("rec_game_results")
+    .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .lte("week_number", completedWeek)
+    .not("home_score", "is", null)
+    .not("away_score", "is", null)
+    .order("week_number", { ascending: false });
+
+  const games = allGames ?? [];
+
+  // Build per-team game list { score, oppScore, oppTeamId, weekNumber }
+  const teamGames = new Map<string, Array<{ score: number; oppScore: number; oppTeamId: string; weekNumber: number }>>();
+  for (const g of games) {
+    const homeId = String(g.home_team_id ?? "");
+    const awayId = String(g.away_team_id ?? "");
+    const home = asNumber(g.home_score);
+    const away = asNumber(g.away_score);
+    if (homeId) {
+      if (!teamGames.has(homeId)) teamGames.set(homeId, []);
+      teamGames.get(homeId)!.push({ score: home, oppScore: away, oppTeamId: awayId, weekNumber: asNumber(g.week_number) });
+    }
+    if (awayId) {
+      if (!teamGames.has(awayId)) teamGames.set(awayId, []);
+      teamGames.get(awayId)!.push({ score: away, oppScore: home, oppTeamId: homeId, weekNumber: asNumber(g.week_number) });
+    }
+  }
+
+  // ── 3. Player OVR aggregated by team ─────────────────────────────────────────
+  // Join rec_player_weekly_stats → rec_players to get overallRating per player/team
+  const { data: playerStatRows } = await supabase
+    .from("rec_player_weekly_stats")
+    .select("team_id, player_id, position, rec_players(raw_payload)")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .not("player_id", "is", null)
+    .not("team_id", "is", null);
+
+  // Dedupe by (team_id, player_id) — a player contributes one OVR reading per team
+  const seenPlayerTeam = new Set<string>();
+  const teamOvrMap = new Map<string, { all: OvrAccum; offense: OvrAccum; defense: OvrAccum }>();
+  for (const row of playerStatRows ?? []) {
+    const tid = String(row.team_id);
+    const pid = String(row.player_id);
+    const key = `${tid}:${pid}`;
+    if (seenPlayerTeam.has(key)) continue;
+    seenPlayerTeam.add(key);
+    const ovr = asNumber((row as any).rec_players?.raw_payload?.overallRating);
+    if (!ovr) continue;
+    if (!teamOvrMap.has(tid)) teamOvrMap.set(tid, { all: { sum: 0, count: 0 }, offense: { sum: 0, count: 0 }, defense: { sum: 0, count: 0 } });
+    const entry = teamOvrMap.get(tid)!;
+    entry.all.sum += ovr; entry.all.count++;
+    const pos = String(row.position ?? "").toUpperCase();
+    if (OFFENSE_POSITIONS.has(pos)) { entry.offense.sum += ovr; entry.offense.count++; }
+    if (DEFENSE_POSITIONS.has(pos)) { entry.defense.sum += ovr; entry.defense.count++; }
+  }
+
+  // ── 4. Stat leaders per team (best player by season composite score) ─────────
+  // Accumulate season stats per (team_id, player_id)
+  interface PlayerAccum {
+    playerName: string; position: string;
+    passYds: number; passTDs: number; passInts: number;
+    rushYds: number; rushTDs: number;
+    recYds: number; recTDs: number;
+    defSacks: number; defInts: number; defTackles: number;
+    weeks: number;
+  }
+  const playerAccumMap = new Map<string, PlayerAccum>();
+
+  const { data: allPlayerStats } = await supabase
+    .from("rec_player_weekly_stats")
+    .select("team_id, player_id, position, stats, rec_players(full_name)")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .lte("week_number", completedWeek)
+    .not("player_id", "is", null)
+    .not("team_id", "is", null);
+
+  for (const row of allPlayerStats ?? []) {
+    const tid = String(row.team_id);
+    const pid = String(row.player_id);
+    const mapKey = `${tid}:${pid}`;
+    const s = (row.stats ?? {}) as Record<string, any>;
+    if (!playerAccumMap.has(mapKey)) {
+      playerAccumMap.set(mapKey, {
+        playerName: (row as any).rec_players?.full_name ?? "Unknown",
+        position: String(row.position ?? "?").toUpperCase(),
+        passYds: 0, passTDs: 0, passInts: 0,
+        rushYds: 0, rushTDs: 0,
+        recYds: 0, recTDs: 0,
+        defSacks: 0, defInts: 0, defTackles: 0,
+        weeks: 0
+      });
+    }
+    const acc = playerAccumMap.get(mapKey)!;
+    acc.passYds += asNumber(s.passYds); acc.passTDs += asNumber(s.passTDs); acc.passInts += asNumber(s.passInts);
+    acc.rushYds += asNumber(s.rushYds); acc.rushTDs += asNumber(s.rushTDs);
+    acc.recYds += asNumber(s.recYds); acc.recTDs += asNumber(s.recTDs);
+    acc.defSacks += asNumber(s.defSacks); acc.defInts += asNumber(s.defInts);
+    acc.defTackles += asNumber(s.defTackles ?? s.tackles);
+    acc.weeks++;
+  }
+
+  // Score each player; find best per team
+  function playerCompositeScore(acc: PlayerAccum): number {
+    return acc.passYds * 0.04 + acc.passTDs * 4 - acc.passInts * 2
+      + acc.rushYds * 0.06 + acc.rushTDs * 4
+      + acc.recYds * 0.05 + acc.recTDs * 4
+      + acc.defSacks * 7 + acc.defInts * 8 + acc.defTackles * 0.3;
+  }
+  function statLine(acc: PlayerAccum): string {
+    const pos = acc.position;
+    if (["QB"].includes(pos)) return `${acc.passYds.toLocaleString()} pass yds, ${acc.passTDs} TDs`;
+    if (["HB", "FB"].includes(pos)) return `${acc.rushYds.toLocaleString()} rush yds, ${acc.rushTDs} TDs`;
+    if (["WR", "TE"].includes(pos)) return `${acc.recYds.toLocaleString()} rec yds, ${acc.recTDs} TDs`;
+    if (DEFENSE_POSITIONS.has(pos)) {
+      const parts = [];
+      if (acc.defSacks > 0) parts.push(`${acc.defSacks} sacks`);
+      if (acc.defInts > 0) parts.push(`${acc.defInts} INTs`);
+      if (acc.defTackles > 0) parts.push(`${acc.defTackles} tackles`);
+      return parts.join(", ") || "—";
+    }
+    return `${acc.rushYds > acc.passYds ? acc.rushYds.toLocaleString() + " rush yds" : acc.passYds.toLocaleString() + " pass yds"}`;
+  }
+
+  // Best player per team_id
+  const teamStatLeader = new Map<string, { name: string; pos: string; line: string; score: number }>();
+  for (const [mapKey, acc] of playerAccumMap) {
+    const tid = mapKey.split(":")[0];
+    const score = playerCompositeScore(acc);
+    const existing = teamStatLeader.get(tid);
+    if (!existing || score > existing.score) {
+      teamStatLeader.set(tid, { name: acc.playerName, pos: acc.position, line: statLine(acc), score });
+    }
+  }
+
+  // ── 5. Previous rankings (for movement arrows) ───────────────────────────────
+  const { data: prevRanks } = await supabase
+    .from("rec_power_rankings")
+    .select("team_id,rank")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek - 1);
+  const prevRankByTeam = new Map((prevRanks ?? []).map((r: any) => [String(r.team_id), asNumber(r.rank)]));
+
+  // ── 6. Compute score for each team ───────────────────────────────────────────
+  // First pass: per-team stats for SOS (needs all win rates pre-computed)
+  interface TeamStats {
+    teamId: string; wins: number; losses: number; ties: number;
+    played: number; pd: number; winPct: number;
+  }
+  const teamStats = new Map<string, TeamStats>();
+  for (const team of teams) {
+    const tid = String(team.id);
+    const tGames = teamGames.get(tid) ?? [];
+    let wins = 0, losses = 0, ties = 0, pd = 0;
+    for (const g of tGames) {
+      if (g.score > g.oppScore) wins++;
+      else if (g.score < g.oppScore) losses++;
+      else ties++;
+      pd += g.score - g.oppScore;
+    }
+    const played = wins + losses + ties;
+    teamStats.set(tid, { teamId: tid, wins, losses, ties, played, pd, winPct: played > 0 ? wins / played : 0 });
+  }
+
+  // League avg OVR for normalizing matchup advantage
+  let leagueOffenseOvrSum = 0, leagueOffenseOvrCount = 0;
+  let leagueDefenseOvrSum = 0, leagueDefenseOvrCount = 0;
+  for (const [, entry] of teamOvrMap) {
+    const offOvr = ovrAvg(entry.offense);
+    const defOvr = ovrAvg(entry.defense);
+    if (offOvr > 0) { leagueOffenseOvrSum += offOvr; leagueOffenseOvrCount++; }
+    if (defOvr > 0) { leagueDefenseOvrSum += defOvr; leagueDefenseOvrCount++; }
+  }
+  const leagueAvgOffenseOvr = leagueOffenseOvrCount > 0 ? leagueOffenseOvrSum / leagueOffenseOvrCount : 75;
+  const leagueAvgDefenseOvr = leagueDefenseOvrCount > 0 ? leagueDefenseOvrSum / leagueDefenseOvrCount : 75;
+
+  // Second pass: compute full score
+  interface RankEntry {
+    teamId: string; teamName: string; abbreviation: string;
+    wins: number; losses: number; ties: number; played: number; pd: number;
+    winPct: number; avgPd: number; sosScore: number; recentForm: number;
+    teamOvrScore: number; offenseOvr: number | null; defenseOvr: number | null;
+    score: number;
+    statLeaderName: string | null; statLeaderPos: string | null; statLeaderLine: string | null;
+  }
+  const rankEntries: RankEntry[] = [];
+
+  for (const team of teams) {
+    const tid = String(team.id);
+    const ts = teamStats.get(tid) ?? { teamId: tid, wins: 0, losses: 0, ties: 0, played: 0, pd: 0, winPct: 0 };
+    const tGames = teamGames.get(tid) ?? [];
+
+    // Win %
+    const winPct = ts.winPct;
+
+    // Avg PD (normalized to 0-1 range with ±40 spread)
+    const avgPd = ts.played > 0 ? ts.pd / ts.played : 0;
+    const normPd = (Math.max(-40, Math.min(40, avgPd)) / 40 + 1) / 2;
+
+    // Recent form: last 3 completed games (already sorted desc by week_number)
+    const recentForm = recentFormScore(tGames.slice(0, 3));
+
+    // SOS: average win% of opponents faced (only teams with played > 0)
+    const opponentWinPcts: number[] = [];
+    for (const g of tGames) {
+      const oppStats = teamStats.get(g.oppTeamId);
+      if (oppStats && oppStats.played > 0) opponentWinPcts.push(oppStats.winPct);
+    }
+    const sosScore = opponentWinPcts.length > 0
+      ? opponentWinPcts.reduce((a, b) => a + b, 0) / opponentWinPcts.length
+      : 0.5;
+
+    // OVR component: normalize from typical Madden range (60-99)
+    const ovrEntry = teamOvrMap.get(tid);
+    const allOvr = ovrEntry ? ovrAvg(ovrEntry.all) : 0;
+    const offOvr = ovrEntry ? ovrAvg(ovrEntry.offense) : 0;
+    const defOvr = ovrEntry ? ovrAvg(ovrEntry.defense) : 0;
+
+    let teamOvrScore = 0;
+    if (allOvr > 0) {
+      // Normalize: league avg Madden OVR is ~79; normalize so 99=1.0 and 60=0.0
+      const normOvr = (allOvr - 60) / 39;
+      // Matchup advantage: (offense OVR advantage over avg defense) + (defense advantage over avg offense)
+      const offAdv = offOvr > 0 ? (offOvr - leagueAvgDefenseOvr) / 20 : 0;
+      const defAdv = defOvr > 0 ? (defOvr - leagueAvgOffenseOvr) / 20 : 0;
+      teamOvrScore = Math.max(0, Math.min(1, normOvr * 0.5 + (offAdv + defAdv) * 0.25 + 0.5));
+    }
+
+    // Final score (weights sum to 1.0)
+    const score = winPct * 0.35 + normPd * 0.25 + recentForm * 0.15 + sosScore * 0.10 + teamOvrScore * 0.15;
+
+    const leader = teamStatLeader.get(tid);
+    rankEntries.push({
+      teamId: tid,
+      teamName: team.name ?? "Unknown",
+      abbreviation: team.abbreviation ?? "???",
+      wins: ts.wins, losses: ts.losses, ties: ts.ties, played: ts.played, pd: ts.pd,
+      winPct, avgPd, sosScore, recentForm, teamOvrScore,
+      offenseOvr: offOvr > 0 ? offOvr : null,
+      defenseOvr: defOvr > 0 ? defOvr : null,
+      score,
+      statLeaderName: leader?.name ?? null,
+      statLeaderPos: leader?.pos ?? null,
+      statLeaderLine: leader?.line ?? null
+    });
+  }
+
+  // Sort by score desc
+  rankEntries.sort((a, b) => b.score - a.score || b.winPct - a.winPct || b.pd - a.pd);
+
+  // ── 7. Upsert to rec_power_rankings ──────────────────────────────────────────
+  const rows = rankEntries.map((entry, idx) => {
+    const rank = idx + 1;
+    const prevRank = prevRankByTeam.get(entry.teamId) ?? null;
+    const rankChange = prevRank != null ? prevRank - rank : null;
+    return {
+      league_id: leagueId,
+      season_number: seasonNumber,
+      week_number: newWeek,
+      team_id: entry.teamId,
+      rank,
+      previous_rank: prevRank,
+      rank_change: rankChange,
+      score: entry.score,
+      wins: entry.wins,
+      losses: entry.losses,
+      ties: entry.ties,
+      games_played: entry.played,
+      point_differential: entry.pd,
+      win_pct: entry.winPct,
+      avg_pd_per_game: entry.avgPd,
+      sos_score: entry.sosScore,
+      recent_form_score: entry.recentForm,
+      team_ovr_score: entry.teamOvrScore,
+      offense_ovr: entry.offenseOvr,
+      defense_ovr: entry.defenseOvr,
+      stat_leader_player_name: entry.statLeaderName,
+      stat_leader_position: entry.statLeaderPos,
+      stat_leader_stat_line: entry.statLeaderLine,
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  if (rows.length) {
+    const { error } = await supabase
+      .from("rec_power_rankings")
+      .upsert(rows, { onConflict: "league_id,season_number,week_number,team_id" });
+    if (error) throw error;
+  }
+
+  const routes = await getRoutes(context.server_id).catch(() => null);
+
+  return {
+    rankings: rankEntries.map((entry, idx) => ({
+      ...entry,
+      rank: idx + 1,
+      previousRank: prevRankByTeam.get(entry.teamId) ?? null,
+      rankChange: prevRankByTeam.has(entry.teamId) ? (prevRankByTeam.get(entry.teamId)! - (idx + 1)) : null
+    })),
+    leagueName: league.name ?? "League",
+    completedWeek,
+    newWeek,
+    announcementsChannelId: routes?.announcements_channel_id ?? null
+  };
+}
+
+export async function getLatestPowerRankings(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const leagueId = context.league_id;
+  const seasonNumber = asNumber(league.season_number ?? 1);
+  const currentWeek = asNumber(league.current_week ?? 1);
+
+  const { data, error } = await supabase
+    .from("rec_power_rankings")
+    .select("*")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", currentWeek)
+    .order("rank", { ascending: true });
+  if (error) throw error;
+  return { rankings: data ?? [], leagueName: league.name ?? "League", currentWeek };
+}

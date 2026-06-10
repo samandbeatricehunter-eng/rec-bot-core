@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Guild, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildMainMenuEmbed, buildMainMenuRows } from "../ui/menu.js";
 import { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows } from "../ui/gotw.js";
+import { buildPowerRankingsEmbeds } from "../ui/power-rankings.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { wallClockToUtc } from "../ui/advance-schedule.js";
@@ -98,7 +99,7 @@ function buildWizardGotwSelectionPayload(candidates: any[], weekNumber: number) 
   return {
     embeds: [
       new EmbedBuilder()
-        .setTitle(`Step 4 of 5 — Select Week ${weekNumber} Game of the Week`)
+        .setTitle(`Step 5 of 6 — Select Week ${weekNumber} Game of the Week`)
         .setDescription("Select the matchup to feature as the Game of the Week. The vote poll will be posted to the announcements channel.\n\nMatchups are sorted by strength rating (power rankings, competitiveness, division rivalry).")
     ],
     components: [
@@ -154,7 +155,7 @@ export async function runAdvanceWizardProcessing(
   // Step 2: Process results
   await interaction.editReply({
     embeds: [processingEmbed(
-      "Step 2 of 5 — Processing Results",
+      "Step 2 of 6 — Processing Results",
       "Game results are being logged, records updated and payouts issued...\n\nThis may take a moment. Please wait."
     )],
     components: []
@@ -194,7 +195,7 @@ export async function runAdvanceWizardProcessing(
   // Step 3: POTW
   await interaction.editReply({
     embeds: [processingEmbed(
-      "Step 3 of 5 — POTW Awards",
+      "Step 3 of 6 — POTW Awards",
       `Reviewing Week ${completedWeek} performances and awarding Player of the Week bonuses...`
     )],
     components: []
@@ -218,7 +219,45 @@ export async function runAdvanceWizardProcessing(
     allWarnings.push(`potw: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Step 4: GOTW
+  // Step 4: Power Rankings
+  await interaction.editReply({
+    embeds: [processingEmbed(
+      "Step 4 of 6 — Power Rankings",
+      `Calculating Week ${completedWeek} power rankings and posting to announcements...`
+    )],
+    components: []
+  });
+
+  try {
+    const rankingsData = await recApi.calculatePowerRankings(guildId);
+    allWarnings.push(...(rankingsData.warnings ?? []));
+
+    // Post to announcements channel — @everyone tag, split across multiple embeds if >16 teams
+    const rankingsChannelId = rankingsData?.announcementsChannelId ?? potwData?.announcementsChannelId;
+
+    if (rankingsData?.rankings?.length && rankingsChannelId) {
+      const ch = await guild.channels.fetch(rankingsChannelId).catch(() => null) as TextChannel | null;
+      if (ch?.type === ChannelType.GuildText) {
+        const embeds = buildPowerRankingsEmbeds(rankingsData);
+        // Discord allows max 10 embeds per message; send in groups
+        const EMBEDS_PER_MSG = 10;
+        for (let i = 0; i < embeds.length; i += EMBEDS_PER_MSG) {
+          const batch = embeds.slice(i, i + EMBEDS_PER_MSG);
+          const isFirst = i === 0;
+          await ch.send({
+            content: isFirst ? "@everyone" : undefined,
+            embeds: batch,
+            allowedMentions: isFirst ? { parse: ["everyone"] } : { parse: [] }
+          }).catch((e) => console.error("[WIZARD] Failed to post power rankings:", e));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[WIZARD] calculatePowerRankings failed:", err);
+    allWarnings.push(`power_rankings: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Step 5: GOTW
   const isRegularSeason = newStage === "regular_season";
   const isPlayoffStage = ["wildcard", "divisional", "conference_championship", "super_bowl"].includes(newStage);
 
@@ -226,7 +265,7 @@ export async function runAdvanceWizardProcessing(
     // In playoffs every H2H game is a GOTW — auto-create polls and post all vote embeds
     await interaction.editReply({
       embeds: [processingEmbed(
-        "Step 4 of 5 — Playoff Game of the Week",
+        "Step 5 of 6 — Playoff Game of the Week",
         `All ${String(newStage).replaceAll("_", " ")} matchups are Game of the Week. Creating vote polls...`
       )],
       components: []
@@ -268,7 +307,7 @@ export async function runAdvanceWizardProcessing(
   if (isRegularSeason) {
     await interaction.editReply({
       embeds: [processingEmbed(
-        "Step 4 of 5 — Game of the Week",
+        "Step 5 of 6 — Game of the Week",
         "Determining GOTW matchup ratings and pulling the upcoming schedule..."
       )],
       components: []
@@ -290,7 +329,7 @@ export async function runAdvanceWizardProcessing(
     } else {
       await interaction.editReply({
         embeds: [new EmbedBuilder()
-          .setTitle("Step 4 of 5 — No GOTW Matchups")
+          .setTitle("Step 5 of 6 — No GOTW Matchups")
           .setDescription("No H2H matchups found for this week. Skipping GOTW selection and proceeding to finalize.")],
         components: []
       });
@@ -358,7 +397,7 @@ async function runAdvanceWizardFinalize(
   // 5a: generate challenges
   await interaction.editReply({
     embeds: [processingEmbed(
-      "Step 5 of 5 — Generating Challenges",
+      "Step 6 of 6 — Generating Challenges",
       "Generating weekly challenges..."
     )],
     components: []
@@ -375,7 +414,7 @@ async function runAdvanceWizardFinalize(
   // 5b: send advance DMs and post announcement
   await interaction.editReply({
     embeds: [processingEmbed(
-      "Step 5 of 5 — Sending Advance DMs",
+      "Step 6 of 6 — Sending Advance DMs",
       "Gathering all data and sending advance notice DMs..."
     )],
     components: []
@@ -391,7 +430,7 @@ async function runAdvanceWizardFinalize(
   // 5c: create game channels (final step)
   await interaction.editReply({
     embeds: [processingEmbed(
-      "Step 5 of 5 — Creating Game Channels",
+      "Step 6 of 6 — Creating Game Channels",
       "Creating H2H game channels for the new week..."
     )],
     components: []

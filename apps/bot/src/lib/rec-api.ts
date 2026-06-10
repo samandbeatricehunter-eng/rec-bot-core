@@ -520,5 +520,17 @@ export const recApi = {
     recFetch<any>("/v1/advance/preview-eos", {
       method: "POST",
       body: JSON.stringify({ guildId })
+    }),
+
+  calculatePowerRankings: (guildId: string) =>
+    recFetch<any>("/v1/advance/power-rankings/calculate", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  getLatestPowerRankings: (guildId: string) =>
+    recFetch<any>("/v1/advance/power-rankings/latest", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
     })
 };

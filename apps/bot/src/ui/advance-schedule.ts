@@ -144,7 +144,7 @@ function _buildAdvanceSchedulePayload(state: AdvanceScheduleState, isWizard: boo
     .setStyle(ButtonStyle.Success)
     .setDisabled(!ready);
 
-  const title = isWizard ? "Step 1 of 5 — Set Next Advance Time" : "Set Next Advance";
+  const title = isWizard ? "Step 1 of 6 — Set Next Advance Time" : "Set Next Advance";
   const bottomRow = isWizard
     ? new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(ADVANCE_WIZARD_BACK_CUSTOM_ID).setLabel("Back to Advance Menu").setStyle(ButtonStyle.Secondary),
