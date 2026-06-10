@@ -46,13 +46,15 @@ export function buildGotwSelectionPayload(candidates: any[]) {
   };
 }
 
-export function buildGotwAnnouncementContent(poll: any) {
+export function buildGotwAnnouncementContent(poll: any, awayDiscordId?: string | null, homeDiscordId?: string | null) {
   const deadline = poll.vote_deadline_display ?? {};
   const deadlineLines = ["EST", "CST", "PST", "AKST"].map((label) => `${label}: ${deadline[label] ?? "4 hours after posting"}`);
+  const awayMention = awayDiscordId ? `<@${awayDiscordId}>` : (poll.away_team_name ?? "Away");
+  const homeMention = homeDiscordId ? `<@${homeDiscordId}>` : (poll.home_team_name ?? "Home");
   return [
     "@everyone",
     "",
-    `<@${poll.away_user_id}> vs <@${poll.home_user_id}>`,
+    `${awayMention} vs ${homeMention}`,
     "",
     `Week ${poll.week_number} GOTW voting is live.`,
     "",

@@ -39,7 +39,10 @@ export async function handleGotwSelect(interaction: StringSelectMenuInteraction)
     return;
   }
   const poll = result.poll;
-  const sent = await (channel as TextChannel).send({ content: buildGotwAnnouncementContent(poll), embeds: [buildGotwVoteEmbed(poll, [])], components: buildGotwVoteRows(poll), allowedMentions: { parse: ["everyone"], users: [poll.away_user_id, poll.home_user_id].filter(Boolean) } });
+  const awayDiscordId: string | null = result.awayDiscordId ?? null;
+  const homeDiscordId: string | null = result.homeDiscordId ?? null;
+  const discordUserIds = [awayDiscordId, homeDiscordId].filter((id): id is string => Boolean(id));
+  const sent = await (channel as TextChannel).send({ content: buildGotwAnnouncementContent(poll, awayDiscordId, homeDiscordId), embeds: [buildGotwVoteEmbed(poll, [])], components: buildGotwVoteRows(poll), allowedMentions: { parse: ["everyone"], users: discordUserIds } });
   await recApi.recordGotwPollMessage({ pollId: poll.id, discordChannelId: channel.id, discordMessageId: sent.id });
   await interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("GOTW Selected").setDescription(`Selected **${result.candidate.matchup_title}** and posted the vote poll in <#${channel.id}>.`)],

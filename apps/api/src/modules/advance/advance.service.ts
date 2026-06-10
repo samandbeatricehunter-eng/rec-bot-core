@@ -2309,7 +2309,10 @@ export async function selectGotwCandidate(input: { guildId: string; candidateId:
   }, { onConflict: "league_id,season_number,week_number,game_id" }).select("*").single();
   if (pollError) throw pollError;
   const routes = await getRoutes(context.server_id);
-  return { candidate: selected, poll, routes, channelId: routes?.announcements_channel_id ?? null };
+  const discordIds = await resolveDiscordIdsByUser([selected.away_user_id, selected.home_user_id]);
+  const awayDiscordId = selected.away_user_id ? (discordIds.get(String(selected.away_user_id)) ?? null) : null;
+  const homeDiscordId = selected.home_user_id ? (discordIds.get(String(selected.home_user_id)) ?? null) : null;
+  return { candidate: selected, poll, routes, channelId: routes?.announcements_channel_id ?? null, awayDiscordId, homeDiscordId };
 }
 
 export async function recordGotwPollMessage(input: { pollId: string; discordChannelId: string; discordMessageId?: string | null; discordThreadId?: string | null }) {
