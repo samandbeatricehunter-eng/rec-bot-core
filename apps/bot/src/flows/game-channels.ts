@@ -23,7 +23,16 @@ function userMention(discordId: string | null | undefined, fallbackName: string)
   return discordId ? `<@${discordId}>` : fallbackName;
 }
 
+function buildActivityRulesLines(plan: any): string[] {
+  const lines: string[] = [];
+  if (plan.fairSimRequirements) lines.push(`Fair Sim: ${plan.fairSimRequirements}`);
+  if (plan.forceWinRequirements) lines.push(`Force Win: ${plan.forceWinRequirements}`);
+  if (!lines.length) lines.push("See league rules for scheduling, activity, and sportsmanship standards.");
+  return lines;
+}
+
 function buildGameEmbeds(plan: any) {
+  const weekLabel = plan.weekNumber ? `Week ${plan.weekNumber}: ` : "";
   const base = [
     "Schedule your game in this channel this week.",
     "",
@@ -35,9 +44,14 @@ function buildGameEmbeds(plan: any) {
     "",
     "League Game Rules:",
     `• Fourth Down Rules: ${plan.fourthDownRules ?? "Use league settings."}`,
-    `• Scheduling, Activity & Sportsmanship: ${plan.schedulingRules ?? "Scheduling, Activity & Sportsmanship rules apply."}`
+    "• Scheduling, Activity & Sportsmanship:",
+    ...buildActivityRulesLines(plan).map((l) => `  ${l}`)
   ].join("\n");
-  return splitText(base).map((description, index) => new EmbedBuilder().setTitle(index === 0 ? `${plan.awayTeamName} vs ${plan.homeTeamName}` : "League Game Rules Continued").setDescription(description));
+  return splitText(base).map((description, index) =>
+    new EmbedBuilder()
+      .setTitle(index === 0 ? `${weekLabel}${plan.awayTeamName} vs ${plan.homeTeamName}` : "League Game Rules Continued")
+      .setDescription(description)
+  );
 }
 
 export async function recreateGameChannelsForGuild(guild: Guild) {
@@ -85,11 +99,13 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
     try {
       const announceCh = await guild.channels.fetch(result.announcementsChannelId).catch(() => null) as TextChannel | null;
       if (announceCh?.isTextBased()) {
-        const matchupLines = (result.allMatchups ?? []).map((m: any) => {
-          const away = m.awayDiscordId ? `<@${m.awayDiscordId}>` : m.awayTeamName;
-          const home = m.homeDiscordId ? `<@${m.homeDiscordId}>` : m.homeTeamName;
-          return m.isCpu ? `• ${away} vs CPU` : `• ${away} vs ${home}`;
-        });
+        const matchupLines = (result.allMatchups ?? [])
+          .filter((m: any) => !m.isCpu)
+          .map((m: any) => {
+            const away = m.awayDiscordId ? `<@${m.awayDiscordId}>` : m.awayTeamName;
+            const home = m.homeDiscordId ? `<@${m.homeDiscordId}>` : m.homeTeamName;
+            return `• ${away} vs ${home}`;
+          });
         const advanceText = [
           `**${result.leagueName} — Week ${result.weekNumber} has begun!**`,
           `Season ${result.seasonNumber} | ${String(result.seasonStage ?? "").replaceAll("_", " ")}`,

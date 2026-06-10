@@ -1414,7 +1414,8 @@ export async function getGameChannelPlans(guildId: string) {
     streamingRequired: streamingRequirement === "required",
     streamingRequirement: streamingRequirementText(streamingRequirement),
     fourthDownRules,
-    schedulingRules: "Scheduling, Activity & Sportsmanship rules apply."
+    fairSimRequirements: (config?.fair_sim_requirements as string | null | undefined) ?? null,
+    forceWinRequirements: (config?.force_win_requirements as string | null | undefined) ?? null
   }));
   return { plans, routes, league, server: context.rec_discord_servers };
 }
