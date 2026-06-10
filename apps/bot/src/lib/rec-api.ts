@@ -58,6 +58,12 @@ export const recApi = {
       body: JSON.stringify({ guildId })
     }),
 
+  updateLeagueConfig: (input: LeagueSetupDraft & { guildId: string; requestedByDiscordId?: string }) =>
+    recFetch<any>("/v1/setup/league/config/update", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   createDefaultTeams: (guildId: string) =>
     recFetch<any>(REC_API_ROUTES.createDefaultTeams, {
       method: "POST",

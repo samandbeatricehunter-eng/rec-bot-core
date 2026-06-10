@@ -291,6 +291,69 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
   return routes.data;
 }
 
+export async function updateLeagueConfig(input: CreateLeagueInput) {
+  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", input.guildId).maybeSingle();
+  if (server.error || !server.data) throw new ApiError(404, "Server not found");
+  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).limit(1).maybeSingle();
+  if (link.error || !link.data?.league_id) throw new ApiError(404, "No primary league found for this server");
+
+  const configurationPayload = {
+    league_id: link.data.league_id,
+    roster_type: input.leagueType,
+    import_mode: input.importMode,
+    coin_economy_enabled: input.coinEconomyEnabled,
+    custom_players_enabled: input.customPlayersEnabled,
+    legends_enabled: input.legendsEnabled,
+    dev_upgrades_enabled: input.devUpgradesEnabled,
+    age_resets_enabled: input.ageResetsEnabled,
+    training_packages_enabled: input.trainingPackagesEnabled,
+    contract_adjustment_purchases_enabled: input.contractAdjustmentPurchasesEnabled,
+    cap_management_assistant_enabled: input.capManagementAssistantEnabled,
+    draft_class_features_enabled: input.draftClassFeaturesEnabled,
+    draft_class_type: input.draftClassType,
+    scouting_purchases_enabled: input.scoutingPurchasesEnabled,
+    media_features_enabled: input.mediaFeaturesEnabled,
+    streaming_requirement: input.regularSeasonStreamingRequirement,
+    regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
+    postseason_streaming_requirement: input.postseasonStreamingRequirement,
+    streaming_scope: input.streamingScope,
+    streaming_side: input.streamingSide,
+    fourth_down_rule_type: input.fourthDownRuleType,
+    custom_fourth_down_rule: input.customFourthDownRule ?? null,
+    position_change_policy: input.positionChangePolicy,
+    position_change_policy_description: input.positionChangePolicyDescription ?? "Position changes must remain realistic. Major body-type changes are prohibited unless approved by commissioners.",
+    custom_playbooks_allowed: input.customPlaybooksAllowed,
+    trade_approval_policy: input.tradeApprovalPolicy,
+    cpu_trading_allowed: input.cpuTradingAllowed,
+    cpu_free_agency_policy: input.cpuFreeAgencyPolicy,
+    injury_policy: input.injuryPolicy,
+    difficulty: input.difficulty,
+    quarter_length_minutes: input.quarterLengthMinutes,
+    accelerated_clock_enabled: input.acceleratedClockEnabled,
+    accelerated_clock_minimum_seconds: input.acceleratedClockMinimumSeconds,
+    salary_cap_enabled: input.salaryCapEnabled,
+    trade_deadline_enabled: input.tradeDeadlineEnabled,
+    abilities_enabled: input.abilitiesEnabled,
+    wear_and_tear_enabled: input.wearAndTearEnabled,
+    offensive_play_call_limits_enabled: input.offensivePlayCallLimitsEnabled,
+    offensive_play_call_limit: input.offensivePlayCallLimit ?? null,
+    offensive_play_call_cooldown: input.offensivePlayCallCooldown ?? null,
+    defensive_play_call_limits_enabled: input.defensivePlayCallLimitsEnabled,
+    defensive_play_call_limit: input.defensivePlayCallLimit ?? null,
+    defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
+    ...(input.fairSimRequirements != null ? { fair_sim_requirements: input.fairSimRequirements } : {}),
+    ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {})
+  };
+
+  const { data, error } = await supabase
+    .from("rec_league_configuration")
+    .upsert(configurationPayload, { onConflict: "league_id" })
+    .select("*")
+    .single();
+  if (error) throw new ApiError(500, "Failed to update league configuration", error);
+  return { configuration: data };
+}
+
 export async function getLeagueConfigAsDraft(guildId: string) {
   const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
   if (server.error || !server.data) throw new ApiError(404, "Server not found");

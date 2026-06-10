@@ -656,7 +656,7 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
     applyLeagueSetupDependencies(draft);
     leagueSetupSessions.set(interaction.user.id, draft);
     try {
-      await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
     } catch (err) {
       console.error("[ERROR] Failed to save league setting edit:", err);
     }
@@ -684,7 +684,7 @@ async function handleActivityRequirementsModal(interaction: Extract<Interaction,
 
   if (draft.editMode && interaction.guildId) {
     try {
-      await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
     } catch (err) {
       console.error("[ERROR] Failed to save activity requirements:", err);
     }
