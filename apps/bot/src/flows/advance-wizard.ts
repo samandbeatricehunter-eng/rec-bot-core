@@ -350,6 +350,7 @@ export async function handleWizardGotwSelect(interaction: StringSelectMenuIntera
     return;
   }
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Selecting GOTW...").setDescription("Saving your game of the week selection and posting the vote poll.")], components: [] });
 
   const wizardState = advanceWizardSessions.get(interaction.user.id);
   const candidateId = interaction.values[0];

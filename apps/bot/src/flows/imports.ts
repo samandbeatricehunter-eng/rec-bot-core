@@ -406,6 +406,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   if (interaction.customId === IMPORT_CUSTOM_IDS.resumePending) {
     if (!interaction.inCachedGuild()) return;
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Checking for Active Import...").setDescription("Looking up any pending import jobs.")], components: [] });
     const result = await recApi.getActiveImport(interaction.guildId);
     if (result.job?.id) {
       importSessions.set(interaction.user.id, { ...(importSessions.get(interaction.user.id) ?? {}), importJobId: result.job.id });
@@ -429,6 +430,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   if (interaction.customId === IMPORT_CUSTOM_IDS.cancelPendingStartNew) {
     if (!interaction.inCachedGuild()) return;
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Cancelling Previous Import...").setDescription("Cancelling the pending import job so a new one can be started.")], components: [] });
     const session = importSessions.get(interaction.user.id);
     const result = await recApi.cancelActiveImport({ guildId: interaction.guildId, reason: "Admin selected Cancel Previous Import and Start New." });
     importSessions.set(interaction.user.id, { importMode: session?.pendingStartMode ?? session?.importMode });
@@ -445,6 +447,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.history) {
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Import History...").setDescription("Fetching recent import jobs.")], components: [] });
     const result = await recApi.getImportHistory(interaction.guildId);
     const rows = (result.jobs ?? []).slice(0, 10).map((job: any, index: number) => {
       const label = job.import_label ? ` - ${job.import_label}` : "";
@@ -624,6 +627,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     if (!importJobId) return;
 
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Executing Import Job...").setDescription("Running the import job. This may take a moment.")], components: [] });
     const executed = await recApi.executeImportJob(importJobId);
     const refreshed = await recApi.getImportJob(importJobId).catch(() => executed);
 
@@ -719,6 +723,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
     if (!importJobId) return;
 
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Cancelling Import...").setDescription("Cancelling the active import job.")], components: [] });
     const cancelled = await recApi.cancelImportJob({ importJobId, reason: "Cancelled from Discord import workflow." });
     importSessions.delete(interaction.user.id);
 
@@ -736,6 +741,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.discoverFranchises) {
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Discovering Franchises...").setDescription("Connecting to EA and looking up your Madden franchises. This may take a moment.")], components: [] });
 
     try {
       await discoverAndRenderFranchises(interaction);
@@ -763,6 +769,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   if (importMode === "ea_import") {
     if (!interaction.inCachedGuild()) return;
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Starting EA Import...").setDescription("Checking for pending imports and loading your EA account status.")], components: [] });
     const active = await recApi.getActiveImport(interaction.guildId).catch(() => null);
     if (active?.job?.id) {
       importSessions.set(interaction.user.id, { importMode: "ea_import", pendingStartMode: "ea_import", importJobId: active.job.id });
@@ -808,6 +815,7 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
   if (importMode) {
     if (!interaction.inCachedGuild()) return;
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Starting Import...").setDescription("Checking for any pending import jobs.")], components: [] });
     const active = await recApi.getActiveImport(interaction.guildId).catch(() => null);
     if (active?.job?.id) {
       importSessions.set(interaction.user.id, { importMode, pendingStartMode: importMode, importJobId: active.job.id });
@@ -899,6 +907,7 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
     }
 
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Selecting Franchise...").setDescription("Saving your franchise selection and loading recent import history.")], components: [] });
 
     const result = await recApi.selectEaFranchise({
       guildId: interaction.guildId,
@@ -966,6 +975,7 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
       }
 
       await interaction.deferUpdate();
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Creating Schedule Import Job...").setDescription("Setting up the full regular season schedule import job.")], components: [] });
       const result = await recApi.createImportJob({
         guildId: interaction.guildId,
         importMode: draft.importMode,
@@ -1060,6 +1070,7 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
     }
 
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Creating Import Job...").setDescription("Setting up the import job with your selected endpoints.")], components: [] });
 
     const result = await recApi.createImportJob({
       guildId: interaction.guildId,

@@ -21,6 +21,7 @@ export async function renderGotwSelection(interaction: StringSelectMenuInteracti
 export async function handleGotwSelect(interaction: StringSelectMenuInteraction) {
   if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Selecting GOTW...").setDescription("Saving your game of the week selection and posting the vote poll.")], components: [] });
   const result = await recApi.selectGotwCandidate({ guildId: interaction.guildId, candidateId: interaction.values[0], selectedByDiscordId: interaction.user.id });
   const channelId = result.channelId;
   if (!channelId) {
@@ -56,6 +57,7 @@ export async function handleGotwVote(interaction: ButtonInteraction) {
   const prefix = isAway ? GOTW_CUSTOM_IDS.voteAwayPrefix : GOTW_CUSTOM_IDS.voteHomePrefix;
   const [pollId, selectedTeamId] = interaction.customId.slice(prefix.length).split(":");
   await interaction.deferReply({ ephemeral: true });
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Recording Vote...").setDescription("Submitting your vote.")] });
   const result = await recApi.recordGotwVote({ pollId, selectedTeamId, discordId: interaction.user.id });
   if (!result.recorded) {
     await interaction.editReply(result.reason ?? "Vote could not be recorded.");
