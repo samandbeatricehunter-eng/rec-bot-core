@@ -196,7 +196,7 @@ const BADGE_DEFINITIONS = {
 async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number) {
   const { data: allRecords } = await supabase
     .from("rec_season_user_records")
-    .select("user_id,wins,point_differential,games_played")
+    .select("user_id,wins,point_differential,points_for,games_played")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
 
@@ -205,11 +205,10 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
   const badgesToAssign: any[] = [];
   const recordsToUpdate: any[] = [];
 
-  // Only track metrics that exist as real columns on rec_season_user_records.
-  // (points_for / points_against are NOT columns on this table.)
   const records = [
     { metric: "wins", label: "Wins", getter: (r: any) => r.wins },
-    { metric: "point_differential", label: "Point Differential", getter: (r: any) => r.point_differential }
+    { metric: "point_differential", label: "Point Differential", getter: (r: any) => r.point_differential },
+    { metric: "points_for", label: "Points Scored", getter: (r: any) => r.points_for ?? 0 }
   ];
 
   for (const recordType of records) {
@@ -451,7 +450,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
   // Pre-fetch all season records for this league (single query, used by all badge logic)
   const { data: seasonRecords } = await supabase
     .from("rec_season_user_records")
-    .select("user_id,wins,losses,ties,games_played,point_differential")
+    .select("user_id,wins,losses,ties,games_played,point_differential,points_for,points_against")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
 
@@ -546,6 +545,20 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
+    // HIGH OCTANE: 40+ points per game average
+    const ppg = record.games_played > 0 ? (record.points_for ?? 0) / record.games_played : 0;
+    if (ppg >= 40) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "high_octane",
+        badge_label: "High Octane",
+        earned_value: Number(ppg.toFixed(1)),
+        earned_at: nowIso()
+      });
+    }
+
     // SHUTOUT KING: 3+ games where opponent scored 0 points
     const shutouts = userGames.filter((g: any) => {
       const oppScore = g.home_user_id === userId ? g.away_score : g.home_score;
@@ -577,6 +590,38 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
         season_number: seasonNumber,
         badge_name: "closer",
         badge_label: "Closer",
+        earned_at: nowIso()
+      });
+    }
+  }
+
+  // === LEAGUE-WIDE BADGES (only one winner per league) ===
+  if (seasonRecords.length > 0) {
+    // SCORING LEADER: Most total points scored in season
+    const sortedByPf = [...seasonRecords].sort((a: any, b: any) => (b.points_for ?? 0) - (a.points_for ?? 0));
+    if (sortedByPf[0] && (sortedByPf[0].points_for ?? 0) > 0) {
+      badgesToAssign.push({
+        user_id: sortedByPf[0].user_id,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "scoring_leader",
+        badge_label: "Scoring Leader",
+        earned_value: sortedByPf[0].points_for,
+        earned_at: nowIso()
+      });
+    }
+
+    // DEFENSIVE POWERHOUSE: Fewest points allowed in season
+    const withGames = seasonRecords.filter((r: any) => (r.games_played ?? 0) > 0);
+    const sortedByPa = [...withGames].sort((a: any, b: any) => (a.points_against ?? 0) - (b.points_against ?? 0));
+    if (sortedByPa[0] && (sortedByPa[0].points_against ?? 0) > 0) {
+      badgesToAssign.push({
+        user_id: sortedByPa[0].user_id,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "defensive_powerhouse",
+        badge_label: "Defensive Powerhouse",
+        earned_value: sortedByPa[0].points_against,
         earned_at: nowIso()
       });
     }
@@ -1563,7 +1608,17 @@ export async function applyAdvanceRecords(guildId: string) {
       const loss = p.score < p.oppScore ? 1 : 0;
       const tie = p.score === p.oppScore ? 1 : 0;
       const delta = p.score - p.oppScore;
-      const patch = { wins: win, losses: loss, ties: tie, games_played: 1, point_differential: delta };
+      const closeGame = win && Math.abs(delta) <= 7 ? 1 : 0;
+      const blowoutWin = delta >= 22 ? 1 : 0;
+      const blowoutLoss = delta <= -22 ? 1 : 0;
+      const patch = {
+        wins: win, losses: loss, ties: tie, games_played: 1,
+        point_differential: delta,
+        points_for: p.score, points_against: p.oppScore,
+        close_games_within_7: closeGame,
+        blowout_wins_by_22_plus: blowoutWin,
+        blowout_losses_by_22_plus: blowoutLoss
+      };
       // Global record tracks H2H only; season/league records count all games including CPU
       if (isH2H) {
         await incrementRecord("rec_global_user_records", { user_id: p.userId }, patch).catch(() => undefined);
