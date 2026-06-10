@@ -28,6 +28,7 @@ export type ImportDraft = {
   weekScope?: "current_week" | "single_week" | "full_regular_season_schedule";
   weekFrom?: number;
   weekTo?: number;
+  selectedWeeks?: number[];
   endpointKeys?: string[];
   eaFranchiseId?: string;
   eaExternalLeagueId?: string;
@@ -39,6 +40,11 @@ export type ImportDraft = {
 };
 
 export const importSessions = new Map<string, ImportDraft>();
+
+export function importWeekLabel(week: number) {
+  if (week <= 18) return `Week ${week}`;
+  return week === 19 ? "Wild Card" : week === 20 ? "Divisional" : week === 21 ? "Conference Championship" : "Super Bowl";
+}
 
 const IMPORT_PROGRESS_STEPS = [
   { key: "league_metadata", label: "Preparing import context" },
@@ -228,6 +234,9 @@ function buildPreviewEmbeds(result: any) {
   const warnings = job.validation_warnings ?? job.validationWarnings ?? [];
   const errors = job.validation_errors ?? job.validationErrors ?? [];
 
+  const failedEndpoints = endpointResults.filter((endpoint: any) => endpoint.status === "failed" || endpoint.status === "skipped");
+  const commitWarnings: string[] = Array.isArray(summary.committedCounts?.warnings) ? summary.committedCounts.warnings : [];
+
   const endpointCountLines = endpointResults.length
     ? endpointResults.map((endpoint: any) => `${statusIcon(endpoint.status)} ${endpoint.endpointLabel ?? endpoint.endpointKey}: **${endpoint.recordsFound ?? 0}** staged`)
     : latestEndpoint
@@ -251,14 +260,31 @@ function buildPreviewEmbeds(result: any) {
         `Team Stats: **${recordCounts.teamStats ?? 0}**`,
         `Player Stats: **${recordCounts.playerStats ?? 0}**`,
         "",
+        `Failed Endpoints: **${failedEndpoints.length}**`,
         `Missing Result Games: **${matchupResults.gamesMissingScores ?? missingGames.length ?? 0}**`,
         `Endpoint Missing Data Groups: **${endpointMissingData.length}**`,
-        `Warnings: **${warnings.length}**`,
+        `Warnings: **${warnings.length + commitWarnings.length}**`,
         `Errors: **${errors.length}**`,
         "",
         summary.payouts ?? "Payouts deferred until league advance."
       ].join("\n"))
   ];
+
+  // Surface endpoint failures and commit warnings prominently — these are the errors that
+  // previously only appeared as a status icon with no message.
+  if (failedEndpoints.length || commitWarnings.length) {
+    embeds.push(
+      new EmbedBuilder()
+        .setTitle("Import Preview - Errors & Failures")
+        .setDescription(truncateLines([
+          ...failedEndpoints.map((endpoint: any) => [
+            `**${endpoint.endpointLabel ?? endpoint.endpointKey}** ${endpoint.status === "skipped" ? "was skipped" : "FAILED"}`,
+            `> ${endpoint.errorMessage ?? endpoint.responseSummary?.error ?? "No error message reported."}`
+          ].join("\n")),
+          ...commitWarnings.map((warning: string) => `**Commit warning:** ${warning}`)
+        ]))
+    );
+  }
 
   embeds.push(
     new EmbedBuilder()
@@ -626,7 +652,17 @@ export async function handleImportButton(interaction: Extract<Interaction, { isB
       return;
     }
 
-    await interaction.deferUpdate();
+    // Use update() (not deferUpdate) so the source message immediately shows a processing state
+    // and the buttons disappear — deferUpdate acknowledges silently with no visual feedback, so
+    // users assumed it stalled and clicked Approve repeatedly during the commit.
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Committing Import…")
+          .setDescription("Approving and committing this import into REC Core. Large rosters can take a moment — please wait, do not click again.")
+      ],
+      components: []
+    });
     try {
       const approved = await recApi.approveImportJob(importJobId);
       importSessions.delete(interaction.user.id);
@@ -907,9 +943,9 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
             .setDescription([
               draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined,
               `Mode: **${draft.importMode?.replaceAll("_", " ")}**`,
-              "Week Scope: **Single Week**",
+              "Week Scope: **Import Weeks**",
               "",
-              "Select the exact regular season or playoff week to import."
+              "Select one or more completed Madden weeks to import in this session."
             ].filter(Boolean).join("\n"))
         ],
         components: [buildWeekSelectRow(), ...buildImportFlowNavigationRows()]
@@ -983,15 +1019,18 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
   }
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.weekSelect) {
-    const selectedWeek = Number(interaction.values[0]);
-    if (!Number.isInteger(selectedWeek) || selectedWeek < 1 || selectedWeek > 22) {
-      await interaction.reply({ content: "Invalid week selection. Select a week from the menu again.", ephemeral: true });
+    const selectedWeeks = [...new Set(interaction.values.map((value) => Number(value)))]
+      .filter((week) => Number.isInteger(week) && week >= 1 && week <= 22)
+      .sort((a, b) => a - b);
+    if (selectedWeeks.length === 0) {
+      await interaction.reply({ content: "Invalid week selection. Select at least one week from the menu again.", ephemeral: true });
       return;
     }
 
     draft.weekScope = "single_week";
-    draft.weekFrom = selectedWeek;
-    draft.weekTo = selectedWeek;
+    draft.selectedWeeks = selectedWeeks;
+    draft.weekFrom = selectedWeeks[0];
+    draft.weekTo = selectedWeeks[selectedWeeks.length - 1];
     importSessions.set(interaction.user.id, draft);
 
     await interaction.update({
@@ -1001,10 +1040,9 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
           .setDescription([
             draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined,
             `Mode: **${draft.importMode?.replaceAll("_", " ")}**`,
-            "Week Scope: **Single Week**",
-            `Week: **${selectedWeek <= 18 ? `Week ${selectedWeek}` : selectedWeek === 19 ? "Wild Card" : selectedWeek === 20 ? "Divisional" : selectedWeek === 21 ? "Conference Championship" : "Super Bowl"}**`,
+            `Week${selectedWeeks.length > 1 ? "s" : ""}: **${selectedWeeks.map(importWeekLabel).join(", ")}**`,
             "",
-            "Select the core endpoints to include. Weekly imports also stage matchup/result details for the selected week."
+            "Select the core endpoints to include. Weekly imports also stage matchup/result details for the selected weeks."
           ].filter(Boolean).join("\n"))
       ],
       components: [buildEndpointSelectRow(), ...buildImportFlowNavigationRows()]
@@ -1033,6 +1071,7 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
       importScope: draft.weekScope,
       weekFrom: draft.weekFrom,
       weekTo: draft.weekTo,
+      selectedWeeks: draft.selectedWeeks,
       selectedEndpointKeys: draft.endpointKeys
     });
 
@@ -1048,7 +1087,9 @@ export async function handleImportSelect(interaction: Extract<Interaction, { isS
             draft.eaExternalLeagueName ? `Franchise: **${draft.eaExternalLeagueName}**` : undefined,
             `Mode: **${draft.importMode.replaceAll("_", " ")}**`,
             `Week Scope: **${draft.weekScope?.replaceAll("_", " ")}**`,
-            draft.weekFrom ? `Weeks: **${draft.weekFrom}${draft.weekTo && draft.weekTo !== draft.weekFrom ? ` -> ${draft.weekTo}` : ""}**` : undefined,
+            draft.selectedWeeks?.length
+              ? `Week${draft.selectedWeeks.length > 1 ? "s" : ""}: **${draft.selectedWeeks.map(importWeekLabel).join(", ")}**`
+              : draft.weekFrom ? `Weeks: **${draft.weekFrom}${draft.weekTo && draft.weekTo !== draft.weekFrom ? ` -> ${draft.weekTo}` : ""}**` : undefined,
             `Endpoints: **${draft.endpointKeys.length} selected**`,
             "",
             "Next step: preview the import to inspect missing scores and endpoint data before commit.",

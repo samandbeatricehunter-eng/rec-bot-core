@@ -1,6 +1,7 @@
 import { NFL_TEAMS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { applyAdvanceRecords } from "../advance/advance.service.js";
 import { getImportJob, updateImportJobStatus } from "./import.service.js";
 
 // Canonical NFL conference/division alignment, keyed by normalized name and abbreviation, so imports
@@ -41,10 +42,83 @@ function buildRatings(raw: JsonObject) { return collectPrefixed(raw, ["Rating", 
 function buildTraits(raw: JsonObject) { return collectPrefixed(raw, ["Trait"]); }
 function buildContract(raw: JsonObject) { const keys = ["capHit", "capReleaseNetSavings", "capReleasePenalty", "contractBonus", "contractSalary", "contractYearsLeft", "contractLength", "desiredBonus", "desiredSalary", "desiredLength", "reSignStatus"]; return Object.fromEntries(keys.filter((key) => key in raw).map((key) => [key, raw[key]])); }
 
+// PostgREST caps every response at 1,000 rows and embeds .in() values in the request URL,
+// so staged reads must be paged, value lists chunked, and bulk writes batched. A single
+// roster import is ~2,600 rows — an unpaged read silently truncates it.
+const PAGE_SIZE = 1000;
+const IN_CHUNK_SIZE = 200;
+const WRITE_CHUNK_SIZE = 500;
+const UPDATE_CONCURRENCY = 25;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+async function runBatched<T, R>(items: T[], size: number, fn: (item: T) => PromiseLike<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (const part of chunk(items, size)) out.push(...(await Promise.all(part.map(fn))));
+  return out;
+}
+
+async function insertInChunks(table: string, rows: any[], errorMessage: string) {
+  let count = 0;
+  for (const part of chunk(rows, WRITE_CHUNK_SIZE)) {
+    const result = await supabase.from(table).insert(part);
+    if (result.error) throw new ApiError(500, errorMessage, result.error);
+    count += part.length;
+  }
+  return count;
+}
+
+// Chunked bulk upsert keyed on a unique constraint. Far faster and more resilient than
+// thousands of per-row UPDATE requests, which made large-roster commits take minutes and
+// tripped transient ECONNRESET failures. Postgres rejects two rows hitting the same conflict
+// target in one statement, so callers must dedupe on the conflict columns first.
+async function upsertInChunks(table: string, rows: any[], onConflict: string, errorMessage: string) {
+  let count = 0;
+  for (const part of chunk(rows, WRITE_CHUNK_SIZE)) {
+    const result = await supabase.from(table).upsert(part, { onConflict });
+    if (result.error) throw new ApiError(500, errorMessage, result.error);
+    count += part.length;
+  }
+  return count;
+}
+
+// Keep the last row for each conflict key so a bulk upsert chunk never targets the same
+// unique key twice.
+function dedupeBy<T>(rows: T[], keyFn: (row: T) => string): T[] {
+  const map = new Map<string, T>();
+  for (const row of rows) map.set(keyFn(row), row);
+  return [...map.values()];
+}
+
 async function loadStagedRows(table: string, importJobId: string) {
-  const result = await supabase.from(table).select("*").eq("import_job_id", importJobId);
-  if (result.error) throw new ApiError(500, `Failed to load ${table}.`, result.error);
-  return result.data ?? [];
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const result = await supabase.from(table).select("*").eq("import_job_id", importJobId).order("id").range(offset, offset + PAGE_SIZE - 1);
+    if (result.error) throw new ApiError(500, `Failed to load ${table}.`, result.error);
+    const page = result.data ?? [];
+    rows.push(...page);
+    if (page.length < PAGE_SIZE) return rows;
+  }
+}
+
+async function loadExistingByColumn(table: string, select: string, leagueId: string, column: string, values: string[], errorMessage: string, weekNumbers?: number[]) {
+  const rows: any[] = [];
+  for (const part of chunk([...new Set(values)], IN_CHUNK_SIZE)) {
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+      let query = supabase.from(table).select(select).eq("league_id", leagueId).in(column, part);
+      if (weekNumbers && weekNumbers.length > 0) query = query.in("week_number", weekNumbers);
+      const result = await query.order("id").range(offset, offset + PAGE_SIZE - 1);
+      if (result.error) throw new ApiError(500, errorMessage, result.error);
+      const page = (result.data ?? []) as any[];
+      rows.push(...page);
+      if (page.length < PAGE_SIZE) break;
+    }
+  }
+  return rows;
 }
 
 async function upsertTeams(importJobId: string, leagueId: string) {
@@ -312,13 +386,12 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
   const existingGamesByExternalId = new Map<string, CommittedGameRow>();
 
   if (allExternalGameIds.length > 0) {
-    const existing = await supabase
-      .from("rec_games")
-      .select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase")
-      .eq("league_id", leagueId)
-      .in("external_game_id", allExternalGameIds);
-    if (existing.error) throw new ApiError(500, "Failed to bulk-load existing games.", existing.error);
-    for (const g of existing.data ?? []) {
+    const existing = await loadExistingByColumn(
+      "rec_games",
+      "id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase",
+      leagueId, "external_game_id", allExternalGameIds, "Failed to bulk-load existing games."
+    );
+    for (const g of existing) {
       if (g.external_game_id) existingGamesByExternalId.set(g.external_game_id, g as CommittedGameRow);
     }
   }
@@ -328,29 +401,29 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
 
   const savedGames: CommittedGameRow[] = [];
 
-  // Batch insert new games
+  // Batch insert new games (chunked so the returned rows stay under the response cap)
   if (toInsertGames.length > 0) {
-    const inserted = await supabase
-      .from("rec_games")
-      .insert(toInsertGames)
-      .select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase");
-    if (inserted.error) throw new ApiError(500, "Failed to batch-insert imported games.", inserted.error);
-    savedGames.push(...((inserted.data ?? []) as CommittedGameRow[]));
+    for (const part of chunk(toInsertGames, WRITE_CHUNK_SIZE)) {
+      const inserted = await supabase
+        .from("rec_games")
+        .insert(part)
+        .select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase");
+      if (inserted.error) throw new ApiError(500, "Failed to batch-insert imported games.", inserted.error);
+      savedGames.push(...((inserted.data ?? []) as CommittedGameRow[]));
+    }
   }
 
-  // Parallel update existing games
+  // Update existing games with bounded concurrency
   if (toUpdateGames.length > 0) {
-    const updateResults = await Promise.all(
-      toUpdateGames.map((row) => {
-        const existing = existingGamesByExternalId.get(row.external_game_id)!;
-        return supabase
-          .from("rec_games")
-          .update(row)
-          .eq("id", existing.id)
-          .select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase")
-          .single();
-      })
-    );
+    const updateResults = await runBatched(toUpdateGames, UPDATE_CONCURRENCY, (row) => {
+      const existing = existingGamesByExternalId.get(row.external_game_id)!;
+      return supabase
+        .from("rec_games")
+        .update(row)
+        .eq("id", existing.id)
+        .select("id,external_game_id,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,week_number,phase")
+        .single();
+    });
     for (const result of updateResults) {
       if (result.error) throw new ApiError(500, "Failed to update imported game.", result.error);
       if (result.data) savedGames.push(result.data as CommittedGameRow);
@@ -370,13 +443,11 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
 
     // Bulk load existing results
     const existingResultsByExternalId = new Map<string, string>();
-    const existingResults = await supabase
-      .from("rec_game_results")
-      .select("id,external_game_id")
-      .eq("league_id", leagueId)
-      .in("external_game_id", completedExternalIds);
-    if (existingResults.error) throw new ApiError(500, "Failed to bulk-load existing game results.", existingResults.error);
-    for (const r of existingResults.data ?? []) {
+    const existingResults = await loadExistingByColumn(
+      "rec_game_results", "id,external_game_id", leagueId, "external_game_id", completedExternalIds,
+      "Failed to bulk-load existing game results."
+    );
+    for (const r of existingResults) {
       if (r.external_game_id) existingResultsByExternalId.set(r.external_game_id, r.id);
     }
 
@@ -417,19 +488,15 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
 
     // Batch insert new results
     if (toInsertResults.length > 0) {
-      const inserted = await supabase.from("rec_game_results").insert(toInsertResults).select("id");
-      if (inserted.error) throw new ApiError(500, "Failed to batch-insert imported game results.", inserted.error);
-      resultsAddedOrUpdated += inserted.data?.length ?? 0;
+      resultsAddedOrUpdated += await insertInChunks("rec_game_results", toInsertResults, "Failed to batch-insert imported game results.");
     }
 
-    // Parallel update existing results
+    // Update existing results with bounded concurrency
     if (toUpdateResults.length > 0) {
-      const updateResults = await Promise.all(
-        toUpdateResults.map((row) => {
-          const existingId = existingResultsByExternalId.get(row.external_game_id!)!;
-          return supabase.from("rec_game_results").update(row).eq("id", existingId).select("id").single();
-        })
-      );
+      const updateResults = await runBatched(toUpdateResults, UPDATE_CONCURRENCY, (row) => {
+        const existingId = existingResultsByExternalId.get(row.external_game_id!)!;
+        return supabase.from("rec_game_results").update(row).eq("id", existingId).select("id").single();
+      });
       for (const result of updateResults) {
         if (result.error) throw new ApiError(500, "Failed to update imported game result.", result.error);
         if (result.data) resultsAddedOrUpdated++;
@@ -440,12 +507,11 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
   return { gamesAddedOrUpdated: savedGames.length, resultsAddedOrUpdated, gamesSkipped: skipped.length, skippedGames: skipped };
 }
 
-async function upsertStandings(importJobId: string, leagueId: string, _teamMap: Map<string, string>) {
+async function upsertStandings(_importJobId: string, _leagueId: string, _teamMap: Map<string, string>) {
   // There is no committed standings table in the deployed schema (standings are derived from
   // rec_game_results / rec_league_user_records during advance). Staged standings remain in
   // rec_import_staging_standings for reference; nothing to commit here.
-  const staged = await loadStagedRows("rec_import_staging_standings", importJobId);
-  return staged.length === 0 ? 0 : 0;
+  return 0;
 }
 
 async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
@@ -475,43 +541,10 @@ async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map
     };
   }).filter((p) => p.madden_player_id && p.full_name);
 
-  // Bulk load existing players by madden_player_id
-  const maddenIds = playerRows.map((r) => r.madden_player_id).filter(Boolean) as string[];
-  const existingById = new Map<string, string>();
-
-  if (maddenIds.length > 0) {
-    const existing = await supabase.from("rec_players").select("id,madden_player_id").eq("league_id", leagueId).in("madden_player_id", maddenIds);
-    if (existing.error) throw new ApiError(500, "Failed to bulk-load existing players.", existing.error);
-    for (const p of existing.data ?? []) {
-      if (p.madden_player_id) existingById.set(String(p.madden_player_id), p.id);
-    }
-  }
-
-  const toInsert = playerRows.filter((r) => !existingById.has(String(r.madden_player_id)));
-  const toUpdate = playerRows.filter((r) => existingById.has(String(r.madden_player_id)));
-
-  let count = 0;
-
-  if (toInsert.length > 0) {
-    const inserted = await supabase.from("rec_players").insert(toInsert).select("id");
-    if (inserted.error) throw new ApiError(500, "Failed to batch-insert imported players.", inserted.error);
-    count += inserted.data?.length ?? 0;
-  }
-
-  if (toUpdate.length > 0) {
-    const results = await Promise.all(
-      toUpdate.map((row) => {
-        const id = existingById.get(String(row.madden_player_id))!;
-        return supabase.from("rec_players").update(row).eq("id", id).select("id").single();
-      })
-    );
-    for (const result of results) {
-      if (result.error) throw new ApiError(500, "Failed to update imported player.", result.error);
-      if (result.data) count++;
-    }
-  }
-
-  return count;
+  // rec_players has UNIQUE (league_id, madden_player_id); one chunked bulk upsert handles both
+  // insert and update. Dedupe on madden_player_id first so a chunk can't target the same key twice.
+  const deduped = dedupeBy(playerRows, (r) => String(r.madden_player_id));
+  return upsertInChunks("rec_players", deduped, "league_id,madden_player_id", "Failed to upsert imported players.");
 }
 
 async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number) {
@@ -550,51 +583,25 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
   const statMaddenIds = [...new Set(playerStatRows.map((r) => r.madden_player_id).filter(Boolean))] as string[];
   const playerIdByMaddenId = new Map<string, string>();
   if (statMaddenIds.length > 0) {
-    const pResult = await supabase.from("rec_players").select("id,madden_player_id").eq("league_id", leagueId).in("madden_player_id", statMaddenIds);
-    if (!pResult.error) {
-      for (const p of pResult.data ?? []) if (p.madden_player_id) playerIdByMaddenId.set(String(p.madden_player_id), p.id);
+    try {
+      const players = await loadExistingByColumn("rec_players", "id,madden_player_id", leagueId, "madden_player_id", statMaddenIds, "Failed to load players for stat linking.");
+      for (const p of players) if (p.madden_player_id) playerIdByMaddenId.set(String(p.madden_player_id), p.id);
+    } catch {
+      // Non-fatal: stats still commit keyed on madden_player_id; player_id stays null.
     }
   }
   for (const row of playerStatRows) {
     if (row.madden_player_id) row.player_id = playerIdByMaddenId.get(String(row.madden_player_id)) ?? null;
   }
 
-  // Dedup existing player stats by (madden_player_id, week, category)
-  const existingPlayerStatIds = new Map<string, string>();
-  if (statMaddenIds.length > 0) {
-    const existing = await supabase
-      .from("rec_player_weekly_stats")
-      .select("id,madden_player_id,week_number,stat_category")
-      .eq("league_id", leagueId)
-      .in("madden_player_id", statMaddenIds);
-    if (!existing.error) {
-      for (const r of existing.data ?? []) {
-        existingPlayerStatIds.set(`${r.madden_player_id}|${r.week_number}|${r.stat_category}`, r.id);
-      }
-    }
-  }
-
-  const toInsertPS = playerStatRows.filter((r) => !existingPlayerStatIds.has(`${r.madden_player_id}|${r.week_number}|${r.stat_category}`));
-  const toUpdatePS = playerStatRows.filter((r) => existingPlayerStatIds.has(`${r.madden_player_id}|${r.week_number}|${r.stat_category}`));
-
-  let playerCount = 0;
-  if (toInsertPS.length > 0) {
-    const result = await supabase.from("rec_player_weekly_stats").insert(toInsertPS).select("id");
-    if (result.error) throw new ApiError(500, "Failed to batch-insert imported player weekly stats.", result.error);
-    playerCount += result.data?.length ?? 0;
-  }
-  if (toUpdatePS.length > 0) {
-    const results = await Promise.all(
-      toUpdatePS.map((row) => {
-        const id = existingPlayerStatIds.get(`${row.madden_player_id}|${row.week_number}|${row.stat_category}`)!;
-        return supabase.from("rec_player_weekly_stats").update(row).eq("id", id).select("id").single();
-      })
-    );
-    for (const result of results) {
-      if (result.error) throw new ApiError(500, "Failed to update imported player weekly stat.", result.error);
-      if (result.data) playerCount++;
-    }
-  }
+  // rec_player_weekly_stats has UNIQUE (league_id, season_number, season_stage, week_number,
+  // madden_player_id, stat_category); a chunked bulk upsert handles insert and update together.
+  const dedupedPS = dedupeBy(playerStatRows, (r) => `${r.season_number}|${r.season_stage}|${r.week_number}|${r.madden_player_id}|${r.stat_category}`);
+  const playerCount = await upsertInChunks(
+    "rec_player_weekly_stats", dedupedPS,
+    "league_id,season_number,season_stage,week_number,madden_player_id,stat_category",
+    "Failed to upsert imported player weekly stats."
+  );
 
   // ---- Team stats → rec_team_weekly_stats (keyed on madden_team_id) ----
   const teamStatRows = (teamStats as any[]).map((row: any) => {
@@ -615,42 +622,14 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
     };
   }).filter((r) => r.madden_team_id);
 
-  const teamStatMaddenIds = [...new Set(teamStatRows.map((r) => r.madden_team_id).filter(Boolean))] as string[];
-  const existingTeamStatIds = new Map<string, string>();
-  if (teamStatMaddenIds.length > 0) {
-    const existing = await supabase
-      .from("rec_team_weekly_stats")
-      .select("id,madden_team_id,week_number,stat_category")
-      .eq("league_id", leagueId)
-      .in("madden_team_id", teamStatMaddenIds);
-    if (!existing.error) {
-      for (const r of existing.data ?? []) {
-        existingTeamStatIds.set(`${r.madden_team_id}|${r.week_number}|${r.stat_category}`, r.id);
-      }
-    }
-  }
-
-  const toInsertTS = teamStatRows.filter((r) => !existingTeamStatIds.has(`${r.madden_team_id}|${r.week_number}|${r.stat_category}`));
-  const toUpdateTS = teamStatRows.filter((r) => existingTeamStatIds.has(`${r.madden_team_id}|${r.week_number}|${r.stat_category}`));
-
-  let teamCount = 0;
-  if (toInsertTS.length > 0) {
-    const result = await supabase.from("rec_team_weekly_stats").insert(toInsertTS).select("id");
-    if (result.error) throw new ApiError(500, "Failed to batch-insert imported team weekly stats.", result.error);
-    teamCount += result.data?.length ?? 0;
-  }
-  if (toUpdateTS.length > 0) {
-    const results = await Promise.all(
-      toUpdateTS.map((row) => {
-        const id = existingTeamStatIds.get(`${row.madden_team_id}|${row.week_number}|${row.stat_category}`)!;
-        return supabase.from("rec_team_weekly_stats").update(row).eq("id", id).select("id").single();
-      })
-    );
-    for (const result of results) {
-      if (result.error) throw new ApiError(500, "Failed to update imported team weekly stat.", result.error);
-      if (result.data) teamCount++;
-    }
-  }
+  // rec_team_weekly_stats has UNIQUE (league_id, season_number, season_stage, week_number,
+  // madden_team_id, stat_category); a chunked bulk upsert handles insert and update together.
+  const dedupedTS = dedupeBy(teamStatRows, (r) => `${r.season_number}|${r.season_stage}|${r.week_number}|${r.madden_team_id}|${r.stat_category}`);
+  const teamCount = await upsertInChunks(
+    "rec_team_weekly_stats", dedupedTS,
+    "league_id,season_number,season_stage,week_number,madden_team_id,stat_category",
+    "Failed to upsert imported team weekly stats."
+  );
 
   return { playerCount, teamCount };
 }
@@ -687,11 +666,20 @@ export async function commitApprovedImport(importJobId: string) {
   };
 
   const gameCommit = await upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap, seasonNumber);
-  const [standings, players, stats] = await Promise.all([
-    safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap), 0),
-    safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap), 0),
-    safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0 })
-  ]);
+  const standings = await safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap), 0);
+  // Players must commit before weekly stats so the stats' player_id FK lookup can resolve.
+  const players = await safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap), 0);
+  const stats = await safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0 });
+
+  // Auto-backfill W-L-T records whenever completed game results are committed (EA import or
+  // companion app export). This keeps season/league/global records current without requiring
+  // a separate manual step or waiting until the next advance.
+  if (gameCommit.resultsAddedOrUpdated > 0) {
+    const guildId = (details.job as any).server?.guild_id;
+    if (guildId) {
+      await safe("apply_records", () => applyAdvanceRecords(guildId), { applied: 0 });
+    }
+  }
 
   const previousSummary = details.job.preview_summary ?? {};
   const committedCounts = {

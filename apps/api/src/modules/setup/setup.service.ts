@@ -180,7 +180,10 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     offensive_play_call_cooldown: input.offensivePlayCallCooldown ?? null,
     defensive_play_call_limits_enabled: input.defensivePlayCallLimitsEnabled,
     defensive_play_call_limit: input.defensivePlayCallLimit ?? null,
-    defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null
+    defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
+
+    ...(input.fairSimRequirements != null ? { fair_sim_requirements: input.fairSimRequirements } : {}),
+    ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {})
   };
 
   const configuration = await supabase
@@ -286,4 +289,69 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
   });
 
   return routes.data;
+}
+
+export async function getLeagueConfigAsDraft(guildId: string) {
+  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
+  if (server.error || !server.data) throw new ApiError(404, "Server not found");
+  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).limit(1).maybeSingle();
+  if (link.error || !link.data?.league_id) throw new ApiError(404, "No primary league found for this server");
+  const [league, config] = await Promise.all([
+    supabase.from("rec_leagues").select("name").eq("id", link.data.league_id).single(),
+    supabase.from("rec_league_configuration").select("*").eq("league_id", link.data.league_id).maybeSingle()
+  ]);
+  if (league.error) throw new ApiError(500, "Failed to load league", league.error);
+  const c = config.data ?? {};
+  const draft = {
+    name: league.data.name ?? "League",
+    leagueType: c.roster_type ?? "regular_rosters",
+    importMode: c.import_mode ?? "manual",
+    seasonWeek: "week_1",
+    coinEconomyEnabled: c.coin_economy_enabled ?? false,
+    customPlayersEnabled: c.custom_players_enabled ?? false,
+    legendsEnabled: c.legends_enabled ?? false,
+    devUpgradesEnabled: c.dev_upgrades_enabled ?? false,
+    ageResetsEnabled: c.age_resets_enabled ?? false,
+    trainingPackagesEnabled: c.training_packages_enabled ?? false,
+    contractAdjustmentPurchasesEnabled: c.contract_adjustment_purchases_enabled ?? false,
+    capManagementAssistantEnabled: c.cap_management_assistant_enabled ?? false,
+    draftClassFeaturesEnabled: c.draft_class_features_enabled ?? false,
+    draftClassType: c.draft_class_type ?? "auto_gen",
+    scoutingPurchasesEnabled: c.scouting_purchases_enabled ?? false,
+    mediaFeaturesEnabled: c.media_features_enabled ?? true,
+    streamingRequirement: c.streaming_requirement ?? "recommended",
+    regularSeasonStreamingRequirement: c.regular_season_streaming_requirement ?? "recommended",
+    postseasonStreamingRequirement: c.postseason_streaming_requirement ?? "required",
+    streamingScope: c.streaming_scope ?? "every_game",
+    streamingSide: c.streaming_side ?? "either",
+    fourthDownRuleTypeRegular: c.fourth_down_rule_type ?? "standard_rec",
+    fourthDownRuleTypePlayoff: c.fourth_down_rule_type ?? "standard_rec",
+    positionChangePolicy: c.position_change_policy ?? "restricted",
+    customPlaybooksAllowed: c.custom_playbooks_allowed ?? false,
+    tradeApprovalPolicy: c.trade_approval_policy ?? "competition_committee_review",
+    cpuTradingAllowed: c.cpu_trading_allowed ?? true,
+    cpuFreeAgencyPolicy: c.cpu_free_agency_policy ?? "open",
+    injuryPolicy: c.injury_policy ?? "on_standard",
+    difficulty: c.difficulty ?? "all_madden",
+    quarterLengthMinutes: c.quarter_length_minutes ?? 8,
+    acceleratedClockEnabled: c.accelerated_clock_enabled ?? true,
+    acceleratedClockMinimumSeconds: c.accelerated_clock_minimum_seconds ?? 20,
+    salaryCapEnabled: c.salary_cap_enabled ?? false,
+    tradeDeadlineEnabled: c.trade_deadline_enabled ?? false,
+    abilitiesEnabled: c.abilities_enabled ?? true,
+    wearAndTearEnabled: c.wear_and_tear_enabled ?? true,
+    offensivePlayCallLimitsEnabled: c.offensive_play_call_limits_enabled ?? false,
+    offensivePlayCallLimit: c.offensive_play_call_limit ?? null,
+    offensivePlayCallCooldownEnabled: !!c.offensive_play_call_cooldown,
+    offensivePlayCallCooldown: c.offensive_play_call_cooldown ?? null,
+    defensivePlayCallLimitsEnabled: c.defensive_play_call_limits_enabled ?? false,
+    defensivePlayCallLimit: c.defensive_play_call_limit ?? null,
+    defensivePlayCallCooldownEnabled: !!c.defensive_play_call_cooldown,
+    defensivePlayCallCooldown: c.defensive_play_call_cooldown ?? null,
+    fairSimRequirements: c.fair_sim_requirements ?? "",
+    forceWinRequirements: c.force_win_requirements ?? "",
+    linkTeamsAfterSetup: false,
+    editMode: true
+  };
+  return { draft };
 }

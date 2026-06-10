@@ -24,12 +24,8 @@ function userMention(discordId: string | null | undefined, fallbackName: string)
 }
 
 function buildGameEmbeds(plan: any) {
-  const awayMention = userMention(plan.awayDiscordId, plan.awayTeamName ?? "Away");
-  const homeMention = userMention(plan.homeDiscordId, plan.homeTeamName ?? "Home");
   const base = [
-    `${awayMention} vs ${homeMention}`,
-    "",
-    "You have a User H2H matchup this week.",
+    "Schedule your game in this channel this week.",
     "",
     "Next Advance:",
     advanceLines(plan.nextAdvanceTimes),
@@ -39,9 +35,7 @@ function buildGameEmbeds(plan: any) {
     "",
     "League Game Rules:",
     `• Fourth Down Rules: ${plan.fourthDownRules ?? "Use league settings."}`,
-    `• Scheduling, Activity & Sportsmanship: ${plan.schedulingRules ?? "Scheduling, Activity & Sportsmanship rules apply."}`,
-    "",
-    "Reach out to your opponent in this channel to coordinate your game."
+    `• Scheduling, Activity & Sportsmanship: ${plan.schedulingRules ?? "Scheduling, Activity & Sportsmanship rules apply."}`
   ].join("\n");
   return splitText(base).map((description, index) => new EmbedBuilder().setTitle(index === 0 ? `${plan.awayTeamName} vs ${plan.homeTeamName}` : "League Game Rules Continued").setDescription(description));
 }
@@ -65,21 +59,11 @@ export async function recreateGameChannelsForGuild(guild: Guild) {
     for (const plan of result.plans ?? []) {
       const channel = await guild.channels.create({ name: plan.channelName, type: ChannelType.GuildText, parent: categoryId, reason: "REC weekly H2H matchup channel", permissionOverwrites: [{ id: guild.roles.everyone, allow: [PermissionFlagsBits.ViewChannel] }] });
       if (channel instanceof TextChannel) {
-        // Send game embeds
-        await channel.send({ embeds: buildGameEmbeds(plan) });
-
-        // Tag both users and request scheduling
-        const awayUser = userMention(plan.awayDiscordId, plan.awayTeamName ?? "Away Player");
-        const homeUser = userMention(plan.homeDiscordId, plan.homeTeamName ?? "Home Player");
+        const awayMention = userMention(plan.awayDiscordId, plan.awayTeamName ?? "Away");
+        const homeMention = userMention(plan.homeDiscordId, plan.homeTeamName ?? "Home");
         await channel.send({
-          content: [
-            `${awayUser} vs ${homeUser}`,
-            "",
-            "**Please schedule your game this week!**",
-            `${awayUser} (Away) and ${homeUser} (Home) - coordinate in this channel to schedule your matchup.`,
-            "",
-            `Advance deadline: ${plan.nextAdvanceTimes?.length ? plan.nextAdvanceTimes.map((t: any) => `${t.label}: ${t.value}`).join(" | ") : "See /menu for details"}`
-          ].join("\n")
+          content: `${awayMention} vs ${homeMention}`,
+          embeds: buildGameEmbeds(plan)
         });
 
         await recApi.recordGameChannel({ ...plan, discordChannelId: channel.id });
@@ -95,6 +79,34 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
   // Fetch DM payloads directly — running post-advance automation here would advance the week again.
   const result = await recApi.getAdvanceDmPayloads(guild.id);
   const payloads = result?.payloads ?? [];
+
+  // Post advance announcement to the league announcements channel before sending DMs
+  if (result?.announcementsChannelId) {
+    try {
+      const announceCh = await guild.channels.fetch(result.announcementsChannelId).catch(() => null) as TextChannel | null;
+      if (announceCh?.isTextBased()) {
+        const matchupLines = (result.allMatchups ?? []).map((m: any) => {
+          const away = m.awayDiscordId ? `<@${m.awayDiscordId}>` : m.awayTeamName;
+          const home = m.homeDiscordId ? `<@${m.homeDiscordId}>` : m.homeTeamName;
+          return m.isCpu ? `• ${away} vs CPU` : `• ${away} vs ${home}`;
+        });
+        const advanceText = [
+          `**${result.leagueName} — Week ${result.weekNumber} has begun!**`,
+          `Season ${result.seasonNumber} | ${String(result.seasonStage ?? "").replaceAll("_", " ")}`,
+          "",
+          "**This Week's Matchups:**",
+          ...matchupLines,
+          "",
+          "**Next Advance:**",
+          advanceLines(result.nextAdvanceTimes)
+        ].join("\n");
+        await announceCh.send({ content: advanceText });
+      }
+    } catch (err) {
+      console.error("Failed to post advance announcement", err);
+    }
+  }
+
   let sent = 0;
   let failed = 0;
   for (const payload of payloads) {

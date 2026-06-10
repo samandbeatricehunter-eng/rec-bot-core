@@ -25,10 +25,11 @@ export const CreateImportJobSchema = z.object({
   importScope: ImportScopeSchema.default("current_week"),
   weekFrom: z.number().int().min(1).max(30).optional(),
   weekTo: z.number().int().min(1).max(30).optional(),
+  selectedWeeks: z.array(z.number().int().min(1).max(30)).max(22).optional(),
   selectedEndpointKeys: z.array(CoreImportEndpointSchema).default([])
 }).superRefine((input, context) => {
-  if (input.importScope === "single_week" && !input.weekFrom) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekFrom"], message: "Single-week imports require weekFrom." });
+  if (input.importScope === "single_week" && !input.weekFrom && !input.selectedWeeks?.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["weekFrom"], message: "Week imports require weekFrom or selectedWeeks." });
   }
 
 

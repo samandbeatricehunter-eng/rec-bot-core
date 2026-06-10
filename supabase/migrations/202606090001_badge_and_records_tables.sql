@@ -37,3 +37,7 @@ create index if not exists idx_rec_user_badges_user_league on public.rec_user_ba
 create index if not exists idx_rec_user_badges_season on public.rec_user_badges(season_number);
 create index if not exists idx_rec_league_records_holder on public.rec_league_records(record_holder_id);
 create index if not exists idx_rec_league_records_season on public.rec_league_records(league_id, season_number);
+
+-- RLS: service role bypasses; blocks direct anon-key access
+alter table public.rec_user_badges enable row level security;
+alter table public.rec_league_records enable row level security;

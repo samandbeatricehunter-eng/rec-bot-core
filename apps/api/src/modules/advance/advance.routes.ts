@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes, reviewStreamPayout, evaluateWeeklyChallenges, evaluateStreamCompliance, issueRecPotwPayouts, issueWeeklyGamePayouts } from "./advance.service.js";
+import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, setNextAdvance, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes, reviewStreamPayout, evaluateWeeklyChallenges, evaluateStreamCompliance, issueRecPotwPayouts, issueWeeklyGamePayouts } from "./advance.service.js";
 
 export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/advance/post-advance", async (request) => runPostAdvanceAutomation(request.body as any));
@@ -8,6 +8,7 @@ export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/advance/dm-payloads", async (request) => buildAdvanceDmPayloads((request.body as any).guildId));
   app.post("/v1/league-week/view", async (request) => viewLeagueWeek((request.body as any).guildId));
   app.post("/v1/league-week/set", async (request) => setLeagueWeek(request.body as any));
+  app.post("/v1/advance/set-next-advance", async (request) => setNextAdvance(request.body as any));
   app.post("/v1/economy/config/view", async (request) => viewEconomyConfig((request.body as any).guildId));
   app.post("/v1/economy/config/set", async (request) => setEconomyConfig(request.body as any));
   app.post("/v1/eos/clear-pending", async (request) => clearPendingEosBatch(request.body as any));

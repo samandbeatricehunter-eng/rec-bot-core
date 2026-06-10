@@ -187,7 +187,8 @@ export function buildAdminPanelRows() {
       new StringSelectMenuOptionBuilder().setLabel("User / Team Linking").setValue("user_team_linking").setDescription("Link Discord users to Madden teams."),
       new StringSelectMenuOptionBuilder().setLabel("Economy Reviews").setValue("economy_reviews").setDescription("Pending channels, routes, and EOS review controls."),
       new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Register/update this Discord server."),
-      new StringSelectMenuOptionBuilder().setLabel("League Setup").setValue("league_setup").setDescription("Create/update league settings."),
+      new StringSelectMenuOptionBuilder().setLabel("League Setup").setValue("league_setup").setDescription("Create/update league settings (full wizard)."),
+      new StringSelectMenuOptionBuilder().setLabel("Edit League Settings").setValue("edit_league_settings").setDescription("Adjust individual settings without re-running the full wizard."),
       new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
     );
 

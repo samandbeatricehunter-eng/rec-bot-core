@@ -24,20 +24,29 @@ function selectedEndpointKeys(input: CreateImportJobInput) {
     return ["teams", "schedule"];
   }
   if (input.selectedEndpointKeys.length > 0) {
-    const keys = input.importScope === "current_week" || input.importScope === "single_week"
-      ? input.selectedEndpointKeys.filter((key) => key !== "schedule")
-      : input.selectedEndpointKeys;
-    return keys.length > 0 ? keys : ["league_metadata", "standings", "team_stats", "player_stats"];
+    return input.selectedEndpointKeys.length > 0
+      ? input.selectedEndpointKeys
+      : ["league_metadata", "standings", "schedule", "team_stats", "player_stats"];
   }
   if (input.importScope === "current_week" || input.importScope === "single_week") {
-    return ["league_metadata", "standings", "team_stats", "player_stats"];
+    return ["league_metadata", "standings", "schedule", "team_stats", "player_stats"];
   }
   return [...CORE_ENDPOINT_KEYS];
 }
 
+function normalizedWeeks(input: CreateImportJobInput) {
+  if (input.importScope !== "single_week") return null;
+  const weeks = [...new Set(input.selectedWeeks?.length ? input.selectedWeeks : input.weekFrom ? [input.weekFrom] : [])].sort((a, b) => a - b);
+  return weeks.length ? weeks : null;
+}
+
+function normalizedWeekFrom(input: CreateImportJobInput) {
+  return normalizedWeeks(input)?.[0] ?? null;
+}
+
 function normalizedWeekTo(input: CreateImportJobInput) {
-  if (input.importScope === "single_week") return input.weekFrom ?? null;
-  return null;
+  const weeks = normalizedWeeks(input);
+  return weeks ? weeks[weeks.length - 1] : null;
 }
 
 export async function createImportJob(input: CreateImportJobInput) {
@@ -94,15 +103,17 @@ export async function createImportJob(input: CreateImportJobInput) {
       ea_external_league_id: eaExternalLeagueId,
       ea_external_league_name: eaExternalLeagueName,
       import_scope: input.importScope,
-      week_from: input.importScope === "full_regular_season_schedule" ? null : input.weekFrom ?? null,
+      week_from: input.importScope === "full_regular_season_schedule" ? null : normalizedWeekFrom(input) ?? input.weekFrom ?? null,
       week_to: normalizedWeekTo(input),
+      selected_weeks: normalizedWeeks(input),
       selected_endpoint_keys: keys,
       payouts_deferred_until_advance: true,
       preview_summary: {
         ...(created.job.preview_summary ?? {}),
         importScope: input.importScope,
-        weekFrom: input.importScope === "full_regular_season_schedule" ? null : input.weekFrom ?? null,
+        weekFrom: input.importScope === "full_regular_season_schedule" ? null : normalizedWeekFrom(input) ?? input.weekFrom ?? null,
         weekTo: normalizedWeekTo(input),
+        selectedWeeks: normalizedWeeks(input),
         eaExternalLeagueId,
         eaExternalLeagueName,
         selectedEndpointKeys: keys,
@@ -111,8 +122,9 @@ export async function createImportJob(input: CreateImportJobInput) {
       payload: {
         ...(created.job.payload ?? {}),
         importScope: input.importScope,
-        weekFrom: input.importScope === "full_regular_season_schedule" ? null : input.weekFrom ?? null,
+        weekFrom: input.importScope === "full_regular_season_schedule" ? null : normalizedWeekFrom(input) ?? input.weekFrom ?? null,
         weekTo: normalizedWeekTo(input),
+        selectedWeeks: normalizedWeeks(input),
         eaExternalLeagueId,
         eaExternalLeagueName,
         selectedEndpointKeys: keys

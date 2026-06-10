@@ -39,6 +39,7 @@ type EaExecutionContext = {
   seasonIndex: number | null;
   weekFrom: number;
   weekTo: number;
+  weeks: number[];
   stageIndex: number;
 };
 
@@ -53,6 +54,7 @@ type ExecutorContext = {
   seasonIndex: number | null;
   weekFrom: number;
   weekTo: number;
+  weeks: number[];
   stageIndex: number;
   session?: EaBlazeSession;
 };
@@ -204,18 +206,17 @@ function getSeasonNumber(context: ExecutorContext, payload: unknown, rows: Recor
   };
 }
 
-function getWeekBounds(job: any) {
-  if (job.import_scope === "single_week") {
-    const week = toNumber(job.week_from, 1);
-    return { weekFrom: week, weekTo: week };
-  }
-
+function getWeekBounds(job: any): { weekFrom: number; weekTo: number; weeks: number[] } {
   if (job.import_scope === "full_regular_season_schedule") {
-    return { weekFrom: 1, weekTo: 18 };
+    return { weekFrom: 1, weekTo: 18, weeks: Array.from({ length: 18 }, (_, index) => index + 1) };
   }
 
-  const week = toNumber(job.week_from, 1);
-  return { weekFrom: week, weekTo: week };
+  // single_week (which now covers multi-week selections) and legacy current_week jobs.
+  const selected = Array.isArray(job.selected_weeks)
+    ? [...new Set((job.selected_weeks as any[]).map((w) => toNumber(w, 0)).filter((w) => w >= 1))].sort((a, b) => a - b)
+    : [];
+  const weeks = selected.length ? selected : [toNumber(job.week_from, 1)];
+  return { weekFrom: weeks[0], weekTo: weeks[weeks.length - 1], weeks };
 }
 
 async function loadEaContext(importJobId: string, job: any): Promise<EaExecutionContext> {
@@ -254,7 +255,7 @@ async function loadEaContext(importJobId: string, job: any): Promise<EaExecution
     blazeId: String(account.blaze_id)
   };
 
-  const { weekFrom, weekTo } = getWeekBounds(job);
+  const { weekFrom, weekTo, weeks } = getWeekBounds(job);
   const seasonIndex = franchise.data.season_index == null ? null : toNumber(franchise.data.season_index, 0);
   const seasonNumber = seasonIndex == null
     ? toNumber(job.season_number ?? franchise.data.calendar_year, 1)
@@ -268,6 +269,7 @@ async function loadEaContext(importJobId: string, job: any): Promise<EaExecution
     seasonIndex,
     weekFrom,
     weekTo,
+    weeks,
     stageIndex: 1
   };
 }
@@ -553,7 +555,8 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
       eaLeagueId: context.eaLeagueId,
       importScope: context.job.import_scope,
       weekFrom: context.weekFrom,
-      weekTo: context.weekTo
+      weekTo: context.weekTo,
+      weeks: context.weeks
     }
   }),
 
@@ -601,17 +604,7 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
     let session = context.session;
     const allRows: any[] = [];
 
-    if (context.weekFrom === context.weekTo) {
-      const result = await fetchEaWeeklyStats({
-        token: context.token,
-        eaLeagueId: context.eaLeagueId,
-        weekIndex: context.weekFrom - 1,
-        stageIndex: context.stageIndex,
-        session
-      });
-      session = result.session;
-      allRows.push(...extractGameRows(result.payloads.schedules, context, context.weekFrom));
-    } else {
+    if (context.job.import_scope === "full_regular_season_schedule") {
       const result = await fetchEaAllWeekSchedules({
         token: context.token,
         eaLeagueId: context.eaLeagueId,
@@ -623,6 +616,20 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
       session = result.session;
       for (const week of result.weekResults) {
         allRows.push(...extractGameRows(week.data, context, week.weekNumber));
+      }
+    } else {
+      // Week imports fetch each selected week individually so non-contiguous
+      // selections (e.g. weeks 1 and 3) only pull the chosen weeks.
+      for (const week of context.weeks) {
+        const result = await fetchEaWeeklyStats({
+          token: context.token,
+          eaLeagueId: context.eaLeagueId,
+          weekIndex: week - 1,
+          stageIndex: context.stageIndex,
+          session
+        });
+        session = result.session;
+        allRows.push(...extractGameRows(result.payloads.schedules, context, week));
       }
     }
 
@@ -642,7 +649,7 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
     let total = 0;
     let session = context.session;
 
-    for (let week = context.weekFrom; week <= context.weekTo; week += 1) {
+    for (const week of context.weeks) {
       const result = await fetchEaWeeklyStats({
         token: context.token,
         eaLeagueId: context.eaLeagueId,
@@ -674,7 +681,7 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
     let total = 0;
     let session = context.session;
 
-    for (let week = context.weekFrom; week <= context.weekTo; week += 1) {
+    for (const week of context.weeks) {
       const result = await fetchEaWeeklyStats({
         token: context.token,
         eaLeagueId: context.eaLeagueId,

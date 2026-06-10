@@ -98,6 +98,8 @@ export const CreateLeagueSchema = z.object({
   defensivePlayCallCooldownEnabled: z.boolean().default(false),
   defensivePlayCallCooldown: z.number().int().min(1).max(50).optional().nullable(),
 
+  fairSimRequirements: z.string().optional().nullable(),
+  forceWinRequirements: z.string().optional().nullable(),
   requestedByDiscordId: z.string().min(1).optional()
 });
 

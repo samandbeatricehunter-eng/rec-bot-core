@@ -52,6 +52,12 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  getLeagueConfig: (guildId: string) =>
+    recFetch<{ draft: LeagueSetupDraft }>("/v1/setup/league/config", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
   createDefaultTeams: (guildId: string) =>
     recFetch<any>(REC_API_ROUTES.createDefaultTeams, {
       method: "POST",
@@ -137,6 +143,7 @@ export const recApi = {
     importScope?: RecImportScope;
     weekFrom?: number;
     weekTo?: number;
+    selectedWeeks?: number[];
     selectedEndpointKeys?: string[];
   }) =>
     recFetch<any>(REC_API_ROUTES.createImportJob, {
@@ -300,6 +307,12 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  setNextAdvance: (input: { guildId: string; nextAdvanceAt: string; timezone?: string | null }) =>
+    recFetch<any>("/v1/advance/set-next-advance", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   regenerateWeeklyChallenges: (guildId: string) =>
     recFetch<any>("/v1/challenges/regenerate", {
       method: "POST",
@@ -316,6 +329,12 @@ export const recApi = {
     recFetch<any>("/v1/advance/post-advance", {
       method: "POST",
       body: JSON.stringify({ guildId, mode })
+    }),
+
+  getAdvanceDmPayloads: (guildId: string) =>
+    recFetch<any>("/v1/advance/dm-payloads", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
     }),
 
   getGameChannelPlans: (guildId: string) =>

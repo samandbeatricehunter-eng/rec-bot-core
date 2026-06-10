@@ -16,7 +16,9 @@ import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel, buildChannelIdModal } f
 import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
 import {
   applyLeagueSetupDependencies,
+  buildActivityRequirementsModal,
   buildLeagueSetupWindow,
+  buildSettingsPickerWindow,
   createDefaultLeagueSetupDraft,
   getNextLeagueSetupStep,
   getPreviousLeagueSetupStep,
@@ -146,6 +148,18 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) return handleImportButton(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
+      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
+        const draft = leagueSetupSessions.get(interaction.user.id);
+        if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+        return interaction.showModal(buildActivityRequirementsModal(draft));
+      }
+      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsSkip) {
+        const draft = leagueSetupSessions.get(interaction.user.id);
+        if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+        draft.step = draft.editMode ? "settings_picker" : getNextLeagueSetupStep(draft.step, draft);
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.update(buildLeagueSetupWindow(draft));
+      }
       if (interaction.customId === "rec:league_setup:skip_team_linking") {
         // League is already saved by this point; this button just closes the linking step.
         return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
@@ -160,6 +174,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.channelIdModal) return handleServerSetupChannelIdModal(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
+      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
     }
   } catch (error) {
     await safeInteractionError(interaction, error);
@@ -306,6 +321,18 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
   if (selected === "advance_menu") return interaction.update(buildAdvanceMenuPanel());
   if (selected === "server_setup") return interaction.update(buildServerSetupPanel());
   if (selected === "league_setup") return interaction.showModal(buildSetupDangerModal("league_setup"));
+  if (selected === "edit_league_settings") {
+    if (!interaction.inCachedGuild()) return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
+    await interaction.deferUpdate();
+    try {
+      const result = await recApi.getLeagueConfig(interaction.guildId);
+      const draft = { ...result.draft, step: "settings_picker" as const, editMode: true };
+      leagueSetupSessions.set(interaction.user.id, draft as LeagueSetupDraft);
+      return interaction.editReply({ ...buildSettingsPickerWindow(draft as LeagueSetupDraft), components: buildSettingsPickerWindow(draft as LeagueSetupDraft).components });
+    } catch {
+      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription("No league configuration found. Run League Setup first.")], components: buildAdminPanelRows() });
+    }
+  }
   if (selected === "user_team_linking") {
     const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
     return interaction.update(buildSimpleTeamLinkPanel());
@@ -567,6 +594,17 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
     return interaction.update(buildLeagueSetupWindow(draft));
   }
 
+  // Settings picker: navigate directly to the chosen step without saving
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.settingsPicker) {
+    if (value === "back_admin") {
+      leagueSetupSessions.delete(interaction.user.id);
+      return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+    }
+    draft.step = value as LeagueSetupDraft["step"];
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
   switch (interaction.customId) {
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.importMode: draft.importMode = value as LeagueSetupDraft["importMode"]; break;
@@ -612,10 +650,52 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldownEnabled: draft.defensivePlayCallCooldownEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown: draft.defensivePlayCallCooldown = Number(value); break;
   }
+
+  // In edit mode: save the change to DB immediately, then return to the settings picker
+  if (draft.editMode && interaction.guildId) {
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    try {
+      await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save league setting edit:", err);
+    }
+    draft.step = "settings_picker";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildSettingsPickerWindow(draft));
+  }
+
   draft.step = getNextLeagueSetupStep(draft.step, draft);
   applyLeagueSetupDependencies(draft);
   leagueSetupSessions.set(interaction.user.id, draft);
   await interaction.update(buildLeagueSetupWindow(draft));
+}
+
+async function handleActivityRequirementsModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+
+  draft.fairSimRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.fairSimInput).trim();
+  draft.forceWinRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.forceWinInput).trim();
+  leagueSetupSessions.set(interaction.user.id, draft);
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (draft.editMode && interaction.guildId) {
+    try {
+      await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save activity requirements:", err);
+    }
+    draft.step = "settings_picker";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.editReply(buildSettingsPickerWindow(draft));
+  }
+
+  draft.step = getNextLeagueSetupStep(draft.step, draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  return interaction.editReply(buildLeagueSetupWindow(draft));
 }
 
 // Maps the setup season-week selection to the league's current_week + season_stage.

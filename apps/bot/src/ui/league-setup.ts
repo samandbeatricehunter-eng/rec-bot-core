@@ -3,8 +3,11 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  ModalBuilder,
   StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder
+  StringSelectMenuOptionBuilder,
+  TextInputBuilder,
+  TextInputStyle
 } from "discord.js";
 import { buildNavigationRow } from "./navigation.js";
 
@@ -40,7 +43,13 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   defensiveCooldownEnabled: "rec:league_setup:def_cooldown_enabled",
   defensiveCooldown: "rec:league_setup:def_cooldown",
   teamLinkingOptional: "rec:league_setup:team_linking_optional",
-  save: "rec:league_setup:save"
+  save: "rec:league_setup:save",
+  activityRequirementsOpen: "rec:league_setup:activity_requirements_open",
+  activityRequirementsSkip: "rec:league_setup:activity_requirements_skip",
+  activityRequirementsModal: "rec:league_setup:activity_requirements_modal",
+  fairSimInput: "rec:league_setup:fair_sim_input",
+  forceWinInput: "rec:league_setup:force_win_input",
+  settingsPicker: "rec:league_setup:settings_picker"
 } as const;
 
 export type LeagueSetupStep =
@@ -50,8 +59,8 @@ export type LeagueSetupStep =
   | "features"
   | "draft_class_type"
   | "regular_season_streaming"
-  | "postseason_streaming"
   | "streaming_side"
+  | "postseason_streaming"
   | "fourth_down_regular"
   | "fourth_down_playoff"
   | "position_changes"
@@ -75,6 +84,8 @@ export type LeagueSetupStep =
   | "defensive_cooldown_enabled"
   | "defensive_cooldown"
   | "team_linking_optional"
+  | "activity_requirements"
+  | "settings_picker"
   | "review";
 
 export type LeagueSetupDraft = {
@@ -126,6 +137,10 @@ export type LeagueSetupDraft = {
   defensivePlayCallCooldown?: number | null;
   // Whether to open the team-linking flow after the league is saved (chosen at the optional step).
   linkTeamsAfterSetup: boolean;
+  fairSimRequirements: string;
+  forceWinRequirements: string;
+  // When true, changes are saved to DB immediately after each step and return to settings_picker.
+  editMode: boolean;
 };
 
 const STEP_ORDER: LeagueSetupStep[] = [
@@ -135,8 +150,8 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "features",
   "draft_class_type",
   "regular_season_streaming",
-  "postseason_streaming",
   "streaming_side",
+  "postseason_streaming",
   "fourth_down_regular",
   "fourth_down_playoff",
   "position_changes",
@@ -160,6 +175,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "defensive_cooldown_enabled",
   "defensive_cooldown",
   "team_linking_optional",
+  "activity_requirements",
   "review"
 ];
 
@@ -211,7 +227,10 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     defensivePlayCallLimit: null,
     defensivePlayCallCooldownEnabled: false,
     defensivePlayCallCooldown: null,
-    linkTeamsAfterSetup: false
+    linkTeamsAfterSetup: false,
+    fairSimRequirements: "",
+    forceWinRequirements: "",
+    editMode: false
   };
 }
 
@@ -229,6 +248,9 @@ export function getPreviousLeagueSetupStep(step: LeagueSetupStep): LeagueSetupSt
  * @returns Next step to display
  */
 export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
+  // Skip streaming_side if regular season streaming is disabled (no side to configure)
+  if (step === "regular_season_streaming" && draft.regularSeasonStreamingRequirement === "disabled") return "postseason_streaming";
+
   // Skip accelerated clock seconds question if accelerated clock is disabled
   if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return "salary_cap";
 
@@ -604,6 +626,91 @@ export function buildRoleWindow(draft: LeagueSetupDraft, title: string, customId
   };
 }
 
+export function buildActivityRequirementsWindow(draft: LeagueSetupDraft) {
+  const lines = [
+    `League: **${draft.name}**`,
+    "",
+    "Enter your league's Fair Sim and Force Win rules. These appear in the rules panel and game channel embeds.",
+    "",
+    draft.fairSimRequirements ? `**Fair Sim:** ${draft.fairSimRequirements}` : "Fair Sim: Not set",
+    draft.forceWinRequirements ? `**Force Win:** ${draft.forceWinRequirements}` : "Force Win: Not set"
+  ].join("\n");
+  return {
+    embeds: [new EmbedBuilder().setTitle("League Setup: Activity Requirements").setDescription(lines)],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen).setLabel("Enter Activity Requirements").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsSkip).setLabel("Skip / Continue").setStyle(ButtonStyle.Secondary)
+      ),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildActivityRequirementsModal(draft: LeagueSetupDraft) {
+  return new ModalBuilder()
+    .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal)
+    .setTitle("Activity Requirements")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.fairSimInput)
+          .setLabel("Fair Sim Requirements")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setValue(draft.fairSimRequirements ?? "")
+          .setPlaceholder("e.g., Request a Fair Sim after 48 hours of no response.")
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.forceWinInput)
+          .setLabel("Force Win Requirements")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(false)
+          .setValue(draft.forceWinRequirements ?? "")
+          .setPlaceholder("e.g., Request a Force Win after 72 hours of no response.")
+      )
+    );
+}
+
+export function buildSettingsPickerWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription(`League: **${draft.name}**\n\nSelect a setting to edit. Changes are saved immediately.`)],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.settingsPicker)
+          .setPlaceholder("Select a setting to edit")
+          .addOptions(
+            option("Regular Season Streaming", "regular_season_streaming"),
+            option("Streaming Side (Who Must Stream)", "streaming_side"),
+            option("Postseason Streaming", "postseason_streaming"),
+            option("4th Down Rules (Regular Season)", "fourth_down_regular"),
+            option("4th Down Rules (Playoff)", "fourth_down_playoff"),
+            option("Difficulty", "difficulty"),
+            option("Quarter Length", "quarter_length"),
+            option("Accelerated Clock", "accelerated_clock_enabled"),
+            option("Salary Cap", "salary_cap"),
+            option("Trade Deadline", "trade_deadline"),
+            option("Abilities", "abilities"),
+            option("Wear & Tear", "wear_and_tear"),
+            option("Injuries", "injury_policy"),
+            option("Offensive Play Call Limits", "offensive_limits_enabled"),
+            option("Offensive Play Call Cooldown", "offensive_cooldown_enabled"),
+            option("Defensive Play Call Limits", "defensive_limits_enabled"),
+            option("Defensive Play Call Cooldown", "defensive_cooldown_enabled"),
+            option("Position Change Policy", "position_changes"),
+            option("Trade Approval Policy", "trade_approval"),
+            option("CPU Rules", "cpu_rules"),
+            option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
+            option("Feature Toggles", "features"),
+            option("Back to Admin Panel", "back_admin")
+          )
+      )
+    ]
+  };
+}
+
 export function buildTeamLinkingOptionalWindow(draft: LeagueSetupDraft) {
   return {
     embeds: [baseEmbed("League Setup: Link Teams (Optional)", draft)
@@ -654,7 +761,9 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Position Changes: ${fmt(draft.positionChangePolicy)}`,
           `Trade Approval: ${fmt(draft.tradeApprovalPolicy)}`,
           `CPU Trading: ${yesNo(draft.cpuTradingAllowed)}`,
-          `CPU Free Agency: ${fmt(draft.cpuFreeAgencyPolicy)}`
+          `CPU Free Agency: ${fmt(draft.cpuFreeAgencyPolicy)}`,
+          `Fair Sim: ${draft.fairSimRequirements || "Not set"}`,
+          `Force Win: ${draft.forceWinRequirements || "Not set"}`
         ].join("\n"),
         inline: false
       },
@@ -722,6 +831,8 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "defensive_cooldown_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldownEnabled, "Defensive play call cooldown enabled?");
     case "defensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown, "Select plays required before repeating", true);
     case "team_linking_optional": return buildTeamLinkingOptionalWindow(draft);
+    case "activity_requirements": return buildActivityRequirementsWindow(draft);
+    case "settings_picker": return buildSettingsPickerWindow(draft);
     case "review": return buildLeagueSetupReviewWindow(draft);
   }
 }

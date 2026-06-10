@@ -3,7 +3,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { CreateLeagueSchema, RegisterServerSchema, UpdateServerRoutesSchema } from "./setup.schemas.js";
 import { createLeagueForServer } from "./setup-season.service.js";
-import { registerServer, updateServerRoutes } from "./setup.service.js";
+import { registerServer, updateServerRoutes, getLeagueConfigAsDraft } from "./setup.service.js";
 
 export async function setupRoutes(app: FastifyInstance) {
   app.post("/v1/setup/server/register", async (request, reply) => {
@@ -28,6 +28,15 @@ export async function setupRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await updateServerRoutes(UpdateServerRoutesSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/setup/league/config", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await getLeagueConfigAsDraft((request.body as any).guildId));
     } catch (error) {
       return sendError(reply, error);
     }
