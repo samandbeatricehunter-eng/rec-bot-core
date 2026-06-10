@@ -7,7 +7,9 @@ export const ADVANCE_MENU_CUSTOM_IDS = {
 
 export type AdvanceMenuAction =
   | "advance_week"
+  | "send_advance_dms"
   | "set_week"
+  | "set_next_advance"
   | "recreate_game_channels"
   | "regenerate_challenges"
   | "reselect_gotw"
@@ -33,7 +35,9 @@ export function buildAdvanceMenuPanel() {
           .setPlaceholder("Select an advance action")
           .addOptions(
             new StringSelectMenuOptionBuilder().setLabel("Advance Current Week").setValue("advance_week").setDescription("Run the normal advance workflow."),
+            new StringSelectMenuOptionBuilder().setLabel("Send Advance DMs").setValue("send_advance_dms").setDescription("Send advance DMs and create game channels for the new week."),
             new StringSelectMenuOptionBuilder().setLabel("Set Current Week / Stage").setValue("set_week").setDescription("Manually correct the league week/stage."),
+            new StringSelectMenuOptionBuilder().setLabel("Set Next Advance").setValue("set_next_advance").setDescription("Set the next advance day, time, and timezone."),
             new StringSelectMenuOptionBuilder().setLabel("Recreate Game Channels").setValue("recreate_game_channels").setDescription("Delete/recreate current H2H game channels."),
             new StringSelectMenuOptionBuilder().setLabel("Re-Select GOTW").setValue("reselect_gotw").setDescription("Repair or replace the selected Game of the Week."),
             new StringSelectMenuOptionBuilder().setLabel("Re-Generate Challenges").setValue("regenerate_challenges").setDescription("Repair this week’s generated challenges."),

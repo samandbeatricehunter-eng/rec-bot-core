@@ -1147,6 +1147,73 @@ async function getWeekGames(leagueId: string, seasonNumber: number, weekNumber: 
   return (data ?? []) as any[];
 }
 
+interface ChallengeTemplate {
+  key: string;
+  side: "offense" | "defense";
+  eval_type: "team_stat_min" | "team_stat_max" | "total_yards" | "score_margin" | "opp_stat_max" | "opp_score_max" | "own_def_stat" | "turnovers";
+  stat_columns: string[];
+  s_threshold: number;
+  a_threshold: number;
+  s_tier_goal: string;
+  a_tier_goal: string;
+  b_tier_goal: string;
+}
+
+const OFFENSIVE_CHALLENGE_POOL: ChallengeTemplate[] = [
+  { key: "pass_yards_350", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_yards"], s_threshold: 350, a_threshold: 250, s_tier_goal: "Throw for 350+ passing yards and win", a_tier_goal: "Throw for 250+ passing yards and win", b_tier_goal: "Win the game" },
+  { key: "pass_yards_400", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_yards"], s_threshold: 400, a_threshold: 300, s_tier_goal: "Throw for 400+ passing yards and win", a_tier_goal: "Throw for 300+ passing yards and win", b_tier_goal: "Win the game" },
+  { key: "rush_yards_150", side: "offense", eval_type: "team_stat_min", stat_columns: ["rush_yards"], s_threshold: 150, a_threshold: 100, s_tier_goal: "Rush for 150+ yards and win", a_tier_goal: "Rush for 100+ yards and win", b_tier_goal: "Win the game" },
+  { key: "rush_yards_200", side: "offense", eval_type: "team_stat_min", stat_columns: ["rush_yards"], s_threshold: 200, a_threshold: 130, s_tier_goal: "Rush for 200+ yards and win", a_tier_goal: "Rush for 130+ yards and win", b_tier_goal: "Win the game" },
+  { key: "pass_tds_3", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_touchdowns"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Throw 3+ passing TDs and win", a_tier_goal: "Throw 2+ passing TDs and win", b_tier_goal: "Win the game" },
+  { key: "pass_tds_4", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_touchdowns"], s_threshold: 4, a_threshold: 3, s_tier_goal: "Throw 4+ passing TDs and win", a_tier_goal: "Throw 3+ passing TDs and win", b_tier_goal: "Win the game" },
+  { key: "total_yards_450", side: "offense", eval_type: "total_yards", stat_columns: ["pass_yards", "rush_yards"], s_threshold: 450, a_threshold: 350, s_tier_goal: "Gain 450+ total yards (pass + rush) and win", a_tier_goal: "Gain 350+ total yards (pass + rush) and win", b_tier_goal: "Win the game" },
+  { key: "total_yards_500", side: "offense", eval_type: "total_yards", stat_columns: ["pass_yards", "rush_yards"], s_threshold: 500, a_threshold: 400, s_tier_goal: "Gain 500+ total yards (pass + rush) and win", a_tier_goal: "Gain 400+ total yards (pass + rush) and win", b_tier_goal: "Win the game" },
+  { key: "blowout_win_21", side: "offense", eval_type: "score_margin", stat_columns: [], s_threshold: 21, a_threshold: 14, s_tier_goal: "Win by 21+ points", a_tier_goal: "Win by 14+ points", b_tier_goal: "Win the game" },
+  { key: "blowout_win_28", side: "offense", eval_type: "score_margin", stat_columns: [], s_threshold: 28, a_threshold: 21, s_tier_goal: "Win by 28+ points", a_tier_goal: "Win by 21+ points", b_tier_goal: "Win the game" },
+  { key: "no_int_win", side: "offense", eval_type: "team_stat_max", stat_columns: ["pass_interceptions"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Win with 0 passing interceptions", a_tier_goal: "Win with 1 or fewer passing interceptions", b_tier_goal: "Win the game" }
+];
+
+const DEFENSIVE_CHALLENGE_POOL: ChallengeTemplate[] = [
+  { key: "hold_qb_225", side: "defense", eval_type: "opp_stat_max", stat_columns: ["pass_yards"], s_threshold: 225, a_threshold: 275, s_tier_goal: "Hold opponent under 225 passing yards and win", a_tier_goal: "Hold opponent under 275 passing yards and win", b_tier_goal: "Win the game" },
+  { key: "hold_qb_200", side: "defense", eval_type: "opp_stat_max", stat_columns: ["pass_yards"], s_threshold: 200, a_threshold: 250, s_tier_goal: "Hold opponent under 200 passing yards and win", a_tier_goal: "Hold opponent under 250 passing yards and win", b_tier_goal: "Win the game" },
+  { key: "hold_rush_75", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rush_yards"], s_threshold: 75, a_threshold: 125, s_tier_goal: "Hold opponent rushing attack under 75 yards and win", a_tier_goal: "Hold opponent rushing attack under 125 yards and win", b_tier_goal: "Win the game" },
+  { key: "hold_rush_100", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rush_yards"], s_threshold: 100, a_threshold: 150, s_tier_goal: "Hold opponent rushing attack under 100 yards and win", a_tier_goal: "Hold opponent rushing attack under 150 yards and win", b_tier_goal: "Win the game" },
+  { key: "opp_score_10", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 10, a_threshold: 20, s_tier_goal: "Hold opponent to 10 points or fewer and win", a_tier_goal: "Hold opponent to 20 points or fewer and win", b_tier_goal: "Win the game" },
+  { key: "opp_score_14", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 14, a_threshold: 24, s_tier_goal: "Hold opponent to 14 points or fewer and win", a_tier_goal: "Hold opponent to 24 points or fewer and win", b_tier_goal: "Win the game" },
+  { key: "shutout", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 0, a_threshold: 7, s_tier_goal: "Shut out the opponent (0 points allowed) and win", a_tier_goal: "Hold opponent to 7 points or fewer and win", b_tier_goal: "Win the game" },
+  { key: "force_sacks_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["sacks"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Record 3+ sacks and win", a_tier_goal: "Record 2+ sacks and win", b_tier_goal: "Win the game" },
+  { key: "force_sacks_2", side: "defense", eval_type: "own_def_stat", stat_columns: ["sacks"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Record 2+ sacks and win", a_tier_goal: "Record 1+ sack and win", b_tier_goal: "Win the game" },
+  { key: "force_turnovers_3", side: "defense", eval_type: "turnovers", stat_columns: ["interceptions", "forced_fumbles"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Force 3+ turnovers (picks + forced fumbles) and win", a_tier_goal: "Force 2+ turnovers (picks + forced fumbles) and win", b_tier_goal: "Win the game" },
+  { key: "force_turnovers_2", side: "defense", eval_type: "turnovers", stat_columns: ["interceptions", "forced_fumbles"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Force 2+ turnovers (picks + forced fumbles) and win", a_tier_goal: "Force 1+ turnover (picks + forced fumbles) and win", b_tier_goal: "Win the game" }
+];
+
+const CHALLENGE_TEMPLATE_MAP = new Map<string, ChallengeTemplate>([
+  ...(OFFENSIVE_CHALLENGE_POOL.map((t) => [t.key, t] as [string, ChallengeTemplate])),
+  ...(DEFENSIVE_CHALLENGE_POOL.map((t) => [t.key, t] as [string, ChallengeTemplate])),
+  // Legacy fallback keys
+  ["fallback_pass_yards", OFFENSIVE_CHALLENGE_POOL[0]],
+  ["fallback_hold_qb", DEFENSIVE_CHALLENGE_POOL[0]]
+]);
+
+function pickFromPool(pool: ChallengeTemplate[], previousKey?: string | null): ChallengeTemplate {
+  const filtered = previousKey ? pool.filter((t) => t.key !== previousKey) : pool;
+  const source = filtered.length > 0 ? filtered : pool;
+  return source[Math.floor(Math.random() * source.length)];
+}
+
+async function sumTeamStatFromCommitted(leagueId: string, seasonNumber: number, weekNumber: number, teamId: string, statColumns: string[]): Promise<{ total: number; hasData: boolean }> {
+  const { data, error } = await supabase
+    .from("rec_player_weekly_stats")
+    .select(statColumns.join(","))
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .eq("team_id", teamId);
+  if (error || !data?.length) return { total: 0, hasData: false };
+  const total = (data as any[]).reduce((sum, row) => sum + statColumns.reduce((s, col) => s + asNumber(row[col]), 0), 0);
+  return { total, hasData: true };
+}
+
 export async function generateWeeklyChallenges(input: { guildId: string; regenerate?: boolean }) {
   const context = await getLeagueContext(input.guildId);
   const league = context.rec_leagues;
@@ -1156,15 +1223,34 @@ export async function generateWeeklyChallenges(input: { guildId: string; regener
     await supabase.from("rec_weekly_challenges").update({ status: "voided", updated_at: new Date().toISOString() }).eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
   }
   const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
+
+  // Fetch previous week's challenge keys per user to exclude from pool for variety
+  const prevWeekNum = weekNumber - 1;
+  const prevKeyMap = new Map<string, string>();
+  if (prevWeekNum >= 1) {
+    const { data: prevChallenges } = await supabase
+      .from("rec_weekly_challenges")
+      .select("user_id,challenge_side,challenge_key")
+      .eq("league_id", context.league_id)
+      .eq("season_number", seasonNumber)
+      .eq("week_number", prevWeekNum);
+    for (const c of prevChallenges ?? []) {
+      prevKeyMap.set(`${c.user_id}|${c.challenge_side}`, c.challenge_key);
+    }
+  }
+
   const rows: any[] = [];
   for (const game of games) {
     const sides = [
-      { userId: game.home_user_id, teamId: game.home_team_id, opponentTeamId: game.away_team_id, opponentUserId: game.away_user_id, location: "home" },
-      { userId: game.away_user_id, teamId: game.away_team_id, opponentTeamId: game.home_team_id, opponentUserId: game.home_user_id, location: "away" }
+      { userId: game.home_user_id, teamId: game.home_team_id, opponentTeamId: game.away_team_id, opponentUserId: game.away_user_id },
+      { userId: game.away_user_id, teamId: game.away_team_id, opponentTeamId: game.home_team_id, opponentUserId: game.home_user_id }
     ].filter((side) => side.userId && side.teamId);
     for (const side of sides) {
-      rows.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, game_id: game.id, user_id: side.userId, team_id: side.teamId, opponent_team_id: side.opponentTeamId, opponent_user_id: side.opponentUserId, is_cpu_game: !side.opponentUserId, challenge_side: "offense", challenge_key: "fallback_pass_yards", target_type: "team", s_tier_goal: "Throw for 350+ yards and win", a_tier_goal: "Throw for 250+ yards and win", b_tier_goal: "Win the game" });
-      rows.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, game_id: game.id, user_id: side.userId, team_id: side.teamId, opponent_team_id: side.opponentTeamId, opponent_user_id: side.opponentUserId, is_cpu_game: !side.opponentUserId, challenge_side: "defense", challenge_key: "fallback_hold_qb", target_type: "player", target_player_name: "Opponent QB", target_player_position: "QB", s_tier_goal: "Hold opponent QB under 225 passing yards and win", a_tier_goal: "Hold opponent QB under 275 passing yards and win", b_tier_goal: "Win the game" });
+      const offTemplate = pickFromPool(OFFENSIVE_CHALLENGE_POOL, prevKeyMap.get(`${side.userId}|offense`));
+      const defTemplate = pickFromPool(DEFENSIVE_CHALLENGE_POOL, prevKeyMap.get(`${side.userId}|defense`));
+      const base = { league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, game_id: game.id, user_id: side.userId, team_id: side.teamId, opponent_team_id: side.opponentTeamId, opponent_user_id: side.opponentUserId, is_cpu_game: !side.opponentUserId, target_type: "team" };
+      rows.push({ ...base, challenge_side: "offense", challenge_key: offTemplate.key, s_tier_goal: offTemplate.s_tier_goal, a_tier_goal: offTemplate.a_tier_goal, b_tier_goal: offTemplate.b_tier_goal });
+      rows.push({ ...base, challenge_side: "defense", challenge_key: defTemplate.key, s_tier_goal: defTemplate.s_tier_goal, a_tier_goal: defTemplate.a_tier_goal, b_tier_goal: defTemplate.b_tier_goal });
     }
   }
   let generated = 0;
@@ -1500,34 +1586,80 @@ export async function evaluateWeeklyChallenges(guildId: string) {
     const details: Record<string, unknown> = { didWin, score: side.score, opponentScore: side.oppScore };
 
     if (didWin) {
-      if (challenge.challenge_key === "fallback_pass_yards") {
-        const { data: passRows } = await supabase
-          .from("rec_import_staging_player_stats")
-          .select("*")
-          .eq("league_id", context.league_id)
-          .eq("season_number", seasonNumber)
-          .eq("week_number", completedWeek)
-          .eq("stat_category", "passing");
-        const teamPassingYards = (passRows ?? [])
-          .filter((row: any) => String(row.raw_payload?.teamId ?? row.team_external_id ?? row.team_id) === String(side.teamId) || String(row.team_id) === String(side.teamId))
-          .reduce((sum: number, row: any) => sum + statValue(row.stats ?? row.raw_payload, ["passYds"]), 0);
-        details.teamPassingYards = teamPassingYards;
-        if (teamPassingYards >= 350) earnedTier = "S";
-        else if (teamPassingYards >= 250) earnedTier = "A";
-      } else if (challenge.challenge_key === "fallback_hold_qb") {
-        const { data: passRows } = await supabase
-          .from("rec_import_staging_player_stats")
-          .select("*")
-          .eq("league_id", context.league_id)
-          .eq("season_number", seasonNumber)
-          .eq("week_number", completedWeek)
-          .eq("stat_category", "passing");
-        const opponentPassingYards = (passRows ?? [])
-          .filter((row: any) => String(row.raw_payload?.teamId ?? row.team_external_id ?? row.team_id) === String(side.opponentTeamId) || String(row.team_id) === String(side.opponentTeamId))
-          .reduce((sum: number, row: any) => sum + statValue(row.stats ?? row.raw_payload, ["passYds"]), 0);
-        details.opponentPassingYards = opponentPassingYards;
-        if (opponentPassingYards < 225) earnedTier = "S";
-        else if (opponentPassingYards < 275) earnedTier = "A";
+      const template = CHALLENGE_TEMPLATE_MAP.get(challenge.challenge_key);
+      if (template) {
+        const leagueId = context.league_id;
+        const evalType = template.eval_type;
+        if (evalType === "score_margin") {
+          const margin = side.score - side.oppScore;
+          details.margin = margin;
+          if (margin >= template.s_threshold) earnedTier = "S";
+          else if (margin >= template.a_threshold) earnedTier = "A";
+        } else if (evalType === "opp_score_max") {
+          details.opponentScore = side.oppScore;
+          if (side.oppScore <= template.s_threshold) earnedTier = "S";
+          else if (side.oppScore <= template.a_threshold) earnedTier = "A";
+        } else if (evalType === "team_stat_min") {
+          const { total, hasData } = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, template.stat_columns);
+          details[template.stat_columns[0]] = total;
+          details.hasData = hasData;
+          if (hasData) {
+            if (total >= template.s_threshold) earnedTier = "S";
+            else if (total >= template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "team_stat_max") {
+          const { total, hasData } = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, template.stat_columns);
+          details[template.stat_columns[0]] = total;
+          details.hasData = hasData;
+          if (hasData) {
+            if (total <= template.s_threshold) earnedTier = "S";
+            else if (total <= template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "total_yards") {
+          const [passResult, rushResult] = await Promise.all([
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["pass_yards"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rush_yards"])
+          ]);
+          const totalYards = passResult.total + rushResult.total;
+          details.passYards = passResult.total;
+          details.rushYards = rushResult.total;
+          details.totalYards = totalYards;
+          details.hasData = passResult.hasData || rushResult.hasData;
+          if (details.hasData) {
+            if (totalYards >= template.s_threshold) earnedTier = "S";
+            else if (totalYards >= template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "opp_stat_max") {
+          const { total, hasData } = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, template.stat_columns);
+          details[`opp_${template.stat_columns[0]}`] = total;
+          details.hasData = hasData;
+          if (hasData) {
+            if (total <= template.s_threshold) earnedTier = "S";
+            else if (total <= template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "own_def_stat") {
+          const { total, hasData } = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, template.stat_columns);
+          details[template.stat_columns[0]] = total;
+          details.hasData = hasData;
+          if (hasData) {
+            if (total >= template.s_threshold) earnedTier = "S";
+            else if (total >= template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "turnovers") {
+          const [intResult, fumResult] = await Promise.all([
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["interceptions"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["forced_fumbles"])
+          ]);
+          const turnovers = intResult.total + fumResult.total;
+          details.defInterceptions = intResult.total;
+          details.forcedFumbles = fumResult.total;
+          details.turnovers = turnovers;
+          details.hasData = intResult.hasData || fumResult.hasData;
+          if (details.hasData) {
+            if (turnovers >= template.s_threshold) earnedTier = "S";
+            else if (turnovers >= template.a_threshold) earnedTier = "A";
+          }
+        }
       }
     }
 

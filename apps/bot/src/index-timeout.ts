@@ -26,7 +26,10 @@ import {
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel } from "./flows/imports.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { buildAdvanceMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
-import { recreateGameChannelsForGuild } from "./flows/game-channels.js";
+import { ADVANCE_SCHEDULE_CUSTOM_IDS, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
+import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild } from "./flows/game-channels.js";
+import { handleGotwSelect, handleGotwVote } from "./flows/gotw.js";
+import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 
@@ -34,6 +37,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 const menuSessions = new ExpiringSessionStore<true>();
 const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 const serverSetupChannelSessions = new Map<string, string>();
+const advanceScheduleSessions = new Map<string, AdvanceScheduleState>();
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
@@ -88,6 +92,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    // GOTW vote buttons live on public announcement messages and must work for any league
+    // member, without an active /menu session.
+    if (interaction.isButton() && (interaction.customId.startsWith(GOTW_CUSTOM_IDS.voteAwayPrefix) || interaction.customId.startsWith(GOTW_CUSTOM_IDS.voteHomePrefix))) {
+      return handleGotwVote(interaction);
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       importSessions.delete(interaction.user.id);
@@ -114,11 +124,17 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return interaction.showModal(buildChannelIdModal(channelType));
       }
 
+      if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportSelect(interaction);
       if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.select) return handleAdvanceMenuSelect(interaction);
+      if (
+        interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.daySelect ||
+        interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.hourSelect ||
+        interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.tzSelect
+      ) return handleAdvanceScheduleSelect(interaction);
     }
 
     if (interaction.isButton()) {
@@ -134,6 +150,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         // League is already saved by this point; this button just closes the linking step.
         return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
       }
+      if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.confirm) return handleAdvanceScheduleConfirm(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
@@ -327,6 +344,13 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
 
   await interaction.deferUpdate();
 
+  if (selected === "set_next_advance") {
+    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE };
+    advanceScheduleSessions.set(interaction.user.id, scheduleState);
+    await interaction.editReply(buildAdvanceSchedulePayload(scheduleState));
+    return;
+  }
+
   if (selected === "regenerate_challenges") {
     const result = await recApi.regenerateWeeklyChallenges(interaction.guildId);
     await interaction.editReply({
@@ -383,12 +407,19 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
     const result = await recApi.postAdvanceAutomation(interaction.guildId, "normal");
     const completed: string[] = result?.completed ?? [];
     const warnings: string[] = result?.warnings ?? [];
+    const week = result?.week;
+
     const lines = [
-      warnings.length === 0 ? "Advance processed successfully." : "Advance processed with warnings.",
+      week
+        ? `Week advanced: **${week.previousWeek} → ${week.weekNumber}** (${String(week.seasonStage).replaceAll("_", " ")})`
+        : "Week was not advanced — see warnings below.",
       "",
-      `Mode: **${result?.mode ?? "normal"}**`,
+      "**Next steps before sending DMs:**",
+      result?.gotw?.pendingApproval ? "1. Select the Game of the Week below." : "1. GOTW already selected.",
+      "2. Set the next advance date and time below.",
+      "3. Once both are set, use **Send Advance DMs** to notify members and create game channels.",
+      "",
       completed.length ? `Completed: ${completed.join(", ")}` : undefined,
-      warnings.length ? "" : undefined,
       warnings.length ? `**Warnings (${warnings.length}):**` : undefined,
       ...warnings.slice(0, 8).map((w) => `• ${w}`)
     ].filter((l): l is string => l !== undefined);
@@ -396,11 +427,67 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
-          .setTitle(warnings.length === 0 ? "Advance Week Processed" : "Advance Week Processed (with warnings)")
+          .setTitle(warnings.length === 0 ? "Advance Week Completed" : "Advance Week Completed (with warnings)")
           .setDescription(lines.join("\n").slice(0, 4000))
       ],
       components: buildAdvanceMenuPanel().components
     });
+
+    // Regular-season weeks need a GOTW pick; offer the selection right after the summary.
+    if (result?.gotw?.pendingApproval && result.gotw.candidates?.length) {
+      await interaction.followUp({ ...buildGotwSelectionPayload(result.gotw.candidates), flags: MessageFlags.Ephemeral });
+    }
+
+    // Prompt the advancer to set the next advance deadline (day / time / timezone).
+    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE };
+    advanceScheduleSessions.set(interaction.user.id, scheduleState);
+    await interaction.followUp({ ...buildAdvanceSchedulePayload(scheduleState), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (selected === "send_advance_dms") {
+    const guild = interaction.guild;
+    if (!guild) {
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Send Advance DMs").setDescription("This action requires a guild context.")], components: buildAdvanceMenuPanel().components });
+      return;
+    }
+    let dmSummary: string[];
+    try {
+      const dmResult = await sendAdvanceDmsForGuild(guild);
+      dmSummary = [
+        `DMs sent: ${dmResult.sent} (failed: ${dmResult.failed})`,
+        `Game channels created: ${dmResult.gameChannels.created.length} of ${dmResult.gameChannels.totalPlans}`,
+        ...(dmResult.gameChannels.skipped.length ? [`Game channels skipped: ${dmResult.gameChannels.skipped[0].reason}`] : [])
+      ];
+    } catch (error) {
+      console.error("Send Advance DMs failed", error);
+      dmSummary = ["DMs/game channels failed — check logs or use Recreate Game Channels to retry."];
+    }
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Advance DMs Sent").setDescription(dmSummary.join("\n"))],
+      components: buildAdvanceMenuPanel().components
+    });
+    return;
+  }
+
+  if (selected === "reselect_gotw") {
+    const result = await recApi.getGotwCandidates(interaction.guildId);
+    const stage = result?.stage ?? "regular_season";
+    if (stage !== "regular_season") {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Re-Select GOTW").setDescription("GOTW selection is only required during the regular season. Playoff and Super Bowl games are automatically treated as GOTW.")],
+        components: buildAdvanceMenuPanel().components
+      });
+      return;
+    }
+    if (!result?.candidates?.length) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Re-Select GOTW").setDescription("No User H2H matchups were found for the current week, so there is no GOTW to select.")],
+        components: buildAdvanceMenuPanel().components
+      });
+      return;
+    }
+    await interaction.editReply(buildGotwSelectionPayload(result.candidates));
     return;
   }
 
@@ -428,8 +515,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   const labels: Record<string, string> = {
-    set_week: "Set Current Week / Stage",
-    reselect_gotw: "Re-Select GOTW"
+    set_week: "Set Current Week / Stage"
   };
 
   await interaction.editReply({
@@ -645,8 +731,21 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
       });
     }
 
-    // TODO: Call API to store the channel/category mapping
-    // await recApi.assignServerChannel({ guildId: interaction.guildId, channelType, channelId });
+    const channelTypeToApiField: Record<string, string> = {
+      commissioner_office: "commissionerOfficeChannelId",
+      announcements: "announcementsChannelId",
+      streams: "streamsChannelId",
+      highlights: "highlightsChannelId",
+      pending_payouts: "pendingPayoutsChannelId",
+      game_channels_category: "gameChannelsCategoryId"
+    };
+
+    const apiField = channelTypeToApiField[channelType];
+    if (!apiField) {
+      return interaction.reply({ content: `Unknown channel type: ${channelType}`, flags: MessageFlags.Ephemeral });
+    }
+
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, [apiField]: channelId });
 
     serverSetupChannelSessions.delete(interaction.user.id);
 
@@ -654,7 +753,7 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
       embeds: [
         new EmbedBuilder()
           .setTitle("Channel Assigned")
-          .setDescription(`Assigned Discord ID \`${channelId}\` to **${channelType}**.`)
+          .setDescription(`Assigned <#${channelId}> to **${channelType.replace(/_/g, " ")}**.`)
       ],
       flags: MessageFlags.Ephemeral
     });
@@ -663,6 +762,57 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
     await interaction.reply({
       content: `Error assigning channel: ${error instanceof Error ? error.message : String(error)}`,
       flags: MessageFlags.Ephemeral
+    });
+  }
+}
+
+async function handleAdvanceScheduleSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  const state = advanceScheduleSessions.get(interaction.user.id) ?? { timezone: DEFAULT_SCHEDULE_TIMEZONE };
+  const value = interaction.values[0];
+  if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.daySelect) {
+    state.date = value;
+  } else if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.hourSelect) {
+    state.hour = value === "none" ? undefined : Number(value);
+  } else if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.tzSelect) {
+    state.timezone = value;
+    // Changing the timezone can invalidate the chosen hour (past-hour filtering shifts), so drop it.
+    state.hour = undefined;
+  }
+  advanceScheduleSessions.set(interaction.user.id, state);
+  await interaction.update(buildAdvanceSchedulePayload(state));
+}
+
+async function handleAdvanceScheduleConfirm(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.guildId) return;
+  const state = advanceScheduleSessions.get(interaction.user.id);
+  if (!state?.date || state.hour == null || !state.timezone) {
+    return interaction.reply({ content: "Select a day, time, and timezone first.", flags: MessageFlags.Ephemeral });
+  }
+  await interaction.deferUpdate();
+  try {
+    const [y, mo, d] = state.date.split("-").map(Number);
+    const when = wallClockToUtc(y, mo, d, state.hour, state.timezone);
+    const result = await recApi.setNextAdvance({ guildId: interaction.guildId, nextAdvanceAt: when.toISOString(), timezone: state.timezone });
+    advanceScheduleSessions.delete(interaction.user.id);
+    const times: any[] = result?.nextAdvanceTimes ?? [];
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Next Advance Set")
+          .setDescription([
+            "The next advance deadline has been set.",
+            "",
+            ...(times.length ? times.map((t: any) => `${t.label}: ${t.value}`) : ["(No formatted times returned.)"])
+          ].join("\n"))
+      ],
+      components: []
+    });
+  } catch (error) {
+    console.error("[ERROR] Set next advance failed:", error);
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Set Next Advance Failed").setDescription(error instanceof Error ? error.message : String(error))],
+      components: []
     });
   }
 }
