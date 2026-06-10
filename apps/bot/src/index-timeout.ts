@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel } from "discord.js";
 import { env } from "./config/env.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
@@ -129,6 +129,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       }
 
       if (interaction.customId === ADVANCE_WIZARD_GOTW_CUSTOM_ID) return handleWizardGotwSelect(interaction);
+      if (interaction.customId.startsWith("eos_vote:")) return handleEosVote(interaction);
       if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
@@ -144,6 +145,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
 
     if (interaction.isButton()) {
+      if (interaction.customId.startsWith("eos_payout_approve:")) return handleEosPayoutApprove(interaction);
+      if (interaction.customId.startsWith("eos_payout_reject:")) return handleEosPayoutReject(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) return interaction.reply(buildServerSetupPanel());
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) return handleClearAllTeamLinks(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
@@ -283,7 +286,8 @@ async function renderRecBankFromSelect(interaction: Extract<Interaction, { isStr
   if (!interaction.isStringSelectMenu()) return;
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading REC Bank...").setDescription("Fetching your wallet balance and recent transactions.")], components: [] });
-  const walletPayload = await recApi.getWallet(interaction.user.id);
+  const guildId = "guild" in interaction && interaction.guild ? interaction.guild.id : undefined;
+  const walletPayload = await recApi.getWallet(interaction.user.id, guildId);
   const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
   const transactions = Array.isArray(walletPayload?.transactions) ? walletPayload.transactions : [];
   const transactionText = transactions.length
@@ -392,7 +396,101 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "reissue_eos_payouts") {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Re-Issue EOS Payouts").setDescription("This feature is coming soon. It will wipe unapproved pending EOS payouts and reissue them based on current standings, requiring dual approval from the receiving user and a commissioner.")], components: buildAdvanceMenuPanel().components });
+    if (!isDiscordAdminInteraction(interaction)) {
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Re-Issue EOS Payouts").setDescription("Only authorized admins can issue EOS payouts.")], components: buildAdvanceMenuPanel().components });
+      return;
+    }
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Issuing EOS Payouts...").setDescription("Calculating standings and creating payout requests. Users will receive a DM to approve their payout.")], components: [] });
+    try {
+      const result = await recApi.issueEosPayouts(interaction.guildId);
+      const guild = interaction.guild;
+
+      if (!guild) {
+        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription(`Created ${result.items?.length ?? 0} payout items. Guild context unavailable for DMs.`)], components: buildAdvanceMenuPanel().components });
+        return;
+      }
+
+      // DM each recipient with Approve / Reject buttons
+      let dmsSent = 0;
+      const commissionerLines: string[] = [];
+      for (const item of result.items ?? []) {
+        if (!item.discordId) {
+          commissionerLines.push(`• Rank **${item.rank}** — ${item.payout_label}: **$${item.amount}** _(no Discord account linked)_`);
+          continue;
+        }
+        try {
+          const member = await guild.members.fetch(item.discordId).catch(() => null);
+          if (member) {
+            const dmEmbed = new EmbedBuilder()
+              .setTitle("🏆 End of Season Payout")
+              .setDescription([
+                `Congratulations! You finished **Rank ${item.rank}** in the regular season for **${result.serverName}**.`,
+                "",
+                `**Payout:** $${item.amount} — ${item.payout_label}`,
+                "",
+                "Please approve or reject your payout below.",
+                "_Rejecting will permanently cancel this payout._"
+              ].join("\n"))
+              .setColor(0xffd700);
+
+            const dmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder().setCustomId(`eos_payout_approve:user:${item.id}`).setLabel("Approve Payout").setStyle(ButtonStyle.Success),
+              new ButtonBuilder().setCustomId(`eos_payout_reject:${item.id}`).setLabel("Reject").setStyle(ButtonStyle.Danger)
+            );
+
+            await member.send({ embeds: [dmEmbed], components: [dmRow] }).then(() => dmsSent++).catch(() => undefined);
+          }
+        } catch { /* DM failed — non-fatal */ }
+
+        commissionerLines.push(`• Rank **${item.rank}** — ${item.payout_label}: **$${item.amount}** — <@${item.discordId}>`);
+      }
+
+      // Post commissioner approval panel to announcements channel
+      if (result.announcementsChannelId) {
+        try {
+          const ch = await guild.channels.fetch(result.announcementsChannelId).catch(() => null) as TextChannel | null;
+          if (ch?.type === ChannelType.GuildText) {
+            const commEmbed = new EmbedBuilder()
+              .setTitle("📋 EOS Payout Approvals — Commissioner")
+              .setDescription([
+                `**Season ${result.seasonNumber}** payouts have been issued. Each recipient must also approve via DM.`,
+                "",
+                ...commissionerLines,
+                "",
+                "_Use the buttons below to approve or reject each payout as commissioner._"
+              ].join("\n"))
+              .setColor(0x5865f2);
+
+            // Build per-item commissioner approve/reject rows (max 5 rows of 2 buttons each = 5 items)
+            const commRows: ActionRowBuilder<ButtonBuilder>[] = [];
+            for (const item of (result.items ?? []).slice(0, 5)) {
+              commRows.push(
+                new ActionRowBuilder<ButtonBuilder>().addComponents(
+                  new ButtonBuilder().setCustomId(`eos_payout_approve:commissioner:${item.id}`).setLabel(`Approve Rank ${item.rank} ($${item.amount})`).setStyle(ButtonStyle.Success),
+                  new ButtonBuilder().setCustomId(`eos_payout_reject:${item.id}`).setLabel(`Reject Rank ${item.rank}`).setStyle(ButtonStyle.Danger)
+                )
+              );
+            }
+            await ch.send({ embeds: [commEmbed], components: commRows }).catch(() => undefined);
+          }
+        } catch { /* non-fatal */ }
+      }
+
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription([
+          `Payout items created: **${result.items?.length ?? 0}**`,
+          `DMs sent: **${dmsSent}**`,
+          "",
+          "Each payout requires both recipient and commissioner approval before funds are credited."
+        ].join("\n"))],
+        components: buildAdvanceMenuPanel().components
+      });
+    } catch (error) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("EOS Payout Failed").setDescription(error instanceof Error ? error.message : String(error))],
+        components: buildAdvanceMenuPanel().components
+      });
+    }
     return;
   }
 
@@ -513,6 +611,36 @@ async function handleTroubleshootMenuSelect(interaction: Extract<Interaction, { 
       embeds: [new EmbedBuilder().setTitle("Advance DMs Sent").setDescription(dmSummary.join("\n"))],
       components: buildTroubleshootMenuPanel().components
     });
+    return;
+  }
+
+  if (selected === "audit_repair_records") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Auditing & Repairing Records...").setDescription("Rebuilding W/L/T records from all logged game results. This may take a moment.")], components: [] });
+    try {
+      const result = await recApi.auditRepairRecords(interaction.guildId);
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Records Audit & Repair Complete")
+            .setDescription([
+              "Records have been recalculated from all logged game results.",
+              "",
+              `Season records repaired: **${result.seasonRecordsRepaired}**`,
+              `League-wide records repaired: **${result.leagueRecordsRepaired}**`,
+              `H2H pairs repaired: **${result.h2hPairsRepaired}**`,
+              `Games marked applied: **${result.gamesMarkedApplied}**`,
+              "",
+              "_Safe to run multiple times — totals are rebuilt from scratch each run._"
+            ].join("\n"))
+        ],
+        components: buildTroubleshootMenuPanel().components
+      });
+    } catch (error) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Records Repair Failed").setDescription(error instanceof Error ? error.message : String(error))],
+        components: buildTroubleshootMenuPanel().components
+      });
+    }
     return;
   }
 
@@ -905,6 +1033,137 @@ async function handleAdvanceScheduleConfirm(interaction: Extract<Interaction, { 
       embeds: [new EmbedBuilder().setTitle("Set Next Advance Failed").setDescription(error instanceof Error ? error.message : String(error))],
       components: []
     });
+  }
+}
+
+async function handleEosPayoutApprove(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  // customId: eos_payout_approve:{role}:{itemId}
+  const parts = interaction.customId.split(":");
+  const role = parts[1] as "user" | "commissioner";
+  const itemId = parts[2];
+
+  if (role === "commissioner" && !isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized commissioners can approve EOS payouts.", flags: MessageFlags.Ephemeral });
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    const result = await recApi.approveEosPayoutItem({ itemId, discordId: interaction.user.id, role });
+
+    if (result.reason === "already_issued") {
+      return interaction.editReply({ content: "This payout has already been issued." });
+    }
+    if (result.reason === "already_denied") {
+      return interaction.editReply({ content: "This payout has already been rejected." });
+    }
+    if (result.reason === "not_recipient") {
+      return interaction.editReply({ content: "You are not the recipient of this payout." });
+    }
+
+    if (result.credited) {
+      // Both approvals collected — payout issued
+      const balanceStr = result.newBalance !== null ? ` Your new wallet balance: **$${result.newBalance?.wallet ?? 0}**.` : "";
+      await interaction.editReply({ content: `✅ Payout approved! **$${result.amount}** — ${result.payoutLabel} has been credited to your wallet.${balanceStr}` });
+
+      // Edit the original message to reflect completed state
+      try {
+        await interaction.message.edit({
+          embeds: [new EmbedBuilder()
+            .setTitle("✅ Payout Issued")
+            .setDescription(`**$${result.amount}** — ${result.payoutLabel}\nBoth approvals received. Funds credited.`)
+            .setColor(0x57f287)],
+          components: []
+        });
+      } catch { /* non-fatal if message is in DM */ }
+    } else if (result.reason === "awaiting_commissioner") {
+      await interaction.editReply({ content: "✅ You approved your payout. Awaiting commissioner approval before funds are credited." });
+      try {
+        await interaction.message.edit({
+          embeds: [new EmbedBuilder()
+            .setTitle("⏳ Awaiting Commissioner Approval")
+            .setDescription(interaction.message.embeds[0]?.description ?? "Payout pending.")
+            .setColor(0xfee75c)],
+          components: interaction.message.components
+        });
+      } catch { /* non-fatal */ }
+    } else if (result.reason === "awaiting_user") {
+      await interaction.editReply({ content: "✅ Commissioner approval recorded. Waiting for the recipient to approve via DM." });
+    }
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to process approval: ${err instanceof Error ? err.message : String(err)}` });
+  }
+}
+
+async function handleEosPayoutReject(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  // customId: eos_payout_reject:{itemId}
+  const itemId = interaction.customId.split(":")[1];
+
+  // Either the recipient OR a commissioner can reject
+  const isAdmin = isDiscordAdminInteraction(interaction);
+  // Non-admins can only reject in DMs (their own payout)
+  if (!isAdmin && interaction.guild) {
+    return interaction.reply({ content: "Only commissioners can reject payouts from this panel. Recipients may reject via their DM.", flags: MessageFlags.Ephemeral });
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    const result = await recApi.rejectEosPayoutItem({ itemId, discordId: interaction.user.id });
+
+    if (!result.rejected) {
+      return interaction.editReply({ content: "This payout has already been resolved." });
+    }
+
+    await interaction.editReply({ content: `Payout rejected — **${result.payoutLabel}** ($${result.amount}) has been cancelled.` });
+
+    // Edit the original message to close it (remove buttons)
+    try {
+      await interaction.message.edit({
+        embeds: [new EmbedBuilder()
+          .setTitle("❌ Payout Rejected")
+          .setDescription(`**$${result.amount}** — ${result.payoutLabel}\nThis payout was rejected and will not be credited.`)
+          .setColor(0xed4245)],
+        components: []
+      });
+    } catch { /* non-fatal */ }
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to process rejection: ${err instanceof Error ? err.message : String(err)}` });
+  }
+}
+
+async function handleEosVote(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  // Custom ID format: eos_vote:{pollId}:{categoryKey}
+  const parts = interaction.customId.split(":");
+  const categoryKey = parts[2] ?? "";
+  const nomineeDiscordId = interaction.values[0];
+  const guildId = interaction.guild?.id;
+
+  if (!guildId || !nomineeDiscordId || !categoryKey) {
+    return interaction.reply({ content: "Could not process your vote. Missing data.", flags: MessageFlags.Ephemeral });
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    const result = await recApi.castEosVote({
+      guildId,
+      voterDiscordId: interaction.user.id,
+      categoryKey,
+      nomineeDiscordId
+    });
+
+    if (result.recorded) {
+      return interaction.editReply({ content: `Your vote for **${result.categoryLabel}** has been recorded! You may change your vote at any time before voting closes.` });
+    } else {
+      return interaction.editReply({ content: `Could not record your vote: ${result.reason}` });
+    }
+  } catch (err) {
+    console.error("[EOS Vote] Error:", err);
+    return interaction.editReply({ content: "An error occurred while recording your vote. Please try again." });
   }
 }
 

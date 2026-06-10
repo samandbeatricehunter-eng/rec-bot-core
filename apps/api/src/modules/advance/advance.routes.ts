@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, setNextAdvance, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes, reviewStreamPayout, evaluateWeeklyChallenges, evaluateStreamCompliance, issueRecPotwPayouts, issueWeeklyGamePayouts, processAdvanceResults, processPotwAward, finalizeAdvanceStep, processPlayoffGotw, previewEosPayouts, calculateAndStorePowerRankings, getLatestPowerRankings } from "./advance.service.js";
+import { buildAdvanceDmPayloads, calculateRecPotw, clearPendingEosBatch, generateWeeklyChallenges, getActiveGameChannels, getChallengeAudit, getGameChannelPlans, getReminderState, markGameChannelDeleted, recordGameChannel, recordGameChannelCheckin, recordReminder, runPostAdvanceAutomation, setEconomyConfig, setLeagueWeek, setNextAdvance, viewEconomyConfig, viewLeagueWeek, getGotwCandidates, selectGotwCandidate, recordGotwPollMessage, recordGotwVote, getGotwVotes, applyAdvanceRecords, createActiveCheck, recordActiveCheckMessage, recordActiveCheckResponse, getActiveCheckStatus, closeActiveCheck, getOpenActiveChecks, recordStreamPost, settleGotwVotes, reviewStreamPayout, evaluateWeeklyChallenges, evaluateStreamCompliance, issueRecPotwPayouts, issueWeeklyGamePayouts, processAdvanceResults, processPotwAward, finalizeAdvanceStep, processPlayoffGotw, previewEosPayouts, calculateAndStorePowerRankings, getLatestPowerRankings, auditAndRepairRecords, issueEosPayouts, approveEosPayoutItem, rejectEosPayoutItem, getEosBatchItems } from "./advance.service.js";
 
 export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/advance/post-advance", async (request) => runPostAdvanceAutomation(request.body as any));
@@ -8,9 +8,14 @@ export async function advanceRoutes(app: FastifyInstance) {
   app.post("/v1/advance/finalize", async (request) => finalizeAdvanceStep((request.body as any).guildId));
   app.post("/v1/advance/playoff-gotw", async (request) => processPlayoffGotw((request.body as any).guildId));
   app.post("/v1/advance/preview-eos", async (request) => previewEosPayouts((request.body as any).guildId));
+  app.post("/v1/eos-payouts/issue", async (request) => issueEosPayouts((request.body as any).guildId));
+  app.post("/v1/eos-payouts/approve", async (request) => approveEosPayoutItem(request.body as any));
+  app.post("/v1/eos-payouts/reject", async (request) => rejectEosPayoutItem(request.body as any));
+  app.post("/v1/eos-payouts/batch", async (request) => getEosBatchItems((request.body as any).guildId));
   app.post("/v1/advance/power-rankings/calculate", async (request) => calculateAndStorePowerRankings((request.body as any).guildId));
   app.post("/v1/advance/power-rankings/latest", async (request) => getLatestPowerRankings((request.body as any).guildId));
   app.post("/v1/advance/apply-records", async (request) => applyAdvanceRecords((request.body as any).guildId));
+  app.post("/v1/advance/audit-repair-records", async (request) => auditAndRepairRecords((request.body as any).guildId));
   app.post("/v1/advance/issue-game-payouts", async (request) => issueWeeklyGamePayouts((request.body as any).guildId));
   app.post("/v1/advance/dm-payloads", async (request) => buildAdvanceDmPayloads((request.body as any).guildId));
   app.post("/v1/league-week/view", async (request) => viewLeagueWeek((request.body as any).guildId));

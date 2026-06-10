@@ -5,6 +5,7 @@ import { teamOwnershipRoutes } from "./modules/team-ownership/team-ownership.rou
 import { userRoutes } from "./modules/users/user.routes.js";
 import { eaFranchiseRoutes } from "./modules/imports/ea-franchise.routes.js";
 import { advanceRoutes } from "./modules/advance/advance.routes.js";
+import { eosAwardsRoutes } from "./modules/eos-awards/eos-awards.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
@@ -15,4 +16,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await importRoutes(app);
   await eaFranchiseRoutes(app);
   await advanceRoutes(app);
+  await eosAwardsRoutes(app);
 }

@@ -32,9 +32,27 @@ export async function getUserBaselineByDiscordId(discordId: string) {
   };
 }
 
-export async function getWalletByDiscordId(discordId: string) {
+export async function getWalletByDiscordId(discordId: string, guildId?: string) {
   const baseline = await getUserBaselineByDiscordId(discordId);
-  const transactions = await getRecentTransactionsByUserId(baseline.user.id);
+
+  let leagueId: string | null = null;
+  if (guildId) {
+    const server = await supabase
+      .from("rec_discord_servers")
+      .select("id")
+      .eq("guild_id", guildId)
+      .maybeSingle();
+    if (server.data) {
+      const link = await supabase
+        .from("rec_server_league_links")
+        .select("league_id")
+        .eq("server_id", server.data.id)
+        .maybeSingle();
+      leagueId = link.data?.league_id ?? null;
+    }
+  }
+
+  const transactions = await getRecentTransactionsByUserId(baseline.user.id, 25, leagueId ?? undefined);
 
   return {
     user: baseline.user,
@@ -44,14 +62,17 @@ export async function getWalletByDiscordId(discordId: string) {
   };
 }
 
-export async function getRecentTransactionsByUserId(userId: string, limit = 25) {
-  const ledger = await supabase
+export async function getRecentTransactionsByUserId(userId: string, limit = 25, leagueId?: string) {
+  let query = supabase
     .from("rec_dollar_ledger")
-    .select("id,amount,transaction_type,description,source,source_reference,created_at")
+    .select("id,amount,transaction_type,description,source,source_reference,created_at,league_id")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
+  if (leagueId) query = query.eq("league_id", leagueId);
+
+  const ledger = await query;
   if (ledger.error) {
     throw new ApiError(500, "Failed to load wallet transactions", ledger.error);
   }

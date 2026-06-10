@@ -21,6 +21,7 @@ export type TroubleshootMenuAction =
   | "send_advance_dms"
   | "set_week"
   | "recalculate_eos_payouts"
+  | "audit_repair_records"
   | "back_advance_menu";
 
 export function buildAdvanceMenuPanel() {
@@ -108,6 +109,10 @@ export function buildTroubleshootMenuPanel() {
               .setLabel("Re-Calculate EOS Payouts")
               .setValue("recalculate_eos_payouts")
               .setDescription("Preview projected end-of-season payout amounts from current standings."),
+            new StringSelectMenuOptionBuilder()
+              .setLabel("Audit & Repair Records")
+              .setValue("audit_repair_records")
+              .setDescription("Rebuild season and league W/L/T records from game results. Safe to re-run."),
             new StringSelectMenuOptionBuilder()
               .setLabel("Back to Advance Menu")
               .setValue("back_advance_menu")

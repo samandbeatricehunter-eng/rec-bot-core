@@ -25,7 +25,7 @@ async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export const recApi = {
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),
   getBaseline: (discordId: string) => recFetch<any>(REC_API_ROUTES.userBaseline(discordId)),
-  getWallet: (discordId: string) => recFetch<any>(REC_API_ROUTES.userWallet(discordId)),
+  getWallet: (discordId: string, guildId?: string) => recFetch<any>(`/v1/users/${discordId}/wallet${guildId ? `?guildId=${guildId}` : ""}`),
 
   // Direct path used here because this route is newer than the shared REC_API_ROUTES object
   // in some local builds.
@@ -531,6 +531,54 @@ export const recApi = {
 
   getLatestPowerRankings: (guildId: string) =>
     recFetch<any>("/v1/advance/power-rankings/latest", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  auditRepairRecords: (guildId: string) =>
+    recFetch<any>("/v1/advance/audit-repair-records", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  issueEosPayouts: (guildId: string) =>
+    recFetch<any>("/v1/eos-payouts/issue", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  approveEosPayoutItem: (input: { itemId: string; discordId: string; role: "user" | "commissioner" }) =>
+    recFetch<any>("/v1/eos-payouts/approve", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  rejectEosPayoutItem: (input: { itemId: string; discordId: string }) =>
+    recFetch<any>("/v1/eos-payouts/reject", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  getEosBatchItems: (guildId: string) =>
+    recFetch<any>("/v1/eos-payouts/batch", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  castEosVote: (input: { guildId: string; voterDiscordId: string; categoryKey: string; nomineeDiscordId: string }) =>
+    recFetch<any>("/v1/eos-awards/vote", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  lockEosPolls: (guildId: string) =>
+    recFetch<any>("/v1/eos-awards/lock", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  getEosPolls: (guildId: string) =>
+    recFetch<any>("/v1/eos-awards/polls", {
       method: "POST",
       body: JSON.stringify({ guildId })
     })

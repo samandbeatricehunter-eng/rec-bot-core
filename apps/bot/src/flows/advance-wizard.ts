@@ -10,10 +10,44 @@ import { isDiscordAdminInteraction } from "../lib/admin.js";
 
 export const ADVANCE_WIZARD_GOTW_CUSTOM_ID = "rec:advance_wizard:gotw";
 
+interface BadgeAnnouncement {
+  userId: string;
+  discordId: string | null;
+  badgeName: string;
+  badgeLabel: string;
+  qualifier?: string;
+  reason?: string;
+  type: "earned" | "lost";
+}
+
+interface EosPollNominee {
+  userId: string;
+  discordId: string | null;
+  displayName: string;
+}
+
+interface EosPoll {
+  id: string;
+  categoryKey: string;
+  categoryLabel: string;
+  categoryDescription: string | null;
+  closesAt: string | null;
+}
+
+interface EosPollsData {
+  polls: EosPoll[];
+  nominees: EosPollNominee[];
+  closesAt: string | null;
+  announcementsChannelId: string | null;
+}
+
 interface AdvanceWizardState {
   weekNumber: number;
   seasonStage: string;
   warnings: string[];
+  badgeAnnouncements?: BadgeAnnouncement[];
+  announcementsChannelId?: string | null;
+  eosPollsData?: EosPollsData | null;
 }
 
 export const advanceWizardSessions = new ExpiringSessionStore<AdvanceWizardState>();
@@ -192,6 +226,20 @@ export async function runAdvanceWizardProcessing(
   const newWeek = resultsData.week.weekNumber as number;
   const newStage = resultsData.week.seasonStage as string;
 
+  // Collect transition badges (season-end / playoff) from the advance step
+  const allBadgeAnnouncements: BadgeAnnouncement[] = [];
+  const transitionBadges = resultsData.transitionBadgeAnnouncements;
+  let badgeAnnouncementsChannelId: string | null = transitionBadges?.announcementsChannelId ?? null;
+  if (transitionBadges?.earned?.length) {
+    for (const b of transitionBadges.earned) allBadgeAnnouncements.push({ ...b, type: "earned" });
+  }
+  if (transitionBadges?.lost?.length) {
+    for (const b of transitionBadges.lost) allBadgeAnnouncements.push({ ...b, type: "lost" });
+  }
+
+  // Collect EOS polls data (created on regular_season → wild_card transition)
+  const eosPollsData: EosPollsData | null = resultsData.eosPollsData ?? null;
+
   // Step 3: POTW
   await interaction.editReply({
     embeds: [processingEmbed(
@@ -213,6 +261,18 @@ export async function runAdvanceWizardProcessing(
           console.error("[WIZARD] Failed to post POTW announcement:", e)
         );
       }
+    }
+
+    // Collect weekly badges (Comeback Artist, Record Breaker) from POTW step
+    const weeklyBadges = potwData.weeklyBadgeAnnouncements;
+    if (!badgeAnnouncementsChannelId && potwData.announcementsChannelId) {
+      badgeAnnouncementsChannelId = potwData.announcementsChannelId;
+    }
+    if (weeklyBadges?.earned?.length) {
+      for (const b of weeklyBadges.earned) allBadgeAnnouncements.push({ ...b, type: "earned" });
+    }
+    if (weeklyBadges?.lost?.length) {
+      for (const b of weeklyBadges.lost) allBadgeAnnouncements.push({ ...b, type: "lost" });
     }
   } catch (err) {
     console.error("[WIZARD] processPotwAward failed:", err);
@@ -299,8 +359,8 @@ export async function runAdvanceWizardProcessing(
       allWarnings.push(`playoff_gotw: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings });
-    await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings);
+    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData });
+    await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData);
     return;
   }
 
@@ -322,7 +382,7 @@ export async function runAdvanceWizardProcessing(
       allWarnings.push(`gotw_candidates: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings });
+    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData });
 
     if (candidates.length) {
       await interaction.editReply(buildWizardGotwSelectionPayload(candidates, newWeek));
@@ -333,14 +393,14 @@ export async function runAdvanceWizardProcessing(
           .setDescription("No H2H matchups found for this week. Skipping GOTW selection and proceeding to finalize.")],
         components: []
       });
-      await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings);
+      await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData);
     }
     return;
   }
 
   // Offseason or unrecognized stage: skip GOTW
-  advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings });
-  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings);
+  advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData });
+  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData);
 }
 
 export async function handleWizardGotwSelect(interaction: StringSelectMenuInteraction) {
@@ -360,6 +420,9 @@ export async function handleWizardGotwSelect(interaction: StringSelectMenuIntera
   let newWeek = wizardState?.weekNumber ?? 0;
   let newStage = wizardState?.seasonStage ?? "regular_season";
   const allWarnings = wizardState?.warnings ?? [];
+  const badgeAnnouncements = wizardState?.badgeAnnouncements ?? [];
+  const announcementsChannelId = wizardState?.announcementsChannelId ?? null;
+  const eosPollsData = wizardState?.eosPollsData ?? null;
 
   try {
     const result = await recApi.selectGotwCandidate({ guildId: guild.id, candidateId, selectedByDiscordId: interaction.user.id });
@@ -385,7 +448,7 @@ export async function handleWizardGotwSelect(interaction: StringSelectMenuIntera
     allWarnings.push(`gotw_select: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings);
+  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, badgeAnnouncements, announcementsChannelId, eosPollsData);
 }
 
 async function runAdvanceWizardFinalize(
@@ -393,7 +456,10 @@ async function runAdvanceWizardFinalize(
   guild: Guild,
   weekNumber: number,
   seasonStage: string,
-  warnings: string[]
+  warnings: string[],
+  badgeAnnouncements: BadgeAnnouncement[] = [],
+  announcementsChannelId: string | null = null,
+  eosPollsData: EosPollsData | null = null
 ) {
   // 5a: generate challenges
   await interaction.editReply({
@@ -442,6 +508,98 @@ async function runAdvanceWizardFinalize(
   } catch (err) {
     console.error("[WIZARD] recreateGameChannelsForGuild failed:", err);
     warnings.push(`game_channels: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Post badge announcements to announcements channel (after game channels are created)
+  if (badgeAnnouncements.length > 0 && announcementsChannelId) {
+    try {
+      const ch = await guild.channels.fetch(announcementsChannelId).catch(() => null) as TextChannel | null;
+      if (ch?.type === ChannelType.GuildText) {
+        const lines: string[] = [];
+        for (const b of badgeAnnouncements) {
+          const mention = b.discordId ? `<@${b.discordId}>` : "A player";
+          if (b.type === "earned") {
+            lines.push(`${mention} earned the **${b.badgeLabel}** badge for ${b.qualifier ?? "earning this badge"}!`);
+          } else {
+            lines.push(`${mention} lost the **${b.badgeLabel}** badge — ${b.reason ?? "their badge was removed"}.`);
+          }
+        }
+        // Send in batches of 20 lines per embed to stay under Discord limits
+        const BATCH = 20;
+        for (let i = 0; i < lines.length; i += BATCH) {
+          const batch = lines.slice(i, i + BATCH);
+          await ch.send({
+            embeds: [new EmbedBuilder()
+              .setTitle(i === 0 ? "Badge Awards" : "Badge Awards (continued)")
+              .setDescription(batch.join("\n"))
+              .setColor(0xffd700)
+            ],
+            allowedMentions: { parse: ["users"] }
+          }).catch((e) => console.error("[WIZARD] Failed to post badge announcement:", e));
+        }
+      }
+    } catch (err) {
+      console.error("[WIZARD] Badge announcement posting failed:", err);
+      warnings.push(`badge_announcements: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Post EOS award poll embeds (fires on regular_season → wild_card transition only)
+  if (eosPollsData?.polls?.length && eosPollsData.announcementsChannelId) {
+    try {
+      const pollCh = await guild.channels.fetch(eosPollsData.announcementsChannelId).catch(() => null) as TextChannel | null;
+      if (pollCh?.type === ChannelType.GuildText) {
+        const { polls, nominees, closesAt } = eosPollsData;
+
+        // Build select options (nominees list, truncated to 25 per Discord limit)
+        const nomineeOptions = nominees
+          .filter((n) => n.discordId)
+          .slice(0, 25)
+          .map((n) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(n.displayName.slice(0, 100))
+              .setValue(n.discordId!)
+          );
+
+        if (nomineeOptions.length > 0) {
+          const closeTimeStr = closesAt
+            ? `Voting closes <t:${Math.floor(new Date(closesAt).getTime() / 1000)}:R>`
+            : "Voting closes when playoffs begin.";
+
+          // Build one select menu per category (up to 4, within Discord's 5-row limit)
+          const rows = polls.slice(0, 4).map((poll) =>
+            new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(`eos_vote:${poll.id}:${poll.categoryKey}`)
+                .setPlaceholder(`Vote: ${poll.categoryLabel}`)
+                .addOptions(nomineeOptions)
+            )
+          );
+
+          const embed = new EmbedBuilder()
+            .setTitle("🏆 End of Season Awards — Vote Now!")
+            .setDescription(
+              [
+                "The regular season is over! Cast your votes for this season's awards.",
+                "",
+                ...polls.map((p) => `**${p.categoryLabel}** — ${p.categoryDescription ?? ""}`),
+                "",
+                closeTimeStr,
+                "",
+                "_Only linked coaches in this league may vote. You may change your vote at any time before voting closes._"
+              ].join("\n")
+            )
+            .setColor(0x9b59b6);
+
+          await pollCh.send({ embeds: [embed], components: rows }).catch((e) =>
+            console.error("[WIZARD] Failed to post EOS award polls:", e)
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[WIZARD] EOS poll posting failed:", err);
+      warnings.push(`eos_polls: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   advanceWizardSessions.delete(interaction.user.id);

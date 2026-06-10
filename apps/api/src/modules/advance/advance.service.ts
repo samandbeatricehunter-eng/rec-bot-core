@@ -76,6 +76,107 @@ async function resolveDiscordIdsByUser(userIds: Array<string | null | undefined>
   return map;
 }
 
+const BADGE_QUALIFIERS: Record<string, string> = {
+  // Season-persistent badges
+  comeback_artist: "winning after a 3+ game losing streak",
+  record_breaker_wins: "breaking the league's all-time wins record",
+  record_breaker_point_differential: "breaking the league's all-time point differential record",
+  record_breaker_points_for: "breaking the league's all-time points scored record",
+  record_holder_wins: "permanently holding the league's all-time wins record",
+  record_holder_point_differential: "permanently holding the league's all-time point differential record",
+  record_holder_points_for: "permanently holding the league's all-time points scored record",
+  // Season-end cumulative badges
+  undefeated: "going 17-0 through an undefeated regular season",
+  dominant: "finishing the regular season with an 80%+ win rate",
+  winning_season: "finishing the regular season with more wins than losses",
+  scoring_leader: "leading the league in total points scored",
+  high_octane: "averaging 40+ points per game",
+  blowout_master: "winning 50%+ of games by 21+ points",
+  shutout_king: "holding opponents scoreless 3+ times",
+  closer: "winning 50%+ of games by 7 or fewer points",
+  defensive_powerhouse: "allowing the fewest points in the league",
+  h2h_dominator: "going undefeated in all head-to-head matchups",
+  h2h_specialist: "maintaining an 85%+ win rate in H2H matchups",
+  // New season-end badges
+  road_warrior: "going undefeated on the road this season",
+  home_fortress: "going undefeated at home this season",
+  cardiac_cats: "winning 6+ games by one score or fewer",
+  offensive_juggernaut: "finishing in the top 3 in scoring offense",
+  defensive_anchor: "finishing in the top 3 in scoring defense",
+  // Playoff/championship badges
+  playoff_qualifier: "qualifying for the playoffs",
+  wild_card_survivor: "winning the Wild Card round",
+  conference_champion: "winning the Conference Championship",
+  playoff_warrior: "earning 3+ playoff wins in a single postseason",
+  perfect_playoff_run: "winning the Super Bowl without a single playoff loss",
+  sb_champion: "winning the Super Bowl",
+  sb_runner_up: "finishing as Super Bowl runner-up",
+  // Weekly performance badges (earned per advance, tracked for prestige)
+  air_raid: "throwing for 400+ yards with 4+ TDs in a win",
+  ground_assault: "rushing for 200+ yards in a win",
+  balanced_offense_week: "throwing for 250+ and rushing for 150+ yards in a win",
+  turnover_machine: "forcing 3+ turnovers in a win",
+  sack_artist: "recording 5+ sacks in a win",
+  lockdown_week: "holding the opponent to 150 or fewer passing yards in a win"
+};
+
+function getPrestigeTier(totalEarned: number): string {
+  if (totalEarned >= 50) return "diamond";
+  if (totalEarned >= 30) return "platinum";
+  if (totalEarned >= 15) return "gold";
+  if (totalEarned >= 5) return "silver";
+  return "bronze";
+}
+
+async function incrementBadgePrestige(userId: string, badgeName: string) {
+  try {
+    const { data: existing } = await supabase
+      .from("rec_user_badge_prestige")
+      .select("total_earned")
+      .eq("user_id", userId)
+      .eq("badge_name", badgeName)
+      .maybeSingle();
+    const newTotal = (existing?.total_earned ?? 0) + 1;
+    const tier = getPrestigeTier(newTotal);
+    const now = nowIso();
+    if (existing) {
+      await supabase.from("rec_user_badge_prestige")
+        .update({ total_earned: newTotal, prestige_tier: tier, last_earned_at: now, updated_at: now })
+        .eq("user_id", userId).eq("badge_name", badgeName);
+    } else {
+      await supabase.from("rec_user_badge_prestige").insert({
+        user_id: userId, badge_name: badgeName, total_earned: 1,
+        prestige_tier: "bronze", first_earned_at: now, last_earned_at: now,
+        created_at: now, updated_at: now
+      });
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
+async function issueBadgeBonuses(
+  earnedBadges: Array<{ user_id: string; badge_name: string }>,
+  leagueId: string,
+  seasonNumber: number
+) {
+  if (earnedBadges.length === 0) return;
+  const features = await getLeagueFeatureSettings(leagueId).catch(() => null);
+  if (!features?.coin_economy_enabled) return;
+  for (const badge of earnedBadges) {
+    await creditUserWallet({
+      userId: badge.user_id,
+      leagueId,
+      seasonNumber,
+      amount: 5,
+      transactionType: "badge_bonus",
+      description: `Badge bonus: ${badge.badge_name.replace(/_/g, " ")}`,
+      sourceReference: { idempotencyKey: `badge_bonus_${badge.user_id}_${leagueId}_${badge.badge_name}` }
+    }).catch(() => undefined);
+    await incrementBadgePrestige(badge.user_id, badge.badge_name);
+  }
+}
+
 function slug(input: string) {
   return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "game";
 }
@@ -200,9 +301,10 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
 
-  if (!allRecords || allRecords.length === 0) return { assigned: 0 };
+  if (!allRecords || allRecords.length === 0) return { assigned: 0, earned: [], removed: [] };
 
   const badgesToAssign: any[] = [];
+  const removedBadges: Array<{ user_id: string; badge_name: string; badge_label: string }> = [];
   const recordsToUpdate: any[] = [];
 
   const records = [
@@ -212,7 +314,6 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
   ];
 
   for (const recordType of records) {
-    // Get current league record holder
     const { data: existingRecord } = await supabase
       .from("rec_league_records")
       .select("*")
@@ -224,7 +325,6 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
     const recordHolder = existingRecord?.record_holder_id;
     const currentBestValue = existingRecord?.record_value ?? 0;
 
-    // Find the best value in current season (highest wins/point_differential wins)
     let bestUser: string | null = null;
     let bestValue = currentBestValue;
 
@@ -236,9 +336,7 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
       }
     }
 
-    // If a new record was set (different from current)
     if (bestUser && bestValue !== currentBestValue) {
-      // Remove previous Record Breaker badge from old holder if different user
       if (recordHolder && recordHolder !== bestUser) {
         try {
           await supabase
@@ -248,12 +346,16 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
             .eq("league_id", leagueId)
             .eq("badge_name", `record_breaker_${recordType.metric}`)
             .eq("season_number", seasonNumber);
+          removedBadges.push({
+            user_id: recordHolder,
+            badge_name: `record_breaker_${recordType.metric}`,
+            badge_label: `Record Breaker - ${recordType.label}`
+          });
         } catch {
-          // Badge removal non-fatal; continue execution
+          // Badge removal non-fatal
         }
       }
 
-      // Assign Record Breaker badge to new record holder
       badgesToAssign.push({
         user_id: bestUser,
         league_id: leagueId,
@@ -264,7 +366,6 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
         earned_at: nowIso()
       });
 
-      // Update league record tracking with new value and previous holder info
       recordsToUpdate.push({
         league_id: leagueId,
         season_number: seasonNumber,
@@ -278,25 +379,37 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
     }
   }
 
-  // Batch upsert all new badges (idempotent on unique constraint)
+  // Pre-check which badges already exist so we only bonus truly new ones
+  const newBadges: typeof badgesToAssign = [];
   if (badgesToAssign.length > 0) {
+    const { data: existingBadges } = await supabase
+      .from("rec_user_badges")
+      .select("user_id,badge_name")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .in("badge_name", badgesToAssign.map((b) => b.badge_name));
+    const existingSet = new Set((existingBadges ?? []).map((b: any) => `${b.user_id}:${b.badge_name}`));
+    for (const b of badgesToAssign) {
+      if (!existingSet.has(`${b.user_id}:${b.badge_name}`)) newBadges.push(b);
+    }
     try {
       await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
-      // Non-fatal; badge assignment errors don't block advance
+      // Non-fatal
     }
   }
 
-  // Batch upsert all record updates
   if (recordsToUpdate.length > 0) {
     try {
       await supabase.from("rec_league_records").upsert(recordsToUpdate, { onConflict: "league_id,season_number,record_name" });
     } catch {
-      // Non-fatal; record tracking errors don't block advance
+      // Non-fatal
     }
   }
 
-  return { assigned: badgesToAssign.length };
+  await issueBadgeBonuses(newBadges, leagueId, seasonNumber);
+
+  return { assigned: badgesToAssign.length, earned: newBadges, removed: removedBadges };
 }
 
 /**
@@ -385,30 +498,109 @@ async function assignCombackArtistBadges(guildId: string) {
     }
   }
 
-  // Batch upsert all Comeback Artist badges (idempotent)
   if (badgesToAssign.length > 0) {
     try {
       await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
-      // Non-fatal; badge assignment errors don't block advance
+      // Non-fatal
+    }
+    // All entries in badgesToAssign are newly earned (pre-checked via existingBadge above)
+    await issueBadgeBonuses(badgesToAssign, context.league_id, seasonNumber);
+  }
+
+  return { assigned: badgesToAssign.length, earned: badgesToAssign };
+}
+
+async function assignWeeklyPerformanceBadges(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const completedWeek = Math.max(1, (league.current_week ?? 1) - 1);
+
+  const { data: games } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,winning_user_id")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek);
+
+  if (!games?.length) return { assigned: 0, earned: [] };
+
+  const leagueId = context.league_id;
+  const badgesToAssign: Array<{ user_id: string; badge_name: string; badge_label: string }> = [];
+
+  for (const game of games) {
+    const sides = [
+      { userId: game.home_user_id, teamId: game.home_team_id, opponentTeamId: game.away_team_id, score: game.home_score, oppScore: game.away_score },
+      { userId: game.away_user_id, teamId: game.away_team_id, opponentTeamId: game.home_team_id, score: game.away_score, oppScore: game.home_score }
+    ].filter((s) => s.userId && s.teamId);
+
+    for (const side of sides) {
+      const didWin = game.winning_user_id === side.userId;
+      if (!didWin) continue;
+
+      const [passR, rushR, defR] = await Promise.all([
+        sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["passYds"]),
+        sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rushYds"]),
+        Promise.all([
+          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defSacks"]),
+          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defInts"]),
+          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defForcedFum"])
+        ])
+      ]);
+      const [sacksR, intsR, fumR] = defR;
+      const passTdR = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["passTDs"]);
+      const oppPassR = side.opponentTeamId ? await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["passYds"]) : { total: 999, hasData: false };
+
+      if (passR.hasData && passR.total >= 400 && passTdR.total >= 4) {
+        badgesToAssign.push({ user_id: side.userId, badge_name: "air_raid", badge_label: "Air Raid" });
+      }
+      if (rushR.hasData && rushR.total >= 200) {
+        badgesToAssign.push({ user_id: side.userId, badge_name: "ground_assault", badge_label: "Ground Assault" });
+      }
+      if (passR.hasData && rushR.hasData && passR.total >= 250 && rushR.total >= 150) {
+        badgesToAssign.push({ user_id: side.userId, badge_name: "balanced_offense_week", badge_label: "Balanced Offense" });
+      }
+      if (intsR.hasData && (intsR.total + fumR.total) >= 3) {
+        badgesToAssign.push({ user_id: side.userId, badge_name: "turnover_machine", badge_label: "Turnover Machine" });
+      }
+      if (sacksR.hasData && sacksR.total >= 5) {
+        badgesToAssign.push({ user_id: side.userId, badge_name: "sack_artist", badge_label: "Sack Artist" });
+      }
+      if (oppPassR.hasData && oppPassR.total <= 150) {
+        badgesToAssign.push({ user_id: side.userId, badge_name: "lockdown_week", badge_label: "Lockdown" });
+      }
     }
   }
 
-  return { assigned: badgesToAssign.length };
+  if (badgesToAssign.length === 0) return { assigned: 0, earned: [] };
+
+  // For weekly performance badges these are ephemeral — we always credit if newly earned this advance.
+  // Prestige tracks the lifetime count. Issue bonuses (which also increments prestige).
+  await issueBadgeBonuses(badgesToAssign, leagueId, seasonNumber);
+
+  return { assigned: badgesToAssign.length, earned: badgesToAssign };
 }
 
 async function assignWeeklyBadges(guildId: string) {
-  // Assign mid-season dynamic badges (currently just Comeback Artist)
-  // Record Breaker badges assigned separately in assignRecordBreakerBadges
-
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
 
-  const comebackResult = await assignCombackArtistBadges(guildId);
-  const recordResult = await assignRecordBreakerBadges(context.league_id, seasonNumber);
+  const [comebackResult, recordResult, perfResult] = await Promise.all([
+    assignCombackArtistBadges(guildId),
+    assignRecordBreakerBadges(context.league_id, seasonNumber),
+    assignWeeklyPerformanceBadges(guildId)
+  ]);
 
-  return { assigned: comebackResult.assigned + recordResult.assigned };
+  const earned = [
+    ...(comebackResult.earned ?? []),
+    ...(recordResult.earned ?? []),
+    ...(perfResult.earned ?? [])
+  ];
+  const removed = [...(recordResult.removed ?? [])];
+
+  return { assigned: comebackResult.assigned + recordResult.assigned + perfResult.assigned, earned, removed };
 }
 
 /**
@@ -490,7 +682,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
     const userGames = gamesByUser.get(userId) ?? [];
 
     // UNDEFEATED: 18-0 regular season
-    if (record.wins === 18 && record.losses === 0) {
+    if (record.wins === 17 && record.losses === 0) {
       badgesToAssign.push({
         user_id: userId,
         league_id: leagueId,
@@ -593,6 +785,51 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
         earned_at: nowIso()
       });
     }
+
+    // ROAD WARRIOR: Undefeated in away games (min 3 games)
+    const awayGames = userGames.filter((g: any) => g.away_user_id === userId);
+    const awayLosses = awayGames.filter((g: any) => g.winning_user_id && g.winning_user_id !== userId).length;
+    if (awayGames.length >= 3 && awayLosses === 0) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "road_warrior",
+        badge_label: "Road Warrior",
+        earned_at: nowIso()
+      });
+    }
+
+    // HOME FORTRESS: Undefeated in home games (min 3 games)
+    const homeGames = userGames.filter((g: any) => g.home_user_id === userId);
+    const homeLosses = homeGames.filter((g: any) => g.winning_user_id && g.winning_user_id !== userId).length;
+    if (homeGames.length >= 3 && homeLosses === 0) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "home_fortress",
+        badge_label: "Home Fortress",
+        earned_at: nowIso()
+      });
+    }
+
+    // CARDIAC CATS: 6+ one-score wins (margin 1–7 points)
+    const oneScoreWins = userGames.filter((g: any) => {
+      const isHome = g.home_user_id === userId;
+      const margin = (isHome ? g.home_score : g.away_score) - (isHome ? g.away_score : g.home_score);
+      return margin >= 1 && margin <= 7;
+    }).length;
+    if (oneScoreWins >= 6) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "cardiac_cats",
+        badge_label: "Cardiac Cats",
+        earned_at: nowIso()
+      });
+    }
   }
 
   // === LEAGUE-WIDE BADGES (only one winner per league) ===
@@ -624,6 +861,38 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
         earned_value: sortedByPa[0].points_against,
         earned_at: nowIso()
       });
+    }
+
+    // OFFENSIVE JUGGERNAUT: Top 3 in total points scored
+    const sortedByPfAll = [...seasonRecords].sort((a: any, b: any) => (b.points_for ?? 0) - (a.points_for ?? 0));
+    for (const r of sortedByPfAll.slice(0, 3)) {
+      if ((r.points_for ?? 0) > 0) {
+        badgesToAssign.push({
+          user_id: r.user_id,
+          league_id: leagueId,
+          season_number: seasonNumber,
+          badge_name: "offensive_juggernaut",
+          badge_label: "Offensive Juggernaut",
+          earned_value: r.points_for,
+          earned_at: nowIso()
+        });
+      }
+    }
+
+    // DEFENSIVE ANCHOR: Top 3 fewest points allowed
+    const sortedByPaAll = [...withGames].sort((a: any, b: any) => (a.points_against ?? 0) - (b.points_against ?? 0));
+    for (const r of sortedByPaAll.slice(0, 3)) {
+      if ((r.points_against ?? 0) > 0) {
+        badgesToAssign.push({
+          user_id: r.user_id,
+          league_id: leagueId,
+          season_number: seasonNumber,
+          badge_name: "defensive_anchor",
+          badge_label: "Defensive Anchor",
+          earned_value: r.points_against,
+          earned_at: nowIso()
+        });
+      }
     }
   }
 
@@ -679,16 +948,26 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
     }
   }
 
-  // Batch upsert all badges (idempotent on unique constraint)
+  // Pre-check which badges are truly new before upsert
+  let newBadges: typeof badgesToAssign = [];
   if (badgesToAssign.length > 0) {
+    const { data: existingBadges } = await supabase
+      .from("rec_user_badges")
+      .select("user_id,badge_name")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .in("badge_name", [...new Set(badgesToAssign.map((b) => b.badge_name))]);
+    const existingSet = new Set((existingBadges ?? []).map((b: any) => `${b.user_id}:${b.badge_name}`));
+    newBadges = badgesToAssign.filter((b) => !existingSet.has(`${b.user_id}:${b.badge_name}`));
     try {
       await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
-      // Non-fatal; badge assignment errors don't block season transition
+      // Non-fatal
     }
+    await issueBadgeBonuses(newBadges, leagueId, seasonNumber);
   }
 
-  return { assigned: badgesToAssign.length };
+  return { assigned: badgesToAssign.length, earned: newBadges };
 }
 
 async function assignPlayoffBadges(leagueId: string, seasonNumber: number) {
@@ -753,6 +1032,87 @@ async function assignPlayoffBadges(leagueId: string, seasonNumber: number) {
     });
   }
 
+  // Per-user playoff win/loss tracking for new badges
+  const { data: playoffGames } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,winning_user_id,week_number")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("is_playoff", true)
+    .order("week_number");
+
+  const playoffWinsByUser = new Map<string, number>();
+  const playoffLossesByUser = new Map<string, number>();
+  const wildCardWinners = new Set<string>();
+  const confChampWinners = new Set<string>();
+
+  for (const g of playoffGames ?? []) {
+    const winner = g.winning_user_id;
+    const loser = [g.home_user_id, g.away_user_id].find((id) => id && id !== winner);
+    if (winner) {
+      playoffWinsByUser.set(winner, (playoffWinsByUser.get(winner) ?? 0) + 1);
+      if (g.week_number === 19) wildCardWinners.add(winner);
+      if (g.week_number === 21) confChampWinners.add(winner);
+    }
+    if (loser) {
+      playoffLossesByUser.set(loser, (playoffLossesByUser.get(loser) ?? 0) + 1);
+    }
+  }
+
+  // WILD CARD SURVIVOR: Won a wild card (week 19) game
+  for (const userId of wildCardWinners) {
+    badgesToAssign.push({
+      user_id: userId,
+      league_id: leagueId,
+      season_number: seasonNumber,
+      badge_name: "wild_card_survivor",
+      badge_label: "Wild Card Survivor",
+      earned_at: nowIso()
+    });
+  }
+
+  // CONFERENCE CHAMPION: Won the conference championship (week 21)
+  for (const userId of confChampWinners) {
+    badgesToAssign.push({
+      user_id: userId,
+      league_id: leagueId,
+      season_number: seasonNumber,
+      badge_name: "conference_champion",
+      badge_label: "Conference Champion",
+      earned_at: nowIso()
+    });
+  }
+
+  // PLAYOFF WARRIOR: 3+ playoff wins
+  for (const [userId, wins] of playoffWinsByUser) {
+    if (wins >= 3) {
+      badgesToAssign.push({
+        user_id: userId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "playoff_warrior",
+        badge_label: "Playoff Warrior",
+        earned_value: wins,
+        earned_at: nowIso()
+      });
+    }
+  }
+
+  // PERFECT RUN: Won all playoff games without a loss (Super Bowl winner only)
+  if (seasonResults?.sb_winner) {
+    const sbWinnerId = seasonResults.sb_winner as string;
+    if ((playoffLossesByUser.get(sbWinnerId) ?? 0) === 0 && (playoffWinsByUser.get(sbWinnerId) ?? 0) >= 2) {
+      badgesToAssign.push({
+        user_id: sbWinnerId,
+        league_id: leagueId,
+        season_number: seasonNumber,
+        badge_name: "perfect_run",
+        badge_label: "Perfect Run",
+        earned_at: nowIso()
+      });
+    }
+  }
+
   // Convert Record Breaker → Record Holder
   const { data: recordBreakers } = await supabase
     .from("rec_user_badges")
@@ -799,13 +1159,23 @@ async function assignPlayoffBadges(leagueId: string, seasonNumber: number) {
     });
   }
 
-  // Batch operations
+  // Pre-check which badges are truly new before upsert
+  let newBadges: typeof badgesToAssign = [];
   if (badgesToAssign.length > 0) {
+    const { data: existingBadges } = await supabase
+      .from("rec_user_badges")
+      .select("user_id,badge_name")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .in("badge_name", [...new Set(badgesToAssign.map((b) => b.badge_name))]);
+    const existingSet = new Set((existingBadges ?? []).map((b: any) => `${b.user_id}:${b.badge_name}`));
+    newBadges = badgesToAssign.filter((b) => !existingSet.has(`${b.user_id}:${b.badge_name}`));
     try {
       await supabase.from("rec_user_badges").upsert(badgesToAssign, { onConflict: "user_id,league_id,badge_name,season_number" });
     } catch {
-      // Badge assignment errors are non-fatal
+      // Non-fatal
     }
+    await issueBadgeBonuses(newBadges, leagueId, seasonNumber);
   }
 
   if (badgesToRemove.length > 0) {
@@ -824,7 +1194,7 @@ async function assignPlayoffBadges(leagueId: string, seasonNumber: number) {
     }
   }
 
-  return { assigned: badgesToAssign.length, removed: badgesToRemove.length };
+  return { assigned: badgesToAssign.length, earned: newBadges, removed: badgesToRemove };
 }
 
 // GOTW Sophisticated Scoring System
@@ -1064,26 +1434,26 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
   const { data, error } = await supabase.from("rec_leagues").update(patch).eq("id", context.league_id).select("*").single();
   if (error) throw error;
 
-  // Trigger badge assignments at appropriate season transitions
   const previousStage = currentLeague.season_stage;
+  let transitionBadgesEarned: Array<{ user_id: string; badge_name: string; badge_label: string }> = [];
+  let transitionBadgesRemoved: Array<{ user_id: string; badge_name: string; badge_label: string }> = [];
 
-  // Assign regular-season cumulative badges when regular season ends (transitioning out of regular_season)
-  // Regular season = weeks 1-18, so when we move to wild_card (week 19) or beyond, assign the badges
   if (previousStage === "regular_season" && input.seasonStage !== "regular_season") {
     try {
-      await assignSeasonEndBadges(context.league_id, seasonNumber);
+      const result = await assignSeasonEndBadges(context.league_id, seasonNumber);
+      transitionBadgesEarned = result.earned ?? [];
     } catch {
-      // Non-fatal badge assignment
+      // Non-fatal
     }
   }
 
-  // Assign championship badges and convert Record Breaker → Record Holder when season ends
-  // This happens when transitioning from super_bowl to the first offseason stage (coach_hiring)
   if (previousStage === "super_bowl" && input.seasonStage === "coach_hiring") {
     try {
-      await assignPlayoffBadges(context.league_id, seasonNumber);
+      const result = await assignPlayoffBadges(context.league_id, seasonNumber);
+      transitionBadgesEarned = [...transitionBadgesEarned, ...(result.earned ?? [])];
+      transitionBadgesRemoved = result.removed ?? [];
     } catch {
-      // Non-fatal badge assignment
+      // Non-fatal
     }
   }
 
@@ -1092,7 +1462,7 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
   const warning = economyEnabled
     ? "Economy is active. Setting the week manually does not trigger payouts for previous weeks. To catch up prior weeks, import and advance each week using catch-up mode."
     : null;
-  return { league: data, warning, economyEnabled };
+  return { league: data, warning, economyEnabled, transitionBadgesEarned, transitionBadgesRemoved };
 }
 
 export async function viewEconomyConfig(guildId: string) {
@@ -1157,41 +1527,63 @@ async function getWeekGames(leagueId: string, seasonNumber: number, weekNumber: 
 interface ChallengeTemplate {
   key: string;
   side: "offense" | "defense";
-  eval_type: "team_stat_min" | "team_stat_max" | "total_yards" | "score_margin" | "opp_stat_max" | "opp_score_max" | "own_def_stat" | "turnovers";
+  eval_type: string;
   stat_columns: string[];
   s_threshold: number;
   a_threshold: number;
+  s_threshold2?: number; // secondary threshold (e.g. rush component of balanced_attack)
+  a_threshold2?: number;
   s_tier_goal: string;
   a_tier_goal: string;
   b_tier_goal: string;
 }
 
 const OFFENSIVE_CHALLENGE_POOL: ChallengeTemplate[] = [
+  // Yardage challenges
   { key: "pass_yards_350", side: "offense", eval_type: "team_stat_min", stat_columns: ["passYds"], s_threshold: 350, a_threshold: 250, s_tier_goal: "Throw for 350+ passing yards and win", a_tier_goal: "Throw for 250+ passing yards and win", b_tier_goal: "Win the game" },
   { key: "pass_yards_400", side: "offense", eval_type: "team_stat_min", stat_columns: ["passYds"], s_threshold: 400, a_threshold: 300, s_tier_goal: "Throw for 400+ passing yards and win", a_tier_goal: "Throw for 300+ passing yards and win", b_tier_goal: "Win the game" },
   { key: "rush_yards_150", side: "offense", eval_type: "team_stat_min", stat_columns: ["rushYds"], s_threshold: 150, a_threshold: 100, s_tier_goal: "Rush for 150+ yards and win", a_tier_goal: "Rush for 100+ yards and win", b_tier_goal: "Win the game" },
   { key: "rush_yards_200", side: "offense", eval_type: "team_stat_min", stat_columns: ["rushYds"], s_threshold: 200, a_threshold: 130, s_tier_goal: "Rush for 200+ yards and win", a_tier_goal: "Rush for 130+ yards and win", b_tier_goal: "Win the game" },
+  { key: "total_yards_450", side: "offense", eval_type: "total_yards", stat_columns: ["passYds", "rushYds"], s_threshold: 450, a_threshold: 350, s_tier_goal: "Gain 450+ total yards and win", a_tier_goal: "Gain 350+ total yards and win", b_tier_goal: "Win the game" },
+  { key: "total_yards_500", side: "offense", eval_type: "total_yards", stat_columns: ["passYds", "rushYds"], s_threshold: 500, a_threshold: 400, s_tier_goal: "Gain 500+ total yards and win", a_tier_goal: "Gain 400+ total yards and win", b_tier_goal: "Win the game" },
+  // TD challenges
   { key: "pass_tds_3", side: "offense", eval_type: "team_stat_min", stat_columns: ["passTDs"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Throw 3+ passing TDs and win", a_tier_goal: "Throw 2+ passing TDs and win", b_tier_goal: "Win the game" },
   { key: "pass_tds_4", side: "offense", eval_type: "team_stat_min", stat_columns: ["passTDs"], s_threshold: 4, a_threshold: 3, s_tier_goal: "Throw 4+ passing TDs and win", a_tier_goal: "Throw 3+ passing TDs and win", b_tier_goal: "Win the game" },
-  { key: "total_yards_450", side: "offense", eval_type: "total_yards", stat_columns: ["passYds", "rushYds"], s_threshold: 450, a_threshold: 350, s_tier_goal: "Gain 450+ total yards (pass + rush) and win", a_tier_goal: "Gain 350+ total yards (pass + rush) and win", b_tier_goal: "Win the game" },
-  { key: "total_yards_500", side: "offense", eval_type: "total_yards", stat_columns: ["passYds", "rushYds"], s_threshold: 500, a_threshold: 400, s_tier_goal: "Gain 500+ total yards (pass + rush) and win", a_tier_goal: "Gain 400+ total yards (pass + rush) and win", b_tier_goal: "Win the game" },
+  // Win margin challenges
   { key: "blowout_win_21", side: "offense", eval_type: "score_margin", stat_columns: [], s_threshold: 21, a_threshold: 14, s_tier_goal: "Win by 21+ points", a_tier_goal: "Win by 14+ points", b_tier_goal: "Win the game" },
   { key: "blowout_win_28", side: "offense", eval_type: "score_margin", stat_columns: [], s_threshold: 28, a_threshold: 21, s_tier_goal: "Win by 28+ points", a_tier_goal: "Win by 21+ points", b_tier_goal: "Win the game" },
-  { key: "no_int_win", side: "offense", eval_type: "team_stat_max", stat_columns: ["passInts"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Win with 0 passing interceptions", a_tier_goal: "Win with 1 or fewer passing interceptions", b_tier_goal: "Win the game" }
+  // Protection challenge
+  { key: "no_int_win", side: "offense", eval_type: "team_stat_max", stat_columns: ["passInts"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Win with 0 passing interceptions", a_tier_goal: "Win with 1 or fewer interceptions", b_tier_goal: "Win the game" },
+  // Efficiency challenges
+  { key: "efficient_passer_75", side: "offense", eval_type: "completion_pct", stat_columns: ["passComp", "passAtt"], s_threshold: 0.75, a_threshold: 0.65, s_tier_goal: "Complete 75%+ of pass attempts and win", a_tier_goal: "Complete 65%+ of pass attempts and win", b_tier_goal: "Win the game" },
+  { key: "balanced_attack", side: "offense", eval_type: "balanced_attack", stat_columns: ["passYds", "rushYds"], s_threshold: 250, a_threshold: 200, s_threshold2: 150, a_threshold2: 100, s_tier_goal: "Throw for 250+ yards AND rush for 150+ yards and win", a_tier_goal: "Throw for 200+ yards AND rush for 100+ yards and win", b_tier_goal: "Win the game" },
+  { key: "first_downs_25", side: "offense", eval_type: "team_stat_min", stat_columns: ["firstDowns"], s_threshold: 25, a_threshold: 15, s_tier_goal: "Pick up 25+ first downs and win", a_tier_goal: "Pick up 15+ first downs and win", b_tier_goal: "Win the game" },
+  { key: "high_scoring_35", side: "offense", eval_type: "user_score_min", stat_columns: [], s_threshold: 35, a_threshold: 28, s_tier_goal: "Score 35+ points and win", a_tier_goal: "Score 28+ points and win", b_tier_goal: "Win the game" }
 ];
 
 const DEFENSIVE_CHALLENGE_POOL: ChallengeTemplate[] = [
+  // Pass coverage challenges
   { key: "hold_qb_225", side: "defense", eval_type: "opp_stat_max", stat_columns: ["passYds"], s_threshold: 225, a_threshold: 275, s_tier_goal: "Hold opponent under 225 passing yards and win", a_tier_goal: "Hold opponent under 275 passing yards and win", b_tier_goal: "Win the game" },
   { key: "hold_qb_200", side: "defense", eval_type: "opp_stat_max", stat_columns: ["passYds"], s_threshold: 200, a_threshold: 250, s_tier_goal: "Hold opponent under 200 passing yards and win", a_tier_goal: "Hold opponent under 250 passing yards and win", b_tier_goal: "Win the game" },
+  // Run defense challenges
   { key: "hold_rush_75", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rushYds"], s_threshold: 75, a_threshold: 125, s_tier_goal: "Hold opponent rushing attack under 75 yards and win", a_tier_goal: "Hold opponent rushing attack under 125 yards and win", b_tier_goal: "Win the game" },
   { key: "hold_rush_100", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rushYds"], s_threshold: 100, a_threshold: 150, s_tier_goal: "Hold opponent rushing attack under 100 yards and win", a_tier_goal: "Hold opponent rushing attack under 150 yards and win", b_tier_goal: "Win the game" },
+  // Score suppression
   { key: "opp_score_10", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 10, a_threshold: 20, s_tier_goal: "Hold opponent to 10 points or fewer and win", a_tier_goal: "Hold opponent to 20 points or fewer and win", b_tier_goal: "Win the game" },
   { key: "opp_score_14", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 14, a_threshold: 24, s_tier_goal: "Hold opponent to 14 points or fewer and win", a_tier_goal: "Hold opponent to 24 points or fewer and win", b_tier_goal: "Win the game" },
-  { key: "shutout", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 0, a_threshold: 7, s_tier_goal: "Shut out the opponent (0 points allowed) and win", a_tier_goal: "Hold opponent to 7 points or fewer and win", b_tier_goal: "Win the game" },
-  { key: "force_sacks_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["defSacks"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Record 3+ sacks and win", a_tier_goal: "Record 2+ sacks and win", b_tier_goal: "Win the game" },
+  { key: "shutout", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 0, a_threshold: 7, s_tier_goal: "Shut out the opponent and win", a_tier_goal: "Hold opponent to 7 or fewer points and win", b_tier_goal: "Win the game" },
+  // Pass rush / sack challenges
   { key: "force_sacks_2", side: "defense", eval_type: "own_def_stat", stat_columns: ["defSacks"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Record 2+ sacks and win", a_tier_goal: "Record 1+ sack and win", b_tier_goal: "Win the game" },
-  { key: "force_turnovers_3", side: "defense", eval_type: "turnovers", stat_columns: ["defInts", "defForcedFum"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Force 3+ turnovers (picks + forced fumbles) and win", a_tier_goal: "Force 2+ turnovers (picks + forced fumbles) and win", b_tier_goal: "Win the game" },
-  { key: "force_turnovers_2", side: "defense", eval_type: "turnovers", stat_columns: ["defInts", "defForcedFum"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Force 2+ turnovers (picks + forced fumbles) and win", a_tier_goal: "Force 1+ turnover (picks + forced fumbles) and win", b_tier_goal: "Win the game" }
+  { key: "force_sacks_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["defSacks"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Record 3+ sacks and win", a_tier_goal: "Record 2+ sacks and win", b_tier_goal: "Win the game" },
+  { key: "sack_party_5", side: "defense", eval_type: "own_def_stat", stat_columns: ["defSacks"], s_threshold: 5, a_threshold: 3, s_tier_goal: "Record 5+ sacks and win", a_tier_goal: "Record 3+ sacks and win", b_tier_goal: "Win the game" },
+  // Turnover challenges
+  { key: "force_turnovers_2", side: "defense", eval_type: "turnovers", stat_columns: ["defInts", "defForcedFum"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Force 2+ turnovers and win", a_tier_goal: "Force 1+ turnover and win", b_tier_goal: "Win the game" },
+  { key: "force_turnovers_3", side: "defense", eval_type: "turnovers", stat_columns: ["defInts", "defForcedFum"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Force 3+ turnovers and win", a_tier_goal: "Force 2+ turnovers and win", b_tier_goal: "Win the game" },
+  { key: "ball_hawk_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["defInts"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Intercept 3+ passes and win", a_tier_goal: "Intercept 2+ passes and win", b_tier_goal: "Win the game" },
+  // Situational / advanced challenges
+  { key: "lockdown_secondary", side: "defense", eval_type: "opp_completion_pct", stat_columns: ["passComp", "passAtt"], s_threshold: 0.50, a_threshold: 0.60, s_tier_goal: "Hold opponent QB completion rate under 50% and win", a_tier_goal: "Hold opponent QB completion rate under 60% and win", b_tier_goal: "Win the game" },
+  { key: "redzone_lockdown", side: "defense", eval_type: "opp_stat_max", stat_columns: ["redZoneTDs"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Allow 0 red zone TDs and win", a_tier_goal: "Allow 1 or fewer red zone TDs and win", b_tier_goal: "Win the game" },
+  { key: "bend_not_break", side: "defense", eval_type: "bend_not_break", stat_columns: [], s_threshold: 17, a_threshold: 24, s_tier_goal: "Allow 350+ yards but hold opponent under 17 points and win", a_tier_goal: "Allow 350+ yards but hold opponent under 24 points and win", b_tier_goal: "Win the game" }
 ];
 
 const CHALLENGE_TEMPLATE_MAP = new Map<string, ChallengeTemplate>([
@@ -1226,19 +1618,46 @@ async function sumTeamStatFromCommitted(leagueId: string, seasonNumber: number, 
   return { total, hasData: true };
 }
 
+// Calculates completion percentage for a team by summing passComp/passAtt from passing stats.
+async function getTeamCompletionPct(leagueId: string, seasonNumber: number, weekNumber: number, teamId: string): Promise<{ pct: number; hasData: boolean }> {
+  const { data } = await supabase
+    .from("rec_player_weekly_stats")
+    .select("stats")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .eq("team_id", teamId)
+    .eq("stat_category", "passing");
+  if (!data?.length) return { pct: 0, hasData: false };
+  let totalComp = 0, totalAtt = 0;
+  for (const row of data as any[]) {
+    const s = (row.stats ?? {}) as Record<string, unknown>;
+    totalComp += pickStat(s, ["passComp", "completions", "cmp"]);
+    totalAtt += pickStat(s, ["passAtt", "attempts", "att"]);
+  }
+  if (totalAtt === 0) return { pct: 0, hasData: false };
+  return { pct: totalComp / totalAtt, hasData: true };
+}
+
 interface TeamSeasonProfile {
   teamId: string;
   avgPassYdsPerGame: number;
   avgRushYdsPerGame: number;
+  avgPointsPerGame: number;
+  avgPointsAllowedPerGame: number;
+  avgTurnoversPerGame: number;
+  avgDefSacksPerGame: number;
   topPasserName: string | null;
   topRusherName: string | null;
   weeksPlayed: number;
 }
 
 async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, throughWeek: number, teamId: string): Promise<TeamSeasonProfile> {
-  const [{ data: passingRows }, { data: rushingRows }] = await Promise.all([
+  const [{ data: passingRows }, { data: rushingRows }, { data: defenseRows }, gameResults] = await Promise.all([
     supabase.from("rec_player_weekly_stats").select("stats,player_name,week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", teamId).eq("stat_category", "passing").lt("week_number", throughWeek).order("week_number", { ascending: false }),
-    supabase.from("rec_player_weekly_stats").select("stats,player_name,week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", teamId).eq("stat_category", "rushing").lt("week_number", throughWeek).order("week_number", { ascending: false })
+    supabase.from("rec_player_weekly_stats").select("stats,player_name,week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", teamId).eq("stat_category", "rushing").lt("week_number", throughWeek).order("week_number", { ascending: false }),
+    supabase.from("rec_player_weekly_stats").select("stats,week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", teamId).eq("stat_category", "defense").lt("week_number", throughWeek),
+    supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score").eq("league_id", leagueId).eq("season_number", seasonNumber).lt("week_number", throughWeek).or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
   ]);
   const latestPassWeek = (passingRows ?? [])[0]?.week_number ?? 0;
   const latestRushWeek = (rushingRows ?? [])[0]?.week_number ?? 0;
@@ -1265,22 +1684,66 @@ async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, th
     const ypg = asNumber(s.rushYdsPerGame);
     if (ypg > avgRushYdsPerGame) avgRushYdsPerGame = ypg;
   }
-  return { teamId, avgPassYdsPerGame, avgRushYdsPerGame, topPasserName, topRusherName, weeksPlayed: Math.max(latestPassWeek, latestRushWeek) };
+
+  // Calculate scoring and defensive averages from game results
+  let totalPoints = 0, totalAllowed = 0, gamesPlayed = 0;
+  for (const g of gameResults.data ?? []) {
+    const isHome = g.home_team_id === teamId;
+    totalPoints += isHome ? asNumber(g.home_score) : asNumber(g.away_score);
+    totalAllowed += isHome ? asNumber(g.away_score) : asNumber(g.home_score);
+    gamesPlayed++;
+  }
+  const avgPointsPerGame = gamesPlayed > 0 ? totalPoints / gamesPlayed : 0;
+  const avgPointsAllowedPerGame = gamesPlayed > 0 ? totalAllowed / gamesPlayed : 0;
+
+  // Defensive stats averages
+  let totalSacks = 0, totalInts = 0, totalFumbles = 0;
+  const defWeeks = new Set<number>();
+  for (const row of defenseRows ?? []) {
+    const s = (row.stats ?? {}) as Record<string, any>;
+    totalSacks += asNumber(s.defSacks ?? s.sacks);
+    totalInts += asNumber(s.defInts ?? s.interceptions);
+    totalFumbles += asNumber(s.defForcedFum ?? s.forcedFumbles);
+    defWeeks.add(row.week_number);
+  }
+  const defGames = defWeeks.size || 1;
+  const avgDefSacksPerGame = totalSacks / defGames;
+  const avgTurnoversPerGame = (totalInts + totalFumbles) / defGames;
+
+  return { teamId, avgPassYdsPerGame, avgRushYdsPerGame, avgPointsPerGame, avgPointsAllowedPerGame, avgTurnoversPerGame, avgDefSacksPerGame, topPasserName, topRusherName, weeksPlayed: Math.max(latestPassWeek, latestRushWeek) };
+}
+
+function pickStylePool(pool: ChallengeTemplate[], keys: string[], excludedKeys?: Set<string> | null): ChallengeTemplate | null {
+  const stylePool = pool.filter((t) => keys.some((k) => t.key.startsWith(k)));
+  const available = excludedKeys?.size ? stylePool.filter((t) => !excludedKeys.has(t.key)) : stylePool;
+  if (available.length === 0) return null;
+  return available[Math.floor(Math.random() * available.length)];
 }
 
 function selectDefensiveChallenge(opp: TeamSeasonProfile, excludedKeys?: Set<string> | null): { template: ChallengeTemplate; targetPlayerName: string | null } {
   if (opp.weeksPlayed > 0) {
-    // Build a style-specific pool based on opponent's offensive tendencies, then exclude recently used keys.
-    let stylePool: ChallengeTemplate[] | null = null;
-    let targetPlayer: string | null = null;
-    if (opp.avgPassYdsPerGame > 270) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_qb_")); targetPlayer = opp.topPasserName; }
-    else if (opp.avgPassYdsPerGame > 200) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_qb_")); targetPlayer = opp.topPasserName; }
-    else if (opp.avgRushYdsPerGame > 150) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_rush_")); targetPlayer = opp.topRusherName; }
-    else if (opp.avgRushYdsPerGame > 100) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_rush_")); targetPlayer = opp.topRusherName; }
-    if (stylePool) {
-      const available = excludedKeys?.size ? stylePool.filter((t) => !excludedKeys.has(t.key)) : stylePool;
-      // If style pool still has options after excluding recent, use it; otherwise fall through to full pool
-      if (available.length > 0) return { template: available[Math.floor(Math.random() * available.length)], targetPlayerName: targetPlayer };
+    // Pass-heavy opponent → coverage / QB pressure challenges
+    if (opp.avgPassYdsPerGame > 250) {
+      const keys = ["hold_qb_", "lockdown_secondary", "force_sacks_", "sack_party_"];
+      const t = pickStylePool(DEFENSIVE_CHALLENGE_POOL, keys, excludedKeys);
+      if (t) return { template: t, targetPlayerName: opp.topPasserName };
+    }
+    // Run-heavy opponent → front seven / rush defense challenges
+    if (opp.avgRushYdsPerGame > 130) {
+      const keys = ["hold_rush_"];
+      const t = pickStylePool(DEFENSIVE_CHALLENGE_POOL, keys, excludedKeys);
+      if (t) return { template: t, targetPlayerName: opp.topRusherName };
+    }
+    // High-scoring opponent → score suppression / takeaway challenges
+    if (opp.avgPointsPerGame > 28) {
+      const keys = ["opp_score_", "shutout", "force_turnovers_", "ball_hawk_", "redzone_lockdown"];
+      const t = pickStylePool(DEFENSIVE_CHALLENGE_POOL, keys, excludedKeys);
+      if (t) return { template: t, targetPlayerName: null };
+    }
+    // Low-scoring opponent → bend-don't-break situational challenge
+    if (opp.avgPointsPerGame < 18 && opp.weeksPlayed >= 3) {
+      const t = pickStylePool(DEFENSIVE_CHALLENGE_POOL, ["bend_not_break"], excludedKeys);
+      if (t) return { template: t, targetPlayerName: null };
     }
   }
   return { template: pickFromPool(DEFENSIVE_CHALLENGE_POOL, excludedKeys), targetPlayerName: null };
@@ -1290,16 +1753,28 @@ function selectOffensiveChallenge(user: TeamSeasonProfile, excludedKeys?: Set<st
   if (user.weeksPlayed > 0 && (user.avgPassYdsPerGame > 0 || user.avgRushYdsPerGame > 0)) {
     const passHeavy = user.avgRushYdsPerGame > 0 && user.avgPassYdsPerGame > user.avgRushYdsPerGame * 2;
     const runHeavy = user.avgPassYdsPerGame > 0 && user.avgRushYdsPerGame > user.avgPassYdsPerGame * 1.5;
+    const balanced = !passHeavy && !runHeavy && user.avgPassYdsPerGame > 150 && user.avgRushYdsPerGame > 80;
+
     if (passHeavy) {
-      // Expand style pool to include pass_tds challenges for more variety
-      const stylePool = OFFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("pass_yards_") || t.key.startsWith("pass_tds_"));
-      const available = excludedKeys?.size ? stylePool.filter((t) => !excludedKeys.has(t.key)) : stylePool;
-      if (available.length > 0) return { template: available[Math.floor(Math.random() * available.length)], targetPlayerName: user.topPasserName };
+      const keys = ["pass_yards_", "pass_tds_", "efficient_passer_", "high_scoring_"];
+      const t = pickStylePool(OFFENSIVE_CHALLENGE_POOL, keys, excludedKeys);
+      if (t) return { template: t, targetPlayerName: user.topPasserName };
     }
     if (runHeavy) {
-      const stylePool = OFFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("rush_yards_"));
-      const available = excludedKeys?.size ? stylePool.filter((t) => !excludedKeys.has(t.key)) : stylePool;
-      if (available.length > 0) return { template: available[Math.floor(Math.random() * available.length)], targetPlayerName: user.topRusherName };
+      const keys = ["rush_yards_", "total_yards_", "high_scoring_"];
+      const t = pickStylePool(OFFENSIVE_CHALLENGE_POOL, keys, excludedKeys);
+      if (t) return { template: t, targetPlayerName: user.topRusherName };
+    }
+    if (balanced) {
+      const keys = ["balanced_attack", "total_yards_", "first_downs_"];
+      const t = pickStylePool(OFFENSIVE_CHALLENGE_POOL, keys, excludedKeys);
+      if (t) return { template: t, targetPlayerName: null };
+    }
+    // High-scoring offense → push for bigger wins
+    if (user.avgPointsPerGame > 28) {
+      const keys = ["blowout_win_", "high_scoring_", "pass_tds_"];
+      const t = pickStylePool(OFFENSIVE_CHALLENGE_POOL, keys, excludedKeys);
+      if (t) return { template: t, targetPlayerName: null };
     }
   }
   return { template: pickFromPool(OFFENSIVE_CHALLENGE_POOL, excludedKeys), targetPlayerName: null };
@@ -1336,7 +1811,7 @@ export async function generateWeeklyChallenges(input: { guildId: string; regener
 
   // Build season-to-date profiles for all teams so we can tailor challenges to matchups
   const allTeamIds = [...new Set(games.flatMap((g) => [g.home_team_id, g.away_team_id].filter(Boolean) as string[]))];
-  const emptyProfile = (teamId: string): TeamSeasonProfile => ({ teamId, avgPassYdsPerGame: 0, avgRushYdsPerGame: 0, topPasserName: null, topRusherName: null, weeksPlayed: 0 });
+  const emptyProfile = (teamId: string): TeamSeasonProfile => ({ teamId, avgPassYdsPerGame: 0, avgRushYdsPerGame: 0, avgPointsPerGame: 0, avgPointsAllowedPerGame: 0, avgTurnoversPerGame: 0, avgDefSacksPerGame: 0, topPasserName: null, topRusherName: null, weeksPlayed: 0 });
   const profileEntries = await Promise.all(allTeamIds.map(async (teamId) => [teamId, await buildTeamSeasonProfile(context.league_id, seasonNumber, weekNumber, teamId).catch(() => emptyProfile(teamId))] as const));
   const profileMap = new Map<string, TeamSeasonProfile>(profileEntries);
 
@@ -1649,6 +2124,143 @@ export async function applyAdvanceRecords(guildId: string) {
   return { applied };
 }
 
+export async function auditAndRepairRecords(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const leagueId = context.league_id;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+
+  // Fetch every completed game for the current season (and all seasons for league-wide repair)
+  const { data: seasonGames } = await supabase
+    .from("rec_game_results")
+    .select("id,home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,status,season_number,records_applied_at,week_number")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber);
+
+  const { data: allLeagueGames } = await supabase
+    .from("rec_game_results")
+    .select("id,home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,status,season_number,week_number")
+    .eq("league_id", leagueId);
+
+  const completed = (games: any[]) => games.filter(isCompletedGame);
+
+  // ── Rebuild season records ───────────────────────────────────────────────────
+  type UserStats = {
+    wins: number; losses: number; ties: number; games_played: number;
+    point_differential: number; points_for: number; points_against: number;
+    close_games_within_7: number; blowout_wins_by_22_plus: number; blowout_losses_by_22_plus: number;
+  };
+
+  function freshStats(): UserStats {
+    return { wins: 0, losses: 0, ties: 0, games_played: 0, point_differential: 0, points_for: 0, points_against: 0, close_games_within_7: 0, blowout_wins_by_22_plus: 0, blowout_losses_by_22_plus: 0 };
+  }
+
+  function accumulate(acc: UserStats, score: number, oppScore: number) {
+    const delta = score - oppScore;
+    acc.games_played += 1;
+    acc.points_for += score;
+    acc.points_against += oppScore;
+    acc.point_differential += delta;
+    if (delta > 0) { acc.wins += 1; if (delta >= 22) acc.blowout_wins_by_22_plus += 1; if (delta <= 7) acc.close_games_within_7 += 1; }
+    else if (delta < 0) { acc.losses += 1; if (delta <= -22) acc.blowout_losses_by_22_plus += 1; }
+    else acc.ties += 1;
+  }
+
+  // Season totals
+  const seasonTotals = new Map<string, UserStats>();
+  for (const g of completed(seasonGames ?? [])) {
+    const { home, away } = getScorePair(g);
+    if (g.home_user_id) {
+      if (!seasonTotals.has(g.home_user_id)) seasonTotals.set(g.home_user_id, freshStats());
+      accumulate(seasonTotals.get(g.home_user_id)!, home, away);
+    }
+    if (g.away_user_id) {
+      if (!seasonTotals.has(g.away_user_id)) seasonTotals.set(g.away_user_id, freshStats());
+      accumulate(seasonTotals.get(g.away_user_id)!, away, home);
+    }
+  }
+
+  // League-wide totals (all seasons combined)
+  const leagueTotals = new Map<string, UserStats>();
+  for (const g of completed(allLeagueGames ?? [])) {
+    const { home, away } = getScorePair(g);
+    if (g.home_user_id) {
+      if (!leagueTotals.has(g.home_user_id)) leagueTotals.set(g.home_user_id, freshStats());
+      accumulate(leagueTotals.get(g.home_user_id)!, home, away);
+    }
+    if (g.away_user_id) {
+      if (!leagueTotals.has(g.away_user_id)) leagueTotals.set(g.away_user_id, freshStats());
+      accumulate(leagueTotals.get(g.away_user_id)!, away, home);
+    }
+  }
+
+  // Upsert season records (full overwrite)
+  for (const [userId, stats] of seasonTotals) {
+    try {
+      await supabase.from("rec_season_user_records").upsert(
+        { ...stats, user_id: userId, league_id: leagueId, season_number: seasonNumber, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,league_id,season_number" }
+      );
+    } catch { /* non-fatal */ }
+  }
+
+  // Upsert league-wide records (full overwrite)
+  for (const [userId, stats] of leagueTotals) {
+    try {
+      await supabase.from("rec_league_user_records").upsert(
+        { ...stats, user_id: userId, league_id: leagueId, updated_at: new Date().toISOString() },
+        { onConflict: "user_id,league_id" }
+      );
+    } catch { /* non-fatal */ }
+  }
+
+  // ── Rebuild H2H league records ───────────────────────────────────────────────
+  type H2HStats = { wins: number; losses: number; ties: number; games_played: number; point_differential: number };
+  const h2hTotals = new Map<string, H2HStats>();
+  const h2hKey = (a: string, b: string) => [a, b].sort().join(":::");
+
+  for (const g of completed(allLeagueGames ?? [])) {
+    if (!g.home_user_id || !g.away_user_id) continue;
+    const { home, away } = getScorePair(g);
+    const ids = [g.home_user_id, g.away_user_id].sort() as [string, string];
+    const key = h2hKey(ids[0], ids[1]);
+    if (!h2hTotals.has(key)) h2hTotals.set(key, { wins: 0, losses: 0, ties: 0, games_played: 0, point_differential: 0 });
+    const rec = h2hTotals.get(key)!;
+    const userAIsHome = ids[0] === g.home_user_id;
+    const userAPd = userAIsHome ? home - away : away - home;
+    rec.games_played += 1;
+    rec.point_differential += userAPd;
+    if (userAPd > 0) rec.wins += 1;
+    else if (userAPd < 0) rec.losses += 1;
+    else rec.ties += 1;
+  }
+
+  for (const [key, stats] of h2hTotals) {
+    const [userAId, userBId] = key.split(":::");
+    try {
+      await supabase.from("rec_user_h2h_league_records").upsert(
+        { ...stats, user_a_id: userAId, user_b_id: userBId, league_id: leagueId, updated_at: new Date().toISOString() },
+        { onConflict: "user_a_id,user_b_id,league_id" }
+      );
+    } catch { /* non-fatal */ }
+  }
+
+  // ── Mark untracked games so future applyAdvanceRecords won't double-count ───
+  const unapplied = (seasonGames ?? []).filter((g) => isCompletedGame(g) && !g.records_applied_at);
+  for (const g of unapplied) {
+    try {
+      await supabase.from("rec_game_results").update({ records_applied_at: new Date().toISOString(), records_apply_key: gameApplyKey(g), updated_at: new Date().toISOString() }).eq("id", g.id);
+    } catch { /* non-fatal */ }
+  }
+
+  return {
+    seasonRecordsRepaired: seasonTotals.size,
+    leagueRecordsRepaired: leagueTotals.size,
+    h2hPairsRepaired: h2hTotals.size,
+    gamesMarkedApplied: unapplied.length
+  };
+}
+
 export async function calculateRecPotw(guildId: string) {
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;
@@ -1795,6 +2407,53 @@ export async function evaluateWeeklyChallenges(guildId: string) {
           if (details.hasData) {
             if (turnovers >= template.s_threshold) earnedTier = "S";
             else if (turnovers >= template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "completion_pct") {
+          const { pct, hasData } = await getTeamCompletionPct(leagueId, seasonNumber, completedWeek, side.teamId);
+          details.completionPct = pct;
+          details.hasData = hasData;
+          if (hasData) {
+            if (pct >= template.s_threshold) earnedTier = "S";
+            else if (pct >= template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "opp_completion_pct") {
+          const { pct, hasData } = await getTeamCompletionPct(leagueId, seasonNumber, completedWeek, side.opponentTeamId);
+          details.oppCompletionPct = pct;
+          details.hasData = hasData;
+          if (hasData) {
+            // s_threshold / a_threshold are MAX values (lower = better for defense)
+            if (pct < template.s_threshold) earnedTier = "S";
+            else if (pct < template.a_threshold) earnedTier = "A";
+          }
+        } else if (evalType === "balanced_attack") {
+          const [passResult, rushResult] = await Promise.all([
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["passYds"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rushYds"])
+          ]);
+          details.passYards = passResult.total;
+          details.rushYards = rushResult.total;
+          details.hasData = passResult.hasData || rushResult.hasData;
+          if (details.hasData) {
+            if (passResult.total >= template.s_threshold && rushResult.total >= (template.s_threshold2 ?? 0)) earnedTier = "S";
+            else if (passResult.total >= template.a_threshold && rushResult.total >= (template.a_threshold2 ?? 0)) earnedTier = "A";
+          }
+        } else if (evalType === "user_score_min") {
+          details.userScore = side.score;
+          details.hasData = true;
+          if (side.score >= template.s_threshold) earnedTier = "S";
+          else if (side.score >= template.a_threshold) earnedTier = "A";
+        } else if (evalType === "bend_not_break") {
+          const [oppPassResult, oppRushResult] = await Promise.all([
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["passYds"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["rushYds"])
+          ]);
+          const oppTotalYards = oppPassResult.total + oppRushResult.total;
+          details.oppTotalYards = oppTotalYards;
+          details.oppScore = side.oppScore;
+          details.hasData = oppPassResult.hasData || oppRushResult.hasData;
+          if (details.hasData && oppTotalYards >= 350) {
+            if (side.oppScore <= template.s_threshold) earnedTier = "S";
+            else if (side.oppScore <= template.a_threshold) earnedTier = "A";
           }
         }
       }
@@ -2233,8 +2892,15 @@ export async function advanceLeagueWeek(guildId: string) {
     : previousStage === "draft" ? "preseason_training_camp"
     : previousStage === "preseason_training_camp" ? "regular_season"
     : previousStage;
-  await setLeagueWeek({ guildId, weekNumber, seasonStage });
-  return { previousWeek, weekNumber, previousStage, seasonStage };
+  const weekResult = await setLeagueWeek({ guildId, weekNumber, seasonStage });
+  return {
+    previousWeek,
+    weekNumber,
+    previousStage,
+    seasonStage,
+    transitionBadgesEarned: weekResult.transitionBadgesEarned ?? [],
+    transitionBadgesRemoved: weekResult.transitionBadgesRemoved ?? []
+  };
 }
 
 export async function runPostAdvanceAutomation(input: string | { guildId: string; mode?: "normal" | "catch_up" }) {
@@ -2777,7 +3443,7 @@ function makeStepRunner() {
 
 export async function processAdvanceResults(guildId: string) {
   const { step, warnings, completed } = makeStepRunner();
-  let week: { previousWeek: number; weekNumber: number; previousStage: string; seasonStage: string } | null = null;
+  let week: { previousWeek: number; weekNumber: number; previousStage: string; seasonStage: string; transitionBadgesEarned?: any[]; transitionBadgesRemoved?: any[] } | null = null;
   await step("advance_week", async () => { week = await advanceLeagueWeek(guildId); });
   await step("apply_records", () => applyAdvanceRecords(guildId));
   await step("game_payouts", () => issueWeeklyGamePayouts(guildId));
@@ -2785,23 +3451,106 @@ export async function processAdvanceResults(guildId: string) {
   await step("settle_gotw", () => settleGotwVotes(guildId));
   await step("evaluate_challenges", () => evaluateWeeklyChallenges(guildId));
   await step("stream_compliance", () => evaluateStreamCompliance(guildId));
-  return { week, completed, warnings };
+
+  // Resolve discord IDs for any transition badges (season-end or playoff badges)
+  const weekAny = week as any;
+  const allTransitionEarned: any[] = weekAny?.transitionBadgesEarned ?? [];
+  const allTransitionRemoved: any[] = weekAny?.transitionBadgesRemoved ?? [];
+  const transitionUserIds = [...allTransitionEarned, ...allTransitionRemoved].map((b) => b.user_id);
+  const transitionDiscordMap = transitionUserIds.length > 0 ? await resolveDiscordIdsByUser(transitionUserIds) : new Map<string, string>();
+
+  const context = await getLeagueContext(guildId).catch(() => null);
+  const routes = context ? await getRoutes(context.server_id).catch(() => null) : null;
+
+  const transitionBadgeAnnouncements = {
+    earned: allTransitionEarned.map((b) => ({
+      userId: b.user_id,
+      discordId: transitionDiscordMap.get(String(b.user_id)) ?? null,
+      badgeName: b.badge_name,
+      badgeLabel: b.badge_label,
+      qualifier: BADGE_QUALIFIERS[b.badge_name] ?? "earning this badge"
+    })),
+    lost: allTransitionRemoved.map((b) => ({
+      userId: b.user_id,
+      discordId: transitionDiscordMap.get(String(b.user_id)) ?? null,
+      badgeName: b.badge_name,
+      badgeLabel: b.badge_label,
+      reason: "their record was broken"
+    })),
+    announcementsChannelId: routes?.announcements_channel_id ?? null
+  };
+
+  // EOS award polls: create when regular season ends, lock when playoffs advance
+  let eosPollsData: any = null;
+  const prevStage = weekAny?.previousStage ?? "";
+  const newStage = weekAny?.seasonStage ?? "";
+
+  if (prevStage === "regular_season" && newStage === "wild_card" && context) {
+    try {
+      const { createEosAwardPolls } = await import("../eos-awards/eos-awards.service.js");
+      const seasonNumber = context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1;
+      eosPollsData = await createEosAwardPolls(context.league_id, seasonNumber);
+      eosPollsData.announcementsChannelId = routes?.announcements_channel_id ?? null;
+    } catch (err) {
+      console.error("[processAdvanceResults] EOS poll creation failed:", err);
+    }
+  }
+
+  if (prevStage === "wild_card" && newStage === "divisional" && context) {
+    try {
+      const { lockEosAwardPolls } = await import("../eos-awards/eos-awards.service.js");
+      const seasonNumber = context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1;
+      await lockEosAwardPolls(context.league_id, seasonNumber);
+    } catch (err) {
+      console.error("[processAdvanceResults] EOS poll lock failed:", err);
+    }
+  }
+
+  return { week, completed, warnings, transitionBadgeAnnouncements, eosPollsData };
 }
 
 export async function processPotwAward(guildId: string) {
   const { step, warnings, completed } = makeStepRunner();
   let awards: any[] = [];
+  let weeklyBadgesEarned: any[] = [];
+  let weeklyBadgesRemoved: any[] = [];
   await step("calculate_potw", async () => { const r = await calculateRecPotw(guildId); awards = r.awards ?? []; });
   await step("potw_payouts", () => issueRecPotwPayouts(guildId));
-  await step("assign_badges", () => assignWeeklyBadges(guildId));
+  await step("assign_badges", async () => {
+    const r = await assignWeeklyBadges(guildId);
+    weeklyBadgesEarned = r.earned ?? [];
+    weeklyBadgesRemoved = r.removed ?? [];
+  });
   const context = await getLeagueContext(guildId).catch(() => null);
   const routes = context ? await getRoutes(context.server_id).catch(() => null) : null;
+
+  const allBadgeUserIds = [...weeklyBadgesEarned, ...weeklyBadgesRemoved].map((b) => b.user_id);
+  const badgeDiscordMap = allBadgeUserIds.length > 0 ? await resolveDiscordIdsByUser(allBadgeUserIds) : new Map<string, string>();
+
   const discordIds = await resolveDiscordIdsByUser(awards.map((a: any) => a.user_id));
   const announcementAwards = awards.map((award: any) => ({
     ...award,
     discordId: award.user_id ? discordIds.get(String(award.user_id)) ?? null : null
   }));
-  return { awards: announcementAwards, announcementsChannelId: routes?.announcements_channel_id ?? null, completed, warnings };
+
+  const weeklyBadgeAnnouncements = {
+    earned: weeklyBadgesEarned.map((b) => ({
+      userId: b.user_id,
+      discordId: badgeDiscordMap.get(String(b.user_id)) ?? null,
+      badgeName: b.badge_name,
+      badgeLabel: b.badge_label,
+      qualifier: BADGE_QUALIFIERS[b.badge_name] ?? "earning this badge"
+    })),
+    lost: weeklyBadgesRemoved.map((b) => ({
+      userId: b.user_id,
+      discordId: badgeDiscordMap.get(String(b.user_id)) ?? null,
+      badgeName: b.badge_name,
+      badgeLabel: b.badge_label,
+      reason: "their record was broken"
+    }))
+  };
+
+  return { awards: announcementAwards, announcementsChannelId: routes?.announcements_channel_id ?? null, completed, warnings, weeklyBadgeAnnouncements };
 }
 
 export async function finalizeAdvanceStep(guildId: string) {
@@ -2929,6 +3678,219 @@ export async function previewEosPayouts(guildId: string) {
   });
 
   return { seasonNumber, weekNumber: league.current_week, items, totalPayout: items.reduce((sum, i) => sum + i.projectedPayout, 0) };
+}
+
+const EOS_PAYOUT_TIERS = [
+  { rank: 1, label: "Regular Season Champion", amount: 250 },
+  { rank: 2, label: "2nd Place", amount: 175 },
+  { rank: 3, label: "3rd Place", amount: 125 },
+  { rank: 4, label: "4th Place", amount: 100 },
+  { rank: 5, label: "5th Place", amount: 75 },
+  { rank: 6, label: "6th Place", amount: 75 },
+  { rank: 7, label: "7th Place", amount: 50 },
+  { rank: 8, label: "8th Place", amount: 50 }
+];
+
+export async function issueEosPayouts(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const leagueId = context.league_id;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+
+  // Clear any existing non-cleared batch first
+  await clearPendingEosBatch({ guildId, clearReason: "Superseded by new issuance" }).catch(() => undefined);
+
+  // Build standings
+  const { data: records } = await supabase
+    .from("rec_season_user_records")
+    .select("user_id,wins,losses,ties,point_differential,games_played")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .order("wins", { ascending: false });
+
+  const sorted = [...(records ?? [])].sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return (b.point_differential ?? 0) - (a.point_differential ?? 0);
+  });
+
+  const { data: batch, error: batchError } = await supabase
+    .from("rec_eos_payout_batches")
+    .insert({ league_id: leagueId, season_number: seasonNumber, batch_type: "eos_regular_season", status: "posted", posted_at: nowIso() })
+    .select("*")
+    .single();
+  if (batchError) throw batchError;
+
+  const discordIds = await resolveDiscordIdsByUser(sorted.map((r) => r.user_id));
+  const { data: routes } = await supabase.from("rec_server_routes").select("*").eq("server_id", context.server_id).maybeSingle() as any;
+  const serverName = league.name ?? "REC League";
+
+  const items: any[] = [];
+  for (let idx = 0; idx < sorted.length; idx++) {
+    const record = sorted[idx];
+    const rank = idx + 1;
+    const tier = EOS_PAYOUT_TIERS.find((t) => t.rank === rank);
+    if (!tier || !record.user_id) continue;
+
+    const payoutKey = `eos_${seasonNumber}_rank_${rank}_${record.user_id}`;
+    const { data: item } = await supabase
+      .from("rec_eos_payout_items")
+      .insert({
+        batch_id: batch.id,
+        league_id: leagueId,
+        user_id: record.user_id,
+        season_number: seasonNumber,
+        payout_category: "eos_regular_season",
+        payout_key: payoutKey,
+        payout_label: tier.label,
+        amount: tier.amount,
+        status: "pending",
+        metadata: { rank, wins: record.wins, losses: record.losses, ties: record.ties }
+      })
+      .select("*")
+      .single();
+
+    if (item) {
+      items.push({
+        ...item,
+        rank,
+        discordId: discordIds.get(String(record.user_id)) ?? null,
+        wins: record.wins ?? 0,
+        losses: record.losses ?? 0,
+        ties: record.ties ?? 0
+      });
+    }
+  }
+
+  return {
+    batchId: batch.id,
+    items,
+    seasonNumber,
+    serverName,
+    announcementsChannelId: routes?.announcements_channel_id ?? null
+  };
+}
+
+export async function approveEosPayoutItem(input: { itemId: string; discordId: string; role: "user" | "commissioner" }) {
+  const { data: item, error } = await supabase
+    .from("rec_eos_payout_items")
+    .select("*")
+    .eq("id", input.itemId)
+    .maybeSingle();
+  if (error || !item) throw new Error("Payout item not found.");
+  if (item.status === "issued") return { credited: false, reason: "already_issued", newBalance: null };
+  if (item.status === "denied") return { credited: false, reason: "already_denied", newBalance: null };
+
+  const { data: discordRow } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  const actorUserId = discordRow?.user_id ?? null;
+
+  const patch: Record<string, any> = { updated_at: nowIso() };
+
+  if (input.role === "user") {
+    // Recipient must match the item's user
+    if (actorUserId && String(actorUserId) !== String(item.user_id)) {
+      return { credited: false, reason: "not_recipient", newBalance: null };
+    }
+    patch.user_approved_at = nowIso();
+  } else {
+    // Commissioner approval
+    patch.approved_by_user_id = actorUserId ?? null;
+    patch.approved_at = nowIso();
+    patch.commissioner_user_id = actorUserId ?? null;
+    patch.status = "approved";
+  }
+
+  await supabase.from("rec_eos_payout_items").update(patch).eq("id", input.itemId);
+
+  // Re-fetch to check if both approvals are present
+  const { data: updated } = await supabase.from("rec_eos_payout_items").select("*").eq("id", input.itemId).maybeSingle();
+  if (!updated) throw new Error("Failed to fetch updated item.");
+
+  const userApproved = Boolean(updated.user_approved_at);
+  const commApproved = Boolean(updated.approved_at);
+
+  if (userApproved && commApproved && updated.status !== "issued") {
+    // Both approved — credit wallet
+    const { data: batch } = await supabase.from("rec_eos_payout_batches").select("*").eq("id", updated.batch_id).maybeSingle();
+    const credit = await creditUserWallet({
+      userId: String(updated.user_id),
+      leagueId: String(updated.league_id),
+      seasonNumber: asNumber(updated.season_number),
+      amount: asNumber(updated.amount),
+      transactionType: "eos_payout",
+      description: `${updated.payout_label} — Season ${updated.season_number} EOS Payout`,
+      sourceReference: { itemId: updated.id, batchId: updated.batch_id, idempotencyKey: `eos_payout_${updated.id}` }
+    });
+    await supabase.from("rec_eos_payout_items").update({
+      status: "issued",
+      issued_ledger_id: credit.ledger?.id ?? null,
+      issued_at: nowIso(),
+      updated_at: nowIso()
+    }).eq("id", input.itemId);
+
+    // Update batch status if all items issued
+    const { data: batchItems } = await supabase.from("rec_eos_payout_items").select("status").eq("batch_id", updated.batch_id);
+    const allIssued = (batchItems ?? []).every((i: any) => ["issued", "denied", "voided"].includes(i.status));
+    if (allIssued && batch) {
+      await supabase.from("rec_eos_payout_batches").update({ status: "issued", issued_at: nowIso(), updated_at: nowIso() }).eq("id", batch.id);
+    }
+
+    return { credited: true, amount: asNumber(updated.amount), newBalance: credit.wallet, payoutLabel: updated.payout_label };
+  }
+
+  return { credited: false, reason: input.role === "user" ? "awaiting_commissioner" : "awaiting_user", newBalance: null };
+}
+
+export async function rejectEosPayoutItem(input: { itemId: string; discordId: string }) {
+  const { data: discordRow } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  const actorUserId = discordRow?.user_id ?? null;
+
+  const { data: item } = await supabase.from("rec_eos_payout_items").select("*").eq("id", input.itemId).maybeSingle();
+  if (!item) throw new Error("Payout item not found.");
+  if (["issued", "denied", "voided"].includes(item.status)) return { rejected: false, reason: "already_resolved" };
+
+  await supabase.from("rec_eos_payout_items").update({
+    status: "denied",
+    denied_by_user_id: actorUserId ?? null,
+    denied_at: nowIso(),
+    updated_at: nowIso()
+  }).eq("id", input.itemId);
+
+  return { rejected: true, payoutLabel: item.payout_label, amount: asNumber(item.amount) };
+}
+
+export async function getEosBatchItems(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+
+  const { data: batch } = await supabase
+    .from("rec_eos_payout_batches")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .in("status", ["posted", "partially_approved", "approved", "issued"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!batch) return { batch: null, items: [] };
+
+  const { data: items } = await supabase
+    .from("rec_eos_payout_items")
+    .select("*")
+    .eq("batch_id", batch.id)
+    .order("created_at");
+
+  const userIds = (items ?? []).map((i: any) => i.user_id).filter(Boolean);
+  const discordMap = userIds.length > 0 ? await resolveDiscordIdsByUser(userIds) : new Map<string, string>();
+
+  return {
+    batch,
+    items: (items ?? []).map((i: any) => ({
+      ...i,
+      discordId: discordMap.get(String(i.user_id)) ?? null
+    }))
+  };
 }
 
 // ─── Power Rankings ────────────────────────────────────────────────────────────
