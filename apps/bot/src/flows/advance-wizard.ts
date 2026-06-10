@@ -48,6 +48,8 @@ interface AdvanceWizardState {
   badgeAnnouncements?: BadgeAnnouncement[];
   announcementsChannelId?: string | null;
   eosPollsData?: EosPollsData | null;
+  eosLockData?: any;
+  nominationData?: any;
 }
 
 export const advanceWizardSessions = new ExpiringSessionStore<AdvanceWizardState>();
@@ -239,6 +241,10 @@ export async function runAdvanceWizardProcessing(
 
   // Collect EOS polls data (created on regular_season → wild_card transition)
   const eosPollsData: EosPollsData | null = resultsData.eosPollsData ?? null;
+  // EOS lock data (wild_card → divisional): may include commissioner tiebreakers
+  const eosLockData: any = resultsData.eosLockData ?? null;
+  // Nomination data (POTY/GOTY DMs) — only present for intra-regular-season advances
+  const nominationData: any = resultsData.nominationData ?? null;
 
   // Step 3: POTW
   await interaction.editReply({
@@ -359,8 +365,8 @@ export async function runAdvanceWizardProcessing(
       allWarnings.push(`playoff_gotw: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData });
-    await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData);
+    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData, eosLockData, nominationData });
+    await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData, nominationData, eosLockData);
     return;
   }
 
@@ -382,7 +388,7 @@ export async function runAdvanceWizardProcessing(
       allWarnings.push(`gotw_candidates: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData });
+    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData, eosLockData, nominationData });
 
     if (candidates.length) {
       await interaction.editReply(buildWizardGotwSelectionPayload(candidates, newWeek));
@@ -393,14 +399,14 @@ export async function runAdvanceWizardProcessing(
           .setDescription("No H2H matchups found for this week. Skipping GOTW selection and proceeding to finalize.")],
         components: []
       });
-      await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData);
+      await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData, nominationData, eosLockData);
     }
     return;
   }
 
   // Offseason or unrecognized stage: skip GOTW
-  advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData });
-  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData);
+  advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings, badgeAnnouncements: allBadgeAnnouncements, announcementsChannelId: badgeAnnouncementsChannelId, eosPollsData, eosLockData, nominationData });
+  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, allBadgeAnnouncements, badgeAnnouncementsChannelId, eosPollsData, nominationData, eosLockData);
 }
 
 export async function handleWizardGotwSelect(interaction: StringSelectMenuInteraction) {
@@ -423,6 +429,8 @@ export async function handleWizardGotwSelect(interaction: StringSelectMenuIntera
   const badgeAnnouncements = wizardState?.badgeAnnouncements ?? [];
   const announcementsChannelId = wizardState?.announcementsChannelId ?? null;
   const eosPollsData = wizardState?.eosPollsData ?? null;
+  const eosLockData = wizardState?.eosLockData ?? null;
+  const nominationData = wizardState?.nominationData ?? null;
 
   try {
     const result = await recApi.selectGotwCandidate({ guildId: guild.id, candidateId, selectedByDiscordId: interaction.user.id });
@@ -448,7 +456,7 @@ export async function handleWizardGotwSelect(interaction: StringSelectMenuIntera
     allWarnings.push(`gotw_select: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, badgeAnnouncements, announcementsChannelId, eosPollsData);
+  await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings, badgeAnnouncements, announcementsChannelId, eosPollsData, nominationData, eosLockData);
 }
 
 async function runAdvanceWizardFinalize(
@@ -459,7 +467,9 @@ async function runAdvanceWizardFinalize(
   warnings: string[],
   badgeAnnouncements: BadgeAnnouncement[] = [],
   announcementsChannelId: string | null = null,
-  eosPollsData: EosPollsData | null = null
+  eosPollsData: EosPollsData | null = null,
+  nominationData: any = null,
+  eosLockData: any = null
 ) {
   // 5a: generate challenges
   await interaction.editReply({
@@ -470,9 +480,11 @@ async function runAdvanceWizardFinalize(
     components: []
   });
 
+  let devUpgradePrizes: any[] = [];
   try {
     const finalizeData = await recApi.finalizeAdvanceStep(guild.id);
     warnings.push(...(finalizeData.warnings ?? []));
+    devUpgradePrizes = finalizeData.devUpgradePrizes?.prizes ?? [];
   } catch (err) {
     console.error("[WIZARD] finalizeAdvanceStep failed:", err);
     warnings.push(`generate_challenges: ${err instanceof Error ? err.message : String(err)}`);
@@ -599,6 +611,138 @@ async function runAdvanceWizardFinalize(
     } catch (err) {
       console.error("[WIZARD] EOS poll posting failed:", err);
       warnings.push(`eos_polls: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Post Can't Shut Up commissioner tiebreaker embed (wild_card → divisional only)
+  if (eosLockData?.commissionerTiebreakers?.length) {
+    const payoutsCh = eosLockData.pendingPayoutsChannelId
+      ? await guild.channels.fetch(eosLockData.pendingPayoutsChannelId).catch(() => null) as TextChannel | null
+      : null;
+    if (payoutsCh?.type === ChannelType.GuildText) {
+      for (const tb of eosLockData.commissionerTiebreakers as Array<{ pollId: string; categoryKey: string; categoryLabel: string; tiedUserIds: string[]; tiedDiscordIds: (string | null)[] }>) {
+        try {
+          const options = tb.tiedUserIds.map((uid, i) => {
+            const mention = tb.tiedDiscordIds[i] ? `<@${tb.tiedDiscordIds[i]}>` : uid;
+            return new StringSelectMenuOptionBuilder()
+              .setLabel(mention.replace(/<@!?(\d+)>/, "User $1").slice(0, 100))
+              .setDescription(`UserID: ${uid}`)
+              .setValue(uid);
+          }).slice(0, 25);
+          const embed = new EmbedBuilder()
+            .setTitle(`Commissioner Tiebreaker — ${tb.categoryLabel}`)
+            .setDescription([
+              `**"Can't Shut Up"** ended in a tie!`,
+              "",
+              `Tied candidates: ${tb.tiedDiscordIds.map((id) => id ? `<@${id}>` : "Unknown").join(", ")}`,
+              "",
+              "Select the winner below."
+            ].join("\n"))
+            .setColor(0xe74c3c);
+          await payoutsCh.send({
+            embeds: [embed],
+            components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(`eos_tiebreaker:cant_shut_up:${tb.pollId}`)
+                .setPlaceholder("Select the winner")
+                .addOptions(options)
+            )],
+            allowedMentions: { parse: ["users"] }
+          }).catch(() => undefined);
+        } catch (err) {
+          console.error("[WIZARD] Failed to post tiebreaker embed:", err);
+        }
+      }
+    }
+  }
+
+  // Post dev upgrade prize announcements to announcements channel
+  if (devUpgradePrizes.length > 0 && announcementsChannelId) {
+    try {
+      const ch = await guild.channels.fetch(announcementsChannelId).catch(() => null) as TextChannel | null;
+      if (ch?.type === ChannelType.GuildText) {
+        const lines = devUpgradePrizes.map((p: any) => {
+          const mention = p.discord_id ? `<@${p.discord_id}>` : p.player_name ?? "A player";
+          return `${mention}'s **${p.player_name ?? "player"}** upgraded from **${p.old_dev_trait}** → **${p.new_dev_trait}** (+$${p.prize_amount})!`;
+        });
+        await ch.send({
+          embeds: [new EmbedBuilder()
+            .setTitle("Dev Upgrade Prizes")
+            .setDescription(lines.join("\n"))
+            .setColor(0xf1c40f)
+          ],
+          allowedMentions: { parse: ["users"] }
+        }).catch(() => undefined);
+      }
+    } catch (err) {
+      console.error("[WIZARD] Dev upgrade announcement failed:", err);
+    }
+  }
+
+  // Send POTY/GOTY nomination DMs (regular season advances only, not week 18 → wild_card)
+  if (nominationData?.sendNominationDms && nominationData.nominees?.length > 0) {
+    try {
+      const nominees: Array<{ userId: string; discordId: string | null; displayName: string }> = nominationData.nominees;
+      const recentGames: Array<{ gameId: string; label: string }> = nominationData.recentGames ?? [];
+      const weekNum: number = nominationData.weekNumber ?? weekNumber;
+      const serverLink = `[${guild.name}](https://discord.com/channels/${guild.id})`;
+
+      for (const coach of nominees) {
+        if (!coach.discordId) continue;
+        try {
+          const member = await guild.members.fetch(coach.discordId).catch(() => null);
+          if (!member) continue;
+
+          // Build nominee options (exclude self for POTY — each coach nominates someone else)
+          const potyOptions = nominees
+            .filter((n) => n.discordId !== coach.discordId)
+            .slice(0, 25)
+            .map((n) => new StringSelectMenuOptionBuilder().setLabel(n.displayName.slice(0, 100)).setValue(n.discordId!));
+
+          const gotyOptions = recentGames.slice(0, 25).map((g) =>
+            new StringSelectMenuOptionBuilder().setLabel(g.label.slice(0, 100)).setValue(g.gameId)
+          );
+
+          const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
+          if (potyOptions.length > 0) {
+            rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(`poty_nominate:${guild.id}`)
+                .setPlaceholder("Player of the Year — Nominate a coach")
+                .addOptions(potyOptions)
+            ));
+          }
+          if (gotyOptions.length > 0) {
+            rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(`goty_nominate:${guild.id}`)
+                .setPlaceholder("Game of the Year — Nominate a game")
+                .addOptions(gotyOptions)
+            ));
+          }
+
+          if (rows.length === 0) continue;
+
+          await member.send({
+            embeds: [new EmbedBuilder()
+              .setTitle(`Season Nominations — Week ${weekNum}`)
+              .setDescription([
+                `Submit your nominations for ${serverLink}.`,
+                "",
+                "**Player of the Year** — Who stood out the most this week?",
+                "**Game of the Year** — Which game was the most exciting?",
+                "",
+                "_Nominations update each week. Your current pick replaces any previous one._"
+              ].join("\n"))
+              .setColor(0x3498db)
+            ],
+            components: rows
+          }).catch(() => undefined);
+        } catch { /* skip individual DM failures */ }
+      }
+    } catch (err) {
+      console.error("[WIZARD] Nomination DMs failed:", err);
+      warnings.push(`nomination_dms: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

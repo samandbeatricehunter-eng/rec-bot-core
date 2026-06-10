@@ -1,5 +1,12 @@
 import { supabase } from "../../lib/supabase.js";
 
+function asNumber(v: unknown) {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+const DEV_TIER = ["Normal", "Star", "Superstar", "XFactor"] as const;
+
 export const EOS_AWARD_CATEGORIES = [
   {
     key: "most_heart",
@@ -126,9 +133,6 @@ export async function castEosVote(input: {
   const voterUserId = String(voterDiscord.user_id);
   const nomineeUserId = String(nomineeDiscord.user_id);
 
-  // No self-voting
-  if (voterUserId === nomineeUserId) return { recorded: false, reason: "You cannot vote for yourself." };
-
   // Voter must be a linked coach in this league
   const { data: voterAssignment } = await supabase
     .from("rec_team_assignments")
@@ -186,6 +190,63 @@ export async function castEosVote(input: {
   return { recorded: true, categoryLabel: EOS_AWARD_CATEGORIES.find((c) => c.key === input.categoryKey)?.label ?? input.categoryKey };
 }
 
+// Returns close-game counts (margin ≤ 7) for each userId in the current season.
+async function getCloseGameCounts(leagueId: string, seasonNumber: number, userIds: string[]) {
+  if (!userIds.length) return new Map<string, number>();
+  const { data: games } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_score,away_score")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("season_stage", "regular_season");
+  const counts = new Map<string, number>();
+  for (const g of games ?? []) {
+    const diff = Math.abs(asNumber(g.home_score) - asNumber(g.away_score));
+    if (diff > 7) continue;
+    if (g.home_user_id && userIds.includes(String(g.home_user_id))) counts.set(String(g.home_user_id), (counts.get(String(g.home_user_id)) ?? 0) + 1);
+    if (g.away_user_id && userIds.includes(String(g.away_user_id))) counts.set(String(g.away_user_id), (counts.get(String(g.away_user_id)) ?? 0) + 1);
+  }
+  return counts;
+}
+
+// Returns season records (wins, point diff) for each userId.
+async function getSeasonRecords(leagueId: string, seasonNumber: number, userIds: string[]) {
+  if (!userIds.length) return new Map<string, { wins: number; pointDiff: number }>();
+  const { data: records } = await supabase
+    .from("rec_league_user_records")
+    .select("user_id,wins,losses,ties,points_for,points_against")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .in("user_id", userIds);
+  const map = new Map<string, { wins: number; pointDiff: number }>();
+  for (const r of records ?? []) {
+    map.set(String(r.user_id), { wins: asNumber(r.wins), pointDiff: asNumber(r.points_for) - asNumber(r.points_against) });
+  }
+  return map;
+}
+
+// Returns H2H win counts between tied candidates (how many wins each has vs others in the tied set).
+async function getH2HWins(leagueId: string, seasonNumber: number, userIds: string[]) {
+  if (userIds.length < 2) return new Map<string, number>();
+  const { data: games } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_score,away_score,winning_team_id,home_team_id,away_team_id")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("season_stage", "regular_season");
+  const h2hWins = new Map<string, number>();
+  for (const g of games ?? []) {
+    const home = String(g.home_user_id ?? "");
+    const away = String(g.away_user_id ?? "");
+    if (!userIds.includes(home) || !userIds.includes(away)) continue;
+    const homeScore = asNumber(g.home_score);
+    const awayScore = asNumber(g.away_score);
+    if (homeScore > awayScore) h2hWins.set(home, (h2hWins.get(home) ?? 0) + 1);
+    else if (awayScore > homeScore) h2hWins.set(away, (h2hWins.get(away) ?? 0) + 1);
+  }
+  return h2hWins;
+}
+
 export async function lockEosAwardPolls(leagueId: string, seasonNumber: number) {
   const { data: polls } = await supabase
     .from("rec_eos_award_polls")
@@ -194,12 +255,12 @@ export async function lockEosAwardPolls(leagueId: string, seasonNumber: number) 
     .eq("season_number", seasonNumber)
     .eq("status", "open");
 
-  if (!polls?.length) return { locked: 0, results: [] };
+  if (!polls?.length) return { locked: 0, results: [], commissionerTiebreakers: [] };
 
-  const results: Array<{ categoryKey: string; categoryLabel: string; winnerUserId: string | null; winnerDiscordId: string | null; voteCount: number }> = [];
+  const commissionerTiebreakers: Array<{ pollId: string; categoryKey: string; categoryLabel: string; tiedUserIds: string[]; tiedDiscordIds: (string | null)[] }> = [];
+  const results: Array<{ categoryKey: string; categoryLabel: string; winnerUserId: string | null; winnerDiscordId: string | null; voteCount: number; tiebreakerUsed: boolean }> = [];
 
   for (const poll of polls) {
-    // Tally votes
     const { data: votes } = await supabase
       .from("rec_eos_award_votes")
       .select("nominee_user_id")
@@ -210,10 +271,74 @@ export async function lockEosAwardPolls(leagueId: string, seasonNumber: number) 
       tally.set(v.nominee_user_id, (tally.get(v.nominee_user_id) ?? 0) + 1);
     }
 
-    let winnerUserId: string | null = null;
     let topCount = 0;
-    for (const [uid, count] of tally) {
-      if (count > topCount) { topCount = count; winnerUserId = uid; }
+    for (const count of tally.values()) { if (count > topCount) topCount = count; }
+    const tied = [...tally.entries()].filter(([, c]) => c === topCount).map(([uid]) => uid);
+    const isTie = tied.length > 1;
+
+    let winnerUserId: string | null = tied[0] ?? null;
+    let tiebreakerUsed = false;
+
+    if (isTie && topCount > 0) {
+      tiebreakerUsed = true;
+      const categoryKey = poll.category_key as string;
+
+      if (categoryKey === "most_heart") {
+        // Tiebreaker: close game count (≥ 7 = strong signal), combined with weighted vote score
+        const closeGames = await getCloseGameCounts(leagueId, seasonNumber, tied);
+        // Score = votes * 1 + closeGames * 2 (close games outweigh votes)
+        let bestScore = -1;
+        for (const uid of tied) {
+          const score = (tally.get(uid) ?? 0) + (closeGames.get(uid) ?? 0) * 2;
+          if (score > bestScore) { bestScore = score; winnerUserId = uid; }
+        }
+
+      } else if (categoryKey === "problem_next_year") {
+        // Tiebreaker: close games + H2H wins among tied candidates
+        const [closeGames, h2hWins] = await Promise.all([
+          getCloseGameCounts(leagueId, seasonNumber, tied),
+          getH2HWins(leagueId, seasonNumber, tied)
+        ]);
+        let bestScore = -1;
+        for (const uid of tied) {
+          const score = (closeGames.get(uid) ?? 0) * 2 + (h2hWins.get(uid) ?? 0) * 3;
+          if (score > bestScore) { bestScore = score; winnerUserId = uid; }
+        }
+
+      } else if (categoryKey === "best_comp") {
+        // Tiebreaker: season wins → point diff → H2H wins
+        const [records, h2hWins] = await Promise.all([
+          getSeasonRecords(leagueId, seasonNumber, tied),
+          getH2HWins(leagueId, seasonNumber, tied)
+        ]);
+        let bestScore = -Infinity;
+        for (const uid of tied) {
+          const rec = records.get(uid) ?? { wins: 0, pointDiff: 0 };
+          const score = rec.wins * 10000 + rec.pointDiff * 10 + (h2hWins.get(uid) ?? 0);
+          if (score > bestScore) { bestScore = score; winnerUserId = uid; }
+        }
+
+      } else if (categoryKey === "cant_shut_up") {
+        // Commissioner decides — leave winner null, mark tiebreaker_needed
+        winnerUserId = null;
+        const tiedDiscordIds: (string | null)[] = [];
+        for (const uid of tied) {
+          const { data: da } = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", uid).maybeSingle();
+          tiedDiscordIds.push(da?.discord_id ?? null);
+        }
+        commissionerTiebreakers.push({ pollId: poll.id, categoryKey, categoryLabel: poll.category_label, tiedUserIds: tied, tiedDiscordIds });
+
+        await supabase.from("rec_eos_award_polls").update({
+          status: "locked",
+          locked_at: new Date().toISOString(),
+          tiebreaker_needed: true,
+          tied_candidate_ids: tied,
+          updated_at: new Date().toISOString()
+        }).eq("id", poll.id);
+
+        results.push({ categoryKey: poll.category_key, categoryLabel: poll.category_label, winnerUserId: null, winnerDiscordId: null, voteCount: topCount, tiebreakerUsed: true });
+        continue;
+      }
     }
 
     // Resolve winner discord ID
@@ -223,20 +348,30 @@ export async function lockEosAwardPolls(leagueId: string, seasonNumber: number) 
       winnerDiscordId = dAcc?.discord_id ?? null;
     }
 
-    await supabase
-      .from("rec_eos_award_polls")
-      .update({
-        status: "locked",
-        locked_at: new Date().toISOString(),
-        winner_user_id: winnerUserId ?? undefined,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", poll.id);
+    await supabase.from("rec_eos_award_polls").update({
+      status: "locked",
+      locked_at: new Date().toISOString(),
+      winner_user_id: winnerUserId ?? undefined,
+      tiebreaker_needed: false,
+      updated_at: new Date().toISOString()
+    }).eq("id", poll.id);
 
-    results.push({ categoryKey: poll.category_key, categoryLabel: poll.category_label, winnerUserId, winnerDiscordId, voteCount: topCount });
+    results.push({ categoryKey: poll.category_key, categoryLabel: poll.category_label, winnerUserId, winnerDiscordId, voteCount: topCount, tiebreakerUsed });
   }
 
-  return { locked: polls.length, results };
+  return { locked: polls.length, results, commissionerTiebreakers };
+}
+
+export async function resolveCanTShutUpTiebreaker(input: { pollId: string; winnerUserId: string }) {
+  const { data: poll } = await supabase.from("rec_eos_award_polls").select("id,category_key,tiebreaker_needed").eq("id", input.pollId).maybeSingle();
+  if (!poll?.tiebreaker_needed) return { updated: false, reason: "No tiebreaker pending for this poll." };
+  const { data: dAcc } = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.winnerUserId).maybeSingle();
+  await supabase.from("rec_eos_award_polls").update({
+    winner_user_id: input.winnerUserId,
+    tiebreaker_needed: false,
+    updated_at: new Date().toISOString()
+  }).eq("id", input.pollId);
+  return { updated: true, winnerUserId: input.winnerUserId, winnerDiscordId: dAcc?.discord_id ?? null };
 }
 
 export async function getEosAwardPolls(guildId: string) {

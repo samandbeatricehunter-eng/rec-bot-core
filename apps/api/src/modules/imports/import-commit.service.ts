@@ -514,7 +514,10 @@ async function upsertStandings(_importJobId: string, _leagueId: string, _teamMap
   return 0;
 }
 
-async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
+const DEV_TRAIT_TIER: Record<string, number> = { Normal: 0, Star: 1, Superstar: 2, XFactor: 3 };
+const DEV_UPGRADE_PRIZE_AMOUNT = 50;
+
+async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number, weekNumber: number) {
   const staged = await loadStagedRows("rec_import_staging_rosters", importJobId);
   if (staged.length === 0) return 0;
 
@@ -526,6 +529,9 @@ async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map
     const firstName = toNullableText(row.first_name ?? raw.firstName);
     const lastName = toNullableText(row.last_name ?? raw.lastName);
     const fullName = toNullableText(row.player_name ?? row.player_display_name) ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
+    const devTrait = toNullableText(raw.devTrait ?? raw.devtrait ?? raw.developmentTrait);
+    const overallRating = toNullableInt(raw.overallRating ?? raw.overall);
+    const externalTeamId = toNullableText(raw.teamId ?? raw.rosterId);
     return {
       league_id: leagueId,
       madden_player_id: maddenPlayerId,
@@ -536,15 +542,72 @@ async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map
       college: toNullableText(raw.college),
       height_inches: toNullableInt(raw.height),
       weight_lbs: toNullableInt(raw.weight),
+      dev_trait: devTrait,
+      overall_rating: overallRating,
       raw_payload: row.raw_payload ?? null,
-      updated_at: now
+      updated_at: now,
+      _externalTeamId: externalTeamId // scratch field for upgrade detection, stripped before upsert
     };
   }).filter((p) => p.madden_player_id && p.full_name);
 
   // rec_players has UNIQUE (league_id, madden_player_id); one chunked bulk upsert handles both
   // insert and update. Dedupe on madden_player_id first so a chunk can't target the same key twice.
   const deduped = dedupeBy(playerRows, (r) => String(r.madden_player_id));
-  return upsertInChunks("rec_players", deduped, "league_id,madden_player_id", "Failed to upsert imported players.");
+
+  // Detect dev trait upgrades before upserting (compare new values vs existing).
+  const maddenIds = deduped.map((r) => r.madden_player_id).filter(Boolean);
+  let prevDevTraitMap = new Map<string, string>();
+  if (maddenIds.length > 0) {
+    const { data: existing } = await supabase.from("rec_players").select("madden_player_id,dev_trait").eq("league_id", leagueId).in("madden_player_id", maddenIds);
+    for (const e of existing ?? []) {
+      if (e.madden_player_id && e.dev_trait) prevDevTraitMap.set(String(e.madden_player_id), String(e.dev_trait));
+    }
+  }
+
+  // Strip scratch field before upsert
+  const rowsForUpsert = deduped.map(({ _externalTeamId: _ext, ...rest }) => rest);
+  const count = await upsertInChunks("rec_players", rowsForUpsert, "league_id,madden_player_id", "Failed to upsert imported players.");
+
+  // Queue dev upgrade prize events for any player whose dev trait improved this import.
+  const upgradeEvents: any[] = [];
+  for (const row of deduped) {
+    const mid = String(row.madden_player_id);
+    const prevTrait = prevDevTraitMap.get(mid);
+    const newTrait = row.dev_trait;
+    if (!prevTrait || !newTrait) continue;
+    const prevTier = DEV_TRAIT_TIER[prevTrait] ?? -1;
+    const newTier = DEV_TRAIT_TIER[newTrait] ?? -1;
+    if (newTier <= prevTier) continue;
+    // Resolve team and user for the prize
+    const externalTeamId = row._externalTeamId ?? null;
+    const teamId = externalTeamId ? (teamMap.get(String(externalTeamId)) ?? null) : null;
+    let userId: string | null = null;
+    if (teamId) {
+      const { data: assignment } = await supabase.from("rec_team_assignments").select("user_id").eq("team_id", teamId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+      userId = assignment?.user_id ?? null;
+    }
+    upgradeEvents.push({
+      league_id: leagueId,
+      user_id: userId,
+      team_id: teamId,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      player_name: row.full_name,
+      madden_player_id: mid,
+      old_dev_trait: prevTrait,
+      new_dev_trait: newTrait,
+      prize_amount: DEV_UPGRADE_PRIZE_AMOUNT,
+      issued: false,
+      import_job_id: importJobId,
+      created_at: now
+    });
+  }
+  if (upgradeEvents.length > 0) {
+    // Idempotent: skip if same player already has an unissued event for this import job
+    try { await supabase.from("rec_dev_upgrade_prizes").upsert(upgradeEvents, { onConflict: "league_id,import_job_id,madden_player_id", ignoreDuplicates: true }); } catch { /* non-fatal */ }
+  }
+
+  return count;
 }
 
 async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number) {
@@ -668,7 +731,8 @@ export async function commitApprovedImport(importJobId: string) {
   const gameCommit = await upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap, seasonNumber);
   const standings = await safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap), 0);
   // Players must commit before weekly stats so the stats' player_id FK lookup can resolve.
-  const players = await safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap), 0);
+  const weekNumber = Number((details.job as any).week_number ?? 1) || 1;
+  const players = await safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap, seasonNumber, weekNumber), 0);
   const stats = await safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0 });
 
   // Auto-backfill W-L-T records whenever completed game results are committed (EA import or

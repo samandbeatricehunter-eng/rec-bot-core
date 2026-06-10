@@ -3295,6 +3295,7 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
   const league = context.rec_leagues;
   const routes = await getRoutes(context.server_id);
   if (!routes?.streams_channel_id || routes.streams_channel_id !== input.discordChannelId) return { recorded: false, reason: "not_streams_channel" };
+  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
   const { data: discord } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
   if (!discord?.user_id) return { recorded: false, reason: "unlinked_user" };
   const { data: assignment } = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", context.league_id).eq("user_id", discord.user_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
@@ -3304,10 +3305,12 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
   const hasLegitStreamLink = Boolean(linkMatch && /(twitch\.tv|youtube\.com|youtu\.be|kick\.com|facebook\.com\/gaming|discord\.gg|discord\.com\/channels)/i.test(linkMatch[0]));
   const mentionsDiscordStream = !hasLegitStreamLink && /\bdiscord\b/i.test(content);
   const status = hasLegitStreamLink ? "posted" : mentionsDiscordStream ? "pending_review" : "invalid";
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const weekNumber = league.current_week ?? 1;
   const row = {
     league_id: context.league_id,
-    season_number: league.season_number ?? league.display_season_number ?? 1,
-    week_number: league.current_week ?? 1,
+    season_number: seasonNumber,
+    week_number: weekNumber,
     user_id: discord.user_id,
     team_id: assignment.team_id,
     discord_channel_id: input.discordChannelId,
@@ -3321,24 +3324,29 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
   };
   const { data, error } = await supabase.from("rec_stream_compliance_logs").insert(row).select("*").single();
   if (error) throw error;
+  // Only generate a payout review if: valid Discord stream mention, not offseason, AND first stream this advance week.
   let review = null;
-  if (mentionsDiscordStream) {
-    const { data: reviewRow, error: reviewError } = await supabase.from("rec_stream_payout_reviews").upsert({
-      stream_log_id: data.id,
-      league_id: context.league_id,
-      user_id: discord.user_id,
-      team_id: assignment.team_id,
-      season_number: row.season_number,
-      week_number: row.week_number,
-      status: "pending",
-      amount: 5,
-      created_at: nowIso(),
-      updated_at: nowIso()
-    }, { onConflict: "stream_log_id" }).select("*").single();
-    if (reviewError) throw reviewError;
-    review = reviewRow;
+  const payoutBlocked = OFFSEASON_STAGES.has(stage);
+  if (mentionsDiscordStream && !payoutBlocked) {
+    const { data: existingReview } = await supabase.from("rec_stream_payout_reviews").select("id").eq("league_id", context.league_id).eq("user_id", discord.user_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).maybeSingle();
+    if (!existingReview) {
+      const { data: reviewRow, error: reviewError } = await supabase.from("rec_stream_payout_reviews").upsert({
+        stream_log_id: data.id,
+        league_id: context.league_id,
+        user_id: discord.user_id,
+        team_id: assignment.team_id,
+        season_number: seasonNumber,
+        week_number: weekNumber,
+        status: "pending",
+        amount: 5,
+        created_at: nowIso(),
+        updated_at: nowIso()
+      }, { onConflict: "stream_log_id" }).select("*").single();
+      if (reviewError) throw reviewError;
+      review = reviewRow;
+    }
   }
-  return { recorded: true, log: data, review, needsReview: mentionsDiscordStream, invalidStreamPost: status === "invalid", shouldDelete: status === "invalid", pendingEconomyChannelId: routes?.pending_economy_channel_id ?? null };
+  return { recorded: true, log: data, review, needsReview: review !== null, invalidStreamPost: status === "invalid", shouldDelete: status === "invalid", pendingEconomyChannelId: routes?.pending_economy_channel_id ?? null };
 }
 
 export async function reviewStreamPayout(input: { reviewId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
@@ -3496,17 +3504,33 @@ export async function processAdvanceResults(guildId: string) {
     }
   }
 
+  let eosLockData: any = null;
   if (prevStage === "wild_card" && newStage === "divisional" && context) {
     try {
       const { lockEosAwardPolls } = await import("../eos-awards/eos-awards.service.js");
       const seasonNumber = context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1;
-      await lockEosAwardPolls(context.league_id, seasonNumber);
+      eosLockData = await lockEosAwardPolls(context.league_id, seasonNumber);
+      if (eosLockData?.commissionerTiebreakers?.length) {
+        eosLockData.pendingPayoutsChannelId = routes?.pending_payouts_channel_id ?? null;
+      }
     } catch (err) {
       console.error("[processAdvanceResults] EOS poll lock failed:", err);
     }
   }
 
-  return { week, completed, warnings, transitionBadgeAnnouncements, eosPollsData };
+  // Nomination DMs: send after regular-season advances only. NOT on the week 18→wild_card transition.
+  let nominationData: any = null;
+  const isRegularSeasonAdvance = prevStage === "regular_season" && newStage === "regular_season";
+  if (isRegularSeasonAdvance && context) {
+    try {
+      nominationData = await getNominationData(guildId);
+      nominationData.sendNominationDms = true;
+    } catch (err) {
+      console.error("[processAdvanceResults] getNominationData failed:", err);
+    }
+  }
+
+  return { week, completed, warnings, transitionBadgeAnnouncements, eosPollsData, eosLockData, nominationData };
 }
 
 export async function processPotwAward(guildId: string) {
@@ -3556,7 +3580,9 @@ export async function processPotwAward(guildId: string) {
 export async function finalizeAdvanceStep(guildId: string) {
   const { step, warnings, completed } = makeStepRunner();
   await step("generate_challenges", () => generateWeeklyChallenges({ guildId, regenerate: false }));
-  return { completed, warnings };
+  let devUpgradePrizes: any = null;
+  await step("dev_upgrade_prizes", async () => { devUpgradePrizes = await processDevUpgradePrizes(guildId); });
+  return { completed, warnings, devUpgradePrizes };
 }
 
 // Creates GOTW polls for every H2H game in the current playoff week (wildcard/divisional/etc).
@@ -4243,6 +4269,171 @@ export async function calculateAndStorePowerRankings(guildId: string) {
     newWeek,
     announcementsChannelId: routes?.announcements_channel_id ?? null
   };
+}
+
+const OFFSEASON_STAGES = new Set(["coach_hiring", "final_resigning", "free_agency", "draft", "preseason_training_camp"]);
+
+export async function recordHighlightPost(input: { guildId: string; discordId: string; discordChannelId: string; discordMessageId: string; messageUrl?: string | null; content?: string | null }) {
+  const context = await getLeagueContext(input.guildId);
+  const league = context.rec_leagues;
+  const routes = await getRoutes(context.server_id);
+  if (!routes?.highlights_channel_id || routes.highlights_channel_id !== input.discordChannelId) return { recorded: false, reason: "not_highlights_channel" };
+  const { data: discord } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  if (!discord?.user_id) return { recorded: false, reason: "unlinked_user" };
+  const { data: assignment } = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", context.league_id).eq("user_id", discord.user_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  if (!assignment) return { recorded: false, reason: "no_active_team" };
+  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const weekNumber = league.current_week ?? 1;
+  const { data: existing } = await supabase.from("rec_highlight_posts").select("id").eq("league_id", context.league_id).eq("user_id", discord.user_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).maybeSingle();
+  const isFirstThisWeek = !existing;
+  const payoutEligible = isFirstThisWeek && !OFFSEASON_STAGES.has(stage);
+  const { data: post, error } = await supabase.from("rec_highlight_posts").insert({
+    league_id: context.league_id,
+    user_id: discord.user_id,
+    team_id: assignment.team_id,
+    season_number: seasonNumber,
+    week_number: weekNumber,
+    season_stage: stage,
+    discord_channel_id: input.discordChannelId,
+    discord_message_id: input.discordMessageId,
+    message_url: input.messageUrl ?? null,
+    content: (input.content ?? "").slice(0, 500),
+    is_first_this_week: isFirstThisWeek,
+    created_at: nowIso(),
+    updated_at: nowIso()
+  }).select("*").single();
+  if (error) throw error;
+  return { recorded: true, post, isFirstThisWeek, payoutEligible, pendingPayoutsChannelId: routes?.pending_payouts_channel_id ?? null };
+}
+
+export async function approveHighlightPayout(input: { postId: string; discordId: string }) {
+  const { data: post, error } = await supabase.from("rec_highlight_posts").select("*").eq("id", input.postId).single();
+  if (error) throw error;
+  if (post.payout_review_id) return { approved: false, reason: "Payout already issued for this post." };
+  const credit = await creditUserWallet({
+    userId: post.user_id,
+    leagueId: post.league_id,
+    seasonNumber: post.season_number,
+    amount: 5,
+    transactionType: "credit",
+    description: `Highlight payout — Week ${post.week_number}`,
+    sourceReference: { type: "highlight_payout", postId: post.id, idempotencyKey: `highlight_payout_${post.id}` }
+  });
+  await supabase.from("rec_highlight_posts").update({ payout_review_id: credit.ledger?.id ?? null, payout_issued: true, updated_at: nowIso() }).eq("id", input.postId);
+  return { approved: true, ledger: credit.ledger };
+}
+
+export async function submitPotyNomination(input: { guildId: string; nominatorDiscordId: string; nomineeDiscordId: string }) {
+  const context = await getLeagueContext(input.guildId);
+  const seasonNumber = context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1;
+  const { data: nominator } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.nominatorDiscordId).maybeSingle();
+  if (!nominator?.user_id) return { recorded: false, reason: "nominator_unlinked" };
+  const { data: nominee } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.nomineeDiscordId).maybeSingle();
+  if (!nominee?.user_id) return { recorded: false, reason: "nominee_unlinked" };
+  const { error } = await supabase.from("rec_poty_nominations").upsert({
+    league_id: context.league_id,
+    season_number: seasonNumber,
+    nominator_user_id: nominator.user_id,
+    nominee_user_id: nominee.user_id,
+    updated_at: nowIso()
+  }, { onConflict: "league_id,season_number,nominator_user_id" });
+  if (error) throw error;
+  return { recorded: true };
+}
+
+export async function submitGotyNomination(input: { guildId: string; nominatorDiscordId: string; nominatedGameId: string }) {
+  const context = await getLeagueContext(input.guildId);
+  const seasonNumber = context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1;
+  const { data: nominator } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.nominatorDiscordId).maybeSingle();
+  if (!nominator?.user_id) return { recorded: false, reason: "nominator_unlinked" };
+  const { data: game } = await supabase.from("rec_game_results").select("id,home_team_id,away_team_id,rec_teams!rec_game_results_home_team_id_fkey(name),rec_teams!rec_game_results_away_team_id_fkey(name)").eq("id", input.nominatedGameId).maybeSingle();
+  if (!game) return { recorded: false, reason: "game_not_found" };
+  const { error } = await supabase.from("rec_goty_nominations").upsert({
+    league_id: context.league_id,
+    season_number: seasonNumber,
+    nominator_user_id: nominator.user_id,
+    nominated_game_id: input.nominatedGameId,
+    home_team_label: (game as any)?.["rec_teams!rec_game_results_home_team_id_fkey"]?.name ?? null,
+    away_team_label: (game as any)?.["rec_teams!rec_game_results_away_team_id_fkey"]?.name ?? null,
+    updated_at: nowIso()
+  }, { onConflict: "league_id,season_number,nominator_user_id" });
+  if (error) throw error;
+  return { recorded: true };
+}
+
+export async function getNominationData(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const currentWeek = league.current_week ?? 1;
+  const completedWeek = Math.max(1, currentWeek - 1);
+  const { data: assignments } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id, rec_teams(name, abbreviation)")
+    .eq("league_id", context.league_id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  const userIds = (assignments ?? []).map((a: any) => a.user_id).filter(Boolean);
+  const { data: discordAccounts } = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds);
+  const discordMap = new Map<string, string>();
+  for (const d of discordAccounts ?? []) { if (d.user_id && d.discord_id) discordMap.set(String(d.user_id), String(d.discord_id)); }
+  const nominees = (assignments ?? []).map((a: any) => ({
+    userId: String(a.user_id),
+    discordId: discordMap.get(String(a.user_id)) ?? null,
+    displayName: (a.rec_teams as any)?.name ?? (a.rec_teams as any)?.abbreviation ?? "Unknown"
+  }));
+  const { data: games } = await supabase
+    .from("rec_game_results")
+    .select("id,home_team_id,away_team_id,home_score,away_score,rec_teams!rec_game_results_home_team_id_fkey(name),rec_teams!rec_game_results_away_team_id_fkey(name)")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek)
+    .eq("season_stage", "regular_season");
+  const recentGames = (games ?? []).map((g: any) => ({
+    gameId: String(g.id),
+    homeTeam: g["rec_teams!rec_game_results_home_team_id_fkey"]?.name ?? "Home",
+    awayTeam: g["rec_teams!rec_game_results_away_team_id_fkey"]?.name ?? "Away",
+    homeScore: asNumber(g.home_score),
+    awayScore: asNumber(g.away_score),
+    label: `${g["rec_teams!rec_game_results_away_team_id_fkey"]?.name ?? "Away"} @ ${g["rec_teams!rec_game_results_home_team_id_fkey"]?.name ?? "Home"} (${asNumber(g.away_score)}-${asNumber(g.home_score)})`
+  }));
+  return { nominees, recentGames, seasonNumber, weekNumber: completedWeek };
+}
+
+const DEV_TRAIT_TIER: Record<string, number> = { Normal: 0, Star: 1, Superstar: 2, XFactor: 3 };
+const DEV_UPGRADE_PRIZE = 50;
+
+export async function processDevUpgradePrizes(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const weekNumber = league.current_week ?? 1;
+  const { data: pending, error } = await supabase
+    .from("rec_dev_upgrade_prizes")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("issued", false);
+  if (error) throw error;
+  if (!pending?.length) return { issued: 0, prizes: [] };
+  const issued: any[] = [];
+  for (const prize of pending) {
+    if (!prize.user_id) continue;
+    try {
+      const credit = await creditUserWallet({
+        userId: prize.user_id,
+        leagueId: context.league_id,
+        seasonNumber,
+        amount: prize.prize_amount,
+        transactionType: "credit",
+        description: `Dev upgrade prize — ${prize.player_name ?? "Player"} upgraded from ${prize.old_dev_trait} to ${prize.new_dev_trait}`,
+        sourceReference: { type: "dev_upgrade_prize", prizeId: prize.id, idempotencyKey: `dev_upgrade_${prize.id}` }
+      });
+      await supabase.from("rec_dev_upgrade_prizes").update({ issued: true, ledger_id: credit.ledger?.id ?? null }).eq("id", prize.id);
+      issued.push({ ...prize, ledger: credit.ledger });
+    } catch { /* non-fatal — log but continue */ }
+  }
+  return { issued: issued.length, prizes: issued };
 }
 
 export async function getLatestPowerRankings(guildId: string) {

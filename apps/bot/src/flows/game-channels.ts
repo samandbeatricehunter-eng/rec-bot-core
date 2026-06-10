@@ -183,6 +183,38 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
   return { sent, failed, gameChannels };
 }
 
+export async function recordHighlightMessage(message: any) {
+  if (!message.guildId || message.author?.bot) return;
+  try {
+    const result = await recApi.recordHighlightPost({
+      guildId: message.guildId,
+      discordId: message.author.id,
+      discordChannelId: message.channelId,
+      discordMessageId: message.id,
+      messageUrl: message.url ?? null,
+      content: message.content ?? null
+    });
+    if (!result?.payoutEligible || !result.pendingPayoutsChannelId) return;
+    const channel = await message.guild.channels.fetch(result.pendingPayoutsChannelId).catch(() => null);
+    if (channel?.isTextBased()) {
+      await channel.send({
+        embeds: [new EmbedBuilder()
+          .setTitle("Highlight Payout")
+          .setColor(0x2ecc71)
+          .setDescription([
+            `User: <@${message.author.id}>`,
+            `Week: ${result.post?.week_number ?? "?"}`,
+            `[View Highlight](${message.url ?? result.post?.message_url ?? "N/A"})`
+          ].join("\n"))],
+        components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`highlight_payout:approve:${result.post?.id}`).setLabel("Approve Payout").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`highlight_payout:deny:${result.post?.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
+        )]
+      }).catch(() => undefined);
+    }
+  } catch { /* non-fatal */ }
+}
+
 export async function recordGameChannelMessage(message: any) {
   if (!message.guildId || message.author?.bot) return;
   await recApi.recordGameChannelCheckin({ discordChannelId: message.channelId, discordUserId: message.author.id }).catch(() => undefined);

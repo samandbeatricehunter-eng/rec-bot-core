@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel } from "discord.js";
 import { env } from "./config/env.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
@@ -30,13 +30,13 @@ import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { buildAdvanceMenuPanel, buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
 import { advanceWizardSessions, ADVANCE_WIZARD_GOTW_CUSTOM_ID, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
-import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild } from "./flows/game-channels.js";
+import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild, recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
 import { handleGotwSelect, handleGotwVote } from "./flows/gotw.js";
 import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 const menuSessions = new ExpiringSessionStore<true>();
 const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 const serverSetupChannelSessions = new Map<string, string>();
@@ -1166,5 +1166,93 @@ async function handleEosVote(interaction: Extract<Interaction, { isStringSelectM
     return interaction.editReply({ content: "An error occurred while recording your vote. Please try again." });
   }
 }
+
+// ─── Message handler: routes messages to stream/highlight tracking ───────────
+client.on("messageCreate", async (message: Message) => {
+  if (message.author?.bot || !message.guildId) return;
+  // Run both handlers; each checks internally if the message is in its designated channel.
+  await Promise.allSettled([
+    recordGameChannelMessage(message),
+    recordHighlightMessage(message)
+  ]);
+});
+
+// ─── Highlight payout approve/deny ───────────────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith("highlight_payout:")) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only admins can manage highlight payouts.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const [, action, postId] = interaction.customId.split(":");
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (action === "approve") {
+    try {
+      await recApi.approveHighlightPayout({ postId: postId!, discordId: interaction.user.id });
+      await interaction.message.edit({ components: [] }).catch(() => undefined);
+      await interaction.editReply({ content: "Highlight payout approved." });
+    } catch (err) {
+      await interaction.editReply({ content: `Failed to approve: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  } else {
+    await interaction.message.edit({ components: [] }).catch(() => undefined);
+    await interaction.editReply({ content: "Highlight payout denied." });
+  }
+});
+
+// ─── POTY nomination select ───────────────────────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!interaction.customId.startsWith("poty_nominate:")) return;
+  const guildId = interaction.customId.split(":")[1] ?? interaction.guildId ?? "";
+  const nomineeDiscordId = interaction.values[0];
+  if (!guildId || !nomineeDiscordId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    await recApi.submitPotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nomineeDiscordId });
+    const nominated = await interaction.client.users.fetch(nomineeDiscordId).catch(() => null);
+    await interaction.editReply({ content: `Your POTY nomination for **${nominated?.displayName ?? nomineeDiscordId}** has been recorded!` });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+// ─── GOTY nomination select ───────────────────────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!interaction.customId.startsWith("goty_nominate:")) return;
+  const guildId = interaction.customId.split(":")[1] ?? interaction.guildId ?? "";
+  const nominatedGameId = interaction.values[0];
+  if (!guildId || !nominatedGameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    await recApi.submitGotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nominatedGameId });
+    await interaction.editReply({ content: "Your GOTY nomination has been recorded!" });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+// ─── Can't Shut Up tiebreaker commissioner select ─────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!interaction.customId.startsWith("eos_tiebreaker:cant_shut_up:")) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only commissioners can resolve this tiebreaker.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const pollId = interaction.customId.split(":")[2] ?? "";
+  const winnerUserId = interaction.values[0];
+  if (!pollId || !winnerUserId) return interaction.reply({ content: "Missing tiebreaker data.", flags: MessageFlags.Ephemeral });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    await recApi.resolveEosTiebreaker({ pollId, winnerUserId });
+    await interaction.message.edit({ components: [] }).catch(() => undefined);
+    await interaction.editReply({ content: "Tiebreaker resolved! Winner has been set." });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
 
 await client.login(env.DISCORD_TOKEN);

@@ -581,5 +581,54 @@ export const recApi = {
     recFetch<any>("/v1/eos-awards/polls", {
       method: "POST",
       body: JSON.stringify({ guildId })
+    }),
+
+  resolveEosTiebreaker: (input: { pollId: string; winnerUserId: string }) =>
+    recFetch<any>("/v1/eos-awards/tiebreaker", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  recordHighlightPost: (input: {
+    guildId: string;
+    discordId: string;
+    discordChannelId: string;
+    discordMessageId: string;
+    messageUrl?: string | null;
+    content?: string | null;
+  }) =>
+    recFetch<any>("/v1/highlights/post", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  approveHighlightPayout: (input: { postId: string; discordId: string }) =>
+    recFetch<any>("/v1/highlights/approve", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  submitPotyNomination: (input: { guildId: string; nominatorDiscordId: string; nomineeDiscordId: string }) =>
+    recFetch<any>("/v1/nominations/poty", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  submitGotyNomination: (input: { guildId: string; nominatorDiscordId: string; nominatedGameId: string }) =>
+    recFetch<any>("/v1/nominations/goty", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  getNominationData: (guildId: string) =>
+    recFetch<any>("/v1/nominations/data", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  processDevUpgradePrizes: (guildId: string) =>
+    recFetch<any>("/v1/advance/dev-upgrade-prizes", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
     })
 };
