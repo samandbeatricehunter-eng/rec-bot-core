@@ -1402,7 +1402,7 @@ export async function getGameChannelPlans(guildId: string) {
   // Pull the league's configured game rules (fourth-down / streaming) from rec_league_configuration.
   const config = await getLeagueConfiguration(context.league_id);
   const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
-  const isPlayoffStage = ["wildcard", "divisional", "conference_championship", "super_bowl"].includes(stage);
+  const isPlayoffStage = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(stage);
   const streamingRequirement = stage === "regular_season"
     ? config?.regular_season_streaming_requirement ?? config?.streaming_requirement
     : config?.postseason_streaming_requirement ?? config?.streaming_requirement;
@@ -2104,8 +2104,8 @@ export async function advanceLeagueWeek(guildId: string) {
   // 20 = conference championship, 21 = super bowl, 22+ = offseason.
   // EOS badges and payouts fire in setLeagueWeek when transitioning out of regular_season.
   const seasonStage =
-    previousStage === "regular_season" && weekNumber >= 18 ? "wildcard"
-    : previousStage === "wildcard" ? "divisional"
+    previousStage === "regular_season" && weekNumber >= 18 ? "wild_card"
+    : previousStage === "wild_card" ? "divisional"
     : previousStage === "divisional" ? "conference_championship"
     : previousStage === "conference_championship" ? "super_bowl"
     : previousStage === "super_bowl" ? "offseason"
@@ -2311,7 +2311,7 @@ export async function getGotwCandidates(guildId: string) {
 }
 
 function gotwQuestion(stage: string, weekNumber: number) {
-  if (stage === "wildcard") return "Who will win their Wild Card matchup?";
+  if (stage === "wild_card") return "Who will win their Wild Card matchup?";
   if (stage === "divisional") return "Who will win their Divisional matchup?";
   if (stage === "conference_championship") return "Who will win their Conference Championship matchup?";
   if (stage === "super_bowl") return "Who will win this year's Super Bowl?";
@@ -2692,7 +2692,7 @@ export async function processPlayoffGotw(guildId: string) {
   const league = context.rec_leagues;
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const weekNumber = league.current_week ?? 1;
-  const stage = String(league.season_stage ?? "wildcard");
+  const stage = String(league.season_stage ?? "wild_card");
   const routes = await getRoutes(context.server_id);
   const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
   const h2hGames = games.filter((g) => g.home_user_id && g.away_user_id);

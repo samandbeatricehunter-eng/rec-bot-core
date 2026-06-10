@@ -259,7 +259,7 @@ export async function runAdvanceWizardProcessing(
 
   // Step 5: GOTW
   const isRegularSeason = newStage === "regular_season";
-  const isPlayoffStage = ["wildcard", "divisional", "conference_championship", "super_bowl"].includes(newStage);
+  const isPlayoffStage = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(newStage);
 
   if (isPlayoffStage) {
     // In playoffs every H2H game is a GOTW — auto-create polls and post all vote embeds

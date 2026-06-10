@@ -280,6 +280,8 @@ function formatTransactionLine(transaction: any) {
 
 async function renderRecBankFromSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading REC Bank...").setDescription("Fetching your wallet balance and recent transactions.")], components: [] });
   const walletPayload = await recApi.getWallet(interaction.user.id);
   const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
   const transactions = Array.isArray(walletPayload?.transactions) ? walletPayload.transactions : [];
@@ -297,7 +299,7 @@ async function renderRecBankFromSelect(interaction: Extract<Interaction, { isStr
       transactionText
     ].join("\n").slice(0, 4096));
 
-  return interaction.update({ embeds: [embed], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
+  return interaction.editReply({ embeds: [embed], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
 }
 
 async function handleMainMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
@@ -328,6 +330,7 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
   if (selected === "edit_league_settings") {
     if (!interaction.inCachedGuild()) return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
     await interaction.deferUpdate();
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading League Settings...").setDescription("Fetching current league configuration.")], components: [] });
     try {
       const result = await recApi.getLeagueConfig(interaction.guildId);
       const draft = { ...result.draft, step: "settings_picker" as const, editMode: true };
@@ -706,7 +709,7 @@ function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; se
     return { weekNumber: Number.isFinite(n) && n > 0 ? n : 1, seasonStage: "regular_season" };
   }
   switch (seasonWeek) {
-    case "wildcard": return { weekNumber: 19, seasonStage: "wildcard" };
+    case "wildcard": return { weekNumber: 18, seasonStage: "wild_card" };
     case "divisional": return { weekNumber: 20, seasonStage: "divisional" };
     case "conference": return { weekNumber: 21, seasonStage: "conference_championship" };
     case "super_bowl": return { weekNumber: 22, seasonStage: "super_bowl" };
@@ -725,6 +728,7 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Saving League Setup...").setDescription("Creating your league and applying configuration. This may take a moment.")], components: [] });
   const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id, serverName: interaction.guild?.name });
 
   // Persist the starting week/stage chosen during setup (defaults to regular-season week 1).
@@ -879,6 +883,7 @@ async function handleAdvanceScheduleConfirm(interaction: Extract<Interaction, { 
   }
 
   try {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Setting Next Advance...").setDescription("Saving the advance deadline.")], components: [] });
     const [y, mo, d] = state.date.split("-").map(Number);
     const when = wallClockToUtc(y, mo, d, state.hour, state.timezone);
     const result = await recApi.setNextAdvance({ guildId: interaction.guildId, nextAdvanceAt: when.toISOString(), timezone: state.timezone });
