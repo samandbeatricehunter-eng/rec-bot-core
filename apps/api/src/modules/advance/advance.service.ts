@@ -2095,6 +2095,114 @@ export async function issueWeeklyGamePayouts(guildId: string) {
   return { issued, skipped, weekNumber, seasonNumber };
 }
 
+const SAVINGS_INTEREST_RATE = 0.035;
+const INTEREST_RATE_LIMIT = 21; // advances per 24h before interest disables
+const INTEREST_DISABLE_HOURS = 24;
+const MIN_LINKED_USERS_FOR_INTEREST = 12;
+
+export async function applyAdvanceSavingsInterest(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const leagueId = context.league_id;
+
+  // Economy must be enabled
+  const features = await getLeagueFeatureSettings(leagueId);
+  if (!features?.coin_economy_enabled) return { skipped: "economy_disabled", credited: 0 };
+
+  // Minimum 12 linked users required
+  const linkedUsers = await getLinkedActiveTeamUsers(leagueId);
+  if (linkedUsers.length < MIN_LINKED_USERS_FOR_INTEREST) {
+    return { skipped: "insufficient_linked_users", linked: linkedUsers.length, credited: 0 };
+  }
+
+  // Rate-limit check — update the rolling 24h advance window atomically
+  const now = new Date();
+  const windowStart = league.advance_rate_window_start ? new Date(league.advance_rate_window_start) : null;
+  const windowExpired = !windowStart || (now.getTime() - windowStart.getTime()) > 24 * 60 * 60 * 1000;
+
+  const newCount = windowExpired ? 1 : (asNumber(league.advance_rate_count) + 1);
+  const newWindowStart = windowExpired ? now.toISOString() : league.advance_rate_window_start;
+
+  // Check if interest is already disabled from a prior rate-limit hit
+  const disabledUntil = league.interest_disabled_until ? new Date(league.interest_disabled_until) : null;
+  if (disabledUntil && disabledUntil > now) {
+    // Still within disable window — update rate counter but skip interest
+    await supabase.from("rec_leagues").update({
+      advance_rate_window_start: newWindowStart,
+      advance_rate_count: newCount
+    }).eq("id", leagueId);
+    return { skipped: "interest_disabled_until", disabledUntil: disabledUntil.toISOString(), credited: 0 };
+  }
+
+  if (newCount > INTEREST_RATE_LIMIT) {
+    const disableUntil = new Date(now.getTime() + INTEREST_DISABLE_HOURS * 60 * 60 * 1000);
+    await supabase.from("rec_leagues").update({
+      advance_rate_window_start: newWindowStart,
+      advance_rate_count: newCount,
+      interest_disabled_until: disableUntil.toISOString()
+    }).eq("id", leagueId);
+    return { skipped: "rate_limit_exceeded", advancesInWindow: newCount, disabledUntil: disableUntil.toISOString(), credited: 0 };
+  }
+
+  // Update the rate window counter
+  await supabase.from("rec_leagues").update({
+    advance_rate_window_start: newWindowStart,
+    advance_rate_count: newCount
+  }).eq("id", leagueId);
+
+  // Apply 3.5% interest to each linked user's savings balance
+  const userIds = linkedUsers.map((a: any) => a.user_id).filter(Boolean);
+  const { data: wallets } = await supabase
+    .from("rec_wallets")
+    .select("user_id,savings_balance")
+    .in("user_id", userIds);
+
+  const seasonNumber = asNumber(league.season_number ?? league.display_season_number ?? 1);
+  let credited = 0;
+
+  for (const wallet of wallets ?? []) {
+    const savings = asNumber(wallet.savings_balance);
+    if (savings <= 0) continue;
+    const interest = Math.floor(savings * SAVINGS_INTEREST_RATE);
+    if (interest <= 0) continue;
+
+    const idempotencyKey = `savings_interest:${leagueId}:${league.current_week}:${wallet.user_id}`;
+
+    // Check idempotency — skip if already credited this advance
+    const { data: existing } = await supabase
+      .from("rec_dollar_ledger")
+      .select("id")
+      .eq("user_id", wallet.user_id)
+      .eq("transaction_type", "savings_interest")
+      .contains("source_reference", { idempotencyKey })
+      .maybeSingle();
+    if (existing) continue;
+
+    // Credit directly to savings_balance
+    const { error: walletErr } = await supabase
+      .from("rec_wallets")
+      .update({ savings_balance: savings + interest, updated_at: nowIso() })
+      .eq("user_id", wallet.user_id);
+    if (walletErr) continue;
+
+    // Record the ledger entry
+    await supabase.from("rec_dollar_ledger").insert({
+      user_id: wallet.user_id,
+      league_id: leagueId,
+      season_id: null,
+      amount: interest,
+      transaction_type: "savings_interest",
+      description: `Savings interest (3.5%) — Week ${league.current_week}`,
+      source: "internal_import",
+      source_reference: { idempotencyKey, leagueId, week: league.current_week, seasonNumber }
+    });
+
+    credited++;
+  }
+
+  return { credited, linkedUsers: linkedUsers.length, advancesInWindow: newCount };
+}
+
 export async function assignSeasonEndBadgesForSeason(leagueId: string, seasonNumber: number) {
   return assignSeasonEndBadges(leagueId, seasonNumber);
 }
@@ -2156,6 +2264,7 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
 
   await step("apply_records", () => applyAdvanceRecords(guildId));
   await step("game_payouts", () => issueWeeklyGamePayouts(guildId));
+  await step("savings_interest", () => applyAdvanceSavingsInterest(guildId));
   await step("settle_gotw", () => settleGotwVotes(guildId));
   await step("evaluate_challenges", () => evaluateWeeklyChallenges(guildId));
   await step("calculate_potw", () => calculateRecPotw(guildId));
@@ -2672,6 +2781,7 @@ export async function processAdvanceResults(guildId: string) {
   await step("advance_week", async () => { week = await advanceLeagueWeek(guildId); });
   await step("apply_records", () => applyAdvanceRecords(guildId));
   await step("game_payouts", () => issueWeeklyGamePayouts(guildId));
+  await step("savings_interest", () => applyAdvanceSavingsInterest(guildId));
   await step("settle_gotw", () => settleGotwVotes(guildId));
   await step("evaluate_challenges", () => evaluateWeeklyChallenges(guildId));
   await step("stream_compliance", () => evaluateStreamCompliance(guildId));
