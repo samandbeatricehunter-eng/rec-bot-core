@@ -414,19 +414,19 @@ async function assignWeeklyBadges(guildId: string) {
 /**
  * SEASON-END BADGE ASSIGNMENT - Regular Season Cumulative Badges
  *
- * Called when regular season ends and league transitions to playoffs (Week 17 → 18)
+ * Called when regular season ends and league transitions to playoffs (Week 18 → 19)
  * Assigns all cumulative badges based on full season statistics
  *
  * BADGE THRESHOLDS:
  * ─────────────────────────────────────────────────────────────────────
  * WINS/RECORDS (per user):
- *   Undefeated        → 17-0 regular season record (perfect)
- *   Dominant          → 80%+ win rate (14+ wins in 17 games)
- *   Winning Season    → More wins than losses (breakeven: 9-8)
+ *   Undefeated        → 18-0 regular season record (perfect)
+ *   Dominant          → 80%+ win rate (15+ wins in 18 games)
+ *   Winning Season    → More wins than losses (breakeven: 10-8)
  *
  * OFFENSIVE (cumulative season stats):
  *   Scoring Leader    → Most total points scored in season (league-wide)
- *   High Octane       → 40+ points per game average (40*17 = 680 min pts)
+ *   High Octane       → 40+ points per game average (40*18 = 720 min pts)
  *   Blowout Master    → 50%+ of wins by 21+ point margin (8+ wins required)
  *
  * DEFENSIVE (cumulative season stats):
@@ -489,8 +489,8 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
     const userId = record.user_id;
     const userGames = gamesByUser.get(userId) ?? [];
 
-    // UNDEFEATED: 17-0 regular season
-    if (record.wins === 17 && record.losses === 0) {
+    // UNDEFEATED: 18-0 regular season
+    if (record.wins === 18 && record.losses === 0) {
       badgesToAssign.push({
         user_id: userId,
         league_id: leagueId,
@@ -692,7 +692,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
 }
 
 async function assignPlayoffBadges(leagueId: string, seasonNumber: number) {
-  // Assign playoff/championship badges at Week 18 (super bowl transition)
+  // Assign playoff/championship badges at season end (super_bowl → offseason transition)
   // Also converts Record Breaker → Record Holder
   // Called at super_bowl → wildcard transition
 
@@ -1059,7 +1059,7 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
   const previousStage = currentLeague.season_stage;
 
   // Assign regular-season cumulative badges when regular season ends (transitioning out of regular_season)
-  // Regular season = weeks 1-17, so when we move to wildcard (week 18) or beyond, assign the badges
+  // Regular season = weeks 1-18, so when we move to wild_card (week 19) or beyond, assign the badges
   if (previousStage === "regular_season" && input.seasonStage !== "regular_season") {
     try {
       await assignSeasonEndBadges(context.league_id, seasonNumber);
@@ -2100,11 +2100,11 @@ export async function advanceLeagueWeek(guildId: string) {
   const previousWeek = asNumber(league.current_week ?? 1);
   const previousStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
   const weekNumber = previousWeek + 1;
-  // REC season: weeks 1-17 regular season, week 18 = wildcard, 19 = divisional,
+  // REC season: weeks 1-18 regular season, week 19 = wild_card, 20 = divisional,
   // 20 = conference championship, 21 = super bowl, 22+ = offseason.
   // EOS badges and payouts fire in setLeagueWeek when transitioning out of regular_season.
   const seasonStage =
-    previousStage === "regular_season" && weekNumber >= 18 ? "wild_card"
+    previousStage === "regular_season" && weekNumber >= 19 ? "wild_card"
     : previousStage === "wild_card" ? "divisional"
     : previousStage === "divisional" ? "conference_championship"
     : previousStage === "conference_championship" ? "super_bowl"

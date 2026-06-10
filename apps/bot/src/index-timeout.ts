@@ -709,7 +709,7 @@ function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; se
     return { weekNumber: Number.isFinite(n) && n > 0 ? n : 1, seasonStage: "regular_season" };
   }
   switch (seasonWeek) {
-    case "wildcard": return { weekNumber: 18, seasonStage: "wild_card" };
+    case "wildcard": return { weekNumber: 19, seasonStage: "wild_card" };
     case "divisional": return { weekNumber: 20, seasonStage: "divisional" };
     case "conference": return { weekNumber: 21, seasonStage: "conference_championship" };
     case "super_bowl": return { weekNumber: 22, seasonStage: "super_bowl" };
