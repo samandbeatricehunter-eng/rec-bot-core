@@ -27,7 +27,7 @@ import {
 } from "./ui/league-setup.js";
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel } from "./flows/imports.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
-import { buildAdvanceMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
+import { buildAdvanceMenuPanel, buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
 import { advanceWizardSessions, ADVANCE_WIZARD_GOTW_CUSTOM_ID, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
 import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild } from "./flows/game-channels.js";
@@ -135,6 +135,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportSelect(interaction);
       if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.select) return handleAdvanceMenuSelect(interaction);
+      if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.troubleshootSelect) return handleTroubleshootMenuSelect(interaction);
       if (
         interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.daySelect ||
         interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.hourSelect ||
@@ -378,10 +379,68 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
 
   await interaction.deferUpdate();
 
+  if (selected === "advance_week") {
+    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true };
+    advanceScheduleSessions.set(interaction.user.id, scheduleState);
+    await interaction.editReply(buildAdvanceSchedulePayload(scheduleState));
+    return;
+  }
+
+  if (selected === "troubleshoot_advance") {
+    await interaction.editReply(buildTroubleshootMenuPanel());
+    return;
+  }
+
+  if (selected === "reissue_eos_payouts") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Re-Issue EOS Payouts").setDescription("This feature is coming soon. It will wipe unapproved pending EOS payouts and reissue them based on current standings, requiring dual approval from the receiving user and a commissioner.")], components: buildAdvanceMenuPanel().components });
+    return;
+  }
+
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Advance Menu").setDescription("Unrecognized action.")], components: buildAdvanceMenuPanel().components });
+}
+
+async function handleTroubleshootMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!interaction.inCachedGuild()) {
+    await interaction.reply({ content: "This can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can use these tools.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const selected = interaction.values[0];
+  if (selected === "back_advance_menu") return interaction.update(buildAdvanceMenuPanel());
+
+  await interaction.deferUpdate();
+
   if (selected === "set_next_advance") {
     const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE };
     advanceScheduleSessions.set(interaction.user.id, scheduleState);
     await interaction.editReply(buildAdvanceSchedulePayload(scheduleState));
+    return;
+  }
+
+  if (selected === "reselect_gotw") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading GOTW Candidates...").setDescription("Fetching matchup data to re-select the Game of the Week.")], components: [] });
+    const result = await recApi.getGotwCandidates(interaction.guildId);
+    const stage = result?.stage ?? "regular_season";
+    if (stage !== "regular_season") {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Re-Select GOTW").setDescription("GOTW selection is only required during the regular season. Playoff and Super Bowl games are automatically treated as GOTW.")],
+        components: buildTroubleshootMenuPanel().components
+      });
+      return;
+    }
+    if (!result?.candidates?.length) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Re-Select GOTW").setDescription("No User H2H matchups were found for the current week, so there is no GOTW to select.")],
+        components: buildTroubleshootMenuPanel().components
+      });
+      return;
+    }
+    await interaction.editReply(buildGotwSelectionPayload(result.candidates));
     return;
   }
 
@@ -398,49 +457,66 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
             "Current active challenges were voided before new ones were created."
           ].join("\n"))
       ],
-      components: buildAdvanceMenuPanel().components
+      components: buildTroubleshootMenuPanel().components
     });
     return;
   }
 
-  if (selected === "challenge_audit") {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Challenge Audit...").setDescription("Fetching recent challenge results.")], components: [] });
-    const result = await recApi.getChallengeAudit(interaction.guildId);
-    const challenges = Array.isArray(result?.challenges) ? result.challenges.slice(0, 15) : [];
-    const lines = challenges.length
-      ? challenges.map((challenge: any) => {
-          const tier = challenge.earned_tier ? `${String(challenge.earned_tier).toUpperCase()} Tier` : "No tier";
-          const amount = Number(challenge.earned_amount ?? 0);
-          return `• W${challenge.week_number ?? "?"} ${challenge.challenge_side ?? "challenge"}: ${tier}${amount ? ` (+$${amount})` : ""}`;
-        })
-      : ["No recent challenge audit rows found."];
-
-    await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Challenge Audit").setDescription(lines.join("\n"))],
-      components: buildAdvanceMenuPanel().components
-    });
+  if (selected === "regenerate_potw") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Re-Generate POTW").setDescription("This feature is coming soon.")], components: buildTroubleshootMenuPanel().components });
     return;
   }
 
-  if (selected === "catch_up_advance") {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Processing Catch-Up Advance...").setDescription("Applying game results, records, and payouts for the imported week. This may take a moment.")], components: [] });
-    const result = await recApi.postAdvanceAutomation(interaction.guildId, "catch_up");
+  if (selected === "recreate_game_channels") {
+    const guild = interaction.guild;
+    if (!guild) {
+      await interaction.editReply({ content: "Game channels can only be recreated inside a Discord server.", embeds: [], components: [] });
+      return;
+    }
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Recreating Game Channels...").setDescription("Deleting old channels and rebuilding all active H2H game channels.")], components: [] });
+    const result = await recreateGameChannelsForGuild(guild);
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
-          .setTitle("Catch-Up Advance Processed")
+          .setTitle("Game Channels Re-Created")
           .setDescription([
-            "Processed the imported week without user DMs, GOTW scheduling, or game-channel recreation.",
+            "Deleted old active game channels and recreated current H2H matchup channels.",
             "",
-            `Mode: **${result?.mode ?? "catch_up"}**`
+            `Created: **${result.created?.length ?? 0}**`
           ].join("\n"))
       ],
-      components: buildAdvanceMenuPanel().components
+      components: buildTroubleshootMenuPanel().components
     });
     return;
   }
 
-  if (selected === "test_eos_payouts") {
+  if (selected === "send_advance_dms") {
+    const guild = interaction.guild;
+    if (!guild) {
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Re-Send Advance DMs").setDescription("This action requires a guild context.")], components: buildTroubleshootMenuPanel().components });
+      return;
+    }
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Sending Advance DMs...").setDescription("Sending DMs to all active players and creating game channels. This may take a moment.")], components: [] });
+    let dmSummary: string[];
+    try {
+      const dmResult = await sendAdvanceDmsForGuild(guild);
+      dmSummary = [
+        `DMs sent: ${dmResult.sent} (failed: ${dmResult.failed})`,
+        `Game channels created: ${dmResult.gameChannels.created.length} of ${dmResult.gameChannels.totalPlans}`,
+        ...(dmResult.gameChannels.skipped.length ? [`Game channels skipped: ${dmResult.gameChannels.skipped[0].reason}`] : [])
+      ];
+    } catch (error) {
+      console.error("Re-Send Advance DMs failed", error);
+      dmSummary = ["DMs/game channels failed — check logs or use Recreate Game Channels to retry."];
+    }
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Advance DMs Sent").setDescription(dmSummary.join("\n"))],
+      components: buildTroubleshootMenuPanel().components
+    });
+    return;
+  }
+
+  if (selected === "recalculate_eos_payouts") {
     await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Calculating EOS Payouts...").setDescription("Fetching season standings and projecting end-of-season payouts.")], components: [] });
     try {
       const preview = await recApi.previewEosPayouts(interaction.guildId);
@@ -456,102 +532,24 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
       ];
       await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("EOS Payout Preview").setDescription(lines.join("\n").slice(0, 4000))],
-        components: buildAdvanceMenuPanel().components
+        components: buildTroubleshootMenuPanel().components
       });
     } catch (error) {
       await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("EOS Preview Failed").setDescription(error instanceof Error ? error.message : String(error))],
-        components: buildAdvanceMenuPanel().components
+        components: buildTroubleshootMenuPanel().components
       });
     }
     return;
   }
 
-  if (selected === "advance_week") {
-    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true };
-    advanceScheduleSessions.set(interaction.user.id, scheduleState);
-    await interaction.editReply(buildAdvanceSchedulePayload(scheduleState));
-    return;
-  }
-
-  if (selected === "send_advance_dms") {
-    const guild = interaction.guild;
-    if (!guild) {
-      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Send Advance DMs").setDescription("This action requires a guild context.")], components: buildAdvanceMenuPanel().components });
-      return;
-    }
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Sending Advance DMs...").setDescription("Sending DMs to all active players and creating game channels. This may take a moment.")], components: [] });
-    let dmSummary: string[];
-    try {
-      const dmResult = await sendAdvanceDmsForGuild(guild);
-      dmSummary = [
-        `DMs sent: ${dmResult.sent} (failed: ${dmResult.failed})`,
-        `Game channels created: ${dmResult.gameChannels.created.length} of ${dmResult.gameChannels.totalPlans}`,
-        ...(dmResult.gameChannels.skipped.length ? [`Game channels skipped: ${dmResult.gameChannels.skipped[0].reason}`] : [])
-      ];
-    } catch (error) {
-      console.error("Send Advance DMs failed", error);
-      dmSummary = ["DMs/game channels failed — check logs or use Recreate Game Channels to retry."];
-    }
-    await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Advance DMs Sent").setDescription(dmSummary.join("\n"))],
-      components: buildAdvanceMenuPanel().components
-    });
-    return;
-  }
-
-  if (selected === "reselect_gotw") {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading GOTW Candidates...").setDescription("Fetching matchup data to re-select the Game of the Week.")], components: [] });
-    const result = await recApi.getGotwCandidates(interaction.guildId);
-    const stage = result?.stage ?? "regular_season";
-    if (stage !== "regular_season") {
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Re-Select GOTW").setDescription("GOTW selection is only required during the regular season. Playoff and Super Bowl games are automatically treated as GOTW.")],
-        components: buildAdvanceMenuPanel().components
-      });
-      return;
-    }
-    if (!result?.candidates?.length) {
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Re-Select GOTW").setDescription("No User H2H matchups were found for the current week, so there is no GOTW to select.")],
-        components: buildAdvanceMenuPanel().components
-      });
-      return;
-    }
-    await interaction.editReply(buildGotwSelectionPayload(result.candidates));
-    return;
-  }
-
-  if (selected === "recreate_game_channels") {
-    const guild = interaction.guild;
-    if (!guild) {
-      await interaction.update({ content: "Game channels can only be recreated inside a Discord server.", embeds: [], components: [] });
-      return;
-    }
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Recreating Game Channels...").setDescription("Deleting old channels and rebuilding all active H2H game channels.")], components: [] });
-    const result = await recreateGameChannelsForGuild(guild);
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Game Channels Re-Created")
-          .setDescription([
-            "Deleted old active game channels and recreated current H2H matchup channels.",
-            "",
-            `Created: **${result.created?.length ?? 0}**`
-          ].join("\n"))
-      ],
-      components: buildAdvanceMenuPanel().components
-    });
-    return;
-  }
-
+  // set_week falls through to the label handler below
   const labels: Record<string, string> = {
     set_week: "Set Current Week / Stage"
   };
-
   await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle(labels[selected] ?? "Advance Menu").setDescription("This advance action is connected and will be expanded in the next build pass.")],
-    components: buildAdvanceMenuPanel().components
+    embeds: [new EmbedBuilder().setTitle(labels[selected] ?? "Troubleshoot Advance").setDescription("This repair action is connected and will be expanded in the next build pass.")],
+    components: buildTroubleshootMenuPanel().components
   });
 }
 
