@@ -1,5 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } from "discord.js";
 
+export const ADVANCE_WIZARD_BACK_CUSTOM_ID = "rec:advance_wizard:back";
+
 export const ADVANCE_SCHEDULE_CUSTOM_IDS = {
   daySelect: "rec:advance_schedule:day",
   hourSelect: "rec:advance_schedule:hour",
@@ -21,6 +23,7 @@ export type AdvanceScheduleState = {
   date?: string; // "YYYY-MM-DD" wall-clock date in the chosen timezone
   hour?: number; // 0-23
   timezone?: string; // IANA zone
+  wizardMode?: boolean; // true when opened from the advance wizard
 };
 
 function pad(n: number) {
@@ -100,7 +103,11 @@ function hourOptions(timeZone: string, selectedDate?: string, selectedHour?: num
   return options;
 }
 
-export function buildAdvanceSchedulePayload(state: AdvanceScheduleState) {
+export function buildAdvanceSchedulePayload(state: AdvanceScheduleState, wizardMode?: boolean) {
+  return _buildAdvanceSchedulePayload(state, wizardMode ?? state.wizardMode ?? false);
+}
+
+function _buildAdvanceSchedulePayload(state: AdvanceScheduleState, isWizard: boolean) {
   const timezone = state.timezone ?? DEFAULT_SCHEDULE_TIMEZONE;
   const hours = hourOptions(timezone, state.date, state.hour);
 
@@ -133,16 +140,26 @@ export function buildAdvanceSchedulePayload(state: AdvanceScheduleState) {
 
   const confirm = new ButtonBuilder()
     .setCustomId(ADVANCE_SCHEDULE_CUSTOM_IDS.confirm)
-    .setLabel("Confirm Next Advance")
+    .setLabel(isWizard ? "Confirm & Start Advance" : "Confirm Next Advance")
     .setStyle(ButtonStyle.Success)
     .setDisabled(!ready);
+
+  const title = isWizard ? "Step 1 of 5 — Set Next Advance Time" : "Set Next Advance";
+  const bottomRow = isWizard
+    ? new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_BACK_CUSTOM_ID).setLabel("Back to Advance Menu").setStyle(ButtonStyle.Secondary),
+        confirm
+      )
+    : new ActionRowBuilder<ButtonBuilder>().addComponents(confirm);
 
   return {
     embeds: [
       new EmbedBuilder()
-        .setTitle("Set Next Advance")
+        .setTitle(title)
         .setDescription([
-          "Choose when the next advance deadline falls. The day list covers the next 7 days; the time list only shows hours still ahead for the selected day.",
+          isWizard
+            ? "Set when the next advance deadline falls, then click **Confirm & Start Advance** to begin the full advance process."
+            : "Choose when the next advance deadline falls. The day list covers the next 7 days; the time list only shows hours still ahead for the selected day.",
           "",
           preview,
           "",
@@ -153,7 +170,7 @@ export function buildAdvanceSchedulePayload(state: AdvanceScheduleState) {
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(daySelect),
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(hourSelect),
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(tzSelect),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(confirm)
+      bottomRow
     ]
   };
 }

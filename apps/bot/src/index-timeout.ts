@@ -28,7 +28,8 @@ import {
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel } from "./flows/imports.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { buildAdvanceMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
-import { ADVANCE_SCHEDULE_CUSTOM_IDS, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
+import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
+import { advanceWizardSessions, ADVANCE_WIZARD_GOTW_CUSTOM_ID, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
 import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild } from "./flows/game-channels.js";
 import { handleGotwSelect, handleGotwVote } from "./flows/gotw.js";
 import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
@@ -43,6 +44,7 @@ const advanceScheduleSessions = new Map<string, AdvanceScheduleState>();
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
+  advanceWizardSessions.cleanup();
 }, 60_000).unref();
 
 const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please reopen /menu to proceed.";
@@ -126,6 +128,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return interaction.showModal(buildChannelIdModal(channelType));
       }
 
+      if (interaction.customId === ADVANCE_WIZARD_GOTW_CUSTOM_ID) return handleWizardGotwSelect(interaction);
       if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
@@ -164,6 +167,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         // League is already saved by this point; this button just closes the linking step.
         return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
       }
+      if (interaction.customId === ADVANCE_WIZARD_BACK_CUSTOM_ID) return interaction.update(buildAdvanceMenuPanel());
       if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.confirm) return handleAdvanceScheduleConfirm(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
@@ -431,44 +435,9 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "advance_week") {
-    const result = await recApi.postAdvanceAutomation(interaction.guildId, "normal");
-    const completed: string[] = result?.completed ?? [];
-    const warnings: string[] = result?.warnings ?? [];
-    const week = result?.week;
-
-    const lines = [
-      week
-        ? `Week advanced: **${week.previousWeek} → ${week.weekNumber}** (${String(week.seasonStage).replaceAll("_", " ")})`
-        : "Week was not advanced — see warnings below.",
-      "",
-      "**Next steps before sending DMs:**",
-      result?.gotw?.pendingApproval ? "1. Select the Game of the Week below." : "1. GOTW already selected.",
-      "2. Set the next advance date and time below.",
-      "3. Once both are set, use **Send Advance DMs** to notify members and create game channels.",
-      "",
-      completed.length ? `Completed: ${completed.join(", ")}` : undefined,
-      warnings.length ? `**Warnings (${warnings.length}):**` : undefined,
-      ...warnings.slice(0, 8).map((w) => `• ${w}`)
-    ].filter((l): l is string => l !== undefined);
-
-    await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle(warnings.length === 0 ? "Advance Week Completed" : "Advance Week Completed (with warnings)")
-          .setDescription(lines.join("\n").slice(0, 4000))
-      ],
-      components: buildAdvanceMenuPanel().components
-    });
-
-    // Regular-season weeks need a GOTW pick; offer the selection right after the summary.
-    if (result?.gotw?.pendingApproval && result.gotw.candidates?.length) {
-      await interaction.followUp({ ...buildGotwSelectionPayload(result.gotw.candidates), flags: MessageFlags.Ephemeral });
-    }
-
-    // Prompt the advancer to set the next advance deadline (day / time / timezone).
-    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE };
+    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true };
     advanceScheduleSessions.set(interaction.user.id, scheduleState);
-    await interaction.followUp({ ...buildAdvanceSchedulePayload(scheduleState), flags: MessageFlags.Ephemeral });
+    await interaction.editReply(buildAdvanceSchedulePayload(scheduleState));
     return;
   }
 
@@ -699,16 +668,15 @@ async function handleActivityRequirementsModal(interaction: Extract<Interaction,
 }
 
 // Maps the setup season-week selection to the league's current_week + season_stage.
-// Stage must be one of: regular_season | playoffs | super_bowl | offseason (see advance.service setLeagueWeek).
 function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; seasonStage: string } {
   if (seasonWeek.startsWith("week_")) {
     const n = Number(seasonWeek.slice("week_".length));
     return { weekNumber: Number.isFinite(n) && n > 0 ? n : 1, seasonStage: "regular_season" };
   }
   switch (seasonWeek) {
-    case "wildcard": return { weekNumber: 19, seasonStage: "playoffs" };
-    case "divisional": return { weekNumber: 20, seasonStage: "playoffs" };
-    case "conference": return { weekNumber: 21, seasonStage: "playoffs" };
+    case "wildcard": return { weekNumber: 19, seasonStage: "wildcard" };
+    case "divisional": return { weekNumber: 20, seasonStage: "divisional" };
+    case "conference": return { weekNumber: 21, seasonStage: "conference_championship" };
     case "super_bowl": return { weekNumber: 22, seasonStage: "super_bowl" };
     case "coach_hiring":
     case "final_resigning":
@@ -870,6 +838,14 @@ async function handleAdvanceScheduleConfirm(interaction: Extract<Interaction, { 
     return interaction.reply({ content: "Select a day, time, and timezone first.", flags: MessageFlags.Ephemeral });
   }
   await interaction.deferUpdate();
+
+  // Wizard mode: start the full advance pipeline
+  if (state.wizardMode && interaction.inCachedGuild()) {
+    advanceScheduleSessions.delete(interaction.user.id);
+    await runAdvanceWizardProcessing(interaction, state.date, state.hour, state.timezone, interaction.guild);
+    return;
+  }
+
   try {
     const [y, mo, d] = state.date.split("-").map(Number);
     const when = wallClockToUtc(y, mo, d, state.hour, state.timezone);

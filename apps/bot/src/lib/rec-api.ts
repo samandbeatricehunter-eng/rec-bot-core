@@ -490,5 +490,23 @@ export const recApi = {
     recFetch<any>("/v1/streams/review", {
       method: "POST",
       body: JSON.stringify(input)
+    }),
+
+  processAdvanceResults: (guildId: string) =>
+    recFetch<any>("/v1/advance/process-results", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  processPotwAward: (guildId: string) =>
+    recFetch<any>("/v1/advance/process-potw", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  finalizeAdvanceStep: (guildId: string) =>
+    recFetch<any>("/v1/advance/finalize", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
     })
 };

@@ -1618,14 +1618,14 @@ export async function calculateRecPotw(guildId: string) {
   if (error) throw error;
   const candidates: any[] = [];
   for (const row of statsRows ?? []) {
-    const stats = row.stats ?? row.raw_payload ?? {};
     const assignment = [...eligible.values()].find((a: any) => String(a.team_id) === String(row.team_id));
     if (!assignment) continue;
     const conference = assignment.rec_teams?.conference ?? "Unknown";
     const position = row.rec_players?.position ?? row.position ?? null;
     const playerName = row.rec_players?.full_name ?? row.player_name ?? "Unknown Player";
-    const offensiveScore = calculateOffensivePotwScore({ position, passYds: asNumber(row.pass_yards), passTDs: asNumber(row.pass_touchdowns), passInts: asNumber(row.pass_interceptions), rushYds: asNumber(row.rush_yards), rushTDs: asNumber(row.rush_touchdowns), recYds: asNumber(row.receiving_yards), recTDs: asNumber(row.receiving_touchdowns), receptions: asNumber(row.receptions) });
-    const defensiveScore = calculateDefensivePotwScore({ sacks: asNumber(row.sacks), ints: asNumber(row.interceptions), defensiveTDs: asNumber(row.defensive_touchdowns), forcedFumbles: asNumber(row.forced_fumbles), tackles: asNumber(row.tackles), tacklesForLoss: asNumber(row.tackles_for_loss) });
+    const stats = (row.stats ?? row.raw_payload ?? {}) as Record<string, any>;
+    const offensiveScore = calculateOffensivePotwScore({ position, passYds: asNumber(stats.passYds), passTDs: asNumber(stats.passTDs), passInts: asNumber(stats.passInts), rushYds: asNumber(stats.rushYds), rushTDs: asNumber(stats.rushTDs), recYds: asNumber(stats.recYds), recTDs: asNumber(stats.recTDs), receptions: asNumber(stats.recCatches ?? stats.receptions) });
+    const defensiveScore = calculateDefensivePotwScore({ sacks: asNumber(stats.defSacks), ints: asNumber(stats.defInts), defensiveTDs: asNumber(stats.defTDs), forcedFumbles: asNumber(stats.defForcedFum), tackles: asNumber(stats.defTackles ?? stats.tackles), tacklesForLoss: asNumber(stats.defTFL ?? stats.tacklesForLoss) });
     candidates.push({ row, assignment, conference, position, playerName, offensiveScore, defensiveScore });
   }
   const awards: any[] = [];
@@ -1635,10 +1635,14 @@ export async function calculateRecPotw(guildId: string) {
     const defense = group.sort((a, b) => b.defensiveScore - a.defensiveScore)[0];
     for (const [side, winner, score] of [["offense", offense, offense?.offensiveScore], ["defense", defense, defense?.defensiveScore]] as const) {
       if (!winner || !score || score <= 0) continue;
-      awards.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, conference, award_side: side, award_source: "rec_calculated", player_external_id: String(winner.row.rec_players?.madden_player_id ?? winner.row.madden_player_id ?? ""), player_name: winner.playerName, position: winner.position, team_id: winner.assignment.team_id, user_id: winner.assignment.user_id, score, payout_amount: REC_POTW_PAYOUT_AMOUNT, raw_payload: winner.row.raw_payload ?? {} });
+      awards.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, conference, award_side: side, award_source: "rec_calculated", player_external_id: String(winner.row.rec_players?.madden_player_id ?? winner.row.madden_player_id ?? ""), player_name: winner.playerName, position: winner.position, team_id: winner.assignment.team_id, user_id: winner.assignment.user_id, score, payout_amount: REC_POTW_PAYOUT_AMOUNT, weeklyStats: winner.row.stats ?? {}, raw_payload: winner.row.raw_payload ?? {} });
     }
   }
-  if (awards.length) await supabase.from("rec_weekly_player_awards").upsert(awards, { onConflict: "league_id,season_number,week_number,conference,award_side,award_source" });
+  // Persist to DB without the in-memory weeklyStats field
+  if (awards.length) {
+    const dbAwards = awards.map(({ weeklyStats: _ws, ...rest }: any) => rest);
+    await supabase.from("rec_weekly_player_awards").upsert(dbAwards, { onConflict: "league_id,season_number,week_number,conference,award_side,award_source" });
+  }
   return { awards };
 }
 
@@ -2056,11 +2060,15 @@ export async function advanceLeagueWeek(guildId: string) {
   const previousWeek = asNumber(league.current_week ?? 1);
   const previousStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
   const weekNumber = previousWeek + 1;
-  // REC season structure: weeks 1-17 regular season, 18-20 playoffs, week 21 Super Bowl.
+  // REC season: weeks 1-17 regular season, week 18 = wildcard, 19 = divisional,
+  // 20 = conference championship, 21 = super bowl, 22+ = offseason.
+  // EOS badges and payouts fire in setLeagueWeek when transitioning out of regular_season.
   const seasonStage =
-    previousStage === "regular_season" && weekNumber >= 18 ? "playoffs"
-    : previousStage === "playoffs" && weekNumber >= 21 ? "super_bowl"
-    : previousStage === "super_bowl" && weekNumber >= 22 ? "offseason"
+    previousStage === "regular_season" && weekNumber >= 18 ? "wildcard"
+    : previousStage === "wildcard" ? "divisional"
+    : previousStage === "divisional" ? "conference_championship"
+    : previousStage === "conference_championship" ? "super_bowl"
+    : previousStage === "super_bowl" ? "offseason"
     : previousStage;
   await setLeagueWeek({ guildId, weekNumber, seasonStage });
   return { previousWeek, weekNumber, previousStage, seasonStage };
@@ -2263,9 +2271,9 @@ export async function getGotwCandidates(guildId: string) {
 }
 
 function gotwQuestion(stage: string, weekNumber: number) {
-  if (stage === "wild_card") return "Who will win their Wild Card matchup?";
+  if (stage === "wildcard") return "Who will win their Wild Card matchup?";
   if (stage === "divisional") return "Who will win their Divisional matchup?";
-  if (stage === "conference_championship") return "Who will win their Conference matchup?";
+  if (stage === "conference_championship") return "Who will win their Conference Championship matchup?";
   if (stage === "super_bowl") return "Who will win this year's Super Bowl?";
   return `Who will win Week ${weekNumber}'s GOTW?`;
 }
@@ -2586,4 +2594,53 @@ export async function settleGotwVotes(guildId: string) {
     settled.push({ pollId: poll.id, winningTeamId, votes: votes?.length ?? 0 });
   }
   return { settled };
+}
+
+// ── Wizard-friendly split advance steps ─────────────────────────────────────
+
+function makeStepRunner() {
+  const warnings: string[] = [];
+  const completed: string[] = [];
+  const step = async (name: string, fn: () => Promise<unknown>) => {
+    try { await fn(); completed.push(name); }
+    catch (error) {
+      console.error(`[ADVANCE] step "${name}" failed:`, error);
+      warnings.push(`${name}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+  return { step, warnings, completed };
+}
+
+export async function processAdvanceResults(guildId: string) {
+  const { step, warnings, completed } = makeStepRunner();
+  let week: { previousWeek: number; weekNumber: number; previousStage: string; seasonStage: string } | null = null;
+  await step("advance_week", async () => { week = await advanceLeagueWeek(guildId); });
+  await step("apply_records", () => applyAdvanceRecords(guildId));
+  await step("game_payouts", () => issueWeeklyGamePayouts(guildId));
+  await step("settle_gotw", () => settleGotwVotes(guildId));
+  await step("evaluate_challenges", () => evaluateWeeklyChallenges(guildId));
+  await step("stream_compliance", () => evaluateStreamCompliance(guildId));
+  return { week, completed, warnings };
+}
+
+export async function processPotwAward(guildId: string) {
+  const { step, warnings, completed } = makeStepRunner();
+  let awards: any[] = [];
+  await step("calculate_potw", async () => { const r = await calculateRecPotw(guildId); awards = r.awards ?? []; });
+  await step("potw_payouts", () => issueRecPotwPayouts(guildId));
+  await step("assign_badges", () => assignWeeklyBadges(guildId));
+  const context = await getLeagueContext(guildId).catch(() => null);
+  const routes = context ? await getRoutes(context.server_id).catch(() => null) : null;
+  const discordIds = await resolveDiscordIdsByUser(awards.map((a: any) => a.user_id));
+  const announcementAwards = awards.map((award: any) => ({
+    ...award,
+    discordId: award.user_id ? discordIds.get(String(award.user_id)) ?? null : null
+  }));
+  return { awards: announcementAwards, announcementsChannelId: routes?.announcements_channel_id ?? null, completed, warnings };
+}
+
+export async function finalizeAdvanceStep(guildId: string) {
+  const { step, warnings, completed } = makeStepRunner();
+  await step("generate_challenges", () => generateWeeklyChallenges({ guildId, regenerate: false }));
+  return { completed, warnings };
 }
