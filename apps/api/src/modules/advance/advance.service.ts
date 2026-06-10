@@ -196,7 +196,7 @@ const BADGE_DEFINITIONS = {
 async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number) {
   const { data: allRecords } = await supabase
     .from("rec_season_user_records")
-    .select("user_id,points_for,points_against,games_played,wins")
+    .select("user_id,wins,point_differential,games_played")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
 
@@ -205,11 +205,11 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
   const badgesToAssign: any[] = [];
   const recordsToUpdate: any[] = [];
 
-  // Define all records to track with their value getters and comparison logic
+  // Only track metrics that exist as real columns on rec_season_user_records.
+  // (points_for / points_against are NOT columns on this table.)
   const records = [
-    { metric: "points_for", label: "Points Scored", getter: (r: any) => r.points_for },
-    { metric: "points_against", label: "Points Allowed", getter: (r: any) => r.points_against, isLowest: true },
-    { metric: "wins", label: "Wins", getter: (r: any) => r.wins }
+    { metric: "wins", label: "Wins", getter: (r: any) => r.wins },
+    { metric: "point_differential", label: "Point Differential", getter: (r: any) => r.point_differential }
   ];
 
   for (const recordType of records) {
@@ -225,15 +225,13 @@ async function assignRecordBreakerBadges(leagueId: string, seasonNumber: number)
     const recordHolder = existingRecord?.record_holder_id;
     const currentBestValue = existingRecord?.record_value ?? 0;
 
-    // Find the best value in current season (highest for points_for/wins, lowest for points_against)
+    // Find the best value in current season (highest wins/point_differential wins)
     let bestUser: string | null = null;
     let bestValue = currentBestValue;
 
     for (const record of allRecords) {
       const value = recordType.getter(record);
-      const isBetter = recordType.isLowest ? value < bestValue : value > bestValue;
-
-      if (isBetter) {
+      if (value > bestValue) {
         bestValue = value;
         bestUser = record.user_id;
       }
@@ -453,7 +451,7 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
   // Pre-fetch all season records for this league (single query, used by all badge logic)
   const { data: seasonRecords } = await supabase
     .from("rec_season_user_records")
-    .select("user_id,wins,losses,ties,points_for,points_against,games_played,point_differential")
+    .select("user_id,wins,losses,ties,games_played,point_differential")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
 
@@ -529,21 +527,6 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
       });
     }
 
-    // HIGH OCTANE: 40+ points per game average
-    // e.g., 680+ total points in 17 games = 40 PPG minimum
-    const ppg = record.games_played > 0 ? record.points_for / record.games_played : 0;
-    if (ppg >= 40) {
-      badgesToAssign.push({
-        user_id: userId,
-        league_id: leagueId,
-        season_number: seasonNumber,
-        badge_name: "high_octane",
-        badge_label: "High Octane",
-        earned_value: Number(ppg.toFixed(1)),
-        earned_at: nowIso()
-      });
-    }
-
     // BLOWOUT MASTER: 50%+ of wins by 21+ point margin
     // Requires 8+ wins minimum (50% of 16 = 8 blowout wins needed)
     const blowoutWins = userGames.filter((g: any) => {
@@ -594,37 +577,6 @@ async function assignSeasonEndBadges(leagueId: string, seasonNumber: number) {
         season_number: seasonNumber,
         badge_name: "closer",
         badge_label: "Closer",
-        earned_at: nowIso()
-      });
-    }
-  }
-
-  // === LEAGUE-WIDE BADGES (only one winner per league) ===
-  if (seasonRecords.length > 0) {
-    // SCORING LEADER: Most total points scored in season (league-wide)
-    const sortedByPf = [...seasonRecords].sort((a: any, b: any) => b.points_for - a.points_for);
-    if (sortedByPf[0]) {
-      badgesToAssign.push({
-        user_id: sortedByPf[0].user_id,
-        league_id: leagueId,
-        season_number: seasonNumber,
-        badge_name: "scoring_leader",
-        badge_label: "Scoring Leader",
-        earned_value: sortedByPf[0].points_for,
-        earned_at: nowIso()
-      });
-    }
-
-    // DEFENSIVE POWERHOUSE: Fewest points allowed in season (league-wide)
-    const sortedByPa = [...seasonRecords].sort((a: any, b: any) => a.points_against - b.points_against);
-    if (sortedByPa[0]) {
-      badgesToAssign.push({
-        user_id: sortedByPa[0].user_id,
-        league_id: leagueId,
-        season_number: seasonNumber,
-        badge_name: "defensive_powerhouse",
-        badge_label: "Defensive Powerhouse",
-        earned_value: sortedByPa[0].points_against,
         earned_at: nowIso()
       });
     }
@@ -1196,8 +1148,8 @@ const CHALLENGE_TEMPLATE_MAP = new Map<string, ChallengeTemplate>([
   ["fallback_hold_qb", DEFENSIVE_CHALLENGE_POOL[0]]
 ]);
 
-function pickFromPool(pool: ChallengeTemplate[], previousKey?: string | null): ChallengeTemplate {
-  const filtered = previousKey ? pool.filter((t) => t.key !== previousKey) : pool;
+function pickFromPool(pool: ChallengeTemplate[], excludedKeys?: Set<string> | null): ChallengeTemplate {
+  const filtered = excludedKeys?.size ? pool.filter((t) => !excludedKeys.has(t.key)) : pool;
   const source = filtered.length > 0 ? filtered : pool;
   return source[Math.floor(Math.random() * source.length)];
 }
@@ -1262,30 +1214,41 @@ async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, th
   return { teamId, avgPassYdsPerGame, avgRushYdsPerGame, topPasserName, topRusherName, weeksPlayed: Math.max(latestPassWeek, latestRushWeek) };
 }
 
-function selectDefensiveChallenge(opp: TeamSeasonProfile, previousKey?: string | null): { template: ChallengeTemplate; targetPlayerName: string | null } {
+function selectDefensiveChallenge(opp: TeamSeasonProfile, excludedKeys?: Set<string> | null): { template: ChallengeTemplate; targetPlayerName: string | null } {
   if (opp.weeksPlayed > 0) {
-    if (opp.avgPassYdsPerGame > 270) return { template: CHALLENGE_TEMPLATE_MAP.get("hold_qb_200")!, targetPlayerName: opp.topPasserName };
-    if (opp.avgPassYdsPerGame > 200) return { template: CHALLENGE_TEMPLATE_MAP.get("hold_qb_225")!, targetPlayerName: opp.topPasserName };
-    if (opp.avgRushYdsPerGame > 150) return { template: CHALLENGE_TEMPLATE_MAP.get("hold_rush_75")!, targetPlayerName: opp.topRusherName };
-    if (opp.avgRushYdsPerGame > 100) return { template: CHALLENGE_TEMPLATE_MAP.get("hold_rush_100")!, targetPlayerName: opp.topRusherName };
+    // Build a style-specific pool based on opponent's offensive tendencies, then exclude recently used keys.
+    let stylePool: ChallengeTemplate[] | null = null;
+    let targetPlayer: string | null = null;
+    if (opp.avgPassYdsPerGame > 270) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_qb_")); targetPlayer = opp.topPasserName; }
+    else if (opp.avgPassYdsPerGame > 200) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_qb_")); targetPlayer = opp.topPasserName; }
+    else if (opp.avgRushYdsPerGame > 150) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_rush_")); targetPlayer = opp.topRusherName; }
+    else if (opp.avgRushYdsPerGame > 100) { stylePool = DEFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("hold_rush_")); targetPlayer = opp.topRusherName; }
+    if (stylePool) {
+      const available = excludedKeys?.size ? stylePool.filter((t) => !excludedKeys.has(t.key)) : stylePool;
+      // If style pool still has options after excluding recent, use it; otherwise fall through to full pool
+      if (available.length > 0) return { template: available[Math.floor(Math.random() * available.length)], targetPlayerName: targetPlayer };
+    }
   }
-  return { template: pickFromPool(DEFENSIVE_CHALLENGE_POOL, previousKey), targetPlayerName: null };
+  return { template: pickFromPool(DEFENSIVE_CHALLENGE_POOL, excludedKeys), targetPlayerName: null };
 }
 
-function selectOffensiveChallenge(user: TeamSeasonProfile, previousKey?: string | null): { template: ChallengeTemplate; targetPlayerName: string | null } {
+function selectOffensiveChallenge(user: TeamSeasonProfile, excludedKeys?: Set<string> | null): { template: ChallengeTemplate; targetPlayerName: string | null } {
   if (user.weeksPlayed > 0 && (user.avgPassYdsPerGame > 0 || user.avgRushYdsPerGame > 0)) {
     const passHeavy = user.avgRushYdsPerGame > 0 && user.avgPassYdsPerGame > user.avgRushYdsPerGame * 2;
     const runHeavy = user.avgPassYdsPerGame > 0 && user.avgRushYdsPerGame > user.avgPassYdsPerGame * 1.5;
     if (passHeavy) {
-      const pool = OFFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("pass_yards_"));
-      if (pool.length) return { template: pickFromPool(pool, previousKey), targetPlayerName: user.topPasserName };
+      // Expand style pool to include pass_tds challenges for more variety
+      const stylePool = OFFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("pass_yards_") || t.key.startsWith("pass_tds_"));
+      const available = excludedKeys?.size ? stylePool.filter((t) => !excludedKeys.has(t.key)) : stylePool;
+      if (available.length > 0) return { template: available[Math.floor(Math.random() * available.length)], targetPlayerName: user.topPasserName };
     }
     if (runHeavy) {
-      const pool = OFFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("rush_yards_"));
-      if (pool.length) return { template: pickFromPool(pool, previousKey), targetPlayerName: user.topRusherName };
+      const stylePool = OFFENSIVE_CHALLENGE_POOL.filter((t) => t.key.startsWith("rush_yards_"));
+      const available = excludedKeys?.size ? stylePool.filter((t) => !excludedKeys.has(t.key)) : stylePool;
+      if (available.length > 0) return { template: available[Math.floor(Math.random() * available.length)], targetPlayerName: user.topRusherName };
     }
   }
-  return { template: pickFromPool(OFFENSIVE_CHALLENGE_POOL, previousKey), targetPlayerName: null };
+  return { template: pickFromPool(OFFENSIVE_CHALLENGE_POOL, excludedKeys), targetPlayerName: null };
 }
 
 export async function generateWeeklyChallenges(input: { guildId: string; regenerate?: boolean }) {
@@ -1298,18 +1261,22 @@ export async function generateWeeklyChallenges(input: { guildId: string; regener
   }
   const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
 
-  // Fetch previous week's challenge keys per user to exclude from pool for variety
-  const prevWeekNum = weekNumber - 1;
-  const prevKeyMap = new Map<string, string>();
-  if (prevWeekNum >= 1) {
+  // Fetch the last 3 weeks of challenge keys per user to exclude from pool for variety
+  const lookbackWeeks = 3;
+  const firstLookback = Math.max(1, weekNumber - lookbackWeeks);
+  const prevKeyMap = new Map<string, Set<string>>();
+  if (firstLookback < weekNumber) {
     const { data: prevChallenges } = await supabase
       .from("rec_weekly_challenges")
       .select("user_id,challenge_side,challenge_key")
       .eq("league_id", context.league_id)
       .eq("season_number", seasonNumber)
-      .eq("week_number", prevWeekNum);
+      .gte("week_number", firstLookback)
+      .lt("week_number", weekNumber);
     for (const c of prevChallenges ?? []) {
-      prevKeyMap.set(`${c.user_id}|${c.challenge_side}`, c.challenge_key);
+      const mapKey = `${c.user_id}|${c.challenge_side}`;
+      if (!prevKeyMap.has(mapKey)) prevKeyMap.set(mapKey, new Set());
+      prevKeyMap.get(mapKey)!.add(c.challenge_key);
     }
   }
 
@@ -2740,7 +2707,7 @@ export async function previewEosPayouts(guildId: string) {
 
   const { data: records, error } = await supabase
     .from("rec_season_user_records")
-    .select("user_id,wins,losses,ties,points_for,point_differential,games_played")
+    .select("user_id,wins,losses,ties,point_differential,games_played")
     .eq("league_id", context.league_id)
     .eq("season_number", seasonNumber)
     .order("wins", { ascending: false });

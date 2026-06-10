@@ -383,6 +383,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "regenerate_challenges") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Regenerating Challenges...").setDescription("Voiding current challenges and generating new ones. Please wait.")], components: [] });
     const result = await recApi.regenerateWeeklyChallenges(interaction.guildId);
     await interaction.editReply({
       embeds: [
@@ -400,6 +401,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "challenge_audit") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Challenge Audit...").setDescription("Fetching recent challenge results.")], components: [] });
     const result = await recApi.getChallengeAudit(interaction.guildId);
     const challenges = Array.isArray(result?.challenges) ? result.challenges.slice(0, 15) : [];
     const lines = challenges.length
@@ -418,6 +420,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "catch_up_advance") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Processing Catch-Up Advance...").setDescription("Applying game results, records, and payouts for the imported week. This may take a moment.")], components: [] });
     const result = await recApi.postAdvanceAutomation(interaction.guildId, "catch_up");
     await interaction.editReply({
       embeds: [
@@ -435,6 +438,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "test_eos_payouts") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Calculating EOS Payouts...").setDescription("Fetching season standings and projecting end-of-season payouts.")], components: [] });
     try {
       const preview = await recApi.previewEosPayouts(interaction.guildId);
       const lines = [
@@ -473,6 +477,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
       await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Send Advance DMs").setDescription("This action requires a guild context.")], components: buildAdvanceMenuPanel().components });
       return;
     }
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Sending Advance DMs...").setDescription("Sending DMs to all active players and creating game channels. This may take a moment.")], components: [] });
     let dmSummary: string[];
     try {
       const dmResult = await sendAdvanceDmsForGuild(guild);
@@ -493,6 +498,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "reselect_gotw") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading GOTW Candidates...").setDescription("Fetching matchup data to re-select the Game of the Week.")], components: [] });
     const result = await recApi.getGotwCandidates(interaction.guildId);
     const stage = result?.stage ?? "regular_season";
     if (stage !== "regular_season") {
@@ -519,7 +525,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
       await interaction.update({ content: "Game channels can only be recreated inside a Discord server.", embeds: [], components: [] });
       return;
     }
-
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Recreating Game Channels...").setDescription("Deleting old channels and rebuilding all active H2H game channels.")], components: [] });
     const result = await recreateGameChannelsForGuild(guild);
     await interaction.editReply({
       embeds: [
@@ -719,7 +725,7 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
-  const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+  const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id, serverName: interaction.guild?.name });
 
   // Persist the starting week/stage chosen during setup (defaults to regular-season week 1).
   const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek(draft.seasonWeek);

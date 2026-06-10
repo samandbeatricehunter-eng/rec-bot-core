@@ -88,7 +88,7 @@ function mapImportModeToTrustMode(importMode: CreateLeagueInput["importMode"]) {
 export async function createLeagueForServer(input: CreateLeagueInput) {
   const serverResult = await registerServer({
     guildId: input.guildId,
-    name: input.guildId,
+    name: input.serverName ?? input.guildId,
     setupMode: "manual_first",
     requestedByDiscordId: input.requestedByDiscordId
   });

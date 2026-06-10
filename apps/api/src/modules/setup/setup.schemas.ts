@@ -100,7 +100,8 @@ export const CreateLeagueSchema = z.object({
 
   fairSimRequirements: z.string().optional().nullable(),
   forceWinRequirements: z.string().optional().nullable(),
-  requestedByDiscordId: z.string().min(1).optional()
+  requestedByDiscordId: z.string().min(1).optional(),
+  serverName: z.string().optional()
 });
 
 export const UpdateServerRoutesSchema = z.object({

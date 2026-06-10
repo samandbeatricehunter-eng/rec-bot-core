@@ -46,6 +46,7 @@ export const recApi = {
   createLeague: (input: LeagueSetupDraft & {
     guildId: string;
     requestedByDiscordId?: string;
+    serverName?: string;
   }) =>
     recFetch<any>(REC_API_ROUTES.createLeague, {
       method: "POST",

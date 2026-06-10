@@ -137,7 +137,7 @@ export async function sendAdvanceDmsOnly(guild: Guild) {
       "REC League Advanced",
       "",
       `League: ${payload.leagueName}`,
-      `Server Name: ${payload.serverName ?? guild.name}`,
+      `Server: [${guild.name}](https://discord.com/channels/${guild.id})`,
       `Season: ${payload.seasonNumber}`,
       `Current Week: ${payload.weekNumber}`,
       `Stage: ${String(payload.seasonStage ?? "").replaceAll("_", " ")}`,
