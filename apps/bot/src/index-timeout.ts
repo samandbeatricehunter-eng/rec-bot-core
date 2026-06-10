@@ -713,11 +713,11 @@ function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; se
     case "divisional": return { weekNumber: 20, seasonStage: "divisional" };
     case "conference": return { weekNumber: 21, seasonStage: "conference_championship" };
     case "super_bowl": return { weekNumber: 22, seasonStage: "super_bowl" };
-    case "coach_hiring":
-    case "final_resigning":
-    case "free_agency":
-    case "draft":
-    case "training_camp": return { weekNumber: 1, seasonStage: "offseason" };
+    case "coach_hiring":    return { weekNumber: 1, seasonStage: "coach_hiring" };
+    case "final_resigning": return { weekNumber: 1, seasonStage: "final_resigning" };
+    case "free_agency":     return { weekNumber: 1, seasonStage: "free_agency" };
+    case "draft":           return { weekNumber: 1, seasonStage: "draft" };
+    case "training_camp":   return { weekNumber: 1, seasonStage: "preseason_training_camp" };
     default: return { weekNumber: 1, seasonStage: "regular_season" };
   }
 }

@@ -18,6 +18,7 @@ export const SeasonStageSchema = z.enum([
   "super_bowl",
   "offseason",
   "coach_hiring",
+  "final_resigning",
   "free_agency",
   "draft"
 ]);

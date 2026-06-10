@@ -1048,7 +1048,16 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
   const patch: Record<string, unknown> = {
     current_week: input.weekNumber,
     season_stage: input.seasonStage,
-    current_phase: input.seasonStage === "regular_season" ? "regular_season" : input.seasonStage === "offseason" ? "offseason" : "playoffs",
+    current_phase: (
+      input.seasonStage === "regular_season" ? "regular_season"
+      : input.seasonStage === "preseason_training_camp" ? "preseason"
+      : input.seasonStage === "coach_hiring" ? "coach_hiring_period"
+      : input.seasonStage === "final_resigning" ? "offseason"
+      : input.seasonStage === "free_agency" ? "free_agency_stage_1"
+      : input.seasonStage === "draft" ? "draft"
+      : ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(input.seasonStage) ? "playoffs"
+      : "offseason"
+    ),
     updated_at: new Date().toISOString()
   };
   if (input.seasonNumber) patch.season_number = input.seasonNumber;
@@ -1069,8 +1078,8 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
   }
 
   // Assign championship badges and convert Record Breaker → Record Holder when season ends
-  // This happens when transitioning from super_bowl (week 21) to offseason
-  if (previousStage === "super_bowl" && input.seasonStage === "offseason") {
+  // This happens when transitioning from super_bowl to the first offseason stage (coach_hiring)
+  if (previousStage === "super_bowl" && input.seasonStage === "coach_hiring") {
     try {
       await assignPlayoffBadges(context.league_id, seasonNumber);
     } catch {
@@ -2101,14 +2110,20 @@ export async function advanceLeagueWeek(guildId: string) {
   const previousStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
   const weekNumber = previousWeek + 1;
   // REC season: weeks 1-18 regular season, week 19 = wild_card, 20 = divisional,
-  // 20 = conference championship, 21 = super bowl, 22+ = offseason.
+  // 21 = conference_championship, 22 = super_bowl.
+  // Offseason chain: super_bowl → coach_hiring → final_resigning → free_agency → draft → preseason_training_camp → regular_season (season 2+).
   // EOS badges and payouts fire in setLeagueWeek when transitioning out of regular_season.
   const seasonStage =
     previousStage === "regular_season" && weekNumber >= 19 ? "wild_card"
     : previousStage === "wild_card" ? "divisional"
     : previousStage === "divisional" ? "conference_championship"
     : previousStage === "conference_championship" ? "super_bowl"
-    : previousStage === "super_bowl" ? "offseason"
+    : previousStage === "super_bowl" ? "coach_hiring"
+    : previousStage === "coach_hiring" ? "final_resigning"
+    : previousStage === "final_resigning" ? "free_agency"
+    : previousStage === "free_agency" ? "draft"
+    : previousStage === "draft" ? "preseason_training_camp"
+    : previousStage === "preseason_training_camp" ? "regular_season"
     : previousStage;
   await setLeagueWeek({ guildId, weekNumber, seasonStage });
   return { previousWeek, weekNumber, previousStage, seasonStage };
