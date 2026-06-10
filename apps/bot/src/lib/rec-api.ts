@@ -508,5 +508,17 @@ export const recApi = {
     recFetch<any>("/v1/advance/finalize", {
       method: "POST",
       body: JSON.stringify({ guildId })
+    }),
+
+  processPlayoffGotw: (guildId: string) =>
+    recFetch<any>("/v1/advance/playoff-gotw", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  previewEosPayouts: (guildId: string) =>
+    recFetch<any>("/v1/advance/preview-eos", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
     })
 };

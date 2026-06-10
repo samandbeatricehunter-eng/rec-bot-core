@@ -33,8 +33,13 @@ function buildActivityRulesLines(plan: any): string[] {
 
 function buildGameEmbeds(plan: any) {
   const weekLabel = plan.weekNumber ? `Week ${plan.weekNumber}: ` : "";
+  const gotwLabel = plan.isGotw
+    ? plan.isPlayoff
+      ? `\n🏆 **${String(plan.seasonStage ?? "Playoff").replaceAll("_", " ")} GOTW** — Vote in the announcements channel!`
+      : "\n⭐ **Game of the Week** — Vote in the announcements channel!"
+    : "";
   const base = [
-    "Schedule your game in this channel this week.",
+    `Schedule your game in this channel this week.${gotwLabel}`,
     "",
     "Next Advance:",
     advanceLines(plan.nextAdvanceTimes),
@@ -89,12 +94,11 @@ export async function recreateGameChannelsForGuild(guild: Guild) {
   return { created, skipped, totalPlans: result.plans?.length ?? 0 };
 }
 
-export async function sendAdvanceDmsForGuild(guild: Guild) {
-  // Fetch DM payloads directly — running post-advance automation here would advance the week again.
+// Sends DMs and posts the advance announcement. Does NOT create game channels.
+export async function sendAdvanceDmsOnly(guild: Guild) {
   const result = await recApi.getAdvanceDmPayloads(guild.id);
   const payloads = result?.payloads ?? [];
 
-  // Post advance announcement to the league announcements channel before sending DMs
   if (result?.announcementsChannelId) {
     try {
       const announceCh = await guild.channels.fetch(result.announcementsChannelId).catch(() => null) as TextChannel | null;
@@ -169,6 +173,12 @@ export async function sendAdvanceDmsForGuild(guild: Guild) {
     ].filter(Boolean).join("\n");
     try { await user.send(lines); sent++; } catch { failed++; }
   }
+  return { sent, failed };
+}
+
+// Full advance DM flow: sends DMs + announcement + creates game channels.
+export async function sendAdvanceDmsForGuild(guild: Guild) {
+  const { sent, failed } = await sendAdvanceDmsOnly(guild);
   const gameChannels = await recreateGameChannelsForGuild(guild);
   return { sent, failed, gameChannels };
 }

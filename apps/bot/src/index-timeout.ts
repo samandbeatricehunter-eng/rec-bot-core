@@ -434,6 +434,32 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
     return;
   }
 
+  if (selected === "test_eos_payouts") {
+    try {
+      const preview = await recApi.previewEosPayouts(interaction.guildId);
+      const lines = [
+        `**EOS Payout Preview — Season ${preview.seasonNumber}** (Week ${preview.weekNumber})`,
+        `Total projected: **$${preview.totalPayout}**`,
+        "",
+        ...(preview.items ?? []).slice(0, 16).map((item: any) => {
+          const mention = item.discordId ? `<@${item.discordId}>` : `User ${String(item.userId).slice(0, 8)}`;
+          const record = `${item.wins}-${item.losses}-${item.ties}`;
+          return `**${item.rank}.** ${mention} (${record}) — ${item.payoutLabel}: **$${item.projectedPayout}**`;
+        })
+      ];
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("EOS Payout Preview").setDescription(lines.join("\n").slice(0, 4000))],
+        components: buildAdvanceMenuPanel().components
+      });
+    } catch (error) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("EOS Preview Failed").setDescription(error instanceof Error ? error.message : String(error))],
+        components: buildAdvanceMenuPanel().components
+      });
+    }
+    return;
+  }
+
   if (selected === "advance_week") {
     const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true };
     advanceScheduleSessions.set(interaction.user.id, scheduleState);

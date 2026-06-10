@@ -4,7 +4,7 @@ import { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows } f
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { wallClockToUtc } from "../ui/advance-schedule.js";
-import { sendAdvanceDmsForGuild } from "./game-channels.js";
+import { recreateGameChannelsForGuild, sendAdvanceDmsOnly } from "./game-channels.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 
 export const ADVANCE_WIZARD_GOTW_CUSTOM_ID = "rec:advance_wizard:gotw";
@@ -218,8 +218,53 @@ export async function runAdvanceWizardProcessing(
     allWarnings.push(`potw: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Step 4: GOTW (regular season only)
+  // Step 4: GOTW
   const isRegularSeason = newStage === "regular_season";
+  const isPlayoffStage = ["wildcard", "divisional", "conference_championship", "super_bowl"].includes(newStage);
+
+  if (isPlayoffStage) {
+    // In playoffs every H2H game is a GOTW — auto-create polls and post all vote embeds
+    await interaction.editReply({
+      embeds: [processingEmbed(
+        "Step 4 of 5 — Playoff Game of the Week",
+        `All ${String(newStage).replaceAll("_", " ")} matchups are Game of the Week. Creating vote polls...`
+      )],
+      components: []
+    });
+
+    try {
+      const playoffGotw = await recApi.processPlayoffGotw(guildId);
+      const channelId = playoffGotw.channelId;
+      if (channelId && playoffGotw.polls?.length) {
+        const ch = await guild.channels.fetch(channelId).catch(() => null) as TextChannel | null;
+        if (ch?.type === ChannelType.GuildText) {
+          for (const poll of playoffGotw.polls) {
+            const awayDiscordId: string | null = poll.awayDiscordId ?? null;
+            const homeDiscordId: string | null = poll.homeDiscordId ?? null;
+            const discordUserIds = [awayDiscordId, homeDiscordId].filter((id): id is string => Boolean(id));
+            const sent = await ch.send({
+              content: buildGotwAnnouncementContent(poll, awayDiscordId, homeDiscordId),
+              embeds: [buildGotwVoteEmbed(poll, [])],
+              components: buildGotwVoteRows(poll),
+              allowedMentions: { parse: ["everyone"], users: discordUserIds }
+            }).catch((e) => { console.error("[WIZARD] Failed to post playoff GOTW embed:", e); return null; });
+            if (sent) {
+              await recApi.recordGotwPollMessage({ pollId: poll.id, discordChannelId: ch.id, discordMessageId: sent.id }).catch(() => undefined);
+            }
+          }
+        }
+      }
+      allWarnings.push(...(playoffGotw.warnings ?? []));
+    } catch (err) {
+      console.error("[WIZARD] processPlayoffGotw failed:", err);
+      allWarnings.push(`playoff_gotw: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings });
+    await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings);
+    return;
+  }
+
   if (isRegularSeason) {
     await interaction.editReply({
       embeds: [processingEmbed(
@@ -254,7 +299,7 @@ export async function runAdvanceWizardProcessing(
     return;
   }
 
-  // Playoffs/super bowl: skip GOTW
+  // Offseason or unrecognized stage: skip GOTW
   advanceWizardSessions.set(interaction.user.id, { weekNumber: newWeek, seasonStage: newStage, warnings: allWarnings });
   await runAdvanceWizardFinalize(interaction, guild, newWeek, newStage, allWarnings);
 }
@@ -310,15 +355,15 @@ async function runAdvanceWizardFinalize(
   seasonStage: string,
   warnings: string[]
 ) {
+  // 5a: generate challenges
   await interaction.editReply({
     embeds: [processingEmbed(
-      "Step 5 of 5 — Finalizing",
-      "Generating weekly challenges, gathering all data and sending advance notice DMs..."
+      "Step 5 of 5 — Generating Challenges",
+      "Generating weekly challenges..."
     )],
     components: []
   });
 
-  // Generate challenges
   try {
     const finalizeData = await recApi.finalizeAdvanceStep(guild.id);
     warnings.push(...(finalizeData.warnings ?? []));
@@ -327,12 +372,36 @@ async function runAdvanceWizardFinalize(
     warnings.push(`generate_challenges: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Send DMs and create game channels
+  // 5b: send advance DMs and post announcement
+  await interaction.editReply({
+    embeds: [processingEmbed(
+      "Step 5 of 5 — Sending Advance DMs",
+      "Gathering all data and sending advance notice DMs..."
+    )],
+    components: []
+  });
+
   try {
-    await sendAdvanceDmsForGuild(guild);
+    await sendAdvanceDmsOnly(guild);
   } catch (err) {
-    console.error("[WIZARD] sendAdvanceDmsForGuild failed:", err);
+    console.error("[WIZARD] sendAdvanceDmsOnly failed:", err);
     warnings.push(`advance_dms: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // 5c: create game channels (final step)
+  await interaction.editReply({
+    embeds: [processingEmbed(
+      "Step 5 of 5 — Creating Game Channels",
+      "Creating H2H game channels for the new week..."
+    )],
+    components: []
+  });
+
+  try {
+    await recreateGameChannelsForGuild(guild);
+  } catch (err) {
+    console.error("[WIZARD] recreateGameChannelsForGuild failed:", err);
+    warnings.push(`game_channels: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   advanceWizardSessions.delete(interaction.user.id);

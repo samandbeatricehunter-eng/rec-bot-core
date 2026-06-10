@@ -15,6 +15,7 @@ export type AdvanceMenuAction =
   | "reselect_gotw"
   | "challenge_audit"
   | "catch_up_advance"
+  | "test_eos_payouts"
   | "back_admin";
 
 export function buildAdvanceMenuPanel() {
@@ -43,6 +44,7 @@ export function buildAdvanceMenuPanel() {
             new StringSelectMenuOptionBuilder().setLabel("Re-Generate Challenges").setValue("regenerate_challenges").setDescription("Repair this week’s generated challenges."),
             new StringSelectMenuOptionBuilder().setLabel("Audit Challenges").setValue("challenge_audit").setDescription("View the last two in-game weeks."),
             new StringSelectMenuOptionBuilder().setLabel("Catch-Up Advance").setValue("catch_up_advance").setDescription("Process imported week without DMs/GOTW/game channels."),
+            new StringSelectMenuOptionBuilder().setLabel("Test EOS Payouts").setValue("test_eos_payouts").setDescription("Preview projected end-of-season payouts from current standings."),
             new StringSelectMenuOptionBuilder().setLabel("Back to Admin Panel").setValue("back_admin")
           )
       )

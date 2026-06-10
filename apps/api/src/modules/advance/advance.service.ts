@@ -1390,10 +1390,25 @@ export async function getGameChannelPlans(guildId: string) {
   // Pull the league's configured game rules (fourth-down / streaming) from rec_league_configuration.
   const config = await getLeagueConfiguration(context.league_id);
   const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const isPlayoffStage = ["wildcard", "divisional", "conference_championship", "super_bowl"].includes(stage);
   const streamingRequirement = stage === "regular_season"
     ? config?.regular_season_streaming_requirement ?? config?.streaming_requirement
     : config?.postseason_streaming_requirement ?? config?.streaming_requirement;
   const fourthDownRules = humanizeFourthDownRule(config?.fourth_down_rule_type, config?.custom_fourth_down_rule);
+
+  // Determine which game is GOTW: in playoffs every H2H game is GOTW; in regular season look up selected candidate
+  let gotwGameId: string | null = null;
+  if (!isPlayoffStage) {
+    const { data: gotwSelected } = await supabase
+      .from("rec_game_of_week_candidates")
+      .select("game_id")
+      .eq("league_id", context.league_id)
+      .eq("season_number", seasonNumber)
+      .eq("week_number", weekNumber)
+      .eq("is_selected", true)
+      .maybeSingle();
+    gotwGameId = gotwSelected?.game_id ?? null;
+  }
 
   const plans = h2hGames.map((game) => ({
     leagueId: context.league_id,
@@ -1415,7 +1430,10 @@ export async function getGameChannelPlans(guildId: string) {
     streamingRequirement: streamingRequirementText(streamingRequirement),
     fourthDownRules,
     fairSimRequirements: (config?.fair_sim_requirements as string | null | undefined) ?? null,
-    forceWinRequirements: (config?.force_win_requirements as string | null | undefined) ?? null
+    forceWinRequirements: (config?.force_win_requirements as string | null | undefined) ?? null,
+    isGotw: isPlayoffStage || (gotwGameId ? String(game.id) === String(gotwGameId) : false),
+    isPlayoff: isPlayoffStage,
+    seasonStage: stage
   }));
   return { plans, routes, league, server: context.rec_discord_servers };
 }
@@ -2643,4 +2661,125 @@ export async function finalizeAdvanceStep(guildId: string) {
   const { step, warnings, completed } = makeStepRunner();
   await step("generate_challenges", () => generateWeeklyChallenges({ guildId, regenerate: false }));
   return { completed, warnings };
+}
+
+// Creates GOTW polls for every H2H game in the current playoff week (wildcard/divisional/etc).
+// In playoffs every matchup is a GOTW — this auto-creates candidates + polls for all of them.
+export async function processPlayoffGotw(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const weekNumber = league.current_week ?? 1;
+  const stage = String(league.season_stage ?? "wildcard");
+  const routes = await getRoutes(context.server_id);
+  const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
+  const h2hGames = games.filter((g) => g.home_user_id && g.away_user_id);
+  const question = gotwQuestion(stage, weekNumber);
+  const discordIds = await resolveDiscordIdsByUser(h2hGames.flatMap((g) => [g.home_user_id, g.away_user_id]));
+
+  const polls: any[] = [];
+  for (const game of h2hGames) {
+    // Upsert candidate as selected
+    const candidateRow = {
+      league_id: context.league_id,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      game_id: game.id,
+      stage,
+      away_team_id: game.away_team_id,
+      home_team_id: game.home_team_id,
+      away_user_id: game.away_user_id,
+      home_user_id: game.home_user_id,
+      away_team_name: game.away_team?.name ?? "Away Team",
+      home_team_name: game.home_team?.name ?? "Home Team",
+      matchup_title: `${game.away_team?.name ?? "Away"} vs ${game.home_team?.name ?? "Home"}`,
+      strength_rating: 100,
+      is_selected: true,
+      selection_source: "playoff_auto",
+      updated_at: new Date().toISOString()
+    };
+    await supabase.from("rec_game_of_week_candidates").upsert(candidateRow, { onConflict: "league_id,season_number,week_number,game_id" });
+
+    const { data: poll } = await supabase.from("rec_game_of_week_polls").upsert({
+      league_id: context.league_id,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      stage,
+      game_id: game.id,
+      question,
+      away_team_id: game.away_team_id,
+      home_team_id: game.home_team_id,
+      away_team_name: game.away_team?.name ?? "Away Team",
+      home_team_name: game.home_team?.name ?? "Home Team",
+      away_user_id: game.away_user_id,
+      home_user_id: game.home_user_id,
+      status: "open",
+      poll_expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+      vote_deadline_display: Object.fromEntries(formatAdvanceTimes(new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString()).map((t) => [t.label, t.value])),
+      updated_at: new Date().toISOString()
+    }, { onConflict: "league_id,season_number,week_number,game_id" }).select("*").single();
+
+    if (poll) {
+      polls.push({
+        ...poll,
+        awayDiscordId: game.away_user_id ? discordIds.get(String(game.away_user_id)) ?? null : null,
+        homeDiscordId: game.home_user_id ? discordIds.get(String(game.home_user_id)) ?? null : null
+      });
+    }
+  }
+
+  return { polls, channelId: routes?.announcements_channel_id ?? null };
+}
+
+// EOS payout preview: calculates projected end-of-season payouts from season standings without issuing.
+// Triggers at regular_season → wildcard transition. Top finishers by record get tiered bonuses.
+export async function previewEosPayouts(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+
+  const { data: records, error } = await supabase
+    .from("rec_season_user_records")
+    .select("user_id,wins,losses,ties,points_for,point_differential,games_played")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .order("wins", { ascending: false });
+  if (error) throw error;
+
+  const sorted = [...(records ?? [])].sort((a, b) => {
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return (b.point_differential ?? 0) - (a.point_differential ?? 0);
+  });
+
+  const discordIds = await resolveDiscordIdsByUser(sorted.map((r) => r.user_id));
+
+  // EOS payout tiers (configurable defaults)
+  const EOS_TIERS = [
+    { rank: 1, label: "Regular Season Champion", amount: 250 },
+    { rank: 2, label: "2nd Place", amount: 175 },
+    { rank: 3, label: "3rd Place", amount: 125 },
+    { rank: 4, label: "4th Place", amount: 100 },
+    { rank: 5, label: "5th Place", amount: 75 },
+    { rank: 6, label: "6th Place", amount: 75 },
+    { rank: 7, label: "7th Place", amount: 50 },
+    { rank: 8, label: "8th Place", amount: 50 }
+  ];
+
+  const items = sorted.map((record, idx) => {
+    const rank = idx + 1;
+    const tier = EOS_TIERS.find((t) => t.rank === rank);
+    return {
+      rank,
+      userId: record.user_id,
+      discordId: discordIds.get(String(record.user_id)) ?? null,
+      wins: record.wins ?? 0,
+      losses: record.losses ?? 0,
+      ties: record.ties ?? 0,
+      pointDifferential: record.point_differential ?? 0,
+      projectedPayout: tier?.amount ?? 0,
+      payoutLabel: tier?.label ?? `Rank ${rank}`
+    };
+  });
+
+  return { seasonNumber, weekNumber: league.current_week, items, totalPayout: items.reduce((sum, i) => sum + i.projectedPayout, 0) };
 }
