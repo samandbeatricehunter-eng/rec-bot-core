@@ -165,6 +165,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         .from("rec_season_user_records")
         .select("*")
         .eq("league_id", league.id)
+        .eq("season_number", seasonNumber)
         .eq("user_id", userId)
         .maybeSingle()
     ]);

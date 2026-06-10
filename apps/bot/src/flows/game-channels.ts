@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, Guild, TextChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, Guild, PermissionFlagsBits, TextChannel } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
 
 function splitText(text: string, max = 3600) {
@@ -17,9 +17,17 @@ function advanceLines(times: any[]) {
   return times?.length ? times.map((time) => `${time.label}: ${time.value}`).join("\n") : "Next advance time has not been set.";
 }
 
+// Mention the user by Discord ID; fall back to the team nickname if we can't resolve one
+// (the raw user_id is an internal UUID and renders as jumbled text if used as a mention).
+function userMention(discordId: string | null | undefined, fallbackName: string) {
+  return discordId ? `<@${discordId}>` : fallbackName;
+}
+
 function buildGameEmbeds(plan: any) {
+  const awayMention = userMention(plan.awayDiscordId, plan.awayTeamName ?? "Away");
+  const homeMention = userMention(plan.homeDiscordId, plan.homeTeamName ?? "Home");
   const base = [
-    `<@${plan.awayUserId}> vs <@${plan.homeUserId}>`,
+    `${awayMention} vs ${homeMention}`,
     "",
     "You have a User H2H matchup this week.",
     "",
@@ -55,14 +63,14 @@ export async function recreateGameChannelsForGuild(guild: Guild) {
     skipped.push({ reason: "Game channels category not configured in server setup" });
   } else {
     for (const plan of result.plans ?? []) {
-      const channel = await guild.channels.create({ name: plan.channelName, type: ChannelType.GuildText, parent: categoryId, reason: "REC weekly H2H matchup channel" });
+      const channel = await guild.channels.create({ name: plan.channelName, type: ChannelType.GuildText, parent: categoryId, reason: "REC weekly H2H matchup channel", permissionOverwrites: [{ id: guild.roles.everyone, allow: [PermissionFlagsBits.ViewChannel] }] });
       if (channel instanceof TextChannel) {
         // Send game embeds
         await channel.send({ embeds: buildGameEmbeds(plan) });
 
         // Tag both users and request scheduling
-        const awayUser = plan.awayUserId ? `<@${plan.awayUserId}>` : "Away Player";
-        const homeUser = plan.homeUserId ? `<@${plan.homeUserId}>` : "Home Player";
+        const awayUser = userMention(plan.awayDiscordId, plan.awayTeamName ?? "Away Player");
+        const homeUser = userMention(plan.homeDiscordId, plan.homeTeamName ?? "Home Player");
         await channel.send({
           content: [
             `${awayUser} vs ${homeUser}`,
@@ -84,8 +92,9 @@ export async function recreateGameChannelsForGuild(guild: Guild) {
 }
 
 export async function sendAdvanceDmsForGuild(guild: Guild) {
-  const result = await recApi.postAdvanceAutomation(guild.id);
-  const payloads = result.dmPayloads?.payloads ?? [];
+  // Fetch DM payloads directly — running post-advance automation here would advance the week again.
+  const result = await recApi.getAdvanceDmPayloads(guild.id);
+  const payloads = result?.payloads ?? [];
   let sent = 0;
   let failed = 0;
   for (const payload of payloads) {

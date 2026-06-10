@@ -37,6 +37,44 @@ export function formatAdvanceTimes(nextAdvanceAt?: string | null) {
   }));
 }
 
+// League teams are stored with full names ("Jacksonville Jaguars"); game channels and matchup
+// text should use just the nickname ("Jaguars"). The nickname is the trailing word of the name.
+function teamNickname(name: string | null | undefined, fallback: string) {
+  const text = (name ?? "").trim();
+  if (!text) return fallback;
+  const parts = text.split(/\s+/);
+  return parts[parts.length - 1] || fallback;
+}
+
+function humanizeFourthDownRule(type: string | null | undefined, custom: string | null | undefined) {
+  if (!type) return "Use league settings.";
+  if (type === "custom") return custom?.trim() || "Custom league fourth-down rule (see league rules).";
+  // Enum values like "no_restrictions" / "fourth_and_short_only" → "No restrictions" / "Fourth and short only".
+  const text = type.replace(/_/g, " ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function streamingRequirementText(requirement: string | null | undefined) {
+  if (requirement === "required") return "Streaming is required for this game.";
+  if (requirement === "optional") return "Streaming is optional for this game.";
+  if (requirement === "not_required") return "Streaming is not required for this game.";
+  return "Based on league settings";
+}
+
+async function getLeagueConfiguration(leagueId: string) {
+  const { data } = await supabase.from("rec_league_configuration").select("*").eq("league_id", leagueId).maybeSingle();
+  return (data ?? null) as any;
+}
+
+async function resolveDiscordIdsByUser(userIds: Array<string | null | undefined>) {
+  const ids = [...new Set(userIds.filter(Boolean))] as string[];
+  const map = new Map<string, string>();
+  if (ids.length === 0) return map;
+  const { data } = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", ids);
+  for (const row of data ?? []) if (row.user_id && row.discord_id) map.set(String(row.user_id), String(row.discord_id));
+  return map;
+}
+
 function slug(input: string) {
   return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "game";
 }
@@ -910,10 +948,11 @@ async function creditUserWallet(input: {
   if (walletReadError) throw walletReadError;
 
   if (currentWallet) {
+    // rec_wallets is keyed by user_id — it has no id column.
     const { error: walletError } = await supabase
       .from("rec_wallets")
       .update({ wallet_balance: asNumber(currentWallet.wallet_balance) + input.amount, updated_at: nowIso() })
-      .eq("id", currentWallet.id);
+      .eq("user_id", input.userId);
     if (walletError) throw walletError;
   } else {
     const { error: walletError } = await supabase
@@ -987,6 +1026,20 @@ async function getLeagueFeatureSettings(leagueId: string) {
   const { data, error } = await supabase.from("rec_league_feature_settings").select("*").eq("league_id", leagueId).maybeSingle();
   if (error) throw error;
   return data as any;
+}
+
+export async function setNextAdvance(input: { guildId: string; nextAdvanceAt: string; timezone?: string | null }) {
+  const context = await getLeagueContext(input.guildId);
+  const when = new Date(input.nextAdvanceAt);
+  if (Number.isNaN(when.getTime())) throw new Error("Invalid next advance time.");
+  const { data, error } = await supabase
+    .from("rec_leagues")
+    .update({ next_advance_at: when.toISOString(), next_advance_timezone: input.timezone ?? null, updated_at: new Date().toISOString() })
+    .eq("id", context.league_id)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return { league: data, nextAdvanceTimes: formatAdvanceTimes(data.next_advance_at) };
 }
 
 export async function setLeagueWeek(input: { guildId: string; seasonNumber?: number; weekNumber: number; seasonStage: string }) {
@@ -1114,11 +1167,27 @@ export async function generateWeeklyChallenges(input: { guildId: string; regener
       rows.push({ league_id: context.league_id, season_number: seasonNumber, week_number: weekNumber, game_id: game.id, user_id: side.userId, team_id: side.teamId, opponent_team_id: side.opponentTeamId, opponent_user_id: side.opponentUserId, is_cpu_game: !side.opponentUserId, challenge_side: "defense", challenge_key: "fallback_hold_qb", target_type: "player", target_player_name: "Opponent QB", target_player_position: "QB", s_tier_goal: "Hold opponent QB under 225 passing yards and win", a_tier_goal: "Hold opponent QB under 275 passing yards and win", b_tier_goal: "Win the game" });
     }
   }
+  let generated = 0;
   if (rows.length) {
-    const { error } = await supabase.from("rec_weekly_challenges").upsert(rows, { onConflict: "league_id,season_number,week_number,user_id,challenge_side", ignoreDuplicates: true });
-    if (error) throw error;
+    // rec_weekly_challenges has no unique key for ON CONFLICT; dedup against this week's
+    // active challenges instead (regenerate voids them first, so re-generation still inserts).
+    const existing = await supabase
+      .from("rec_weekly_challenges")
+      .select("user_id,challenge_side")
+      .eq("league_id", context.league_id)
+      .eq("season_number", seasonNumber)
+      .eq("week_number", weekNumber)
+      .eq("status", "active");
+    if (existing.error) throw existing.error;
+    const existingKeys = new Set((existing.data ?? []).map((c: any) => `${c.user_id}|${c.challenge_side}`));
+    const toInsert = rows.filter((row) => !existingKeys.has(`${row.user_id}|${row.challenge_side}`));
+    if (toInsert.length) {
+      const { error } = await supabase.from("rec_weekly_challenges").insert(toInsert);
+      if (error) throw error;
+    }
+    generated = toInsert.length;
   }
-  return { generated: rows.length, weekNumber, seasonNumber };
+  return { generated, weekNumber, seasonNumber };
 }
 
 export async function getChallengeAudit(guildId: string) {
@@ -1144,23 +1213,38 @@ export async function getGameChannelPlans(guildId: string) {
   const weekNumber = league.current_week ?? 1;
   const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
   const advanceTimes = formatAdvanceTimes(league.next_advance_at);
-  const plans = games.filter((g) => g.home_user_id && g.away_user_id).map((game) => ({
+  const h2hGames = games.filter((g) => g.home_user_id && g.away_user_id);
+
+  // Resolve real Discord IDs so channel messages tag users (the raw user_id is an internal UUID).
+  const discordByUser = await resolveDiscordIdsByUser(h2hGames.flatMap((g) => [g.home_user_id, g.away_user_id]));
+
+  // Pull the league's configured game rules (fourth-down / streaming) from rec_league_configuration.
+  const config = await getLeagueConfiguration(context.league_id);
+  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const streamingRequirement = stage === "regular_season"
+    ? config?.regular_season_streaming_requirement ?? config?.streaming_requirement
+    : config?.postseason_streaming_requirement ?? config?.streaming_requirement;
+  const fourthDownRules = humanizeFourthDownRule(config?.fourth_down_rule_type, config?.custom_fourth_down_rule);
+
+  const plans = h2hGames.map((game) => ({
     leagueId: context.league_id,
     seasonNumber,
     weekNumber,
     gameId: game.id,
-    channelName: slug(`${game.away_team?.name ?? "away"}-vs-${game.home_team?.name ?? "home"}`),
+    channelName: slug(`${teamNickname(game.away_team?.name, "away")}-vs-${teamNickname(game.home_team?.name, "home")}`),
     awayTeamId: game.away_team_id,
     homeTeamId: game.home_team_id,
-    awayTeamName: game.away_team?.name ?? "Away Team",
-    homeTeamName: game.home_team?.name ?? "Home Team",
+    awayTeamName: teamNickname(game.away_team?.name, "Away Team"),
+    homeTeamName: teamNickname(game.home_team?.name, "Home Team"),
     awayUserId: game.away_user_id,
     homeUserId: game.home_user_id,
+    awayDiscordId: game.away_user_id ? discordByUser.get(String(game.away_user_id)) ?? null : null,
+    homeDiscordId: game.home_user_id ? discordByUser.get(String(game.home_user_id)) ?? null : null,
     categoryId: routes?.game_channels_category_id ?? null,
     nextAdvanceTimes: advanceTimes,
-    streamingRequired: false,
-    streamingRequirement: "Based on league settings",
-    fourthDownRules: "Use league settings.",
+    streamingRequired: streamingRequirement === "required",
+    streamingRequirement: streamingRequirementText(streamingRequirement),
+    fourthDownRules,
     schedulingRules: "Scheduling, Activity & Sportsmanship rules apply."
   }));
   return { plans, routes, league, server: context.rec_discord_servers };
@@ -1318,17 +1402,21 @@ export async function applyAdvanceRecords(guildId: string) {
       { userId: game.home_user_id, teamId: game.home_team_id, score: home, oppScore: away },
       { userId: game.away_user_id, teamId: game.away_team_id, score: away, oppScore: home }
     ].filter((p) => p.userId);
+    const isH2H = Boolean(game.home_user_id && game.away_user_id);
     for (const p of participants) {
       const win = p.score > p.oppScore ? 1 : 0;
       const loss = p.score < p.oppScore ? 1 : 0;
       const tie = p.score === p.oppScore ? 1 : 0;
       const delta = p.score - p.oppScore;
       const patch = { wins: win, losses: loss, ties: tie, games_played: 1, point_differential: delta };
-      await incrementRecord("rec_global_user_records", { user_id: p.userId }, patch).catch(() => undefined);
+      // Global record tracks H2H only; season/league records count all games including CPU
+      if (isH2H) {
+        await incrementRecord("rec_global_user_records", { user_id: p.userId }, patch).catch(() => undefined);
+      }
       await incrementRecord("rec_league_user_records", { league_id: context.league_id, user_id: p.userId }, patch).catch(() => undefined);
       await incrementRecord("rec_season_user_records", { league_id: context.league_id, season_number: seasonNumber, user_id: p.userId }, patch).catch(() => undefined);
     }
-    if (game.home_user_id && game.away_user_id) {
+    if (isH2H) {
       const ids = [game.home_user_id, game.away_user_id].sort();
       const userAIsHome = ids[0] === game.home_user_id;
       const userAPd = userAIsHome ? home - away : away - home;
@@ -1609,12 +1697,14 @@ export async function buildAdvanceDmPayloads(guildId: string) {
   const { data: channels } = await supabase.from("rec_game_channels").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
   const completedWeek = Math.max(1, weekNumber - 1);
   const { data: awards } = await supabase.from("rec_weekly_player_awards").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", completedWeek);
+  // Note: .eq("season_id", null) never matched (SQL = NULL is never true), and the type list
+  // omitted weekly_game_payout — so game win/loss payouts never appeared in advance DMs. Filter
+  // by league only and include every payout transaction type written during advance.
   const { data: payouts } = await supabase
     .from("rec_dollar_ledger")
     .select("user_id,amount,transaction_type,description,source_reference,created_at")
     .eq("league_id", context.league_id)
-    .eq("season_id", null)
-    .in("transaction_type", ["weekly_challenge", "potw", "gotw_correct_guess", "stream_payout"]);
+    .in("transaction_type", ["weekly_game_payout", "weekly_challenge", "potw", "gotw_correct_guess", "stream_payout", "credit"]);
   const { data: wallets } = await supabase.from("rec_wallets").select("user_id,wallet_balance,savings_balance");
   const walletByUser = new Map((wallets ?? []).map((wallet: any) => [wallet.user_id, wallet]));
   const { data: discordAccounts } = await supabase.from("rec_discord_accounts").select("user_id,discord_id");
@@ -1622,8 +1712,8 @@ export async function buildAdvanceDmPayloads(guildId: string) {
   const payloads: any[] = [];
   for (const game of games) {
     const sides = [
-      { userId: game.home_user_id, teamId: game.home_team_id, opponentTeam: game.away_team?.name ?? "Opponent", location: "Home", opponentUserId: game.away_user_id },
-      { userId: game.away_user_id, teamId: game.away_team_id, opponentTeam: game.home_team?.name ?? "Opponent", location: "Away", opponentUserId: game.home_user_id }
+      { userId: game.home_user_id, teamId: game.home_team_id, opponentTeam: teamNickname(game.away_team?.name, "Opponent"), location: "Home", opponentUserId: game.away_user_id },
+      { userId: game.away_user_id, teamId: game.away_team_id, opponentTeam: teamNickname(game.home_team?.name, "Opponent"), location: "Away", opponentUserId: game.home_user_id }
     ].filter((s) => s.userId);
     for (const side of sides) {
       const gameChannel = (channels ?? []).find((c: any) => c.game_id === game.id);
@@ -1657,7 +1747,8 @@ export async function issueWeeklyGamePayouts(guildId: string) {
   const league = context.rec_leagues;
   const leagueId = context.league_id;
   const seasonNumber = asNumber(league.season_number ?? league.display_season_number ?? 1);
-  const weekNumber = asNumber(league.current_week ?? 1);
+  // The league week is advanced before payout steps run, so the just-played week is current - 1.
+  const weekNumber = Math.max(1, asNumber(league.current_week ?? 1) - 1);
 
   const { data: results, error } = await supabase
     .from("rec_game_results")
@@ -1732,6 +1823,22 @@ export async function assignPlayoffBadgesForSeason(leagueId: string, seasonNumbe
   return assignPlayoffBadges(leagueId, seasonNumber);
 }
 
+export async function advanceLeagueWeek(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const previousWeek = asNumber(league.current_week ?? 1);
+  const previousStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const weekNumber = previousWeek + 1;
+  // REC season structure: weeks 1-17 regular season, 18-20 playoffs, week 21 Super Bowl.
+  const seasonStage =
+    previousStage === "regular_season" && weekNumber >= 18 ? "playoffs"
+    : previousStage === "playoffs" && weekNumber >= 21 ? "super_bowl"
+    : previousStage === "super_bowl" && weekNumber >= 22 ? "offseason"
+    : previousStage;
+  await setLeagueWeek({ guildId, weekNumber, seasonStage });
+  return { previousWeek, weekNumber, previousStage, seasonStage };
+}
+
 export async function runPostAdvanceAutomation(input: string | { guildId: string; mode?: "normal" | "catch_up" }) {
   const guildId = typeof input === "string" ? input : input.guildId;
   const mode = typeof input === "string" ? "normal" : input.mode ?? "normal";
@@ -1750,6 +1857,13 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
     }
   };
 
+  // Advance the league week first: every subsequent step treats current_week - 1 as the
+  // just-completed week, and current_week as the upcoming week (challenges, GOTW, channels).
+  let week: { previousWeek: number; weekNumber: number; previousStage: string; seasonStage: string } | null = null;
+  if (mode === "normal") {
+    await step("advance_week", async () => { week = await advanceLeagueWeek(guildId); });
+  }
+
   await step("apply_records", () => applyAdvanceRecords(guildId));
   await step("game_payouts", () => issueWeeklyGamePayouts(guildId));
   await step("settle_gotw", () => settleGotwVotes(guildId));
@@ -1764,6 +1878,7 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
     return {
       ok: warnings.length === 0,
       mode,
+      week,
       completed,
       warnings,
       gameChannels: { plans: [] },
@@ -1779,6 +1894,7 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
   return {
     ok: warnings.length === 0,
     mode,
+    week,
     completed,
     warnings,
     gameChannels,
