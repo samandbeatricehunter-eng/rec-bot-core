@@ -1928,6 +1928,7 @@ export async function getGameChannelPlans(guildId: string) {
     nextAdvanceTimes: advanceTimes,
     streamingRequired: streamingRequirement === "required",
     streamingRequirement: streamingRequirementText(streamingRequirement),
+    streamingSide: (config?.streaming_side as string | null | undefined) ?? null,
     fourthDownRules,
     fairSimRequirements: (config?.fair_sim_requirements as string | null | undefined) ?? null,
     forceWinRequirements: (config?.force_win_requirements as string | null | undefined) ?? null,

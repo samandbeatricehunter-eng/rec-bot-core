@@ -46,12 +46,15 @@ function buildGameEmbeds(plan: any) {
     "",
     `Streaming Required: ${plan.streamingRequired ? "Yes" : "No"}`,
     `Requirement: ${plan.streamingRequirement ?? "Based on league settings"}`,
+    plan.streamingRequired && plan.streamingSide && plan.streamingSide !== "both"
+      ? `Who Streams: ${plan.streamingSide === "home" ? plan.homeTeamName : plan.awayTeamName} (${plan.streamingSide} team)`
+      : undefined,
     "",
     "League Game Rules:",
     `• Fourth Down Rules: ${plan.fourthDownRules ?? "Use league settings."}`,
     "• Scheduling, Activity & Sportsmanship:",
     ...buildActivityRulesLines(plan).map((l) => `  ${l}`)
-  ].join("\n");
+  ].filter((l) => l !== undefined).join("\n");
   return splitText(base).map((description, index) =>
     new EmbedBuilder()
       .setTitle(index === 0 ? `${weekLabel}${plan.awayTeamName} vs ${plan.homeTeamName}` : "League Game Rules Continued")
