@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
@@ -944,6 +944,7 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
     const channelTypeToApiField: Record<string, string> = {
       commissioner_office: "commissionerOfficeChannelId",
       announcements: "announcementsChannelId",
+      voting_polls: "votingPollsChannelId",
       streams: "streamsChannelId",
       highlights: "highlightsChannelId",
       pending_payouts: "pendingPayoutsChannelId",
@@ -1229,6 +1230,66 @@ client.on("interactionCreate", async (interaction) => {
   try {
     await recApi.submitGotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nominatedGameId });
     await interaction.editReply({ content: "Your GOTY nomination has been recorded!" });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+// ─── POTY "Nominate My Play" button ───────────────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith("poty_nominate_own:")) return;
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1] ?? interaction.guildId ?? "";
+  if (!guildId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    await recApi.submitPotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nomineeDiscordId: interaction.user.id });
+    await interaction.editReply({ content: "Your Play of the Year nomination has been recorded!" });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+// ─── GOTY "Nominate This Game" button → shows notes modal ─────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith("goty_nominate_btn:")) return;
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1] ?? interaction.guildId ?? "";
+  const gameId = parts[2] ?? "";
+  if (!guildId || !gameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
+
+  const modal = new ModalBuilder()
+    .setCustomId(`goty_nominate_modal:${guildId}:${gameId}`)
+    .setTitle("Game of the Year Nomination");
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder()
+        .setCustomId("goty_notes")
+        .setLabel("What made this game memorable?")
+        .setStyle(TextInputStyle.Paragraph)
+        .setMaxLength(1000)
+        .setRequired(true)
+        .setPlaceholder("Describe the highlights, key moments, or why this game should win GOTY...")
+    )
+  );
+  await interaction.showModal(modal);
+});
+
+// ─── GOTY notes modal submit ───────────────────────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isModalSubmit()) return;
+  if (!interaction.customId.startsWith("goty_nominate_modal:")) return;
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1] ?? interaction.guildId ?? "";
+  const gameId = parts[2] ?? "";
+  const notes = interaction.fields.getTextInputValue("goty_notes").trim();
+  if (!guildId || !gameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    await recApi.submitGotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nominatedGameId: gameId, nominationNotes: notes });
+    await interaction.editReply({ content: "Your Game of the Year nomination has been recorded!" });
   } catch (err) {
     await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
   }

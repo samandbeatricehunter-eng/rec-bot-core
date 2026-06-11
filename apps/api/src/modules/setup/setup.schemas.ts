@@ -117,7 +117,8 @@ export const UpdateServerRoutesSchema = z.object({
   highlightsChannelId: z.string().optional().nullable(),
   pendingPayoutsChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
-  commissionerOfficeChannelId: z.string().optional().nullable()
+  commissionerOfficeChannelId: z.string().optional().nullable(),
+  votingPollsChannelId: z.string().optional().nullable()
 });
 
 export type RegisterServerInput = z.infer<typeof RegisterServerSchema>;

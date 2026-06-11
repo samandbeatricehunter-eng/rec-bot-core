@@ -9,6 +9,7 @@ export const SERVER_SETUP_CUSTOM_IDS = {
 export const CHANNEL_TYPE_OPTIONS = {
   commissioner_office: "Commissioner Office",
   announcements: "Announcements",
+  voting_polls: "Voting Polls",
   streams: "Streams",
   highlights: "Highlights",
   pending_payouts: "Pending Payouts",
@@ -22,6 +23,7 @@ export function buildServerSetupPanel() {
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Commissioner Office").setValue("commissioner_office"),
       new StringSelectMenuOptionBuilder().setLabel("Announcements").setValue("announcements"),
+      new StringSelectMenuOptionBuilder().setLabel("Voting Polls").setValue("voting_polls"),
       new StringSelectMenuOptionBuilder().setLabel("Streams").setValue("streams"),
       new StringSelectMenuOptionBuilder().setLabel("Highlights").setValue("highlights"),
       new StringSelectMenuOptionBuilder().setLabel("Pending Payouts").setValue("pending_payouts"),

@@ -9,6 +9,16 @@ const DEV_TIER = ["Normal", "Star", "Superstar", "XFactor"] as const;
 
 export const EOS_AWARD_CATEGORIES = [
   {
+    key: "mvp",
+    label: "MVP",
+    description: "Who was the most valuable player in the league this season?"
+  },
+  {
+    key: "coach_of_the_year",
+    label: "Coach of the Year",
+    description: "Which coach showed the best leadership and made the biggest impact this season?"
+  },
+  {
     key: "most_heart",
     label: "Most Heart",
     description: "Which coach showed the most heart and fight all season, no matter the record?"
@@ -99,7 +109,13 @@ export async function createEosAwardPolls(leagueId: string, seasonNumber: number
       )
       .select()
       .single();
-    if (data) polls.push(data);
+    if (data) polls.push({
+      ...data,
+      categoryKey: data.category_key,
+      categoryLabel: data.category_label,
+      categoryDescription: data.category_description ?? null,
+      closesAt: data.closes_at ?? null
+    });
   }
 
   const nominees = await getActiveNominees(leagueId);

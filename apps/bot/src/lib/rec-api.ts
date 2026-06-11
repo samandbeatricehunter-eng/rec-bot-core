@@ -283,6 +283,7 @@ export const recApi = {
     streamsChannelId?: string;
     highlightsChannelId?: string;
     announcementsChannelId?: string;
+    votingPollsChannelId?: string;
     commissionerRoleId?: string;
     compCommitteeRoleId?: string;
   }) =>
@@ -614,7 +615,7 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
-  submitGotyNomination: (input: { guildId: string; nominatorDiscordId: string; nominatedGameId: string }) =>
+  submitGotyNomination: (input: { guildId: string; nominatorDiscordId: string; nominatedGameId: string; nominationNotes?: string }) =>
     recFetch<any>("/v1/nominations/goty", {
       method: "POST",
       body: JSON.stringify(input)

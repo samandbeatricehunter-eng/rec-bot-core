@@ -1470,7 +1470,7 @@ export async function viewEconomyConfig(guildId: string) {
   return { routes: await getRoutes(context.server_id), league: context.rec_leagues };
 }
 
-export async function setEconomyConfig(input: { guildId: string; pendingEconomyChannelId?: string; pendingPayoutsChannelId?: string; gameChannelsCategoryId?: string; commissionerOfficeChannelId?: string; streamsChannelId?: string; highlightsChannelId?: string; announcementsChannelId?: string; commissionerRoleId?: string; compCommitteeRoleId?: string }) {
+export async function setEconomyConfig(input: { guildId: string; pendingEconomyChannelId?: string; pendingPayoutsChannelId?: string; gameChannelsCategoryId?: string; commissionerOfficeChannelId?: string; streamsChannelId?: string; highlightsChannelId?: string; announcementsChannelId?: string; votingPollsChannelId?: string; commissionerRoleId?: string; compCommitteeRoleId?: string }) {
   const context = await getLeagueContext(input.guildId);
   const patch: Record<string, unknown> = { server_id: context.server_id, updated_at: new Date().toISOString() };
   if (input.pendingEconomyChannelId !== undefined) patch.pending_economy_channel_id = input.pendingEconomyChannelId;
@@ -1480,6 +1480,7 @@ export async function setEconomyConfig(input: { guildId: string; pendingEconomyC
   if (input.streamsChannelId !== undefined) patch.streams_channel_id = input.streamsChannelId;
   if (input.highlightsChannelId !== undefined) patch.highlights_channel_id = input.highlightsChannelId;
   if (input.announcementsChannelId !== undefined) patch.announcements_channel_id = input.announcementsChannelId;
+  if (input.votingPollsChannelId !== undefined) patch.voting_polls_channel_id = input.votingPollsChannelId;
   if (input.commissionerRoleId !== undefined) patch.commissioner_role_id = input.commissionerRoleId;
   if (input.compCommitteeRoleId !== undefined) patch.comp_committee_role_id = input.compCommitteeRoleId;
   const existing = await getRoutes(context.server_id);
@@ -3498,7 +3499,7 @@ export async function processAdvanceResults(guildId: string) {
       const { createEosAwardPolls } = await import("../eos-awards/eos-awards.service.js");
       const seasonNumber = context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1;
       eosPollsData = await createEosAwardPolls(context.league_id, seasonNumber);
-      eosPollsData.announcementsChannelId = routes?.announcements_channel_id ?? null;
+      eosPollsData.announcementsChannelId = routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null;
     } catch (err) {
       console.error("[processAdvanceResults] EOS poll creation failed:", err);
     }
@@ -4342,7 +4343,7 @@ export async function submitPotyNomination(input: { guildId: string; nominatorDi
   return { recorded: true };
 }
 
-export async function submitGotyNomination(input: { guildId: string; nominatorDiscordId: string; nominatedGameId: string }) {
+export async function submitGotyNomination(input: { guildId: string; nominatorDiscordId: string; nominatedGameId: string; nominationNotes?: string }) {
   const context = await getLeagueContext(input.guildId);
   const seasonNumber = context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1;
   const { data: nominator } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.nominatorDiscordId).maybeSingle();
@@ -4356,6 +4357,7 @@ export async function submitGotyNomination(input: { guildId: string; nominatorDi
     nominated_game_id: input.nominatedGameId,
     home_team_label: (game as any)?.["rec_teams!rec_game_results_home_team_id_fkey"]?.name ?? null,
     away_team_label: (game as any)?.["rec_teams!rec_game_results_away_team_id_fkey"]?.name ?? null,
+    nomination_notes: input.nominationNotes ?? null,
     updated_at: nowIso()
   }, { onConflict: "league_id,season_number,nominator_user_id" });
   if (error) throw error;
@@ -4368,37 +4370,89 @@ export async function getNominationData(guildId: string) {
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const currentWeek = league.current_week ?? 1;
   const completedWeek = Math.max(1, currentWeek - 1);
+
   const { data: assignments } = await supabase
     .from("rec_team_assignments")
     .select("user_id, rec_teams(name, abbreviation)")
     .eq("league_id", context.league_id)
     .eq("assignment_status", "active")
     .is("ended_at", null);
-  const userIds = (assignments ?? []).map((a: any) => a.user_id).filter(Boolean);
-  const { data: discordAccounts } = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds);
+  const userIds = (assignments ?? []).map((a: any) => String(a.user_id)).filter(Boolean);
+
+  const { data: discordAccounts } = await supabase
+    .from("rec_discord_accounts")
+    .select("user_id,discord_id")
+    .in("user_id", userIds);
   const discordMap = new Map<string, string>();
-  for (const d of discordAccounts ?? []) { if (d.user_id && d.discord_id) discordMap.set(String(d.user_id), String(d.discord_id)); }
-  const nominees = (assignments ?? []).map((a: any) => ({
-    userId: String(a.user_id),
-    discordId: discordMap.get(String(a.user_id)) ?? null,
-    displayName: (a.rec_teams as any)?.name ?? (a.rec_teams as any)?.abbreviation ?? "Unknown"
-  }));
+  for (const d of discordAccounts ?? []) {
+    if (d.user_id && d.discord_id) discordMap.set(String(d.user_id), String(d.discord_id));
+  }
+
+  const teamMap = new Map<string, string>();
+  for (const a of assignments ?? []) {
+    const name = (a.rec_teams as any)?.name ?? (a.rec_teams as any)?.abbreviation ?? "Unknown";
+    teamMap.set(String(a.user_id), name);
+  }
+
+  // POTY: only coaches who submitted a highlight in completedWeek
+  const { data: highlights } = await supabase
+    .from("rec_highlight_posts")
+    .select("id,user_id,message_url")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", completedWeek);
+
+  const potyNominees = (highlights ?? [])
+    .filter((h: any) => h.user_id && userIds.includes(String(h.user_id)))
+    .map((h: any) => ({
+      userId: String(h.user_id),
+      discordId: discordMap.get(String(h.user_id)) ?? null,
+      displayName: teamMap.get(String(h.user_id)) ?? "Unknown",
+      highlightId: String(h.id),
+      highlightUrl: h.message_url ?? null
+    }));
+
+  // GOTY: coaches who played an H2H game with ≤7pt margin in completedWeek
   const { data: games } = await supabase
     .from("rec_game_results")
-    .select("id,home_team_id,away_team_id,home_score,away_score,rec_teams!rec_game_results_home_team_id_fkey(name),rec_teams!rec_game_results_away_team_id_fkey(name)")
+    .select("id,home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,rec_teams!rec_game_results_home_team_id_fkey(name),rec_teams!rec_game_results_away_team_id_fkey(name)")
     .eq("league_id", context.league_id)
     .eq("season_number", seasonNumber)
     .eq("week_number", completedWeek)
     .eq("season_stage", "regular_season");
-  const recentGames = (games ?? []).map((g: any) => ({
-    gameId: String(g.id),
-    homeTeam: g["rec_teams!rec_game_results_home_team_id_fkey"]?.name ?? "Home",
-    awayTeam: g["rec_teams!rec_game_results_away_team_id_fkey"]?.name ?? "Away",
-    homeScore: asNumber(g.home_score),
-    awayScore: asNumber(g.away_score),
-    label: `${g["rec_teams!rec_game_results_away_team_id_fkey"]?.name ?? "Away"} @ ${g["rec_teams!rec_game_results_home_team_id_fkey"]?.name ?? "Home"} (${asNumber(g.away_score)}-${asNumber(g.home_score)})`
-  }));
-  return { nominees, recentGames, seasonNumber, weekNumber: completedWeek };
+
+  const gotyNominees: Array<{ userId: string; discordId: string | null; displayName: string; gameId: string; homeTeam: string; awayTeam: string; homeScore: number; awayScore: number; label: string }> = [];
+  const seenGames = new Set<string>();
+
+  for (const g of games ?? []) {
+    const margin = Math.abs(asNumber(g.home_score) - asNumber(g.away_score));
+    if (margin > 7) continue;
+    const homeTeam = (g as any)["rec_teams!rec_game_results_home_team_id_fkey"]?.name ?? "Home";
+    const awayTeam = (g as any)["rec_teams!rec_game_results_away_team_id_fkey"]?.name ?? "Away";
+    const homeScore = asNumber(g.home_score);
+    const awayScore = asNumber(g.away_score);
+    const label = `${awayTeam} @ ${homeTeam} (${awayScore}-${homeScore})`;
+    const gameId = String(g.id);
+
+    for (const userId of [String(g.home_user_id ?? ""), String(g.away_user_id ?? "")]) {
+      if (!userId || !userIds.includes(userId)) continue;
+      if (seenGames.has(`${userId}:${gameId}`)) continue;
+      seenGames.add(`${userId}:${gameId}`);
+      gotyNominees.push({
+        userId,
+        discordId: discordMap.get(userId) ?? null,
+        displayName: teamMap.get(userId) ?? "Unknown",
+        gameId,
+        homeTeam,
+        awayTeam,
+        homeScore,
+        awayScore,
+        label
+      });
+    }
+  }
+
+  return { potyNominees, gotyNominees, seasonNumber, weekNumber: completedWeek };
 }
 
 const DEV_TRAIT_TIER: Record<string, number> = { Normal: 0, Star: 1, Superstar: 2, XFactor: 3 };

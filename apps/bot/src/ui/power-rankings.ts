@@ -44,14 +44,7 @@ export function buildPowerRankingsEmbeds(data: {
     const rec = recordText(r.wins ?? 0, r.losses ?? 0, r.ties ?? 0);
     const pd = pdText(r.pd ?? r.point_differential ?? 0);
 
-    const leaderName = r.statLeaderName ?? r.stat_leader_player_name;
-    const leaderPos = r.statLeaderPos ?? r.stat_leader_position;
-    const leaderLine = r.statLeaderLine ?? r.stat_leader_stat_line;
-    const leaderText = leaderName
-      ? ` · ${leaderName}${leaderPos ? ` (${leaderPos})` : ""}: ${leaderLine ?? "—"}`
-      : "";
-
-    const line = `**${String(rank).padStart(2)} ${arrow}** ${name} | ${rec} | ${pd} PD${leaderText}`;
+    const line = `**${String(rank).padStart(2)} ${arrow}** ${name} | ${rec} | ${pd} PD`;
     current.push(line);
 
     if (current.length >= PAGE_SIZE || i === rankings.length - 1) {

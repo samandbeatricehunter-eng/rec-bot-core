@@ -522,52 +522,38 @@ async function runAdvanceWizardFinalize(
     warnings.push(`game_channels: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Post badge announcements to announcements channel (after game channels are created)
-  if (badgeAnnouncements.length > 0 && announcementsChannelId) {
-    try {
-      const ch = await guild.channels.fetch(announcementsChannelId).catch(() => null) as TextChannel | null;
-      if (ch?.type === ChannelType.GuildText) {
-        const lines: string[] = [];
-        for (const b of badgeAnnouncements) {
-          const mention = b.discordId ? `<@${b.discordId}>` : "A player";
-          if (b.type === "earned") {
-            lines.push(`${mention} earned the **${b.badgeLabel}** badge for ${b.qualifier ?? "earning this badge"}!`);
-          } else {
-            lines.push(`${mention} lost the **${b.badgeLabel}** badge — ${b.reason ?? "their badge was removed"}.`);
-          }
-        }
-        // Send in batches of 20 lines per embed to stay under Discord limits
-        const BATCH = 20;
-        for (let i = 0; i < lines.length; i += BATCH) {
-          const batch = lines.slice(i, i + BATCH);
-          await ch.send({
-            embeds: [new EmbedBuilder()
-              .setTitle(i === 0 ? "Badge Awards" : "Badge Awards (continued)")
-              .setDescription(batch.join("\n"))
-              .setColor(0xffd700)
-            ],
-            allowedMentions: { parse: ["users"] }
-          }).catch((e) => console.error("[WIZARD] Failed to post badge announcement:", e));
-        }
-      }
-    } catch (err) {
-      console.error("[WIZARD] Badge announcement posting failed:", err);
-      warnings.push(`badge_announcements: ${err instanceof Error ? err.message : String(err)}`);
+  // DM each user about badge changes (no channel embed)
+  if (badgeAnnouncements.length > 0) {
+    for (const b of badgeAnnouncements) {
+      if (!b.discordId) continue;
+      try {
+        const member = await guild.members.fetch(b.discordId).catch(() => null);
+        if (!member) continue;
+        const dmText = b.type === "earned"
+          ? `You earned the **${b.badgeLabel}** badge${b.qualifier ? ` for ${b.qualifier}` : ""}!`
+          : `Your **${b.badgeLabel}** badge has been removed${b.reason ? ` — ${b.reason}` : ""}.`;
+        await member.send({
+          embeds: [new EmbedBuilder()
+            .setTitle(b.type === "earned" ? "Badge Earned" : "Badge Removed")
+            .setDescription(dmText)
+            .setColor(b.type === "earned" ? 0xffd700 : 0x95a5a6)
+          ]
+        }).catch(() => undefined);
+      } catch { /* skip individual DM failures */ }
     }
   }
 
-  // Post EOS award poll embeds (fires on regular_season → wild_card transition only)
+  // Post EOS award polls — one message per category (fires on regular_season → wild_card only)
   if (eosPollsData?.polls?.length && eosPollsData.announcementsChannelId) {
     try {
       const pollCh = await guild.channels.fetch(eosPollsData.announcementsChannelId).catch(() => null) as TextChannel | null;
       if (pollCh?.type === ChannelType.GuildText) {
         const { polls, nominees, closesAt } = eosPollsData;
 
-        // Build select options (nominees list, truncated to 25 per Discord limit)
         const nomineeOptions = nominees
-          .filter((n) => n.discordId)
+          .filter((n: EosPollNominee) => n.discordId)
           .slice(0, 25)
-          .map((n) =>
+          .map((n: EosPollNominee) =>
             new StringSelectMenuOptionBuilder()
               .setLabel(n.displayName.slice(0, 100))
               .setValue(n.discordId!)
@@ -578,34 +564,31 @@ async function runAdvanceWizardFinalize(
             ? `Voting closes <t:${Math.floor(new Date(closesAt).getTime() / 1000)}:R>`
             : "Voting closes when playoffs begin.";
 
-          // Build one select menu per category (up to 4, within Discord's 5-row limit)
-          const rows = polls.slice(0, 4).map((poll) =>
-            new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          for (const poll of polls) {
+            const embed = new EmbedBuilder()
+              .setTitle(`🏆 ${poll.categoryLabel}`)
+              .setDescription(
+                [
+                  poll.categoryDescription ?? "",
+                  "",
+                  closeTimeStr,
+                  "",
+                  "_Only linked coaches may vote. You may change your vote before voting closes._"
+                ].join("\n")
+              )
+              .setColor(0x9b59b6);
+
+            const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
               new StringSelectMenuBuilder()
                 .setCustomId(`eos_vote:${poll.id}:${poll.categoryKey}`)
-                .setPlaceholder(`Vote: ${poll.categoryLabel}`)
+                .setPlaceholder(`Vote for ${poll.categoryLabel}`)
                 .addOptions(nomineeOptions)
-            )
-          );
+            );
 
-          const embed = new EmbedBuilder()
-            .setTitle("🏆 End of Season Awards — Vote Now!")
-            .setDescription(
-              [
-                "The regular season is over! Cast your votes for this season's awards.",
-                "",
-                ...polls.map((p) => `**${p.categoryLabel}** — ${p.categoryDescription ?? ""}`),
-                "",
-                closeTimeStr,
-                "",
-                "_Only linked coaches in this league may vote. You may change your vote at any time before voting closes._"
-              ].join("\n")
-            )
-            .setColor(0x9b59b6);
-
-          await pollCh.send({ embeds: [embed], components: rows }).catch((e) =>
-            console.error("[WIZARD] Failed to post EOS award polls:", e)
-          );
+            await pollCh.send({ embeds: [embed], components: [row] }).catch((e) =>
+              console.error("[WIZARD] Failed to post EOS poll:", e)
+            );
+          }
         }
       }
     } catch (err) {
@@ -680,65 +663,69 @@ async function runAdvanceWizardFinalize(
   }
 
   // Send POTY/GOTY nomination DMs (regular season advances only, not week 18 → wild_card)
-  if (nominationData?.sendNominationDms && nominationData.nominees?.length > 0) {
+  if (nominationData?.sendNominationDms) {
     try {
-      const nominees: Array<{ userId: string; discordId: string | null; displayName: string }> = nominationData.nominees;
-      const recentGames: Array<{ gameId: string; label: string }> = nominationData.recentGames ?? [];
       const weekNum: number = nominationData.weekNumber ?? weekNumber;
-      const serverLink = `[${guild.name}](https://discord.com/channels/${guild.id})`;
 
-      for (const coach of nominees) {
+      // POTY — Play of the Year: DM coaches who submitted a highlight this week
+      for (const coach of (nominationData.potyNominees ?? []) as Array<{ userId: string; discordId: string | null; displayName: string; highlightId: string; highlightUrl: string | null }>) {
         if (!coach.discordId) continue;
         try {
           const member = await guild.members.fetch(coach.discordId).catch(() => null);
           if (!member) continue;
 
-          // Build nominee options (exclude self for POTY — each coach nominates someone else)
-          const potyOptions = nominees
-            .filter((n) => n.discordId !== coach.discordId)
-            .slice(0, 25)
-            .map((n) => new StringSelectMenuOptionBuilder().setLabel(n.displayName.slice(0, 100)).setValue(n.discordId!));
+          await member.send({
+            embeds: [new EmbedBuilder()
+              .setTitle(`Play of the Year — Week ${weekNum} Nomination`)
+              .setDescription([
+                `Your highlight from **Week ${weekNum}** is eligible for a Play of the Year nomination!`,
+                "",
+                coach.highlightUrl ? `[View your highlight](${coach.highlightUrl})` : "",
+                "",
+                "Click below to nominate your play for POTY consideration.",
+                "",
+                "_Nominations are reviewed at the end of the season._"
+              ].filter(Boolean).join("\n"))
+              .setColor(0xf1c40f)
+            ],
+            components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`poty_nominate_own:${guild.id}:${coach.highlightId}`)
+                .setLabel("Nominate My Play")
+                .setStyle(ButtonStyle.Primary)
+            )]
+          }).catch(() => undefined);
+        } catch { /* skip */ }
+      }
 
-          const gotyOptions = recentGames.slice(0, 25).map((g) =>
-            new StringSelectMenuOptionBuilder().setLabel(g.label.slice(0, 100)).setValue(g.gameId)
-          );
-
-          const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
-          if (potyOptions.length > 0) {
-            rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-              new StringSelectMenuBuilder()
-                .setCustomId(`poty_nominate:${guild.id}`)
-                .setPlaceholder("Player of the Year — Nominate a coach")
-                .addOptions(potyOptions)
-            ));
-          }
-          if (gotyOptions.length > 0) {
-            rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-              new StringSelectMenuBuilder()
-                .setCustomId(`goty_nominate:${guild.id}`)
-                .setPlaceholder("Game of the Year — Nominate a game")
-                .addOptions(gotyOptions)
-            ));
-          }
-
-          if (rows.length === 0) continue;
+      // GOTY — Game of the Year: DM coaches whose H2H game had ≤7pt margin
+      for (const coach of (nominationData.gotyNominees ?? []) as Array<{ userId: string; discordId: string | null; displayName: string; gameId: string; homeTeam: string; awayTeam: string; homeScore: number; awayScore: number; label: string }>) {
+        if (!coach.discordId) continue;
+        try {
+          const member = await guild.members.fetch(coach.discordId).catch(() => null);
+          if (!member) continue;
 
           await member.send({
             embeds: [new EmbedBuilder()
-              .setTitle(`Season Nominations — Week ${weekNum}`)
+              .setTitle(`Game of the Year — Week ${weekNum} Nomination`)
               .setDescription([
-                `Submit your nominations for ${serverLink}.`,
+                "Your Week " + weekNum + " game was a close one! It's eligible for a Game of the Year nomination.",
                 "",
-                "**Player of the Year** — Who stood out the most this week?",
-                "**Game of the Year** — Which game was the most exciting?",
+                `**${coach.awayTeam}** @ **${coach.homeTeam}**`,
+                `Final: **${coach.awayScore}** — **${coach.homeScore}**`,
                 "",
-                "_Nominations update each week. Your current pick replaces any previous one._"
+                "Click below to nominate this game. You'll be asked to share what made it memorable."
               ].join("\n"))
               .setColor(0x3498db)
             ],
-            components: rows
+            components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`goty_nominate_btn:${guild.id}:${coach.gameId}`)
+                .setLabel("Nominate This Game")
+                .setStyle(ButtonStyle.Primary)
+            )]
           }).catch(() => undefined);
-        } catch { /* skip individual DM failures */ }
+        } catch { /* skip */ }
       }
     } catch (err) {
       console.error("[WIZARD] Nomination DMs failed:", err);
