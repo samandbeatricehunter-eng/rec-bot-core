@@ -27,7 +27,7 @@ import {
   updateEndpointAttempt,
   updateImportJobStatus
 } from "./import.service.js";
-import { getStatDefinitionsCatalog, getUnmappedStatKeys } from "./stat-definitions.service.js";
+import { getImportFieldMap, getStatDefinitionsCatalog, getUnmappedStatKeys } from "./stat-definitions.service.js";
 
 const ImportJobIdBodySchema = z.object({ importJobId: z.string().uuid() });
 const StageImportEndpointBodySchema = z.object({
@@ -61,6 +61,19 @@ export async function importRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(getStatDefinitionsCatalog());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Debug: every raw stat field currently seen for a league, with canonical REC mapping where available.
+  app.get("/v1/imports/field-map", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { leagueId, maxPages } = (request.query ?? {}) as { leagueId?: string; maxPages?: string };
+      if (!leagueId) return reply.status(400).send({ error: "leagueId query parameter is required." });
+      const parsedMaxPages = Number(maxPages ?? 20);
+      return reply.send(await getImportFieldMap(leagueId, Number.isFinite(parsedMaxPages) ? parsedMaxPages : 20));
     } catch (error) {
       return sendError(reply, error);
     }
