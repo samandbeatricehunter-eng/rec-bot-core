@@ -658,5 +658,11 @@ export const recApi = {
     recFetch<any>("/v1/awards/status", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   getPendingAwardApprovals: (guildId: string) =>
-    recFetch<any>("/v1/awards/pending-approvals", { method: "POST", body: JSON.stringify({ guildId }) })
+    recFetch<any>("/v1/awards/pending-approvals", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  getLeagueConferences: (guildId: string) =>
+    recFetch<any>("/v1/rosters/conferences", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  getTeamRoster: (guildId: string, teamId: string) =>
+    recFetch<any>("/v1/rosters/team", { method: "POST", body: JSON.stringify({ guildId, teamId }) })
 };

@@ -44,7 +44,11 @@ export const ROSTERS_CUSTOM_IDS = {
   snapshotNext: "rec:rosters:snapshot_next",
   snapshotBack: "rec:rosters:snapshot_back",
   // User selector dropdown
-  snapshotUserSelect: "rec:rosters:snapshot_user_select"
+  snapshotUserSelect: "rec:rosters:snapshot_user_select",
+  // View Rosters by Team flow
+  conferenceSelect: "rec:rosters:conference_select",
+  teamSelect: "rec:rosters:team_select",
+  rosterBackToConf: "rec:rosters:back_to_conferences"
 } as const;
 
 // Custom IDs for the REC Bank dropdown
@@ -268,7 +272,7 @@ export function buildRostersMenuEmbed() {
     .setDescription([
       "Browse rosters, players, and coach profiles for this league.",
       "",
-      "**View Rosters by Team** — Full depth chart by team (coming soon)",
+      "**View Rosters by Team** — Full depth chart by team, sorted by position group",
       "**View Players by Position** — Filter all players by position group (coming soon)",
       "**View User Snapshots** — Season & global records, badges, power ranking, awards, and GOTW history for any linked coach"
     ].join("\n"));
@@ -279,7 +283,7 @@ export function buildRostersMenuRows() {
     .setCustomId(ROSTERS_CUSTOM_IDS.select)
     .setPlaceholder("Choose a roster view")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("View Rosters by Team").setValue("rosters_by_team").setDescription("Browse full team depth charts (coming soon)"),
+      new StringSelectMenuOptionBuilder().setLabel("View Rosters by Team").setValue("rosters_by_team").setDescription("Browse full team depth charts by position group"),
       new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position").setDescription("Filter players by position group (coming soon)"),
       new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots").setDescription("Season & global stats, badges, awards, GOTW history for any coach"),
       new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("rosters_back")

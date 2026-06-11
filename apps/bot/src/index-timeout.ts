@@ -150,6 +150,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.conferenceSelect) return handleRosterConferenceSelect(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.teamSelect) return handleRosterTeamSelect(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportSelect(interaction);
@@ -197,6 +199,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotPrev) return handleSnapshotPageNav(interaction, -1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderRostersMenu(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.rosterBackToConf) return handleRosterBackToConf(interaction);
     }
 
     if (interaction.isModalSubmit()) {
@@ -423,9 +426,13 @@ async function handleRostersMenuSelect(interaction: Extract<Interaction, { isStr
     return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
   }
 
-  if (selected === "rosters_by_team" || selected === "players_by_position") {
+  if (selected === "rosters_by_team") {
+    return renderRosterConferenceSelect(interaction);
+  }
+
+  if (selected === "players_by_position") {
     return interaction.update({
-      embeds: [new EmbedBuilder().setTitle(selected === "rosters_by_team" ? "View Rosters by Team" : "View Players by Position").setDescription("This view is coming soon. Check back after the next build update.")],
+      embeds: [new EmbedBuilder().setTitle("View Players by Position").setDescription("This view is coming soon. Check back after the next build update.")],
       components: buildRostersMenuRows()
     });
   }
@@ -444,6 +451,140 @@ async function handleRostersMenuSelect(interaction: Extract<Interaction, { isStr
       components: buildSnapshotUserSelectRows(coaches)
     });
   }
+}
+
+// ── View Rosters by Team flow ─────────────────────────────────────────────────
+
+function buildRosterConferenceSelectRows(conferences: Array<{ conference: string; teams: any[] }>) {
+  const options = conferences.slice(0, 25).map((c) =>
+    new StringSelectMenuOptionBuilder().setLabel(c.conference).setValue(c.conference)
+  );
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ROSTERS_CUSTOM_IDS.conferenceSelect)
+    .setPlaceholder("Select a conference")
+    .addOptions(options);
+  const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotBack).setLabel("Back to Rosters").setStyle(ButtonStyle.Secondary)
+  );
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), backRow];
+}
+
+function buildRosterTeamSelectRows(conferenceName: string, teams: Array<{ id: string; name: string; abbreviation?: string }>) {
+  const options = teams.slice(0, 25).map((t) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(t.name.slice(0, 100))
+      .setValue(t.id)
+      .setDescription((t.abbreviation ?? "").slice(0, 100))
+  );
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ROSTERS_CUSTOM_IDS.teamSelect)
+    .setPlaceholder("Select a team")
+    .addOptions(options);
+  const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.rosterBackToConf).setLabel("Back to Conferences").setStyle(ButtonStyle.Secondary)
+  );
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), backRow];
+}
+
+function buildRosterEmbed(rosterData: any): EmbedBuilder {
+  const team = rosterData.team ?? {};
+  const groups: Array<{ label: string; posOrder: boolean; members: Array<{ name: string; ovr: number; dev: string; years: number; posLabel?: string }> }> = rosterData.groups ?? [];
+  const embed = new EmbedBuilder()
+    .setTitle(`${team.name ?? "Team"} — Roster`)
+    .setDescription(`${team.conference ?? ""}${team.division ? ` · ${team.division}` : ""}`);
+
+  for (const group of groups) {
+    if (!group.members.length) continue;
+    const lines = group.members.map((m) => {
+      const pos = group.posOrder && m.posLabel ? `${m.posLabel} ` : "";
+      return `${pos}**${m.name}**  OVR ${m.ovr}  ${m.dev}  ${m.years}y`;
+    });
+    embed.addFields({ name: group.label, value: lines.join("\n").slice(0, 1024), inline: false });
+  }
+
+  return embed;
+}
+
+async function renderRosterConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  await interaction.deferUpdate();
+  if (!interaction.guildId) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Must be run inside a league server.")], components: buildRostersMenuRows() });
+  }
+  let confData: any;
+  try {
+    confData = await recApi.getLeagueConferences(interaction.guildId);
+  } catch {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Failed to load conferences. Please try again.")], components: buildRostersMenuRows() });
+  }
+  const conferences: Array<{ conference: string; teams: any[] }> = confData?.conferences ?? [];
+  if (!conferences.length) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("No conferences found. Import data must be available first.")], components: buildRostersMenuRows() });
+  }
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Select a conference to browse teams.")],
+    components: buildRosterConferenceSelectRows(conferences)
+  });
+}
+
+async function handleRosterConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  await interaction.deferUpdate();
+  const conferenceName = interaction.values[0];
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Must be run inside a league server.")], components: [] });
+  let confData: any;
+  try {
+    confData = await recApi.getLeagueConferences(interaction.guildId);
+  } catch {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Failed to load conference data.")], components: buildRostersMenuRows() });
+  }
+  const conferences: Array<{ conference: string; teams: any[] }> = confData?.conferences ?? [];
+  const conf = conferences.find((c) => c.conference === conferenceName);
+  if (!conf || !conf.teams.length) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle(`${conferenceName}`).setDescription("No teams found in this conference.")], components: buildRosterConferenceSelectRows(conferences) });
+  }
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle(`${conferenceName}`).setDescription("Select a team to view their roster.")],
+    components: buildRosterTeamSelectRows(conferenceName, conf.teams)
+  });
+}
+
+async function handleRosterTeamSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  await interaction.deferUpdate();
+  const teamId = interaction.values[0];
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Must be run inside a league server.")], components: [] });
+  let rosterData: any;
+  try {
+    rosterData = await recApi.getTeamRoster(interaction.guildId, teamId);
+  } catch {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Roster").setDescription("Failed to load roster. Please try again.")], components: [] });
+  }
+  const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.rosterBackToConf).setLabel("Back to Conferences").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(NAV_CUSTOM_IDS.mainMenu).setLabel("Main Menu").setStyle(ButtonStyle.Secondary)
+  );
+  return interaction.editReply({ embeds: [buildRosterEmbed(rosterData)], components: [backRow] });
+}
+
+async function handleRosterBackToConf(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Must be run inside a league server.")], components: [] });
+  let confData: any;
+  try {
+    confData = await recApi.getLeagueConferences(interaction.guildId);
+  } catch {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Failed to load conferences.")], components: buildRostersMenuRows() });
+  }
+  const conferences: Array<{ conference: string; teams: any[] }> = confData?.conferences ?? [];
+  if (!conferences.length) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("No conferences found.")], components: buildRostersMenuRows() });
+  }
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Select a conference to browse teams.")],
+    components: buildRosterConferenceSelectRows(conferences)
+  });
 }
 
 // ── User Snapshots paginated viewer ──────────────────────────────────────────

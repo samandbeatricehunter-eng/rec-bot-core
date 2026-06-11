@@ -585,11 +585,9 @@ async function runAdvanceWizardFinalize(
     components: []
   });
 
-  let devUpgradePrizes: any[] = [];
   try {
     const finalizeData = await recApi.finalizeAdvanceStep(guild.id);
     warnings.push(...(finalizeData.warnings ?? []));
-    devUpgradePrizes = finalizeData.devUpgradePrizes?.prizes ?? [];
   } catch (err) {
     console.error("[WIZARD] finalizeAdvanceStep failed:", err);
     warnings.push(`generate_challenges: ${err instanceof Error ? err.message : String(err)}`);
@@ -690,29 +688,6 @@ async function runAdvanceWizardFinalize(
           console.error("[WIZARD] Failed to post tiebreaker embed:", err);
         }
       }
-    }
-  }
-
-  // Post dev upgrade prize announcements to announcements channel
-  if (devUpgradePrizes.length > 0 && announcementsChannelId) {
-    try {
-      const ch = await guild.channels.fetch(announcementsChannelId).catch(() => null) as TextChannel | null;
-      if (ch?.type === ChannelType.GuildText) {
-        const lines = devUpgradePrizes.map((p: any) => {
-          const mention = p.discord_id ? `<@${p.discord_id}>` : p.player_name ?? "A player";
-          return `${mention}'s **${p.player_name ?? "player"}** upgraded from **${p.old_dev_trait}** → **${p.new_dev_trait}** (+$${p.prize_amount})!`;
-        });
-        await ch.send({
-          embeds: [new EmbedBuilder()
-            .setTitle("Dev Upgrade Prizes")
-            .setDescription(lines.join("\n"))
-            .setColor(0xf1c40f)
-          ],
-          allowedMentions: { parse: ["users"] }
-        }).catch(() => undefined);
-      }
-    } catch (err) {
-      console.error("[WIZARD] Dev upgrade announcement failed:", err);
     }
   }
 

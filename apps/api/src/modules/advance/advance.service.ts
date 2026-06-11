@@ -3667,9 +3667,7 @@ export async function processPotwAward(guildId: string) {
 export async function finalizeAdvanceStep(guildId: string) {
   const { step, warnings, completed } = makeStepRunner();
   await step("generate_challenges", () => generateWeeklyChallenges({ guildId, regenerate: false }));
-  let devUpgradePrizes: any = null;
-  await step("dev_upgrade_prizes", async () => { devUpgradePrizes = await processDevUpgradePrizes(guildId); });
-  return { completed, warnings, devUpgradePrizes };
+  return { completed, warnings };
 }
 
 // Creates GOTW polls for every H2H game in the current playoff week (wildcard/divisional/etc).
@@ -4549,7 +4547,8 @@ export async function getNominationData(guildId: string) {
     .eq("league_id", context.league_id)
     .eq("season_number", seasonNumber)
     .eq("week_number", completedWeek)
-    .eq("season_stage", "regular_season");
+    .eq("is_playoff", false)
+    .eq("is_user_h2h", true);
 
   const gotyNominees: Array<{ userId: string; discordId: string | null; displayName: string; gameId: string; homeTeam: string; awayTeam: string; homeScore: number; awayScore: number; label: string }> = [];
   const seenGames = new Set<string>();
@@ -4636,4 +4635,111 @@ export async function getLatestPowerRankings(guildId: string) {
     .order("rank", { ascending: true });
   if (error) throw error;
   return { rankings: data ?? [], leagueName: league.name ?? "League", currentWeek };
+}
+
+// ── Roster Viewer ─────────────────────────────────────────────────────────────
+
+export async function getLeagueConferences(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const { data: teams } = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,conference,division")
+    .eq("league_id", context.league_id)
+    .order("name");
+  const confMap = new Map<string, Array<{ id: string; name: string; abbreviation: string; division: string }>>();
+  for (const t of teams ?? []) {
+    const conf = t.conference ?? "Unknown";
+    if (!confMap.has(conf)) confMap.set(conf, []);
+    confMap.get(conf)!.push({ id: t.id, name: t.name ?? t.abbreviation ?? "?", abbreviation: t.abbreviation ?? "?", division: t.division ?? "?" });
+  }
+  const conferences = Array.from(confMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, cfTeams]) => ({ name, teams: cfTeams.sort((a, b) => a.division.localeCompare(b.division) || a.name.localeCompare(b.name)) }));
+  return { conferences };
+}
+
+const ROSTER_POSITION_GROUPS = [
+  { label: "QB", positions: ["QB"], posOrder: false },
+  { label: "RB", positions: ["HB", "RB"], posOrder: false },
+  { label: "FB", positions: ["FB"], posOrder: false },
+  { label: "WR", positions: ["WR"], posOrder: false },
+  { label: "TE", positions: ["TE"], posOrder: false },
+  { label: "OL", positions: ["LT", "LG", "C", "RG", "RT"], posOrder: true },
+  { label: "DL", positions: ["LEDGE", "LE", "DT", "REDGE", "RE"], posOrder: true },
+  { label: "LB", positions: ["MLB", "LOLB", "WILL", "ROLB", "SAM"], posOrder: true },
+  { label: "CB", positions: ["CB"], posOrder: false },
+  { label: "FS", positions: ["FS"], posOrder: false },
+  { label: "SS", positions: ["SS"], posOrder: false },
+] as const;
+
+const ROSTER_POS_DISPLAY: Record<string, string> = {
+  LEDGE: "LEdge", LE: "LEdge", DT: "DT", REDGE: "REdge", RE: "REdge",
+  MLB: "Mike", LOLB: "Will", WILL: "Will", ROLB: "Sam", SAM: "Sam",
+  LT: "LT", LG: "LG", C: "C", RG: "RG", RT: "RT"
+};
+
+export async function getTeamRoster(guildId: string, teamId: string) {
+  const context = await getLeagueContext(guildId);
+  const { data: team } = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,conference,division,madden_team_id")
+    .eq("id", teamId)
+    .eq("league_id", context.league_id)
+    .maybeSingle();
+  if (!team) return { error: "team_not_found" };
+
+  const maddenTeamId = String(team.madden_team_id ?? "");
+  const PAGE = 1000;
+  const allPlayers: any[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from("rec_players")
+      .select("madden_player_id,full_name,position,dev_trait,overall_rating,raw_payload")
+      .eq("league_id", context.league_id)
+      .order("id")
+      .range(offset, offset + PAGE - 1);
+    if (error) break;
+    allPlayers.push(...(data ?? []));
+    if ((data ?? []).length < PAGE) break;
+  }
+
+  const teamPlayers = allPlayers.filter((p: any) => {
+    const raw = typeof p.raw_payload === "object" && p.raw_payload !== null ? p.raw_payload : {};
+    return String(raw.teamId ?? "") === maddenTeamId;
+  });
+
+  const posAll = ROSTER_POSITION_GROUPS.flatMap((g) => g.positions as readonly string[]);
+  const posIndex = new Map(posAll.map((p, i) => [p, i]));
+  const getOvr = (p: any) => asNumber(p.overall_rating ?? (typeof p.raw_payload === "object" && p.raw_payload !== null ? (p.raw_payload as any).overallRating : null) ?? 0);
+
+  const groups = ROSTER_POSITION_GROUPS.map(({ label, positions, posOrder }) => {
+    const posSet = new Set(positions as readonly string[]);
+    let members = teamPlayers.filter((p: any) => posSet.has(String(p.position ?? "")));
+    if (posOrder) {
+      members.sort((a: any, b: any) => {
+        const pa = String(a.position ?? "");
+        const pb = String(b.position ?? "");
+        const ia = posIndex.get(pa) ?? 999;
+        const ib = posIndex.get(pb) ?? 999;
+        return ia !== ib ? ia - ib : getOvr(b) - getOvr(a);
+      });
+    } else {
+      members.sort((a: any, b: any) => getOvr(b) - getOvr(a));
+    }
+    return {
+      label,
+      posOrder,
+      members: members.map((p: any) => {
+        const raw = typeof p.raw_payload === "object" && p.raw_payload !== null ? p.raw_payload : {};
+        const ovr = getOvr(p);
+        const dev = p.dev_trait ?? (raw as any).devTrait ?? null;
+        const years = Number((raw as any).contractYearsLeft ?? 0);
+        const pos = String(p.position ?? "");
+        const posLabel = posOrder ? (ROSTER_POS_DISPLAY[pos] ?? pos) : null;
+        return { name: p.full_name ?? "Unknown", ovr, dev, years, posLabel };
+      })
+    };
+  }).filter((g) => g.members.length > 0);
+
+  return { team: { id: team.id, name: team.name, abbreviation: team.abbreviation, conference: team.conference, division: team.division }, groups };
 }
