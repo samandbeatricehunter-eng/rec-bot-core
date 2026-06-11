@@ -36,6 +36,27 @@ export const MENU_CUSTOM_IDS = {
   leagueNameInput: "rec:admin:league_name_input"
 } as const;
 
+// Custom IDs for the Rosters submenu
+export const ROSTERS_CUSTOM_IDS = {
+  select: "rec:rosters:select",
+  // User Snapshots paginated viewer — page nav buttons
+  snapshotPrev: "rec:rosters:snapshot_prev",
+  snapshotNext: "rec:rosters:snapshot_next",
+  snapshotBack: "rec:rosters:snapshot_back",
+  // User selector dropdown
+  snapshotUserSelect: "rec:rosters:snapshot_user_select"
+} as const;
+
+// Custom IDs for the REC Bank dropdown
+export const REC_BANK_CUSTOM_IDS = {
+  select: "rec:bank:select",
+  // Modals for savings transfers
+  toSavingsModal: "rec:bank:to_savings_modal",
+  fromSavingsModal: "rec:bank:from_savings_modal",
+  toSavingsAmountInput: "rec:bank:to_savings_amount",
+  fromSavingsAmountInput: "rec:bank:from_savings_amount"
+} as const;
+
 export type SetupDangerAction = "server_setup" | "league_setup";
 
 function formatRoleLabel(role?: string | null) {
@@ -51,14 +72,15 @@ function formatChallenge(challenge?: { s_tier_goal?: string; a_tier_goal?: strin
   return [`S: ${challenge.s_tier_goal ?? "Not set"} ($50)`, `A: ${challenge.a_tier_goal ?? "Not set"} ($25)`, `B: ${challenge.b_tier_goal ?? "Win the game"} ($10)`].join("\n");
 }
 
-function formatBadgeList(badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>) {
-  if (!badges?.length) return "None yet";
-  return badges
-    .map((badge) => {
-      const name = badge.name ?? badge.badge_name ?? badge.label ?? "Badge";
-      return badge.tier ? `${name} (${badge.tier})` : name;
-    })
-    .join("\n");
+// Shows the 3 most recently earned badges; the full list lives in Rosters > User Snapshots.
+function formatBadgePreview(badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>) {
+  if (!badges?.length) return "None yet — view all via Rosters > User Snapshots";
+  const preview = badges.slice(0, 3).map((badge) => {
+    const name = badge.name ?? badge.badge_name ?? badge.label ?? "Badge";
+    return badge.tier ? `${name} (${badge.tier})` : name;
+  });
+  const suffix = badges.length > 3 ? `\n+${badges.length - 3} more — view all via Rosters > User Snapshots` : "";
+  return preview.join("\n") + suffix;
 }
 
 export function buildMainMenuEmbed(input: {
@@ -122,11 +144,11 @@ export function buildMainMenuEmbed(input: {
     `Global Super Bowls: ${input.globalSuperbowlText ?? "0-0"}`,
     `Global Point Differential: ${input.globalPointDifferential ?? 0}`,
     "",
-    "**Badges**",
-    formatBadgeList(input.badges),
+    "**Recent Badges**",
+    formatBadgePreview(input.badges),
     "",
     "**Menu Guide**",
-    "Use Rosters below to view players and rosters in the league.",
+    "Use Rosters below to view players, rosters, and your full badge history (User Snapshots).",
     "Use Manage My Team to manage purchases, players and other facets of your team.",
     "Use Standings & Stats to view league standings, player/team stats and other details of this league.",
     "Use REC Bank to move funds between your savings and wallet.",
@@ -235,5 +257,86 @@ export function buildSetupDangerModal(action: SetupDangerAction) {
     .setPlaceholder("Press Submit to proceed to channel configuration.");
 
   modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(acknowledgementInput));
+  return modal;
+}
+
+// ── Rosters submenu ───────────────────────────────────────────────────────────
+
+export function buildRostersMenuEmbed() {
+  return new EmbedBuilder()
+    .setTitle("Rosters")
+    .setDescription([
+      "Browse rosters, players, and coach profiles for this league.",
+      "",
+      "**View Rosters by Team** — Full depth chart by team (coming soon)",
+      "**View Players by Position** — Filter all players by position group (coming soon)",
+      "**View User Snapshots** — Season & global records, badges, power ranking, awards, and GOTW history for any linked coach"
+    ].join("\n"));
+}
+
+export function buildRostersMenuRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ROSTERS_CUSTOM_IDS.select)
+    .setPlaceholder("Choose a roster view")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("View Rosters by Team").setValue("rosters_by_team").setDescription("Browse full team depth charts (coming soon)"),
+      new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position").setDescription("Filter players by position group (coming soon)"),
+      new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots").setDescription("Season & global stats, badges, awards, GOTW history for any coach"),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("rosters_back")
+    );
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// Builds the user selector dropdown for the User Snapshots viewer.
+// coaches: array of { userId, discordId, displayName, teamName } from /v1/guilds/:guildId/coaches
+export function buildSnapshotUserSelectRows(coaches: Array<{ userId: string; discordId?: string | null; displayName: string; teamName?: string | null }>) {
+  const options = coaches.slice(0, 25).map((coach) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(`${coach.teamName ?? coach.displayName}`.slice(0, 100))
+      .setValue(coach.discordId ?? coach.userId)
+      .setDescription((`${coach.displayName}` + (coach.teamName ? ` — ${coach.teamName}` : "")).slice(0, 100))
+  );
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ROSTERS_CUSTOM_IDS.snapshotUserSelect)
+    .setPlaceholder("Select a coach to view their snapshot")
+    .addOptions(options);
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// ── REC Bank rows ─────────────────────────────────────────────────────────────
+
+// The bank embed already shows balances and transactions; these rows power the action menu.
+export function buildRecBankRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(REC_BANK_CUSTOM_IDS.select)
+    .setPlaceholder("Choose a bank action")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("Transfer to Savings").setValue("to_savings").setDescription("Move funds from your wallet into savings"),
+      new StringSelectMenuOptionBuilder().setLabel("Transfer from Savings").setValue("from_savings").setDescription("Move funds from savings back to your wallet"),
+      new StringSelectMenuOptionBuilder().setLabel("Place a Wager").setValue("place_wager").setDescription("Wager coins on an upcoming game (coming soon)"),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("bank_back")
+    );
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// ── Savings transfer modals ───────────────────────────────────────────────────
+
+export function buildToSavingsModal() {
+  const modal = new ModalBuilder().setCustomId(REC_BANK_CUSTOM_IDS.toSavingsModal).setTitle("Transfer to Savings");
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId(REC_BANK_CUSTOM_IDS.toSavingsAmountInput).setLabel("Amount to move to savings").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 50")
+    )
+  );
+  return modal;
+}
+
+export function buildFromSavingsModal() {
+  const modal = new ModalBuilder().setCustomId(REC_BANK_CUSTOM_IDS.fromSavingsModal).setTitle("Transfer from Savings");
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId(REC_BANK_CUSTOM_IDS.fromSavingsAmountInput).setLabel("Amount to withdraw from savings").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 50")
+    )
+  );
   return modal;
 }

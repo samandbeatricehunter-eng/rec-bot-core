@@ -1888,9 +1888,12 @@ export async function getGameChannelPlans(guildId: string) {
   const config = await getLeagueConfiguration(context.league_id);
   const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
   const isPlayoffStage = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(stage);
+  // For playoffs: check explicit postseason setting first. If null but streaming_scope is
+  // "playoffs_only", the league intended playoffs to require streaming — treat it as required.
   const streamingRequirement = stage === "regular_season"
     ? config?.regular_season_streaming_requirement ?? config?.streaming_requirement
-    : config?.postseason_streaming_requirement ?? config?.streaming_requirement;
+    : config?.postseason_streaming_requirement
+      ?? (config?.streaming_scope === "playoffs_only" ? "required" : config?.streaming_requirement);
   const fourthDownRules = humanizeFourthDownRule(config?.fourth_down_rule_type, config?.custom_fourth_down_rule);
 
   // Determine which game is GOTW: in playoffs every H2H game is GOTW; in regular season look up selected candidate
@@ -2023,12 +2026,9 @@ function getScorePair(game: any) {
 
 function isCompletedGame(game: any) {
   const { home, away } = getScorePair(game);
-  // Require at least one non-null score before trusting is_tie (prevents 0-0 phantom ties from null imports)
-  const hasValidScores = game.home_score != null && game.away_score != null;
-  return game.status === "final" || game.status === "completed" ||
-    (hasValidScores && (home > 0 || away > 0)) ||
-    (hasValidScores && game.is_tie) ||
-    game.winning_user_id || game.losing_user_id;
+  // Every real Madden game has at least one non-zero score; 0-0 means unplayed/phantom import.
+  // Don't use is_tie as a completion signal — phantom imports set is_tie=true on 0-0 games.
+  return home > 0 || away > 0 || game.winning_user_id || game.losing_user_id;
 }
 
 function gameApplyKey(game: any) {
@@ -2139,13 +2139,13 @@ export async function auditAndRepairRecords(guildId: string) {
   // Fetch every completed game for the current season (and all seasons for league-wide repair)
   const { data: seasonGames } = await supabase
     .from("rec_game_results")
-    .select("id,home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,status,season_number,records_applied_at,week_number")
+    .select("id,home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,season_number,records_applied_at,week_number")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
 
   const { data: allLeagueGames } = await supabase
     .from("rec_game_results")
-    .select("id,home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,status,season_number,week_number")
+    .select("id,home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,season_number,week_number")
     .eq("league_id", leagueId);
 
   const completed = (games: any[]) => games.filter(isCompletedGame);
@@ -2276,7 +2276,7 @@ export async function auditAndRepairRecords(guildId: string) {
     const orFilter = userIdArray.map((id) => `home_user_id.eq.${id}`).concat(userIdArray.map((id) => `away_user_id.eq.${id}`)).join(",");
     const { data: allH2HGames } = await supabase
       .from("rec_game_results")
-      .select("home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,status")
+      .select("home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie")
       .not("home_user_id", "is", null)
       .not("away_user_id", "is", null)
       .or(orFilter);
@@ -2638,7 +2638,12 @@ export async function evaluateStreamCompliance(guildId: string) {
   const completedWeek = Math.max(1, (league.current_week ?? 1) - 1);
   const features = await getLeagueFeatureSettings(context.league_id).catch(() => null);
   const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
-  const requirement = stage === "regular_season" ? features?.regular_season_streaming_requirement ?? features?.streaming_requirement : features?.postseason_streaming_requirement ?? features?.streaming_requirement;
+  // Same playoff-scope fallback as getGameChannelPlans: explicit postseason setting wins;
+  // if null but scope is "playoffs_only", the league intended playoffs to require streaming.
+  const requirement = stage === "regular_season"
+    ? features?.regular_season_streaming_requirement ?? features?.streaming_requirement
+    : features?.postseason_streaming_requirement
+      ?? (features?.streaming_scope === "playoffs_only" ? "required" : features?.streaming_requirement);
   const streamingRequired = requirement === "required";
   if (!streamingRequired) return { checked: 0, missed: 0, required: false };
 

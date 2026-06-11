@@ -52,13 +52,51 @@ export async function getWalletByDiscordId(discordId: string, guildId?: string) 
     }
   }
 
-  const transactions = await getRecentTransactionsByUserId(baseline.user.id, 25, leagueId ?? undefined);
+  // When scoped to a guild, show only 10 transactions for that league.
+  // Without a guild context, show 25 across all leagues.
+  const limit = guildId ? 10 : 25;
+  const transactions = await getRecentTransactionsByUserId(baseline.user.id, limit, leagueId ?? undefined);
 
   return {
     user: baseline.user,
     discord: baseline.discord,
     wallet: baseline.wallet ?? { wallet_balance: 0, savings_balance: 0 },
-    transactions
+    transactions,
+    leagueId
+  };
+}
+
+// Transfer funds between a user's wallet and savings.
+// direction "to_savings": moves money from wallet → savings.
+// direction "from_savings": moves money from savings → wallet.
+export async function transferSavings(discordId: string, amount: number, direction: "to_savings" | "from_savings") {
+  if (!Number.isFinite(amount) || amount <= 0) throw new ApiError(400, "Amount must be a positive number.");
+
+  const baseline = await getUserBaselineByDiscordId(discordId);
+  const walletRow = baseline.wallet ?? { wallet_balance: 0, savings_balance: 0 };
+  const wallet = Number(walletRow.wallet_balance ?? 0);
+  const savings = Number(walletRow.savings_balance ?? 0);
+
+  if (direction === "to_savings") {
+    if (wallet < amount) throw new ApiError(400, `Insufficient wallet balance. You have $${wallet}.`);
+    const { error } = await supabase
+      .from("rec_wallets")
+      .upsert({ user_id: baseline.user.id, wallet_balance: wallet - amount, savings_balance: savings + amount, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) throw new ApiError(500, "Transfer failed", error);
+  } else {
+    if (savings < amount) throw new ApiError(400, `Insufficient savings balance. You have $${savings}.`);
+    const { error } = await supabase
+      .from("rec_wallets")
+      .upsert({ user_id: baseline.user.id, wallet_balance: wallet + amount, savings_balance: savings - amount, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) throw new ApiError(500, "Transfer failed", error);
+  }
+
+  const updated = await supabase.from("rec_wallets").select("wallet_balance,savings_balance").eq("user_id", baseline.user.id).single();
+  return {
+    transferred: amount,
+    direction,
+    wallet_balance: updated.data?.wallet_balance ?? 0,
+    savings_balance: updated.data?.savings_balance ?? 0
   };
 }
 
@@ -78,6 +116,113 @@ export async function getRecentTransactionsByUserId(userId: string, limit = 25, 
   }
 
   return ledger.data ?? [];
+}
+
+// Returns all data needed for the User Snapshots paginated viewer in /menu > Rosters.
+// Aggregates season records, global records, badges, power ranking, SOS, GOTW records,
+// GOTW competition history, and awards won in the given guild.
+export async function getUserSnapshot(targetDiscordId: string, guildId: string) {
+  const baseline = await getUserBaselineByDiscordId(targetDiscordId);
+  const userId = baseline.user.id;
+
+  // Resolve league for this guild
+  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
+  if (!server.data) throw new ApiError(404, "Server not found for this guild.");
+  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).maybeSingle();
+  const leagueId = link.data?.league_id ?? null;
+
+  // Step 1: get assignment first so we can use teamId for the power ranking lookup.
+  const assignmentResult = leagueId
+    ? await supabase.from("rec_team_assignments").select("team_id,rec_teams(name,abbreviation)").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle()
+    : { data: null };
+  const teamId = (assignmentResult.data as any)?.team_id ?? null;
+
+  // Step 2: run remaining fetches in parallel.
+  const [league, seasonRecord, badges, gotwGuessRecord, powerRankingRow, gotwCompetition, awardsWon] = await Promise.all([
+    // League info
+    leagueId ? supabase.from("rec_leagues").select("name,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle() : Promise.resolve({ data: null }),
+    // Season record
+    leagueId ? supabase.from("rec_user_season_records").select("wins,losses,ties,games_played,point_differential,points_for,points_against").eq("league_id", leagueId).eq("user_id", userId).maybeSingle() : Promise.resolve({ data: null }),
+    // Badges earned in this league
+    leagueId ? supabase.from("rec_user_badges").select("badge_name,badge_label,tier,earned_at").eq("league_id", leagueId).eq("user_id", userId).order("earned_at", { ascending: false }) : supabase.from("rec_user_badges").select("badge_name,badge_label,tier,earned_at").eq("user_id", userId).order("earned_at", { ascending: false }),
+    // GOTW guessing record (global)
+    supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
+    // Power ranking (latest week for this season, looked up by teamId)
+    (leagueId && teamId) ? (async () => {
+      const leagueRow = await supabase.from("rec_leagues").select("season_number").eq("id", leagueId).maybeSingle();
+      return supabase.from("rec_power_rankings").select("rank,score,sos_score").eq("league_id", leagueId).eq("team_id", teamId).eq("season_number", leagueRow.data?.season_number ?? 1).order("week_number", { ascending: false }).limit(1).maybeSingle();
+    })() : Promise.resolve({ data: null }),
+    // GOTW competition history (when their game was GOTW)
+    leagueId ? supabase.from("rec_game_of_week_polls").select("home_team_id,away_team_id,winning_team_id,status,week_number").eq("league_id", leagueId).not("status", "eq", "open").order("week_number", { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
+    // Awards won in this guild's league
+    leagueId ? supabase.from("rec_awards").select("award_key,award_name,season_number,status").eq("league_id", leagueId).eq("winner_user_id", userId).order("season_number", { ascending: false }) : Promise.resolve({ data: [] })
+  ]);
+
+  const teamName = (assignmentResult.data as any)?.rec_teams?.name ?? null;
+  const globalRecord = baseline.globalRecord ?? {};
+
+  // Compute GOTW competition record (games where their team was home or away in a settled poll)
+  let gotwWins = 0;
+  let gotwLosses = 0;
+  const gotwPolls = (gotwCompetition as any)?.data ?? [];
+  for (const poll of gotwPolls) {
+    if (!teamId) break;
+    const isParticipant = String(poll.home_team_id) === String(teamId) || String(poll.away_team_id) === String(teamId);
+    if (!isParticipant || poll.status !== "settled" || !poll.winning_team_id) continue;
+    if (String(poll.winning_team_id) === String(teamId)) gotwWins += 1;
+    else gotwLosses += 1;
+  }
+
+  const seasonRecordData = (seasonRecord as any)?.data ?? {};
+  const gotwGuess = (gotwGuessRecord as any)?.data;
+  const gotwCorrect = gotwGuess?.correct_guesses ?? 0;
+  const gotwWrong = gotwGuess?.wrong_guesses ?? 0;
+  const gotwTotal = gotwCorrect + gotwWrong;
+  const rankRow = (powerRankingRow as any)?.data;
+  const leagueInfo = (league as any)?.data;
+  const seasonNumber = leagueInfo?.season_number ?? leagueInfo?.display_season_number ?? null;
+
+  return {
+    user: baseline.user,
+    discord: baseline.discord,
+    teamName,
+    leagueName: leagueInfo?.name ?? null,
+    seasonNumber,
+    currentWeek: leagueInfo?.current_week ?? null,
+    seasonStage: leagueInfo?.season_stage ?? null,
+    // Records
+    seasonRecord: {
+      wins: seasonRecordData.wins ?? 0,
+      losses: seasonRecordData.losses ?? 0,
+      ties: seasonRecordData.ties ?? 0,
+      pointDifferential: seasonRecordData.point_differential ?? 0,
+      pointsFor: seasonRecordData.points_for ?? 0,
+      pointsAgainst: seasonRecordData.points_against ?? 0,
+      text: recordText(seasonRecordData)
+    },
+    globalRecord: {
+      wins: globalRecord.wins ?? 0,
+      losses: globalRecord.losses ?? 0,
+      ties: globalRecord.ties ?? 0,
+      pointDifferential: globalRecord.point_differential ?? 0,
+      playoffWins: globalRecord.playoff_wins ?? 0,
+      playoffLosses: globalRecord.playoff_losses ?? 0,
+      superbowlWins: globalRecord.superbowl_wins ?? 0,
+      superbowlLosses: globalRecord.superbowl_losses ?? 0,
+      text: recordText(globalRecord),
+      playoffText: playoffText(globalRecord),
+      superbowlText: superbowlText(globalRecord)
+    },
+    // Power ranking
+    powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: rankRow.sos_score } : null,
+    // GOTW records
+    gotwGuessing: gotwTotal > 0 ? { correct: gotwCorrect, total: gotwTotal, accuracy: Math.round((gotwCorrect / gotwTotal) * 100) } : null,
+    gotwCompetition: (gotwWins + gotwLosses) > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
+    // Badges
+    badges: (badges as any)?.data ?? [],
+    // Awards won in this guild's league
+    awardsWon: (awardsWon as any)?.data ?? []
+  };
 }
 
 function recordText(record: any) {
@@ -262,17 +407,20 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
 
   const globalRecord = baseline.globalRecord ?? {};
 
-  // Get GOTW voting record (GLOBAL across all servers/leagues)
+  // GOTW voting record — read from the settled aggregate table (populated by settleGotwVotes
+  // during advance). The raw rec_game_of_week_votes table can have null user_id when the
+  // Discord→user lookup fails at vote-cast time, so the aggregate is more reliable.
   let gotwVotingRecord = null;
-  const { data: votes } = await supabase
-    .from("rec_game_of_week_votes")
-    .select("id,is_correct,settled_at")
+  const { data: gotwRecord } = await supabase
+    .from("rec_global_gotw_guessing_records")
+    .select("correct_guesses,wrong_guesses")
     .eq("user_id", userId)
-    .not("settled_at", "is", null);
+    .maybeSingle();
 
-  if (votes && votes.length > 0) {
-    const correct = votes.filter((v: any) => v.is_correct).length;
-    const total = votes.length;
+  if (gotwRecord) {
+    const correct = gotwRecord.correct_guesses ?? 0;
+    const wrong = gotwRecord.wrong_guesses ?? 0;
+    const total = correct + wrong;
     const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
     gotwVotingRecord = { correct, total, accuracy };
   }

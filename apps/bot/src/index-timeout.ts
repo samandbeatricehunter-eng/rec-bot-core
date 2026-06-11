@@ -8,8 +8,16 @@ import {
   buildAdminPanelRows,
   buildMainMenuEmbed,
   buildMainMenuRows,
+  buildRostersMenuEmbed,
+  buildRostersMenuRows,
+  buildSnapshotUserSelectRows,
+  buildRecBankRows,
+  buildToSavingsModal,
+  buildFromSavingsModal,
   buildSetupDangerModal,
   MENU_CUSTOM_IDS,
+  ROSTERS_CUSTOM_IDS,
+  REC_BANK_CUSTOM_IDS,
   type SetupDangerAction
 } from "./ui/menu.js";
 import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel, buildChannelIdModal } from "./ui/server-setup-admin.js";
@@ -43,6 +51,11 @@ const menuSessions = new ExpiringSessionStore<true>();
 const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 const serverSetupChannelSessions = new Map<string, string>();
 const advanceScheduleSessions = new Map<string, AdvanceScheduleState>();
+
+// Tracks active User Snapshot viewer sessions. Page index and which Discord ID is being viewed.
+// Key: viewer's Discord user ID (not the target subject's ID).
+type SnapshotSession = { targetDiscordId: string; targetDisplayName: string; currentPage: number };
+const snapshotSessions = new Map<string, SnapshotSession>();
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
@@ -135,6 +148,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
+      if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportSelect(interaction);
       if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.select) return handleAdvanceMenuSelect(interaction);
@@ -178,6 +194,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotPrev) return handleSnapshotPageNav(interaction, -1);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderRostersMenu(interaction);
     }
 
     if (interaction.isModalSubmit()) {
@@ -185,6 +204,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
+      if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
+      if (interaction.customId === REC_BANK_CUSTOM_IDS.fromSavingsModal) return handleSavingsTransferModal(interaction, "from_savings");
     }
   } catch (error) {
     await safeInteractionError(interaction, error);
@@ -284,16 +305,15 @@ function formatTransactionLine(transaction: any) {
   return `**${sign}$${amount}** — ${type}\n${formatRecDateTime(transaction?.created_at)} • ${reason}`;
 }
 
-async function renderRecBankFromSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading REC Bank...").setDescription("Fetching your wallet balance and recent transactions.")], components: [] });
-  const guildId = "guild" in interaction && interaction.guild ? interaction.guild.id : undefined;
-  const walletPayload = await recApi.getWallet(interaction.user.id, guildId);
+// Builds the REC Bank embed and returns the payload (used when opening or refreshing the bank view).
+async function buildRecBankPayload(discordUserId: string, guildId: string | undefined, isAdmin: boolean) {
+  const walletPayload = await recApi.getWallet(discordUserId, guildId);
   const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
   const transactions = Array.isArray(walletPayload?.transactions) ? walletPayload.transactions : [];
+  // API already limits to 10 when guildId is provided; show label accordingly
+  const countLabel = guildId ? "Last 10 Transactions (This League)" : "Last 25 Transactions (All Leagues)";
   const transactionText = transactions.length
-    ? transactions.slice(0, 25).map(formatTransactionLine).join("\n\n")
+    ? transactions.map(formatTransactionLine).join("\n\n")
     : "No wallet transactions found.";
 
   const embed = new EmbedBuilder()
@@ -302,11 +322,77 @@ async function renderRecBankFromSelect(interaction: Extract<Interaction, { isStr
       `Wallet Balance: **$${wallet.wallet_balance ?? 0}**`,
       `Savings Balance: **$${wallet.savings_balance ?? 0}**`,
       "",
-      "**Last 25 Transactions**",
+      `**${countLabel}**`,
       transactionText
     ].join("\n").slice(0, 4096));
 
-  return interaction.editReply({ embeds: [embed], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
+  return { embeds: [embed], components: buildRecBankRows() };
+}
+
+async function renderRecBankFromSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading REC Bank...").setDescription("Fetching your wallet balance and recent transactions.")], components: [] });
+  const guildId = interaction.guild?.id ?? undefined;
+  await interaction.editReply(await buildRecBankPayload(interaction.user.id, guildId, isDiscordAdminInteraction(interaction)));
+}
+
+// Handles the REC Bank action dropdown (transfer, wager, back).
+async function handleRecBankSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  const selected = interaction.values[0];
+
+  if (selected === "bank_back") {
+    return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
+  }
+  if (selected === "to_savings") return interaction.showModal(buildToSavingsModal());
+  if (selected === "from_savings") return interaction.showModal(buildFromSavingsModal());
+  if (selected === "place_wager") {
+    // Wager workflow placeholder — will be built in a future session.
+    await interaction.deferUpdate();
+    const guildId = interaction.guild?.id ?? undefined;
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Place a Wager").setDescription("The wager workflow is coming soon. You'll be able to wager coins on upcoming matchups from this menu.")],
+      components: buildRecBankRows()
+    });
+  }
+}
+
+// Processes the savings transfer modal submission.
+async function handleSavingsTransferModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>, direction: "to_savings" | "from_savings") {
+  if (!interaction.isModalSubmit()) return;
+  await interaction.deferUpdate();
+  const inputId = direction === "to_savings" ? REC_BANK_CUSTOM_IDS.toSavingsAmountInput : REC_BANK_CUSTOM_IDS.fromSavingsAmountInput;
+  const raw = interaction.fields.getTextInputValue(inputId);
+  const amount = parseFloat(raw.replace(/[^0-9.]/g, ""));
+  const guildId = interaction.guild?.id ?? undefined;
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Invalid Amount").setDescription("Please enter a valid positive number (e.g. 50).")],
+      components: buildRecBankRows()
+    });
+  }
+
+  try {
+    const result = await recApi.transferSavings(interaction.user.id, amount, direction);
+    const dirLabel = direction === "to_savings" ? "moved to savings" : "withdrawn from savings";
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Transfer Complete").setDescription([
+        `**$${amount}** ${dirLabel}.`,
+        "",
+        `Wallet Balance: **$${result.wallet_balance ?? 0}**`,
+        `Savings Balance: **$${result.savings_balance ?? 0}**`
+      ].join("\n"))],
+      components: buildRecBankRows()
+    });
+  } catch (err: any) {
+    const msg = err?.message ?? "Transfer failed. Please try again.";
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Transfer Failed").setDescription(msg)],
+      components: buildRecBankRows()
+    });
+  }
 }
 
 async function handleMainMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
@@ -317,8 +403,180 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
     return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   }
   if (selected === "rec_bank") return renderRecBankFromSelect(interaction);
-  const labels: Record<string, string> = { rosters: "Rosters", manage_team: "Manage My Team", standings_stats: "Standings & Stats", media_center: "Media Center", help_rules: "Help / Rules" };
+  if (selected === "rosters") return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
+  const labels: Record<string, string> = { manage_team: "Manage My Team", standings_stats: "Standings & Stats", media_center: "Media Center", help_rules: "Help / Rules" };
   await interaction.update({ embeds: [new EmbedBuilder().setTitle(labels[selected] ?? "REC League HQ").setDescription("This department shell is connected. The detailed workflow will be built next.").setFooter({ text: "REC Core connected" })], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
+}
+
+// Render the Rosters submenu (used from both the main select and the snapshot Back button).
+async function renderRostersMenu(interaction: Extract<Interaction, { isButton(): boolean } | { isStringSelectMenu(): boolean }>) {
+  if (interaction.isButton()) return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
+  if (interaction.isStringSelectMenu()) return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
+}
+
+// Handles the Rosters submenu dropdown selection.
+async function handleRostersMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  const selected = interaction.values[0];
+
+  if (selected === "rosters_back") {
+    return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
+  }
+
+  if (selected === "rosters_by_team" || selected === "players_by_position") {
+    return interaction.update({
+      embeds: [new EmbedBuilder().setTitle(selected === "rosters_by_team" ? "View Rosters by Team" : "View Players by Position").setDescription("This view is coming soon. Check back after the next build update.")],
+      components: buildRostersMenuRows()
+    });
+  }
+
+  if (selected === "user_snapshots") {
+    // Load the coach list so the user can pick whose snapshot to view.
+    await interaction.deferUpdate();
+    if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("This must be run inside a league server.")], components: buildRostersMenuRows() });
+    const coachData = await recApi.getCoaches(interaction.guildId).catch(() => null);
+    const coaches = coachData?.coaches ?? [];
+    if (!coaches.length) {
+      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("No linked coaches found in this league. Team assignments must be configured first.")], components: buildRostersMenuRows() });
+    }
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("Select a coach from the dropdown below to view their full profile snapshot.")],
+      components: buildSnapshotUserSelectRows(coaches)
+    });
+  }
+}
+
+// ── User Snapshots paginated viewer ──────────────────────────────────────────
+
+// PAGE STRUCTURE:
+//   0 → Season/Global records + power ranking + GOTW records
+//   1 → Badges (up to 15 per page; repeats for additional badge pages)
+//   last-2 → GOTW competition history
+//   last-1 → Awards won in this guild
+//
+// The viewer renders one embed per page and provides prev/next/back navigation buttons.
+
+function buildSnapshotNavRows(currentPage: number, totalPages: number) {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotBack).setLabel("Back to Rosters").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotPrev).setLabel("◀ Prev").setStyle(ButtonStyle.Primary).setDisabled(currentPage === 0),
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotNext).setLabel("Next ▶").setStyle(ButtonStyle.Primary).setDisabled(currentPage >= totalPages - 1)
+  );
+  return [row];
+}
+
+function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedBuilder; totalPages: number } {
+  const pages: EmbedBuilder[] = [];
+
+  // Page 0: Records + Power Ranking + GOTW
+  {
+    const sr = snapshot.seasonRecord ?? {};
+    const gr = snapshot.globalRecord ?? {};
+    const pr = snapshot.powerRank;
+    const gg = snapshot.gotwGuessing;
+    const gc = snapshot.gotwCompetition;
+    const embed = new EmbedBuilder()
+      .setTitle(`${snapshot.discord?.global_name ?? snapshot.user?.display_name ?? "Coach"} — Snapshot`)
+      .setDescription([
+        `Team: **${snapshot.teamName ?? "Unassigned"}**`,
+        `League: ${snapshot.leagueName ?? "Unknown"} • Season ${snapshot.seasonNumber ?? "?"}, Week ${snapshot.currentWeek ?? "?"}`,
+        "",
+        "**Season Record (This Guild)**",
+        `W-L-T: **${sr.text ?? "0-0-0"}** | PD: **${sr.pointDifferential ?? 0}**`,
+        `Points For: ${sr.pointsFor ?? 0} | Points Against: ${sr.pointsAgainst ?? 0}`,
+        "",
+        "**Global Record (All Leagues)**",
+        `W-L-T: **${gr.text ?? "0-0-0"}** | PD: **${gr.pointDifferential ?? 0}**`,
+        `Playoffs: ${gr.playoffText ?? "0-0"} | Super Bowls: ${gr.superbowlText ?? "0-0"}`,
+        "",
+        "**Power Ranking**",
+        pr ? `Rank: **#${pr.rank}** | Score: ${(pr.score ?? 0).toFixed(2)} | SOS: ${(pr.sosScore ?? 0).toFixed(2)}` : "Not yet ranked this season",
+        "",
+        "**GOTW Voting Record (Global)**",
+        gg ? `${gg.correct}/${gg.total} correct (${gg.accuracy}%)` : "No votes recorded yet",
+        "",
+        "**GOTW Competitor Record (This Guild)**",
+        gc ? `${gc.wins}W-${gc.losses}L as a GOTW participant` : "No GOTW games played yet"
+      ].join("\n").slice(0, 4096));
+    pages.push(embed);
+  }
+
+  // Badge pages (up to 15 badges per page)
+  const badges: any[] = snapshot.badges ?? [];
+  if (badges.length === 0) {
+    pages.push(new EmbedBuilder().setTitle("Badges").setDescription("No badges earned yet."));
+  } else {
+    const BADGES_PER_PAGE = 15;
+    for (let i = 0; i < badges.length; i += BADGES_PER_PAGE) {
+      const slice = badges.slice(i, i + BADGES_PER_PAGE);
+      const lines = slice.map((b: any) => {
+        const name = b.badge_label ?? b.badge_name ?? "Badge";
+        const tier = b.tier ? ` (${b.tier})` : "";
+        const earned = b.earned_at ? ` — ${new Date(b.earned_at).toLocaleDateString("en-US")}` : "";
+        return `• ${name}${tier}${earned}`;
+      });
+      pages.push(new EmbedBuilder().setTitle(`Badges (${i + 1}–${Math.min(i + BADGES_PER_PAGE, badges.length)} of ${badges.length})`).setDescription(lines.join("\n")));
+    }
+  }
+
+  // Awards page
+  const awards: any[] = snapshot.awardsWon ?? [];
+  if (awards.length === 0) {
+    pages.push(new EmbedBuilder().setTitle("Awards Won (This Guild)").setDescription("No awards won in this league yet."));
+  } else {
+    const lines = awards.map((a: any) => `• **${a.award_name}** — Season ${a.season_number}`);
+    pages.push(new EmbedBuilder().setTitle(`Awards Won (This Guild) — ${awards.length} total`).setDescription(lines.join("\n")));
+  }
+
+  const safeIndex = Math.max(0, Math.min(currentPage, pages.length - 1));
+  const embed = pages[safeIndex];
+  // Attach page indicator to footer
+  embed.setFooter({ text: `Page ${safeIndex + 1} of ${pages.length}` });
+  return { embed, totalPages: pages.length };
+}
+
+// Called when the user selects a coach from the snapshot user-selector dropdown.
+async function handleSnapshotUserSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return;
+  const targetDiscordId = interaction.values[0];
+
+  // Fetch snapshot data for the selected user
+  const snapshot = await recApi.getUserSnapshot(targetDiscordId, interaction.guildId).catch(() => null);
+  if (!snapshot) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Snapshot Unavailable").setDescription("Could not load this coach's snapshot. They may not be fully linked.")], components: buildRostersMenuRows() });
+  }
+
+  const displayName = snapshot.discord?.global_name ?? snapshot.user?.display_name ?? "Coach";
+  snapshotSessions.set(interaction.user.id, { targetDiscordId, targetDisplayName: displayName, currentPage: 0 });
+
+  const { embed, totalPages } = buildSnapshotPages(snapshot, 0);
+  return interaction.editReply({ embeds: [embed], components: buildSnapshotNavRows(0, totalPages) });
+}
+
+// Called when the user clicks the prev/next page nav buttons in a snapshot viewer.
+async function handleSnapshotPageNav(interaction: Extract<Interaction, { isButton(): boolean }>, delta: -1 | 1) {
+  if (!interaction.isButton()) return;
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return;
+
+  const session = snapshotSessions.get(interaction.user.id);
+  if (!session) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Session Expired").setDescription("Your snapshot session expired. Please reopen Rosters > User Snapshots.")], components: buildRostersMenuRows() });
+  }
+
+  const snapshot = await recApi.getUserSnapshot(session.targetDiscordId, interaction.guildId).catch(() => null);
+  if (!snapshot) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Snapshot Unavailable").setDescription("Could not reload this snapshot.")], components: buildRostersMenuRows() });
+  }
+
+  const newPage = session.currentPage + delta;
+  const { embed, totalPages } = buildSnapshotPages(snapshot, newPage);
+  const safePage = Math.max(0, Math.min(newPage, totalPages - 1));
+  snapshotSessions.set(interaction.user.id, { ...session, currentPage: safePage });
+
+  return interaction.editReply({ embeds: [embed], components: buildSnapshotNavRows(safePage, totalPages) });
 }
 
 async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {

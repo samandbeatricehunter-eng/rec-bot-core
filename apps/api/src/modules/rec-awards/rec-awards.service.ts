@@ -438,6 +438,89 @@ function scoreKickerStats(s: Record<string, number>): number {
   return fgPct * 100 * 0.55 + xpPct * 100 * 0.30 + (longFG / 60) * 100 * 0.15;
 }
 
+// Maps award key → which stat category + Madden positions identify the representative player
+const POSITION_AWARD_PLAYER_CONFIG: Record<string, { category: string; positions: string[]; rankByStat: string }> = {
+  best_qb: { category: "passing", positions: ["QB"], rankByStat: "passYds" },
+  best_rb: { category: "rushing", positions: ["HB"], rankByStat: "rushYds" },
+  best_wr: { category: "receiving", positions: ["WR", "TE"], rankByStat: "recYds" },
+  best_dl: { category: "defense", positions: ["DT", "REDGE", "LEDGE"], rankByStat: "defSacks" },
+  best_lb: { category: "defense", positions: ["MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM"], rankByStat: "defTotalTackles" },
+  best_db: { category: "defense", positions: ["CB", "FS", "SS"], rankByStat: "defInts" },
+  best_kicker: { category: "kicking", positions: ["K"], rankByStat: "fGMade" },
+  // Composite: best player across all offensive positions
+  mvp: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "passYds" },
+  opoy: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "passYds" },
+  offensive_rookie: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "passYds" },
+  // Composite: best player across all defensive positions
+  dpoy: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "defSacks" },
+  defensive_rookie: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "defSacks" },
+};
+
+// For composite awards (mvp, opoy, dpoy) that span multiple stat categories,
+// also pull rushing/receiving so RBs and WRs compete with QBs fairly.
+const COMPOSITE_EXTRA_CATEGORIES: Record<string, string[]> = {
+  mvp: ["rushing", "receiving"],
+  opoy: ["rushing", "receiving"],
+  offensive_rookie: ["rushing", "receiving"],
+};
+
+// Returns the best individual Madden player per team for position awards (by primary rankByStat).
+// For composite awards, competitions are ranked by the highest value across all their categories.
+async function getTopPlayerPerTeam(
+  leagueId: string,
+  seasonNumber: number,
+  config: { category: string; positions: string[]; rankByStat: string },
+  extraCategories: string[] = []
+): Promise<Map<string, { playerName: string; position: string }>> {
+  const categories = [config.category, ...extraCategories];
+  const posSet = new Set(config.positions);
+
+  const results = await Promise.all(
+    categories.map((cat) =>
+      supabase
+        .from("rec_player_weekly_stats")
+        .select("player_id,team_id,stats,rec_players!inner(full_name,position)")
+        .eq("league_id", leagueId)
+        .eq("season_number", seasonNumber)
+        .eq("season_stage", "regular_season")
+        .eq("stat_category", cat)
+    )
+  );
+
+  // Accumulate per player + team
+  const playerAgg = new Map<string, { teamId: string; playerName: string; position: string; stats: Record<string, number> }>();
+  for (const result of results) {
+    for (const row of result.data ?? []) {
+      const teamId = String(row.team_id ?? "");
+      const playerId = String((row as any).player_id ?? "");
+      if (!teamId || !playerId) continue;
+      const playerRec = (row as any).rec_players;
+      const position = String(playerRec?.position ?? "");
+      if (!posSet.has(position)) continue;
+      const key = `${teamId}:::${playerId}`;
+      if (!playerAgg.has(key)) {
+        playerAgg.set(key, { teamId, playerName: playerRec?.full_name ?? "Unknown", position, stats: {} });
+      }
+      const agg = playerAgg.get(key)!;
+      for (const [k, v] of Object.entries((row.stats ?? {}) as Record<string, unknown>)) {
+        agg.stats[k] = (agg.stats[k] ?? 0) + asNum(v);
+      }
+    }
+  }
+
+  // Pick the highest-ranked player per team
+  const bestPerTeam = new Map<string, { playerName: string; position: string; topVal: number }>();
+  for (const [, { teamId, playerName, position, stats }] of playerAgg) {
+    const val = asNum(stats[config.rankByStat] ?? 0);
+    const existing = bestPerTeam.get(teamId);
+    if (!existing || val > existing.topVal) {
+      bestPerTeam.set(teamId, { playerName, position, topVal: val });
+    }
+  }
+
+  return new Map([...bestPerTeam.entries()].map(([tid, { playerName, position }]) => [tid, { playerName, position }]));
+}
+
 // Build nominees list for one award, returning top N sorted by performance score
 function topN(rawMap: Map<string, number>, n: number): { userId: string; rawScore: number }[] {
   return [...rawMap.entries()]
@@ -475,6 +558,21 @@ export async function generateAwardNominees(guildId: string) {
     getChallengeCounts(leagueId, seasonNumber, userIds),
     getBadgeCounts(leagueId, userIds)
   ]);
+
+  // Pre-fetch best individual Madden player per team for every position-based award.
+  // This powers "PlayerName · TeamName" display labels in voting embeds.
+  const positionAwardKeys = Object.keys(POSITION_AWARD_PLAYER_CONFIG);
+  const positionPlayerMaps = await Promise.all(
+    positionAwardKeys.map((key) =>
+      getTopPlayerPerTeam(
+        leagueId, seasonNumber,
+        POSITION_AWARD_PLAYER_CONFIG[key],
+        COMPOSITE_EXTRA_CATEGORIES[key] ?? []
+      )
+    )
+  );
+  // playersByAward: awardKey → (teamId → { playerName, position })
+  const playersByAward = new Map(positionAwardKeys.map((key, i) => [key, positionPlayerMaps[i]]));
 
   // Build score maps per award key
   const rawScores: Record<string, Map<string, number>> = {};
@@ -657,16 +755,24 @@ export async function generateAwardNominees(guildId: string) {
 
     if (!award?.id) continue;
 
+    // For position-based awards, surface the named Madden player so voters see
+    // "Patrick Mahomes · Chiefs" rather than just the coach's Discord name.
+    const positionPlayerMap = playersByAward.get(def.key);
     const nomineeRows = nominees
       .map((nominee) => {
         const coach = teamByUser.get(nominee.userId);
         if (!coach) return null;
+        const playerInfo = positionPlayerMap?.get(coach.teamId) ?? null;
+        const displayLabel = playerInfo
+          ? `${playerInfo.playerName} · ${coach.teamName}`
+          : `${coach.teamName} (${coach.displayName})`;
         return {
           award_id: award.id,
           user_id: nominee.userId,
           team_name: coach.teamName,
           performance_score: Math.round((normalizedScores.get(nominee.userId) ?? 0) * 100) / 100,
-          display_label: `${coach.teamName} (${coach.displayName})`,
+          display_label: displayLabel,
+          player_name: playerInfo?.playerName ?? null,
           raw_stats: rawStatsPerUser[nominee.userId] ?? null,
           updated_at: nowIso()
         };
@@ -689,16 +795,16 @@ export async function generateAwardNominees(guildId: string) {
       }
     }
 
-    // Fetch nominees with discord IDs for bot embed building
+    // Fetch nominees with discord IDs for bot embed building — use same label as DB rows
     const nomineeOptions: Array<{ userId: string; discordId: string | null; displayLabel: string }> = [];
     for (const nominee of nominees) {
       const coach = teamByUser.get(nominee.userId);
       if (!coach) continue;
-      nomineeOptions.push({
-        userId: nominee.userId,
-        discordId: coach.discordId,
-        displayLabel: `${coach.teamName} (${coach.displayName})`
-      });
+      const playerInfo = positionPlayerMap?.get(coach.teamId) ?? null;
+      const displayLabel = playerInfo
+        ? `${playerInfo.playerName} · ${coach.teamName}`
+        : `${coach.teamName} (${coach.displayName})`;
+      nomineeOptions.push({ userId: nominee.userId, discordId: coach.discordId, displayLabel });
     }
 
     generatedAwards.push({

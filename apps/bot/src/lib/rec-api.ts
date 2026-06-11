@@ -26,6 +26,12 @@ export const recApi = {
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),
   getBaseline: (discordId: string) => recFetch<any>(REC_API_ROUTES.userBaseline(discordId)),
   getWallet: (discordId: string, guildId?: string) => recFetch<any>(`/v1/users/${discordId}/wallet${guildId ? `?guildId=${guildId}` : ""}`),
+  transferSavings: (discordId: string, amount: number, direction: "to_savings" | "from_savings") =>
+    recFetch<any>(`/v1/users/${discordId}/wallet/transfer`, { method: "POST", body: JSON.stringify({ amount, direction }) }),
+  getUserSnapshot: (discordId: string, guildId: string) =>
+    recFetch<any>(`/v1/users/${discordId}/snapshot?guildId=${guildId}`),
+  getCoaches: (guildId: string) =>
+    recFetch<any>(`/v1/guilds/${guildId}/coaches`),
 
   // Direct path used here because this route is newer than the shared REC_API_ROUTES object
   // in some local builds.
