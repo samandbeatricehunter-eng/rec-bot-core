@@ -9,16 +9,6 @@ const DEV_TIER = ["Normal", "Star", "Superstar", "XFactor"] as const;
 
 export const EOS_AWARD_CATEGORIES = [
   {
-    key: "mvp",
-    label: "MVP",
-    description: "Who was the most valuable player in the league this season?"
-  },
-  {
-    key: "coach_of_the_year",
-    label: "Coach of the Year",
-    description: "Which coach showed the best leadership and made the biggest impact this season?"
-  },
-  {
     key: "most_heart",
     label: "Most Heart",
     description: "Which coach showed the most heart and fight all season, no matter the record?"

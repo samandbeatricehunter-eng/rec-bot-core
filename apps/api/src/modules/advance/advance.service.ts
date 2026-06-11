@@ -1285,7 +1285,7 @@ async function calculateMatchupStrength(game: any, leagueId: string, seasonNumbe
   };
 }
 
-async function creditUserWallet(input: {
+export async function creditUserWallet(input: {
   userId: string;
   leagueId: string;
   seasonNumber: number;
@@ -3503,6 +3503,20 @@ export async function processAdvanceResults(guildId: string) {
     } catch (err) {
       console.error("[processAdvanceResults] EOS poll creation failed:", err);
     }
+
+    // Generate REC Award nominees and open voting
+    try {
+      const { generateAwardNominees } = await import("../rec-awards/rec-awards.service.js");
+      const recAwardsData = await generateAwardNominees(guildId);
+      // Attach to eosPollsData so bot knows the channel to post voting embeds to
+      if (eosPollsData) {
+        eosPollsData.recAwardsData = recAwardsData;
+      } else {
+        eosPollsData = { polls: [], nominees: [], closesAt: null, announcementsChannelId: routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null, recAwardsData };
+      }
+    } catch (err) {
+      console.error("[processAdvanceResults] REC award generation failed:", err);
+    }
   }
 
   let eosLockData: any = null;
@@ -4325,7 +4339,7 @@ export async function approveHighlightPayout(input: { postId: string; discordId:
   return { approved: true, ledger: credit.ledger };
 }
 
-export async function submitPotyNomination(input: { guildId: string; nominatorDiscordId: string; nomineeDiscordId: string }) {
+export async function submitPotyNomination(input: { guildId: string; nominatorDiscordId: string; nomineeDiscordId: string; potyCategory?: string; highlightId?: string }) {
   const context = await getLeagueContext(input.guildId);
   const seasonNumber = context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1;
   const { data: nominator } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.nominatorDiscordId).maybeSingle();
@@ -4337,6 +4351,8 @@ export async function submitPotyNomination(input: { guildId: string; nominatorDi
     season_number: seasonNumber,
     nominator_user_id: nominator.user_id,
     nominee_user_id: nominee.user_id,
+    poty_category: input.potyCategory ?? null,
+    highlight_id: input.highlightId ?? null,
     updated_at: nowIso()
   }, { onConflict: "league_id,season_number,nominator_user_id" });
   if (error) throw error;

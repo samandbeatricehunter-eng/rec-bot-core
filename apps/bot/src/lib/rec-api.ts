@@ -609,7 +609,7 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
-  submitPotyNomination: (input: { guildId: string; nominatorDiscordId: string; nomineeDiscordId: string }) =>
+  submitPotyNomination: (input: { guildId: string; nominatorDiscordId: string; nomineeDiscordId: string; potyCategory?: string; highlightId?: string }) =>
     recFetch<any>("/v1/nominations/poty", {
       method: "POST",
       body: JSON.stringify(input)
@@ -631,5 +631,23 @@ export const recApi = {
     recFetch<any>("/v1/advance/dev-upgrade-prizes", {
       method: "POST",
       body: JSON.stringify({ guildId })
-    })
+    }),
+
+  generateAwardNominees: (guildId: string) =>
+    recFetch<any>("/v1/awards/generate", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  castAwardVote: (input: { guildId: string; voterDiscordId: string; awardId: string; nomineeUserId: string }) =>
+    recFetch<any>("/v1/awards/vote", { method: "POST", body: JSON.stringify(input) }),
+
+  closeAwardVoting: (guildId: string) =>
+    recFetch<any>("/v1/awards/close-voting", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  approveAwardWinner: (input: { guildId: string; awardId: string; approvedByDiscordId: string }) =>
+    recFetch<any>("/v1/awards/approve", { method: "POST", body: JSON.stringify(input) }),
+
+  getAwardStatus: (guildId: string) =>
+    recFetch<any>("/v1/awards/status", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  getPendingAwardApprovals: (guildId: string) =>
+    recFetch<any>("/v1/awards/pending-approvals", { method: "POST", body: JSON.stringify({ guildId }) })
 };

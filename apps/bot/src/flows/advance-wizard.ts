@@ -39,6 +39,20 @@ interface EosPollsData {
   nominees: EosPollNominee[];
   closesAt: string | null;
   announcementsChannelId: string | null;
+  recAwardsData?: {
+    awards: Array<{
+      awardId: string;
+      key: string;
+      name: string;
+      description?: string;
+      nomineeCount: number;
+      status: string;
+      nomineeOptions?: Array<{ userId: string; discordId: string | null; displayLabel: string }>;
+    }>;
+    leagueId: string;
+    seasonNumber: number;
+    announcementsChannelId: string | null;
+  } | null;
 }
 
 interface AdvanceWizardState {
@@ -594,6 +608,64 @@ async function runAdvanceWizardFinalize(
     } catch (err) {
       console.error("[WIZARD] EOS poll posting failed:", err);
       warnings.push(`eos_polls: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  // Post REC Awards voting embeds (one message per award, voting awards only)
+  const recAwardsData = eosPollsData?.recAwardsData;
+  if (recAwardsData?.awards?.length && recAwardsData.announcementsChannelId) {
+    try {
+      const awardCh = await guild.channels.fetch(recAwardsData.announcementsChannelId).catch(() => null) as TextChannel | null;
+      if (awardCh?.type === ChannelType.GuildText) {
+        const votingAwards = recAwardsData.awards.filter((a) => a.status === "voting" && a.nomineeCount > 0);
+
+        if (votingAwards.length > 0) {
+          await awardCh.send({
+            content: "@everyone",
+            embeds: [new EmbedBuilder()
+              .setTitle("REC Season Awards — Vote Now!")
+              .setDescription(
+                [
+                  `**Season ${recAwardsData.seasonNumber} Awards** are open for voting!`,
+                  "",
+                  "Voting closes in **24 hours**. Only linked coaches may vote. No self-voting.",
+                  "",
+                  `**${votingAwards.length}** awards need your vote — see the polls below.`
+                ].join("\n")
+              )
+              .setColor(0xf1c40f)
+            ],
+            allowedMentions: { parse: ["everyone"] }
+          }).catch(() => undefined);
+
+          for (const award of votingAwards) {
+            const options = (award.nomineeOptions ?? []).slice(0, 25).map((n) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(n.displayLabel.slice(0, 100))
+                .setValue(n.userId)
+            );
+            if (options.length === 0) continue;
+
+            await awardCh.send({
+              embeds: [new EmbedBuilder()
+                .setTitle(`${award.name}`)
+                .setDescription(award.description ?? "Vote for the best candidate this season.")
+                .setColor(0x9b59b6)
+                .setFooter({ text: `${award.nomineeCount} nominees · Voting closes in 24 hours` })
+              ],
+              components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+                new StringSelectMenuBuilder()
+                  .setCustomId(`rec_award_vote:${guild.id}:${award.awardId}`)
+                  .setPlaceholder(`Vote for ${award.name}`)
+                  .addOptions(options)
+              )]
+            }).catch(() => undefined);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[WIZARD] REC Awards embed posting failed:", err);
+      warnings.push(`rec_awards: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 

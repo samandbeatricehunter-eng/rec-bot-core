@@ -1202,6 +1202,30 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
+// ─── REC Award vote select menu ───────────────────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!interaction.customId.startsWith("rec_award_vote:")) return;
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1] ?? interaction.guildId ?? "";
+  const awardId = parts[2] ?? "";
+  const nomineeUserId = interaction.values[0];
+  if (!guildId || !awardId || !nomineeUserId) {
+    return interaction.reply({ content: "Could not process vote.", flags: MessageFlags.Ephemeral });
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const result = await recApi.castAwardVote({ guildId, voterDiscordId: interaction.user.id, awardId, nomineeUserId });
+    if (result.recorded) {
+      await interaction.editReply({ content: `Your vote for **${result.awardName ?? "this award"}** has been recorded!` });
+    } else {
+      await interaction.editReply({ content: result.reason ?? "Could not record your vote." });
+    }
+  } catch (err) {
+    await interaction.editReply({ content: `Failed to record vote: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
 // ─── POTY nomination select ───────────────────────────────────────────────────
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isStringSelectMenu()) return;
@@ -1235,19 +1259,55 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// ─── POTY "Nominate My Play" button ───────────────────────────────────────────
+// ─── POTY "Nominate My Play" button → show category select ───────────────────
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith("poty_nominate_own:")) return;
   const parts = interaction.customId.split(":");
   const guildId = parts[1] ?? interaction.guildId ?? "";
+  const highlightId = parts[2] ?? "";
   if (!guildId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  await interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    content: "Select a category for your Play of the Year nomination:",
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`poty_category_select:${guildId}:${highlightId}`)
+        .setPlaceholder("Choose a category")
+        .addOptions([
+          new StringSelectMenuOptionBuilder().setLabel("Best Touchdown").setValue("best_td"),
+          new StringSelectMenuOptionBuilder().setLabel("Best Run Play").setValue("best_run"),
+          new StringSelectMenuOptionBuilder().setLabel("Best Catch").setValue("best_catch"),
+          new StringSelectMenuOptionBuilder().setLabel("Best Defensive Play").setValue("best_defensive_play"),
+          new StringSelectMenuOptionBuilder().setLabel("Best Special Teams Play").setValue("best_special_teams"),
+          new StringSelectMenuOptionBuilder().setLabel("Most Clutch Moment").setValue("most_clutch")
+        ])
+    )]
+  });
+});
+
+// ─── POTY category select → record nomination ─────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!interaction.customId.startsWith("poty_category_select:")) return;
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1] ?? interaction.guildId ?? "";
+  const highlightId = parts[2] ?? "";
+  const potyCategory = interaction.values[0];
+  if (!guildId || !potyCategory) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
+  await interaction.deferUpdate();
   try {
-    await recApi.submitPotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nomineeDiscordId: interaction.user.id });
-    await interaction.editReply({ content: "Your Play of the Year nomination has been recorded!" });
+    await recApi.submitPotyNomination({
+      guildId,
+      nominatorDiscordId: interaction.user.id,
+      nomineeDiscordId: interaction.user.id,
+      potyCategory,
+      highlightId: highlightId || undefined
+    });
+    await interaction.editReply({ content: `Your **Play of the Year** nomination has been recorded in the **${potyCategory.replace(/_/g, " ")}** category!`, components: [] });
   } catch (err) {
-    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
+    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}`, components: [] });
   }
 });
 
@@ -1311,6 +1371,106 @@ client.on("interactionCreate", async (interaction) => {
     await recApi.resolveEosTiebreaker({ pollId, winnerUserId });
     await interaction.message.edit({ components: [] }).catch(() => undefined);
     await interaction.editReply({ content: "Tiebreaker resolved! Winner has been set." });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+// ─── REC Award "Close Voting & Post Results" button (admin) ───────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (interaction.customId !== "rec_awards_close_voting") return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can close award voting.", flags: MessageFlags.Ephemeral });
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const guildId = interaction.guildId ?? "";
+  try {
+    const result = await recApi.closeAwardVoting(guildId);
+    if (!result.closed) {
+      return interaction.editReply({ content: "No awards are currently open for closing." });
+    }
+
+    // Post approval embeds to pending_payouts channel
+    const approvals = await recApi.getPendingAwardApprovals(guildId);
+    const routeData = await recApi.getAwardStatus(guildId).catch(() => null);
+
+    if (approvals?.awards?.length) {
+      const pendingPayoutsChannelId = (interaction.guild?.channels.cache.find((c: any) => c.name?.includes("pending-payout") || c.name?.includes("payouts")) as any)?.id;
+      // Try to find the channel from routes or fall back to current channel
+      const postCh = interaction.channel as TextChannel;
+
+      for (const award of approvals.awards) {
+        const topNominee = award.nominees?.[0];
+        if (!topNominee) continue;
+
+        const lines = (award.nominees ?? []).slice(0, 5).map((n: any, i: number) =>
+          `${i + 1}. ${n.display_label ?? "Unknown"} — Perf: ${Number(n.performance_score ?? 0).toFixed(1)} · Votes: ${n.vote_count ?? 0} · Final: ${Number(n.final_score ?? 0).toFixed(2)}`
+        );
+
+        await postCh.send({
+          embeds: [new EmbedBuilder()
+            .setTitle(`Award Review: ${award.award_name}`)
+            .setDescription([
+              `**Category:** ${award.award_category}`,
+              `**Payout:** $${award.payout_amount ?? 100}`,
+              "",
+              "**Top Nominees:**",
+              ...lines
+            ].join("\n"))
+            .setColor(0xf1c40f)
+          ],
+          components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`rec_award_approve:${guildId}:${award.id}`)
+              .setLabel(`Approve Winner: ${(topNominee.display_label ?? "Unknown").slice(0, 40)}`)
+              .setStyle(ButtonStyle.Success)
+          )]
+        }).catch(() => undefined);
+      }
+    }
+
+    await interaction.editReply({ content: `Voting closed for **${result.closed}** award(s). Review and approve winners in this channel.` });
+  } catch (err) {
+    await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
+  }
+});
+
+// ─── REC Award approve winner button (admin) ──────────────────────────────────
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith("rec_award_approve:")) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can approve award winners.", flags: MessageFlags.Ephemeral });
+  }
+  const parts = interaction.customId.split(":");
+  const guildId = parts[1] ?? interaction.guildId ?? "";
+  const awardId = parts[2] ?? "";
+  if (!guildId || !awardId) return interaction.reply({ content: "Missing award data.", flags: MessageFlags.Ephemeral });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const result = await recApi.approveAwardWinner({ guildId, awardId, approvedByDiscordId: interaction.user.id });
+    const winner = result.winner;
+
+    // Post ceremony announcement
+    const mention = winner?.discordId ? `<@${winner.discordId}>` : winner?.teamName ?? "Unknown";
+    await interaction.message.edit({ components: [] }).catch(() => undefined);
+    const awardCh = interaction.channel;
+    if (awardCh && "send" in awardCh) await awardCh.send({
+      embeds: [new EmbedBuilder()
+        .setTitle(`${result.awardName} — Winner Approved!`)
+        .setDescription([
+          `**Winner:** ${mention} (${winner?.teamName ?? "?"})`,
+          `**Performance Score:** ${Number(winner?.performanceScore ?? 0).toFixed(1)}`,
+          `**Vote Count:** ${winner?.voteCount ?? 0}`,
+          `**Final Score:** ${Number(winner?.finalScore ?? 0).toFixed(2)}`,
+          `**Bonus:** +$${winner?.payoutAmount ?? 100} REC Cash ${winner?.payoutIssued ? "(issued)" : "(pending)"}`
+        ].join("\n"))
+        .setColor(0x2ecc71)
+      ]
+    }).catch(() => undefined);
+
+    await interaction.editReply({ content: `Winner approved and payout issued!` });
   } catch (err) {
     await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
   }

@@ -194,23 +194,54 @@ export async function recordHighlightMessage(message: any) {
       messageUrl: message.url ?? null,
       content: message.content ?? null
     });
-    if (!result?.payoutEligible || !result.pendingPayoutsChannelId) return;
-    const channel = await message.guild.channels.fetch(result.pendingPayoutsChannelId).catch(() => null);
-    if (channel?.isTextBased()) {
-      await channel.send({
-        embeds: [new EmbedBuilder()
-          .setTitle("Highlight Payout")
-          .setColor(0x2ecc71)
-          .setDescription([
-            `User: <@${message.author.id}>`,
-            `Week: ${result.post?.week_number ?? "?"}`,
-            `[View Highlight](${message.url ?? result.post?.message_url ?? "N/A"})`
-          ].join("\n"))],
-        components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`highlight_payout:approve:${result.post?.id}`).setLabel("Approve Payout").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`highlight_payout:deny:${result.post?.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
-        )]
-      }).catch(() => undefined);
+
+    // Post payout review embed to pending payouts channel
+    if (result?.payoutEligible && result.pendingPayoutsChannelId) {
+      const channel = await message.guild.channels.fetch(result.pendingPayoutsChannelId).catch(() => null);
+      if (channel?.isTextBased()) {
+        await channel.send({
+          embeds: [new EmbedBuilder()
+            .setTitle("Highlight Payout")
+            .setColor(0x2ecc71)
+            .setDescription([
+              `User: <@${message.author.id}>`,
+              `Week: ${result.post?.week_number ?? "?"}`,
+              `[View Highlight](${message.url ?? result.post?.message_url ?? "N/A"})`
+            ].join("\n"))],
+          components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId(`highlight_payout:approve:${result.post?.id}`).setLabel("Approve Payout").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`highlight_payout:deny:${result.post?.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
+          )]
+        }).catch(() => undefined);
+      }
+    }
+
+    // DM the user immediately with POTY nomination option
+    if (result?.post?.id) {
+      try {
+        const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+        if (member) {
+          await member.send({
+            embeds: [new EmbedBuilder()
+              .setTitle("Play of the Year Nomination")
+              .setDescription([
+                `Your highlight from **Week ${result.post.week_number ?? "?"}** has been logged!`,
+                "",
+                `[View your highlight](${message.url ?? result.post.message_url ?? "N/A"})`,
+                "",
+                "Want to nominate it for **Play of the Year**? Click below to choose a category."
+              ].filter(Boolean).join("\n"))
+              .setColor(0xf1c40f)
+            ],
+            components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(`poty_nominate_own:${message.guildId}:${result.post.id}`)
+                .setLabel("Nominate My Play")
+                .setStyle(ButtonStyle.Primary)
+            )]
+          }).catch(() => undefined);
+        }
+      } catch { /* non-fatal — DM may be disabled */ }
     }
   } catch { /* non-fatal */ }
 }
