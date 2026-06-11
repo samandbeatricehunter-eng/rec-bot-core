@@ -12,6 +12,27 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+async function selectAllPages<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  pageSize = 1000
+): Promise<T[]> {
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await buildQuery(from, to);
+
+    if (error) throw error;
+
+    const page = data ?? [];
+    rows.push(...page);
+
+    if (page.length < pageSize) break;
+  }
+
+  return rows;
+}
+
 // Normalize an array of raw scores to 0-100
 function normalizeScores(rawMap: Map<string, number>): Map<string, number> {
   const values = [...rawMap.values()];
@@ -128,12 +149,15 @@ async function getOLTeamRatings(leagueId: string): Promise<Map<string, number>> 
 
 // Aggregate team stats across all regular season committed games
 async function getTeamSeasonStats(leagueId: string, seasonNumber: number): Promise<Map<string, Record<string, number>>> {
-  const { data } = await supabase
-    .from("rec_player_weekly_stats")
-    .select("team_id, stat_category, stats")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .eq("season_stage", "regular_season");
+  const data = await selectAllPages<any>((from, to) =>
+    supabase
+      .from("rec_player_weekly_stats")
+      .select("team_id, stat_category, stats")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .eq("season_stage", "regular_season")
+      .range(from, to)
+  );
 
   const teamStats = new Map<string, Record<string, number>>();
   for (const row of data ?? []) {
@@ -151,13 +175,16 @@ async function getTeamSeasonStats(leagueId: string, seasonNumber: number): Promi
 
 // Get team stat totals by category for position-specific awards
 async function getTeamStatsByCategory(leagueId: string, seasonNumber: number, category: string): Promise<Map<string, Record<string, number>>> {
-  const { data } = await supabase
-    .from("rec_player_weekly_stats")
-    .select("team_id, stats")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .eq("season_stage", "regular_season")
-    .eq("stat_category", category);
+  const data = await selectAllPages<any>((from, to) =>
+    supabase
+      .from("rec_player_weekly_stats")
+      .select("team_id, stats")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .eq("season_stage", "regular_season")
+      .eq("stat_category", category)
+      .range(from, to)
+  );
 
   const teamStats = new Map<string, Record<string, number>>();
   for (const row of data ?? []) {
@@ -221,7 +248,7 @@ async function getUpsetWins(leagueId: string, seasonNumber: number, records: Map
     .select("home_user_id,away_user_id,home_score,away_score,winning_team_id,home_team_id,away_team_id")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
-    .eq("season_stage", "regular_season")
+    .eq("is_playoff", false)
     .not("home_user_id", "is", null)
     .not("away_user_id", "is", null);
 
@@ -258,7 +285,7 @@ async function getStrengthOfSchedule(leagueId: string, seasonNumber: number, rec
     .select("home_user_id,away_user_id")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
-    .eq("season_stage", "regular_season")
+    .eq("is_playoff", false)
     .not("home_user_id", "is", null)
     .not("away_user_id", "is", null);
 
@@ -478,20 +505,23 @@ async function getTopPlayerPerTeam(
 
   const results = await Promise.all(
     categories.map((cat) =>
-      supabase
-        .from("rec_player_weekly_stats")
-        .select("player_id,team_id,stats,rec_players!inner(full_name,position)")
-        .eq("league_id", leagueId)
-        .eq("season_number", seasonNumber)
-        .eq("season_stage", "regular_season")
-        .eq("stat_category", cat)
+      selectAllPages<any>((from, to) =>
+        supabase
+          .from("rec_player_weekly_stats")
+          .select("player_id,team_id,stats,rec_players!inner(full_name,position)")
+          .eq("league_id", leagueId)
+          .eq("season_number", seasonNumber)
+          .eq("season_stage", "regular_season")
+          .eq("stat_category", cat)
+          .range(from, to)
+      )
     )
   );
 
   // Accumulate per player + team
   const playerAgg = new Map<string, { teamId: string; playerName: string; position: string; stats: Record<string, number> }>();
   for (const result of results) {
-    for (const row of result.data ?? []) {
+    for (const row of result ?? []) {
       const teamId = String(row.team_id ?? "");
       const playerId = String((row as any).player_id ?? "");
       if (!teamId || !playerId) continue;
