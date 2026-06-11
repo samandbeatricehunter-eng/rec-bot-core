@@ -8,7 +8,8 @@ export const ADVANCE_MENU_CUSTOM_IDS = {
 
 export type AdvanceMenuAction =
   | "advance_week"
-  | "reissue_eos_payouts"
+  | "run_eos_polls_and_awards"
+  | "issue_eos_payouts"
   | "troubleshoot_advance"
   | "back_admin";
 
@@ -33,7 +34,8 @@ export function buildAdvanceMenuPanel() {
           "Manage weekly advance actions and end-of-season tools.",
           "",
           "**Advance Current Week** runs the full weekly workflow.",
-          "**Re-Issue EOS Payouts** recalculates pending (unapproved) end-of-season payouts — available during playoffs through Super Bowl.",
+          "**Run EOS Polls & Awards** posts the 4 community polls and all REC Awards voting embeds — Wild Card through Super Bowl only.",
+          "**Issue EOS Payouts** wipes pending payouts and reissues them — Wild Card through Super Bowl only.",
           "**Troubleshoot Advance Process** contains repair and override tools."
         ].join("\n"))
     ],
@@ -48,9 +50,13 @@ export function buildAdvanceMenuPanel() {
               .setValue("advance_week")
               .setDescription("Run the full advance workflow for the current week."),
             new StringSelectMenuOptionBuilder()
-              .setLabel("Re-Issue EOS Payouts")
-              .setValue("reissue_eos_payouts")
-              .setDescription("Recalculate and repost pending end-of-season payouts (playoffs only)."),
+              .setLabel("Run EOS Polls & Awards")
+              .setValue("run_eos_polls_and_awards")
+              .setDescription("Post community polls + REC Awards voting. Wild Card–Super Bowl only."),
+            new StringSelectMenuOptionBuilder()
+              .setLabel("Issue EOS Payouts")
+              .setValue("issue_eos_payouts")
+              .setDescription("Issue end-of-season payouts. Wipes pending and reissues. Wild Card–Super Bowl only."),
             new StringSelectMenuOptionBuilder()
               .setLabel("Troubleshoot Advance Process")
               .setValue("troubleshoot_advance")

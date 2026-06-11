@@ -68,6 +68,97 @@ interface AdvanceWizardState {
 
 export const advanceWizardSessions = new ExpiringSessionStore<AdvanceWizardState>();
 
+// Shared EOS poll + REC Awards posting — called from advance-wizard finalize AND
+// the manual "Run EOS Polls & Awards" advance menu action.
+export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsData): Promise<string[]> {
+  const warnings: string[] = [];
+
+  if (pollsData.polls?.length && pollsData.announcementsChannelId) {
+    try {
+      const pollCh = await guild.channels.fetch(pollsData.announcementsChannelId).catch(() => null) as TextChannel | null;
+      if (pollCh?.type === ChannelType.GuildText) {
+        const { polls, nominees, closesAt } = pollsData;
+        const nomineeOptions = (nominees as EosPollNominee[])
+          .filter((n) => n.discordId)
+          .slice(0, 25)
+          .map((n) => new StringSelectMenuOptionBuilder().setLabel(n.displayName.slice(0, 100)).setValue(n.discordId!));
+
+        if (nomineeOptions.length > 0) {
+          const closeTimeStr = closesAt
+            ? `Voting closes <t:${Math.floor(new Date(closesAt).getTime() / 1000)}:R>`
+            : "Voting closes when playoffs end.";
+
+          for (const poll of polls) {
+            await pollCh.send({
+              embeds: [new EmbedBuilder()
+                .setTitle(`🏆 ${poll.categoryLabel}`)
+                .setDescription([poll.categoryDescription ?? "", "", closeTimeStr, "", "_Only linked coaches may vote. You may change your vote before voting closes._"].join("\n"))
+                .setColor(0x9b59b6)
+              ],
+              components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+                new StringSelectMenuBuilder()
+                  .setCustomId(`eos_vote:${poll.id}:${poll.categoryKey}`)
+                  .setPlaceholder(`Vote for ${poll.categoryLabel}`)
+                  .addOptions(nomineeOptions)
+              )]
+            }).catch((e) => console.error("[EOS] Failed to post community poll:", e));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[EOS] Community poll posting failed:", err);
+      warnings.push(`eos_polls: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const recAwardsData = pollsData.recAwardsData;
+  if (recAwardsData?.awards?.length && recAwardsData.announcementsChannelId) {
+    try {
+      const awardCh = await guild.channels.fetch(recAwardsData.announcementsChannelId).catch(() => null) as TextChannel | null;
+      if (awardCh?.type === ChannelType.GuildText) {
+        const votingAwards = recAwardsData.awards.filter((a) => a.status === "voting" && a.nomineeCount > 0);
+        if (votingAwards.length > 0) {
+          await awardCh.send({
+            content: "@everyone",
+            embeds: [new EmbedBuilder()
+              .setTitle("REC Season Awards — Vote Now!")
+              .setDescription([`**Season ${recAwardsData.seasonNumber} Awards** are open for voting!`, "", "Voting closes in **24 hours**. Only linked coaches may vote. No self-voting.", "", `**${votingAwards.length}** awards need your vote — see the polls below.`].join("\n"))
+              .setColor(0xf1c40f)
+            ],
+            allowedMentions: { parse: ["everyone"] }
+          }).catch(() => undefined);
+
+          for (const award of votingAwards) {
+            const options = (award.nomineeOptions ?? []).slice(0, 25).map((n) =>
+              new StringSelectMenuOptionBuilder().setLabel(n.displayLabel.slice(0, 100)).setValue(n.userId)
+            );
+            if (options.length === 0) continue;
+            await awardCh.send({
+              embeds: [new EmbedBuilder()
+                .setTitle(award.name)
+                .setDescription(award.description ?? "Vote for the best candidate this season.")
+                .setColor(0x9b59b6)
+                .setFooter({ text: `${award.nomineeCount} nominees · Voting closes in 24 hours` })
+              ],
+              components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+                new StringSelectMenuBuilder()
+                  .setCustomId(`rec_award_vote:${guild.id}:${award.awardId}`)
+                  .setPlaceholder(`Vote for ${award.name}`)
+                  .addOptions(options)
+              )]
+            }).catch(() => undefined);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[EOS] REC Awards posting failed:", err);
+      warnings.push(`rec_awards: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return warnings;
+}
+
 function asNumber(v: unknown) {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -538,134 +629,25 @@ async function runAdvanceWizardFinalize(
 
   // DM each user about badge changes (no channel embed)
   if (badgeAnnouncements.length > 0) {
+    const badgeIds = [...new Set(badgeAnnouncements.map((b) => b.discordId).filter(Boolean))] as string[];
+    const badgeMembers = badgeIds.length > 0
+      ? await guild.members.fetch({ user: badgeIds }).catch(() => new Map()) as Map<string, any>
+      : new Map<string, any>();
+
     for (const b of badgeAnnouncements) {
       if (!b.discordId) continue;
-      try {
-        const member = await guild.members.fetch(b.discordId).catch(() => null);
-        if (!member) continue;
-        const dmText = b.type === "earned"
-          ? `You earned the **${b.badgeLabel}** badge${b.qualifier ? ` for ${b.qualifier}` : ""}!`
-          : `Your **${b.badgeLabel}** badge has been removed${b.reason ? ` — ${b.reason}` : ""}.`;
-        await member.send({
-          embeds: [new EmbedBuilder()
-            .setTitle(b.type === "earned" ? "Badge Earned" : "Badge Removed")
-            .setDescription(dmText)
-            .setColor(b.type === "earned" ? 0xffd700 : 0x95a5a6)
-          ]
-        }).catch(() => undefined);
-      } catch { /* skip individual DM failures */ }
-    }
-  }
-
-  // Post EOS award polls — one message per category (fires on regular_season → wild_card only)
-  if (eosPollsData?.polls?.length && eosPollsData.announcementsChannelId) {
-    try {
-      const pollCh = await guild.channels.fetch(eosPollsData.announcementsChannelId).catch(() => null) as TextChannel | null;
-      if (pollCh?.type === ChannelType.GuildText) {
-        const { polls, nominees, closesAt } = eosPollsData;
-
-        const nomineeOptions = nominees
-          .filter((n: EosPollNominee) => n.discordId)
-          .slice(0, 25)
-          .map((n: EosPollNominee) =>
-            new StringSelectMenuOptionBuilder()
-              .setLabel(n.displayName.slice(0, 100))
-              .setValue(n.discordId!)
-          );
-
-        if (nomineeOptions.length > 0) {
-          const closeTimeStr = closesAt
-            ? `Voting closes <t:${Math.floor(new Date(closesAt).getTime() / 1000)}:R>`
-            : "Voting closes when playoffs begin.";
-
-          for (const poll of polls) {
-            const embed = new EmbedBuilder()
-              .setTitle(`🏆 ${poll.categoryLabel}`)
-              .setDescription(
-                [
-                  poll.categoryDescription ?? "",
-                  "",
-                  closeTimeStr,
-                  "",
-                  "_Only linked coaches may vote. You may change your vote before voting closes._"
-                ].join("\n")
-              )
-              .setColor(0x9b59b6);
-
-            const row = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-              new StringSelectMenuBuilder()
-                .setCustomId(`eos_vote:${poll.id}:${poll.categoryKey}`)
-                .setPlaceholder(`Vote for ${poll.categoryLabel}`)
-                .addOptions(nomineeOptions)
-            );
-
-            await pollCh.send({ embeds: [embed], components: [row] }).catch((e) =>
-              console.error("[WIZARD] Failed to post EOS poll:", e)
-            );
-          }
-        }
-      }
-    } catch (err) {
-      console.error("[WIZARD] EOS poll posting failed:", err);
-      warnings.push(`eos_polls: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
-  // Post REC Awards voting embeds (one message per award, voting awards only)
-  const recAwardsData = eosPollsData?.recAwardsData;
-  if (recAwardsData?.awards?.length && recAwardsData.announcementsChannelId) {
-    try {
-      const awardCh = await guild.channels.fetch(recAwardsData.announcementsChannelId).catch(() => null) as TextChannel | null;
-      if (awardCh?.type === ChannelType.GuildText) {
-        const votingAwards = recAwardsData.awards.filter((a) => a.status === "voting" && a.nomineeCount > 0);
-
-        if (votingAwards.length > 0) {
-          await awardCh.send({
-            content: "@everyone",
-            embeds: [new EmbedBuilder()
-              .setTitle("REC Season Awards — Vote Now!")
-              .setDescription(
-                [
-                  `**Season ${recAwardsData.seasonNumber} Awards** are open for voting!`,
-                  "",
-                  "Voting closes in **24 hours**. Only linked coaches may vote. No self-voting.",
-                  "",
-                  `**${votingAwards.length}** awards need your vote — see the polls below.`
-                ].join("\n")
-              )
-              .setColor(0xf1c40f)
-            ],
-            allowedMentions: { parse: ["everyone"] }
-          }).catch(() => undefined);
-
-          for (const award of votingAwards) {
-            const options = (award.nomineeOptions ?? []).slice(0, 25).map((n) =>
-              new StringSelectMenuOptionBuilder()
-                .setLabel(n.displayLabel.slice(0, 100))
-                .setValue(n.userId)
-            );
-            if (options.length === 0) continue;
-
-            await awardCh.send({
-              embeds: [new EmbedBuilder()
-                .setTitle(`${award.name}`)
-                .setDescription(award.description ?? "Vote for the best candidate this season.")
-                .setColor(0x9b59b6)
-                .setFooter({ text: `${award.nomineeCount} nominees · Voting closes in 24 hours` })
-              ],
-              components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-                new StringSelectMenuBuilder()
-                  .setCustomId(`rec_award_vote:${guild.id}:${award.awardId}`)
-                  .setPlaceholder(`Vote for ${award.name}`)
-                  .addOptions(options)
-              )]
-            }).catch(() => undefined);
-          }
-        }
-      }
-    } catch (err) {
-      console.error("[WIZARD] REC Awards embed posting failed:", err);
-      warnings.push(`rec_awards: ${err instanceof Error ? err.message : String(err)}`);
+      const member = badgeMembers.get(b.discordId);
+      if (!member) continue;
+      const dmText = b.type === "earned"
+        ? `You earned the **${b.badgeLabel}** badge${b.qualifier ? ` for ${b.qualifier}` : ""}!`
+        : `Your **${b.badgeLabel}** badge has been removed${b.reason ? ` — ${b.reason}` : ""}.`;
+      await member.send({
+        embeds: [new EmbedBuilder()
+          .setTitle(b.type === "earned" ? "Badge Earned" : "Badge Removed")
+          .setDescription(dmText)
+          .setColor(b.type === "earned" ? 0xffd700 : 0x95a5a6)
+        ]
+      }).catch(() => undefined);
     }
   }
 
@@ -739,13 +721,20 @@ async function runAdvanceWizardFinalize(
     try {
       const weekNum: number = nominationData.weekNumber ?? weekNumber;
 
-      // POTY — Play of the Year: DM coaches who submitted a highlight this week
-      for (const coach of (nominationData.potyNominees ?? []) as Array<{ userId: string; discordId: string | null; displayName: string; highlightId: string; highlightUrl: string | null }>) {
-        if (!coach.discordId) continue;
-        try {
-          const member = await guild.members.fetch(coach.discordId).catch(() => null);
-          if (!member) continue;
+      const potyNominees = (nominationData.potyNominees ?? []) as Array<{ userId: string; discordId: string | null; displayName: string; highlightId: string; highlightUrl: string | null }>;
+      const gotyNominees = (nominationData.gotyNominees ?? []) as Array<{ userId: string; discordId: string | null; displayName: string; gameId: string; homeTeam: string; awayTeam: string; homeScore: number; awayScore: number; label: string }>;
 
+      const nomIds = [...new Set([...potyNominees, ...gotyNominees].map((c) => c.discordId).filter(Boolean))] as string[];
+      const nomMembers = nomIds.length > 0
+        ? await guild.members.fetch({ user: nomIds }).catch(() => new Map()) as Map<string, any>
+        : new Map<string, any>();
+
+      // POTY — Play of the Year: DM coaches who submitted a highlight this week
+      for (const coach of potyNominees) {
+        if (!coach.discordId) continue;
+        const member = nomMembers.get(coach.discordId);
+        if (!member) continue;
+        try {
           await member.send({
             embeds: [new EmbedBuilder()
               .setTitle(`Play of the Year — Week ${weekNum} Nomination`)
@@ -771,12 +760,11 @@ async function runAdvanceWizardFinalize(
       }
 
       // GOTY — Game of the Year: DM coaches whose H2H game had ≤7pt margin
-      for (const coach of (nominationData.gotyNominees ?? []) as Array<{ userId: string; discordId: string | null; displayName: string; gameId: string; homeTeam: string; awayTeam: string; homeScore: number; awayScore: number; label: string }>) {
+      for (const coach of gotyNominees) {
         if (!coach.discordId) continue;
+        const member = nomMembers.get(coach.discordId);
+        if (!member) continue;
         try {
-          const member = await guild.members.fetch(coach.discordId).catch(() => null);
-          if (!member) continue;
-
           await member.send({
             embeds: [new EmbedBuilder()
               .setTitle(`Game of the Year — Week ${weekNum} Nomination`)

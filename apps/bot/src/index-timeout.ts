@@ -35,8 +35,10 @@ import { handleGotwSelect, handleGotwVote } from "./flows/gotw.js";
 import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
+import { postEosPollsAndAwards } from "./flows/advance-wizard.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+client.setMaxListeners(50);
 const menuSessions = new ExpiringSessionStore<true>();
 const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 const serverSetupChannelSessions = new Map<string, string>();
@@ -395,12 +397,34 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
     return;
   }
 
-  if (selected === "reissue_eos_payouts") {
-    if (!isDiscordAdminInteraction(interaction)) {
-      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Re-Issue EOS Payouts").setDescription("Only authorized admins can issue EOS payouts.")], components: buildAdvanceMenuPanel().components });
-      return;
+  if (selected === "run_eos_polls_and_awards") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Running EOS Polls & Awards...").setDescription("Generating nominees and posting community polls + REC Awards voting embeds.")], components: [] });
+    try {
+      const result = await recApi.runEosPollsAndAwards(interaction.guildId);
+      if (!result.allowed) {
+        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Not Available").setDescription(result.reason ?? "This action is only available during Wild Card through Super Bowl weeks.")], components: buildAdvanceMenuPanel().components });
+        return;
+      }
+      const guild = interaction.guild!;
+      const warnings = await postEosPollsAndAwards(guild, result.pollsData);
+      const pollCount = result.pollsData?.polls?.length ?? 0;
+      const awardCount = result.pollsData?.recAwardsData?.awards?.filter((a: any) => a.status === "voting" && a.nomineeCount > 0).length ?? 0;
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("EOS Polls & Awards Posted").setDescription([
+          `Community polls posted: **${pollCount}**`,
+          `REC Award voting embeds posted: **${awardCount}**`,
+          warnings.length ? `\nWarnings: ${warnings.join(", ")}` : ""
+        ].filter(Boolean).join("\n"))],
+        components: buildAdvanceMenuPanel().components
+      });
+    } catch (error) {
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Polls Failed").setDescription(error instanceof Error ? error.message : String(error))], components: buildAdvanceMenuPanel().components });
     }
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Issuing EOS Payouts...").setDescription("Calculating standings and creating payout requests. Users will receive a DM to approve their payout.")], components: [] });
+    return;
+  }
+
+  if (selected === "issue_eos_payouts") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Issuing EOS Payouts...").setDescription("Wiping pending payouts and reissuing. Already approved payouts are preserved.")], components: [] });
     try {
       const result = await recApi.issueEosPayouts(interaction.guildId);
       const guild = interaction.guild;
@@ -410,7 +434,12 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
         return;
       }
 
-      // DM each recipient with Approve / Reject buttons
+      // Batch-fetch all payout recipients at once
+      const payoutDiscordIds = (result.items ?? []).map((i: any) => i.discordId).filter(Boolean) as string[];
+      const payoutMembers = payoutDiscordIds.length > 0
+        ? await guild.members.fetch({ user: payoutDiscordIds }).catch(() => new Map()) as Map<string, any>
+        : new Map<string, any>();
+
       let dmsSent = 0;
       const commissionerLines: string[] = [];
       for (const item of result.items ?? []) {
@@ -419,7 +448,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
           continue;
         }
         try {
-          const member = await guild.members.fetch(item.discordId).catch(() => null);
+          const member = payoutMembers.get(item.discordId) ?? null;
           if (member) {
             const dmEmbed = new EmbedBuilder()
               .setTitle("🏆 End of Season Payout")

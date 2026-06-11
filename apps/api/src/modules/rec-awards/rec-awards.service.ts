@@ -619,20 +619,24 @@ export async function generateAwardNominees(guildId: string) {
 
     if (!award?.id) continue;
 
-    for (const nominee of nominees) {
-      const coach = teamByUser.get(nominee.userId);
-      if (!coach) continue;
-      const perfScore = normalizedScores.get(nominee.userId) ?? 0;
-      const stats = rawStatsPerUser[nominee.userId];
-      await supabase.from("rec_award_nominees").upsert({
-        award_id: award.id,
-        user_id: nominee.userId,
-        team_name: coach.teamName,
-        performance_score: Math.round(perfScore * 100) / 100,
-        display_label: `${coach.teamName} (${coach.displayName})`,
-        raw_stats: stats ?? null,
-        updated_at: nowIso()
-      }, { onConflict: "award_id,user_id", ignoreDuplicates: false });
+    const nomineeRows = nominees
+      .map((nominee) => {
+        const coach = teamByUser.get(nominee.userId);
+        if (!coach) return null;
+        return {
+          award_id: award.id,
+          user_id: nominee.userId,
+          team_name: coach.teamName,
+          performance_score: Math.round((normalizedScores.get(nominee.userId) ?? 0) * 100) / 100,
+          display_label: `${coach.teamName} (${coach.displayName})`,
+          raw_stats: rawStatsPerUser[nominee.userId] ?? null,
+          updated_at: nowIso()
+        };
+      })
+      .filter(Boolean) as any[];
+
+    if (nomineeRows.length > 0) {
+      await supabase.from("rec_award_nominees").upsert(nomineeRows, { onConflict: "award_id,user_id", ignoreDuplicates: false });
     }
 
     if (!def.requiresVoting) {
@@ -758,9 +762,10 @@ export async function closeAwardVoting(guildId: string) {
     }
     const maxVotes = Math.max(...[...voteTally.values(), 0]);
 
-    // Calculate final scores
+    // Calculate final scores and collect batch updates
     let winnerNominee: any = null;
     let bestFinalScore = -Infinity;
+    const nomineeUpdates: any[] = [];
 
     for (const nom of nominees ?? []) {
       const perfScore = asNum(nom.performance_score);
@@ -770,16 +775,17 @@ export async function closeAwardVoting(guildId: string) {
         ? perfScore * 0.75 + voteScore * 0.25
         : perfScore;
 
-      await supabase.from("rec_award_nominees").update({
-        vote_count: voteCount,
-        final_score: Math.round(finalScore * 100) / 100,
-        updated_at: nowIso()
-      }).eq("id", nom.id);
+      nomineeUpdates.push({ id: nom.id, vote_count: voteCount, final_score: Math.round(finalScore * 100) / 100, updated_at: nowIso() });
 
       if (finalScore > bestFinalScore) {
         bestFinalScore = finalScore;
         winnerNominee = { ...nom, voteCount, finalScore };
       }
+    }
+
+    // Single batch upsert instead of N individual updates
+    if (nomineeUpdates.length > 0) {
+      await supabase.from("rec_award_nominees").upsert(nomineeUpdates, { onConflict: "id", ignoreDuplicates: false });
     }
 
     await supabase.from("rec_awards").update({

@@ -3489,35 +3489,11 @@ export async function processAdvanceResults(guildId: string) {
     announcementsChannelId: routes?.announcements_channel_id ?? null
   };
 
-  // EOS award polls: create when regular season ends, lock when playoffs advance
-  let eosPollsData: any = null;
+  // EOS award polls and REC Award nominees are now triggered manually via the
+  // "Run EOS Polls & Awards" advance menu action — not automated during advance.
+  const eosPollsData: any = null;
   const prevStage = weekAny?.previousStage ?? "";
   const newStage = weekAny?.seasonStage ?? "";
-
-  if (prevStage === "regular_season" && newStage === "wild_card" && context) {
-    try {
-      const { createEosAwardPolls } = await import("../eos-awards/eos-awards.service.js");
-      const seasonNumber = context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1;
-      eosPollsData = await createEosAwardPolls(context.league_id, seasonNumber);
-      eosPollsData.announcementsChannelId = routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null;
-    } catch (err) {
-      console.error("[processAdvanceResults] EOS poll creation failed:", err);
-    }
-
-    // Generate REC Award nominees and open voting
-    try {
-      const { generateAwardNominees } = await import("../rec-awards/rec-awards.service.js");
-      const recAwardsData = await generateAwardNominees(guildId);
-      // Attach to eosPollsData so bot knows the channel to post voting embeds to
-      if (eosPollsData) {
-        eosPollsData.recAwardsData = recAwardsData;
-      } else {
-        eosPollsData = { polls: [], nominees: [], closesAt: null, announcementsChannelId: routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null, recAwardsData };
-      }
-    } catch (err) {
-      console.error("[processAdvanceResults] REC award generation failed:", err);
-    }
-  }
 
   let eosLockData: any = null;
   if (prevStage === "wild_card" && newStage === "divisional" && context) {
@@ -3732,13 +3708,55 @@ const EOS_PAYOUT_TIERS = [
   { rank: 8, label: "8th Place", amount: 50 }
 ];
 
+export async function runEosPollsAndAwards(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const routes = await getRoutes(context.server_id).catch(() => null);
+  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const PLAYOFF_STAGES = ["wild_card", "divisional", "conference_championship", "super_bowl"];
+
+  if (!PLAYOFF_STAGES.includes(stage)) {
+    return { allowed: false, reason: "EOS polls and awards can only be run during Wild Card through Super Bowl weeks." };
+  }
+
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const announcementsChannelId = routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null;
+
+  let pollsData: any = null;
+  try {
+    const { createEosAwardPolls } = await import("../eos-awards/eos-awards.service.js");
+    pollsData = await createEosAwardPolls(context.league_id, seasonNumber);
+    pollsData.announcementsChannelId = announcementsChannelId;
+  } catch (err) {
+    console.error("[runEosPollsAndAwards] EOS poll creation failed:", err);
+    pollsData = { polls: [], nominees: [], closesAt: null, announcementsChannelId };
+  }
+
+  try {
+    const { generateAwardNominees } = await import("../rec-awards/rec-awards.service.js");
+    const recAwardsData = await generateAwardNominees(guildId);
+    pollsData.recAwardsData = recAwardsData;
+  } catch (err) {
+    console.error("[runEosPollsAndAwards] REC award generation failed:", err);
+  }
+
+  return { allowed: true, pollsData, stage, seasonNumber };
+}
+
 export async function issueEosPayouts(guildId: string) {
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;
   const leagueId = context.league_id;
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
 
-  // Clear any existing non-cleared batch first
+  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const PLAYOFF_STAGES = ["wild_card", "divisional", "conference_championship", "super_bowl"];
+  if (!PLAYOFF_STAGES.includes(stage)) {
+    throw new Error("EOS payouts can only be issued during Wild Card through Super Bowl weeks.");
+  }
+
+  // Void any pending (unapproved) items from the existing batch, then create a fresh one.
+  // Items that are already dual-approved and issued are left untouched.
   await clearPendingEosBatch({ guildId, clearReason: "Superseded by new issuance" }).catch(() => undefined);
 
   // Build standings

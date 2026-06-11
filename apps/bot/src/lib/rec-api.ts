@@ -633,6 +633,9 @@ export const recApi = {
       body: JSON.stringify({ guildId })
     }),
 
+  runEosPollsAndAwards: (guildId: string) =>
+    recFetch<any>("/v1/eos/run-polls-and-awards", { method: "POST", body: JSON.stringify({ guildId }) }),
+
   generateAwardNominees: (guildId: string) =>
     recFetch<any>("/v1/awards/generate", { method: "POST", body: JSON.stringify({ guildId }) }),
 
