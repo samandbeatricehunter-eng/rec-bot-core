@@ -823,7 +823,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "issue_eos_payouts") {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Issuing EOS Payouts...").setDescription("Wiping pending payouts and reissuing. Already approved payouts are preserved.")], components: [] });
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Issuing EOS Payouts...").setDescription("Computing stat thresholds and rank bonuses. Already approved payouts are preserved.")], components: [] });
     try {
       const result = await recApi.issueEosPayouts(interaction.guildId);
       const guild = interaction.guild;
@@ -840,66 +840,118 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
         : new Map<string, any>();
 
       let dmsSent = 0;
-      const commissionerLines: string[] = [];
+
       for (const item of result.items ?? []) {
-        if (!item.discordId) {
-          commissionerLines.push(`• Rank **${item.rank}** — ${item.payout_label}: **$${item.amount}** _(no Discord account linked)_`);
-          continue;
-        }
+        if (!item.discordId) continue;
         try {
           const member = payoutMembers.get(item.discordId) ?? null;
-          if (member) {
-            const dmEmbed = new EmbedBuilder()
-              .setTitle("🏆 End of Season Payout")
-              .setDescription([
-                `Congratulations! You finished **Rank ${item.rank}** in the regular season for **${result.serverName}**.`,
-                "",
-                `**Payout:** $${item.amount} — ${item.payout_label}`,
-                "",
-                "Please approve or reject your payout below.",
-                "_Rejecting will permanently cancel this payout._"
-              ].join("\n"))
-              .setColor(0xffd700);
+          if (!member) continue;
 
-            const dmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-              new ButtonBuilder().setCustomId(`eos_payout_approve:user:${item.id}`).setLabel("Approve Payout").setStyle(ButtonStyle.Success),
-              new ButtonBuilder().setCustomId(`eos_payout_reject:${item.id}`).setLabel("Reject").setStyle(ButtonStyle.Danger)
-            );
-
-            await member.send({ embeds: [dmEmbed], components: [dmRow] }).then(() => dmsSent++).catch(() => undefined);
+          // Build breakdown lines for DM
+          const breakdownLines: string[] = [];
+          if (item.rankAmount > 0) {
+            breakdownLines.push(`**${item.rankLabel ?? `Rank ${item.rank}`}:** $${item.rankAmount}`);
           }
-        } catch { /* DM failed — non-fatal */ }
+          const statCategories: any[] = item.statCategories ?? [];
+          if (statCategories.length > 0) {
+            breakdownLines.push("", "**Stat Bonuses:**");
+            for (const cat of statCategories) {
+              const entityLabel = cat.entityName ? ` (${cat.entityName}${cat.entityPosition ? ` · ${cat.entityPosition}` : ""})` : "";
+              const tierLabel = cat.isFlat ? "Flat" : cat.qualifiedTier;
+              breakdownLines.push(`• ${cat.label}${entityLabel}: **$${cat.amount}** [${tierLabel}]`);
+            }
+          }
+          breakdownLines.push("", `**Total Payout: $${item.amount}**`);
 
-        commissionerLines.push(`• Rank **${item.rank}** — ${item.payout_label}: **$${item.amount}** — <@${item.discordId}>`);
+          const rankLine = item.rank
+            ? `You finished **Rank ${item.rank}** (${item.wins ?? 0}-${item.losses ?? 0}) in the regular season for **${result.serverName}**.`
+            : `You earned stat bonuses this season in **${result.serverName}**.`;
+
+          const dmEmbed = new EmbedBuilder()
+            .setTitle("End of Season Payout")
+            .setDescription([
+              rankLine,
+              "",
+              ...breakdownLines,
+              "",
+              "Please approve or reject your payout below.",
+              "_Rejecting will permanently cancel this payout._"
+            ].join("\n"))
+            .setColor(0xffd700);
+
+          const dmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId(`eos_payout_approve:user:${item.id}`).setLabel("Approve Payout").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`eos_payout_reject:${item.id}`).setLabel("Reject").setStyle(ButtonStyle.Danger)
+          );
+
+          await member.send({ embeds: [dmEmbed], components: [dmRow] }).then(() => dmsSent++).catch(() => undefined);
+        } catch { /* DM failed — non-fatal */ }
       }
 
-      // Post commissioner approval panel to announcements channel
+      // Post the public summary embed to the announcements channel (no action buttons there).
       if (result.announcementsChannelId) {
         try {
           const ch = await guild.channels.fetch(result.announcementsChannelId).catch(() => null) as TextChannel | null;
           if (ch?.type === ChannelType.GuildText) {
-            const commEmbed = new EmbedBuilder()
-              .setTitle("📋 EOS Payout Approvals — Commissioner")
+            const summaryLines = (result.items ?? []).map((item: any) => {
+              const mention = item.discordId ? `<@${item.discordId}>` : item.displayName ?? item.teamName ?? "Unknown";
+              const rankPart = item.rank ? `Rank ${item.rank} · ` : "";
+              return `• ${mention} — ${rankPart}**$${item.amount}**`;
+            });
+            const headerEmbed = new EmbedBuilder()
+              .setTitle("EOS Payouts Issued")
               .setDescription([
-                `**Season ${result.seasonNumber}** payouts have been issued. Each recipient must also approve via DM.`,
+                `**Season ${result.seasonNumber}** payouts have been issued. Each recipient must approve via DM, and a commissioner must approve in the pending payouts channel.`,
                 "",
-                ...commissionerLines,
-                "",
-                "_Use the buttons below to approve or reject each payout as commissioner._"
+                ...summaryLines
               ].join("\n"))
               .setColor(0x5865f2);
+            await ch.send({ embeds: [headerEmbed] }).catch(() => undefined);
+          }
+        } catch { /* non-fatal */ }
+      }
 
-            // Build per-item commissioner approve/reject rows (max 5 rows of 2 buttons each = 5 items)
-            const commRows: ActionRowBuilder<ButtonBuilder>[] = [];
-            for (const item of (result.items ?? []).slice(0, 5)) {
-              commRows.push(
-                new ActionRowBuilder<ButtonBuilder>().addComponents(
-                  new ButtonBuilder().setCustomId(`eos_payout_approve:commissioner:${item.id}`).setLabel(`Approve Rank ${item.rank} ($${item.amount})`).setStyle(ButtonStyle.Success),
-                  new ButtonBuilder().setCustomId(`eos_payout_reject:${item.id}`).setLabel(`Reject Rank ${item.rank}`).setStyle(ButtonStyle.Danger)
-                )
+      // Post the per-coach commissioner approve/reject panels to the PENDING PAYOUTS channel
+      // (falls back to announcements only if no pending payouts channel is configured).
+      const approvalChannelId = result.pendingPayoutsChannelId ?? result.announcementsChannelId;
+      if (approvalChannelId) {
+        try {
+          const ch = await guild.channels.fetch(approvalChannelId).catch(() => null) as TextChannel | null;
+          if (ch?.type === ChannelType.GuildText) {
+            await ch.send({ embeds: [new EmbedBuilder()
+              .setTitle("EOS Payout Approvals — Commissioner Action Required")
+              .setDescription(`**Season ${result.seasonNumber}** payouts. Approve or reject each below. Funds credit only after both the recipient (via DM) and a commissioner approve.`)
+              .setColor(0x5865f2)] }).catch(() => undefined);
+
+            // One approval message per coach
+            for (const item of result.items ?? []) {
+              const mention = item.discordId ? `<@${item.discordId}>` : item.displayName ?? item.teamName ?? "Unknown";
+              const statCategories: any[] = item.statCategories ?? [];
+              const breakdownLines: string[] = [];
+              if (item.rankAmount > 0) breakdownLines.push(`**${item.rankLabel ?? `Rank ${item.rank}`}:** $${item.rankAmount}`);
+              if (statCategories.length > 0) {
+                breakdownLines.push("Stat Bonuses:");
+                for (const cat of statCategories.slice(0, 15)) {
+                  const entity = cat.entityName ? ` (${cat.entityName})` : "";
+                  breakdownLines.push(`  ${cat.label}${entity}: $${cat.amount}`);
+                }
+                if (statCategories.length > 15) breakdownLines.push(`  ...and ${statCategories.length - 15} more`);
+              }
+
+              const itemEmbed = new EmbedBuilder()
+                .setDescription([
+                  `${mention} — **Total: $${item.amount}**`,
+                  ...breakdownLines
+                ].join("\n"))
+                .setColor(0x57f287);
+
+              const itemRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+                new ButtonBuilder().setCustomId(`eos_payout_approve:commissioner:${item.id}`).setLabel(`Approve $${item.amount}`).setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`eos_payout_reject:${item.id}`).setLabel("Reject").setStyle(ButtonStyle.Danger)
               );
+
+              await ch.send({ embeds: [itemEmbed], components: [itemRow] }).catch(() => undefined);
             }
-            await ch.send({ embeds: [commEmbed], components: commRows }).catch(() => undefined);
           }
         } catch { /* non-fatal */ }
       }
@@ -1819,14 +1871,15 @@ client.on("interactionCreate", async (interaction) => {
       return interaction.editReply({ content: "No awards are currently open for closing." });
     }
 
-    // Post approval embeds to pending_payouts channel
+    // Post approval embeds to the assigned pending payouts channel (any payout approval goes there).
     const approvals = await recApi.getPendingAwardApprovals(guildId);
-    const routeData = await recApi.getAwardStatus(guildId).catch(() => null);
 
     if (approvals?.awards?.length) {
-      const pendingPayoutsChannelId = (interaction.guild?.channels.cache.find((c: any) => c.name?.includes("pending-payout") || c.name?.includes("payouts")) as any)?.id;
-      // Try to find the channel from routes or fall back to current channel
-      const postCh = interaction.channel as TextChannel;
+      // Use the configured pending payouts channel; fall back to the current channel only if unset.
+      const configuredCh = approvals.pendingPayoutsChannelId
+        ? await interaction.guild?.channels.fetch(approvals.pendingPayoutsChannelId).catch(() => null) as TextChannel | null
+        : null;
+      const postCh = (configuredCh?.type === ChannelType.GuildText ? configuredCh : interaction.channel) as TextChannel;
 
       for (const award of approvals.awards) {
         const topNominee = award.nominees?.[0];
@@ -1858,7 +1911,8 @@ client.on("interactionCreate", async (interaction) => {
       }
     }
 
-    await interaction.editReply({ content: `Voting closed for **${result.closed}** award(s). Review and approve winners in this channel.` });
+    const where = approvals?.pendingPayoutsChannelId ? `<#${approvals.pendingPayoutsChannelId}>` : "this channel";
+    await interaction.editReply({ content: `Voting closed for **${result.closed}** award(s). Review and approve winners in ${where}.` });
   } catch (err) {
     await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
   }

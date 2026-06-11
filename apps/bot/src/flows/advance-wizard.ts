@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildMainMenuEmbed, buildMainMenuRows } from "../ui/menu.js";
 import { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows } from "../ui/gotw.js";
 import { buildPowerRankingsEmbeds } from "../ui/power-rankings.js";
+import { readStat, formatStatValue, getStatShortLabel } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { wallClockToUtc } from "../ui/advance-schedule.js";
@@ -201,29 +202,22 @@ function buildPotwAnnouncementEmbed(awards: any[], completedWeek: number) {
 }
 
 function formatPotwStats(stats: Record<string, any>, side: "offense" | "defense"): string {
+  // Render one "value ShortLabel" segment from a canonical stat key (e.g. "3 Pass TD").
+  const stat = (key: string): string => `${formatStatValue(key, readStat(stats, key))} ${getStatShortLabel(key)}`;
   const parts: string[] = [];
   if (side === "offense") {
-    const passYds = asNumber(stats.passYds);
-    const passTDs = asNumber(stats.passTDs);
-    const passInts = asNumber(stats.passInts);
-    const rushYds = asNumber(stats.rushYds);
-    const rushTDs = asNumber(stats.rushTDs);
-    const recYds = asNumber(stats.recYds);
-    const recTDs = asNumber(stats.recTDs);
-    if (passYds > 0) parts.push(`${passYds} pass yds, ${passTDs} TDs, ${passInts} INTs`);
-    if (rushYds > 0) parts.push(`${rushYds} rush yds${rushTDs > 0 ? `, ${rushTDs} TDs` : ""}`);
-    if (recYds > 0) parts.push(`${recYds} rec yds${recTDs > 0 ? `, ${recTDs} TDs` : ""}`);
+    const passYds = readStat(stats, "pass_yards");
+    const rushYds = readStat(stats, "rush_yards");
+    const recYds = readStat(stats, "receiving_yards");
+    if (passYds > 0) parts.push(`${stat("pass_yards")}, ${stat("pass_tds")}, ${stat("interceptions_thrown")}`);
+    if (rushYds > 0) parts.push(`${stat("rush_yards")}${readStat(stats, "rush_tds") > 0 ? `, ${stat("rush_tds")}` : ""}`);
+    if (recYds > 0) parts.push(`${stat("receiving_yards")}${readStat(stats, "receiving_tds") > 0 ? `, ${stat("receiving_tds")}` : ""}`);
   } else {
-    const sacks = asNumber(stats.defSacks);
-    const ints = asNumber(stats.defInts);
-    const ff = asNumber(stats.defForcedFum);
-    const tackles = asNumber(stats.defTackles ?? stats.tackles);
-    const tfl = asNumber(stats.defTFL ?? stats.tacklesForLoss);
-    if (sacks > 0) parts.push(`${sacks} sacks`);
-    if (ints > 0) parts.push(`${ints} INTs`);
-    if (ff > 0) parts.push(`${ff} forced fumbles`);
-    if (tackles > 0) parts.push(`${tackles} tackles`);
-    if (tfl > 0) parts.push(`${tfl} TFL`);
+    if (readStat(stats, "sacks") > 0) parts.push(stat("sacks"));
+    if (readStat(stats, "interceptions") > 0) parts.push(stat("interceptions"));
+    if (readStat(stats, "forced_fumbles") > 0) parts.push(stat("forced_fumbles"));
+    if (readStat(stats, "tackles") > 0) parts.push(stat("tackles"));
+    if (readStat(stats, "tackles_for_loss") > 0) parts.push(stat("tackles_for_loss"));
   }
   return parts.join(" · ");
 }

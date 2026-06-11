@@ -1,3 +1,4 @@
+import { readStat } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { AWARD_DEFINITIONS, AWARD_KEYS, getAwardDef } from "./rec-awards-config.js";
 import { creditUserWallet } from "../advance/advance.service.js";
@@ -354,10 +355,10 @@ async function getBadgeCounts(leagueId: string, userIds: string[]): Promise<Map<
 
 // Score calculators — all return a raw score (higher = better)
 function scorePassingStats(s: Record<string, number>, winPct: number): number {
-  const passYds = s.passYds ?? 0;
-  const passTDs = s.passTDs ?? 0;
-  const passAtt = s.passAtt ?? 1;
-  const passComp = s.passComp ?? 0;
+  const passYds = readStat(s, "pass_yards");
+  const passTDs = readStat(s, "pass_tds");
+  const passAtt = readStat(s, "pass_attempts") || 1;
+  const passComp = readStat(s, "pass_completions");
   const compPct = passAtt > 0 ? passComp / passAtt : 0;
   // Best QB formula: 35% TDs, 30% yards, 15% comp%, 10% rating (approx), 10% wins
   const rawRating = (passTDs * 4 + (compPct - 0.3) * 5 + passYds * 0.04 + Math.max(0, 2.375 - ((passAtt - passComp) / passAtt) * 25)) / 6 * 100;
@@ -365,37 +366,37 @@ function scorePassingStats(s: Record<string, number>, winPct: number): number {
 }
 
 function scoreRushingStats(s: Record<string, number>, winPct: number): number {
-  const rushYds = s.rushYds ?? 0;
-  const rushTDs = s.rushTDs ?? 0;
-  const rushAtt = s.rushAtt ?? 1;
+  const rushYds = readStat(s, "rush_yards");
+  const rushTDs = readStat(s, "rush_tds");
+  const rushAtt = readStat(s, "rush_attempts") || 1;
   const ypc = rushAtt > 0 ? rushYds / rushAtt : 0;
   // Best RB formula: 40% rush yds, 30% TDs, 15% YPC, 15% wins
   return rushYds * 0.001 * 40 + rushTDs * 0.30 + ypc * 0.15 + winPct * 100 * 0.15;
 }
 
 function scoreReceivingStats(s: Record<string, number>, winPct: number): number {
-  const recYds = s.recYds ?? 0;
-  const recTDs = s.recTDs ?? 0;
-  const receptions = s.recCatches ?? s.receptions ?? 0;
+  const recYds = readStat(s, "receiving_yards");
+  const recTDs = readStat(s, "receiving_tds");
+  const receptions = readStat(s, "receptions");
   // Best WR formula: 40% rec yds, 30% TDs, 15% receptions, 15% wins
   return recYds * 0.001 * 40 + recTDs * 0.30 + receptions * 0.005 * 0.15 + winPct * 100 * 0.15;
 }
 
 function scoreDefensiveStats(s: Record<string, number>): number {
   // DPOY: 40% sacks, 30% INTs, 20% forced fumbles, 10% tackles
-  // Madden has no TFL or QB hits stat — defTotalTackles is the correct key
-  const sacks = s.defSacks ?? 0;
-  const ints = s.defInts ?? 0;
-  const ff = s.defForcedFum ?? 0;
-  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
+  // Madden has no TFL or QB hits stat — tackles is the correct canonical key
+  const sacks = readStat(s, "sacks");
+  const ints = readStat(s, "interceptions");
+  const ff = readStat(s, "forced_fumbles");
+  const tackles = readStat(s, "tackles");
   return sacks * 0.40 + ints * 0.30 + ff * 0.20 + tackles * 0.001 * 0.10;
 }
 
 function scoreOLStats(s: Record<string, number>): number {
   // Best OL (team award): 60% inverse sacks allowed, 40% avg OL OVR
-  // passSacks = QB sacks taken (summed across all QBs on the team = sacks allowed)
+  // sacks_taken = QB sacks taken (summed across all QBs on the team = sacks allowed)
   // avgOlOvr = average overall rating of LT/LG/C/RG/RT, injected from getOLTeamRatings
-  const passSacks = s.passSacks ?? 0;
+  const passSacks = readStat(s, "sacks_taken");
   const avgOlOvr = s.avgOlOvr ?? 0;
   const sackScore = Math.max(0, 50 - passSacks * 1.5);
   return sackScore * 0.60 + (avgOlOvr / 99) * 100 * 0.40;
@@ -403,34 +404,34 @@ function scoreOLStats(s: Record<string, number>): number {
 
 function scoreDLStats(s: Record<string, number>): number {
   // Madden has no TFL or QB hits stat — sacks are the primary DL metric
-  const sacks = s.defSacks ?? 0;
-  const ff = s.defForcedFum ?? 0;
-  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
+  const sacks = readStat(s, "sacks");
+  const ff = readStat(s, "forced_fumbles");
+  const tackles = readStat(s, "tackles");
   return sacks * 0.65 + ff * 0.25 + tackles * 0.001 * 0.10;
 }
 
 function scoreLBStats(s: Record<string, number>): number {
-  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
-  const sacks = s.defSacks ?? 0;
-  const ints = s.defInts ?? 0;
+  const tackles = readStat(s, "tackles");
+  const sacks = readStat(s, "sacks");
+  const ints = readStat(s, "interceptions");
   return tackles * 0.50 + sacks * 0.30 + ints * 0.20;
 }
 
 function scoreDBStats(s: Record<string, number>): number {
-  const ints = s.defInts ?? 0;
-  const pd = s.defDeflections ?? 0; // Madden key is defDeflections
-  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
-  const defTDs = s.defTDs ?? 0;
+  const ints = readStat(s, "interceptions");
+  const pd = readStat(s, "pass_deflections");
+  const tackles = readStat(s, "tackles");
+  const defTDs = readStat(s, "defensive_tds");
   return ints * 0.45 + pd * 0.25 + tackles * 0.20 + defTDs * 0.10;
 }
 
 function scoreKickerStats(s: Record<string, number>): number {
-  // Madden kicking keys: fGMade, fGAtt, xPMade, xPAtt, fGLongest
-  const fgMade = s.fGMade ?? s.fgMade ?? 0;
-  const fgAtt = s.fGAtt ?? s.fgAtt ?? 0;
-  const xpMade = s.xPMade ?? s.xpMade ?? 0;
-  const xpAtt = s.xPAtt ?? s.xpAtt ?? 0;
-  const longFG = s.fGLongest ?? s.fgLong ?? 0;
+  // Canonical kicking keys (aliases cover Madden fGMade/fGAtt/xPMade/xPAtt/fGLongest)
+  const fgMade = readStat(s, "fg_made");
+  const fgAtt = readStat(s, "fg_attempts");
+  const xpMade = readStat(s, "xp_made");
+  const xpAtt = readStat(s, "xp_attempts");
+  const longFG = readStat(s, "fg_long");
   const totalAttempts = fgAtt + xpAtt;
   if (totalAttempts < 50) return 0; // Minimum 50 combined FG+XP attempts across season
   const fgPct = fgAtt > 0 ? fgMade / fgAtt : 0;
@@ -440,20 +441,20 @@ function scoreKickerStats(s: Record<string, number>): number {
 
 // Maps award key → which stat category + Madden positions identify the representative player
 const POSITION_AWARD_PLAYER_CONFIG: Record<string, { category: string; positions: string[]; rankByStat: string }> = {
-  best_qb: { category: "passing", positions: ["QB"], rankByStat: "passYds" },
-  best_rb: { category: "rushing", positions: ["HB"], rankByStat: "rushYds" },
-  best_wr: { category: "receiving", positions: ["WR", "TE"], rankByStat: "recYds" },
-  best_dl: { category: "defense", positions: ["DT", "REDGE", "LEDGE"], rankByStat: "defSacks" },
-  best_lb: { category: "defense", positions: ["MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM"], rankByStat: "defTotalTackles" },
-  best_db: { category: "defense", positions: ["CB", "FS", "SS"], rankByStat: "defInts" },
-  best_kicker: { category: "kicking", positions: ["K"], rankByStat: "fGMade" },
+  best_qb: { category: "passing", positions: ["QB"], rankByStat: "pass_yards" },
+  best_rb: { category: "rushing", positions: ["HB"], rankByStat: "rush_yards" },
+  best_wr: { category: "receiving", positions: ["WR", "TE"], rankByStat: "receiving_yards" },
+  best_dl: { category: "defense", positions: ["DT", "REDGE", "LEDGE"], rankByStat: "sacks" },
+  best_lb: { category: "defense", positions: ["MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM"], rankByStat: "tackles" },
+  best_db: { category: "defense", positions: ["CB", "FS", "SS"], rankByStat: "interceptions" },
+  best_kicker: { category: "kicking", positions: ["K"], rankByStat: "fg_made" },
   // Composite: best player across all offensive positions
-  mvp: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "passYds" },
-  opoy: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "passYds" },
-  offensive_rookie: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "passYds" },
+  mvp: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards" },
+  opoy: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards" },
+  offensive_rookie: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards" },
   // Composite: best player across all defensive positions
-  dpoy: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "defSacks" },
-  defensive_rookie: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "defSacks" },
+  dpoy: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "sacks" },
+  defensive_rookie: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "sacks" },
 };
 
 // For composite awards (mvp, opoy, dpoy) that span multiple stat categories,
@@ -511,7 +512,7 @@ async function getTopPlayerPerTeam(
   // Pick the highest-ranked player per team
   const bestPerTeam = new Map<string, { playerName: string; position: string; topVal: number }>();
   for (const [, { teamId, playerName, position, stats }] of playerAgg) {
-    const val = asNum(stats[config.rankByStat] ?? 0);
+    const val = readStat(stats, config.rankByStat);
     const existing = bestPerTeam.get(teamId);
     if (!existing || val > existing.topVal) {
       bestPerTeam.set(teamId, { playerName, position, topVal: val });
@@ -588,7 +589,7 @@ export async function generateAwardNominees(guildId: string) {
     const teamRecStats = receivingStats.get(teamId) ?? {};
     const teamDefStats = defStats.get(teamId) ?? {};
     const teamKickStats = kickingStats.get(teamId) ?? {};
-    const totalOffYds = asNum(teamAllStats.passYds) + asNum(teamAllStats.rushYds);
+    const totalOffYds = readStat(teamAllStats, "pass_yards") + readStat(teamAllStats, "rush_yards");
 
     rawStatsPerUser[userId] = {
       all: teamAllStats, passing: teamPassStats, rushing: teamRushStats,
@@ -709,30 +710,40 @@ export async function generateAwardNominees(guildId: string) {
   const votingClosesAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const generatedAwards: any[] = [];
 
+  const allCoachUserIds = [...teamByUser.keys()];
+
   for (const def of AWARD_DEFINITIONS) {
-    const scoreMap = rawScores[def.key];
+    let scoreMap = rawScores[def.key];
+    let nomineeCap = def.nomineeCount;
     if (!scoreMap?.size) {
-      // Create award record with no_nominees status
-      const { data: award } = await supabase
-        .from("rec_awards")
-        .upsert({
-          league_id: leagueId,
-          season_number: seasonNumber,
-          award_key: def.key,
-          award_name: def.name,
-          award_category: def.category,
-          requires_voting: def.requiresVoting,
-          payout_amount: def.payoutAmount,
-          status: "no_nominees",
-          updated_at: nowIso()
-        }, { onConflict: "league_id,season_number,award_key", ignoreDuplicates: false })
-        .select("id")
-        .maybeSingle();
-      if (award?.id) generatedAwards.push({ awardId: award.id, key: def.key, name: def.name, nomineeCount: 0, status: "no_nominees" });
-      continue;
+      if (def.requiresVoting && allCoachUserIds.length > 0) {
+        // Voting award with no stat basis (e.g. Best Streamer with no logged streams) — still launch
+        // the poll by nominating all active coaches so the league can vote.
+        scoreMap = new Map(allCoachUserIds.map((uid) => [uid, 0]));
+        nomineeCap = Math.min(allCoachUserIds.length, 25);
+      } else {
+        // Non-voting (auto-awarded) category with no data → record as no_nominees.
+        const { data: award } = await supabase
+          .from("rec_awards")
+          .upsert({
+            league_id: leagueId,
+            season_number: seasonNumber,
+            award_key: def.key,
+            award_name: def.name,
+            award_category: def.category,
+            requires_voting: def.requiresVoting,
+            payout_amount: def.payoutAmount,
+            status: "no_nominees",
+            updated_at: nowIso()
+          }, { onConflict: "league_id,season_number,award_key", ignoreDuplicates: false })
+          .select("id")
+          .maybeSingle();
+        if (award?.id) generatedAwards.push({ awardId: award.id, key: def.key, name: def.name, nomineeCount: 0, status: "no_nominees" });
+        continue;
+      }
     }
 
-    const nominees = topN(scoreMap, def.nomineeCount);
+    const nominees = topN(scoreMap, nomineeCap);
     const normalizedScores = normalizeScores(new Map(nominees.map((n) => [n.userId, n.rawScore])));
 
     const { data: award } = await supabase
@@ -1050,8 +1061,9 @@ export async function getAwardStatus(guildId: string) {
 }
 
 export async function getPendingAwardApprovals(guildId: string) {
-  const { leagueId, league } = await getLeagueContext(guildId);
+  const { leagueId, league, routes } = await getLeagueContext(guildId);
   const seasonNumber = asNum(league.season_number ?? league.display_season_number ?? 1);
+  const pendingPayoutsChannelId = (routes as any)?.pending_payouts_channel_id ?? null;
 
   const { data: awards } = await supabase
     .from("rec_awards")
@@ -1060,7 +1072,7 @@ export async function getPendingAwardApprovals(guildId: string) {
     .eq("season_number", seasonNumber)
     .eq("status", "commissioner_review");
 
-  if (!awards?.length) return { awards: [] };
+  if (!awards?.length) return { awards: [], pendingPayoutsChannelId };
 
   const results = [];
   for (const award of awards) {
@@ -1073,5 +1085,5 @@ export async function getPendingAwardApprovals(guildId: string) {
     results.push({ ...award, nominees: nominees ?? [] });
   }
 
-  return { awards: results };
+  return { awards: results, pendingPayoutsChannelId };
 }

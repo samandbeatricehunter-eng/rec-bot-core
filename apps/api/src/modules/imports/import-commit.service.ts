@@ -1,4 +1,4 @@
-import { NFL_TEAMS } from "@rec/shared";
+import { NFL_TEAMS, normalizeImportedStats } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { applyAdvanceRecords } from "../advance/advance.service.js";
@@ -507,11 +507,44 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
   return { gamesAddedOrUpdated: savedGames.length, resultsAddedOrUpdated, gamesSkipped: skipped.length, skippedGames: skipped };
 }
 
-async function upsertStandings(_importJobId: string, _leagueId: string, _teamMap: Map<string, string>) {
-  // There is no committed standings table in the deployed schema (standings are derived from
-  // rec_game_results / rec_league_user_records during advance). Staged standings remain in
-  // rec_import_staging_standings for reference; nothing to commit here.
-  return 0;
+async function upsertStandings(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number) {
+  // W-L-T standings themselves are derived during advance, but we DO persist the EA playoff
+  // seed / playoffStatus per team into rec_season_team_seeds. This is the authoritative source for
+  // "did this team make the playoffs" — crucially it captures first-round-bye teams that have no
+  // wild-card game yet, which EOS payouts need so byes aren't flagged "missed playoffs".
+  const staged = await loadStagedRows("rec_import_staging_standings", importJobId);
+  if (!staged.length) return 0;
+
+  const now = new Date().toISOString();
+  const rows = (staged as any[]).map((row: any) => {
+    const ext = teamExternalId(row);
+    const teamId = ext ? teamMap.get(ext) ?? null : null;
+    if (!teamId) return null;
+    const raw = asObject(row.raw_payload);
+    const seed = toNullableInt(raw.seed);
+    const playoffStatus = toNullableInt(raw.playoffStatus);
+    // playoffStatus: 0 = eliminated, 2/3/4 = clinched (wildcard/division/bye). Fall back to seed
+    // (per-conference 1..7 = in) when EA omits playoffStatus.
+    const madePlayoffs = (playoffStatus != null && playoffStatus !== 0) || (seed != null && seed >= 1 && seed <= 7);
+    return {
+      league_id: leagueId,
+      season_number: seasonNumber,
+      team_id: teamId,
+      conference: toNullableText(row.conference_name),
+      seed,
+      playoff_status: playoffStatus,
+      made_playoffs: madePlayoffs,
+      updated_at: now
+    };
+  }).filter(Boolean) as any[];
+
+  if (!rows.length) return 0;
+  const deduped = dedupeBy(rows, (r) => r.team_id);
+  return await upsertInChunks(
+    "rec_season_team_seeds", deduped,
+    "league_id,season_number,team_id",
+    "Failed to upsert season team seeds."
+  );
 }
 
 async function upsertPlayers(importJobId: string, leagueId: string, _teamMap: Map<string, string>, _seasonNumber: number, _weekNumber: number) {
@@ -560,10 +593,23 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
 
   const now = new Date().toISOString();
 
+  // Tracks raw import keys that did not map to any canonical REC stat, for admin/debug surfacing.
+  const unmappedKeyCounts = new Map<string, number>();
+  const noteUnmapped = (unmapped: Record<string, unknown>) => {
+    for (const key of Object.keys(unmapped)) unmappedKeyCounts.set(key, (unmappedKeyCounts.get(key) ?? 0) + 1);
+  };
+
   // ---- Player stats → rec_player_weekly_stats (keyed on madden_player_id) ----
   const playerStatRows = (playerStats as any[]).map((row: any) => {
     const maddenPlayerId = toNullableText(row.player_external_id ?? row.external_player_id);
     const maddenTeamId = toNullableText(row.team_external_id ?? row.external_team_id);
+    const statCategory = row.stat_category ?? "general";
+    // Normalize raw EA stat keys into canonical REC stat keys before storage. Canonical keys are
+    // merged alongside the original keys (union) so legacy raw-key readers keep working during
+    // migration. We normalize row.stats (the stat line) only — raw_payload holds identity/ratings
+    // noise — and preserve raw_payload unchanged for audit/debug.
+    const normalized = normalizeImportedStats({ scope: "player", statCategory, stats: row.stats ?? {} });
+    noteUnmapped(normalized.unmappedStats);
     return {
       league_id: leagueId,
       import_job_id: importJobId,
@@ -577,8 +623,8 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
       player_name: row.player_name ?? row.player_display_name ?? null,
       team_name: row.team_name ?? row.team_display_name ?? null,
       position: row.position ?? null,
-      stat_category: row.stat_category ?? "general",
-      stats: row.stats ?? {},
+      stat_category: statCategory,
+      stats: { ...(row.stats ?? {}), ...normalized.canonicalStats },
       raw_payload: row.raw_payload ?? null,
       updated_at: now
     };
@@ -611,6 +657,9 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
   // ---- Team stats → rec_team_weekly_stats (keyed on madden_team_id) ----
   const teamStatRows = (teamStats as any[]).map((row: any) => {
     const maddenTeamId = toNullableText(row.team_external_id ?? row.external_team_id);
+    const statCategory = row.stat_category ?? "general";
+    const normalized = normalizeImportedStats({ scope: "team", statCategory, stats: row.stats ?? {} });
+    noteUnmapped(normalized.unmappedStats);
     return {
       league_id: leagueId,
       import_job_id: importJobId,
@@ -620,8 +669,8 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
       team_id: maddenTeamId ? teamMap.get(maddenTeamId) ?? null : null,
       madden_team_id: maddenTeamId,
       team_name: row.team_name ?? row.team_display_name ?? null,
-      stat_category: row.stat_category ?? "general",
-      stats: row.stats ?? {},
+      stat_category: statCategory,
+      stats: { ...(row.stats ?? {}), ...normalized.canonicalStats },
       raw_payload: row.raw_payload ?? null,
       updated_at: now
     };
@@ -636,7 +685,13 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
     "Failed to upsert imported team weekly stats."
   );
 
-  return { playerCount, teamCount };
+  // Surface the most common unmapped raw stat keys so the canonical map can be expanded over time.
+  const unmappedStatKeys = [...unmappedKeyCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 25)
+    .map(([key, count]) => ({ key, count }));
+
+  return { playerCount, teamCount, unmappedStatKeys };
 }
 
 export async function commitApprovedImport(importJobId: string) {
@@ -671,11 +726,18 @@ export async function commitApprovedImport(importJobId: string) {
   };
 
   const gameCommit = await upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap, seasonNumber);
-  const standings = await safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap), 0);
+  const standings = await safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap, seasonNumber), 0);
   // Players must commit before weekly stats so the stats' player_id FK lookup can resolve.
   const weekNumber = Number((details.job as any).week_number ?? 1) || 1;
   const players = await safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap, seasonNumber, weekNumber), 0);
-  const stats = await safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0 });
+  const stats = await safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0, unmappedStatKeys: [] as Array<{ key: string; count: number }> });
+
+  // Warn (non-fatally) when imported stat keys did not map to a canonical REC stat, so the
+  // canonical definition map can be expanded. Does not block the import.
+  if ((stats.unmappedStatKeys?.length ?? 0) > 0) {
+    const top = stats.unmappedStatKeys.slice(0, 10).map((u) => `${u.key} (×${u.count})`).join(", ");
+    commitWarnings.push(`Unmapped stat keys (not in canonical map): ${top}`);
+  }
 
   // Auto-backfill W-L-T records whenever completed game results are committed (EA import or
   // companion app export). This keeps season/league/global records current without requiring
@@ -698,6 +760,7 @@ export async function commitApprovedImport(importJobId: string) {
     players,
     playerWeeklyStats: stats.playerCount,
     teamWeeklyStats: stats.teamCount,
+    unmappedStatKeys: stats.unmappedStatKeys ?? [],
     warnings: commitWarnings
   };
 

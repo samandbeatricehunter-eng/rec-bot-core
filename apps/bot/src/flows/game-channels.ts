@@ -266,8 +266,8 @@ export async function recordGameChannelMessage(message: any) {
     return;
   }
 
-  if (streamResult?.needsReview && streamResult.pendingEconomyChannelId) {
-    const channel = await message.guild.channels.fetch(streamResult.pendingEconomyChannelId).catch(() => null);
+  if (streamResult?.needsReview && streamResult.pendingPayoutsChannelId) {
+    const channel = await message.guild.channels.fetch(streamResult.pendingPayoutsChannelId).catch(() => null);
     if (channel?.isTextBased()) {
       await channel.send({
         embeds: [new EmbedBuilder()

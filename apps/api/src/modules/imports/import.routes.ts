@@ -27,6 +27,7 @@ import {
   updateEndpointAttempt,
   updateImportJobStatus
 } from "./import.service.js";
+import { getStatDefinitionsCatalog, getUnmappedStatKeys } from "./stat-definitions.service.js";
 
 const ImportJobIdBodySchema = z.object({ importJobId: z.string().uuid() });
 const StageImportEndpointBodySchema = z.object({
@@ -50,6 +51,28 @@ export async function importRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await createImportJob(CreateImportJobSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Canonical stat definition catalog (single source of truth for stat keys, labels, usage groups).
+  app.get("/v1/imports/stat-definitions", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(getStatDefinitionsCatalog());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Debug: raw import stat keys for a league that did not map to any canonical stat.
+  app.get("/v1/imports/unmapped-stat-keys", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { leagueId } = (request.query ?? {}) as { leagueId?: string };
+      if (!leagueId) return reply.status(400).send({ error: "leagueId query parameter is required." });
+      return reply.send(await getUnmappedStatKeys(leagueId));
     } catch (error) {
       return sendError(reply, error);
     }

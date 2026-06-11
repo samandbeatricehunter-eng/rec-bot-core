@@ -1,4 +1,4 @@
-import { REC_GOTW_CORRECT_GUESS_PAYOUT, REC_POTW_PAYOUT_AMOUNT, REC_WEEKLY_CHALLENGE_PAYOUTS, calculateDefensivePotwScore, calculateOffensivePotwScore } from "@rec/shared";
+import { REC_GOTW_CORRECT_GUESS_PAYOUT, REC_POTW_PAYOUT_AMOUNT, REC_WEEKLY_CHALLENGE_PAYOUTS, calculateDefensivePotwScore, calculateOffensivePotwScore, readStat } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { calculateAdvanceGamePayouts } from "./advance-payouts.service.js";
 
@@ -540,17 +540,17 @@ async function assignWeeklyPerformanceBadges(guildId: string) {
       if (!didWin) continue;
 
       const [passR, rushR, defR] = await Promise.all([
-        sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["passYds"]),
-        sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rushYds"]),
+        sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["pass_yards"]),
+        sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rush_yards"]),
         Promise.all([
-          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defSacks"]),
-          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defInts"]),
-          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defForcedFum"])
+          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["sacks"]),
+          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["interceptions"]),
+          sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["forced_fumbles"])
         ])
       ]);
       const [sacksR, intsR, fumR] = defR;
-      const passTdR = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["passTDs"]);
-      const oppPassR = side.opponentTeamId ? await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["passYds"]) : { total: 999, hasData: false };
+      const passTdR = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["pass_tds"]);
+      const oppPassR = side.opponentTeamId ? await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["pass_yards"]) : { total: 999, hasData: false };
 
       if (passR.hasData && passR.total >= 400 && passTdR.total >= 4) {
         badgesToAssign.push({ user_id: side.userId, badge_name: "air_raid", badge_label: "Air Raid" });
@@ -1541,49 +1541,50 @@ interface ChallengeTemplate {
 
 const OFFENSIVE_CHALLENGE_POOL: ChallengeTemplate[] = [
   // Yardage challenges
-  { key: "pass_yards_350", side: "offense", eval_type: "team_stat_min", stat_columns: ["passYds"], s_threshold: 350, a_threshold: 250, s_tier_goal: "Throw for 350+ passing yards and win", a_tier_goal: "Throw for 250+ passing yards and win", b_tier_goal: "Win the game" },
-  { key: "pass_yards_400", side: "offense", eval_type: "team_stat_min", stat_columns: ["passYds"], s_threshold: 400, a_threshold: 300, s_tier_goal: "Throw for 400+ passing yards and win", a_tier_goal: "Throw for 300+ passing yards and win", b_tier_goal: "Win the game" },
-  { key: "rush_yards_150", side: "offense", eval_type: "team_stat_min", stat_columns: ["rushYds"], s_threshold: 150, a_threshold: 100, s_tier_goal: "Rush for 150+ yards and win", a_tier_goal: "Rush for 100+ yards and win", b_tier_goal: "Win the game" },
-  { key: "rush_yards_200", side: "offense", eval_type: "team_stat_min", stat_columns: ["rushYds"], s_threshold: 200, a_threshold: 130, s_tier_goal: "Rush for 200+ yards and win", a_tier_goal: "Rush for 130+ yards and win", b_tier_goal: "Win the game" },
-  { key: "total_yards_450", side: "offense", eval_type: "total_yards", stat_columns: ["passYds", "rushYds"], s_threshold: 450, a_threshold: 350, s_tier_goal: "Gain 450+ total yards and win", a_tier_goal: "Gain 350+ total yards and win", b_tier_goal: "Win the game" },
-  { key: "total_yards_500", side: "offense", eval_type: "total_yards", stat_columns: ["passYds", "rushYds"], s_threshold: 500, a_threshold: 400, s_tier_goal: "Gain 500+ total yards and win", a_tier_goal: "Gain 400+ total yards and win", b_tier_goal: "Win the game" },
+  { key: "pass_yards_350", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_yards"], s_threshold: 350, a_threshold: 250, s_tier_goal: "Throw for 350+ passing yards and win", a_tier_goal: "Throw for 250+ passing yards and win", b_tier_goal: "Win the game" },
+  { key: "pass_yards_400", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_yards"], s_threshold: 400, a_threshold: 300, s_tier_goal: "Throw for 400+ passing yards and win", a_tier_goal: "Throw for 300+ passing yards and win", b_tier_goal: "Win the game" },
+  { key: "rush_yards_150", side: "offense", eval_type: "team_stat_min", stat_columns: ["rush_yards"], s_threshold: 150, a_threshold: 100, s_tier_goal: "Rush for 150+ yards and win", a_tier_goal: "Rush for 100+ yards and win", b_tier_goal: "Win the game" },
+  { key: "rush_yards_200", side: "offense", eval_type: "team_stat_min", stat_columns: ["rush_yards"], s_threshold: 200, a_threshold: 130, s_tier_goal: "Rush for 200+ yards and win", a_tier_goal: "Rush for 130+ yards and win", b_tier_goal: "Win the game" },
+  { key: "total_yards_450", side: "offense", eval_type: "total_yards", stat_columns: ["pass_yards", "rush_yards"], s_threshold: 450, a_threshold: 350, s_tier_goal: "Gain 450+ total yards and win", a_tier_goal: "Gain 350+ total yards and win", b_tier_goal: "Win the game" },
+  { key: "total_yards_500", side: "offense", eval_type: "total_yards", stat_columns: ["pass_yards", "rush_yards"], s_threshold: 500, a_threshold: 400, s_tier_goal: "Gain 500+ total yards and win", a_tier_goal: "Gain 400+ total yards and win", b_tier_goal: "Win the game" },
   // TD challenges
-  { key: "pass_tds_3", side: "offense", eval_type: "team_stat_min", stat_columns: ["passTDs"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Throw 3+ passing TDs and win", a_tier_goal: "Throw 2+ passing TDs and win", b_tier_goal: "Win the game" },
-  { key: "pass_tds_4", side: "offense", eval_type: "team_stat_min", stat_columns: ["passTDs"], s_threshold: 4, a_threshold: 3, s_tier_goal: "Throw 4+ passing TDs and win", a_tier_goal: "Throw 3+ passing TDs and win", b_tier_goal: "Win the game" },
+  { key: "pass_tds_3", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_tds"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Throw 3+ passing TDs and win", a_tier_goal: "Throw 2+ passing TDs and win", b_tier_goal: "Win the game" },
+  { key: "pass_tds_4", side: "offense", eval_type: "team_stat_min", stat_columns: ["pass_tds"], s_threshold: 4, a_threshold: 3, s_tier_goal: "Throw 4+ passing TDs and win", a_tier_goal: "Throw 3+ passing TDs and win", b_tier_goal: "Win the game" },
   // Win margin challenges
   { key: "blowout_win_21", side: "offense", eval_type: "score_margin", stat_columns: [], s_threshold: 21, a_threshold: 14, s_tier_goal: "Win by 21+ points", a_tier_goal: "Win by 14+ points", b_tier_goal: "Win the game" },
   { key: "blowout_win_28", side: "offense", eval_type: "score_margin", stat_columns: [], s_threshold: 28, a_threshold: 21, s_tier_goal: "Win by 28+ points", a_tier_goal: "Win by 21+ points", b_tier_goal: "Win the game" },
   // Protection challenge
-  { key: "no_int_win", side: "offense", eval_type: "team_stat_max", stat_columns: ["passInts"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Win with 0 passing interceptions", a_tier_goal: "Win with 1 or fewer interceptions", b_tier_goal: "Win the game" },
+  { key: "no_int_win", side: "offense", eval_type: "team_stat_max", stat_columns: ["interceptions_thrown"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Win with 0 passing interceptions", a_tier_goal: "Win with 1 or fewer interceptions", b_tier_goal: "Win the game" },
   // Efficiency challenges
-  { key: "efficient_passer_75", side: "offense", eval_type: "completion_pct", stat_columns: ["passComp", "passAtt"], s_threshold: 0.75, a_threshold: 0.65, s_tier_goal: "Complete 75%+ of pass attempts and win", a_tier_goal: "Complete 65%+ of pass attempts and win", b_tier_goal: "Win the game" },
-  { key: "balanced_attack", side: "offense", eval_type: "balanced_attack", stat_columns: ["passYds", "rushYds"], s_threshold: 250, a_threshold: 200, s_threshold2: 150, a_threshold2: 100, s_tier_goal: "Throw for 250+ yards AND rush for 150+ yards and win", a_tier_goal: "Throw for 200+ yards AND rush for 100+ yards and win", b_tier_goal: "Win the game" },
-  { key: "first_downs_25", side: "offense", eval_type: "team_stat_min", stat_columns: ["firstDowns"], s_threshold: 25, a_threshold: 15, s_tier_goal: "Pick up 25+ first downs and win", a_tier_goal: "Pick up 15+ first downs and win", b_tier_goal: "Win the game" },
+  { key: "efficient_passer_75", side: "offense", eval_type: "completion_pct", stat_columns: ["pass_completions", "pass_attempts"], s_threshold: 0.75, a_threshold: 0.65, s_tier_goal: "Complete 75%+ of pass attempts and win", a_tier_goal: "Complete 65%+ of pass attempts and win", b_tier_goal: "Win the game" },
+  { key: "balanced_attack", side: "offense", eval_type: "balanced_attack", stat_columns: ["pass_yards", "rush_yards"], s_threshold: 250, a_threshold: 200, s_threshold2: 150, a_threshold2: 100, s_tier_goal: "Throw for 250+ yards AND rush for 150+ yards and win", a_tier_goal: "Throw for 200+ yards AND rush for 100+ yards and win", b_tier_goal: "Win the game" },
+  { key: "first_downs_25", side: "offense", eval_type: "team_stat_min", stat_columns: ["first_downs"], s_threshold: 25, a_threshold: 15, s_tier_goal: "Pick up 25+ first downs and win", a_tier_goal: "Pick up 15+ first downs and win", b_tier_goal: "Win the game" },
   { key: "high_scoring_35", side: "offense", eval_type: "user_score_min", stat_columns: [], s_threshold: 35, a_threshold: 28, s_tier_goal: "Score 35+ points and win", a_tier_goal: "Score 28+ points and win", b_tier_goal: "Win the game" }
 ];
 
 const DEFENSIVE_CHALLENGE_POOL: ChallengeTemplate[] = [
   // Pass coverage challenges
-  { key: "hold_qb_225", side: "defense", eval_type: "opp_stat_max", stat_columns: ["passYds"], s_threshold: 225, a_threshold: 275, s_tier_goal: "Hold opponent under 225 passing yards and win", a_tier_goal: "Hold opponent under 275 passing yards and win", b_tier_goal: "Win the game" },
-  { key: "hold_qb_200", side: "defense", eval_type: "opp_stat_max", stat_columns: ["passYds"], s_threshold: 200, a_threshold: 250, s_tier_goal: "Hold opponent under 200 passing yards and win", a_tier_goal: "Hold opponent under 250 passing yards and win", b_tier_goal: "Win the game" },
+  { key: "hold_qb_225", side: "defense", eval_type: "opp_stat_max", stat_columns: ["pass_yards"], s_threshold: 225, a_threshold: 275, s_tier_goal: "Hold opponent under 225 passing yards and win", a_tier_goal: "Hold opponent under 275 passing yards and win", b_tier_goal: "Win the game" },
+  { key: "hold_qb_200", side: "defense", eval_type: "opp_stat_max", stat_columns: ["pass_yards"], s_threshold: 200, a_threshold: 250, s_tier_goal: "Hold opponent under 200 passing yards and win", a_tier_goal: "Hold opponent under 250 passing yards and win", b_tier_goal: "Win the game" },
   // Run defense challenges
-  { key: "hold_rush_75", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rushYds"], s_threshold: 75, a_threshold: 125, s_tier_goal: "Hold opponent rushing attack under 75 yards and win", a_tier_goal: "Hold opponent rushing attack under 125 yards and win", b_tier_goal: "Win the game" },
-  { key: "hold_rush_100", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rushYds"], s_threshold: 100, a_threshold: 150, s_tier_goal: "Hold opponent rushing attack under 100 yards and win", a_tier_goal: "Hold opponent rushing attack under 150 yards and win", b_tier_goal: "Win the game" },
+  { key: "hold_rush_75", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rush_yards"], s_threshold: 75, a_threshold: 125, s_tier_goal: "Hold opponent rushing attack under 75 yards and win", a_tier_goal: "Hold opponent rushing attack under 125 yards and win", b_tier_goal: "Win the game" },
+  { key: "hold_rush_100", side: "defense", eval_type: "opp_stat_max", stat_columns: ["rush_yards"], s_threshold: 100, a_threshold: 150, s_tier_goal: "Hold opponent rushing attack under 100 yards and win", a_tier_goal: "Hold opponent rushing attack under 150 yards and win", b_tier_goal: "Win the game" },
   // Score suppression
   { key: "opp_score_10", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 10, a_threshold: 20, s_tier_goal: "Hold opponent to 10 points or fewer and win", a_tier_goal: "Hold opponent to 20 points or fewer and win", b_tier_goal: "Win the game" },
   { key: "opp_score_14", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 14, a_threshold: 24, s_tier_goal: "Hold opponent to 14 points or fewer and win", a_tier_goal: "Hold opponent to 24 points or fewer and win", b_tier_goal: "Win the game" },
   { key: "shutout", side: "defense", eval_type: "opp_score_max", stat_columns: [], s_threshold: 0, a_threshold: 7, s_tier_goal: "Shut out the opponent and win", a_tier_goal: "Hold opponent to 7 or fewer points and win", b_tier_goal: "Win the game" },
   // Pass rush / sack challenges
-  { key: "force_sacks_2", side: "defense", eval_type: "own_def_stat", stat_columns: ["defSacks"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Record 2+ sacks and win", a_tier_goal: "Record 1+ sack and win", b_tier_goal: "Win the game" },
-  { key: "force_sacks_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["defSacks"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Record 3+ sacks and win", a_tier_goal: "Record 2+ sacks and win", b_tier_goal: "Win the game" },
-  { key: "sack_party_5", side: "defense", eval_type: "own_def_stat", stat_columns: ["defSacks"], s_threshold: 5, a_threshold: 3, s_tier_goal: "Record 5+ sacks and win", a_tier_goal: "Record 3+ sacks and win", b_tier_goal: "Win the game" },
+  { key: "force_sacks_2", side: "defense", eval_type: "own_def_stat", stat_columns: ["sacks"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Record 2+ sacks and win", a_tier_goal: "Record 1+ sack and win", b_tier_goal: "Win the game" },
+  { key: "force_sacks_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["sacks"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Record 3+ sacks and win", a_tier_goal: "Record 2+ sacks and win", b_tier_goal: "Win the game" },
+  { key: "sack_party_5", side: "defense", eval_type: "own_def_stat", stat_columns: ["sacks"], s_threshold: 5, a_threshold: 3, s_tier_goal: "Record 5+ sacks and win", a_tier_goal: "Record 3+ sacks and win", b_tier_goal: "Win the game" },
   // Turnover challenges
-  { key: "force_turnovers_2", side: "defense", eval_type: "turnovers", stat_columns: ["defInts", "defForcedFum"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Force 2+ turnovers and win", a_tier_goal: "Force 1+ turnover and win", b_tier_goal: "Win the game" },
-  { key: "force_turnovers_3", side: "defense", eval_type: "turnovers", stat_columns: ["defInts", "defForcedFum"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Force 3+ turnovers and win", a_tier_goal: "Force 2+ turnovers and win", b_tier_goal: "Win the game" },
-  { key: "ball_hawk_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["defInts"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Intercept 3+ passes and win", a_tier_goal: "Intercept 2+ passes and win", b_tier_goal: "Win the game" },
+  { key: "force_turnovers_2", side: "defense", eval_type: "turnovers", stat_columns: ["interceptions", "forced_fumbles"], s_threshold: 2, a_threshold: 1, s_tier_goal: "Force 2+ turnovers and win", a_tier_goal: "Force 1+ turnover and win", b_tier_goal: "Win the game" },
+  { key: "force_turnovers_3", side: "defense", eval_type: "turnovers", stat_columns: ["interceptions", "forced_fumbles"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Force 3+ turnovers and win", a_tier_goal: "Force 2+ turnovers and win", b_tier_goal: "Win the game" },
+  { key: "ball_hawk_3", side: "defense", eval_type: "own_def_stat", stat_columns: ["interceptions"], s_threshold: 3, a_threshold: 2, s_tier_goal: "Intercept 3+ passes and win", a_tier_goal: "Intercept 2+ passes and win", b_tier_goal: "Win the game" },
   // Situational / advanced challenges
-  { key: "lockdown_secondary", side: "defense", eval_type: "opp_completion_pct", stat_columns: ["passComp", "passAtt"], s_threshold: 0.50, a_threshold: 0.60, s_tier_goal: "Hold opponent QB completion rate under 50% and win", a_tier_goal: "Hold opponent QB completion rate under 60% and win", b_tier_goal: "Win the game" },
-  { key: "redzone_lockdown", side: "defense", eval_type: "opp_stat_max", stat_columns: ["redZoneTDs"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Allow 0 red zone TDs and win", a_tier_goal: "Allow 1 or fewer red zone TDs and win", b_tier_goal: "Win the game" },
+  { key: "lockdown_secondary", side: "defense", eval_type: "opp_completion_pct", stat_columns: ["pass_completions", "pass_attempts"], s_threshold: 0.50, a_threshold: 0.60, s_tier_goal: "Hold opponent QB completion rate under 50% and win", a_tier_goal: "Hold opponent QB completion rate under 60% and win", b_tier_goal: "Win the game" },
+  // Red zone TDs is a team-level stat (rec_team_weekly_stats), not per-player; opp_team_stat_max reads the opponent's offensive red zone TDs for the week.
+  { key: "redzone_lockdown", side: "defense", eval_type: "opp_team_stat_max", stat_columns: ["red_zone_tds"], s_threshold: 0, a_threshold: 1, s_tier_goal: "Allow 0 red zone TDs and win", a_tier_goal: "Allow 1 or fewer red zone TDs and win", b_tier_goal: "Win the game" },
   { key: "bend_not_break", side: "defense", eval_type: "bend_not_break", stat_columns: [], s_threshold: 17, a_threshold: 24, s_tier_goal: "Allow 350+ yards but hold opponent under 17 points and win", a_tier_goal: "Allow 350+ yards but hold opponent under 24 points and win", b_tier_goal: "Win the game" }
 ];
 
@@ -1601,9 +1602,11 @@ function pickFromPool(pool: ChallengeTemplate[], excludedKeys?: Set<string> | nu
   return source[Math.floor(Math.random() * source.length)];
 }
 
-// Sums a single JSONB field across all player rows for a team in a given week.
-// The stats column uses Madden-style keys (e.g. "passYds", "rushYds", "defSacks").
-async function sumTeamStatFromCommitted(leagueId: string, seasonNumber: number, weekNumber: number, teamId: string, jsonbKeys: string[]): Promise<{ total: number; hasData: boolean }> {
+// Sums one or more canonical stats across all player rows for a team in a given week.
+// Keys are canonical (e.g. "pass_yards", "rush_yards", "sacks"); readStat tolerates
+// both canonical keys (new imports) and legacy raw EA keys (old data), and reads any
+// key without a canonical definition as-is.
+async function sumTeamStatFromCommitted(leagueId: string, seasonNumber: number, weekNumber: number, teamId: string, canonicalKeys: string[]): Promise<{ total: number; hasData: boolean }> {
   const { data, error } = await supabase
     .from("rec_player_weekly_stats")
     .select("stats")
@@ -1614,12 +1617,32 @@ async function sumTeamStatFromCommitted(leagueId: string, seasonNumber: number, 
   if (error || !data?.length) return { total: 0, hasData: false };
   const total = (data as any[]).reduce((sum, row) => {
     const s = (row.stats ?? {}) as Record<string, unknown>;
-    return sum + jsonbKeys.reduce((ks, key) => ks + asNumber(s[key]), 0);
+    return sum + canonicalKeys.reduce((ks, key) => ks + readStat(s, key), 0);
   }, 0);
   return { total, hasData: true };
 }
 
-// Calculates completion percentage for a team by summing passComp/passAtt from passing stats.
+// Reads a single canonical stat from a team's per-game team-level stats row in
+// rec_team_weekly_stats (one "team" row per team/week). Used for team-only stats
+// that have no per-player breakdown (e.g. red zone TDs). readStat tolerates both
+// canonical keys and legacy raw EA keys.
+async function readTeamWeeklyStat(leagueId: string, seasonNumber: number, weekNumber: number, teamId: string | null, canonicalKey: string): Promise<{ value: number; hasData: boolean }> {
+  if (!teamId) return { value: 0, hasData: false };
+  const { data } = await supabase
+    .from("rec_team_weekly_stats")
+    .select("stats")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .eq("team_id", teamId)
+    .eq("stat_category", "team")
+    .limit(1);
+  const row = data?.[0];
+  if (!row) return { value: 0, hasData: false };
+  return { value: readStat(row.stats as Record<string, unknown>, canonicalKey), hasData: true };
+}
+
+// Calculates completion percentage for a team by summing completions/attempts from passing stats.
 async function getTeamCompletionPct(leagueId: string, seasonNumber: number, weekNumber: number, teamId: string): Promise<{ pct: number; hasData: boolean }> {
   const { data } = await supabase
     .from("rec_player_weekly_stats")
@@ -1633,8 +1656,8 @@ async function getTeamCompletionPct(leagueId: string, seasonNumber: number, week
   let totalComp = 0, totalAtt = 0;
   for (const row of data as any[]) {
     const s = (row.stats ?? {}) as Record<string, unknown>;
-    totalComp += pickStat(s, ["passComp", "completions", "cmp"]);
-    totalAtt += pickStat(s, ["passAtt", "attempts", "att"]);
+    totalComp += readStat(s, "pass_completions");
+    totalAtt += readStat(s, "pass_attempts");
   }
   if (totalAtt === 0) return { pct: 0, hasData: false };
   return { pct: totalComp / totalAtt, hasData: true };
@@ -1670,7 +1693,7 @@ async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, th
   let avgPassYdsPerGame = 0;
   for (const row of latestPassRows) {
     const s = (row.stats ?? {}) as Record<string, any>;
-    const yds = asNumber(s.passYds);
+    const yds = readStat(s, "pass_yards");
     if (yds > topPassYds) { topPassYds = yds; topPasserName = (s.fullName as string) ?? row.player_name ?? null; }
     const ypg = asNumber(s.passYdsPerGame);
     if (ypg > avgPassYdsPerGame) avgPassYdsPerGame = ypg;
@@ -1680,7 +1703,7 @@ async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, th
   let avgRushYdsPerGame = 0;
   for (const row of latestRushRows) {
     const s = (row.stats ?? {}) as Record<string, any>;
-    const yds = asNumber(s.rushYds);
+    const yds = readStat(s, "rush_yards");
     if (yds > topRushYds) { topRushYds = yds; topRusherName = (s.fullName as string) ?? row.player_name ?? null; }
     const ypg = asNumber(s.rushYdsPerGame);
     if (ypg > avgRushYdsPerGame) avgRushYdsPerGame = ypg;
@@ -1702,9 +1725,9 @@ async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, th
   const defWeeks = new Set<number>();
   for (const row of defenseRows ?? []) {
     const s = (row.stats ?? {}) as Record<string, any>;
-    totalSacks += asNumber(s.defSacks ?? s.sacks);
-    totalInts += asNumber(s.defInts ?? s.interceptions);
-    totalFumbles += asNumber(s.defForcedFum ?? s.forcedFumbles);
+    totalSacks += readStat(s, "sacks");
+    totalInts += readStat(s, "interceptions");
+    totalFumbles += readStat(s, "forced_fumbles");
     defWeeks.add(row.week_number);
   }
   const defGames = defWeeks.size || 1;
@@ -2378,8 +2401,8 @@ export async function calculateRecPotw(guildId: string) {
     const position = row.rec_players?.position ?? row.position ?? null;
     const playerName = row.rec_players?.full_name ?? row.player_name ?? "Unknown Player";
     const stats = (row.stats ?? row.raw_payload ?? {}) as Record<string, any>;
-    const offensiveScore = calculateOffensivePotwScore({ position, passYds: asNumber(stats.passYds), passTDs: asNumber(stats.passTDs), passInts: asNumber(stats.passInts), rushYds: asNumber(stats.rushYds), rushTDs: asNumber(stats.rushTDs), recYds: asNumber(stats.recYds), recTDs: asNumber(stats.recTDs), receptions: asNumber(stats.recCatches ?? stats.receptions) });
-    const defensiveScore = calculateDefensivePotwScore({ sacks: asNumber(stats.defSacks), ints: asNumber(stats.defInts), defensiveTDs: asNumber(stats.defTDs), forcedFumbles: asNumber(stats.defForcedFum), tackles: asNumber(stats.defTotalTackles ?? stats.defTackles ?? stats.tackles) });
+    const offensiveScore = calculateOffensivePotwScore({ position, passYds: readStat(stats, "pass_yards"), passTDs: readStat(stats, "pass_tds"), passInts: readStat(stats, "interceptions_thrown"), rushYds: readStat(stats, "rush_yards"), rushTDs: readStat(stats, "rush_tds"), recYds: readStat(stats, "receiving_yards"), recTDs: readStat(stats, "receiving_tds"), receptions: readStat(stats, "receptions") });
+    const defensiveScore = calculateDefensivePotwScore({ sacks: readStat(stats, "sacks"), ints: readStat(stats, "interceptions"), defensiveTDs: readStat(stats, "defensive_tds"), forcedFumbles: readStat(stats, "forced_fumbles"), tackles: readStat(stats, "tackles") });
     candidates.push({ row, assignment, conference, position, playerName, offensiveScore, defensiveScore });
   }
   const awards: any[] = [];
@@ -2459,8 +2482,8 @@ export async function evaluateWeeklyChallenges(guildId: string) {
           }
         } else if (evalType === "total_yards") {
           const [passResult, rushResult] = await Promise.all([
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["passYds"]),
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rushYds"])
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["pass_yards"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rush_yards"])
           ]);
           const totalYards = passResult.total + rushResult.total;
           details.passYards = passResult.total;
@@ -2479,6 +2502,15 @@ export async function evaluateWeeklyChallenges(guildId: string) {
             if (total <= template.s_threshold) earnedTier = "S";
             else if (total <= template.a_threshold) earnedTier = "A";
           }
+        } else if (evalType === "opp_team_stat_max") {
+          // Team-level stat (e.g. red zone TDs): read the opponent's team weekly stats row for the week.
+          const { value, hasData } = await readTeamWeeklyStat(leagueId, seasonNumber, completedWeek, side.opponentTeamId, template.stat_columns[0]);
+          details[`opp_${template.stat_columns[0]}`] = value;
+          details.hasData = hasData;
+          if (hasData) {
+            if (value <= template.s_threshold) earnedTier = "S";
+            else if (value <= template.a_threshold) earnedTier = "A";
+          }
         } else if (evalType === "own_def_stat") {
           const { total, hasData } = await sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, template.stat_columns);
           details[template.stat_columns[0]] = total;
@@ -2489,8 +2521,8 @@ export async function evaluateWeeklyChallenges(guildId: string) {
           }
         } else if (evalType === "turnovers") {
           const [intResult, fumResult] = await Promise.all([
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defInts"]),
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["defForcedFum"])
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["interceptions"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["forced_fumbles"])
           ]);
           const turnovers = intResult.total + fumResult.total;
           details.defInterceptions = intResult.total;
@@ -2520,8 +2552,8 @@ export async function evaluateWeeklyChallenges(guildId: string) {
           }
         } else if (evalType === "balanced_attack") {
           const [passResult, rushResult] = await Promise.all([
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["passYds"]),
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rushYds"])
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["pass_yards"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.teamId, ["rush_yards"])
           ]);
           details.passYards = passResult.total;
           details.rushYards = rushResult.total;
@@ -2537,8 +2569,8 @@ export async function evaluateWeeklyChallenges(guildId: string) {
           else if (side.score >= template.a_threshold) earnedTier = "A";
         } else if (evalType === "bend_not_break") {
           const [oppPassResult, oppRushResult] = await Promise.all([
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["passYds"]),
-            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["rushYds"])
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["pass_yards"]),
+            sumTeamStatFromCommitted(leagueId, seasonNumber, completedWeek, side.opponentTeamId, ["rush_yards"])
           ]);
           const oppTotalYards = oppPassResult.total + oppRushResult.total;
           details.oppTotalYards = oppTotalYards;
@@ -3400,9 +3432,11 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
   if (!assignment) return { recorded: false, reason: "no_active_team" };
   const content = input.content ?? "";
   const linkMatch = content.match(/https?:\/\/[^\s<>]+/i);
-  const hasLegitStreamLink = Boolean(linkMatch && /(twitch\.tv|youtube\.com|youtu\.be|kick\.com|facebook\.com\/gaming|discord\.gg|discord\.com\/channels)/i.test(linkMatch[0]));
-  const mentionsDiscordStream = !hasLegitStreamLink && /\bdiscord\b/i.test(content);
-  const status = hasLegitStreamLink ? "posted" : mentionsDiscordStream ? "pending_review" : "invalid";
+  // A stream post qualifies if it contains ANY url link, OR mentions the word "discord"
+  // (case-insensitive). Either one triggers the stream payout.
+  const hasStreamLink = Boolean(linkMatch);
+  const mentionsDiscordStream = !hasStreamLink && /\bdiscord\b/i.test(content);
+  const status = hasStreamLink ? "posted" : mentionsDiscordStream ? "pending_review" : "invalid";
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const weekNumber = league.current_week ?? 1;
   const row = {
@@ -3416,16 +3450,18 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
     message_url: input.messageUrl ?? linkMatch?.[0] ?? null,
     posted_at: nowIso(),
     status,
-    details: { hasLegitStreamLink, mentionsDiscordStream, contentPreview: content.slice(0, 300), detectedUrl: linkMatch?.[0] ?? null },
+    details: { hasStreamLink, mentionsDiscordStream, contentPreview: content.slice(0, 300), detectedUrl: linkMatch?.[0] ?? null },
     created_at: nowIso(),
     updated_at: nowIso()
   };
   const { data, error } = await supabase.from("rec_stream_compliance_logs").insert(row).select("*").single();
   if (error) throw error;
-  // Only generate a payout review if: valid Discord stream mention, not offseason, AND first stream this advance week.
+  // Generate a payout review if the post is a valid stream (url link OR "discord" mention), not
+  // offseason, AND it's the first stream this advance week (deduped per user/season/week below).
   let review = null;
   const payoutBlocked = OFFSEASON_STAGES.has(stage);
-  if (mentionsDiscordStream && !payoutBlocked) {
+  const isValidStreamPost = hasStreamLink || mentionsDiscordStream;
+  if (isValidStreamPost && !payoutBlocked) {
     const { data: existingReview } = await supabase.from("rec_stream_payout_reviews").select("id").eq("league_id", context.league_id).eq("user_id", discord.user_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).maybeSingle();
     if (!existingReview) {
       const { data: reviewRow, error: reviewError } = await supabase.from("rec_stream_payout_reviews").upsert({
@@ -3436,7 +3472,7 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
         season_number: seasonNumber,
         week_number: weekNumber,
         status: "pending",
-        amount: 5,
+        amount: 25,
         created_at: nowIso(),
         updated_at: nowIso()
       }, { onConflict: "stream_log_id" }).select("*").single();
@@ -3444,7 +3480,9 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
       review = reviewRow;
     }
   }
-  return { recorded: true, log: data, review, needsReview: review !== null, invalidStreamPost: status === "invalid", shouldDelete: status === "invalid", pendingEconomyChannelId: routes?.pending_economy_channel_id ?? null };
+  // Stream-payout reviews are a payout approval, so they post to the pending payouts channel
+  // (falling back to the legacy pending economy channel if payouts is unconfigured).
+  return { recorded: true, log: data, review, needsReview: review !== null, invalidStreamPost: status === "invalid", shouldDelete: status === "invalid", pendingPayoutsChannelId: routes?.pending_payouts_channel_id ?? routes?.pending_economy_channel_id ?? null };
 }
 
 export async function reviewStreamPayout(input: { reviewId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
@@ -3851,21 +3889,54 @@ export async function issueEosPayouts(guildId: string) {
   }
 
   // Void any pending (unapproved) items from the existing batch, then create a fresh one.
-  // Items that are already dual-approved and issued are left untouched.
   await clearPendingEosBatch({ guildId, clearReason: "Superseded by new issuance" }).catch(() => undefined);
 
-  // Build standings
-  const { data: records } = await supabase
-    .from("rec_season_user_records")
-    .select("user_id,wins,losses,ties,point_differential,games_played")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .order("wins", { ascending: false });
+  const { data: routes } = await supabase.from("rec_server_routes").select("*").eq("server_id", context.server_id).maybeSingle() as any;
+  const serverName = league.name ?? "REC League";
 
-  const sorted = [...(records ?? [])].sort((a, b) => {
+  // Fetch standings and stat payouts in parallel
+  const [recordsResult, statPayouts] = await Promise.all([
+    supabase
+      .from("rec_season_user_records")
+      .select("user_id,wins,losses,ties,point_differential,games_played")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .order("wins", { ascending: false }),
+    (async () => {
+      const { computeEosStatPayouts } = await import("./eos-stat-payouts.service.js");
+      return computeEosStatPayouts(leagueId, seasonNumber);
+    })().catch((err) => { console.error("[issueEosPayouts] stat payout computation failed:", err); return []; })
+  ]);
+
+  const sorted = [...(recordsResult.data ?? [])].sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
     return (b.point_differential ?? 0) - (a.point_differential ?? 0);
   });
+
+  // Build rank map: userId → { rank, label, amount, wins, losses, ties }
+  const rankMap = new Map<string, { rank: number; label: string; rankAmount: number; wins: number; losses: number; ties: number }>();
+  for (let idx = 0; idx < sorted.length; idx++) {
+    const record = sorted[idx];
+    if (!record.user_id) continue;
+    const rank = idx + 1;
+    const tier = EOS_PAYOUT_TIERS.find((t) => t.rank === rank);
+    rankMap.set(String(record.user_id), {
+      rank,
+      label: tier?.label ?? `Rank ${rank}`,
+      rankAmount: tier?.amount ?? 0,
+      wins: record.wins ?? 0,
+      losses: record.losses ?? 0,
+      ties: record.ties ?? 0
+    });
+  }
+
+  // Build stat payout map: userId → statData
+  const statMap = new Map<string, (typeof statPayouts)[number]>();
+  for (const s of statPayouts) statMap.set(s.userId, s);
+
+  // Union of all user IDs that have either rank or stat payouts
+  const allUserIds = new Set<string>([...rankMap.keys(), ...statMap.keys()]);
+  const discordIds = await resolveDiscordIdsByUser([...allUserIds]);
 
   const { data: batch, error: batchError } = await supabase
     .from("rec_eos_payout_batches")
@@ -3874,31 +3945,47 @@ export async function issueEosPayouts(guildId: string) {
     .single();
   if (batchError) throw batchError;
 
-  const discordIds = await resolveDiscordIdsByUser(sorted.map((r) => r.user_id));
-  const { data: routes } = await supabase.from("rec_server_routes").select("*").eq("server_id", context.server_id).maybeSingle() as any;
-  const serverName = league.name ?? "REC League";
-
   const items: any[] = [];
-  for (let idx = 0; idx < sorted.length; idx++) {
-    const record = sorted[idx];
-    const rank = idx + 1;
-    const tier = EOS_PAYOUT_TIERS.find((t) => t.rank === rank);
-    if (!tier || !record.user_id) continue;
 
-    const payoutKey = `eos_${seasonNumber}_rank_${rank}_${record.user_id}`;
+  for (const userId of allUserIds) {
+    const rankData = rankMap.get(userId);
+    const statData = statMap.get(userId);
+
+    const rankAmount = rankData?.rankAmount ?? 0;
+    const statTotal = statData?.total ?? 0;
+    const grandTotal = rankAmount + statTotal;
+    if (grandTotal === 0) continue;
+
+    const rank = rankData?.rank ?? null;
+    const statCategories = statData?.categories ?? [];
+    const payoutKey = `eos:${leagueId}:${seasonNumber}:combined:${userId}`;
+
+    const rankLabel = rankData?.label ?? null;
+    const labelParts = [rankLabel, statTotal > 0 ? "Stat Bonuses" : null].filter(Boolean);
+    const payoutLabel = labelParts.join(" + ") || "EOS Payout";
+
     const { data: item } = await supabase
       .from("rec_eos_payout_items")
       .insert({
         batch_id: batch.id,
         league_id: leagueId,
-        user_id: record.user_id,
+        user_id: userId,
         season_number: seasonNumber,
         payout_category: "eos_regular_season",
         payout_key: payoutKey,
-        payout_label: tier.label,
-        amount: tier.amount,
+        payout_label: payoutLabel,
+        amount: grandTotal,
         status: "pending",
-        metadata: { rank, wins: record.wins, losses: record.losses, ties: record.ties }
+        metadata: {
+          rank,
+          rankAmount,
+          rankLabel,
+          wins: rankData?.wins ?? 0,
+          losses: rankData?.losses ?? 0,
+          ties: rankData?.ties ?? 0,
+          statTotal,
+          statCategories
+        }
       })
       .select("*")
       .single();
@@ -3907,20 +3994,34 @@ export async function issueEosPayouts(guildId: string) {
       items.push({
         ...item,
         rank,
-        discordId: discordIds.get(String(record.user_id)) ?? null,
-        wins: record.wins ?? 0,
-        losses: record.losses ?? 0,
-        ties: record.ties ?? 0
+        discordId: discordIds.get(userId) ?? null,
+        displayName: statData?.displayName ?? null,
+        teamName: statData?.teamName ?? null,
+        wins: rankData?.wins ?? 0,
+        losses: rankData?.losses ?? 0,
+        ties: rankData?.ties ?? 0,
+        rankAmount,
+        statTotal,
+        statCategories
       });
     }
   }
+
+  // Sort by rank (ranked users first, then by stat total descending)
+  items.sort((a, b) => {
+    if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
+    if (a.rank !== null) return -1;
+    if (b.rank !== null) return 1;
+    return b.amount - a.amount;
+  });
 
   return {
     batchId: batch.id,
     items,
     seasonNumber,
     serverName,
-    announcementsChannelId: routes?.announcements_channel_id ?? null
+    announcementsChannelId: routes?.announcements_channel_id ?? null,
+    pendingPayoutsChannelId: routes?.pending_payouts_channel_id ?? null
   };
 }
 
@@ -4186,11 +4287,11 @@ export async function calculateAndStorePowerRankings(guildId: string) {
       });
     }
     const acc = playerAccumMap.get(mapKey)!;
-    acc.passYds += asNumber(s.passYds); acc.passTDs += asNumber(s.passTDs); acc.passInts += asNumber(s.passInts);
-    acc.rushYds += asNumber(s.rushYds); acc.rushTDs += asNumber(s.rushTDs);
-    acc.recYds += asNumber(s.recYds); acc.recTDs += asNumber(s.recTDs);
-    acc.defSacks += asNumber(s.defSacks); acc.defInts += asNumber(s.defInts);
-    acc.defTackles += asNumber(s.defTackles ?? s.tackles);
+    acc.passYds += readStat(s, "pass_yards"); acc.passTDs += readStat(s, "pass_tds"); acc.passInts += readStat(s, "interceptions_thrown");
+    acc.rushYds += readStat(s, "rush_yards"); acc.rushTDs += readStat(s, "rush_tds");
+    acc.recYds += readStat(s, "receiving_yards"); acc.recTDs += readStat(s, "receiving_tds");
+    acc.defSacks += readStat(s, "sacks"); acc.defInts += readStat(s, "interceptions");
+    acc.defTackles += readStat(s, "tackles");
     acc.weeks++;
   }
 
@@ -4443,7 +4544,7 @@ export async function approveHighlightPayout(input: { postId: string; discordId:
     userId: post.user_id,
     leagueId: post.league_id,
     seasonNumber: post.season_number,
-    amount: 5,
+    amount: 25,
     transactionType: "credit",
     description: `Highlight payout — Week ${post.week_number}`,
     sourceReference: { type: "highlight_payout", postId: post.id, idempotencyKey: `highlight_payout_${post.id}` }
