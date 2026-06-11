@@ -21,11 +21,11 @@ export const AWARD_DEFINITIONS: AwardDefinition[] = [
   { key: "best_qb", name: "Best QB", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best quarterback based on passing TDs, yards, completion %, passer rating, and win %." },
   { key: "best_rb", name: "Best RB", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best running back based on rushing yards, TDs, yards per carry, and win %." },
   { key: "best_wr", name: "Best WR", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best wide receiver based on receiving yards, TDs, receptions, and win %." },
-  { key: "best_ol", name: "Best OL", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best offensive line based on sacks allowed, run blocking, and offensive production." },
-  { key: "best_dl", name: "Best DL", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best defensive line based on sacks, TFL, QB hits, and forced fumbles." },
-  { key: "best_lb", name: "Best LB", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best linebacker based on tackles, TFL, sacks, and interceptions." },
-  { key: "best_db", name: "Best DB", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best defensive back based on interceptions, pass deflections, tackles, and defensive TDs." },
-  { key: "best_kicker", name: "Best Kicker", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best kicker based on FG %, XP %, longest FG, and clutch kicks." },
+  { key: "best_ol", name: "Best OL", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best offensive line unit (team award) based on fewest sacks allowed and average OL overall rating." },
+  { key: "best_dl", name: "Best DL", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best defensive line based on sacks (65%), forced fumbles (25%), and tackles (10%)." },
+  { key: "best_lb", name: "Best LB", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best linebacker based on tackles (50%), sacks (30%), and interceptions (20%)." },
+  { key: "best_db", name: "Best DB", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best defensive back based on interceptions (45%), pass deflections (25%), tackles (20%), and defensive TDs (10%)." },
+  { key: "best_kicker", name: "Best Kicker", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best kicker based on FG % (55%), XP % (30%), and longest FG (15%). Minimum 50 combined attempts." },
 
   // ── REC League Awards ────────────────────────────────────────────────────
   { key: "commissioners_award", name: "Commissioner's Award", category: "community", requiresVoting: true, nomineeCount: 32, payoutAmount: 100, description: "Recognizes sportsmanship and fair play. All linked coaches are nominees." },

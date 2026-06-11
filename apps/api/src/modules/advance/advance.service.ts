@@ -2023,7 +2023,12 @@ function getScorePair(game: any) {
 
 function isCompletedGame(game: any) {
   const { home, away } = getScorePair(game);
-  return game.status === "final" || game.status === "completed" || home > 0 || away > 0 || game.is_tie || game.winning_user_id || game.losing_user_id;
+  // Require at least one non-null score before trusting is_tie (prevents 0-0 phantom ties from null imports)
+  const hasValidScores = game.home_score != null && game.away_score != null;
+  return game.status === "final" || game.status === "completed" ||
+    (hasValidScores && (home > 0 || away > 0)) ||
+    (hasValidScores && game.is_tie) ||
+    game.winning_user_id || game.losing_user_id;
 }
 
 function gameApplyKey(game: any) {
@@ -2198,8 +2203,9 @@ export async function auditAndRepairRecords(guildId: string) {
   // Upsert season records (full overwrite)
   for (const [userId, stats] of seasonTotals) {
     try {
+      const gp = stats.games_played;
       await supabase.from("rec_season_user_records").upsert(
-        { ...stats, user_id: userId, league_id: leagueId, season_number: seasonNumber, updated_at: new Date().toISOString() },
+        { ...stats, user_id: userId, league_id: leagueId, season_number: seasonNumber, avg_point_differential: gp ? stats.point_differential / gp : 0, updated_at: new Date().toISOString() },
         { onConflict: "user_id,league_id,season_number" }
       );
     } catch { /* non-fatal */ }
@@ -2208,8 +2214,9 @@ export async function auditAndRepairRecords(guildId: string) {
   // Upsert league-wide records (full overwrite)
   for (const [userId, stats] of leagueTotals) {
     try {
+      const gp = stats.games_played;
       await supabase.from("rec_league_user_records").upsert(
-        { ...stats, user_id: userId, league_id: leagueId, updated_at: new Date().toISOString() },
+        { ...stats, user_id: userId, league_id: leagueId, avg_point_differential: gp ? stats.point_differential / gp : 0, updated_at: new Date().toISOString() },
         { onConflict: "user_id,league_id" }
       );
     } catch { /* non-fatal */ }
@@ -2239,11 +2246,93 @@ export async function auditAndRepairRecords(guildId: string) {
   for (const [key, stats] of h2hTotals) {
     const [userAId, userBId] = key.split(":::");
     try {
+      const gp = stats.games_played;
       await supabase.from("rec_user_h2h_league_records").upsert(
-        { ...stats, user_a_id: userAId, user_b_id: userBId, league_id: leagueId, updated_at: new Date().toISOString() },
+        {
+          user_a_wins: stats.wins, user_a_losses: stats.losses, user_a_ties: stats.ties,
+          user_a_point_differential: stats.point_differential, games_played: gp,
+          avg_user_a_point_differential: gp ? stats.point_differential / gp : 0,
+          user_a_id: userAId, user_b_id: userBId, league_id: leagueId, updated_at: new Date().toISOString()
+        },
         { onConflict: "user_a_id,user_b_id,league_id" }
       );
     } catch { /* non-fatal */ }
+  }
+
+  // ── Rebuild global user records (cross-league H2H totals for all users in this season) ──
+  const globalUserIds = new Set<string>();
+  for (const g of completed(seasonGames ?? [])) {
+    if (g.home_user_id && g.away_user_id) {
+      globalUserIds.add(g.home_user_id);
+      globalUserIds.add(g.away_user_id);
+    }
+  }
+
+  let globalUsersRepaired = 0;
+  let globalH2hPairsRepaired = 0;
+  if (globalUserIds.size > 0) {
+    const userIdArray = [...globalUserIds];
+    // Fetch all H2H games for these users across all leagues
+    const orFilter = userIdArray.map((id) => `home_user_id.eq.${id}`).concat(userIdArray.map((id) => `away_user_id.eq.${id}`)).join(",");
+    const { data: allH2HGames } = await supabase
+      .from("rec_game_results")
+      .select("home_user_id,away_user_id,home_score,away_score,winning_user_id,losing_user_id,is_tie,status")
+      .not("home_user_id", "is", null)
+      .not("away_user_id", "is", null)
+      .or(orFilter);
+
+    const globalTotals = new Map<string, UserStats>();
+    const h2hGlobalTotals = new Map<string, H2HStats>();
+    for (const g of completed(allH2HGames ?? [])) {
+      const { home, away } = getScorePair(g);
+      const ids = [g.home_user_id, g.away_user_id].sort() as [string, string];
+      const key = h2hKey(ids[0], ids[1]);
+      if (g.home_user_id) {
+        if (!globalTotals.has(g.home_user_id)) globalTotals.set(g.home_user_id, freshStats());
+        accumulate(globalTotals.get(g.home_user_id)!, home, away);
+      }
+      if (g.away_user_id) {
+        if (!globalTotals.has(g.away_user_id)) globalTotals.set(g.away_user_id, freshStats());
+        accumulate(globalTotals.get(g.away_user_id)!, away, home);
+      }
+      if (!h2hGlobalTotals.has(key)) h2hGlobalTotals.set(key, { wins: 0, losses: 0, ties: 0, games_played: 0, point_differential: 0 });
+      const rec = h2hGlobalTotals.get(key)!;
+      const userAIsHome = ids[0] === g.home_user_id;
+      const userAPd = userAIsHome ? home - away : away - home;
+      rec.games_played += 1;
+      rec.point_differential += userAPd;
+      if (userAPd > 0) rec.wins += 1;
+      else if (userAPd < 0) rec.losses += 1;
+      else rec.ties += 1;
+    }
+
+    for (const [userId, stats] of globalTotals) {
+      try {
+        const gp = stats.games_played;
+        await supabase.from("rec_global_user_records").upsert(
+          { ...stats, user_id: userId, avg_point_differential: gp ? stats.point_differential / gp : 0, updated_at: new Date().toISOString() },
+          { onConflict: "user_id" }
+        );
+        globalUsersRepaired += 1;
+      } catch { /* non-fatal */ }
+    }
+
+    for (const [key, stats] of h2hGlobalTotals) {
+      const [userAId, userBId] = key.split(":::");
+      try {
+        const gp = stats.games_played;
+        await supabase.from("rec_user_h2h_global_records").upsert(
+          {
+            user_a_wins: stats.wins, user_a_losses: stats.losses, user_a_ties: stats.ties,
+            user_a_point_differential: stats.point_differential, games_played: gp,
+            avg_user_a_point_differential: gp ? stats.point_differential / gp : 0,
+            user_a_id: userAId, user_b_id: userBId, updated_at: new Date().toISOString()
+          },
+          { onConflict: "user_a_id,user_b_id" }
+        );
+        globalH2hPairsRepaired += 1;
+      } catch { /* non-fatal */ }
+    }
   }
 
   // ── Mark untracked games so future applyAdvanceRecords won't double-count ───
@@ -2258,6 +2347,8 @@ export async function auditAndRepairRecords(guildId: string) {
     seasonRecordsRepaired: seasonTotals.size,
     leagueRecordsRepaired: leagueTotals.size,
     h2hPairsRepaired: h2hTotals.size,
+    globalUsersRepaired,
+    globalH2hPairsRepaired,
     gamesMarkedApplied: unapplied.length
   };
 }
@@ -2287,7 +2378,7 @@ export async function calculateRecPotw(guildId: string) {
     const playerName = row.rec_players?.full_name ?? row.player_name ?? "Unknown Player";
     const stats = (row.stats ?? row.raw_payload ?? {}) as Record<string, any>;
     const offensiveScore = calculateOffensivePotwScore({ position, passYds: asNumber(stats.passYds), passTDs: asNumber(stats.passTDs), passInts: asNumber(stats.passInts), rushYds: asNumber(stats.rushYds), rushTDs: asNumber(stats.rushTDs), recYds: asNumber(stats.recYds), recTDs: asNumber(stats.recTDs), receptions: asNumber(stats.recCatches ?? stats.receptions) });
-    const defensiveScore = calculateDefensivePotwScore({ sacks: asNumber(stats.defSacks), ints: asNumber(stats.defInts), defensiveTDs: asNumber(stats.defTDs), forcedFumbles: asNumber(stats.defForcedFum), tackles: asNumber(stats.defTackles ?? stats.tackles), tacklesForLoss: asNumber(stats.defTFL ?? stats.tacklesForLoss) });
+    const defensiveScore = calculateDefensivePotwScore({ sacks: asNumber(stats.defSacks), ints: asNumber(stats.defInts), defensiveTDs: asNumber(stats.defTDs), forcedFumbles: asNumber(stats.defForcedFum), tackles: asNumber(stats.defTotalTackles ?? stats.defTackles ?? stats.tackles) });
     candidates.push({ row, assignment, conference, position, playerName, offensiveScore, defensiveScore });
   }
   const awards: any[] = [];

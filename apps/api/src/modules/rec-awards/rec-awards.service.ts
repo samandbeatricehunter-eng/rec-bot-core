@@ -91,6 +91,40 @@ async function getActiveCoaches(leagueId: string) {
   }));
 }
 
+// Average OL (LT/LG/C/RG/RT) overall rating per team, for Best OL team award
+async function getOLTeamRatings(leagueId: string): Promise<Map<string, number>> {
+  const OL_POSITIONS = ["LT", "LG", "C", "RG", "RT"];
+  const [teamsResult, playersResult] = await Promise.all([
+    supabase.from("rec_teams").select("id,madden_team_id").eq("league_id", leagueId),
+    supabase.from("rec_players").select("position,overall_rating,raw_payload").eq("league_id", leagueId).in("position", OL_POSITIONS)
+  ]);
+
+  const teamByMaddenId = new Map<string, string>(); // madden external id → uuid
+  for (const t of teamsResult.data ?? []) {
+    if (t.madden_team_id) teamByMaddenId.set(String(t.madden_team_id), String(t.id));
+  }
+
+  const olByTeam = new Map<string, { total: number; count: number }>();
+  for (const p of playersResult.data ?? []) {
+    const raw = (p.raw_payload ?? {}) as Record<string, unknown>;
+    const maddenTeamId = String(raw.teamId ?? "0");
+    if (maddenTeamId === "0") continue; // skip free agents
+    const teamId = teamByMaddenId.get(maddenTeamId);
+    if (!teamId) continue;
+    const ovr = asNum((p as any).overall_rating ?? raw.playerBestOvr ?? raw.playerSchemeOvr ?? 0);
+    if (!olByTeam.has(teamId)) olByTeam.set(teamId, { total: 0, count: 0 });
+    const agg = olByTeam.get(teamId)!;
+    agg.total += ovr;
+    agg.count += 1;
+  }
+
+  const result = new Map<string, number>();
+  for (const [teamId, { total, count }] of olByTeam) {
+    result.set(teamId, count > 0 ? total / count : 0);
+  }
+  return result;
+}
+
 // Aggregate team stats across all regular season committed games
 async function getTeamSeasonStats(leagueId: string, seasonNumber: number): Promise<Map<string, Record<string, number>>> {
   const { data } = await supabase
@@ -348,57 +382,60 @@ function scoreReceivingStats(s: Record<string, number>, winPct: number): number 
 }
 
 function scoreDefensiveStats(s: Record<string, number>): number {
-  // DPOY formula: 35% sacks, 25% INTs, 15% forced fumbles, 15% TFL, 10% (implied via team def ranking)
+  // DPOY: 40% sacks, 30% INTs, 20% forced fumbles, 10% tackles
+  // Madden has no TFL or QB hits stat — defTotalTackles is the correct key
   const sacks = s.defSacks ?? 0;
   const ints = s.defInts ?? 0;
   const ff = s.defForcedFum ?? 0;
-  const tfl = s.defTFL ?? s.defTacklesForLoss ?? 0;
-  const tackles = s.defTackles ?? 0;
-  return sacks * 0.35 + ints * 0.25 + ff * 0.15 + tfl * 0.15 + tackles * 0.001 * 0.10;
+  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
+  return sacks * 0.40 + ints * 0.30 + ff * 0.20 + tackles * 0.001 * 0.10;
 }
 
-function scoreOLStats(s: Record<string, number>, totalOffYds: number): number {
-  // Best OL: 50% sacks allowed (inverse), 30% run blocking (rushYds), 20% total offense
-  const sacksAllowed = s.sacksAllowed ?? s.oppSacks ?? 0;
-  const rushYds = s.rushYds ?? 0;
-  const sackScore = Math.max(0, 50 - sacksAllowed * 2); // fewer sacks = higher score
-  return sackScore * 0.50 + rushYds * 0.001 * 0.30 + totalOffYds * 0.0001 * 0.20;
+function scoreOLStats(s: Record<string, number>): number {
+  // Best OL (team award): 60% inverse sacks allowed, 40% avg OL OVR
+  // passSacks = QB sacks taken (summed across all QBs on the team = sacks allowed)
+  // avgOlOvr = average overall rating of LT/LG/C/RG/RT, injected from getOLTeamRatings
+  const passSacks = s.passSacks ?? 0;
+  const avgOlOvr = s.avgOlOvr ?? 0;
+  const sackScore = Math.max(0, 50 - passSacks * 1.5);
+  return sackScore * 0.60 + (avgOlOvr / 99) * 100 * 0.40;
 }
 
 function scoreDLStats(s: Record<string, number>): number {
+  // Madden has no TFL or QB hits stat — sacks are the primary DL metric
   const sacks = s.defSacks ?? 0;
-  const tfl = s.defTFL ?? s.defTacklesForLoss ?? 0;
-  const qbHits = s.defQBHits ?? 0;
   const ff = s.defForcedFum ?? 0;
-  return sacks * 0.40 + tfl * 0.25 + qbHits * 0.20 + ff * 0.15;
+  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
+  return sacks * 0.65 + ff * 0.25 + tackles * 0.001 * 0.10;
 }
 
 function scoreLBStats(s: Record<string, number>): number {
-  const tackles = s.defTackles ?? 0;
-  const tfl = s.defTFL ?? s.defTacklesForLoss ?? 0;
+  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
   const sacks = s.defSacks ?? 0;
   const ints = s.defInts ?? 0;
-  return tackles * 0.35 + tfl * 0.25 + sacks * 0.20 + ints * 0.20;
+  return tackles * 0.50 + sacks * 0.30 + ints * 0.20;
 }
 
 function scoreDBStats(s: Record<string, number>): number {
   const ints = s.defInts ?? 0;
-  const pd = s.defPD ?? s.defPassDeflections ?? 0;
-  const tackles = s.defTackles ?? 0;
+  const pd = s.defDeflections ?? 0; // Madden key is defDeflections
+  const tackles = s.defTotalTackles ?? s.defTackles ?? 0;
   const defTDs = s.defTDs ?? 0;
-  return ints * 0.45 + pd * 0.20 + tackles * 0.20 + defTDs * 0.15;
+  return ints * 0.45 + pd * 0.25 + tackles * 0.20 + defTDs * 0.10;
 }
 
 function scoreKickerStats(s: Record<string, number>): number {
-  const fgMade = s.fgMade ?? 0;
-  const fgAtt = s.fgAtt ?? 1;
-  const xpMade = s.xpMade ?? 0;
-  const xpAtt = s.xpAtt ?? 1;
-  const longFG = s.fgLong ?? 0;
+  // Madden kicking keys: fGMade, fGAtt, xPMade, xPAtt, fGLongest
+  const fgMade = s.fGMade ?? s.fgMade ?? 0;
+  const fgAtt = s.fGAtt ?? s.fgAtt ?? 0;
+  const xpMade = s.xPMade ?? s.xpMade ?? 0;
+  const xpAtt = s.xPAtt ?? s.xpAtt ?? 0;
+  const longFG = s.fGLongest ?? s.fgLong ?? 0;
+  const totalAttempts = fgAtt + xpAtt;
+  if (totalAttempts < 50) return 0; // Minimum 50 combined FG+XP attempts across season
   const fgPct = fgAtt > 0 ? fgMade / fgAtt : 0;
   const xpPct = xpAtt > 0 ? xpMade / xpAtt : 0;
-  const clutchKicks = s.fgMade4Q ?? 0; // 4th-quarter FGs as proxy for clutch
-  return fgPct * 100 * 0.50 + xpPct * 100 * 0.25 + (longFG / 60) * 100 * 0.15 + clutchKicks * 0.10;
+  return fgPct * 100 * 0.55 + xpPct * 100 * 0.30 + (longFG / 60) * 100 * 0.15;
 }
 
 // Build nominees list for one award, returning top N sorted by performance score
@@ -419,7 +456,7 @@ export async function generateAwardNominees(guildId: string) {
   const userIds = coaches.map((c) => c.userId);
   const teamByUser = new Map(coaches.map((c) => [c.userId, c]));
 
-  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords] = await Promise.all([
+  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords, olTeamRatings] = await Promise.all([
     getTeamSeasonStats(leagueId, seasonNumber),
     getTeamStatsByCategory(leagueId, seasonNumber, "passing"),
     getTeamStatsByCategory(leagueId, seasonNumber, "rushing"),
@@ -427,7 +464,8 @@ export async function generateAwardNominees(guildId: string) {
     getTeamStatsByCategory(leagueId, seasonNumber, "defense"),
     getTeamStatsByCategory(leagueId, seasonNumber, "kicking"),
     getSeasonRecords(leagueId, seasonNumber),
-    getPriorSeasonRecords(leagueId, seasonNumber)
+    getPriorSeasonRecords(leagueId, seasonNumber),
+    getOLTeamRatings(leagueId)
   ]);
 
   const [upsetWins, sosMap, streamCounts, challengeCounts, badgeCounts] = await Promise.all([
@@ -513,8 +551,8 @@ export async function generateAwardNominees(guildId: string) {
     if (!rawScores.best_wr) rawScores.best_wr = new Map();
     rawScores.best_wr.set(userId, wrScore);
 
-    // Best OL
-    const olScore = scoreOLStats({ ...teamPassStats, ...teamRushStats, ...teamAllStats }, totalOffYds);
+    // Best OL (team award: sacks allowed via QB passSacks + avg OL OVR)
+    const olScore = scoreOLStats({ ...teamPassStats, avgOlOvr: olTeamRatings.get(teamId) ?? 0 });
     if (!rawScores.best_ol) rawScores.best_ol = new Map();
     rawScores.best_ol.set(userId, olScore);
 
