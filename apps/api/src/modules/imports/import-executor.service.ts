@@ -982,6 +982,49 @@ export async function executeImportJob(importJobId: string) {
     ? job.selected_endpoint_keys as string[]
     : DEFAULT_ENDPOINT_KEYS;
 
+  const attempts = Array.isArray(details.endpointAttempts) ? details.endpointAttempts : [];
+  const selectedAttempts = attempts.filter((attempt: any) => endpointKeys.includes(attempt.endpoint_key));
+  const successfulAttempts = selectedAttempts.filter((attempt: any) => attempt.status === "success");
+  const successfulKeys = new Set(successfulAttempts.map((attempt: any) => attempt.endpoint_key));
+  const allSelectedEndpointsAlreadyStaged = endpointKeys.length > 0 && endpointKeys.every((endpointKey) => successfulKeys.has(endpointKey));
+
+  if (allSelectedEndpointsAlreadyStaged) {
+    const results = endpointKeys.map((endpointKey) => {
+      const attempt = successfulAttempts.find((item: any) => item.endpoint_key === endpointKey);
+      return {
+        endpointKey,
+        endpointLabel: attempt?.endpoint_label ?? endpointLabel(endpointKey),
+        status: "success" as const,
+        recordsFound: attempt?.records_found ?? 0,
+        responseSummary: {
+          ...(attempt?.response_summary ?? {}),
+          skippedBecauseAlreadyStaged: true
+        }
+      };
+    });
+
+    const stagingWrites = results.reduce((sum, result) => sum + result.recordsFound, 0);
+
+    return updateImportJobStatus({
+      importJobId,
+      status: "validating",
+      previewSummary: {
+        ...(job.preview_summary ?? {}),
+        endpointExecution: {
+          successful: results.length,
+          skipped: 0,
+          failed: 0,
+          results
+        },
+        successfulEndpointKeys: Array.from(successfulKeys),
+        stagingWrites,
+        payouts: "Deferred until league advance."
+      },
+      validationWarnings: [],
+      validationErrors: []
+    });
+  }
+
   const { eaContext, session: initialSession } = await prepareEaExecution(importJobId, job);
 
   await updateImportJobStatus({ importJobId, status: "running" });
