@@ -1044,3 +1044,12 @@ export async function handleEaConnectCodeSubmit(interaction: any) {
     });
   }
 }
+
+
+export function renderImportPanel() {
+  return buildImportPanelPayload();
+}
+
+export async function handleImportModal(interaction: any) {
+  return handleEaConnectCodeSubmit(interaction);
+}
