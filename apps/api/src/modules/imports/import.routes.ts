@@ -27,6 +27,7 @@ import {
   updateEndpointAttempt,
   updateImportJobStatus
 } from "./import.service.js";
+import { listImportRawFieldDictionary } from "./raw-field-dictionary.service.js";
 import { getImportFieldMap, getStatDefinitionsCatalog, getUnmappedStatKeys } from "./stat-definitions.service.js";
 
 const ImportJobIdBodySchema = z.object({ importJobId: z.string().uuid() });
@@ -56,7 +57,6 @@ export async function importRoutes(app: FastifyInstance) {
     }
   });
 
-  // Canonical stat definition catalog (single source of truth for stat keys, labels, usage groups).
   app.get("/v1/imports/stat-definitions", async (request, reply) => {
     try {
       requireInternalApiKey(request);
@@ -66,7 +66,29 @@ export async function importRoutes(app: FastifyInstance) {
     }
   });
 
-  // Debug: every raw stat field currently seen for a league, with canonical REC mapping where available.
+  app.get("/v1/imports/raw-field-dictionary", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { leagueId, importJobId, endpointKey, mapped, limit } = (request.query ?? {}) as {
+        leagueId?: string;
+        importJobId?: string;
+        endpointKey?: string;
+        mapped?: string;
+        limit?: string;
+      };
+      if (!leagueId) return reply.status(400).send({ error: "leagueId query parameter is required." });
+      return reply.send(await listImportRawFieldDictionary({
+        leagueId,
+        importJobId,
+        endpointKey,
+        mapped: mapped == null ? undefined : mapped === "true",
+        limit: Number.isFinite(Number(limit)) ? Number(limit) : undefined
+      }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.get("/v1/imports/field-map", async (request, reply) => {
     try {
       requireInternalApiKey(request);
@@ -79,7 +101,6 @@ export async function importRoutes(app: FastifyInstance) {
     }
   });
 
-  // Debug: raw import stat keys for a league that did not map to any canonical stat.
   app.get("/v1/imports/unmapped-stat-keys", async (request, reply) => {
     try {
       requireInternalApiKey(request);
