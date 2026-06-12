@@ -56,6 +56,7 @@ interface EosPollsData {
     leagueId: string;
     seasonNumber: number;
     announcementsChannelId: string | null;
+    error?: string | null;
   } | null;
 }
 
@@ -113,6 +114,33 @@ export function buildRecAwardVotingEmbed(award: any): EmbedBuilder {
 // the manual "Run EOS Polls & Awards" advance menu action.
 export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsData): Promise<string[]> {
   const warnings: string[] = [];
+  const votingChannelId = pollsData.announcementsChannelId ?? pollsData.recAwardsData?.announcementsChannelId ?? null;
+
+  if (votingChannelId) {
+    try {
+      const channel = await guild.channels.fetch(votingChannelId).catch(() => null) as TextChannel | null;
+      if (channel?.type === ChannelType.GuildText) {
+        await channel.send({
+          content: "@everyone",
+          embeds: [new EmbedBuilder()
+            .setTitle("Post-Season Voting Has Begun")
+            .setDescription([
+              "Post-season voting is now open.",
+              "",
+              "You have **24 hours** to cast your votes in the polls below.",
+              "Winners receive various cash rewards, and select special categories receive added bonus rewards for winning.",
+              "",
+              "Only linked coaches may vote. No self-voting. You may change your vote before voting closes."
+            ].join("\n"))
+            .setColor(0xf1c40f)
+          ],
+          allowedMentions: { parse: ["everyone"] }
+        }).catch((err) => warnings.push(`voting_announcement: ${err instanceof Error ? err.message : String(err)}`));
+      }
+    } catch (err) {
+      warnings.push(`voting_announcement: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 
   if (pollsData.polls?.length && pollsData.announcementsChannelId) {
     try {
@@ -142,8 +170,13 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
                   .setPlaceholder(`Vote for ${poll.categoryLabel}`)
                   .addOptions(nomineeOptions)
               )]
-            }).catch((e) => console.error("[EOS] Failed to post community poll:", e));
+            }).catch((e) => {
+              console.error("[EOS] Failed to post community poll:", e);
+              warnings.push(`eos_poll_${poll.categoryKey}: ${e instanceof Error ? e.message : String(e)}`);
+            });
           }
+        } else {
+          warnings.push("eos_polls: no linked nominees available for select menu options");
         }
       }
     } catch (err) {
@@ -153,37 +186,40 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
   }
 
   const recAwardsData = pollsData.recAwardsData;
+  if (recAwardsData?.error && (recAwardsData.announcementsChannelId ?? pollsData.announcementsChannelId)) {
+    const channelId = recAwardsData.announcementsChannelId ?? pollsData.announcementsChannelId;
+    const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) as TextChannel | null : null;
+    if (channel?.type === ChannelType.GuildText) {
+      await channel.send({ embeds: [new EmbedBuilder().setTitle("REC Award Generation Failed").setDescription(`REC award voting embeds were not created.\n\n\`${recAwardsData.error.slice(0, 1800)}\``).setColor(0xe74c3c)] }).catch(() => undefined);
+    }
+    warnings.push(`rec_awards_generation: ${recAwardsData.error}`);
+  }
+
   if (recAwardsData?.awards?.length && recAwardsData.announcementsChannelId) {
     try {
       const awardCh = await guild.channels.fetch(recAwardsData.announcementsChannelId).catch(() => null) as TextChannel | null;
       if (awardCh?.type === ChannelType.GuildText) {
         const votingAwards = recAwardsData.awards.filter((a) => a.status === "voting" && a.nomineeCount > 0);
-        if (votingAwards.length > 0) {
-          await awardCh.send({
-            content: "@everyone",
-            embeds: [new EmbedBuilder()
-              .setTitle("REC Season Awards — Vote Now!")
-              .setDescription([`**Season ${recAwardsData.seasonNumber} Awards** are open for voting!`, "", "Voting closes in **24 hours**. Only linked coaches may vote. No self-voting.", "", `**${votingAwards.length}** awards need your vote — see the polls below.`].join("\n"))
-              .setColor(0xf1c40f)
-            ],
-            allowedMentions: { parse: ["everyone"] }
-          }).catch(() => undefined);
-
-          for (const award of votingAwards) {
-            const options = (award.nomineeOptions ?? []).slice(0, 25).map((n) =>
-              new StringSelectMenuOptionBuilder().setLabel(n.displayLabel.slice(0, 100)).setValue(n.userId)
-            );
-            if (options.length === 0) continue;
-            await awardCh.send({
-              embeds: [buildRecAwardVotingEmbed(award)],
-              components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-                new StringSelectMenuBuilder()
-                  .setCustomId(`rec_award_vote:${guild.id}:${award.awardId}`)
-                  .setPlaceholder(`Vote for ${award.name}`)
-                  .addOptions(options)
-              )]
-            }).catch(() => undefined);
+        if (votingAwards.length === 0 && recAwardsData.awards.length > 0) {
+          warnings.push(`rec_awards: generated ${recAwardsData.awards.length} awards but none are voting awards with nominees`);
+        }
+        for (const award of votingAwards) {
+          const options = (award.nomineeOptions ?? []).slice(0, 25).map((n) =>
+            new StringSelectMenuOptionBuilder().setLabel(n.displayLabel.slice(0, 100)).setValue(n.userId)
+          );
+          if (options.length === 0) {
+            warnings.push(`rec_award_${award.key}: no selectable nominee options`);
+            continue;
           }
+          await awardCh.send({
+            embeds: [buildRecAwardVotingEmbed(award)],
+            components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+              new StringSelectMenuBuilder()
+                .setCustomId(`rec_award_vote:${guild.id}:${award.awardId}`)
+                .setPlaceholder(`Vote for ${award.name}`)
+                .addOptions(options)
+            )]
+          }).catch((err) => warnings.push(`rec_award_${award.key}: ${err instanceof Error ? err.message : String(err)}`));
         }
       }
     } catch (err) {

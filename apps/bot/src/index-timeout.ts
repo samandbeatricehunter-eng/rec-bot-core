@@ -869,13 +869,29 @@ async function handleManageLeagueSelect(interaction: Extract<Interaction, { isSt
 }
 
 
+function normalizeEosDisplayValue(cat: any, value: unknown) {
+  const numeric = Number(value);
+  const isLongKick = String(cat.key ?? "").includes("long_fg") || /long fg|longest/i.test(String(cat.label ?? ""));
+  if (isLongKick && Number.isFinite(numeric) && numeric > 100) return Math.round((numeric / 10) * 10) / 10;
+  return value ?? "?";
+}
+
+function normalizeEosThresholdLabel(cat: any) {
+  const isLongKick = String(cat.key ?? "").includes("long_fg") || /long fg|longest/i.test(String(cat.label ?? ""));
+  if (isLongKick && Number(cat.thresholdValue) > 100) {
+    const normalized = Math.round((Number(cat.thresholdValue) / 10) * 10) / 10;
+    return `${String(cat.thresholdLabel ?? ">=").startsWith("<=") ? "<=" : ">="} ${normalized}`;
+  }
+  return cat.thresholdLabel ?? (cat.thresholdValue !== undefined && cat.thresholdValue !== null ? `${cat.thresholdValue}` : null);
+}
+
 function formatEosPayoutStatLine(cat: any, options: { includeEntityPosition?: boolean } = {}) {
   const entity = cat.entityName
     ? ` (${cat.entityName}${options.includeEntityPosition && cat.entityPosition ? ` · ${cat.entityPosition}` : cat.entityPosition ? ` · ${cat.entityPosition}` : ""})`
     : "";
   const tierLabel = cat.isFlat ? "Flat" : (cat.qualifiedTier ?? "Tier");
-  const value = cat.qualifiedValue ?? "?";
-  const threshold = cat.thresholdLabel ?? (cat.thresholdValue !== undefined && cat.thresholdValue !== null ? `${cat.thresholdValue}` : null);
+  const value = normalizeEosDisplayValue(cat, cat.qualifiedValue);
+  const threshold = normalizeEosThresholdLabel(cat);
   const proof = cat.isFlat
     ? `Stat: ${value}`
     : `Stat: ${value}${threshold ? ` / Threshold: ${threshold}` : ""}`;
@@ -919,7 +935,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
         return;
       }
       const guild = interaction.guild!;
-      const warnings = await postEosPollsAndAwards(guild, result.pollsData);
+      const warnings = [...(result.warnings ?? []), ...await postEosPollsAndAwards(guild, result.pollsData)];
       const pollCount = result.pollsData?.polls?.length ?? 0;
       const awardCount = result.pollsData?.recAwardsData?.awards?.filter((a: any) => a.status === "voting" && a.nomineeCount > 0).length ?? 0;
       await interaction.editReply({

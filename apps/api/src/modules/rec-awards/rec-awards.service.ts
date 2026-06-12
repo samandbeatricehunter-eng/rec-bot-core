@@ -780,7 +780,7 @@ async function getPlayerAwardCandidates(
     selectAllPages<any>((from, to) =>
       supabase
         .from("rec_player_weekly_stats")
-        .select("player_id,team_id,stat_category,stats,rec_players!inner(full_name,position,raw_payload,years_pro)")
+        .select("player_id,team_id,stat_category,stats,rec_players(full_name,position,raw_payload,years_pro)")
         .eq("league_id", leagueId)
         .eq("season_number", seasonNumber)
         .eq("season_stage", "regular_season")
@@ -951,7 +951,7 @@ async function getTopPlayerPerTeam(
       selectAllPages<any>((from, to) =>
         supabase
           .from("rec_player_weekly_stats")
-          .select("player_id,team_id,stats,rec_players!inner(full_name,position,raw_payload)")
+          .select("player_id,team_id,stats,rec_players(full_name,position,raw_payload)")
           .eq("league_id", leagueId)
           .eq("season_number", seasonNumber)
           .eq("season_stage", "regular_season")

@@ -3870,13 +3870,16 @@ export async function runEosPollsAndAwards(guildId: string) {
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const announcementsChannelId = routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null;
 
+  const warnings: string[] = [];
   let pollsData: any = null;
   try {
     const { createEosAwardPolls } = await import("../eos-awards/eos-awards.service.js");
     pollsData = await createEosAwardPolls(context.league_id, seasonNumber);
     pollsData.announcementsChannelId = announcementsChannelId;
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[runEosPollsAndAwards] EOS poll creation failed:", err);
+    warnings.push(`eos_community_polls: ${message}`);
     pollsData = { polls: [], nominees: [], closesAt: null, announcementsChannelId };
   }
 
@@ -3885,10 +3888,20 @@ export async function runEosPollsAndAwards(guildId: string) {
     const recAwardsData = await generateAwardNominees(guildId);
     pollsData.recAwardsData = recAwardsData;
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("[runEosPollsAndAwards] REC award generation failed:", err);
+    warnings.push(`rec_awards_generation: ${message}`);
+    pollsData.recAwardsData = {
+      generated: 0,
+      awards: [],
+      leagueId: context.league_id,
+      seasonNumber,
+      announcementsChannelId,
+      error: message
+    };
   }
 
-  return { allowed: true, pollsData, stage, seasonNumber };
+  return { allowed: true, pollsData, stage, seasonNumber, warnings };
 }
 
 export async function issueEosPayouts(guildId: string) {
@@ -4049,26 +4062,20 @@ export async function approveEosPayoutItem(input: { itemId: string; discordId: s
   if (error || !item) throw new Error("Payout item not found.");
   if (item.status === "issued") return { credited: false, reason: "already_issued", newBalance: null };
   if (item.status === "denied") return { credited: false, reason: "already_denied", newBalance: null };
-  if (item.status === "voided") return { credited: false, reason: "already_voided", newBalance: null };
 
   const { data: discordRow } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
   const actorUserId = discordRow?.user_id ?? null;
 
   const patch: Record<string, any> = { updated_at: nowIso() };
 
-  const alreadyUserApproved = Boolean(item.user_approved_at);
-  const alreadyCommissionerApproved = Boolean(item.approved_at);
-
   if (input.role === "user") {
     // Recipient must match the item's user
     if (actorUserId && String(actorUserId) !== String(item.user_id)) {
       return { credited: false, reason: "not_recipient", newBalance: null };
     }
-    if (alreadyUserApproved) return { credited: false, reason: "already_user_approved", newBalance: null };
     patch.user_approved_at = nowIso();
   } else {
     // Commissioner approval
-    if (alreadyCommissionerApproved) return { credited: false, reason: "already_commissioner_approved", newBalance: null };
     patch.approved_by_user_id = actorUserId ?? null;
     patch.approved_at = nowIso();
     patch.commissioner_user_id = actorUserId ?? null;
