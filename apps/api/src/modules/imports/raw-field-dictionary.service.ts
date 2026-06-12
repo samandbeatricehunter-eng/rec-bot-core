@@ -25,27 +25,43 @@ function safeExampleValue(value: unknown) {
   return value;
 }
 
-function walkPayload(value: unknown, prefix = ""): Array<{ sourcePath: string; rawKey: string; value: unknown }> {
-  const fields: Array<{ sourcePath: string; rawKey: string; value: unknown }> = [];
+type RawField = { sourcePath: string; rawKey: string; value: unknown };
 
+// Accumulate the union of fields across the whole payload, deduped by sourcePath.
+// EA arrays are heterogeneous (position-specific roster attributes, optional stat
+// fields), so we walk *every* element rather than sampling the first — otherwise
+// keys absent from element 0 never reach the dictionary. Deduping by sourcePath
+// also keeps the downstream upsert safe (no repeated onConflict target in a batch).
+function collectFields(value: unknown, prefix: string, acc: Map<string, RawField>) {
   if (Array.isArray(value)) {
-    const sample = value.find((item) => item != null);
-    if (sample != null) fields.push(...walkPayload(sample, `${prefix}[]`));
-    return fields;
+    for (const item of value) {
+      if (item != null) collectFields(item, `${prefix}[]`, acc);
+    }
+    return;
   }
 
-  if (!isPlainObject(value)) return fields;
+  if (!isPlainObject(value)) return;
 
   for (const [rawKey, child] of Object.entries(value)) {
     const sourcePath = prefix ? `${prefix}.${rawKey}` : rawKey;
-    fields.push({ sourcePath, rawKey, value: child });
+    const existing = acc.get(sourcePath);
+    if (!existing) {
+      acc.set(sourcePath, { sourcePath, rawKey, value: child });
+    } else if (existing.value == null && child != null) {
+      // Prefer a non-null example so value_type reflects the real field type.
+      existing.value = child;
+    }
 
     if (isPlainObject(child) || Array.isArray(child)) {
-      fields.push(...walkPayload(child, sourcePath));
+      collectFields(child, sourcePath, acc);
     }
   }
+}
 
-  return fields;
+function walkPayload(value: unknown): RawField[] {
+  const acc = new Map<string, RawField>();
+  collectFields(value, "", acc);
+  return [...acc.values()];
 }
 
 export async function captureImportRawFields(input: CaptureInput) {
