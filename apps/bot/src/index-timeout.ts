@@ -193,7 +193,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.teamSelect) return handleRosterTeamSelect(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
-      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportSelect(interaction);
+      if (
+        Object.values(IMPORT_CUSTOM_IDS).some(
+          (id) => interaction.customId === id || interaction.customId.startsWith(`${id}:`)
+        )
+      ) return handleImportSelect(interaction);
       if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.select) return handleAdvanceMenuSelect(interaction);
       if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.troubleshootSelect) return handleTroubleshootMenuSelect(interaction);
       if (
@@ -221,7 +225,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.view) return handleLeagueWeekView(interaction);
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.set) return interaction.reply({ content: "Choose the stage first.", components: [buildLeagueWeekStageRow()], ephemeral: true });
       if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) return handleImportButton(interaction);
-      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportButton(interaction);
+      if (
+        Object.values(IMPORT_CUSTOM_IDS).some(
+          (id) => interaction.customId === id || interaction.customId.startsWith(`${id}:`)
+        )
+      ) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
         const draft = leagueSetupSessions.get(interaction.user.id);
@@ -252,7 +260,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isModalSubmit()) {
       if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.channelIdModal) return handleServerSetupChannelIdModal(interaction);
-      if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportModal(interaction);
+      if (
+        Object.values(IMPORT_CUSTOM_IDS).some(
+          (id) => interaction.customId === id || interaction.customId.startsWith(`${id}:`)
+        )
+      ) return handleImportModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
