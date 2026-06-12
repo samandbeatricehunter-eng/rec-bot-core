@@ -1329,9 +1329,52 @@ export async function generateAwardNominees(guildId: string) {
     });
   }
 
+  const diagnostics = {
+    leagueId,
+    seasonNumber,
+    generatedAwards: generatedAwards.length,
+    activeCoaches: coaches.length,
+    playerAwardCandidates: playerAwardCandidates.length,
+    awardDefinitions: AWARD_DEFINITIONS.length,
+    rawScoreMaps: Object.fromEntries(
+      Object.entries(rawScores).map(([key, value]) => [
+        key,
+        {
+          entries: value.size,
+          top: [...value.entries()]
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 5)
+            .map(([userId, rawScore]) => ({
+              userId,
+              rawScore,
+              teamName: teamByUser.get(userId)?.teamName ?? null,
+            })),
+        },
+      ]),
+    ),
+    generatedAwardSummaries: generatedAwards.map((award: any) => ({
+      key: award.key,
+      name: award.name,
+      status: award.status,
+      nomineeCount: award.nomineeCount,
+      nomineeOptionsCount: Array.isArray(award.nomineeOptions) ? award.nomineeOptions.length : null,
+    })),
+    statSourceCounts: {
+      allTeamStats: allTeamStats.size,
+      passingStats: passingStats.size,
+      rushingStats: rushingStats.size,
+      receivingStats: receivingStats.size,
+      defenseStats: defStats.size,
+      kickingStats: kickingStats.size,
+      seasonRecords: seasonRecords.size,
+      olTeamRatings: olTeamRatings.size,
+    },
+  };
+
   return {
     generated: generatedAwards.length,
     awards: generatedAwards,
+    diagnostics,
     leagueId,
     seasonNumber,
     announcementsChannelId: routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null
