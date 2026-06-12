@@ -241,24 +241,6 @@ async function getPriorSeasonRecords(leagueId: string, seasonNumber: number): Pr
   return map;
 }
 
-// All user IDs that played at least one game in ANY prior season — used to exclude
-// first-year coaches from OPOY/DPOY (they compete for OROY/DROY instead).
-async function getVeteranUserIds(leagueId: string, seasonNumber: number): Promise<Set<string>> {
-  if (seasonNumber <= 1) return new Set();
-  const { data } = await supabase
-    .from("rec_season_user_records")
-    .select("user_id,games_played,wins,losses,ties")
-    .eq("league_id", leagueId)
-    .lt("season_number", seasonNumber);
-  const veterans = new Set<string>();
-  for (const r of data ?? []) {
-    if (!r.user_id) continue;
-    const games = asNum(r.games_played) || (asNum(r.wins) + asNum(r.losses) + asNum(r.ties));
-    if (games > 0) veterans.add(String(r.user_id));
-  }
-  return veterans;
-}
-
 // Count upset wins (wins against opponents with better record)
 async function getUpsetWins(leagueId: string, seasonNumber: number, records: Map<string, { wins: number; games: number }>): Promise<Map<string, number>> {
   const { data: games } = await supabase
@@ -485,7 +467,7 @@ function scoreKickerStats(s: Record<string, number>): number {
 }
 
 // Maps award key → which stat category + Madden positions identify the representative player
-const POSITION_AWARD_PLAYER_CONFIG: Record<string, { category: string; positions: string[]; rankByStat: string }> = {
+const POSITION_AWARD_PLAYER_CONFIG: Record<string, { category: string; positions: string[]; rankByStat: string; rookieFilter?: "veteran_only" | "rookie_only" }> = {
   best_qb: { category: "passing", positions: ["QB"], rankByStat: "pass_yards" },
   best_rb: { category: "rushing", positions: ["HB"], rankByStat: "rush_yards" },
   best_wr: { category: "receiving", positions: ["WR", "TE"], rankByStat: "receiving_yards" },
@@ -495,11 +477,11 @@ const POSITION_AWARD_PLAYER_CONFIG: Record<string, { category: string; positions
   best_kicker: { category: "kicking", positions: ["K"], rankByStat: "fg_made" },
   // Composite: best player across all offensive positions
   mvp: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards" },
-  opoy: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards" },
-  offensive_rookie: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards" },
+  opoy: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards", rookieFilter: "veteran_only" },
+  offensive_rookie: { category: "passing", positions: ["QB", "HB", "WR", "TE"], rankByStat: "pass_yards", rookieFilter: "rookie_only" },
   // Composite: best player across all defensive positions
-  dpoy: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "sacks" },
-  defensive_rookie: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "sacks" },
+  dpoy: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "sacks", rookieFilter: "veteran_only" },
+  defensive_rookie: { category: "defense", positions: ["DT", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"], rankByStat: "sacks", rookieFilter: "rookie_only" },
 };
 
 // For composite awards (mvp, opoy, dpoy) that span multiple stat categories,
@@ -512,10 +494,11 @@ const COMPOSITE_EXTRA_CATEGORIES: Record<string, string[]> = {
 
 // Returns the best individual Madden player per team for position awards (by primary rankByStat).
 // For composite awards, competitions are ranked by the highest value across all their categories.
+// rookieFilter: "veteran_only" excludes players with yearsPro === 0; "rookie_only" requires yearsPro === 0.
 async function getTopPlayerPerTeam(
   leagueId: string,
   seasonNumber: number,
-  config: { category: string; positions: string[]; rankByStat: string },
+  config: { category: string; positions: string[]; rankByStat: string; rookieFilter?: "veteran_only" | "rookie_only" },
   extraCategories: string[] = []
 ): Promise<Map<string, { playerName: string; position: string }>> {
   const categories = [config.category, ...extraCategories];
@@ -526,7 +509,7 @@ async function getTopPlayerPerTeam(
       selectAllPages<any>((from, to) =>
         supabase
           .from("rec_player_weekly_stats")
-          .select("player_id,team_id,stats,rec_players!inner(full_name,position)")
+          .select("player_id,team_id,stats,rec_players!inner(full_name,position,raw_payload)")
           .eq("league_id", leagueId)
           .eq("season_number", seasonNumber)
           .eq("season_stage", "regular_season")
@@ -546,6 +529,12 @@ async function getTopPlayerPerTeam(
       const playerRec = (row as any).rec_players;
       const position = String(playerRec?.position ?? "");
       if (!posSet.has(position)) continue;
+      // Apply rookie/veteran filter using Madden's yearsPro field from raw_payload
+      if (config.rookieFilter) {
+        const yearsPro = playerRec?.raw_payload?.yearsPro;
+        if (config.rookieFilter === "veteran_only" && yearsPro === 0) continue;
+        if (config.rookieFilter === "rookie_only" && yearsPro !== 0) continue;
+      }
       const key = `${teamId}:::${playerId}`;
       if (!playerAgg.has(key)) {
         playerAgg.set(key, { teamId, playerName: playerRec?.full_name ?? "Unknown", position, stats: {} });
@@ -588,7 +577,7 @@ export async function generateAwardNominees(guildId: string) {
   const userIds = coaches.map((c) => c.userId);
   const teamByUser = new Map(coaches.map((c) => [c.userId, c]));
 
-  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords, olTeamRatings, veteranUserIds] = await Promise.all([
+  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords, olTeamRatings] = await Promise.all([
     getTeamSeasonStats(leagueId, seasonNumber),
     getTeamStatsByCategory(leagueId, seasonNumber, "passing"),
     getTeamStatsByCategory(leagueId, seasonNumber, "rushing"),
@@ -597,8 +586,7 @@ export async function generateAwardNominees(guildId: string) {
     getTeamStatsByCategory(leagueId, seasonNumber, "kicking"),
     getSeasonRecords(leagueId, seasonNumber),
     getPriorSeasonRecords(leagueId, seasonNumber),
-    getOLTeamRatings(leagueId),
-    getVeteranUserIds(leagueId, seasonNumber)
+    getOLTeamRatings(leagueId)
   ]);
 
   const [upsetWins, sosMap, streamCounts, challengeCounts, badgeCounts] = await Promise.all([
@@ -664,30 +652,33 @@ export async function generateAwardNominees(guildId: string) {
     if (!rawScores.coach_of_the_year) rawScores.coach_of_the_year = new Map();
     rawScores.coach_of_the_year.set(userId, cotyScore);
 
-    const isRookie = !veteranUserIds.has(userId);
-
-    // OPOY: veterans only (first-year coaches compete for OROY instead)
     const opoyScore = Math.max(
       scorePassingStats(teamPassStats, winPct),
       scoreRushingStats(teamRushStats, winPct),
       scoreReceivingStats(teamRecStats, winPct)
     );
-    if (!isRookie) {
+    const dpoyScore = scoreDefensiveStats(teamDefStats);
+
+    // OPOY: only teams whose best offensive player has years_pro > 0
+    if (playersByAward.get("opoy")?.get(teamId)) {
       if (!rawScores.opoy) rawScores.opoy = new Map();
       rawScores.opoy.set(userId, opoyScore);
     }
 
-    // DPOY: veterans only (first-year coaches compete for DROY instead)
-    const dpoyScore = scoreDefensiveStats(teamDefStats);
-    if (!isRookie) {
+    // DPOY: only teams whose best defensive player has years_pro > 0
+    if (playersByAward.get("dpoy")?.get(teamId)) {
       if (!rawScores.dpoy) rawScores.dpoy = new Map();
       rawScores.dpoy.set(userId, dpoyScore);
     }
 
-    // Rookie awards: first-year coaches only
-    if (isRookie) {
+    // Offensive Rookie: only teams whose best offensive player has years_pro === 0
+    if (playersByAward.get("offensive_rookie")?.get(teamId)) {
       if (!rawScores.offensive_rookie) rawScores.offensive_rookie = new Map();
       rawScores.offensive_rookie.set(userId, opoyScore);
+    }
+
+    // Defensive Rookie: only teams whose best defensive player has years_pro === 0
+    if (playersByAward.get("defensive_rookie")?.get(teamId)) {
       if (!rawScores.defensive_rookie) rawScores.defensive_rookie = new Map();
       rawScores.defensive_rookie.set(userId, dpoyScore);
     }
