@@ -44,7 +44,7 @@ export const DEF_BY_KEY = new Map<string, StatDefinition>(
 const AMBIGUOUS_ALIASES = new Set<string>(
   [
     "interceptions", "ints", "int", "picks",
-    "sacks", "sack",
+    "sacks", "sack", "defsacks",
     "passyards", "passingyards", "passyds", "passingyds",
     "rushyards", "rushingyards", "rushyds", "rushingyds",
     "points", "score"
@@ -80,7 +80,7 @@ function resolveAmbiguous(norm: string, scope: StatScope, cat: string): string |
     if (scope === "player") return "interceptions";
     return null;
   }
-  if (["sacks", "sack"].includes(norm)) {
+  if (["sacks", "sack", "defsacks"].includes(norm)) {
     if (scope === "team") return "team_sacks";
     if (scope === "player" && isPassing && !isDefense) return "sacks_taken";
     if (scope === "player") return "sacks";
