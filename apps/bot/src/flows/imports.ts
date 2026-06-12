@@ -862,7 +862,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
 }
 
 export async function handleEaConnectCodeSubmit(interaction: any) {
-  const raw = interaction.fields.getTextInputValue("ea_auth_code");
+  const raw = interaction.fields.getTextInputValue(IMPORT_CUSTOM_IDS.eaAuthCodeInput);
   const code = normalizeEaAuthCode(raw);
   const draft = importSessions.get(interaction.user.id) ?? {};
 
