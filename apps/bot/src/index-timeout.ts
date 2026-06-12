@@ -472,6 +472,11 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
   }
   if (selected === "rec_bank") return renderRecBankFromSelect(interaction);
   if (selected === "rosters") return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
+  // FUTURE: these four main-menu departments are connected shells (see docs/menu-map.md):
+  //   manage_team    -> coach self-service: my lineup/links, my contract+cap snapshot, my badges
+  //   standings_stats-> league standings table + leaderboards (rec_season_user_records, weekly stats, power rankings)
+  //   media_center   -> streams, highlights, POTW/GOTY galleries, award results
+  //   help_rules     -> player-facing rule reader + command help (admin rules panel exists via buildRulesPanel)
   const labels: Record<string, string> = { manage_team: "Manage My Team", standings_stats: "Standings & Stats", media_center: "Media Center", help_rules: "Help / Rules" };
   await interaction.update({ embeds: [new EmbedBuilder().setTitle(labels[selected] ?? "REC League HQ").setDescription("This department shell is connected. The detailed workflow will be built next.").setFooter({ text: "REC Core connected" })], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
 }
