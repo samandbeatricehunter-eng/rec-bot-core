@@ -763,7 +763,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.franchiseSelect) {
     const draft = importSessions.get(interaction.user.id) ?? {};
-    const selected = draft.franchises?.find((franchise: any) => String(franchise.external_league_id ?? franchise.id) === interaction.values[0]);
+    const selected = draft.franchises?.find((franchise: any) => String(franchise.id) === interaction.values[0]);
     if (!selected) {
       await interaction.reply({ content: "Selected franchise was not found. Discover franchises again.", ephemeral: true });
       return;

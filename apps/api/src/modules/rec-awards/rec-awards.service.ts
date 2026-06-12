@@ -380,76 +380,154 @@ async function getBadgeCounts(leagueId: string, userIds: string[]): Promise<Map<
   return counts;
 }
 
-// Score calculators — all return a raw score (higher = better)
+// Score calculators — all return a normalized 0-100 score (higher = better).
+// All components are individually normalized to 0-100 before weighting so each
+// path (passing/rushing/receiving) uses the same scale and Math.max() is fair.
+// Caps are set to elite-but-achievable 17-game team season totals.
+
 function scorePassingStats(s: Record<string, number>, winPct: number): number {
-  const passYds = readStat(s, "pass_yards");
-  const passTDs = readStat(s, "pass_tds");
-  const passAtt = readStat(s, "pass_attempts") || 1;
+  const passYds  = readStat(s, "pass_yards");
+  const passTDs  = readStat(s, "pass_tds");
+  const passAtt  = readStat(s, "pass_attempts") || 1;
   const passComp = readStat(s, "pass_completions");
-  const compPct = passAtt > 0 ? passComp / passAtt : 0;
-  // Best QB formula: 35% TDs, 30% yards, 15% comp%, 10% rating (approx), 10% wins
-  const rawRating = (passTDs * 4 + (compPct - 0.3) * 5 + passYds * 0.04 + Math.max(0, 2.375 - ((passAtt - passComp) / passAtt) * 25)) / 6 * 100;
-  return passTDs * 0.35 + passYds * 0.0001 * 0.30 + compPct * 100 * 0.15 + Math.min(rawRating, 100) * 0.10 + winPct * 100 * 0.10;
+  const ints     = readStat(s, "interceptions_thrown");
+  const compPct  = passComp / passAtt;
+
+  // Component normalizations (0-100 each):
+  const ydsScore  = Math.min(passYds / 65, 100);                              // 6500 yds = 100
+  const tdScore   = Math.min(passTDs * 100 / 65, 100);                        // 65 TDs = 100
+  const compScore = Math.min(Math.max((compPct - 0.50) / 0.25 * 100, 0), 100); // 50%-75% → 0-100
+  const intScore  = Math.max(0, 100 * (1 - ints / 25));                       // 25 INTs = 0
+  const winScore  = winPct * 100;
+
+  // 35% yards, 30% TDs, 15% completion%, 10% INT avoidance, 10% wins
+  return ydsScore  * 0.35
+       + tdScore   * 0.30
+       + compScore * 0.15
+       + intScore  * 0.10
+       + winScore  * 0.10;
 }
 
 function scoreRushingStats(s: Record<string, number>, winPct: number): number {
   const rushYds = readStat(s, "rush_yards");
   const rushTDs = readStat(s, "rush_tds");
   const rushAtt = readStat(s, "rush_attempts") || 1;
-  const ypc = rushAtt > 0 ? rushYds / rushAtt : 0;
-  // Best RB formula: 40% rush yds, 30% TDs, 15% YPC, 15% wins
-  return rushYds * 0.001 * 40 + rushTDs * 0.30 + ypc * 0.15 + winPct * 100 * 0.15;
+  const ypc     = rushYds / rushAtt;
+
+  // Component normalizations (0-100 each):
+  const ydsScore = Math.min(rushYds / 28, 100);                               // 2800 yds = 100
+  const tdScore  = Math.min(rushTDs * 100 / 40, 100);                         // 40 TDs = 100
+  const ypcScore = Math.min(Math.max((ypc - 3.5) / 3.5 * 100, 0), 100);      // 3.5–7.0 YPC → 0-100
+  const winScore = winPct * 100;
+
+  // 40% yards, 30% TDs, 15% YPC efficiency, 15% wins
+  return ydsScore  * 0.40
+       + tdScore   * 0.30
+       + ypcScore  * 0.15
+       + winScore  * 0.15;
 }
 
 function scoreReceivingStats(s: Record<string, number>, winPct: number): number {
-  const recYds = readStat(s, "receiving_yards");
-  const recTDs = readStat(s, "receiving_tds");
+  const recYds     = readStat(s, "receiving_yards");
+  const recTDs     = readStat(s, "receiving_tds");
   const receptions = readStat(s, "receptions");
-  // Best WR formula: 40% rec yds, 30% TDs, 15% receptions, 15% wins
-  return recYds * 0.001 * 40 + recTDs * 0.30 + receptions * 0.005 * 0.15 + winPct * 100 * 0.15;
+
+  // Component normalizations (0-100 each):
+  const ydsScore  = Math.min(recYds / 65, 100);            // 6500 yds = 100
+  const tdScore   = Math.min(recTDs * 100 / 65, 100);      // 65 TDs = 100
+  const recScore  = Math.min(receptions / 3, 100);         // 300 rec = 100; 0 when not tracked
+  const winScore  = winPct * 100;
+
+  // 45% yards, 35% TDs, 10% reception volume, 10% wins (receptions often absent — keep weight low)
+  return ydsScore  * 0.45
+       + tdScore   * 0.35
+       + recScore  * 0.10
+       + winScore  * 0.10;
 }
 
 function scoreDefensiveStats(s: Record<string, number>): number {
-  // DPOY: 40% sacks, 30% INTs, 20% forced fumbles, 10% tackles
-  // Madden has no TFL or QB hits stat — tackles is the correct canonical key
-  const sacks = readStat(s, "sacks");
-  const ints = readStat(s, "interceptions");
-  const ff = readStat(s, "forced_fumbles");
+  const sacks   = readStat(s, "sacks");
+  const ints    = readStat(s, "interceptions");
+  const ff      = readStat(s, "forced_fumbles");
   const tackles = readStat(s, "tackles");
-  return sacks * 0.40 + ints * 0.30 + ff * 0.20 + tackles * 0.001 * 0.10;
+
+  // Component normalizations (0-100 each):
+  const sacksScore   = Math.min(sacks * 100 / 60, 100);    // 60 sacks = 100
+  const intsScore    = Math.min(ints * 100 / 25, 100);     // 25 INTs = 100
+  const ffScore      = Math.min(ff * 100 / 15, 100);       // 15 FF = 100
+  const tacklesScore = Math.min(tackles / 6, 100);         // 600 tackles = 100
+
+  // 40% sacks, 30% INTs, 20% forced fumbles, 10% tackles
+  return sacksScore   * 0.40
+       + intsScore    * 0.30
+       + ffScore      * 0.20
+       + tacklesScore * 0.10;
 }
 
 function scoreOLStats(s: Record<string, number>): number {
-  // Best OL (team award): 60% inverse sacks allowed, 40% avg OL OVR
-  // sacks_taken = QB sacks taken (summed across all QBs on the team = sacks allowed)
+  // sacks_taken = QB sacks taken across all QBs (proxy for sacks allowed by OL)
   // avgOlOvr = average overall rating of LT/LG/C/RG/RT, injected from getOLTeamRatings
   const passSacks = readStat(s, "sacks_taken");
-  const avgOlOvr = s.avgOlOvr ?? 0;
-  const sackScore = Math.max(0, 50 - passSacks * 1.5);
-  return sackScore * 0.60 + (avgOlOvr / 99) * 100 * 0.40;
+  const avgOlOvr  = s.avgOlOvr ?? 0;
+
+  // Component normalizations (0-100 each):
+  // Fewer sacks allowed = better: 0 allowed = 100, 50+ allowed = 0
+  const sackScore = Math.min(Math.max((50 - passSacks) / 50 * 100, 0), 100);
+  const ovrScore  = Math.min((avgOlOvr / 99) * 100, 100);
+
+  // 60% sack prevention, 40% OL OVR
+  return sackScore * 0.60 + ovrScore * 0.40;
 }
 
 function scoreDLStats(s: Record<string, number>): number {
-  // Madden has no TFL or QB hits stat — sacks are the primary DL metric
-  const sacks = readStat(s, "sacks");
-  const ff = readStat(s, "forced_fumbles");
+  const sacks   = readStat(s, "sacks");
+  const ff      = readStat(s, "forced_fumbles");
   const tackles = readStat(s, "tackles");
-  return sacks * 0.65 + ff * 0.25 + tackles * 0.001 * 0.10;
+
+  // Component normalizations (0-100 each):
+  const sacksScore   = Math.min(sacks * 100 / 60, 100);    // 60 sacks = 100
+  const ffScore      = Math.min(ff * 100 / 15, 100);       // 15 FF = 100
+  const tacklesScore = Math.min(tackles / 6, 100);         // 600 tackles = 100
+
+  // 65% sacks, 25% forced fumbles, 10% tackles
+  return sacksScore   * 0.65
+       + ffScore      * 0.25
+       + tacklesScore * 0.10;
 }
 
 function scoreLBStats(s: Record<string, number>): number {
   const tackles = readStat(s, "tackles");
-  const sacks = readStat(s, "sacks");
-  const ints = readStat(s, "interceptions");
-  return tackles * 0.50 + sacks * 0.30 + ints * 0.20;
+  const sacks   = readStat(s, "sacks");
+  const ints    = readStat(s, "interceptions");
+
+  // Component normalizations (0-100 each):
+  const tacklesScore = Math.min(tackles / 6, 100);          // 600 tackles = 100
+  const sacksScore   = Math.min(sacks * 100 / 60, 100);     // 60 sacks = 100
+  const intsScore    = Math.min(ints * 100 / 25, 100);      // 25 INTs = 100
+
+  // 50% tackles, 30% sacks, 20% INTs
+  return tacklesScore * 0.50
+       + sacksScore   * 0.30
+       + intsScore    * 0.20;
 }
 
 function scoreDBStats(s: Record<string, number>): number {
-  const ints = readStat(s, "interceptions");
-  const pd = readStat(s, "pass_deflections");
+  const ints    = readStat(s, "interceptions");
+  const pd      = readStat(s, "pass_deflections");
   const tackles = readStat(s, "tackles");
-  const defTDs = readStat(s, "defensive_tds");
-  return ints * 0.45 + pd * 0.25 + tackles * 0.20 + defTDs * 0.10;
+  const defTDs  = readStat(s, "defensive_tds");
+
+  // Component normalizations (0-100 each):
+  const intsScore    = Math.min(ints * 100 / 25, 100);      // 25 INTs = 100
+  const pdScore      = Math.min(pd * 100 / 60, 100);        // 60 PDs = 100
+  const tacklesScore = Math.min(tackles / 6, 100);          // 600 tackles = 100
+  const tdScore      = Math.min(defTDs * 100 / 8, 100);     // 8 def TDs = 100
+
+  // 45% INTs, 25% pass deflections, 20% tackles, 10% defensive TDs
+  return intsScore    * 0.45
+       + pdScore      * 0.25
+       + tacklesScore * 0.20
+       + tdScore      * 0.10;
 }
 
 function scoreKickerStats(s: Record<string, number>): number {
@@ -652,11 +730,8 @@ export async function generateAwardNominees(guildId: string) {
     if (!rawScores.coach_of_the_year) rawScores.coach_of_the_year = new Map();
     rawScores.coach_of_the_year.set(userId, cotyScore);
 
-    const opoyScore = Math.max(
-      scorePassingStats(teamPassStats, winPct),
-      scoreRushingStats(teamRushStats, winPct),
-      scoreReceivingStats(teamRecStats, winPct)
-    );
+    // opoyScore and offensive_rookie use the same composite formula as MVP
+    const opoyScore = mvpScore;
     const dpoyScore = scoreDefensiveStats(teamDefStats);
 
     // OPOY: only teams whose best offensive player has years_pro > 0
