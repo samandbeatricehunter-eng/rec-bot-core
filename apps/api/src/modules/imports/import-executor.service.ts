@@ -360,14 +360,34 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
 
 export function getDefaultImportEndpointKeys() { return [...IMPORT_PROGRESS_ENDPOINTS]; }
 
+// EA rejects rapid repeated Blaze logins for the same account: the first login
+// in a window returns a valid session, but a second login a few seconds later
+// returns HTTP 200 with no sessionKey ("Could not create EA Blaze session"). The
+// bot steps imports endpoint-by-endpoint (/v1/imports/job/stage-endpoint), so
+// without caching every endpoint triggers a fresh login and all but the first
+// fail. Cache the session per EA account and reuse it across endpoints; evict on
+// failure so the next attempt re-logs in once the throttle window has passed.
+const BLAZE_SESSION_TTL_MS = 5 * 60 * 1000;
+const blazeSessionCache = new Map<string, { token: EaCompanionToken; session: EaBlazeSession; cachedAt: number }>();
+
+function invalidateBlazeSession(accountId: string) {
+  blazeSessionCache.delete(accountId);
+}
+
 async function prepareEaExecution(importJobId: string, job: any) {
   const eaContext = await loadEaContext(importJobId, job);
+  const cached = blazeSessionCache.get(eaContext.accountId);
+  if (cached && Date.now() - cached.cachedAt < BLAZE_SESSION_TTL_MS) {
+    eaContext.token = cached.token;
+    return { eaContext, session: cached.session };
+  }
   try { eaContext.token = await refreshCompanionToken(eaContext.token); await persistRefreshedEaToken(eaContext.accountId, eaContext.token); } catch (error) { throw new ApiError(401, "EA reconnect required. The saved EA refresh token is invalid or expired. Open the EA login URL again and paste a fresh redirect URL.", { reconnectRequired: true, cause: error instanceof Error ? error.message : String(error) }); }
   let session: EaBlazeSession | undefined;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try { session = await retrieveBlazeSession(eaContext.token); break; } catch (error) { if (attempt === 3) throw error; await new Promise((resolve) => setTimeout(resolve, 750 * attempt)); }
   }
   if (!session) throw new ApiError(502, "Could not create EA Blaze session after retries.");
+  blazeSessionCache.set(eaContext.accountId, { token: eaContext.token, session, cachedAt: Date.now() });
   return { eaContext, session };
 }
 
@@ -408,6 +428,7 @@ export async function executeImportEndpoint(importJobId: string, endpointKey: st
   const { eaContext, session } = await prepareEaExecution(importJobId, job);
   await updateImportJobStatus({ importJobId, status: "running" });
   const result = await runSingleEndpoint({ importJobId, job, endpointKey, eaContext, session });
+  if (result.status === "failed") invalidateBlazeSession(eaContext.accountId);
   return updateImportJobStatus({ importJobId, status: result.status === "failed" ? "completed_with_warnings" : "validating", previewSummary: { ...(job.preview_summary ?? {}), latestEndpoint: { endpointKey, status: result.status, recordsFound: result.recordsFound, responseSummary: result.responseSummary ?? {} }, payouts: "Deferred until league advance." }, validationWarnings: result.status === "failed" ? [{ code: "endpoint_execution_failed", message: `${endpointLabel(endpointKey)} failed during staging.` }] : [], validationErrors: [] });
 }
 
@@ -432,6 +453,7 @@ export async function executeImportJob(importJobId: string) {
   let session: EaBlazeSession | undefined = initialSession;
   for (const endpointKey of endpointKeys) {
     const result = await runSingleEndpoint({ importJobId, job, endpointKey, eaContext, session });
+    if (result.status === "failed") invalidateBlazeSession(eaContext.accountId);
     session = result.session ?? session;
     const { session: _session, ...withoutSession } = result;
     results.push(withoutSession);
