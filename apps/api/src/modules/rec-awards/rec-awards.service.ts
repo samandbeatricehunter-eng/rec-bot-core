@@ -241,6 +241,24 @@ async function getPriorSeasonRecords(leagueId: string, seasonNumber: number): Pr
   return map;
 }
 
+// All user IDs that played at least one game in ANY prior season — used to exclude
+// first-year coaches from OPOY/DPOY (they compete for OROY/DROY instead).
+async function getVeteranUserIds(leagueId: string, seasonNumber: number): Promise<Set<string>> {
+  if (seasonNumber <= 1) return new Set();
+  const { data } = await supabase
+    .from("rec_season_user_records")
+    .select("user_id,games_played,wins,losses,ties")
+    .eq("league_id", leagueId)
+    .lt("season_number", seasonNumber);
+  const veterans = new Set<string>();
+  for (const r of data ?? []) {
+    if (!r.user_id) continue;
+    const games = asNum(r.games_played) || (asNum(r.wins) + asNum(r.losses) + asNum(r.ties));
+    if (games > 0) veterans.add(String(r.user_id));
+  }
+  return veterans;
+}
+
 // Count upset wins (wins against opponents with better record)
 async function getUpsetWins(leagueId: string, seasonNumber: number, records: Map<string, { wins: number; games: number }>): Promise<Map<string, number>> {
   const { data: games } = await supabase
@@ -570,7 +588,7 @@ export async function generateAwardNominees(guildId: string) {
   const userIds = coaches.map((c) => c.userId);
   const teamByUser = new Map(coaches.map((c) => [c.userId, c]));
 
-  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords, olTeamRatings] = await Promise.all([
+  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords, olTeamRatings, veteranUserIds] = await Promise.all([
     getTeamSeasonStats(leagueId, seasonNumber),
     getTeamStatsByCategory(leagueId, seasonNumber, "passing"),
     getTeamStatsByCategory(leagueId, seasonNumber, "rushing"),
@@ -579,7 +597,8 @@ export async function generateAwardNominees(guildId: string) {
     getTeamStatsByCategory(leagueId, seasonNumber, "kicking"),
     getSeasonRecords(leagueId, seasonNumber),
     getPriorSeasonRecords(leagueId, seasonNumber),
-    getOLTeamRatings(leagueId)
+    getOLTeamRatings(leagueId),
+    getVeteranUserIds(leagueId, seasonNumber)
   ]);
 
   const [upsetWins, sosMap, streamCounts, challengeCounts, badgeCounts] = await Promise.all([
@@ -645,25 +664,33 @@ export async function generateAwardNominees(guildId: string) {
     if (!rawScores.coach_of_the_year) rawScores.coach_of_the_year = new Map();
     rawScores.coach_of_the_year.set(userId, cotyScore);
 
-    // OPOY: weighted offensive production
+    const isRookie = !veteranUserIds.has(userId);
+
+    // OPOY: veterans only (first-year coaches compete for OROY instead)
     const opoyScore = Math.max(
       scorePassingStats(teamPassStats, winPct),
       scoreRushingStats(teamRushStats, winPct),
       scoreReceivingStats(teamRecStats, winPct)
     );
-    if (!rawScores.opoy) rawScores.opoy = new Map();
-    rawScores.opoy.set(userId, opoyScore);
+    if (!isRookie) {
+      if (!rawScores.opoy) rawScores.opoy = new Map();
+      rawScores.opoy.set(userId, opoyScore);
+    }
 
-    // DPOY
+    // DPOY: veterans only (first-year coaches compete for DROY instead)
     const dpoyScore = scoreDefensiveStats(teamDefStats);
-    if (!rawScores.dpoy) rawScores.dpoy = new Map();
-    rawScores.dpoy.set(userId, dpoyScore);
+    if (!isRookie) {
+      if (!rawScores.dpoy) rawScores.dpoy = new Map();
+      rawScores.dpoy.set(userId, dpoyScore);
+    }
 
-    // Rookie awards — same formulas but we'll filter later
-    if (!rawScores.offensive_rookie) rawScores.offensive_rookie = new Map();
-    rawScores.offensive_rookie.set(userId, opoyScore);
-    if (!rawScores.defensive_rookie) rawScores.defensive_rookie = new Map();
-    rawScores.defensive_rookie.set(userId, dpoyScore);
+    // Rookie awards: first-year coaches only
+    if (isRookie) {
+      if (!rawScores.offensive_rookie) rawScores.offensive_rookie = new Map();
+      rawScores.offensive_rookie.set(userId, opoyScore);
+      if (!rawScores.defensive_rookie) rawScores.defensive_rookie = new Map();
+      rawScores.defensive_rookie.set(userId, dpoyScore);
+    }
 
     // Best QB
     const qbScore = scorePassingStats(teamPassStats, winPct);

@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
@@ -39,8 +39,13 @@ import { buildAdvanceMenuPanel, buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
 import { advanceWizardSessions, ADVANCE_WIZARD_GOTW_CUSTOM_ID, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
 import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild, recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
-import { handleGotwSelect, handleGotwVote } from "./flows/gotw.js";
+import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
 import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
+import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
+import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
+import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } from "./ui/economy-admin.js";
+import { ACTIVE_CHECK_CUSTOM_IDS, buildActiveCheckAnnouncement } from "./ui/active-check.js";
+import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import { postEosPollsAndAwards } from "./flows/advance-wizard.js";
@@ -98,6 +103,7 @@ client.once("clientReady", async () => {
   } catch (error) {
     console.error("REC Core API health check failed", error);
   }
+  startActiveCheckCloseoutLoop(client);
 });
 
 client.on("error", (error) => {
@@ -117,11 +123,42 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return handleGotwVote(interaction);
     }
 
+    // Active Check "Active" buttons appear in public announcements — any league member clicks them.
+    if (interaction.isButton() && interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.activePrefix)) {
+      return handleActiveCheckResponse(interaction);
+    }
+
+    // Nomination, voting, payout-review, and award controls appear on channel messages outside of /menu.
+    if (interaction.isButton()) {
+      if (interaction.customId.startsWith("highlight_payout:")) return handleHighlightPayout(interaction);
+      if (interaction.customId.startsWith("rec:stream_review:")) return handleStreamReviewButton(interaction);
+      if (interaction.customId.startsWith("poty_nominate_own:")) return handlePotyNominateOwn(interaction);
+      if (interaction.customId.startsWith("goty_nominate_btn:")) return handleGotyNominateBtn(interaction);
+      if (interaction.customId === "rec_awards_close_voting") return handleRecAwardCloseVoting(interaction);
+      if (interaction.customId.startsWith("rec_award_approve:")) return handleRecAwardApprove(interaction);
+    }
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId.startsWith("rec_award_vote:")) return handleRecAwardVote(interaction);
+      if (interaction.customId.startsWith("poty_nominate:")) return handlePotyNominateSelect(interaction);
+      if (interaction.customId.startsWith("poty_category_select:")) return handlePotyCategorySelect(interaction);
+      if (interaction.customId.startsWith("goty_nominate:")) return handleGotyNominateSelect(interaction);
+      if (interaction.customId.startsWith("eos_tiebreaker:cant_shut_up:")) return handleCantShutUpTiebreaker(interaction);
+    }
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("goty_nominate_modal:")) {
+      return handleGotyNominateModal(interaction);
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       importSessions.delete(interaction.user.id);
       await expireWindow(interaction);
       return;
+    }
+
+    if (interaction.isChannelSelectMenu()) {
+      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
+        return handleEconomyChannelSelect(interaction);
+      }
     }
 
     if (interaction.isStringSelectMenu()) {
@@ -146,6 +183,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ADVANCE_WIZARD_GOTW_CUSTOM_ID) return handleWizardGotwSelect(interaction);
       if (interaction.customId.startsWith("eos_vote:")) return handleEosVote(interaction);
       if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
+      if (interaction.customId === RULES_CUSTOM_IDS.select) return handleRulesSelect(interaction);
+      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.stageSelect) return interaction.showModal(buildLeagueWeekSetModal(interaction.values[0]));
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction);
@@ -171,7 +210,16 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) return handleClearAllTeamLinks(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
-      if (interaction.customId === MENU_CUSTOM_IDS.adminImports) return renderImportPanel(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderImportPanel(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.adminEconomyReviews) return interaction.update(buildEconomyAdminPanel());
+      if (interaction.customId === MENU_CUSTOM_IDS.adminRules) return interaction.update(buildRulesPanel());
+      if (interaction.customId === MENU_CUSTOM_IDS.adminActiveCheck) return handleStartActiveCheck(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.adminReselectGotw) return renderGotwSelection(interaction);
+      if (interaction.customId === ACTIVE_CHECK_CUSTOM_IDS.start) return handleStartActiveCheck(interaction);
+      if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.selectGotw) return renderGotwSelection(interaction);
+      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEos) return interaction.showModal(buildClearEosModal());
+      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.view) return handleLeagueWeekView(interaction);
+      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.set) return interaction.reply({ content: "Choose the stage first.", components: [buildLeagueWeekStageRow()], ephemeral: true });
       if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) return handleImportButton(interaction);
       if (Object.values(IMPORT_CUSTOM_IDS).includes(interaction.customId as any)) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
@@ -209,6 +257,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
       if (interaction.customId === REC_BANK_CUSTOM_IDS.fromSavingsModal) return handleSavingsTransferModal(interaction, "from_savings");
+      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEosModal) return handleClearEosModal(interaction);
+      if (interaction.customId.startsWith(`${LEAGUE_WEEK_CUSTOM_IDS.setModal}:`)) return handleLeagueWeekSetModal(interaction);
     }
   } catch (error) {
     await safeInteractionError(interaction, error);
@@ -750,20 +800,12 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
     const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
     return interaction.update(buildSimpleTeamLinkPanel());
   }
-
-  const labels: Record<string, string> = {
-    advance_menu: "Advance Menu",
-    active_check: "Active Check",
-    rules: "View / Edit Rules",
-    economy_reviews: "Economy Reviews"
-  };
+  if (selected === "active_check") return handleStartActiveCheck(interaction);
+  if (selected === "rules") return interaction.update(buildRulesPanel());
+  if (selected === "economy_reviews") return interaction.update(buildEconomyAdminPanel());
 
   return interaction.update({
-    embeds: [
-      new EmbedBuilder()
-        .setTitle(labels[selected] ?? "REC Admin Panel")
-        .setDescription("This admin workflow shell is connected. The detailed workflow will continue in the next build pass.")
-    ],
+    embeds: [new EmbedBuilder().setTitle("REC Admin Panel").setDescription("This admin workflow shell is connected. The detailed workflow will continue in the next build pass.")],
     components: buildAdminPanelRows()
   });
 }
@@ -1658,10 +1700,13 @@ client.on("messageCreate", async (message: Message) => {
   ]);
 });
 
-// ─── Highlight payout approve/deny ───────────────────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+// ─────────────────────────────────────────────────────────────────────────────
+// Handler functions for interactions that appear outside of /menu sessions.
+// Called from the session-gate bypass block at the top of interactionCreate.
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleHighlightPayout(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
-  if (!interaction.customId.startsWith("highlight_payout:")) return;
   if (!isDiscordAdminInteraction(interaction)) {
     await interaction.reply({ content: "Only admins can manage highlight payouts.", flags: MessageFlags.Ephemeral });
     return;
@@ -1680,12 +1725,10 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.message.edit({ components: [] }).catch(() => undefined);
     await interaction.editReply({ content: "Highlight payout denied." });
   }
-});
+}
 
-// ─── REC Award vote select menu ───────────────────────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handleRecAwardVote(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
-  if (!interaction.customId.startsWith("rec_award_vote:")) return;
   const parts = interaction.customId.split(":");
   const guildId = parts[1] ?? interaction.guildId ?? "";
   const awardId = parts[2] ?? "";
@@ -1704,12 +1747,10 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     await interaction.editReply({ content: `Failed to record vote: ${err instanceof Error ? err.message : String(err)}` });
   }
-});
+}
 
-// ─── POTY nomination select ───────────────────────────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handlePotyNominateSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
-  if (!interaction.customId.startsWith("poty_nominate:")) return;
   const guildId = interaction.customId.split(":")[1] ?? interaction.guildId ?? "";
   const nomineeDiscordId = interaction.values[0];
   if (!guildId || !nomineeDiscordId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
@@ -1721,12 +1762,10 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
   }
-});
+}
 
-// ─── GOTY nomination select ───────────────────────────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handleGotyNominateSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
-  if (!interaction.customId.startsWith("goty_nominate:")) return;
   const guildId = interaction.customId.split(":")[1] ?? interaction.guildId ?? "";
   const nominatedGameId = interaction.values[0];
   if (!guildId || !nominatedGameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
@@ -1737,17 +1776,14 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
   }
-});
+}
 
-// ─── POTY "Nominate My Play" button → show category select ───────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handlePotyNominateOwn(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
-  if (!interaction.customId.startsWith("poty_nominate_own:")) return;
   const parts = interaction.customId.split(":");
   const guildId = parts[1] ?? interaction.guildId ?? "";
   const highlightId = parts[2] ?? "";
   if (!guildId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-
   await interaction.reply({
     flags: MessageFlags.Ephemeral,
     content: "Select a category for your Play of the Year nomination:",
@@ -1765,12 +1801,10 @@ client.on("interactionCreate", async (interaction) => {
         ])
     )]
   });
-});
+}
 
-// ─── POTY category select → record nomination ─────────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handlePotyCategorySelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
-  if (!interaction.customId.startsWith("poty_category_select:")) return;
   const parts = interaction.customId.split(":");
   const guildId = parts[1] ?? interaction.guildId ?? "";
   const highlightId = parts[2] ?? "";
@@ -1789,17 +1823,14 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}`, components: [] });
   }
-});
+}
 
-// ─── GOTY "Nominate This Game" button → shows notes modal ─────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handleGotyNominateBtn(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
-  if (!interaction.customId.startsWith("goty_nominate_btn:")) return;
   const parts = interaction.customId.split(":");
   const guildId = parts[1] ?? interaction.guildId ?? "";
   const gameId = parts[2] ?? "";
   if (!guildId || !gameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-
   const modal = new ModalBuilder()
     .setCustomId(`goty_nominate_modal:${guildId}:${gameId}`)
     .setTitle("Game of the Year Nomination");
@@ -1815,12 +1846,10 @@ client.on("interactionCreate", async (interaction) => {
     )
   );
   await interaction.showModal(modal);
-});
+}
 
-// ─── GOTY notes modal submit ───────────────────────────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handleGotyNominateModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
-  if (!interaction.customId.startsWith("goty_nominate_modal:")) return;
   const parts = interaction.customId.split(":");
   const guildId = parts[1] ?? interaction.guildId ?? "";
   const gameId = parts[2] ?? "";
@@ -1833,12 +1862,10 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
   }
-});
+}
 
-// ─── Can't Shut Up tiebreaker commissioner select ─────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handleCantShutUpTiebreaker(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
-  if (!interaction.customId.startsWith("eos_tiebreaker:cant_shut_up:")) return;
   if (!isDiscordAdminInteraction(interaction)) {
     await interaction.reply({ content: "Only commissioners can resolve this tiebreaker.", flags: MessageFlags.Ephemeral });
     return;
@@ -1854,12 +1881,10 @@ client.on("interactionCreate", async (interaction) => {
   } catch (err) {
     await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
   }
-});
+}
 
-// ─── REC Award "Close Voting & Post Results" button (admin) ───────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handleRecAwardCloseVoting(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
-  if (interaction.customId !== "rec_awards_close_voting") return;
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners can close award voting.", flags: MessageFlags.Ephemeral });
   }
@@ -1870,58 +1895,39 @@ client.on("interactionCreate", async (interaction) => {
     if (!result.closed) {
       return interaction.editReply({ content: "No awards are currently open for closing." });
     }
-
-    // Post approval embeds to the assigned pending payouts channel (any payout approval goes there).
     const approvals = await recApi.getPendingAwardApprovals(guildId);
-
     if (approvals?.awards?.length) {
-      // Use the configured pending payouts channel; fall back to the current channel only if unset.
       const configuredCh = approvals.pendingPayoutsChannelId
         ? await interaction.guild?.channels.fetch(approvals.pendingPayoutsChannelId).catch(() => null) as TextChannel | null
         : null;
       const postCh = (configuredCh?.type === ChannelType.GuildText ? configuredCh : interaction.channel) as TextChannel;
-
       for (const award of approvals.awards) {
         const topNominee = award.nominees?.[0];
         if (!topNominee) continue;
-
         const lines = (award.nominees ?? []).slice(0, 5).map((n: any, i: number) =>
           `${i + 1}. ${n.display_label ?? "Unknown"} — Perf: ${Number(n.performance_score ?? 0).toFixed(1)} · Votes: ${n.vote_count ?? 0} · Final: ${Number(n.final_score ?? 0).toFixed(2)}`
         );
-
         await postCh.send({
           embeds: [new EmbedBuilder()
             .setTitle(`Award Review: ${award.award_name}`)
-            .setDescription([
-              `**Category:** ${award.award_category}`,
-              `**Payout:** $${award.payout_amount ?? 100}`,
-              "",
-              "**Top Nominees:**",
-              ...lines
-            ].join("\n"))
+            .setDescription([`**Category:** ${award.award_category}`, `**Payout:** $${award.payout_amount ?? 100}`, "", "**Top Nominees:**", ...lines].join("\n"))
             .setColor(0xf1c40f)
           ],
           components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`rec_award_approve:${guildId}:${award.id}`)
-              .setLabel(`Approve Winner: ${(topNominee.display_label ?? "Unknown").slice(0, 40)}`)
-              .setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId(`rec_award_approve:${guildId}:${award.id}`).setLabel(`Approve Winner: ${(topNominee.display_label ?? "Unknown").slice(0, 40)}`).setStyle(ButtonStyle.Success)
           )]
         }).catch(() => undefined);
       }
     }
-
     const where = approvals?.pendingPayoutsChannelId ? `<#${approvals.pendingPayoutsChannelId}>` : "this channel";
     await interaction.editReply({ content: `Voting closed for **${result.closed}** award(s). Review and approve winners in ${where}.` });
   } catch (err) {
     await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
   }
-});
+}
 
-// ─── REC Award approve winner button (admin) ──────────────────────────────────
-client.on("interactionCreate", async (interaction) => {
+async function handleRecAwardApprove(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
-  if (!interaction.customId.startsWith("rec_award_approve:")) return;
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners can approve award winners.", flags: MessageFlags.Ephemeral });
   }
@@ -1933,8 +1939,6 @@ client.on("interactionCreate", async (interaction) => {
   try {
     const result = await recApi.approveAwardWinner({ guildId, awardId, approvedByDiscordId: interaction.user.id });
     const winner = result.winner;
-
-    // Post ceremony announcement
     const mention = winner?.discordId ? `<@${winner.discordId}>` : winner?.teamName ?? "Unknown";
     await interaction.message.edit({ components: [] }).catch(() => undefined);
     const awardCh = interaction.channel;
@@ -1951,11 +1955,172 @@ client.on("interactionCreate", async (interaction) => {
         .setColor(0x2ecc71)
       ]
     }).catch(() => undefined);
-
     await interaction.editReply({ content: `Winner approved and payout issued!` });
   } catch (err) {
     await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
   }
-});
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admin handler implementations (previously only in the dead index.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function handleRulesSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  const selected = interaction.values[0];
+  if (selected === "back_admin") {
+    return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+  }
+  return interaction.update(buildRulesPanel(selected));
+}
+
+async function handleEconomyChannelSelect(interaction: any) {
+  if (!interaction.isChannelSelectMenu() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can change economy routing.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const channelId = interaction.values[0];
+  if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, pendingEconomyChannelId: channelId });
+    await interaction.reply({ content: `Pending Purchases / Payouts channel set to <#${channelId}>.`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, gameChannelsCategoryId: channelId });
+    await interaction.reply({ content: `Game Channels category set to <#${channelId}>.`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.reply({ content: "Unknown Economy Reviews channel selector.", flags: MessageFlags.Ephemeral });
+}
+
+function appendReviewActionToMessage(interaction: any, actionLabel: string) {
+  const userMention = `<@${interaction.user.id}>`;
+  const formatted = new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", month: "2-digit", day: "2-digit", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).format(new Date());
+  const line = `${actionLabel} by ${userMention} on ${formatted} CST`;
+  const embeds = interaction.message.embeds.map((embed: any) => {
+    const builder = EmbedBuilder.from(embed);
+    const current = embed.description ?? "";
+    if (current.includes(`${actionLabel} by <@${interaction.user.id}>`)) return builder;
+    builder.setDescription([current, "", `**${line}**`].filter(Boolean).join("\n"));
+    return builder;
+  });
+  return interaction.message.edit({ embeds, components: [] }).catch(() => undefined);
+}
+
+async function handleStreamReviewButton(interaction: any) {
+  if (!interaction.isButton()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can review stream payouts.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const parts = interaction.customId.split(":");
+  const action = parts[2] === "approve" ? "approve" : "deny";
+  const reviewId = parts[3];
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const result = await recApi.reviewStreamPayout({ reviewId, action, reviewedByDiscordId: interaction.user.id, deniedReason: action === "deny" ? "Denied by commissioner review." : null });
+  await interaction.editReply(result.updated ? `Stream payout ${action === "approve" ? "approved and issued" : "denied"}.` : (result.reason ?? "No update made."));
+  if (action === "approve" && result.streamLog?.discord_channel_id && result.streamLog?.discord_message_id && interaction.inCachedGuild()) {
+    const sourceChannel = await interaction.guild.channels.fetch(result.streamLog.discord_channel_id).catch(() => null);
+    if (sourceChannel?.isTextBased()) {
+      const sourceMessage = await sourceChannel.messages.fetch(result.streamLog.discord_message_id).catch(() => null);
+      await sourceMessage?.react("✅").catch(() => undefined);
+    }
+  }
+  if (interaction.message?.editable) {
+    await appendReviewActionToMessage(interaction, action === "approve" ? "Applied" : "Denied");
+  }
+}
+
+async function handleClearEosModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can clear EOS batches.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const clearReason = interaction.fields.getTextInputValue(ECONOMY_ADMIN_CUSTOM_IDS.clearReasonInput);
+  const result = await recApi.clearPendingEosBatch({ guildId: interaction.guildId, clearReason });
+  await interaction.reply({ content: result.cleared ? "Pending EOS batch cleared. Reissue after correcting payout logic." : result.reason ?? "No pending EOS batch found.", flags: MessageFlags.Ephemeral });
+}
+
+async function handleLeagueWeekSetModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can set league week.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const seasonStage = interaction.customId.split(":").at(-1) ?? "regular_season";
+  const weekNumber = Number(interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.weekInput));
+  const seasonRaw = interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.seasonInput).trim();
+  const seasonNumber = seasonRaw ? Number(seasonRaw) : undefined;
+  const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage, seasonNumber });
+  await interaction.reply({
+    content: [`League week set to ${seasonStage} week ${weekNumber}.`, result.warning ? `Warning: ${result.warning}` : undefined].filter(Boolean).join("\n"),
+    flags: MessageFlags.Ephemeral
+  });
+}
+
+async function handleLeagueWeekView(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const result = await recApi.viewLeagueWeek(interaction.guildId);
+  await interaction.editReply(`League: ${result.league?.name ?? "Unknown"}\nSeason: ${result.league?.season_number ?? "?"}\nWeek: ${result.league?.current_week ?? "?"}\nStage: ${result.league?.season_stage ?? result.league?.current_phase ?? "?"}`);
+}
+
+async function handleStartActiveCheck(interaction: ButtonInteraction | StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can start an Active Check.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const result = await recApi.createActiveCheck({ guildId: interaction.guildId, createdByDiscordId: interaction.user.id });
+  if (!result.channelId) {
+    await interaction.editReply("No league announcements channel is configured. Set announcements during server/league setup before starting an Active Check.");
+    return;
+  }
+  const channel = await interaction.guild.channels.fetch(result.channelId).catch(() => null);
+  if (!channel || !("send" in channel)) {
+    await interaction.editReply("The configured announcements channel could not be accessed.");
+    return;
+  }
+  const sent = await (channel as any).send(buildActiveCheckAnnouncement(result.event, result.deadlineDisplay ?? {}));
+  await recApi.recordActiveCheckMessage({ eventId: result.event.id, discordChannelId: result.channelId, discordMessageId: sent.id });
+  await interaction.editReply(`Active Check posted in <#${result.channelId}>. It closes in 24 hours.`);
+}
+
+async function handleActiveCheckResponse(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  const eventId = interaction.customId.slice(ACTIVE_CHECK_CUSTOM_IDS.activePrefix.length);
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const result = await recApi.recordActiveCheckResponse({ eventId, discordId: interaction.user.id });
+  await interaction.editReply(result.recorded ? "Active Check recorded. You are marked active for this league." : result.reason ?? "Your Active Check could not be recorded.");
+}
+
+function startActiveCheckCloseoutLoop(activeClient: Client) {
+  setInterval(async () => {
+    for (const guild of activeClient.guilds.cache.values()) {
+      const result = await recApi.getOpenActiveChecks(guild.id).catch(() => null);
+      for (const event of result?.events ?? []) {
+        if (!event.closes_at || new Date(event.closes_at).getTime() > Date.now()) continue;
+        const closed = await recApi.closeActiveCheck(event.id).catch(() => null);
+        if (!closed?.closed) continue;
+        if (closed.event?.discord_channel_id && closed.event?.discord_message_id) {
+          const channel = await guild.channels.fetch(closed.event.discord_channel_id).catch(() => null) as any;
+          const message = channel?.messages ? await channel.messages.fetch(closed.event.discord_message_id).catch(() => null) : null;
+          await message?.edit({ components: [] }).catch(() => undefined);
+        }
+        if (closed.commissionerOfficeChannelId) {
+          const office = await guild.channels.fetch(closed.commissionerOfficeChannelId).catch(() => null) as any;
+          const missing = closed.missing ?? [];
+          const lines = missing.length
+            ? missing.map((user: any) => user.discord_id ? `<@${user.discord_id}>` : user.rec_users?.display_name ?? user.user_id)
+            : ["All linked team users responded as active."];
+          await office?.send?.(["Active Check Closed", "", "Users who did not respond:", ...lines].join("\n")).catch(() => undefined);
+        }
+      }
+    }
+  }, 60_000).unref();
+}
 
 await client.login(env.DISCORD_TOKEN);

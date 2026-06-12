@@ -427,13 +427,18 @@ async function startImportMode(interaction: ButtonInteraction, importMode: RecIm
 
   if (status.connected) {
     await interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Choose EA Franchise")
-          .setDescription("Your EA account is connected. Click Discover Franchises to load available Madden franchises.")
-      ],
-      components: buildDiscoverFranchisesRows()
+      embeds: [new EmbedBuilder().setTitle("Discovering Franchises...").setDescription("EA account connected. Loading your Madden franchises...")],
+      components: []
     });
+    try {
+      await discoverAndRenderFranchises(interaction);
+    } catch (error) {
+      const freshStatus = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: "pc" }).catch(() => null);
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(freshStatus?.loginUrl ? buildEaConnectDescription(freshStatus) : extractApiErrorMessage(error))],
+        components: buildEaConnectRows(freshStatus?.loginUrl)
+      });
+    }
     return;
   }
 
