@@ -648,6 +648,9 @@ export const recApi = {
   castAwardVote: (input: { guildId: string; voterDiscordId: string; awardId: string; nomineeUserId: string }) =>
     recFetch<any>("/v1/awards/vote", { method: "POST", body: JSON.stringify(input) }),
 
+  getAwardVotingSummary: (input: { guildId: string; awardId: string }) =>
+    recFetch<any>("/v1/awards/vote-summary", { method: "POST", body: JSON.stringify(input) }),
+
   closeAwardVoting: (guildId: string) =>
     recFetch<any>("/v1/awards/close-voting", { method: "POST", body: JSON.stringify({ guildId }) }),
 

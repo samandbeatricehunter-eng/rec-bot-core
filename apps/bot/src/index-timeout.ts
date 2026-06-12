@@ -868,6 +868,20 @@ async function handleManageLeagueSelect(interaction: Extract<Interaction, { isSt
   return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
 }
 
+
+function formatEosPayoutStatLine(cat: any, options: { includeEntityPosition?: boolean } = {}) {
+  const entity = cat.entityName
+    ? ` (${cat.entityName}${options.includeEntityPosition && cat.entityPosition ? ` · ${cat.entityPosition}` : cat.entityPosition ? ` · ${cat.entityPosition}` : ""})`
+    : "";
+  const tierLabel = cat.isFlat ? "Flat" : (cat.qualifiedTier ?? "Tier");
+  const value = cat.qualifiedValue ?? "?";
+  const threshold = cat.thresholdLabel ?? (cat.thresholdValue !== undefined && cat.thresholdValue !== null ? `${cat.thresholdValue}` : null);
+  const proof = cat.isFlat
+    ? `Stat: ${value}`
+    : `Stat: ${value}${threshold ? ` / Threshold: ${threshold}` : ""}`;
+  return `• ${cat.label}${entity}: **$${cat.amount}** [${tierLabel}] — ${proof}`;
+}
+
 async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
   if (!interaction.inCachedGuild()) {
@@ -958,7 +972,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
             for (const cat of statCategories) {
               const entityLabel = cat.entityName ? ` (${cat.entityName}${cat.entityPosition ? ` · ${cat.entityPosition}` : ""})` : "";
               const tierLabel = cat.isFlat ? "Flat" : cat.qualifiedTier;
-              breakdownLines.push(`• ${cat.label}${entityLabel}: **$${cat.amount}** [${tierLabel}]`);
+              breakdownLines.push(formatEosPayoutStatLine(cat, { includeEntityPosition: true }));
             }
           }
           breakdownLines.push("", `**Total Payout: $${item.amount}**`);
@@ -1033,7 +1047,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
                 breakdownLines.push("Stat Bonuses:");
                 for (const cat of statCategories.slice(0, 15)) {
                   const entity = cat.entityName ? ` (${cat.entityName})` : "";
-                  breakdownLines.push(`  ${cat.label}${entity}: $${cat.amount}`);
+                  breakdownLines.push(`  ${formatEosPayoutStatLine(cat)}`);
                 }
                 if (statCategories.length > 15) breakdownLines.push(`  ...and ${statCategories.length - 15} more`);
               }
@@ -1638,6 +1652,15 @@ async function handleEosPayoutApprove(interaction: Extract<Interaction, { isButt
     }
     if (result.reason === "already_denied") {
       return interaction.editReply({ content: "This payout has already been rejected." });
+    }
+    if (result.reason === "already_voided") {
+      return interaction.editReply({ content: "This payout has been voided by a newer EOS payout batch." });
+    }
+    if (result.reason === "already_user_approved") {
+      return interaction.editReply({ content: "You already approved this payout. It is still waiting on commissioner approval." });
+    }
+    if (result.reason === "already_commissioner_approved") {
+      return interaction.editReply({ content: "A commissioner has already approved this payout. It is still waiting on recipient approval." });
     }
     if (result.reason === "not_recipient") {
       return interaction.editReply({ content: "You are not the recipient of this payout." });

@@ -15,6 +15,8 @@ export interface StatPayoutCategory {
   qualifiedValue: number;
   amount: number;
   isFlat: boolean;
+  thresholdValue?: number;
+  thresholdLabel?: string;
   entityName?: string; // player name for player-based payouts
   entityPosition?: string;
 }
@@ -40,12 +42,21 @@ function evalTier(
   value: number,
   thresholds: [number, number, number, number],
   higherIsBetter = true
-): { tier: string; amount: number } | null {
+): { tier: string; amount: number; thresholdValue: number; thresholdLabel: string } | null {
+  const thresholdByTier = [thresholds[3], thresholds[2], thresholds[1], thresholds[0]];
   const checks = higherIsBetter
     ? [value >= thresholds[3], value >= thresholds[2], value >= thresholds[1], value >= thresholds[0]]
     : [value <= thresholds[3], value <= thresholds[2], value <= thresholds[1], value <= thresholds[0]];
   for (let i = 0; i < 4; i++) {
-    if (checks[i]) return { tier: TIER_LABELS[i], amount: TIER_AMOUNTS[i] };
+    if (checks[i]) {
+      const thresholdValue = thresholdByTier[i];
+      return {
+        tier: TIER_LABELS[i],
+        amount: TIER_AMOUNTS[i],
+        thresholdValue,
+        thresholdLabel: `${higherIsBetter ? ">=" : "<="} ${thresholdValue}`
+      };
+    }
   }
   return null;
 }
@@ -401,28 +412,28 @@ export async function computeEosStatPayouts(
     const pointsScored = teamPointsScored.get(teamId) ?? 0;
     const ppg = gamesPlayed > 0 ? pointsScored / gamesPlayed : 0;
     const ppgResult = evalTier(ppg, [28, 32, 36, 40]);
-    if (ppgResult) categories.push({ key: "team_ppg", label: "Team Points Per Game", qualifiedTier: ppgResult.tier, qualifiedValue: Math.round(ppg * 10) / 10, amount: ppgResult.amount, isFlat: false });
+    if (ppgResult) categories.push({ key: "team_ppg", label: "Team Points Per Game", qualifiedTier: ppgResult.tier, qualifiedValue: Math.round(ppg * 10) / 10, amount: ppgResult.amount, isFlat: false, thresholdValue: ppgResult.thresholdValue, thresholdLabel: ppgResult.thresholdLabel });
 
     // Total offensive yards per game
     const totalOffYds = readStat(passAgg, "pass_yards") + readStat(rushAgg, "rush_yards");
     const totalYpg = totalOffYds / gpDivisor;
     const totalYpgResult = evalTier(totalYpg, [350, 400, 450, 500]);
-    if (totalYpgResult) categories.push({ key: "team_total_ypg", label: "Total Offensive Yards/Game", qualifiedTier: totalYpgResult.tier, qualifiedValue: Math.round(totalYpg * 10) / 10, amount: totalYpgResult.amount, isFlat: false });
+    if (totalYpgResult) categories.push({ key: "team_total_ypg", label: "Total Offensive Yards/Game", qualifiedTier: totalYpgResult.tier, qualifiedValue: Math.round(totalYpg * 10) / 10, amount: totalYpgResult.amount, isFlat: false, thresholdValue: totalYpgResult.thresholdValue, thresholdLabel: totalYpgResult.thresholdLabel });
 
     // Passing yards per game
     const passYpg = readStat(passAgg, "pass_yards") / gpDivisor;
     const passYpgResult = evalTier(passYpg, [250, 300, 350, 400]);
-    if (passYpgResult) categories.push({ key: "team_pass_ypg", label: "Team Passing Yards/Game", qualifiedTier: passYpgResult.tier, qualifiedValue: Math.round(passYpg * 10) / 10, amount: passYpgResult.amount, isFlat: false });
+    if (passYpgResult) categories.push({ key: "team_pass_ypg", label: "Team Passing Yards/Game", qualifiedTier: passYpgResult.tier, qualifiedValue: Math.round(passYpg * 10) / 10, amount: passYpgResult.amount, isFlat: false, thresholdValue: passYpgResult.thresholdValue, thresholdLabel: passYpgResult.thresholdLabel });
 
     // Rushing yards per game
     const rushYpg = readStat(rushAgg, "rush_yards") / gpDivisor;
     const rushYpgResult = evalTier(rushYpg, [100, 125, 150, 175]);
-    if (rushYpgResult) categories.push({ key: "team_rush_ypg", label: "Team Rushing Yards/Game", qualifiedTier: rushYpgResult.tier, qualifiedValue: Math.round(rushYpg * 10) / 10, amount: rushYpgResult.amount, isFlat: false });
+    if (rushYpgResult) categories.push({ key: "team_rush_ypg", label: "Team Rushing Yards/Game", qualifiedTier: rushYpgResult.tier, qualifiedValue: Math.round(rushYpg * 10) / 10, amount: rushYpgResult.amount, isFlat: false, thresholdValue: rushYpgResult.thresholdValue, thresholdLabel: rushYpgResult.thresholdLabel });
 
     // Turnover efficiency (giveaways = interceptions thrown + fumbles lost; lower is better)
     const giveaways = readStat(passAgg, "interceptions_thrown") + readStat(rushAgg, "rushing_fumbles");
     const givResult = evalTier(giveaways, [24, 18, 12, 8], false);
-    if (givResult) categories.push({ key: "team_turnover_eff", label: "Turnover Efficiency (Giveaways)", qualifiedTier: givResult.tier, qualifiedValue: giveaways, amount: givResult.amount, isFlat: false });
+    if (givResult) categories.push({ key: "team_turnover_eff", label: "Turnover Efficiency (Giveaways)", qualifiedTier: givResult.tier, qualifiedValue: giveaways, amount: givResult.amount, isFlat: false, thresholdValue: givResult.thresholdValue, thresholdLabel: givResult.thresholdLabel });
 
     // ── Team Defensive Payouts ────────────────────────────────────────────────
 
@@ -445,12 +456,12 @@ export async function computeEosStatPayouts(
     // Team sacks
     const teamSacks = readStat(defAgg, "sacks");
     const sacksResult = evalTier(teamSacks, [35, 45, 55, 65]);
-    if (sacksResult) categories.push({ key: "team_sacks", label: "Team Sacks", qualifiedTier: sacksResult.tier, qualifiedValue: teamSacks, amount: sacksResult.amount, isFlat: false });
+    if (sacksResult) categories.push({ key: "team_sacks", label: "Team Sacks", qualifiedTier: sacksResult.tier, qualifiedValue: teamSacks, amount: sacksResult.amount, isFlat: false, thresholdValue: sacksResult.thresholdValue, thresholdLabel: sacksResult.thresholdLabel });
 
     // Team takeaways
     const takeaways = readStat(defAgg, "interceptions") + readStat(defAgg, "forced_fumbles");
     const takeResult = evalTier(takeaways, [20, 25, 30, 35]);
-    if (takeResult) categories.push({ key: "team_takeaways", label: "Team Takeaways", qualifiedTier: takeResult.tier, qualifiedValue: takeaways, amount: takeResult.amount, isFlat: false });
+    if (takeResult) categories.push({ key: "team_takeaways", label: "Team Takeaways", qualifiedTier: takeResult.tier, qualifiedValue: takeaways, amount: takeResult.amount, isFlat: false, thresholdValue: takeResult.thresholdValue, thresholdLabel: takeResult.thresholdLabel });
 
     // ── Player Offensive Payouts ──────────────────────────────────────────────
 
@@ -469,11 +480,11 @@ export async function computeEosStatPayouts(
 
       // QB Passing Yards
       const qbYdsResult = evalTier(passYds, [4000, 4500, 5000, 5500]);
-      if (qbYdsResult) categories.push({ key: `qb_pass_yds:${pid}`, label: "QB Passing Yards", qualifiedTier: qbYdsResult.tier, qualifiedValue: passYds, amount: qbYdsResult.amount, isFlat: false, entityName: playerName, entityPosition: "QB" });
+      if (qbYdsResult) categories.push({ key: `qb_pass_yds:${pid}`, label: "QB Passing Yards", qualifiedTier: qbYdsResult.tier, qualifiedValue: passYds, amount: qbYdsResult.amount, isFlat: false, thresholdValue: qbYdsResult.thresholdValue, thresholdLabel: qbYdsResult.thresholdLabel, entityName: playerName, entityPosition: "QB" });
 
       // QB Passing TDs
       const qbTDsResult = evalTier(passTDs, [30, 40, 50, 60]);
-      if (qbTDsResult) categories.push({ key: `qb_pass_tds:${pid}`, label: "QB Passing TDs", qualifiedTier: qbTDsResult.tier, qualifiedValue: passTDs, amount: qbTDsResult.amount, isFlat: false, entityName: playerName, entityPosition: "QB" });
+      if (qbTDsResult) categories.push({ key: `qb_pass_tds:${pid}`, label: "QB Passing TDs", qualifiedTier: qbTDsResult.tier, qualifiedValue: passTDs, amount: qbTDsResult.amount, isFlat: false, thresholdValue: qbTDsResult.thresholdValue, thresholdLabel: qbTDsResult.thresholdLabel, entityName: playerName, entityPosition: "QB" });
 
       // QB Efficiency Bonus (min 150 att → we already require 250 so this is satisfied, but spec says 150 for this bonus)
       if (passAtt >= 150 && ypa >= 8.5) {
@@ -482,7 +493,7 @@ export async function computeEosStatPayouts(
 
       // QB Low INT Bonus (lower is better, min 250 attempts)
       const qbIntResult = evalTier(passInts, [18, 14, 10, 6], false);
-      if (qbIntResult) categories.push({ key: `qb_low_int:${pid}`, label: "QB Low INT Season", qualifiedTier: qbIntResult.tier, qualifiedValue: passInts, amount: qbIntResult.amount, isFlat: false, entityName: playerName, entityPosition: "QB" });
+      if (qbIntResult) categories.push({ key: `qb_low_int:${pid}`, label: "QB Low INT Season", qualifiedTier: qbIntResult.tier, qualifiedValue: passInts, amount: qbIntResult.amount, isFlat: false, thresholdValue: qbIntResult.thresholdValue, thresholdLabel: qbIntResult.thresholdLabel, entityName: playerName, entityPosition: "QB" });
     }
 
     // RB payouts — players with rushing stats, min 150 carries
@@ -499,11 +510,11 @@ export async function computeEosStatPayouts(
 
       // RB Rushing Yards
       const rbYdsResult = evalTier(rushYds, [1000, 1300, 1600, 2000]);
-      if (rbYdsResult) categories.push({ key: `rb_rush_yds:${pid}`, label: "RB Rushing Yards", qualifiedTier: rbYdsResult.tier, qualifiedValue: rushYds, amount: rbYdsResult.amount, isFlat: false, entityName: playerName, entityPosition: "RB" });
+      if (rbYdsResult) categories.push({ key: `rb_rush_yds:${pid}`, label: "RB Rushing Yards", qualifiedTier: rbYdsResult.tier, qualifiedValue: rushYds, amount: rbYdsResult.amount, isFlat: false, thresholdValue: rbYdsResult.thresholdValue, thresholdLabel: rbYdsResult.thresholdLabel, entityName: playerName, entityPosition: "RB" });
 
       // RB Rushing TDs
       const rbTDsResult = evalTier(rushTDs, [10, 15, 20, 25]);
-      if (rbTDsResult) categories.push({ key: `rb_rush_tds:${pid}`, label: "RB Rushing TDs", qualifiedTier: rbTDsResult.tier, qualifiedValue: rushTDs, amount: rbTDsResult.amount, isFlat: false, entityName: playerName, entityPosition: "RB" });
+      if (rbTDsResult) categories.push({ key: `rb_rush_tds:${pid}`, label: "RB Rushing TDs", qualifiedTier: rbTDsResult.tier, qualifiedValue: rushTDs, amount: rbTDsResult.amount, isFlat: false, thresholdValue: rbTDsResult.thresholdValue, thresholdLabel: rbTDsResult.thresholdLabel, entityName: playerName, entityPosition: "RB" });
 
       // RB Efficiency Bonus
       if (ypc >= 5.5) {
@@ -525,11 +536,11 @@ export async function computeEosStatPayouts(
 
       // WR/TE Receiving Yards
       const recYdsResult = evalTier(recYds, [600, 900, 1200, 1500]);
-      if (recYdsResult) categories.push({ key: `rec_yds:${pid}`, label: "WR/TE Receiving Yards", qualifiedTier: recYdsResult.tier, qualifiedValue: recYds, amount: recYdsResult.amount, isFlat: false, entityName: playerName, entityPosition: "WR/TE" });
+      if (recYdsResult) categories.push({ key: `rec_yds:${pid}`, label: "WR/TE Receiving Yards", qualifiedTier: recYdsResult.tier, qualifiedValue: recYds, amount: recYdsResult.amount, isFlat: false, thresholdValue: recYdsResult.thresholdValue, thresholdLabel: recYdsResult.thresholdLabel, entityName: playerName, entityPosition: "WR/TE" });
 
       // WR/TE Receiving TDs
       const recTDsResult = evalTier(recTDs, [8, 12, 16, 20]);
-      if (recTDsResult) categories.push({ key: `rec_tds:${pid}`, label: "WR/TE Receiving TDs", qualifiedTier: recTDsResult.tier, qualifiedValue: recTDs, amount: recTDsResult.amount, isFlat: false, entityName: playerName, entityPosition: "WR/TE" });
+      if (recTDsResult) categories.push({ key: `rec_tds:${pid}`, label: "WR/TE Receiving TDs", qualifiedTier: recTDsResult.tier, qualifiedValue: recTDs, amount: recTDsResult.amount, isFlat: false, thresholdValue: recTDsResult.thresholdValue, thresholdLabel: recTDsResult.thresholdLabel, entityName: playerName, entityPosition: "WR/TE" });
 
       // Receiver Efficiency Bonus
       if (ypr >= 15.0) {
@@ -568,18 +579,18 @@ export async function computeEosStatPayouts(
       // Sacks (DL, EDGE, LB)
       if (DL_LB_POSITIONS.has(resolvedPos) || !resolvedPos) {
         const sacksResult = evalTier(sacks, [10, 15, 20, 25]);
-        if (sacksResult) categories.push({ key: `def_sacks:${pid}`, label: "Defensive Sacks", qualifiedTier: sacksResult.tier, qualifiedValue: sacks, amount: sacksResult.amount, isFlat: false, entityName: playerName, entityPosition: resolvedPos || "DEF" });
+        if (sacksResult) categories.push({ key: `def_sacks:${pid}`, label: "Defensive Sacks", qualifiedTier: sacksResult.tier, qualifiedValue: sacks, amount: sacksResult.amount, isFlat: false, thresholdValue: sacksResult.thresholdValue, thresholdLabel: sacksResult.thresholdLabel, entityName: playerName, entityPosition: resolvedPos || "DEF" });
       }
 
       // Total Tackles (all defensive players)
       if (ALL_DEF_POSITIONS.has(resolvedPos) || !resolvedPos) {
         const tacklesResult = evalTier(tackles, [90, 110, 130, 150]);
-        if (tacklesResult) categories.push({ key: `def_tackles:${pid}`, label: "Tackles Leader", qualifiedTier: tacklesResult.tier, qualifiedValue: tackles, amount: tacklesResult.amount, isFlat: false, entityName: playerName, entityPosition: resolvedPos || "DEF" });
+        if (tacklesResult) categories.push({ key: `def_tackles:${pid}`, label: "Tackles Leader", qualifiedTier: tacklesResult.tier, qualifiedValue: tackles, amount: tacklesResult.amount, isFlat: false, thresholdValue: tacklesResult.thresholdValue, thresholdLabel: tacklesResult.thresholdLabel, entityName: playerName, entityPosition: resolvedPos || "DEF" });
       }
 
       // Generated Turnovers (all defensive players) — replaces TFL and the separate INT/FF tiers
       const gtResult = evalTier(generatedTurnovers, [4, 6, 8, 10]);
-      if (gtResult) categories.push({ key: `def_gen_to:${pid}`, label: "Generated Turnovers", qualifiedTier: gtResult.tier, qualifiedValue: generatedTurnovers, amount: gtResult.amount, isFlat: false, entityName: playerName, entityPosition: resolvedPos || "DEF" });
+      if (gtResult) categories.push({ key: `def_gen_to:${pid}`, label: "Generated Turnovers", qualifiedTier: gtResult.tier, qualifiedValue: generatedTurnovers, amount: gtResult.amount, isFlat: false, thresholdValue: gtResult.thresholdValue, thresholdLabel: gtResult.thresholdLabel, entityName: playerName, entityPosition: resolvedPos || "DEF" });
     }
 
     // ── Special Teams Payouts ─────────────────────────────────────────────────
@@ -600,7 +611,7 @@ export async function computeEosStatPayouts(
 
       // FG Accuracy
       const fgResult = evalTier(fgPct, [80, 85, 90, 95]);
-      if (fgResult) categories.push({ key: `k_fg_acc:${pid}`, label: "Kicker FG Accuracy", qualifiedTier: fgResult.tier, qualifiedValue: Math.round(fgPct * 10) / 10, amount: fgResult.amount, isFlat: false, entityName: playerName, entityPosition: "K" });
+      if (fgResult) categories.push({ key: `k_fg_acc:${pid}`, label: "Kicker FG Accuracy", qualifiedTier: fgResult.tier, qualifiedValue: Math.round(fgPct * 10) / 10, amount: fgResult.amount, isFlat: false, thresholdValue: fgResult.thresholdValue, thresholdLabel: fgResult.thresholdLabel, entityName: playerName, entityPosition: "K" });
 
       // Long FG Bonus (55+ yard made FG)
       if (longFg >= 55) {
@@ -625,28 +636,28 @@ export async function computeEosStatPayouts(
 
     // Win Milestone
     const winResult = evalTier(rec.wins, [9, 11, 13, 15]);
-    if (winResult) categories.push({ key: "win_milestone", label: "Regular Season Win Milestone", qualifiedTier: winResult.tier, qualifiedValue: rec.wins, amount: winResult.amount, isFlat: false });
+    if (winResult) categories.push({ key: "win_milestone", label: "Regular Season Win Milestone", qualifiedTier: winResult.tier, qualifiedValue: rec.wins, amount: winResult.amount, isFlat: false, thresholdValue: winResult.thresholdValue, thresholdLabel: winResult.thresholdLabel });
 
     // Point Differential Milestone
     const pdResult = evalTier(rec.pd, [75, 150, 225, 300]);
-    if (pdResult) categories.push({ key: "pd_milestone", label: "Point Differential Milestone", qualifiedTier: pdResult.tier, qualifiedValue: rec.pd, amount: pdResult.amount, isFlat: false });
+    if (pdResult) categories.push({ key: "pd_milestone", label: "Point Differential Milestone", qualifiedTier: pdResult.tier, qualifiedValue: rec.pd, amount: pdResult.amount, isFlat: false, thresholdValue: pdResult.thresholdValue, thresholdLabel: pdResult.thresholdLabel });
 
     // H2H Dominance (min 8 H2H games)
     if (h2h.games >= 8) {
       const h2hPct = (h2h.wins / h2h.games) * 100;
       const h2hResult = evalTier(h2hPct, [60, 70, 80, 90]);
-      if (h2hResult) categories.push({ key: "h2h_dominance", label: "H2H Dominance", qualifiedTier: h2hResult.tier, qualifiedValue: Math.round(h2hPct * 10) / 10, amount: h2hResult.amount, isFlat: false });
+      if (h2hResult) categories.push({ key: "h2h_dominance", label: "H2H Dominance", qualifiedTier: h2hResult.tier, qualifiedValue: Math.round(h2hPct * 10) / 10, amount: h2hResult.amount, isFlat: false, thresholdValue: h2hResult.thresholdValue, thresholdLabel: h2hResult.thresholdLabel });
     }
 
     // Challenge Completion Milestone
     const challenges = challengeCounts.get(userId) ?? 0;
     const challengeResult = evalTier(challenges, [10, 20, 30, 40]);
-    if (challengeResult) categories.push({ key: "challenge_milestone", label: "Challenge Completion Milestone", qualifiedTier: challengeResult.tier, qualifiedValue: challenges, amount: challengeResult.amount, isFlat: false });
+    if (challengeResult) categories.push({ key: "challenge_milestone", label: "Challenge Completion Milestone", qualifiedTier: challengeResult.tier, qualifiedValue: challenges, amount: challengeResult.amount, isFlat: false, thresholdValue: challengeResult.thresholdValue, thresholdLabel: challengeResult.thresholdLabel });
 
     // Badge Collection Milestone
     const badges = badgeCounts.get(userId) ?? 0;
     const badgeResult = evalTier(badges, [5, 10, 15, 20]);
-    if (badgeResult) categories.push({ key: "badge_milestone", label: "Badge Collection Milestone", qualifiedTier: badgeResult.tier, qualifiedValue: badges, amount: badgeResult.amount, isFlat: false });
+    if (badgeResult) categories.push({ key: "badge_milestone", label: "Badge Collection Milestone", qualifiedTier: badgeResult.tier, qualifiedValue: badges, amount: badgeResult.amount, isFlat: false, thresholdValue: badgeResult.thresholdValue, thresholdLabel: badgeResult.thresholdLabel });
 
     const total = categories.reduce((sum, c) => sum + c.amount, 0);
     results.push({
@@ -705,7 +716,7 @@ async function addDefensiveAllowedPayouts(
     // Points Allowed Per Game (lower is better)
     const papgResult = evalTier(papg, [24, 20, 16, 12], false);
     if (papgResult) {
-      userData.categories.push({ key: "team_papg", label: "Points Allowed Per Game", qualifiedTier: papgResult.tier, qualifiedValue: Math.round(papg * 10) / 10, amount: papgResult.amount, isFlat: false });
+      userData.categories.push({ key: "team_papg", label: "Points Allowed Per Game", qualifiedTier: papgResult.tier, qualifiedValue: Math.round(papg * 10) / 10, amount: papgResult.amount, isFlat: false, thresholdValue: papgResult.thresholdValue, thresholdLabel: papgResult.thresholdLabel });
       userData.total += papgResult.amount;
     }
   }

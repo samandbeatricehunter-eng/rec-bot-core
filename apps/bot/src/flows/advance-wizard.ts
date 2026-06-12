@@ -48,7 +48,10 @@ interface EosPollsData {
       description?: string;
       nomineeCount: number;
       status: string;
-      nomineeOptions?: Array<{ userId: string; discordId: string | null; displayLabel: string }>;
+      nomineeOptions?: Array<{ userId: string; discordId: string | null; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
+      nominees?: Array<{ userId: string; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
+      totalVotes?: number;
+      closesAt?: string | null;
     }>;
     leagueId: string;
     seasonNumber: number;
@@ -68,6 +71,43 @@ interface AdvanceWizardState {
 }
 
 export const advanceWizardSessions = new ExpiringSessionStore<AdvanceWizardState>();
+
+function asAwardScore(v: unknown): number {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function buildRecAwardVotingEmbed(award: any): EmbedBuilder {
+  const sourceNominees = Array.isArray(award.nominees) && award.nominees.length ? award.nominees : (award.nomineeOptions ?? []);
+  const nominees = [...sourceNominees]
+    .map((n: any) => ({
+      displayLabel: String(n.displayLabel ?? n.teamName ?? n.userId ?? "Unknown"),
+      performanceScore: asAwardScore(n.performanceScore),
+      statLine: n.statLine ? String(n.statLine) : "",
+      voteCount: asAwardScore(n.voteCount),
+      liveScore: asAwardScore(n.liveScore ?? n.finalScore ?? n.performanceScore)
+    }))
+    .sort((a, b) => b.liveScore - a.liveScore || b.performanceScore - a.performanceScore || b.voteCount - a.voteCount);
+
+  const topLines = nominees.slice(0, 10).map((n, index) => {
+    const voteText = n.voteCount > 0 ? ` · Votes: **${n.voteCount}**` : "";
+    const statLine = n.statLine ? `\n   ${n.statLine}` : "";
+    return `**${index + 1}. ${n.displayLabel}** — Score: **${n.performanceScore.toFixed(2)}** · Live: **${n.liveScore.toFixed(2)}**${voteText}${statLine}`;
+  });
+
+  return new EmbedBuilder()
+    .setTitle(award.name ?? "REC Award Vote")
+    .setDescription([
+      award.description ?? "Vote for the best candidate this season.",
+      "",
+      nominees.length ? "**Current Top Nominees**" : "No nominees available.",
+      ...topLines,
+      "",
+      "_Scores are computed performance scores. Live ranking updates as votes are recorded._"
+    ].filter(Boolean).join("\n").slice(0, 4000))
+    .setColor(0x9b59b6)
+    .setFooter({ text: `${nominees.length} nominees · ${award.totalVotes ?? 0} votes logged${award.closesAt ? ` · Closes ${new Date(award.closesAt).toLocaleString()}` : " · Voting closes in 24 hours"}` });
+}
 
 // Shared EOS poll + REC Awards posting — called from advance-wizard finalize AND
 // the manual "Run EOS Polls & Awards" advance menu action.
@@ -135,12 +175,7 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
             );
             if (options.length === 0) continue;
             await awardCh.send({
-              embeds: [new EmbedBuilder()
-                .setTitle(award.name)
-                .setDescription(award.description ?? "Vote for the best candidate this season.")
-                .setColor(0x9b59b6)
-                .setFooter({ text: `${award.nomineeCount} nominees · Voting closes in 24 hours` })
-              ],
+              embeds: [buildRecAwardVotingEmbed(award)],
               components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
                 new StringSelectMenuBuilder()
                   .setCustomId(`rec_award_vote:${guild.id}:${award.awardId}`)

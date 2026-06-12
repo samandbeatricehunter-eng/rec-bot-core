@@ -4049,20 +4049,26 @@ export async function approveEosPayoutItem(input: { itemId: string; discordId: s
   if (error || !item) throw new Error("Payout item not found.");
   if (item.status === "issued") return { credited: false, reason: "already_issued", newBalance: null };
   if (item.status === "denied") return { credited: false, reason: "already_denied", newBalance: null };
+  if (item.status === "voided") return { credited: false, reason: "already_voided", newBalance: null };
 
   const { data: discordRow } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
   const actorUserId = discordRow?.user_id ?? null;
 
   const patch: Record<string, any> = { updated_at: nowIso() };
 
+  const alreadyUserApproved = Boolean(item.user_approved_at);
+  const alreadyCommissionerApproved = Boolean(item.approved_at);
+
   if (input.role === "user") {
     // Recipient must match the item's user
     if (actorUserId && String(actorUserId) !== String(item.user_id)) {
       return { credited: false, reason: "not_recipient", newBalance: null };
     }
+    if (alreadyUserApproved) return { credited: false, reason: "already_user_approved", newBalance: null };
     patch.user_approved_at = nowIso();
   } else {
     // Commissioner approval
+    if (alreadyCommissionerApproved) return { credited: false, reason: "already_commissioner_approved", newBalance: null };
     patch.approved_by_user_id = actorUserId ?? null;
     patch.approved_at = nowIso();
     patch.commissioner_user_id = actorUserId ?? null;
