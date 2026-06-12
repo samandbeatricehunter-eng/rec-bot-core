@@ -251,11 +251,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return;
       }
 
-      if (interaction.customId === MENU_CUSTOM_IDS.adminEconomyReviews) {
-        await interaction.update(buildEconomyAdminPanel());
-        return;
-      }
-
       if (interaction.customId === MENU_CUSTOM_IDS.adminAdvanceMenu) {
         await interaction.update(buildAdvanceMenuPanel());
         return;
@@ -509,9 +504,6 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
   if (selected === "rules") {
     await interaction.update(buildRulesPanel());
     return;
-  }
-  if (selected === "economy_reviews") {
-    await interaction.update(buildEconomyAdminPanel());
   }
 }
 

@@ -30,7 +30,8 @@ export const MENU_CUSTOM_IDS = {
   adminActiveCheck: "rec:admin:active_check",
   adminRules: "rec:admin:rules",
   adminReselectGotw: "rec:admin:reselect_gotw",
-  adminEconomyReviews: "rec:admin:economy_reviews",
+  commissionerToolsSelect: "rec:admin:commissioner_tools_select",
+  manageLeagueSelect: "rec:admin:manage_league_select",
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input"
@@ -201,21 +202,48 @@ export function buildAdminPanelEmbed() {
     ].join("\n"));
 }
 
+// Top-level Admin Panel: only two workflows. Everything else is nested under
+// Commissioner Tools to keep the top level shallow.
 export function buildAdminPanelRows() {
   const select = new StringSelectMenuBuilder()
     .setCustomId(MENU_CUSTOM_IDS.adminSelect)
     .setPlaceholder("Select an admin workflow")
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Import / Enter Data").setValue("import_enter_data").setDescription("Imports, companion exports, manual data, and import history."),
+      new StringSelectMenuOptionBuilder().setLabel("Commissioner Tools").setValue("commissioner_tools").setDescription("Advance, league management, server setup, and the league setup wizard."),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
+    );
+
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// Commissioner Tools submenu (Admin Panel -> Commissioner Tools).
+export function buildCommissionerToolsRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(MENU_CUSTOM_IDS.commissionerToolsSelect)
+    .setPlaceholder("Select a commissioner tool")
+    .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Advance Menu").setValue("advance_menu").setDescription("Advance, catch-up, week/stage, channels, challenges, and audit tools."),
+      new StringSelectMenuOptionBuilder().setLabel("Manage League").setValue("manage_league").setDescription("Active checks, rules, user/team linking, and league settings."),
+      new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Register/update this Discord server."),
+      new StringSelectMenuOptionBuilder().setLabel("League Setup Wizard").setValue("league_setup").setDescription("Create/update league settings (full wizard)."),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
+    );
+
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// Manage League submenu (Commissioner Tools -> Manage League).
+export function buildManageLeagueRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(MENU_CUSTOM_IDS.manageLeagueSelect)
+    .setPlaceholder("Select a league management tool")
+    .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Active Check").setValue("active_check").setDescription("Post a 24-hour activity confirmation check."),
       new StringSelectMenuOptionBuilder().setLabel("View / Edit Rules").setValue("rules").setDescription("Review the REC rule base and editable league rule settings."),
       new StringSelectMenuOptionBuilder().setLabel("User / Team Linking").setValue("user_team_linking").setDescription("Link Discord users to Madden teams."),
-      new StringSelectMenuOptionBuilder().setLabel("Economy Reviews").setValue("economy_reviews").setDescription("Pending channels, routes, and EOS review controls."),
-      new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Register/update this Discord server."),
-      new StringSelectMenuOptionBuilder().setLabel("League Setup").setValue("league_setup").setDescription("Create/update league settings (full wizard)."),
       new StringSelectMenuOptionBuilder().setLabel("Edit League Settings").setValue("edit_league_settings").setDescription("Adjust individual settings without re-running the full wizard."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
+      new StringSelectMenuOptionBuilder().setLabel("Back to Commissioner Tools").setValue("commissioner_tools")
     );
 
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];

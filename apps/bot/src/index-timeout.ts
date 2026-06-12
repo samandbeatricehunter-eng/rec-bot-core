@@ -6,6 +6,8 @@ import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import {
   buildAdminPanelEmbed,
   buildAdminPanelRows,
+  buildCommissionerToolsRows,
+  buildManageLeagueRows,
   buildMainMenuEmbed,
   buildMainMenuRows,
   buildRostersMenuEmbed,
@@ -187,6 +189,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.stageSelect) return interaction.showModal(buildLeagueWeekSetModal(interaction.values[0]));
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.commissionerToolsSelect) return handleCommissionerToolsSelect(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.manageLeagueSelect) return handleManageLeagueSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.conferenceSelect) return handleRosterConferenceSelect(interaction);
@@ -215,7 +219,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
       if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderImportPanel(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.adminEconomyReviews) return interaction.update(buildEconomyAdminPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.adminRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.adminActiveCheck) return handleStartActiveCheck(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminReselectGotw) return renderGotwSelection(interaction);
@@ -792,9 +795,58 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
 
   if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
   if (selected === "import_enter_data") return renderImportPanel(interaction);
+  if (selected === "commissioner_tools") {
+    return interaction.update({ embeds: [buildCommissionerToolsEmbed()], components: buildCommissionerToolsRows() });
+  }
+
+  return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+}
+
+function buildCommissionerToolsEmbed() {
+  return new EmbedBuilder()
+    .setTitle("Commissioner Tools")
+    .setDescription("Advance the league, manage league settings, set up the server, or run the league setup wizard.");
+}
+
+function buildManageLeagueEmbed() {
+  return new EmbedBuilder()
+    .setTitle("Manage League")
+    .setDescription("Active checks, league rules, user/team linking, and individual league settings.");
+}
+
+// Commissioner Tools submenu router (Admin Panel -> Commissioner Tools).
+async function handleCommissionerToolsSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can use Commissioner Tools.", flags: MessageFlags.Ephemeral });
+  }
+  const selected = interaction.values[0];
+  if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
   if (selected === "advance_menu") return interaction.update(buildAdvanceMenuPanel());
   if (selected === "server_setup") return interaction.update(buildServerSetupPanel());
   if (selected === "league_setup") return interaction.showModal(buildSetupDangerModal("league_setup"));
+  if (selected === "manage_league") {
+    return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
+  }
+  return interaction.update({ embeds: [buildCommissionerToolsEmbed()], components: buildCommissionerToolsRows() });
+}
+
+// Manage League submenu router (Commissioner Tools -> Manage League).
+async function handleManageLeagueSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can manage the league.", flags: MessageFlags.Ephemeral });
+  }
+  const selected = interaction.values[0];
+  if (selected === "commissioner_tools") {
+    return interaction.update({ embeds: [buildCommissionerToolsEmbed()], components: buildCommissionerToolsRows() });
+  }
+  if (selected === "active_check") return handleStartActiveCheck(interaction);
+  if (selected === "rules") return interaction.update(buildRulesPanel());
+  if (selected === "user_team_linking") {
+    const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
+    return interaction.update(buildSimpleTeamLinkPanel());
+  }
   if (selected === "edit_league_settings") {
     if (!interaction.inCachedGuild()) return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
     await interaction.deferUpdate();
@@ -805,21 +857,10 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
       leagueSetupSessions.set(interaction.user.id, draft as LeagueSetupDraft);
       return interaction.editReply({ ...buildSettingsPickerWindow(draft as LeagueSetupDraft), components: buildSettingsPickerWindow(draft as LeagueSetupDraft).components });
     } catch {
-      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription("No league configuration found. Run League Setup first.")], components: buildAdminPanelRows() });
+      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription("No league configuration found. Run League Setup first.")], components: buildManageLeagueRows() });
     }
   }
-  if (selected === "user_team_linking") {
-    const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
-    return interaction.update(buildSimpleTeamLinkPanel());
-  }
-  if (selected === "active_check") return handleStartActiveCheck(interaction);
-  if (selected === "rules") return interaction.update(buildRulesPanel());
-  if (selected === "economy_reviews") return interaction.update(buildEconomyAdminPanel());
-
-  return interaction.update({
-    embeds: [new EmbedBuilder().setTitle("REC Admin Panel").setDescription("This admin workflow shell is connected. The detailed workflow will continue in the next build pass.")],
-    components: buildAdminPanelRows()
-  });
+  return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
 }
 
 async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {

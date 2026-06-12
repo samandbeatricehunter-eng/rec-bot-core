@@ -1,0 +1,22 @@
+# Nixpacks build config for the REC bot pnpm monorepo (used by Railway).
+# Both Railway services (api, bot) point their Root Directory at the repo root and
+# share this build; each service sets its own Start Command in the dashboard:
+#   api  ->  node apps/api/dist/index.js
+#   bot  ->  node apps/bot/dist/index-timeout.js
+# pnpm is pinned via corepack from the root package.json "packageManager" field
+# (pnpm@10.11.0). `pnpm -r build` builds in workspace-dependency order, so
+# @rec/shared compiles before @rec/api and @rec/bot.
+
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "pnpm install --frozen-lockfile"
+]
+
+[phases.build]
+cmds = ["pnpm -r build"]
