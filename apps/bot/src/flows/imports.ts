@@ -335,7 +335,31 @@ function selectedEndpointKeys(draft: ImportDraft) {
 function selectedWeekSummary(draft: ImportDraft) {
   if (draft.weekScope === "full_regular_season_schedule") return "Full regular season schedule (Weeks 1-18)";
   const weeks = draft.selectedWeeks?.length ? draft.selectedWeeks : [draft.weekFrom ?? 1];
-  return weeks.map(importWeekLabel).join(", ");
+  return summarizeWeeks(weeks);
+}
+
+// Compress week numbers into a compact label, e.g. [1..18] -> "Weeks 1-18",
+// [1,2,3,19] -> "Weeks 1-3, Wild Card". Consecutive regular-season weeks (<=18)
+// collapse into ranges; playoff weeks are named individually.
+function summarizeWeeks(weeks: number[]) {
+  const unique = [...new Set(weeks.map(Number).filter((week) => Number.isFinite(week) && week >= 1))].sort((a, b) => a - b);
+  if (unique.length === 0) return "selected weeks";
+  const parts: string[] = [];
+  const regular = unique.filter((week) => week <= 18);
+  for (let i = 0; i < regular.length; ) {
+    let end = i;
+    while (end + 1 < regular.length && regular[end + 1] === regular[end] + 1) end++;
+    parts.push(regular[i] === regular[end] ? `Week ${regular[i]}` : `Weeks ${regular[i]}-${regular[end]}`);
+    i = end + 1;
+  }
+  for (const week of unique.filter((week) => week > 18)) parts.push(importWeekLabel(week));
+  return parts.join(", ");
+}
+
+// The API caps import_label at 120 chars (import.schemas.ts); clamp defensively.
+function buildImportLabel(draft: ImportDraft) {
+  const label = `${draft.importMode ?? "ea_import"} import - ${selectedWeekSummary(draft)}`;
+  return label.length > 120 ? `${label.slice(0, 117)}...` : label;
 }
 
 function normalizeSelectedWeeks(draft: ImportDraft) {
@@ -523,7 +547,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
         const job = await recApi.createImportJob({
           guildId: interaction.guildId,
           importMode: draft.importMode ?? "ea_import",
-          importLabel: `${draft.importMode ?? "ea_import"} import - ${selectedWeekSummary(draft)}`,
+          importLabel: buildImportLabel(draft),
           requestedByDiscordId: interaction.user.id,
           eaExternalLeagueId: draft.eaExternalLeagueId,
           eaExternalLeagueName: draft.eaExternalLeagueName,
