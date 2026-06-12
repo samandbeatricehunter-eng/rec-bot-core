@@ -80,37 +80,61 @@ async function getLeagueContext(guildId: string) {
 
 // Get all active user → team assignments for this league
 async function getActiveCoaches(leagueId: string) {
-  const { data: assignments } = await supabase
+  const { data: assignments, error: assignmentsError } = await supabase
     .from("rec_team_assignments")
-    .select("user_id, team_id, rec_teams(name, abbreviation, ovr_rating)")
+    .select("user_id, team_id")
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
 
-  const userIds = (assignments ?? []).map((a: any) => String(a.user_id)).filter(Boolean);
-  const { data: discordAccounts } = await supabase
-    .from("rec_discord_accounts")
-    .select("user_id,discord_id,global_name,username")
-    .in("user_id", userIds);
+  if (assignmentsError) throw assignmentsError;
+
+  const cleanAssignments = (assignments ?? [])
+    .map((a: any) => ({ userId: String(a.user_id ?? ""), teamId: String(a.team_id ?? "") }))
+    .filter((a) => a.userId && a.teamId);
+
+  const userIds = [...new Set(cleanAssignments.map((a) => a.userId))];
+  const teamIds = [...new Set(cleanAssignments.map((a) => a.teamId))];
+
+  const [{ data: discordAccounts, error: discordError }, { data: teams, error: teamsError }] = await Promise.all([
+    userIds.length
+      ? supabase.from("rec_discord_accounts").select("user_id,discord_id,global_name,username").in("user_id", userIds)
+      : Promise.resolve({ data: [], error: null }),
+    teamIds.length
+      ? supabase.from("rec_teams").select("id,name,abbreviation,ovr_rating").in("id", teamIds)
+      : Promise.resolve({ data: [], error: null })
+  ]);
+
+  if (discordError) throw discordError;
+  if (teamsError) throw teamsError;
 
   const discordMap = new Map<string, { discordId: string; displayName: string }>();
   for (const d of discordAccounts ?? []) {
-    if (d.user_id && d.discord_id) {
+    if (d.user_id) {
       discordMap.set(String(d.user_id), {
-        discordId: String(d.discord_id),
+        discordId: d.discord_id ? String(d.discord_id) : "",
         displayName: d.global_name ?? d.username ?? "Coach"
       });
     }
   }
 
-  return (assignments ?? []).map((a: any) => ({
-    userId: String(a.user_id),
-    teamId: String(a.team_id),
-    teamName: (a.rec_teams as any)?.name ?? (a.rec_teams as any)?.abbreviation ?? "Unknown",
-    teamOvr: asNum((a.rec_teams as any)?.ovr_rating),
-    discordId: discordMap.get(String(a.user_id))?.discordId ?? null,
-    displayName: discordMap.get(String(a.user_id))?.displayName ?? "Coach"
-  }));
+  const teamMap = new Map<string, { name: string | null; abbreviation: string | null; ovr_rating: number | null }>();
+  for (const t of teams ?? []) {
+    if (t.id) teamMap.set(String(t.id), t as any);
+  }
+
+  return cleanAssignments.map((a) => {
+    const team = teamMap.get(a.teamId);
+    const discord = discordMap.get(a.userId);
+    return {
+      userId: a.userId,
+      teamId: a.teamId,
+      teamName: team?.name ?? team?.abbreviation ?? "Unknown",
+      teamOvr: asNum(team?.ovr_rating),
+      discordId: discord?.discordId || null,
+      displayName: discord?.displayName ?? team?.name ?? team?.abbreviation ?? "Coach"
+    };
+  });
 }
 
 // Average OL (LT/LG/C/RG/RT) overall rating per team, for Best OL team award
@@ -386,11 +410,11 @@ async function getBadgeCounts(leagueId: string, userIds: string[]): Promise<Map<
 // Caps are set to elite-but-achievable 17-game team season totals.
 
 function scorePassingStats(s: Record<string, number>, winPct: number): number {
-  const passYds  = readStat(s, "pass_yards");
-  const passTDs  = readStat(s, "pass_tds");
-  const passAtt  = readStat(s, "pass_attempts") || 1;
-  const passComp = readStat(s, "pass_completions");
-  const ints     = readStat(s, "interceptions_thrown");
+  const passYds  = awardStat(s, "pass_yards");
+  const passTDs  = awardStat(s, "pass_tds");
+  const passAtt  = awardStat(s, "pass_attempts") || 1;
+  const passComp = awardStat(s, "pass_completions");
+  const ints     = awardStat(s, "interceptions_thrown");
   const compPct  = passComp / passAtt;
 
   // Component normalizations (0-100 each):
@@ -409,9 +433,9 @@ function scorePassingStats(s: Record<string, number>, winPct: number): number {
 }
 
 function scoreRushingStats(s: Record<string, number>, winPct: number): number {
-  const rushYds = readStat(s, "rush_yards");
-  const rushTDs = readStat(s, "rush_tds");
-  const rushAtt = readStat(s, "rush_attempts") || 1;
+  const rushYds = awardStat(s, "rush_yards");
+  const rushTDs = awardStat(s, "rush_tds");
+  const rushAtt = awardStat(s, "rush_attempts") || 1;
   const ypc     = rushYds / rushAtt;
 
   // Component normalizations (0-100 each):
@@ -428,9 +452,9 @@ function scoreRushingStats(s: Record<string, number>, winPct: number): number {
 }
 
 function scoreReceivingStats(s: Record<string, number>, winPct: number): number {
-  const recYds     = readStat(s, "receiving_yards");
-  const recTDs     = readStat(s, "receiving_tds");
-  const receptions = readStat(s, "receptions");
+  const recYds     = awardStat(s, "receiving_yards");
+  const recTDs     = awardStat(s, "receiving_tds");
+  const receptions = awardStat(s, "receptions");
 
   // Component normalizations (0-100 each):
   const ydsScore  = Math.min(recYds / 65, 100);            // 6500 yds = 100
@@ -446,10 +470,10 @@ function scoreReceivingStats(s: Record<string, number>, winPct: number): number 
 }
 
 function scoreDefensiveStats(s: Record<string, number>): number {
-  const sacks   = readStat(s, "sacks");
-  const ints    = readStat(s, "interceptions");
-  const ff      = readStat(s, "forced_fumbles");
-  const tackles = readStat(s, "tackles");
+  const sacks   = awardStat(s, "sacks");
+  const ints    = awardStat(s, "interceptions");
+  const ff      = awardStat(s, "forced_fumbles");
+  const tackles = awardStat(s, "tackles");
 
   // Component normalizations (0-100 each):
   const sacksScore   = Math.min(sacks * 100 / 60, 100);    // 60 sacks = 100
@@ -467,7 +491,7 @@ function scoreDefensiveStats(s: Record<string, number>): number {
 function scoreOLStats(s: Record<string, number>): number {
   // sacks_taken = QB sacks taken across all QBs (proxy for sacks allowed by OL)
   // avgOlOvr = average overall rating of LT/LG/C/RG/RT, injected from getOLTeamRatings
-  const passSacks = readStat(s, "sacks_taken");
+  const passSacks = awardStat(s, "sacks_taken");
   const avgOlOvr  = s.avgOlOvr ?? 0;
 
   // Component normalizations (0-100 each):
@@ -480,9 +504,9 @@ function scoreOLStats(s: Record<string, number>): number {
 }
 
 function scoreDLStats(s: Record<string, number>): number {
-  const sacks   = readStat(s, "sacks");
-  const ff      = readStat(s, "forced_fumbles");
-  const tackles = readStat(s, "tackles");
+  const sacks   = awardStat(s, "sacks");
+  const ff      = awardStat(s, "forced_fumbles");
+  const tackles = awardStat(s, "tackles");
 
   // Component normalizations (0-100 each):
   const sacksScore   = Math.min(sacks * 100 / 60, 100);    // 60 sacks = 100
@@ -496,9 +520,9 @@ function scoreDLStats(s: Record<string, number>): number {
 }
 
 function scoreLBStats(s: Record<string, number>): number {
-  const tackles = readStat(s, "tackles");
-  const sacks   = readStat(s, "sacks");
-  const ints    = readStat(s, "interceptions");
+  const tackles = awardStat(s, "tackles");
+  const sacks   = awardStat(s, "sacks");
+  const ints    = awardStat(s, "interceptions");
 
   // Component normalizations (0-100 each):
   const tacklesScore = Math.min(tackles / 6, 100);          // 600 tackles = 100
@@ -512,10 +536,10 @@ function scoreLBStats(s: Record<string, number>): number {
 }
 
 function scoreDBStats(s: Record<string, number>): number {
-  const ints    = readStat(s, "interceptions");
-  const pd      = readStat(s, "pass_deflections");
-  const tackles = readStat(s, "tackles");
-  const defTDs  = readStat(s, "defensive_tds");
+  const ints    = awardStat(s, "interceptions");
+  const pd      = awardStat(s, "pass_deflections");
+  const tackles = awardStat(s, "tackles");
+  const defTDs  = awardStat(s, "defensive_tds");
 
   // Component normalizations (0-100 each):
   const intsScore    = Math.min(ints * 100 / 25, 100);      // 25 INTs = 100
@@ -532,11 +556,11 @@ function scoreDBStats(s: Record<string, number>): number {
 
 function scoreKickerStats(s: Record<string, number>): number {
   // Canonical kicking keys (aliases cover Madden fGMade/fGAtt/xPMade/xPAtt/fGLongest)
-  const fgMade = readStat(s, "fg_made");
-  const fgAtt = readStat(s, "fg_attempts");
-  const xpMade = readStat(s, "xp_made");
-  const xpAtt = readStat(s, "xp_attempts");
-  const longFG = readStat(s, "fg_long");
+  const fgMade = awardStat(s, "fg_made");
+  const fgAtt = awardStat(s, "fg_attempts");
+  const xpMade = awardStat(s, "xp_made");
+  const xpAtt = awardStat(s, "xp_attempts");
+  const longFG = awardStat(s, "fg_long");
   const totalAttempts = fgAtt + xpAtt;
   if (totalAttempts < 50) return 0; // Minimum 50 combined FG+XP attempts across season
   const fgPct = fgAtt > 0 ? fgMade / fgAtt : 0;
@@ -595,14 +619,49 @@ function component(value: number, cap: number): number {
   return cap > 0 ? clamp((value / cap) * 100) : 0;
 }
 
-function looseStat(stats: Record<string, number>, canonicalKey: string, aliases: string[] = []): number {
+const STAT_ALIASES: Record<string, string[]> = {
+  pass_yards: ["passYds", "passingYards", "passing_yards"],
+  pass_tds: ["passTDs", "passingTDs", "passing_tds", "pass_tds"],
+  pass_attempts: ["passAtt", "passAttempts", "passingAttempts", "pass_attempts"],
+  pass_completions: ["passComp", "passCompletions", "passingCompletions", "pass_completions"],
+  interceptions_thrown: ["passInts", "passINTs", "interceptionsThrown", "intsThrown", "interceptions_thrown"],
+  sacks_taken: ["sacksTaken", "passSacks", "sacks_taken"],
+  rush_yards: ["rushYds", "rushingYards", "rushing_yards"],
+  rush_tds: ["rushTDs", "rushingTDs", "rushing_tds", "rush_tds"],
+  rush_attempts: ["rushAtt", "rushAttempts", "rushingAttempts", "rush_attempts"],
+  rushing_fumbles: ["rushFumbles", "rushingFumbles", "fumbles", "fumblesLost", "fumLost", "rushing_fumbles"],
+  receiving_yards: ["recYds", "receivingYards", "receiving_yards"],
+  receiving_tds: ["recTDs", "receivingTDs", "receiving_tds"],
+  receptions: ["rec", "catches", "receptions"],
+  receiving_drops: ["recDrops", "drops", "receivingDrops", "receiving_drops"],
+  receiving_fumbles: ["recFumbles", "receivingFumbles", "fumbles", "fumblesLost", "receiving_fumbles"],
+  tackles: ["defTotalTackles", "tackles", "soloTackles"],
+  tackles_for_loss: ["defTFL", "tfl", "tacklesForLoss", "tackles_for_loss"],
+  sacks: ["defSacks", "sacks"],
+  interceptions: ["defInts", "defINTs", "interceptions", "ints"],
+  forced_fumbles: ["defForcedFumbles", "forcedFumbles", "forced_fumbles", "ff"],
+  fumble_recoveries: ["defFumbleRecoveries", "fumbleRecoveries", "fumble_recoveries", "fr"],
+  pass_deflections: ["defPassDeflections", "passDeflections", "pass_deflections", "pd"],
+  defensive_tds: ["defTDs", "defensiveTDs", "defensive_tds"],
+  fg_made: ["fgMade", "fGMade", "fg_made"],
+  fg_attempts: ["fgAtt", "fGAtt", "fgAttempts", "fg_attempts"],
+  fg_long: ["fgLong", "fGLongest", "fg_long"],
+  xp_made: ["xpMade", "xPMade", "xp_made"],
+  xp_attempts: ["xpAtt", "xPAtt", "xpAttempts", "xp_attempts"]
+};
+
+function awardStat(stats: Record<string, number>, canonicalKey: string, extraAliases: string[] = []): number {
   const canonical = readStat(stats, canonicalKey);
   if (canonical) return canonical;
-  for (const key of aliases) {
-    const val = asNum((stats as any)[key]);
-    if (val) return val;
+  for (const key of [...(STAT_ALIASES[canonicalKey] ?? []), ...extraAliases]) {
+    const value = asNum((stats as any)[key]);
+    if (value) return value;
   }
   return 0;
+}
+
+function looseStat(stats: Record<string, number>, canonicalKey: string, aliases: string[] = []): number {
+  return awardStat(stats, canonicalKey, aliases);
 }
 
 function addStat(target: Record<string, number>, key: string, value: unknown) {
@@ -621,12 +680,12 @@ function yearsProFromPlayer(player: any): number {
 }
 
 function scorePassingPlayer(stats: Record<string, number>): number {
-  const passYds = readStat(stats, "pass_yards");
-  const passTds = readStat(stats, "pass_tds");
-  const attempts = readStat(stats, "pass_attempts");
-  const completions = readStat(stats, "pass_completions");
-  const ints = readStat(stats, "interceptions_thrown");
-  const sacksTaken = readStat(stats, "sacks_taken");
+  const passYds = awardStat(stats, "pass_yards");
+  const passTds = awardStat(stats, "pass_tds");
+  const attempts = awardStat(stats, "pass_attempts");
+  const completions = awardStat(stats, "pass_completions");
+  const ints = awardStat(stats, "interceptions_thrown");
+  const sacksTaken = awardStat(stats, "sacks_taken");
   const compPct = attempts > 0 ? completions / attempts : 0;
   const ypa = attempts > 0 ? passYds / attempts : 0;
 
@@ -637,9 +696,9 @@ function scorePassingPlayer(stats: Record<string, number>): number {
 }
 
 function scoreRushingPlayer(stats: Record<string, number>): number {
-  const rushYds = readStat(stats, "rush_yards");
-  const rushTds = readStat(stats, "rush_tds");
-  const carries = readStat(stats, "rush_attempts");
+  const rushYds = awardStat(stats, "rush_yards");
+  const rushTds = awardStat(stats, "rush_tds");
+  const carries = awardStat(stats, "rush_attempts");
   const ypc = carries > 0 ? rushYds / carries : 0;
   const fumbles = looseStat(stats, "rushing_fumbles", ["fumbles_lost", "fumblesLost", "fumLost", "rush_fumbles_lost"]);
 
@@ -651,10 +710,10 @@ function scoreRushingPlayer(stats: Record<string, number>): number {
 }
 
 function scoreReceivingPlayer(stats: Record<string, number>): number {
-  const recYds = readStat(stats, "receiving_yards");
-  const recTds = readStat(stats, "receiving_tds");
-  const receptions = readStat(stats, "receptions");
-  const drops = readStat(stats, "receiving_drops");
+  const recYds = awardStat(stats, "receiving_yards");
+  const recTds = awardStat(stats, "receiving_tds");
+  const receptions = awardStat(stats, "receptions");
+  const drops = awardStat(stats, "receiving_drops");
   const receivingFumbles = looseStat(stats, "receiving_fumbles", ["fumbles_lost", "fumblesLost", "recFumbles", "recFum", "receivingFumbles"]);
   const chances = receptions + drops;
   const catchPct = chances > 0 ? receptions / chances : 1;
@@ -668,14 +727,14 @@ function scoreReceivingPlayer(stats: Record<string, number>): number {
 }
 
 function scoreDefensivePlayer(stats: Record<string, number>, position: string): number {
-  const tackles = readStat(stats, "tackles");
-  const tfl = readStat(stats, "tackles_for_loss");
-  const sacks = readStat(stats, "sacks");
-  const ints = readStat(stats, "interceptions");
-  const ff = readStat(stats, "forced_fumbles");
-  const fr = readStat(stats, "fumble_recoveries");
-  const pd = readStat(stats, "pass_deflections");
-  const defTds = readStat(stats, "defensive_tds");
+  const tackles = awardStat(stats, "tackles");
+  const tfl = awardStat(stats, "tackles_for_loss");
+  const sacks = awardStat(stats, "sacks");
+  const ints = awardStat(stats, "interceptions");
+  const ff = awardStat(stats, "forced_fumbles");
+  const fr = awardStat(stats, "fumble_recoveries");
+  const pd = awardStat(stats, "pass_deflections");
+  const defTds = awardStat(stats, "defensive_tds");
 
   if (DL_POSITIONS.has(position)) {
     return clamp(component(sacks, 22) * 0.42 + component(tfl, 28) * 0.18 + component(ff, 7) * 0.16 + component(tackles, 80) * 0.14 + component(defTds, 3) * 0.10);
@@ -750,20 +809,20 @@ function buildAwardStatLine(awardKey: string, candidate: PlayerAwardCandidate): 
   const s = candidate.stats;
   const parts: Array<string | null> = [];
   if (["best_qb", "opoy", "offensive_rookie"].includes(awardKey) || (awardKey === "mvp" && scoreOffensiveImpact(candidate) >= scoreDefensivePlayer(candidate.stats, candidate.position))) {
-    if (readStat(s, "pass_yards") > 0) parts.push(statText("pass_yards", readStat(s, "pass_yards")), statText("pass_tds", readStat(s, "pass_tds")), statText("interceptions_thrown", readStat(s, "interceptions_thrown")));
-    if (readStat(s, "rush_yards") > 0) parts.push(statText("rush_yards", readStat(s, "rush_yards")), statText("rush_tds", readStat(s, "rush_tds")));
-    if (readStat(s, "receiving_yards") > 0) parts.push(statText("receiving_yards", readStat(s, "receiving_yards")), statText("receiving_tds", readStat(s, "receiving_tds")));
-    if (readStat(s, "receiving_drops") > 0) parts.push(statText("receiving_drops", readStat(s, "receiving_drops")));
+    if (awardStat(s, "pass_yards") > 0) parts.push(statText("pass_yards", awardStat(s, "pass_yards")), statText("pass_tds", awardStat(s, "pass_tds")), statText("interceptions_thrown", awardStat(s, "interceptions_thrown")));
+    if (awardStat(s, "rush_yards") > 0) parts.push(statText("rush_yards", awardStat(s, "rush_yards")), statText("rush_tds", awardStat(s, "rush_tds")));
+    if (awardStat(s, "receiving_yards") > 0) parts.push(statText("receiving_yards", awardStat(s, "receiving_yards")), statText("receiving_tds", awardStat(s, "receiving_tds")));
+    if (awardStat(s, "receiving_drops") > 0) parts.push(statText("receiving_drops", awardStat(s, "receiving_drops")));
   } else if (["best_rb"].includes(awardKey)) {
-    parts.push(statText("rush_yards", readStat(s, "rush_yards")), statText("rush_tds", readStat(s, "rush_tds")), statText("receiving_yards", readStat(s, "receiving_yards")), statText("rushing_fumbles", readStat(s, "rushing_fumbles")));
+    parts.push(statText("rush_yards", awardStat(s, "rush_yards")), statText("rush_tds", awardStat(s, "rush_tds")), statText("receiving_yards", awardStat(s, "receiving_yards")), statText("rushing_fumbles", awardStat(s, "rushing_fumbles")));
   } else if (["best_wr"].includes(awardKey)) {
-    parts.push(statText("receiving_yards", readStat(s, "receiving_yards")), statText("receiving_tds", readStat(s, "receiving_tds")), statText("receptions", readStat(s, "receptions")), statText("receiving_drops", readStat(s, "receiving_drops")));
+    parts.push(statText("receiving_yards", awardStat(s, "receiving_yards")), statText("receiving_tds", awardStat(s, "receiving_tds")), statText("receptions", awardStat(s, "receptions")), statText("receiving_drops", awardStat(s, "receiving_drops")));
   } else if (["best_kicker"].includes(awardKey)) {
-    parts.push(statText("fg_made", readStat(s, "fg_made")), statText("fg_attempts", readStat(s, "fg_attempts")), statText("fg_long", readStat(s, "fg_long")), statText("xp_made", readStat(s, "xp_made")));
+    parts.push(statText("fg_made", awardStat(s, "fg_made")), statText("fg_attempts", awardStat(s, "fg_attempts")), statText("fg_long", awardStat(s, "fg_long")), statText("xp_made", awardStat(s, "xp_made")));
   } else {
-    parts.push(statText("tackles", readStat(s, "tackles")), statText("sacks", readStat(s, "sacks")), statText("interceptions", readStat(s, "interceptions")), statText("forced_fumbles", readStat(s, "forced_fumbles")), statText("pass_deflections", readStat(s, "pass_deflections")), statText("defensive_tds", readStat(s, "defensive_tds")));
-    if (readStat(s, "pass_yards") || readStat(s, "rush_yards") || readStat(s, "receiving_yards")) {
-      parts.push(statText("pass_yards", readStat(s, "pass_yards")), statText("rush_yards", readStat(s, "rush_yards")), statText("receiving_yards", readStat(s, "receiving_yards")));
+    parts.push(statText("tackles", awardStat(s, "tackles")), statText("sacks", awardStat(s, "sacks")), statText("interceptions", awardStat(s, "interceptions")), statText("forced_fumbles", awardStat(s, "forced_fumbles")), statText("pass_deflections", awardStat(s, "pass_deflections")), statText("defensive_tds", awardStat(s, "defensive_tds")));
+    if (awardStat(s, "pass_yards") || awardStat(s, "rush_yards") || awardStat(s, "receiving_yards")) {
+      parts.push(statText("pass_yards", awardStat(s, "pass_yards")), statText("rush_yards", awardStat(s, "rush_yards")), statText("receiving_yards", awardStat(s, "receiving_yards")));
     }
   }
   return parts.filter(Boolean).slice(0, 7).join(" · ") || "Impact score built from season totals.";
@@ -890,13 +949,13 @@ function buildPlayerAwardScoreMaps(candidates: PlayerAwardCandidate[]) {
       if (candidate.yearsPro > 0) add("dpoy", candidate, candidate.scores.defense);
       if (candidate.yearsPro === 0) add("defensive_rookie", candidate, candidate.scores.defense);
     }
-    if (candidate.position === "QB" && readStat(candidate.stats, "pass_attempts") >= 80) {
+    if (candidate.position === "QB" && awardStat(candidate.stats, "pass_attempts") >= 80) {
       add("best_qb", candidate, clamp(candidate.scores.passing * 0.78 + candidate.scores.rushing * 0.20 + candidate.scores.receiving * 0.02));
     }
-    if ((candidate.position === "HB" || candidate.position === "FB") && (readStat(candidate.stats, "rush_attempts") >= 50 || readStat(candidate.stats, "rush_yards") >= 300)) {
+    if ((candidate.position === "HB" || candidate.position === "FB") && (awardStat(candidate.stats, "rush_attempts") >= 50 || awardStat(candidate.stats, "rush_yards") >= 300)) {
       add("best_rb", candidate, clamp(candidate.scores.rushing * 0.72 + candidate.scores.receiving * 0.25 + candidate.scores.passing * 0.03));
     }
-    if ((candidate.position === "WR" || candidate.position === "TE") && (readStat(candidate.stats, "receptions") >= 15 || readStat(candidate.stats, "receiving_yards") >= 250)) {
+    if ((candidate.position === "WR" || candidate.position === "TE") && (awardStat(candidate.stats, "receptions") >= 15 || awardStat(candidate.stats, "receiving_yards") >= 250)) {
       add("best_wr", candidate, clamp(candidate.scores.receiving * 0.80 + candidate.scores.rushing * 0.15 + candidate.scores.passing * 0.05));
     }
     if (DL_POSITIONS.has(candidate.position)) add("best_dl", candidate, candidate.scores.defense);
@@ -991,7 +1050,7 @@ async function getTopPlayerPerTeam(
   // Pick the highest-ranked player per team
   const bestPerTeam = new Map<string, { playerName: string; position: string; topVal: number }>();
   for (const [, { teamId, playerName, position, stats }] of playerAgg) {
-    const val = readStat(stats, config.rankByStat);
+    const val = awardStat(stats, config.rankByStat);
     const existing = bestPerTeam.get(teamId);
     if (!existing || val > existing.topVal) {
       bestPerTeam.set(teamId, { playerName, position, topVal: val });
@@ -1014,7 +1073,21 @@ export async function generateAwardNominees(guildId: string) {
   const seasonNumber = asNum(league.season_number ?? league.display_season_number ?? 1);
 
   const coaches = (await getActiveCoaches(leagueId)) as CoachAssignment[];
-  if (!coaches.length) return { generated: 0, awards: [] };
+  if (!coaches.length) {
+    return {
+      generated: 0,
+      awards: [],
+      diagnostics: {
+        earlyReturn: "no_active_coaches",
+        leagueId,
+        seasonNumber,
+        activeCoaches: 0
+      },
+      leagueId,
+      seasonNumber,
+      announcementsChannelId: routes?.voting_polls_channel_id ?? routes?.announcements_channel_id ?? null
+    };
+  }
 
   const userIds = coaches.map((c: CoachAssignment) => c.userId);
   const teamByUser = new Map<string, CoachAssignment>(coaches.map((c: CoachAssignment) => [c.userId, c]));
@@ -1072,7 +1145,7 @@ export async function generateAwardNominees(guildId: string) {
     const teamRecStats = receivingStats.get(teamId) ?? {};
     const teamDefStats = defStats.get(teamId) ?? {};
     const teamKickStats = kickingStats.get(teamId) ?? {};
-    const totalOffYds = readStat(teamAllStats, "pass_yards") + readStat(teamAllStats, "rush_yards");
+    const totalOffYds = awardStat(teamAllStats, "pass_yards") + awardStat(teamAllStats, "rush_yards");
 
     rawStatsPerUser[userId] = {
       all: teamAllStats, passing: teamPassStats, rushing: teamRushStats,
