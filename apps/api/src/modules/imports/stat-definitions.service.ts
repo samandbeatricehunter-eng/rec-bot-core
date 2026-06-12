@@ -70,7 +70,7 @@ function findCanonicalForRawKey(scope: "player" | "team", statCategory: string, 
     statCategory,
     stats: { [rawKey]: 1 }
   });
-  const [canonicalKey] = Object.keys(result.normalizedStats ?? {});
+  const [canonicalKey] = Object.keys(result.canonicalStats ?? {});
   if (!canonicalKey) return null;
   const definition = STAT_DEFINITIONS.find((def) => def.canonicalKey === canonicalKey) ?? null;
   return { canonicalKey, definition };
