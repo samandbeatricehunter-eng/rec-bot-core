@@ -3530,7 +3530,7 @@ export async function settleGotwVotes(guildId: string) {
   if (error) throw error;
   const settled: any[] = [];
   for (const poll of polls ?? []) {
-    const { data: game } = await supabase.from("rec_game_results").select("*").eq("league_id", poll.league_id).eq("season_number", poll.season_number).eq("week_number", poll.week_number).or(`external_game_id.eq.${poll.game_id},id.eq.${poll.game_id}`).maybeSingle();
+    const { data: game } = await supabase.from("rec_game_results").select("*").eq("league_id", poll.league_id).eq("season_number", poll.season_number).eq("week_number", poll.week_number).eq("home_team_id", poll.home_team_id).eq("away_team_id", poll.away_team_id).maybeSingle();
     const winningTeamId = game?.winning_team_id ?? (asNumber(game?.home_score) > asNumber(game?.away_score) ? game?.home_team_id : asNumber(game?.away_score) > asNumber(game?.home_score) ? game?.away_team_id : null);
     if (!winningTeamId) continue;
     const { data: votes } = await supabase.from("rec_game_of_week_votes").select("*").eq("poll_id", poll.id);
