@@ -600,6 +600,35 @@ async function upsertPlayers(importJobId: string, leagueId: string, _teamMap: Ma
   return count;
 }
 
+
+async function refreshRosterSnapshots(
+  importJobId: string,
+  leagueId: string,
+  seasonNumber: number,
+  weekNumber: number | null
+) {
+  const result = await supabase.rpc("rec_refresh_roster_snapshots", {
+    p_league_id: leagueId,
+    p_season_number: seasonNumber,
+    p_week_number: weekNumber,
+    p_import_job_id: importJobId
+  });
+
+  if (result.error) {
+    throw new ApiError(500, "Failed to refresh roster snapshots.", result.error);
+  }
+
+  const row = Array.isArray(result.data) ? result.data[0] : result.data;
+
+  return {
+    sourceRows: Number(row?.source_rows ?? 0),
+    insertedRows: Number(row?.inserted_rows ?? 0),
+    updatedRows: Number(row?.updated_rows ?? 0),
+    deactivatedRows: Number(row?.deactivated_rows ?? 0),
+    activeSnapshotRows: Number(row?.active_snapshot_rows ?? 0)
+  };
+}
+
 async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number) {
   const [playerStats, teamStats] = await Promise.all([
     loadStagedRows("rec_import_staging_player_stats", importJobId),
@@ -745,6 +774,11 @@ export async function commitApprovedImport(importJobId: string) {
   // Players must commit before weekly stats so the stats' player_id FK lookup can resolve.
   const weekNumber = Number((details.job as any).week_number ?? 1) || 1;
   const players = await safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap, seasonNumber, weekNumber), 0);
+  const rosterSnapshots = await safe(
+    "roster_snapshots",
+    () => refreshRosterSnapshots(importJobId, leagueId, seasonNumber, weekNumber),
+    { sourceRows: 0, insertedRows: 0, updatedRows: 0, deactivatedRows: 0, activeSnapshotRows: 0 }
+  );
   const stats = await safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0, unmappedStatKeys: [] as Array<{ key: string; count: number }> });
 
   // Warn (non-fatally) when imported stat keys did not map to a canonical REC stat, so the
@@ -773,6 +807,7 @@ export async function commitApprovedImport(importJobId: string) {
     gamesSkipped: gameCommit.gamesSkipped,
     standings,
     players,
+    rosterSnapshots,
     playerWeeklyStats: stats.playerCount,
     teamWeeklyStats: stats.teamCount,
     unmappedStatKeys: stats.unmappedStatKeys ?? [],

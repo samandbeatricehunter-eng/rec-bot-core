@@ -101,7 +101,7 @@ async function getActiveCoaches(leagueId: string) {
       ? supabase.from("rec_discord_accounts").select("user_id,discord_id,global_name,username").in("user_id", userIds)
       : Promise.resolve({ data: [], error: null }),
     teamIds.length
-      ? supabase.from("rec_teams").select("id,name,abbreviation,ovr_rating").in("id", teamIds)
+      ? supabase.from("rec_teams").select("id,name,abbreviation").in("id", teamIds)
       : Promise.resolve({ data: [], error: null })
   ]);
 
@@ -130,7 +130,7 @@ async function getActiveCoaches(leagueId: string) {
       userId: a.userId,
       teamId: a.teamId,
       teamName: team?.name ?? team?.abbreviation ?? "Unknown",
-      teamOvr: asNum(team?.ovr_rating),
+      teamOvr: 0,
       discordId: discord?.discordId || null,
       displayName: discord?.displayName ?? team?.name ?? team?.abbreviation ?? "Coach"
     };
@@ -1105,31 +1105,22 @@ export async function generateAwardNominees(guildId: string) {
     getOLTeamRatings(leagueId)
   ]);
 
-  const [upsetWins, sosMap, streamCounts, challengeCounts, badgeCounts, playerAwardCandidates] = await Promise.all([
+  const [upsetWins, sosMap, streamCounts, challengeCounts, badgeCounts] = await Promise.all([
     getUpsetWins(leagueId, seasonNumber, new Map<string, { wins: number; games: number }>(coaches.map((c: CoachAssignment) => [c.userId, { wins: seasonRecords.get(c.userId)?.wins ?? 0, games: seasonRecords.get(c.userId)?.games ?? 0 }]))),
     getStrengthOfSchedule(leagueId, seasonNumber, new Map<string, { wins: number; games: number }>(coaches.map((c: CoachAssignment) => [c.userId, { wins: seasonRecords.get(c.userId)?.wins ?? 0, games: seasonRecords.get(c.userId)?.games ?? 0 }]))),
     getStreamCounts(leagueId, seasonNumber, userIds),
     getChallengeCounts(leagueId, seasonNumber, userIds),
-    getBadgeCounts(leagueId, userIds),
-    getPlayerAwardCandidates(leagueId, seasonNumber, teamByTeamId, seasonRecords)
+    getBadgeCounts(leagueId, userIds)
   ]);
 
-  const playerAwardData = buildPlayerAwardScoreMaps(playerAwardCandidates);
+  const playerAwardCandidates: PlayerAwardCandidate[] = [];
+  const playerAwardData = {
+    rawScores: {} as Record<string, Map<string, number>>,
+    detailsByAward: new Map<string, Map<string, PlayerAwardDetail>>()
+  };
 
-  // Pre-fetch best individual Madden player per team for every position-based award.
-  // This powers "PlayerName · TeamName" display labels in voting embeds.
-  const positionAwardKeys = Object.keys(POSITION_AWARD_PLAYER_CONFIG);
-  const positionPlayerMaps = await Promise.all(
-    positionAwardKeys.map((key) =>
-      getTopPlayerPerTeam(
-        leagueId, seasonNumber,
-        POSITION_AWARD_PLAYER_CONFIG[key],
-        COMPOSITE_EXTRA_CATEGORIES[key] ?? []
-      )
-    )
-  );
-  // playersByAward: awardKey → (teamId → { playerName, position })
-  const playersByAward = new Map(positionAwardKeys.map((key, i) => [key, positionPlayerMaps[i]]));
+  // Player award candidates now come from rec_award_candidate_scores RPC only.
+  const playersByAward = new Map<string, Map<string, any>>();
 
   // Build score maps per award key
   const rawScores: Record<string, Map<string, number>> = {};
