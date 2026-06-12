@@ -181,14 +181,19 @@ function slug(input: string) {
   return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 90) || "game";
 }
 
-async function getLeagueContext(guildId: string) {
+// Resolves a guild to its linked league, or null if the guild has not finished
+// setup (not registered, not linked, or the linked league row is missing). Read
+// paths that poll every guild the bot is in should use this and degrade to an
+// empty result; getLeagueContext wraps it and throws for write paths that
+// require a fully-configured guild. Only real DB errors throw here.
+async function findLeagueContext(guildId: string) {
   const serverResult = await supabase
     .from("rec_discord_servers")
     .select("id,name,guild_id")
     .eq("guild_id", guildId)
     .maybeSingle();
   if (serverResult.error) throw serverResult.error;
-  if (!serverResult.data) throw new Error("No REC Discord server record found for this guild.");
+  if (!serverResult.data) return null;
 
   const linkResult = await supabase
     .from("rec_server_league_links")
@@ -197,7 +202,7 @@ async function getLeagueContext(guildId: string) {
     .limit(1)
     .maybeSingle();
   if (linkResult.error) throw linkResult.error;
-  if (!linkResult.data?.league_id) throw new Error("No league linked to this Discord server.");
+  if (!linkResult.data?.league_id) return null;
 
   const leagueResult = await supabase
     .from("rec_leagues")
@@ -205,7 +210,7 @@ async function getLeagueContext(guildId: string) {
     .eq("id", linkResult.data.league_id)
     .maybeSingle();
   if (leagueResult.error) throw leagueResult.error;
-  if (!leagueResult.data) throw new Error("Linked REC league was not found.");
+  if (!leagueResult.data) return null;
 
   return {
     server_id: serverResult.data.id,
@@ -213,6 +218,12 @@ async function getLeagueContext(guildId: string) {
     rec_discord_servers: serverResult.data,
     rec_leagues: leagueResult.data
   } as any;
+}
+
+async function getLeagueContext(guildId: string) {
+  const context = await findLeagueContext(guildId);
+  if (!context) throw new Error("No REC league is set up for this Discord server.");
+  return context;
 }
 
 async function getRoutes(serverId: string) {
@@ -3414,7 +3425,11 @@ export async function closeActiveCheck(input: { eventId: string }) {
 }
 
 export async function getOpenActiveChecks(guildId: string) {
-  const context = await getLeagueContext(guildId);
+  // The closeout loop polls every guild the bot is in, including ones that
+  // never finished setup. Those have no league context — return empty rather
+  // than 500 on every tick.
+  const context = await findLeagueContext(guildId);
+  if (!context) return { events: [] };
   const { data, error } = await supabase.from("rec_active_check_events").select("*").eq("league_id", context.league_id).eq("status", "open");
   if (error) throw error;
   return { events: data ?? [] };
