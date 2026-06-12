@@ -560,7 +560,10 @@ async function upsertPlayers(importJobId: string, leagueId: string, _teamMap: Ma
     const lastName = toNullableText(row.last_name ?? raw.lastName);
     const fullName = toNullableText(row.player_name ?? row.player_display_name) ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
     const devTrait = toNullableText(raw.devTrait ?? raw.devtrait ?? raw.developmentTrait);
-    const overallRating = toNullableInt(raw.overallRating ?? raw.overall);
+    const overallRating = toNullableInt(raw.overallRating ?? raw.overall ?? raw.playerBestOvr ?? raw.playerSchemeOvr ?? raw.ovrRating);
+    const abilityCount = Array.isArray(raw.signatureSlotList)
+      ? raw.signatureSlotList.filter((s: any) => s && s.isEmpty === false).length
+      : null;
     return {
       league_id: leagueId,
       madden_player_id: maddenPlayerId,
@@ -573,6 +576,18 @@ async function upsertPlayers(importJobId: string, leagueId: string, _teamMap: Ma
       weight_lbs: toNullableInt(raw.weight),
       dev_trait: devTrait,
       overall_rating: overallRating,
+      // Promoted typed fields (also backfilled from raw_payload via migration 202606120003)
+      scheme: toNullableInt(raw.scheme),
+      years_pro: toNullableInt(raw.yearsPro),
+      resign_status: toNullableInt(raw.reSignStatus),
+      contract_years_left: toNullableInt(raw.contractYearsLeft),
+      contract_salary: toNullableInt(raw.contractSalary),
+      cap_hit: toNullableInt(raw.capHit),
+      cap_release_penalty: toNullableInt(raw.capReleasePenalty),
+      cap_release_net_savings: toNullableInt(raw.capReleaseNetSavings),
+      is_free_agent: typeof raw.isFreeAgent === "boolean" ? raw.isFreeAgent : null,
+      is_xfactor: devTrait != null ? Number(devTrait) === 3 : null,
+      ability_count: abilityCount,
       raw_payload: row.raw_payload ?? null,
       updated_at: now
     };
