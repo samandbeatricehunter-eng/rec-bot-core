@@ -50,7 +50,7 @@ import { ACTIVE_CHECK_CUSTOM_IDS, buildActiveCheckAnnouncement } from "./ui/acti
 import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
-import { postEosPollsAndAwards } from "./flows/advance-wizard.js";
+import { buildRecAwardVotingEmbed, postEosPollsAndAwards } from "./flows/advance-wizard.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 client.setMaxListeners(50);
@@ -1838,6 +1838,9 @@ async function handleRecAwardVote(interaction: Extract<Interaction, { isStringSe
     const result = await recApi.castAwardVote({ guildId, voterDiscordId: interaction.user.id, awardId, nomineeUserId });
     if (result.recorded) {
       await interaction.editReply({ content: `Your vote for **${result.awardName ?? "this award"}** has been recorded!` });
+      if (result.award) {
+        await interaction.message.edit({ embeds: [buildRecAwardVotingEmbed(result.award)] }).catch((err) => console.warn("Failed to refresh REC award voting embed", err));
+      }
     } else {
       await interaction.editReply({ content: result.reason ?? "Could not record your vote." });
     }

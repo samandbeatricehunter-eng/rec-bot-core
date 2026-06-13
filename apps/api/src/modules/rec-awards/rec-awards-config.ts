@@ -33,7 +33,7 @@ export const AWARD_DEFINITIONS: AwardDefinition[] = [
   { key: "best_streamer", name: "Best Streamer", category: "league", requiresVoting: true, nomineeCount: 5, payoutAmount: 100, description: "Most streams logged. Top 5 nominees. Stream count is primary factor (75%)." },
   { key: "challenge_king", name: "Challenge King", category: "league", requiresVoting: false, nomineeCount: 10, payoutAmount: 100, description: "Most completed weekly challenges. Auto-awarded." },
   { key: "badge_collector", name: "Badge Collector", category: "league", requiresVoting: false, nomineeCount: 10, payoutAmount: 100, description: "Most badges earned during the regular season. Auto-awarded." },
-  { key: "best_roster", name: "Best Roster Construction", category: "league", requiresVoting: false, nomineeCount: 10, payoutAmount: 100, description: "Highest cumulative roster OVR. Auto-awarded." }
+  { key: "best_roster", name: "Best GM / Dynasty Builder", category: "league", requiresVoting: false, nomineeCount: 10, payoutAmount: 100, description: "Best roster-building performance based on offensive/defensive roster balance, team record, advanced strength of schedule, and overperformance relative to team OVR. Auto-awarded." }
 ];
 
 export const AWARD_KEYS = AWARD_DEFINITIONS.map((a) => a.key);

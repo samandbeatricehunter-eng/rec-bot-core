@@ -137,6 +137,55 @@ async function getActiveCoaches(leagueId: string) {
   });
 }
 
+
+const OFFENSE_ROSTER_POSITIONS = new Set(["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT"]);
+const DEFENSE_ROSTER_POSITIONS = new Set(["DT", "LE", "RE", "REDGE", "LEDGE", "MLB", "LOLB", "ROLB", "MIKE", "WILL", "SAM", "CB", "FS", "SS"]);
+
+type TeamRosterStrength = { offenseOvr: number; defenseOvr: number; balancedOvr: number; balancePenalty: number; playerCount: number };
+
+async function getTeamRosterStrengths(leagueId: string): Promise<Map<string, TeamRosterStrength>> {
+  const [teamsResult, playersResult] = await Promise.all([
+    supabase.from("rec_teams").select("id,madden_team_id").eq("league_id", leagueId),
+    supabase.from("rec_players").select("position,overall_rating,raw_payload").eq("league_id", leagueId)
+  ]);
+
+  const teamByMaddenId = new Map<string, string>();
+  for (const t of teamsResult.data ?? []) {
+    if ((t as any).madden_team_id) teamByMaddenId.set(String((t as any).madden_team_id), String((t as any).id));
+  }
+
+  const buckets = new Map<string, { offTotal: number; offCount: number; defTotal: number; defCount: number }>();
+  for (const p of playersResult.data ?? []) {
+    const raw = ((p as any).raw_payload ?? {}) as Record<string, unknown>;
+    const maddenTeamId = String(raw.teamId ?? raw.team_id ?? "0");
+    if (!maddenTeamId || maddenTeamId === "0") continue;
+    const teamId = teamByMaddenId.get(maddenTeamId);
+    if (!teamId) continue;
+    const position = String((p as any).position ?? raw.position ?? "").toUpperCase();
+    const ovr = asNum((p as any).overall_rating ?? raw.playerBestOvr ?? raw.playerSchemeOvr ?? raw.overallRating ?? raw.overall ?? 0);
+    if (!ovr) continue;
+    const bucket = buckets.get(teamId) ?? { offTotal: 0, offCount: 0, defTotal: 0, defCount: 0 };
+    if (OFFENSE_ROSTER_POSITIONS.has(position)) { bucket.offTotal += ovr; bucket.offCount += 1; }
+    if (DEFENSE_ROSTER_POSITIONS.has(position)) { bucket.defTotal += ovr; bucket.defCount += 1; }
+    buckets.set(teamId, bucket);
+  }
+
+  const out = new Map<string, TeamRosterStrength>();
+  for (const [teamId, b] of buckets) {
+    const offenseOvr = b.offCount > 0 ? b.offTotal / b.offCount : 0;
+    const defenseOvr = b.defCount > 0 ? b.defTotal / b.defCount : 0;
+    const balancedOvr = offenseOvr && defenseOvr ? (offenseOvr + defenseOvr) / 2 : Math.max(offenseOvr, defenseOvr);
+    const balancePenalty = offenseOvr && defenseOvr ? Math.min(Math.abs(offenseOvr - defenseOvr) * 0.45, 10) : 10;
+    out.set(teamId, { offenseOvr, defenseOvr, balancedOvr, balancePenalty, playerCount: b.offCount + b.defCount });
+  }
+  return out;
+}
+
+function normalizeRange(value: number, min: number, max: number): number {
+  if (max <= min) return 50;
+  return clamp(((value - min) / (max - min)) * 100);
+}
+
 // Average OL (LT/LG/C/RG/RT) overall rating per team, for Best OL team award
 async function getOLTeamRatings(leagueId: string): Promise<Map<string, number>> {
   const OL_POSITIONS = ["LT", "LG", "C", "RG", "RT"];
@@ -302,38 +351,100 @@ async function getUpsetWins(leagueId: string, seasonNumber: number, records: Map
   return upsets;
 }
 
-// Strength of schedule: average opponent win% for a given user
-async function getStrengthOfSchedule(leagueId: string, seasonNumber: number, records: Map<string, { wins: number; games: number }>): Promise<Map<string, number>> {
+// Advanced strength of schedule for roster-building awards. Blends opponent record, roster strength, matchup OVR difficulty, point differential, and streak context.
+async function getAdvancedStrengthOfSchedule(
+  leagueId: string,
+  seasonNumber: number,
+  records: Map<string, { wins: number; losses?: number; ties?: number; pd?: number; games: number }>,
+  rosterStrengths: Map<string, TeamRosterStrength>,
+  coachByTeamId: Map<string, CoachAssignment>
+): Promise<Map<string, number>> {
   const { data: games } = await supabase
     .from("rec_game_results")
-    .select("home_user_id,away_user_id")
+    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,created_at,week_number")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .eq("is_playoff", false)
     .not("home_user_id", "is", null)
     .not("away_user_id", "is", null);
 
-  const opponentPctSums = new Map<string, { sum: number; count: number }>();
-  for (const g of games ?? []) {
-    const homeId = String(g.home_user_id ?? "");
-    const awayId = String(g.away_user_id ?? "");
-    if (!homeId || !awayId) continue;
+  const strengths = [...rosterStrengths.values()];
+  const leagueAvgOffense = strengths.reduce((sum, s) => sum + s.offenseOvr, 0) / Math.max(strengths.length, 1);
+  const leagueAvgDefense = strengths.reduce((sum, s) => sum + s.defenseOvr, 0) / Math.max(strengths.length, 1);
+  const allPd = [...records.values()].map((r) => asNum((r as any).pd));
+  const minPd = Math.min(...allPd, 0);
+  const maxPd = Math.max(...allPd, 0);
 
-    for (const [uid, oppId] of [[homeId, awayId], [awayId, homeId]]) {
-      const oppRec = records.get(oppId);
-      const oppWinPct = oppRec && oppRec.games > 0 ? oppRec.wins / oppRec.games : 0;
-      const entry = opponentPctSums.get(uid) ?? { sum: 0, count: 0 };
-      entry.sum += oppWinPct;
-      entry.count++;
-      opponentPctSums.set(uid, entry);
+  const ordered = [...(games ?? [])].sort((a: any, b: any) => {
+    const aw = asNum(a.week_number);
+    const bw = asNum(b.week_number);
+    if (aw !== bw) return aw - bw;
+    return String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
+  });
+
+  const streakByUser = new Map<string, number>();
+  const streakAtGame = new Map<string, number>();
+  for (const g of ordered as any[]) {
+    const homeUser = String(g.home_user_id ?? "");
+    const awayUser = String(g.away_user_id ?? "");
+    if (!homeUser || !awayUser) continue;
+    streakAtGame.set(`${homeUser}:${g.home_team_id}:${g.away_team_id}:${g.home_score}:${g.away_score}`, streakByUser.get(homeUser) ?? 0);
+    streakAtGame.set(`${awayUser}:${g.away_team_id}:${g.home_team_id}:${g.away_score}:${g.home_score}`, streakByUser.get(awayUser) ?? 0);
+    const homeScore = asNum(g.home_score);
+    const awayScore = asNum(g.away_score);
+    if (homeScore === awayScore) { streakByUser.set(homeUser, 0); streakByUser.set(awayUser, 0); continue; }
+    const homeWon = homeScore > awayScore;
+    for (const [uid, won] of [[homeUser, homeWon], [awayUser, !homeWon]] as const) {
+      const prev = streakByUser.get(uid) ?? 0;
+      streakByUser.set(uid, won ? Math.max(prev, 0) + 1 : Math.min(prev, 0) - 1);
     }
   }
 
-  const sos = new Map<string, number>();
-  for (const [uid, { sum, count }] of opponentPctSums) {
-    sos.set(uid, count > 0 ? sum / count : 0);
+  const totals = new Map<string, { sum: number; count: number }>();
+  for (const g of games ?? [] as any[]) {
+    const pairs = [
+      { userId: String(g.home_user_id ?? ""), teamId: String(g.home_team_id ?? ""), oppUserId: String(g.away_user_id ?? ""), oppTeamId: String(g.away_team_id ?? ""), userScore: asNum(g.home_score), oppScore: asNum(g.away_score) },
+      { userId: String(g.away_user_id ?? ""), teamId: String(g.away_team_id ?? ""), oppUserId: String(g.home_user_id ?? ""), oppTeamId: String(g.home_team_id ?? ""), userScore: asNum(g.away_score), oppScore: asNum(g.home_score) }
+    ];
+    for (const p of pairs) {
+      if (!p.userId || !p.oppUserId) continue;
+      const userStrength = rosterStrengths.get(p.teamId) ?? rosterStrengths.get(coachByTeamId.get(p.teamId)?.teamId ?? "");
+      const oppStrength = rosterStrengths.get(p.oppTeamId) ?? rosterStrengths.get(coachByTeamId.get(p.oppTeamId)?.teamId ?? "");
+      const oppRecord = records.get(p.oppUserId);
+      if (!oppRecord) continue;
+      const oppWinPct = oppRecord.games > 0 ? oppRecord.wins / oppRecord.games : 0;
+      const winPctScore = oppWinPct * 100;
+      const oppOffLeague = clamp(50 + ((oppStrength?.offenseOvr ?? leagueAvgOffense) - leagueAvgOffense) * 2.5);
+      const oppDefLeague = clamp(50 + ((oppStrength?.defenseOvr ?? leagueAvgDefense) - leagueAvgDefense) * 2.5);
+      const offVsUserDef = clamp(50 + (((oppStrength?.offenseOvr ?? leagueAvgOffense) - (userStrength?.defenseOvr ?? leagueAvgDefense)) * 2.5));
+      const defVsUserOff = clamp(50 + (((oppStrength?.defenseOvr ?? leagueAvgDefense) - (userStrength?.offenseOvr ?? leagueAvgOffense)) * 2.5));
+      const pdScore = normalizeRange(asNum((oppRecord as any).pd), minPd, maxPd);
+      const streakBefore = streakAtGame.get(`${p.oppUserId}:${p.oppTeamId}:${p.teamId}:${p.oppScore}:${p.userScore}`) ?? 0;
+      const streakScore = clamp(50 + streakBefore * 7.5, 20, 80);
+      const difficulty = winPctScore * 0.30 + oppOffLeague * 0.15 + offVsUserDef * 0.15 + oppDefLeague * 0.15 + defVsUserOff * 0.15 + pdScore * 0.07 + streakScore * 0.03;
+      const entry = totals.get(p.userId) ?? { sum: 0, count: 0 };
+      entry.sum += difficulty;
+      entry.count += 1;
+      totals.set(p.userId, entry);
+    }
   }
-  return sos;
+
+  const out = new Map<string, number>();
+  for (const [uid, v] of totals) out.set(uid, v.count > 0 ? v.sum / v.count / 100 : 0);
+  return out;
+}
+
+function scoreBestGmDynastyBuilder(record: { wins: number; losses: number; ties: number; pd: number; games: number }, roster: TeamRosterStrength | undefined, advancedSos: number): number {
+  if (!record.games || !roster || roster.playerCount < 20) return 0;
+  const winPct = (record.wins + record.ties * 0.5) / Math.max(record.games, 1);
+  const balanced = roster.balancedOvr || 75;
+  const expectedWinPct = clamp((balanced - 66) / 28, 0.12, 0.88);
+  const overPerformance = clamp(50 + (winPct - expectedWinPct) * 150);
+  const recordScore = winPct * 100;
+  const sosScore = clamp(advancedSos * 100);
+  const rosterBalanceScore = clamp(100 - roster.balancePenalty * 4);
+  const pdScore = clamp(50 + (record.pd / Math.max(record.games, 1)) * 2.5);
+  return clamp(overPerformance * 0.34 + recordScore * 0.26 + sosScore * 0.20 + rosterBalanceScore * 0.10 + pdScore * 0.10);
 }
 
 // Get stream counts per user
@@ -1093,7 +1204,7 @@ export async function generateAwardNominees(guildId: string) {
   const teamByUser = new Map<string, CoachAssignment>(coaches.map((c: CoachAssignment) => [c.userId, c]));
   const teamByTeamId = new Map<string, CoachAssignment>(coaches.map((c: CoachAssignment) => [c.teamId, c]));
 
-  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords, olTeamRatings] = await Promise.all([
+  const [allTeamStats, passingStats, rushingStats, receivingStats, defStats, kickingStats, seasonRecords, priorSeasonRecords, olTeamRatings, teamRosterStrengths] = await Promise.all([
     getTeamSeasonStats(leagueId, seasonNumber),
     getTeamStatsByCategory(leagueId, seasonNumber, "passing"),
     getTeamStatsByCategory(leagueId, seasonNumber, "rushing"),
@@ -1102,24 +1213,22 @@ export async function generateAwardNominees(guildId: string) {
     getTeamStatsByCategory(leagueId, seasonNumber, "kicking"),
     getSeasonRecords(leagueId, seasonNumber),
     getPriorSeasonRecords(leagueId, seasonNumber),
-    getOLTeamRatings(leagueId)
+    getOLTeamRatings(leagueId),
+    getTeamRosterStrengths(leagueId)
   ]);
 
-  const [upsetWins, sosMap, streamCounts, challengeCounts, badgeCounts] = await Promise.all([
-    getUpsetWins(leagueId, seasonNumber, new Map<string, { wins: number; games: number }>(coaches.map((c: CoachAssignment) => [c.userId, { wins: seasonRecords.get(c.userId)?.wins ?? 0, games: seasonRecords.get(c.userId)?.games ?? 0 }]))),
-    getStrengthOfSchedule(leagueId, seasonNumber, new Map<string, { wins: number; games: number }>(coaches.map((c: CoachAssignment) => [c.userId, { wins: seasonRecords.get(c.userId)?.wins ?? 0, games: seasonRecords.get(c.userId)?.games ?? 0 }]))),
+  const basicRecordMap = new Map<string, { wins: number; games: number }>(coaches.map((c: CoachAssignment) => [c.userId, { wins: seasonRecords.get(c.userId)?.wins ?? 0, games: seasonRecords.get(c.userId)?.games ?? 0 }]));
+  const upsetWins = await getUpsetWins(leagueId, seasonNumber, basicRecordMap);
+  const sosMap = await getAdvancedStrengthOfSchedule(leagueId, seasonNumber, seasonRecords, teamRosterStrengths, teamByTeamId);
+  const [streamCounts, challengeCounts, badgeCounts] = await Promise.all([
     getStreamCounts(leagueId, seasonNumber, userIds),
     getChallengeCounts(leagueId, seasonNumber, userIds),
     getBadgeCounts(leagueId, userIds)
   ]);
 
-  const playerAwardCandidates: PlayerAwardCandidate[] = [];
-  const playerAwardData = {
-    rawScores: {} as Record<string, Map<string, number>>,
-    detailsByAward: new Map<string, Map<string, PlayerAwardDetail>>()
-  };
+  const playerAwardCandidates: PlayerAwardCandidate[] = await getPlayerAwardCandidates(leagueId, seasonNumber, teamByTeamId, seasonRecords);
+  const playerAwardData = buildPlayerAwardScoreMaps(playerAwardCandidates);
 
-  // Player award candidates now come from rec_award_candidate_scores RPC only.
   const playersByAward = new Map<string, Map<string, any>>();
 
   // Build score maps per award key
@@ -1256,8 +1365,8 @@ export async function generateAwardNominees(guildId: string) {
     if (!rawScores.badge_collector) rawScores.badge_collector = new Map();
     if (badgeScore > 0) rawScores.badge_collector.set(userId, badgeScore);
 
-    // Best Roster Construction
-    const rosterScore = coach.teamOvr;
+    // Best GM / Dynasty Builder
+    const rosterScore = scoreBestGmDynastyBuilder(rec, teamRosterStrengths.get(teamId), sosMap.get(userId) ?? 0);
     if (!rawScores.best_roster) rawScores.best_roster = new Map();
     if (rosterScore > 0) rawScores.best_roster.set(userId, rosterScore);
   }
@@ -1275,9 +1384,8 @@ export async function generateAwardNominees(guildId: string) {
     let scoreMap = rawScores[def.key];
     let nomineeCap = def.nomineeCount;
     if (!scoreMap?.size) {
-      if (def.requiresVoting && allCoachUserIds.length > 0) {
-        // Voting award with no stat basis (e.g. Best Streamer with no logged streams) — still launch
-        // the poll by nominating all active coaches so the league can vote.
+      if (def.key === "commissioners_award" && allCoachUserIds.length > 0) {
+        // Community/manual award: all linked coaches are eligible even without stat scores.
         scoreMap = new Map<string, number>(allCoachUserIds.map((uid) => [uid, 0]));
         nomineeCap = Math.min(allCoachUserIds.length, 25);
       } else {
@@ -1342,6 +1450,9 @@ export async function generateAwardNominees(guildId: string) {
           award_id: award.id,
           user_id: nominee.userId,
           team_name: coach.teamName,
+          team_id: coach.teamId,
+          player_id: playerDetail?.playerId ?? null,
+          nominee_type: playerDetail?.playerId ? "player" : "team",
           performance_score: performanceScore,
           vote_count: 0,
           final_score: performanceScore,
@@ -1445,6 +1556,21 @@ export async function generateAwardNominees(guildId: string) {
   };
 }
 
+
+export async function updateAwardVotingMessage(input: { guildId: string; awardId: string; channelId: string; messageId: string }) {
+  const { leagueId, league } = await getLeagueContext(input.guildId);
+  const seasonNumber = asNum(league.season_number ?? league.display_season_number ?? 1);
+  const { data, error } = await supabase
+    .from("rec_awards")
+    .update({ voting_channel_id: input.channelId, voting_message_id: input.messageId, updated_at: nowIso() })
+    .eq("id", input.awardId)
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .select("id")
+    .maybeSingle();
+  if (error) return { updated: false, reason: error.message };
+  return { updated: Boolean(data?.id) };
+}
 
 export async function getAwardVotingSummary(input: { guildId: string; awardId: string }) {
   const { leagueId, league } = await getLeagueContext(input.guildId);
