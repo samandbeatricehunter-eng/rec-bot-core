@@ -108,6 +108,9 @@ export const recApi = {
     guildId: string;
     replacementTeamAbbreviation: string;
     customTeamName: string;
+    customDisplayCity?: string;
+    customDisplayNick?: string;
+    customDisplayAbbr?: string;
     requestedByDiscordId?: string;
   }) =>
     recFetch<any>(REC_API_ROUTES.createCustomTeamReplacement, {

@@ -58,30 +58,58 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
   const replaced = getTeamByAbbreviation(input.replacementTeamAbbreviation);
   if (!replaced) throw new ApiError(400, "Replacement NFL team abbreviation was not recognized.");
 
-  const result = await supabase
+  // Find the existing rec_teams row for this NFL slot (by original abbreviation)
+  const existing = await supabase
     .from("rec_teams")
-    .upsert(
-      {
+    .select("id")
+    .eq("league_id", league.id)
+    .eq("abbreviation", replaced.abbreviation)
+    .maybeSingle();
+
+  if (existing.error) throw new ApiError(500, "Failed to look up existing team slot.", existing.error);
+
+  const updates = {
+    name: input.customTeamName,
+    display_city: input.customDisplayCity ?? null,
+    display_nick: input.customDisplayNick ?? null,
+    display_abbr: input.customDisplayAbbr ?? null,
+    is_relocated: true,
+    original_abbreviation: replaced.abbreviation,
+    updated_at: new Date().toISOString()
+  };
+
+  let result;
+  if (existing.data) {
+    result = await supabase
+      .from("rec_teams")
+      .update(updates)
+      .eq("id", existing.data.id)
+      .select("*")
+      .single();
+  } else {
+    // Slot not found — create it (shouldn't happen after createDefaultTeams, but safe fallback)
+    result = await supabase
+      .from("rec_teams")
+      .insert({
         league_id: league.id,
-        name: input.customTeamName,
-        abbreviation: `CUSTOM_${replaced.abbreviation}`,
+        abbreviation: replaced.abbreviation,
         conference: replaced.conference,
         division: replaced.division,
-        source: "manual_admin_entry"
-      },
-      { onConflict: "league_id,name" }
-    )
-    .select("*")
-    .single();
+        source: "manual_admin_entry" as any,
+        ...updates
+      })
+      .select("*")
+      .single();
+  }
 
-  if (result.error) throw new ApiError(500, "Failed to create custom team replacement.", result.error);
+  if (result.error) throw new ApiError(500, "Failed to register custom team.", result.error);
 
   await writeAuditLog({
-    action: "team.custom_replacement.created",
+    action: "team.custom_replacement.registered",
     entityType: "rec_teams",
     entityId: result.data.id,
-    newValue: { guildId: input.guildId, leagueId: league.id, customTeamName: input.customTeamName, replacementTeam: replaced },
-    reason: "Custom team replacement created through Team Ownership setup.",
+    newValue: { guildId: input.guildId, leagueId: league.id, customTeamName: input.customTeamName, replacedAbbr: replaced.abbreviation, displayAbbr: input.customDisplayAbbr },
+    reason: "Custom/relocated team registered through Team Ownership setup.",
     source: "manual_admin_entry"
   });
 

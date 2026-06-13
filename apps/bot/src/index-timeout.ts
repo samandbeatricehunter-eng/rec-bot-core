@@ -48,7 +48,7 @@ import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekSetModal, buildLeagueWeekStageRo
 import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } from "./ui/economy-admin.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, buildActiveCheckAnnouncement } from "./ui/active-check.js";
 import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
-import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks } from "./flows/team-linking.js";
+import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import { buildRecAwardVotingEmbed, postEosPollsAndAwards } from "./flows/advance-wizard.js";
 
@@ -275,6 +275,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === REC_BANK_CUSTOM_IDS.fromSavingsModal) return handleSavingsTransferModal(interaction, "from_savings");
       if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEosModal) return handleClearEosModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_WEEK_CUSTOM_IDS.setModal}:`)) return handleLeagueWeekSetModal(interaction);
+      if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`)) return handleCustomTeamModal(interaction);
     }
   } catch (error) {
     await safeInteractionError(interaction, error);

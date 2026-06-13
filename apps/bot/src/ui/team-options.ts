@@ -31,7 +31,11 @@ export const TEAM_LINK_CUSTOM_IDS = {
   userIdInput: "rec:teamlink:user_id_input",
   simpleUserSelect: "rec:teamlink:simple_user_select",
   clearAllLinks: "rec:teamlink:clear_all_links",
-  roleSelect: "rec:teamlink:role_select"
+  roleSelect: "rec:teamlink:role_select",
+  customTeamModal: "rec:teamlink:custom_team_modal",
+  customTeamReplaceInput: "rec:teamlink:custom_team_replace",
+  customTeamNameInput: "rec:teamlink:custom_team_name",
+  customTeamAbbrInput: "rec:teamlink:custom_team_abbr"
 } as const;
 
 export type TeamLinkUserOption = {
@@ -252,7 +256,11 @@ export function buildSimpleTeamSelectPanel(
                 }
 
                 return option;
-              })
+              }),
+            new StringSelectMenuOptionBuilder()
+              .setLabel("Custom / Relocated Team")
+              .setValue("CUSTOM_TEAM")
+              .setDescription(`Register a custom or relocated ${conference} team`)
           )
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -328,6 +336,41 @@ export function buildUserSelectionPanel(
     ],
     components: rows
   };
+}
+
+export function buildCustomTeamModal(conference: "AFC" | "NFC") {
+  const modal = new ModalBuilder()
+    .setCustomId(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:${conference}`)
+    .setTitle(`Register Custom ${conference} Team`);
+
+  const replaceInput = new TextInputBuilder()
+    .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput)
+    .setLabel("Original team abbreviation (slot being replaced)")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setPlaceholder("e.g. NO, BAL, DAL");
+
+  const nameInput = new TextInputBuilder()
+    .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNameInput)
+    .setLabel("New team full name")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setPlaceholder("e.g. San Diego Chargers");
+
+  const abbrInput = new TextInputBuilder()
+    .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput)
+    .setLabel("New team abbreviation")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setMaxLength(8)
+    .setPlaceholder("e.g. SDC");
+
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(replaceInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(abbrInput)
+  );
+  return modal;
 }
 
 export function buildUserIdModal(teamName: string) {

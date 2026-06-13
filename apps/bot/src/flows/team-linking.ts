@@ -1,4 +1,4 @@
-import { ButtonInteraction, EmbedBuilder, Interaction, StringSelectMenuInteraction } from "discord.js";
+import { ButtonInteraction, EmbedBuilder, Interaction, ModalSubmitInteraction, StringSelectMenuInteraction } from "discord.js";
 import type { RecTeamAuthority } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
@@ -29,6 +29,11 @@ export const simpleTeamLinkSessions = new Map<string, {
   teamAbbr: string;
   teamName: string;
   selectedUserId?: string;
+}>();
+
+export const customTeamPendingSessions = new Map<string, {
+  guildId: string;
+  conference: "AFC" | "NFC";
 }>();
 
 type CachedGuildUserList = {
@@ -66,7 +71,7 @@ function makeTeamLinkDraft(): TeamLinkDraft {
 }
 
 
-async function getCachedGuildUsers(interaction: ButtonInteraction | StringSelectMenuInteraction) {
+async function getCachedGuildUsers(interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction) {
   if (!interaction.inCachedGuild()) return [];
 
   const cached = guildUserCache.get(interaction.guildId);
@@ -446,10 +451,19 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ||
     interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
   ) {
-    await interaction.deferUpdate();
-
     const teamAbbr = interaction.values[0];
     const conference = interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ? "AFC" : "NFC";
+
+    // showModal requires an unacknowledged interaction — must branch before deferUpdate
+    if (teamAbbr === "CUSTOM_TEAM") {
+      const { buildCustomTeamModal } = await import("../ui/team-options.js");
+      customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference });
+      await interaction.showModal(buildCustomTeamModal(conference));
+      return;
+    }
+
+    await interaction.deferUpdate();
+
     const teams = conference === "AFC"
       ? (await import("@rec/shared")).AFC_TEAMS
       : (await import("@rec/shared")).NFC_TEAMS;
@@ -731,6 +745,55 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
       components: []
     });
     simpleTeamLinkSessions.delete(interaction.user.id);
+  }
+}
+
+export async function handleCustomTeamModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
+
+  const pending = customTeamPendingSessions.get(interaction.user.id);
+  if (!pending) {
+    await interaction.reply({ content: "Session expired. Please start team linking again.", ephemeral: true });
+    return;
+  }
+
+  const { TEAM_LINK_CUSTOM_IDS, buildUserSelectionPanel } = await import("../ui/team-options.js");
+
+  const replacedAbbr = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput).trim().toUpperCase();
+  const newName = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamNameInput).trim();
+  const newAbbr = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput).trim().toUpperCase();
+
+  await interaction.deferUpdate();
+
+  try {
+    const result = await recApi.createCustomTeamReplacement({
+      guildId: pending.guildId,
+      replacementTeamAbbreviation: replacedAbbr,
+      customTeamName: newName,
+      customDisplayAbbr: newAbbr,
+      requestedByDiscordId: interaction.user.id
+    });
+
+    const teamId = result.customTeam.id;
+    const cachedUsers = await getCachedGuildUsers(interaction);
+    const availableUsers = cachedUsers.map((u) => ({ label: u.label, discordId: u.discordId }));
+
+    simpleTeamLinkSessions.set(interaction.user.id, {
+      guildId: pending.guildId,
+      teamId,
+      teamAbbr: newAbbr,
+      teamName: newName
+    });
+    customTeamPendingSessions.delete(interaction.user.id);
+
+    await interaction.editReply(buildUserSelectionPanel(newName, availableUsers, 0));
+  } catch (error) {
+    console.error("[ERROR] Custom team modal submission failed:", error);
+    customTeamPendingSessions.delete(interaction.user.id);
+    await interaction.editReply({
+      content: `Failed to register custom team: ${error instanceof Error ? error.message : String(error)}`,
+      components: []
+    });
   }
 }
 
