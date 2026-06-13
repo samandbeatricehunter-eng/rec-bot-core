@@ -1591,15 +1591,17 @@ export async function generateAwardNominees(guildId: string) {
       .filter(Boolean) as any[];
 
     if (nomineeRows.length > 0) {
-      console.log(`[AWARDS] Award "${def.key}": upserting ${nomineeRows.length} nominees`);
-      const { error: upsertError } = await supabase.from("rec_award_nominees").upsert(nomineeRows, { onConflict: "award_id,nominee_key", ignoreDuplicates: false });
-      if (upsertError) {
-        console.error(`[AWARDS] Upsert failed for award ${award.id}:`, upsertError);
+      console.log(`[AWARDS] Award "${def.key}": inserting ${nomineeRows.length} nominees`);
+      // We already deleted existing nominees above, so use insert instead of upsert
+      // to avoid PostgREST schema cache issues with recently-added columns
+      const { error: insertError } = await supabase.from("rec_award_nominees").insert(nomineeRows);
+      if (insertError) {
+        console.error(`[AWARDS] Insert failed for award ${award.id}:`, insertError);
       } else {
-        console.log(`[AWARDS] Award "${def.key}" nominees upserted successfully`);
+        console.log(`[AWARDS] Award "${def.key}" nominees inserted successfully`);
       }
     } else {
-      console.log(`[AWARDS] Award "${def.key}": nomineeRows is empty, skipping upsert`);
+      console.log(`[AWARDS] Award "${def.key}": nomineeRows is empty, skipping insert`);
     }
 
     if (!def.requiresVoting) {
