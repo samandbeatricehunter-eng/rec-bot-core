@@ -1996,6 +1996,31 @@ async function handleRecAwardCloseVoting(interaction: Extract<Interaction, { isB
     if (!result.closed) {
       return interaction.editReply({ content: "No awards are currently open for closing." });
     }
+
+    // Auto-approved awards (non-voting: best_h2h_record, challenge_king, badge_collector, best_roster, best_ol)
+    // — no human vote so we announce winners immediately
+    const autoAnnounceCh = result.announcementsChannelId
+      ? await interaction.guild?.channels.fetch(result.announcementsChannelId).catch(() => null) as TextChannel | null
+      : interaction.channel as TextChannel | null;
+    if (result.autoApproved?.length && autoAnnounceCh && "send" in autoAnnounceCh) {
+      for (const award of result.autoApproved) {
+        const winner = award.winner;
+        const mention = winner.discordId ? `<@${winner.discordId}>` : winner.displayLabel;
+        await autoAnnounceCh.send({
+          embeds: [new EmbedBuilder()
+            .setTitle(`${award.awardName} — Winner`)
+            .setDescription([
+              `**Winner:** ${mention}${winner.teamName ? ` (${winner.teamName})` : ""}`,
+              `**Score:** ${Number(winner.finalScore ?? 0).toFixed(1)}`,
+              `**Bonus:** +$${award.payoutAmount ?? 100} REC Cash ${winner.payoutIssued ? "(issued)" : "(pending)"}`
+            ].join("\n"))
+            .setColor(0x2ecc71)
+          ]
+        }).catch(() => undefined);
+      }
+    }
+
+    // Voted awards that still need commissioner approval
     const approvals = await recApi.getPendingAwardApprovals(guildId);
     if (approvals?.awards?.length) {
       const configuredCh = approvals.pendingPayoutsChannelId
@@ -2020,8 +2045,16 @@ async function handleRecAwardCloseVoting(interaction: Extract<Interaction, { isB
         }).catch(() => undefined);
       }
     }
-    const where = approvals?.pendingPayoutsChannelId ? `<#${approvals.pendingPayoutsChannelId}>` : "this channel";
-    await interaction.editReply({ content: `Voting closed for **${result.closed}** award(s). Review and approve winners in ${where}.` });
+
+    const autoCount = result.autoApproved?.length ?? 0;
+    const reviewCount = approvals?.awards?.length ?? 0;
+    const parts: string[] = [`Closed **${result.closed}** award(s).`];
+    if (autoCount) parts.push(`**${autoCount}** auto-awarded${result.announcementsChannelId ? ` and posted to <#${result.announcementsChannelId}>` : ""}.`);
+    if (reviewCount) {
+      const where = approvals?.pendingPayoutsChannelId ? `<#${approvals.pendingPayoutsChannelId}>` : "this channel";
+      parts.push(`**${reviewCount}** voted award(s) need commissioner approval in ${where}.`);
+    }
+    await interaction.editReply({ content: parts.join(" ") });
   } catch (err) {
     await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
   }
