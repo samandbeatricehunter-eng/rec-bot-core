@@ -1583,7 +1583,10 @@ export async function generateAwardNominees(guildId: string) {
       .filter(Boolean) as any[];
 
     if (nomineeRows.length > 0) {
-      await supabase.from("rec_award_nominees").upsert(nomineeRows, { onConflict: "award_id,nominee_key", ignoreDuplicates: false });
+      const { error: upsertError } = await supabase.from("rec_award_nominees").upsert(nomineeRows, { onConflict: "award_id,nominee_key", ignoreDuplicates: false });
+      if (upsertError) {
+        console.error(`[AWARDS] Upsert failed for award ${award.id}:`, upsertError);
+      }
     }
 
     if (!def.requiresVoting) {
@@ -1613,8 +1616,10 @@ export async function generateAwardNominees(guildId: string) {
       if (isPlayerAward && !playerDetail) continue;
       const performanceScore = Math.round((normalizedScores.get(nominee.nomineeKey) ?? 0) * 100) / 100;
       const displayLabel = playerDetail?.displayLabel ?? `${coach.teamName} (${coach.displayName})`;
+      // Prefer row.id if available, otherwise use user_id as fallback for vote resolution
+      const nomineeId = row?.id ? String(row.id) : undefined;
       nomineeOptions.push({
-        nomineeId: row?.id ? String(row.id) : undefined,
+        nomineeId,
         userId,
         nomineeKey: nominee.nomineeKey,
         discordId: coach.discordId,
@@ -1811,6 +1816,9 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
   let nominee: any = null;
   const debugInfo = { awardId: input.awardId, nomineeIdentifier, resolved: null as string | null };
   
+  // Get all nominees for this award to help with debugging
+  const { data: allNomineesForAward } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId);
+  
   // try by id
   if (nomineeIdentifier) {
     const { data: byId } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("id", nomineeIdentifier).maybeSingle();
@@ -1825,8 +1833,9 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
     if (byUser?.id) { nominee = byUser; debugInfo.resolved = "user_id"; }
   }
   if (!nominee?.user_id) {
-    console.error("[AWARDS] Nominee resolution failed:", JSON.stringify(debugInfo));
-    return { recorded: false, reason: `Nominee not found (attempted: ${nomineeIdentifier})` };
+    debugInfo.resolved = "FAILED";
+    console.error("[AWARDS] Nominee resolution failed:", JSON.stringify({...debugInfo, availableNomineeCount: allNomineesForAward?.length ?? 0}));
+    return { recorded: false, reason: `Nominee not found. Checked ${allNomineesForAward?.length ?? 0} nominees in this award.` };
   }
 
   // Check no self-voting
