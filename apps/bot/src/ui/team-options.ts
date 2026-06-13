@@ -34,7 +34,6 @@ export const TEAM_LINK_CUSTOM_IDS = {
   roleSelect: "rec:teamlink:role_select",
   customTeamModal: "rec:teamlink:custom_team_modal",
   customTeamReplaceInput: "rec:teamlink:custom_team_replace",
-  customTeamNameInput: "rec:teamlink:custom_team_name",
   customTeamCityInput: "rec:teamlink:custom_team_city",
   customTeamNickInput: "rec:teamlink:custom_team_nick",
   customTeamAbbrInput: "rec:teamlink:custom_team_abbr"
