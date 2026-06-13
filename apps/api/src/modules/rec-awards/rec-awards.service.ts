@@ -1573,7 +1573,6 @@ export async function generateAwardNominees(guildId: string) {
         const displayLabel = playerDetail?.displayLabel ?? `${coach.teamName} (${coach.displayName})`;
         return {
           award_id: award.id,
-          nominee_key: nominee.nomineeKey,
           user_id: userId,
           team_name: coach.teamName,
           performance_score: performanceScore,
@@ -1616,16 +1615,16 @@ export async function generateAwardNominees(guildId: string) {
 
     // Fetch nominees with discord IDs for bot embed building using the same DB label.
     const nomineeOptions: Array<{ nomineeId?: string; userId: string; nomineeKey: string; discordId: string | null; displayLabel: string; performanceScore: number; statLine?: string; voteCount: number; liveScore: number }> = [];
-    const { data: nomineesFromDb, error: fetchError } = await supabase.from("rec_award_nominees").select("id,nominee_key,user_id,team_name,display_label,final_score,vote_count,player_name,raw_stats").eq("award_id", award.id);
+    const { data: nomineesFromDb, error: fetchError } = await supabase.from("rec_award_nominees").select("id,user_id,team_name,display_label,final_score,vote_count,player_name,raw_stats").eq("award_id", award.id);
     if (fetchError) {
       console.error(`[AWARDS] Failed to fetch nominees for award ${award.id}:`, fetchError);
     }
-    const nomineesMap = new Map((nomineesFromDb ?? []).map((r: any) => [r.nominee_key, r]));
+    const nomineesMap = new Map((nomineesFromDb ?? []).map((r: any) => [String(r.user_id), r]));
     if (nomineesFromDb?.length) console.log(`[AWARDS] Fetched ${nomineesFromDb.length} nominees with IDs for award ${award.id}, nomineesMap size: ${nomineesMap.size}`);
     for (const nominee of nominees) {
       const playerDetail = awardDetailMap?.get(nominee.nomineeKey) ?? null;
-      const row = nomineesMap.get(nominee.nomineeKey) ?? null;
       const userId = playerDetail?.userId ?? nominee.nomineeKey;
+      const row = nomineesMap.get(userId) ?? null;
       const coach = teamByUser.get(userId);
       if (!coach) continue;
       if (isPlayerAward && !playerDetail) continue;
@@ -1735,17 +1734,17 @@ export async function getAwardVotingSummary(input: { guildId: string; awardId: s
 
   const { data: nominees } = await supabase
     .from("rec_award_nominees")
-    .select("id,nominee_key,user_id,team_name,display_label,player_name,performance_score,vote_count,final_score,raw_stats")
+    .select("id,user_id,team_name,display_label,player_name,performance_score,vote_count,final_score,raw_stats")
     .eq("award_id", input.awardId);
 
   const { data: votes } = await supabase
     .from("rec_award_votes")
-    .select("nominee_key,nominee_user_id")
+    .select("nominee_user_id")
     .eq("award_id", input.awardId);
 
   const voteTally = new Map<string, number>();
   for (const vote of votes ?? []) {
-    const key = String((vote as any).nominee_key ?? (vote as any).nominee_user_id ?? "");
+    const key = String((vote as any).nominee_user_id ?? "");
     if (!key) continue;
     voteTally.set(key, (voteTally.get(key) ?? 0) + 1);
   }
@@ -1753,15 +1752,13 @@ export async function getAwardVotingSummary(input: { guildId: string; awardId: s
 
   const rankedNominees = (nominees ?? []).map((nominee: any) => {
     const userId = String(nominee.user_id ?? "");
-    const nomineeKey = String(nominee.nominee_key ?? userId);
     const performanceScore = asNum(nominee.performance_score);
-    const voteCount = voteTally.get(nomineeKey) ?? 0;
+    const voteCount = voteTally.get(userId) ?? 0;
     const voteScore = maxVotes > 0 ? (voteCount / maxVotes) * 100 : 0;
     const liveScore = award.requires_voting ? performanceScore * 0.75 + voteScore * 0.25 : performanceScore;
     const rawStats = nominee.raw_stats ?? {};
     return {
       nomineeId: nominee.id,
-      nomineeKey,
       userId,
       teamName: nominee.team_name ?? null,
       displayLabel: nominee.display_label ?? nominee.team_name ?? userId,
@@ -1829,24 +1826,20 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
   }
 
   // Verify nominee is in this award. Accept nominee row `id` first, then fall back
-  // to `nominee_key` or `user_id` for backwards compatibility with existing menus.
+  // to `user_id` for backwards compatibility with existing menus.
   let nominee: any = null;
   const debugInfo = { awardId: input.awardId, nomineeIdentifier, resolved: null as string | null };
   
   // Get all nominees for this award to help with debugging
-  const { data: allNomineesForAward } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId);
+  const { data: allNomineesForAward } = await supabase.from("rec_award_nominees").select("id,user_id").eq("award_id", input.awardId);
   
   // try by id
   if (nomineeIdentifier) {
-    const { data: byId } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("id", nomineeIdentifier).maybeSingle();
+    const { data: byId } = await supabase.from("rec_award_nominees").select("id,user_id").eq("award_id", input.awardId).eq("id", nomineeIdentifier).maybeSingle();
     if (byId?.id) { nominee = byId; debugInfo.resolved = "id"; }
   }
   if (!nominee) {
-    const { data: byKey } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("nominee_key", nomineeIdentifier).maybeSingle();
-    if (byKey?.id) { nominee = byKey; debugInfo.resolved = "nominee_key"; }
-  }
-  if (!nominee) {
-    const { data: byUser } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("user_id", nomineeIdentifier).maybeSingle();
+    const { data: byUser } = await supabase.from("rec_award_nominees").select("id,user_id").eq("award_id", input.awardId).eq("user_id", nomineeIdentifier).maybeSingle();
     if (byUser?.id) { nominee = byUser; debugInfo.resolved = "user_id"; }
   }
   if (!nominee?.user_id) {
@@ -1864,7 +1857,6 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
     award_id: input.awardId,
     voter_user_id: String(voterDiscord.user_id),
     nominee_user_id: String(nominee.user_id),
-    nominee_key: nominee.nominee_key ?? null,
     updated_at: nowIso()
   }, { onConflict: "award_id,voter_user_id" });
 
@@ -1891,18 +1883,18 @@ export async function closeAwardVoting(guildId: string) {
   for (const award of awards) {
     const { data: nominees } = await supabase
       .from("rec_award_nominees")
-      .select("id,nominee_key,user_id,team_name,display_label,performance_score")
+      .select("id,user_id,team_name,display_label,performance_score")
       .eq("award_id", award.id);
 
     const { data: votes } = await supabase
       .from("rec_award_votes")
-      .select("nominee_key,nominee_user_id")
+      .select("nominee_user_id")
       .eq("award_id", award.id);
 
     // Tally votes
     const voteTally = new Map<string, number>();
     for (const v of votes ?? []) {
-      const key = String((v as any).nominee_key ?? (v as any).nominee_user_id ?? "");
+      const key = String((v as any).nominee_user_id ?? "");
       if (key) voteTally.set(key, (voteTally.get(key) ?? 0) + 1);
     }
     const maxVotes = Math.max(...[...voteTally.values(), 0]);
@@ -1914,7 +1906,7 @@ export async function closeAwardVoting(guildId: string) {
 
     for (const nom of nominees ?? []) {
       const perfScore = asNum(nom.performance_score);
-      const voteCount = voteTally.get(String((nom as any).nominee_key ?? nom.user_id)) ?? 0;
+      const voteCount = voteTally.get(String(nom.user_id)) ?? 0;
       const voteScore = maxVotes > 0 ? (voteCount / maxVotes) * 100 : 0;
       const finalScore = award.requires_voting
         ? perfScore * 0.75 + voteScore * 0.25

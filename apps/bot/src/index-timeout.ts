@@ -2221,7 +2221,7 @@ function startActiveCheckCloseoutLoop(activeClient: Client) {
         }
       }
     }
-  }, 60_000).unref();
+  }, 300_000).unref();
 }
 
 await client.login(env.DISCORD_TOKEN);
