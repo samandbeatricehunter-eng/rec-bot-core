@@ -27,13 +27,15 @@ import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
 import {
   applyLeagueSetupDependencies,
   buildActivityRequirementsModal,
+  buildCoachAbilitiesRestrictionModal,
   buildLeagueSetupWindow,
   buildSettingsPickerWindow,
   createDefaultLeagueSetupDraft,
   getNextLeagueSetupStep,
   getPreviousLeagueSetupStep,
   LEAGUE_SETUP_CUSTOM_IDS,
-  type LeagueSetupDraft
+  type LeagueSetupDraft,
+  type LeagueSetupSettingsCategory
 } from "./ui/league-setup.js";
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel } from "./flows/imports.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
@@ -274,6 +276,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       ) return handleImportModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
+      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionModal) return handleCoachAbilitiesRestrictionModal(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
       if (interaction.customId === REC_BANK_CUSTOM_IDS.fromSavingsModal) return handleSavingsTransferModal(interaction, "from_savings");
       if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEosModal) return handleClearEosModal(interaction);
@@ -1348,6 +1351,14 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
       leagueSetupSessions.delete(interaction.user.id);
       return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
     }
+    if (value.startsWith("category:")) {
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, value.slice("category:".length) as LeagueSetupSettingsCategory));
+    }
+    if (value === "settings_categories") {
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft));
+    }
     draft.step = value as LeagueSetupDraft["step"];
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
@@ -1378,6 +1389,18 @@ async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStr
     case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRuleRegular: draft.fourthDownRuleTypeRegular = value as LeagueSetupDraft["fourthDownRuleTypeRegular"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRulePlayoff: draft.fourthDownRuleTypePlayoff = value as LeagueSetupDraft["fourthDownRuleTypePlayoff"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.positionChangePolicy: draft.positionChangePolicy = value as LeagueSetupDraft["positionChangePolicy"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.customCoachesRequired: draft.customCoachesRequired = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.customPlaybooksAllowedSelect: draft.customPlaybooksAllowed = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestricted: {
+      if (value === "yes_custom") {
+        draft.coachAbilitiesRestricted = true;
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildCoachAbilitiesRestrictionModal(draft));
+      }
+      draft.coachAbilitiesRestricted = false;
+      draft.coachAbilitiesRestrictionNotes = "";
+      break;
+    }
     case LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy: draft.tradeApprovalPolicy = value as LeagueSetupDraft["tradeApprovalPolicy"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.cpuRules: { const values = new Set(interaction.values); draft.cpuTradingAllowed = values.has("cpu_trading"); draft.cpuFreeAgencyPolicy = values.has("cpu_fa_open") ? "open" : "disabled"; break; }
     case LEAGUE_SETUP_CUSTOM_IDS.difficulty: draft.difficulty = value as LeagueSetupDraft["difficulty"]; break;
@@ -1435,6 +1458,33 @@ async function handleActivityRequirementsModal(interaction: Extract<Interaction,
       await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
     } catch (err) {
       console.error("[ERROR] Failed to save activity requirements:", err);
+    }
+    draft.step = "settings_picker";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.editReply(buildSettingsPickerWindow(draft));
+  }
+
+  draft.step = getNextLeagueSetupStep(draft.step, draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  return interaction.editReply(buildLeagueSetupWindow(draft));
+}
+
+async function handleCoachAbilitiesRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+
+  draft.coachAbilitiesRestricted = true;
+  draft.coachAbilitiesRestrictionNotes = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionInput).trim();
+  leagueSetupSessions.set(interaction.user.id, draft);
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (draft.editMode && interaction.guildId) {
+    try {
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save coach ability restrictions:", err);
     }
     draft.step = "settings_picker";
     leagueSetupSessions.set(interaction.user.id, draft);

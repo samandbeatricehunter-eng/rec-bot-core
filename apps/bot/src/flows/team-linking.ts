@@ -760,8 +760,10 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
   const { TEAM_LINK_CUSTOM_IDS, buildUserSelectionPanel } = await import("../ui/team-options.js");
 
   const replacedAbbr = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput).trim().toUpperCase();
-  const newName = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamNameInput).trim();
+  const newCity = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamCityInput).trim();
+  const newNick = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamNickInput).trim();
   const newAbbr = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput).trim().toUpperCase();
+  const displayName = `${newCity} ${newNick}`;
 
   await interaction.deferUpdate();
 
@@ -769,7 +771,9 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
     const result = await recApi.createCustomTeamReplacement({
       guildId: pending.guildId,
       replacementTeamAbbreviation: replacedAbbr,
-      customTeamName: newName,
+      customTeamName: newNick,
+      customDisplayCity: newCity,
+      customDisplayNick: newNick,
       customDisplayAbbr: newAbbr,
       requestedByDiscordId: interaction.user.id
     });
@@ -782,11 +786,11 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
       guildId: pending.guildId,
       teamId,
       teamAbbr: newAbbr,
-      teamName: newName
+      teamName: newNick
     });
     customTeamPendingSessions.delete(interaction.user.id);
 
-    await interaction.editReply(buildUserSelectionPanel(newName, availableUsers, 0));
+    await interaction.editReply(buildUserSelectionPanel(displayName, availableUsers, 0));
   } catch (error) {
     console.error("[ERROR] Custom team modal submission failed:", error);
     customTeamPendingSessions.delete(interaction.user.id);

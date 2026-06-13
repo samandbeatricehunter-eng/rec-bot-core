@@ -49,8 +49,15 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   activityRequirementsModal: "rec:league_setup:activity_requirements_modal",
   fairSimInput: "rec:league_setup:fair_sim_input",
   forceWinInput: "rec:league_setup:force_win_input",
-  settingsPicker: "rec:league_setup:settings_picker"
+  settingsPicker: "rec:league_setup:settings_picker",
+  customCoachesRequired: "rec:league_setup:custom_coaches_required",
+  customPlaybooksAllowedSelect: "rec:league_setup:custom_playbooks_allowed",
+  coachAbilitiesRestricted: "rec:league_setup:coach_abilities_restricted",
+  coachAbilitiesRestrictionModal: "rec:league_setup:coach_abilities_restriction_modal",
+  coachAbilitiesRestrictionInput: "rec:league_setup:coach_abilities_restriction_input"
 } as const;
+
+export type LeagueSetupSettingsCategory = "rules" | "gameplay" | "play_call" | "features";
 
 export type LeagueSetupStep =
   | "league_type"
@@ -64,6 +71,9 @@ export type LeagueSetupStep =
   | "fourth_down_regular"
   | "fourth_down_playoff"
   | "position_changes"
+  | "custom_coaches_required"
+  | "custom_playbooks_allowed"
+  | "coach_abilities_restricted"
   | "trade_approval"
   | "cpu_rules"
   | "difficulty"
@@ -114,7 +124,10 @@ export type LeagueSetupDraft = {
   fourthDownRuleTypeRegular: "none" | "standard_rec" | "custom";
   fourthDownRuleTypePlayoff: "none" | "standard_rec" | "custom";
   positionChangePolicy: "open" | "restricted" | "highly_restricted";
+  customCoachesRequired: boolean;
   customPlaybooksAllowed: boolean;
+  coachAbilitiesRestricted: boolean;
+  coachAbilitiesRestrictionNotes: string;
   tradeApprovalPolicy: "no_approval_required" | "commissioner_review" | "competition_committee_review";
   cpuTradingAllowed: boolean;
   cpuFreeAgencyPolicy: "open" | "restricted" | "disabled";
@@ -155,6 +168,9 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "fourth_down_regular",
   "fourth_down_playoff",
   "position_changes",
+  "custom_coaches_required",
+  "custom_playbooks_allowed",
+  "coach_abilities_restricted",
   "trade_approval",
   "cpu_rules",
   "difficulty",
@@ -206,7 +222,10 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     fourthDownRuleTypeRegular: "standard_rec",
     fourthDownRuleTypePlayoff: "standard_rec",
     positionChangePolicy: "restricted",
+    customCoachesRequired: false,
     customPlaybooksAllowed: false,
+    coachAbilitiesRestricted: false,
+    coachAbilitiesRestrictionNotes: "",
     tradeApprovalPolicy: "competition_committee_review",
     cpuTradingAllowed: true,
     cpuFreeAgencyPolicy: "open",
@@ -264,6 +283,68 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
 
   const index = STEP_ORDER.indexOf(step);
   return STEP_ORDER[Math.min(index + 1, STEP_ORDER.length - 1)];
+}
+
+export function buildCustomCoachesRequiredWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Custom Coaches Required?", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.customCoachesRequired, "Are custom coaches required?", [
+        option("Yes", "yes"),
+        option("No", "no")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildCustomPlaybooksAllowedWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Custom Playbooks Allowed?", draft)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.customPlaybooksAllowedSelect, "Are custom playbooks allowed?", [
+        option("Yes", "yes"),
+        option("No", "no")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildCoachAbilitiesRestrictedWindow(draft: LeagueSetupDraft) {
+  const embed = baseEmbed("League Setup: Coach Abilities Restricted?", draft);
+  if (draft.coachAbilitiesRestrictionNotes) {
+    embed.addFields({ name: "Current Restriction Notes", value: draft.coachAbilitiesRestrictionNotes.slice(0, 1024) });
+  }
+
+  return {
+    embeds: [embed],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestricted, "Are coach abilities restricted?", [
+        option("Yes - Set custom restrictions", "yes_custom"),
+        option("No", "no")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildCoachAbilitiesRestrictionModal(draft: LeagueSetupDraft) {
+  return new ModalBuilder()
+    .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionModal)
+    .setTitle("Coach Ability Restrictions")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionInput)
+          .setLabel("Custom coach ability restriction notes")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMaxLength(1000)
+          .setValue(draft.coachAbilitiesRestrictionNotes ?? "")
+          .setPlaceholder("e.g., No strategist tree, no offseason boost abilities, etc.")
+      )
+    );
 }
 
 function baseEmbed(title: string, draft: LeagueSetupDraft) {
@@ -673,40 +754,86 @@ export function buildActivityRequirementsModal(draft: LeagueSetupDraft) {
     );
 }
 
-export function buildSettingsPickerWindow(draft: LeagueSetupDraft) {
+function settingsCategoryLabel(category: LeagueSetupSettingsCategory) {
+  switch (category) {
+    case "rules": return "Rules & Policies";
+    case "gameplay": return "Gameplay Settings";
+    case "play_call": return "Play Call Settings";
+    case "features": return "Features & Activity";
+  }
+}
+
+export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: LeagueSetupSettingsCategory) {
+  if (!category) {
+    return {
+      embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription(`League: **${draft.name}**\n\nChoose a settings category. Changes are saved immediately.`)],
+      components: [
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.settingsPicker)
+            .setPlaceholder("Select a settings category")
+            .addOptions(
+              option("Rules & Policies", "category:rules"),
+              option("Gameplay Settings", "category:gameplay"),
+              option("Play Call Settings", "category:play_call"),
+              option("Features & Activity", "category:features")
+            )
+        ),
+        buildNavigationRow({ includeAdminPanel: true })
+      ]
+    };
+  }
+
+  const categoryOptions: Record<LeagueSetupSettingsCategory, StringSelectMenuOptionBuilder[]> = {
+    rules: [
+      option("Regular Season Streaming", "regular_season_streaming"),
+      option("Streaming Side (Who Must Stream)", "streaming_side"),
+      option("Postseason Streaming", "postseason_streaming"),
+      option("4th Down Rules (Regular Season)", "fourth_down_regular"),
+      option("4th Down Rules (Playoff)", "fourth_down_playoff"),
+      option("Custom Coaches Required?", "custom_coaches_required"),
+      option("Custom Playbooks Allowed?", "custom_playbooks_allowed"),
+      option("Coach Ability Restrictions", "coach_abilities_restricted"),
+      option("Position Change Policy", "position_changes"),
+      option("Trade Approval Policy", "trade_approval"),
+      option("CPU Rules", "cpu_rules")
+    ],
+    gameplay: [
+      option("Difficulty", "difficulty"),
+      option("Quarter Length", "quarter_length"),
+      option("Accelerated Clock", "accelerated_clock_enabled"),
+      option("Salary Cap", "salary_cap"),
+      option("Trade Deadline", "trade_deadline"),
+      option("Abilities", "abilities"),
+      option("Wear & Tear", "wear_and_tear"),
+      option("Injuries", "injury_policy")
+    ],
+    play_call: [
+      option("Offensive Play Call Limits", "offensive_limits_enabled"),
+      option("Offensive Play Call Cooldown", "offensive_cooldown_enabled"),
+      option("Defensive Play Call Limits", "defensive_limits_enabled"),
+      option("Defensive Play Call Cooldown", "defensive_cooldown_enabled")
+    ],
+    features: [
+      option("Feature Toggles", "features"),
+      option("Draft Class Type", "draft_class_type"),
+      option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements")
+    ]
+  };
+
   return {
-    embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription(`League: **${draft.name}**\n\nSelect a setting to edit. Changes are saved immediately.`)],
+    embeds: [new EmbedBuilder().setTitle(`Edit League Settings: ${settingsCategoryLabel(category)}`).setDescription(`League: **${draft.name}**\n\nSelect a setting to edit. Changes are saved immediately.`)],
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.settingsPicker)
           .setPlaceholder("Select a setting to edit")
           .addOptions(
-            option("Regular Season Streaming", "regular_season_streaming"),
-            option("Streaming Side (Who Must Stream)", "streaming_side"),
-            option("Postseason Streaming", "postseason_streaming"),
-            option("4th Down Rules (Regular Season)", "fourth_down_regular"),
-            option("4th Down Rules (Playoff)", "fourth_down_playoff"),
-            option("Difficulty", "difficulty"),
-            option("Quarter Length", "quarter_length"),
-            option("Accelerated Clock", "accelerated_clock_enabled"),
-            option("Salary Cap", "salary_cap"),
-            option("Trade Deadline", "trade_deadline"),
-            option("Abilities", "abilities"),
-            option("Wear & Tear", "wear_and_tear"),
-            option("Injuries", "injury_policy"),
-            option("Offensive Play Call Limits", "offensive_limits_enabled"),
-            option("Offensive Play Call Cooldown", "offensive_cooldown_enabled"),
-            option("Defensive Play Call Limits", "defensive_limits_enabled"),
-            option("Defensive Play Call Cooldown", "defensive_cooldown_enabled"),
-            option("Position Change Policy", "position_changes"),
-            option("Trade Approval Policy", "trade_approval"),
-            option("CPU Rules", "cpu_rules"),
-            option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
-            option("Feature Toggles", "features"),
-            option("Back to Admin Panel", "back_admin")
+            ...categoryOptions[category],
+            option("Back to Categories", "settings_categories")
           )
-      )
+      ),
+      buildNavigationRow({ includeAdminPanel: true })
     ]
   };
 }
@@ -759,6 +886,9 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `4th Down (Regular Season): ${fmt(draft.fourthDownRuleTypeRegular)}`,
           `4th Down (Playoff): ${fmt(draft.fourthDownRuleTypePlayoff)}`,
           `Position Changes: ${fmt(draft.positionChangePolicy)}`,
+          `Custom Coaches Required: ${yesNo(draft.customCoachesRequired)}`,
+          `Custom Playbooks Allowed: ${yesNo(draft.customPlaybooksAllowed)}`,
+          `Coach Abilities Restricted: ${yesNo(draft.coachAbilitiesRestricted)}${draft.coachAbilitiesRestricted && draft.coachAbilitiesRestrictionNotes ? ` - ${draft.coachAbilitiesRestrictionNotes}` : ""}`,
           `Trade Approval: ${fmt(draft.tradeApprovalPolicy)}`,
           `CPU Trading: ${yesNo(draft.cpuTradingAllowed)}`,
           `CPU Free Agency: ${fmt(draft.cpuFreeAgencyPolicy)}`,
@@ -811,6 +941,9 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "fourth_down_regular": return buildFourthDownWindow(draft, "Regular Season");
     case "fourth_down_playoff": return buildFourthDownWindow(draft, "Playoff");
     case "position_changes": return buildPositionChangeWindow(draft);
+    case "custom_coaches_required": return buildCustomCoachesRequiredWindow(draft);
+    case "custom_playbooks_allowed": return buildCustomPlaybooksAllowedWindow(draft);
+    case "coach_abilities_restricted": return buildCoachAbilitiesRestrictedWindow(draft);
     case "trade_approval": return buildTradeApprovalWindow(draft);
     case "cpu_rules": return buildCpuRulesWindow(draft);
     case "difficulty": return buildDifficultyWindow(draft);
@@ -861,6 +994,10 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
 
   if (!draft.acceleratedClockEnabled) {
     draft.acceleratedClockMinimumSeconds = 0;
+  }
+
+  if (!draft.coachAbilitiesRestricted) {
+    draft.coachAbilitiesRestrictionNotes = "";
   }
 
   if (!draft.offensivePlayCallLimitsEnabled) {

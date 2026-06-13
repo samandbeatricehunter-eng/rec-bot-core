@@ -35,6 +35,8 @@ export const TEAM_LINK_CUSTOM_IDS = {
   customTeamModal: "rec:teamlink:custom_team_modal",
   customTeamReplaceInput: "rec:teamlink:custom_team_replace",
   customTeamNameInput: "rec:teamlink:custom_team_name",
+  customTeamCityInput: "rec:teamlink:custom_team_city",
+  customTeamNickInput: "rec:teamlink:custom_team_nick",
   customTeamAbbrInput: "rec:teamlink:custom_team_abbr"
 } as const;
 
@@ -350,12 +352,19 @@ export function buildCustomTeamModal(conference: "AFC" | "NFC") {
     .setRequired(true)
     .setPlaceholder("e.g. NO, BAL, DAL");
 
-  const nameInput = new TextInputBuilder()
-    .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNameInput)
-    .setLabel("New team full name")
+  const cityInput = new TextInputBuilder()
+    .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamCityInput)
+    .setLabel("New team city")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder("e.g. San Diego Chargers");
+    .setPlaceholder("e.g. San Diego");
+
+  const nickInput = new TextInputBuilder()
+    .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNickInput)
+    .setLabel("New team name")
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true)
+    .setPlaceholder("e.g. Chargers");
 
   const abbrInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput)
@@ -367,7 +376,8 @@ export function buildCustomTeamModal(conference: "AFC" | "NFC") {
 
   modal.addComponents(
     new ActionRowBuilder<TextInputBuilder>().addComponents(replaceInput),
-    new ActionRowBuilder<TextInputBuilder>().addComponents(nameInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(cityInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(nickInput),
     new ActionRowBuilder<TextInputBuilder>().addComponents(abbrInput)
   );
   return modal;
