@@ -49,6 +49,8 @@ interface EosPollsData {
       nomineeCount: number;
       status: string;
       nomineeOptions?: Array<{ userId: string; discordId: string | null; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
+      payoutAmount?: number;
+      prizeText?: string;
       nominees?: Array<{ userId: string; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
       totalVotes?: number;
       closesAt?: string | null;
@@ -86,7 +88,7 @@ export function buildRecAwardVotingEmbed(award: any): EmbedBuilder {
       performanceScore: asAwardScore(n.performanceScore),
       statLine: n.statLine ? String(n.statLine) : "",
       voteCount: asAwardScore(n.voteCount),
-      liveScore: asAwardScore(n.finalScore ?? n.liveScore ?? n.performanceScore)
+      liveScore: asAwardScore(n.liveScore ?? n.finalScore ?? n.performanceScore)
     }))
     .sort((a, b) => b.liveScore - a.liveScore || b.performanceScore - a.performanceScore || b.voteCount - a.voteCount);
 
@@ -100,6 +102,7 @@ export function buildRecAwardVotingEmbed(award: any): EmbedBuilder {
     .setTitle(award.name ?? "REC Award Vote")
     .setDescription([
       award.description ?? "Vote for the best candidate this season.",
+      award.prizeText || award.payoutAmount ? `**Prize:** ${award.prizeText ?? `$${award.payoutAmount}`}` : "",
       "",
       nominees.length ? "**Current Top Nominees**" : "No nominees available.",
       ...topLines,
@@ -112,46 +115,9 @@ export function buildRecAwardVotingEmbed(award: any): EmbedBuilder {
 
 // Shared EOS poll + REC Awards posting — called from advance-wizard finalize AND
 // the manual "Run EOS Polls & Awards" advance menu action.
-async function wipeVotingChannel(channel: TextChannel, warnings: string[]) {
-  try {
-    let deletedTotal = 0;
-    for (let pass = 0; pass < 20; pass++) {
-      const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
-      const batch = messages?.filter((message) => !message.pinned) ?? null;
-      if (!batch || batch.size === 0) break;
-      const bulkable = batch.filter((message) => Date.now() - message.createdTimestamp < 14 * 24 * 60 * 60 * 1000);
-      if (bulkable.size > 1) {
-        const deleted = await channel.bulkDelete(bulkable, true).catch(() => null);
-        deletedTotal += deleted?.size ?? 0;
-      } else if (bulkable.size === 1) {
-        const only = bulkable.first();
-        if (only) {
-          await only.delete().catch(() => undefined);
-          deletedTotal += 1;
-        }
-      }
-      const older = batch.filter((message) => Date.now() - message.createdTimestamp >= 14 * 24 * 60 * 60 * 1000);
-      for (const message of older.values()) {
-        await message.delete().then(() => { deletedTotal += 1; }).catch(() => undefined);
-      }
-      if (batch.size < 100) break;
-    }
-    if (deletedTotal > 0) warnings.push(`voting_channel_cleanup: deleted ${deletedTotal} old messages`);
-  } catch (err) {
-    warnings.push(`voting_channel_cleanup: ${err instanceof Error ? err.message : String(err)}`);
-  }
-}
-
-// Shared EOS poll + REC Awards posting — called from advance-wizard finalize AND
-// the manual "Run EOS Polls & Awards" advance menu action.
 export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsData): Promise<string[]> {
   const warnings: string[] = [];
   const votingChannelId = pollsData.announcementsChannelId ?? pollsData.recAwardsData?.announcementsChannelId ?? null;
-
-  if (votingChannelId) {
-    const cleanupChannel = await guild.channels.fetch(votingChannelId).catch(() => null) as TextChannel | null;
-    if (cleanupChannel?.type === ChannelType.GuildText) await wipeVotingChannel(cleanupChannel, warnings);
-  }
 
   if (votingChannelId) {
     try {
@@ -248,7 +214,7 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
             warnings.push(`rec_award_${award.key}: no selectable nominee options`);
             continue;
           }
-          const sent = await awardCh.send({
+          await awardCh.send({
             embeds: [buildRecAwardVotingEmbed(award)],
             components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
               new StringSelectMenuBuilder()
@@ -256,10 +222,7 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
                 .setPlaceholder(`Vote for ${award.name}`)
                 .addOptions(options)
             )]
-          }).catch((err) => { warnings.push(`rec_award_${award.key}: ${err instanceof Error ? err.message : String(err)}`); return null; });
-          if (sent?.id) {
-            await recApi.updateAwardVotingMessage({ guildId: guild.id, awardId: award.awardId, channelId: awardCh.id, messageId: sent.id }).catch((err) => warnings.push(`rec_award_${award.key}_message_id: ${err instanceof Error ? err.message : String(err)}`));
-          }
+          }).catch((err) => warnings.push(`rec_award_${award.key}: ${err instanceof Error ? err.message : String(err)}`));
         }
       }
     } catch (err) {
