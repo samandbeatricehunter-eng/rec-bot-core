@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Guild, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Guild, Message, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildMainMenuEmbed, buildMainMenuRows } from "../ui/menu.js";
 import { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows } from "../ui/gotw.js";
 import { buildPowerRankingsEmbeds } from "../ui/power-rankings.js";
@@ -113,6 +113,44 @@ export function buildRecAwardVotingEmbed(award: any): EmbedBuilder {
     .setFooter({ text: `${nominees.length} nominees · ${award.totalVotes ?? 0} votes logged${award.closesAt ? ` · Closes ${new Date(award.closesAt).toLocaleString()}` : " · Voting closes in 24 hours"}` });
 }
 
+
+async function cleanAwardVotingChannel(channel: TextChannel, warnings: string[]): Promise<void> {
+  try {
+    const fetched = await channel.messages.fetch({ limit: 100 });
+    const awardMessages = fetched.filter((message: Message) => {
+      if (message.author.id !== channel.client.user?.id) return false;
+      const embedTitle = message.embeds?.[0]?.title ?? "";
+      const footer = message.embeds?.[0]?.footer?.text ?? "";
+      const hasAwardSelect = message.components?.some((row: any) =>
+        row.components?.some((component: any) => String(component.customId ?? "").startsWith("rec_award_vote:") || String(component.customId ?? "").startsWith("eos_vote:"))
+      );
+      return Boolean(
+        hasAwardSelect ||
+        embedTitle === "Post-Season Voting Has Begun" ||
+        embedTitle === "REC Award Generation Failed" ||
+        footer.includes("votes logged") ||
+        footer.includes("Voting closes")
+      );
+    });
+
+    const bulkDeletable = awardMessages.filter((message: Message) => message.bulkDeletable);
+    if (bulkDeletable.size > 0) {
+      await channel.bulkDelete(bulkDeletable, true).catch((err) =>
+        warnings.push(`award_channel_bulk_delete: ${err instanceof Error ? err.message : String(err)}`)
+      );
+    }
+
+    const remaining = awardMessages.filter((message: Message) => !message.bulkDeletable && message.deletable);
+    for (const message of remaining.values()) {
+      await message.delete().catch((err) =>
+        warnings.push(`award_channel_delete_${message.id}: ${err instanceof Error ? err.message : String(err)}`)
+      );
+    }
+  } catch (err) {
+    warnings.push(`award_channel_cleanup: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 // Shared EOS poll + REC Awards posting — called from advance-wizard finalize AND
 // the manual "Run EOS Polls & Awards" advance menu action.
 export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsData): Promise<string[]> {
@@ -123,6 +161,7 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
     try {
       const channel = await guild.channels.fetch(votingChannelId).catch(() => null) as TextChannel | null;
       if (channel?.type === ChannelType.GuildText) {
+        await cleanAwardVotingChannel(channel, warnings);
         await channel.send({
           content: "@everyone",
           embeds: [new EmbedBuilder()

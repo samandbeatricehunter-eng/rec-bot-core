@@ -180,7 +180,6 @@ async function getTeamSeasonStats(leagueId: string, seasonNumber: number): Promi
       .eq("league_id", leagueId)
       .eq("season_number", seasonNumber)
       .eq("season_stage", "regular_season")
-      .lte("week_number", 18)
       .range(from, to)
   );
 
@@ -814,33 +813,7 @@ function relativeScores(candidates: PlayerAwardCandidate[], scoreFor: (candidate
 
 function statText(key: string, value: number): string | null {
   if (!value) return null;
-  const whole = Math.round(value);
-  const formatted = whole.toLocaleString("en-US");
-  const compactLabels: Record<string, string> = {
-    pass_yards: "Pass",
-    rush_yards: "Rush",
-    receiving_yards: "Rec",
-    pass_tds: "Pass TD",
-    rush_tds: "Rush TD",
-    receiving_tds: "Rec TD",
-    interceptions_thrown: "INT",
-    interceptions: "INT",
-    sacks: "Sk",
-    tackles: "Tkl",
-    forced_fumbles: "FF",
-    fumble_recoveries: "FR",
-    pass_deflections: "PD",
-    defensive_tds: "Def TD",
-    receiving_drops: "Drp",
-    rushing_fumbles: "Fum",
-    receiving_fumbles: "Fum",
-    receptions: "Rec",
-    fg_made: "FGM",
-    fg_attempts: "FGA",
-    fg_long: "Long",
-    xp_made: "XPM"
-  };
-  return `${formatted} ${compactLabels[key] ?? getStatShortLabel(key)}`;
+  return `${formatStatValue(key, value)} ${getStatShortLabel(key)}`;
 }
 
 function buildAwardStatLine(awardKey: string, candidate: PlayerAwardCandidate): string {
@@ -881,7 +854,6 @@ async function getPlayerAwardCandidates(
         .eq("league_id", leagueId)
         .eq("season_number", seasonNumber)
         .eq("season_stage", "regular_season")
-        .lte("week_number", 18)
         .eq("stat_category", category)
         .range(from, to)
     )
@@ -962,6 +934,7 @@ function buildPlayerAwardScoreMaps(candidates: PlayerAwardCandidate[]) {
       statLine: buildAwardStatLine(awardKey, candidate),
       rawStats: {
         playerId: candidate.playerId,
+        teamId: candidate.teamId,
         playerName: candidate.playerName,
         position: candidate.position,
         yearsPro: candidate.yearsPro,
@@ -1059,7 +1032,6 @@ async function getTopPlayerPerTeam(
           .eq("league_id", leagueId)
           .eq("season_number", seasonNumber)
           .eq("season_stage", "regular_season")
-          .lte("week_number", 18)
           .eq("stat_category", cat)
           .range(from, to)
       )
@@ -1159,13 +1131,8 @@ export async function generateAwardNominees(guildId: string) {
     getBadgeCounts(leagueId, userIds)
   ]);
 
-  const playerAwardCandidates: PlayerAwardCandidate[] = [];
-  const playerAwardData = {
-    rawScores: {} as Record<string, Map<string, number>>,
-    detailsByAward: new Map<string, Map<string, PlayerAwardDetail>>()
-  };
-
-  // Player award candidates now come from rec_award_candidate_scores RPC only.
+  const playerAwardCandidates = await getPlayerAwardCandidates(leagueId, seasonNumber, teamByTeamId, seasonRecords);
+  const playerAwardData = buildPlayerAwardScoreMaps(playerAwardCandidates);
   const playersByAward = new Map<string, Map<string, any>>();
 
   // Build score maps per award key
@@ -1383,6 +1350,8 @@ export async function generateAwardNominees(guildId: string) {
         if (!coach) return null;
         const playerDetail = awardDetailMap?.get(nominee.userId) ?? null;
         const playerInfo = positionPlayerMap?.get(coach.teamId) ?? null;
+        const isPlayerAward = Boolean(awardDetailMap);
+        if (isPlayerAward && !playerDetail) return null;
         const performanceScore = Math.round((normalizedScores.get(nominee.userId) ?? 0) * 100) / 100;
         const displayLabel = playerDetail?.displayLabel
           ?? (playerInfo ? `${playerInfo.playerName} (${playerInfo.position}) · ${coach.teamName}` : `${coach.teamName} (${coach.displayName})`);
@@ -1787,6 +1756,42 @@ export async function approveAwardWinner(input: { guildId: string; awardId: stri
   };
 }
 
+
+export async function updateAwardVotingMessage(payload: {
+  awardId: string;
+  votingChannelId?: string | null;
+  votingMessageId?: string | null;
+  voteEmbedMessageId?: string | null;
+}) {
+  const { awardId } = payload;
+  const updatePayload: Record<string, string | null> = {};
+
+  if ("votingChannelId" in payload) {
+    updatePayload.voting_channel_id = payload.votingChannelId ?? null;
+  }
+
+  if ("votingMessageId" in payload) {
+    updatePayload.voting_message_id = payload.votingMessageId ?? null;
+  }
+
+  if ("voteEmbedMessageId" in payload) {
+    updatePayload.vote_embed_message_id = payload.voteEmbedMessageId ?? null;
+  }
+
+  const { data, error } = await supabase
+    .from("rec_awards")
+    .update(updatePayload)
+    .eq("id", awardId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update award voting message: ${error.message}`);
+  }
+
+  return data;
+}
+
 export async function getAwardStatus(guildId: string) {
   const { leagueId, league } = await getLeagueContext(guildId);
   const seasonNumber = asNum(league.season_number ?? league.display_season_number ?? 1);
@@ -1829,28 +1834,3 @@ export async function getPendingAwardApprovals(guildId: string) {
 
   return { awards: results, pendingPayoutsChannelId };
 }
-
-
-export async function updateAwardVotingMessage(input: {
-  awardId?: string;
-  votingMessageId?: string | null;
-  votingChannelId?: string | null;
-}) {
-  const awardId = String(input?.awardId ?? "");
-  if (!awardId) throw new Error("awardId is required.");
-
-  const { data, error } = await supabase
-    .from("rec_awards")
-    .update({
-      voting_message_id: input.votingMessageId ? String(input.votingMessageId) : null,
-      voting_channel_id: input.votingChannelId ? String(input.votingChannelId) : null,
-      updated_at: nowIso()
-    })
-    .eq("id", awardId)
-    .select("id,award_key,award_name,voting_message_id,voting_channel_id")
-    .single();
-
-  if (error) throw error;
-  return { award: data };
-}
-
