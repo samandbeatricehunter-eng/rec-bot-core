@@ -1,3 +1,4 @@
+import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 
 function asNumber(v: unknown) {
@@ -33,27 +34,33 @@ export const EOS_AWARD_CATEGORIES = [
 type CategoryKey = (typeof EOS_AWARD_CATEGORIES)[number]["key"];
 
 async function getLeagueContext(guildId: string) {
-  const { data: server } = await supabase
+  const { data: serverRows, error: serverError } = await supabase
     .from("rec_discord_servers")
     .select("id")
     .eq("guild_id", guildId)
-    .maybeSingle();
-  if (!server?.id) throw new Error("No league found for this server.");
+    .limit(1);
+  if (serverError) throw new ApiError(500, "Failed to load Discord server for EOS awards.", serverError);
+  const server = serverRows?.[0];
+  if (!server?.id) throw new ApiError(404, "This Discord server is not registered in REC Core.");
 
-  const { data: link } = await supabase
+  const { data: linkRows, error: linkError } = await supabase
     .from("rec_server_league_links")
     .select("league_id")
     .eq("server_id", server.id)
     .eq("is_primary", true)
-    .maybeSingle();
-  if (!link?.league_id) throw new Error("No league found for this server.");
+    .limit(1);
+  if (linkError) throw new ApiError(500, "Failed to load league link for EOS awards.", linkError);
+  const link = linkRows?.[0];
+  if (!link?.league_id) throw new ApiError(404, "This Discord server does not have a primary REC league linked.");
 
-  const { data: league } = await supabase
+  const { data: leagueRows, error: leagueError } = await supabase
     .from("rec_leagues")
     .select("id,season_number,display_season_number")
     .eq("id", link.league_id)
-    .maybeSingle();
-  if (!league) throw new Error("League not found.");
+    .limit(1);
+  if (leagueError) throw new ApiError(500, "Failed to load league information for EOS awards.", leagueError);
+  const league = leagueRows?.[0];
+  if (!league) throw new ApiError(404, "Linked REC league could not be found.");
 
   return { leagueId: link.league_id as string, seasonNumber: (league.season_number ?? league.display_season_number ?? 1) as number };
 }
@@ -136,54 +143,60 @@ export async function castEosVote(input: {
   const { leagueId, seasonNumber } = await getLeagueContext(input.guildId);
 
   // Resolve voter user_id
-  const { data: voterDiscord } = await supabase
+  const { data: voterDiscord, error: voterError } = await supabase
     .from("rec_discord_accounts")
     .select("user_id")
     .eq("discord_id", input.voterDiscordId)
-    .maybeSingle();
-  if (!voterDiscord?.user_id) return { recorded: false, reason: "Your Discord account is not linked to a REC user profile." };
+    .limit(1);
+  if (voterError) throw new ApiError(500, "Failed to resolve voter Discord account for EOS awards.", voterError);
+  if (!voterDiscord?.[0]?.user_id) return { recorded: false, reason: "Your Discord account is not linked to a REC user profile." };
 
   // Resolve nominee user_id
-  const { data: nomineeDiscord } = await supabase
+  const { data: nomineeDiscord, error: nomineeError } = await supabase
     .from("rec_discord_accounts")
     .select("user_id")
     .eq("discord_id", input.nomineeDiscordId)
-    .maybeSingle();
-  if (!nomineeDiscord?.user_id) return { recorded: false, reason: "The selected nominee is not linked to a REC user profile." };
+    .limit(1);
+  if (nomineeError) throw new ApiError(500, "Failed to resolve nominee Discord account for EOS awards.", nomineeError);
+  if (!nomineeDiscord?.[0]?.user_id) return { recorded: false, reason: "The selected nominee is not linked to a REC user profile." };
 
-  const voterUserId = String(voterDiscord.user_id);
-  const nomineeUserId = String(nomineeDiscord.user_id);
+  const voterUserId = String(voterDiscord[0].user_id);
+  const nomineeUserId = String(nomineeDiscord[0].user_id);
 
   // Voter must be a linked coach in this league
-  const { data: voterAssignment } = await supabase
+  const { data: voterAssignment, error: voterAssignmentError } = await supabase
     .from("rec_team_assignments")
     .select("team_id")
     .eq("league_id", leagueId)
     .eq("user_id", voterUserId)
     .eq("assignment_status", "active")
     .is("ended_at", null)
-    .maybeSingle();
-  if (!voterAssignment) return { recorded: false, reason: "Only linked coaches in this league can vote." };
+    .limit(1);
+  if (voterAssignmentError) throw new ApiError(500, "Failed to verify voter team assignment for EOS awards.", voterAssignmentError);
+  if (!voterAssignment?.[0]) return { recorded: false, reason: "Only linked coaches in this league can vote." };
 
   // Nominee must also be a linked coach
-  const { data: nomineeAssignment } = await supabase
+  const { data: nomineeAssignment, error: nomineeAssignmentError } = await supabase
     .from("rec_team_assignments")
     .select("team_id")
     .eq("league_id", leagueId)
     .eq("user_id", nomineeUserId)
     .eq("assignment_status", "active")
     .is("ended_at", null)
-    .maybeSingle();
-  if (!nomineeAssignment) return { recorded: false, reason: "The selected nominee is not an active coach in this league." };
+    .limit(1);
+  if (nomineeAssignmentError) throw new ApiError(500, "Failed to verify nominee team assignment for EOS awards.", nomineeAssignmentError);
+  if (!nomineeAssignment?.[0]) return { recorded: false, reason: "The selected nominee is not an active coach in this league." };
 
   // Get the poll
-  const { data: poll } = await supabase
+  const { data: pollRows, error: pollError } = await supabase
     .from("rec_eos_award_polls")
     .select("id,status,closes_at")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .eq("category_key", input.categoryKey)
-    .maybeSingle();
+    .limit(1);
+  if (pollError) throw new ApiError(500, "Failed to load EOS award poll.", pollError);
+  const poll = pollRows?.[0];
 
   if (!poll) return { recorded: false, reason: "Award poll not found. Voting may not have started yet." };
   if (poll.status !== "open") return { recorded: false, reason: "Voting for this award has closed." };
@@ -197,7 +210,7 @@ export async function castEosVote(input: {
   }
 
   // Upsert vote (replaces previous choice for this voter+poll)
-  const { error } = await supabase.from("rec_eos_award_votes").upsert(
+  const { error: voteError } = await supabase.from("rec_eos_award_votes").upsert(
     {
       poll_id: poll.id,
       voter_user_id: voterUserId,
@@ -207,7 +220,7 @@ export async function castEosVote(input: {
     { onConflict: "poll_id,voter_user_id" }
   );
 
-  if (error) return { recorded: false, reason: "Failed to record your vote. Please try again." };
+  if (voteError) throw new ApiError(500, "Failed to record EOS award vote.", voteError);
   return { recorded: true, categoryLabel: EOS_AWARD_CATEGORIES.find((c) => c.key === input.categoryKey)?.label ?? input.categoryKey };
 }
 
