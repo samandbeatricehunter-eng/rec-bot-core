@@ -180,39 +180,49 @@ export async function stageTeams(teams: StagedTeamInput[]) {
 export async function stageRosters(rosters: StagedRosterInput[]) {
   if (rosters.length === 0) return { count: 0, rows: [] };
 
-  const result = await supabase
-    .from("rec_import_staging_rosters")
-    .upsert(
-      rosters.map((player, index) => ({
-        import_job_id: player.importJobId,
-        league_id: player.leagueId,
-        ea_league_id: player.eaLeagueId ?? null,
-        season_number: player.seasonNumber,
-        season_index: player.seasonIndex ?? null,
-        team_external_id: player.teamExternalId ?? null,
-        team_name: player.teamName ?? null,
-        player_external_id: ensureRequiredExternalId(player.playerExternalId, `unknown-player-${index}`),
-        player_name: player.playerName ?? null,
-        first_name: player.firstName ?? null,
-        last_name: player.lastName ?? null,
-        position: player.position ?? null,
-        jersey_number: player.jerseyNumber ?? null,
-        overall_rating: player.overallRating ?? null,
-        age: player.age ?? null,
-        dev_trait: player.devTrait ?? null,
-        normalized: player.normalized ?? {},
-        raw_payload: player.rawPayload ?? {},
-        updated_at: nowIso()
-      })),
-      { onConflict: "import_job_id,player_external_id" }
-    )
-    .select("*");
+  const mapped = rosters.map((player, index) => ({
+    import_job_id: player.importJobId,
+    league_id: player.leagueId,
+    ea_league_id: player.eaLeagueId ?? null,
+    season_number: player.seasonNumber,
+    season_index: player.seasonIndex ?? null,
+    team_external_id: player.teamExternalId ?? null,
+    team_name: player.teamName ?? null,
+    player_external_id: ensureRequiredExternalId(player.playerExternalId, `unknown-player-${index}`),
+    player_name: player.playerName ?? null,
+    first_name: player.firstName ?? null,
+    last_name: player.lastName ?? null,
+    position: player.position ?? null,
+    jersey_number: player.jerseyNumber ?? null,
+    overall_rating: player.overallRating ?? null,
+    age: player.age ?? null,
+    dev_trait: player.devTrait ?? null,
+    normalized: player.normalized ?? {},
+    raw_payload: player.rawPayload ?? {},
+    updated_at: nowIso()
+  }));
 
-  if (result.error) {
-    throw new ApiError(500, "Failed to stage imported rosters.", result.error);
+  const deduped = dedupeBy(mapped, (row) => [row.import_job_id, row.player_external_id].join("|"));
+
+  let count = 0;
+  for (const chunk of chunks(deduped, 200)) {
+    const result = await supabase
+      .from("rec_import_staging_rosters")
+      .upsert(chunk, { onConflict: "import_job_id,player_external_id" })
+      .select("id");
+
+    if (result.error) {
+      throw new ApiError(500, "Failed to stage imported rosters.", {
+        ...result.error,
+        attemptedRows: rosters.length,
+        dedupedRows: deduped.length,
+        chunkRows: chunk.length
+      });
+    }
+    count += result.data?.length ?? 0;
   }
 
-  return { count: result.data?.length ?? 0, rows: result.data ?? [] };
+  return { count, rows: [] };
 }
 
 export async function stageGames(games: StagedGameInput[]) {
