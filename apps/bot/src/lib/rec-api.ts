@@ -563,6 +563,12 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  recordEosPayoutMessage: (input: { itemId: string; discordChannelId: string; discordMessageId: string }) =>
+    recFetch<any>("/v1/eos-payouts/record-message", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   rejectEosPayoutItem: (input: { itemId: string; discordId: string }) =>
     recFetch<any>("/v1/eos-payouts/reject", {
       method: "POST",

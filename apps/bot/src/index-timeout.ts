@@ -138,6 +138,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith("goty_nominate_btn:")) return handleGotyNominateBtn(interaction);
       if (interaction.customId === "rec_awards_close_voting") return handleRecAwardCloseVoting(interaction);
       if (interaction.customId.startsWith("rec_award_approve:")) return handleRecAwardApprove(interaction);
+      // EOS payout buttons appear in user DMs and in commissioner channel — no /menu session required
+      if (interaction.customId.startsWith("eos_payout_approve:")) return handleEosPayoutApprove(interaction);
+      if (interaction.customId.startsWith("eos_payout_reject:")) return handleEosPayoutReject(interaction);
     }
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId.startsWith("rec_award_vote:")) return handleRecAwardVote(interaction);
@@ -1082,7 +1085,10 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
                 new ButtonBuilder().setCustomId(`eos_payout_reject:${item.id}`).setLabel("Reject").setStyle(ButtonStyle.Danger)
               );
 
-              await ch.send({ embeds: [itemEmbed], components: [itemRow] }).catch(() => undefined);
+              const commMsg = await ch.send({ embeds: [itemEmbed], components: [itemRow] }).catch(() => null);
+              if (commMsg && item.id) {
+                recApi.recordEosPayoutMessage({ itemId: item.id, discordChannelId: ch.id, discordMessageId: commMsg.id }).catch(() => undefined);
+              }
             }
           }
         } catch { /* non-fatal */ }
@@ -1701,6 +1707,7 @@ async function handleEosPayoutApprove(interaction: Extract<Interaction, { isButt
       } catch { /* non-fatal if message is in DM */ }
     } else if (result.reason === "awaiting_commissioner") {
       await interaction.editReply({ content: "✅ You approved your payout. Awaiting commissioner approval before funds are credited." });
+      // Update the DM message to show pending state
       try {
         await interaction.message.edit({
           embeds: [new EmbedBuilder()
@@ -1710,6 +1717,39 @@ async function handleEosPayoutApprove(interaction: Extract<Interaction, { isButt
           components: interaction.message.components
         });
       } catch { /* non-fatal */ }
+      // Update the commissioner channel embed and ping roles
+      if (result.commissionerChannelId && result.commissionerMessageId && result.guildId) {
+        try {
+          const guild = await client.guilds.fetch(result.guildId).catch(() => null);
+          if (guild) {
+            const commCh = await guild.channels.fetch(result.commissionerChannelId).catch(() => null) as TextChannel | null;
+            if (commCh?.type === ChannelType.GuildText) {
+              const commMsg = await commCh.messages.fetch(result.commissionerMessageId).catch(() => null);
+              if (commMsg) {
+                const originalDesc = commMsg.embeds[0]?.description ?? "";
+                await commMsg.edit({
+                  embeds: [new EmbedBuilder()
+                    .setDescription(originalDesc)
+                    .setTitle("✅ User Approved — Awaiting Commissioner")
+                    .setColor(0xfee75c)],
+                  components: commMsg.components
+                }).catch(() => undefined);
+                // Ping commissioner/co-commissioner roles
+                const allRoles = await guild.roles.fetch();
+                const pingParts = (["REC League Commissioner", "REC League Comp. Committee"] as const)
+                  .map(name => allRoles.find(r => r.name === name))
+                  .filter(Boolean)
+                  .map(r => `<@&${r!.id}>`);
+                if (pingParts.length > 0) {
+                  await commCh.send({
+                    content: `${pingParts.join(" ")} — <@${interaction.user.id}> approved their **${result.payoutLabel ?? "EOS"}** payout ($${result.amount}). Only your sign-off is needed to issue funds.`
+                  }).catch(() => undefined);
+                }
+              }
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
     } else if (result.reason === "awaiting_user") {
       await interaction.editReply({ content: "✅ Commissioner approval recorded. Waiting for the recipient to approve via DM." });
     }

@@ -2139,7 +2139,44 @@ export async function approveEosPayoutItem(input: { itemId: string; discordId: s
     return { credited: true, amount: asNumber(updated.amount), newBalance: credit.wallet, payoutLabel: updated.payout_label };
   }
 
-  return { credited: false, reason: input.role === "user" ? "awaiting_commissioner" : "awaiting_user", newBalance: null };
+  // When the user approves via DM, return the commissioner channel info so the bot can
+  // update the commissioner embed and ping roles without needing a guild context.
+  let guildId: string | null = null;
+  if (input.role === "user") {
+    const serverLink = await supabase
+      .from("rec_server_league_links")
+      .select("server_id")
+      .eq("league_id", String(updated.league_id))
+      .maybeSingle();
+    if (serverLink.data?.server_id) {
+      const serverRow = await supabase
+        .from("rec_discord_servers")
+        .select("guild_id")
+        .eq("id", serverLink.data.server_id)
+        .maybeSingle();
+      guildId = serverRow.data?.guild_id ?? null;
+    }
+  }
+
+  return {
+    credited: false,
+    reason: input.role === "user" ? "awaiting_commissioner" : "awaiting_user",
+    newBalance: null,
+    commissionerChannelId: (updated.discord_channel_id as string | null) ?? null,
+    commissionerMessageId: (updated.discord_message_id as string | null) ?? null,
+    guildId,
+    amount: asNumber(updated.amount),
+    payoutLabel: updated.payout_label as string | null
+  };
+}
+
+export async function recordEosPayoutMessage(input: { itemId: string; discordChannelId: string; discordMessageId: string }) {
+  const { error } = await supabase
+    .from("rec_eos_payout_items")
+    .update({ discord_channel_id: input.discordChannelId, discord_message_id: input.discordMessageId, updated_at: nowIso() })
+    .eq("id", input.itemId);
+  if (error) throw error;
+  return { recorded: true };
 }
 
 export async function rejectEosPayoutItem(input: { itemId: string; discordId: string }) {
