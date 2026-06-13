@@ -1598,8 +1598,12 @@ export async function generateAwardNominees(guildId: string) {
 
     // Fetch nominees with discord IDs for bot embed building using the same DB label.
     const nomineeOptions: Array<{ nomineeId?: string; userId: string; nomineeKey: string; discordId: string | null; displayLabel: string; performanceScore: number; statLine?: string; voteCount: number; liveScore: number }> = [];
-    const { data: nomineesFromDb } = await supabase.from("rec_award_nominees").select("id,nominee_key,user_id,team_name,display_label,final_score,vote_count,player_name,raw_stats").eq("award_id", award.id);
+    const { data: nomineesFromDb, error: fetchError } = await supabase.from("rec_award_nominees").select("id,nominee_key,user_id,team_name,display_label,final_score,vote_count,player_name,raw_stats").eq("award_id", award.id);
+    if (fetchError) {
+      console.error(`[AWARDS] Failed to fetch nominees for award ${award.id}:`, fetchError);
+    }
     const nomineesMap = new Map((nomineesFromDb ?? []).map((r: any) => [r.nominee_key, r]));
+    if (nomineesFromDb?.length) console.log(`[AWARDS] Fetched ${nomineesFromDb.length} nominees with IDs for award ${award.id}, nomineesMap size: ${nomineesMap.size}`);
     for (const nominee of nominees) {
       const playerDetail = awardDetailMap?.get(nominee.nomineeKey) ?? null;
       const row = nomineesMap.get(nominee.nomineeKey) ?? null;
@@ -1620,6 +1624,11 @@ export async function generateAwardNominees(guildId: string) {
         voteCount: row?.vote_count ?? 0,
         liveScore: row?.final_score ?? performanceScore
       });
+    }
+
+    const nomineesWithIds = nomineeOptions.filter((n: any) => !!n.nomineeId).length;
+    if (nomineeOptions.length > 0) {
+      console.log(`[AWARDS] Award ${def.key}: ${nomineesWithIds}/${nomineeOptions.length} nominees have row IDs`);
     }
 
     generatedAwards.push({
@@ -1800,20 +1809,25 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
   // Verify nominee is in this award. Accept nominee row `id` first, then fall back
   // to `nominee_key` or `user_id` for backwards compatibility with existing menus.
   let nominee: any = null;
+  const debugInfo = { awardId: input.awardId, nomineeIdentifier, resolved: null as string | null };
+  
   // try by id
   if (nomineeIdentifier) {
     const { data: byId } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("id", nomineeIdentifier).maybeSingle();
-    if (byId?.id) nominee = byId;
+    if (byId?.id) { nominee = byId; debugInfo.resolved = "id"; }
   }
   if (!nominee) {
     const { data: byKey } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("nominee_key", nomineeIdentifier).maybeSingle();
-    if (byKey?.id) nominee = byKey;
+    if (byKey?.id) { nominee = byKey; debugInfo.resolved = "nominee_key"; }
   }
   if (!nominee) {
     const { data: byUser } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("user_id", nomineeIdentifier).maybeSingle();
-    if (byUser?.id) nominee = byUser;
+    if (byUser?.id) { nominee = byUser; debugInfo.resolved = "user_id"; }
   }
-  if (!nominee?.user_id) return { recorded: false, reason: "That nominee is not in this award." };
+  if (!nominee?.user_id) {
+    console.error("[AWARDS] Nominee resolution failed:", JSON.stringify(debugInfo));
+    return { recorded: false, reason: `Nominee not found (attempted: ${nomineeIdentifier})` };
+  }
 
   // Check no self-voting
   if (String(voterDiscord.user_id) === String(nominee.user_id)) {
