@@ -1597,9 +1597,12 @@ export async function generateAwardNominees(guildId: string) {
     }
 
     // Fetch nominees with discord IDs for bot embed building using the same DB label.
-    const nomineeOptions: Array<{ userId: string; nomineeKey: string; discordId: string | null; displayLabel: string; performanceScore: number; statLine?: string; voteCount: number; liveScore: number }> = [];
+    const nomineeOptions: Array<{ nomineeId?: string; userId: string; nomineeKey: string; discordId: string | null; displayLabel: string; performanceScore: number; statLine?: string; voteCount: number; liveScore: number }> = [];
+    const { data: nomineesFromDb } = await supabase.from("rec_award_nominees").select("id,nominee_key,user_id,team_name,display_label,final_score,vote_count,player_name,raw_stats").eq("award_id", award.id);
+    const nomineesMap = new Map((nomineesFromDb ?? []).map((r: any) => [r.nominee_key, r]));
     for (const nominee of nominees) {
       const playerDetail = awardDetailMap?.get(nominee.nomineeKey) ?? null;
+      const row = nomineesMap.get(nominee.nomineeKey) ?? null;
       const userId = playerDetail?.userId ?? nominee.nomineeKey;
       const coach = teamByUser.get(userId);
       if (!coach) continue;
@@ -1607,14 +1610,15 @@ export async function generateAwardNominees(guildId: string) {
       const performanceScore = Math.round((normalizedScores.get(nominee.nomineeKey) ?? 0) * 100) / 100;
       const displayLabel = playerDetail?.displayLabel ?? `${coach.teamName} (${coach.displayName})`;
       nomineeOptions.push({
+        nomineeId: row?.id ? String(row.id) : undefined,
         userId,
         nomineeKey: nominee.nomineeKey,
         discordId: coach.discordId,
         displayLabel,
         performanceScore,
         statLine: playerDetail?.statLine ?? (def.key === "best_roster" ? buildBestGmStatLine(bestGmProfiles.get(userId)) : undefined),
-        voteCount: 0,
-        liveScore: performanceScore
+        voteCount: row?.vote_count ?? 0,
+        liveScore: row?.final_score ?? performanceScore
       });
     }
 
@@ -1776,8 +1780,8 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
   const { data: voterDiscord } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.voterDiscordId).maybeSingle();
   if (!voterDiscord?.user_id) return { recorded: false, reason: "Your Discord account is not linked to a REC profile." };
 
-  const nomineeKey = input.nomineeUserId;
-  if (!nomineeKey) return { recorded: false, reason: "Nominee not found." };
+  const nomineeIdentifier = input.nomineeUserId;
+  if (!nomineeIdentifier) return { recorded: false, reason: "Nominee not found." };
 
   // Must be a linked coach
   const { data: voterAssignment } = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", link.league_id).eq("user_id", voterDiscord.user_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
@@ -1793,8 +1797,22 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
     return { recorded: false, reason: "Voting for this award has closed (24h window expired)." };
   }
 
-  // Verify nominee is in this award
-  const { data: nominee } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("nominee_key", nomineeKey).maybeSingle();
+  // Verify nominee is in this award. Accept nominee row `id` first, then fall back
+  // to `nominee_key` or `user_id` for backwards compatibility with existing menus.
+  let nominee: any = null;
+  // try by id
+  if (nomineeIdentifier) {
+    const { data: byId } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("id", nomineeIdentifier).maybeSingle();
+    if (byId?.id) nominee = byId;
+  }
+  if (!nominee) {
+    const { data: byKey } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("nominee_key", nomineeIdentifier).maybeSingle();
+    if (byKey?.id) nominee = byKey;
+  }
+  if (!nominee) {
+    const { data: byUser } = await supabase.from("rec_award_nominees").select("id,user_id,nominee_key").eq("award_id", input.awardId).eq("user_id", nomineeIdentifier).maybeSingle();
+    if (byUser?.id) nominee = byUser;
+  }
   if (!nominee?.user_id) return { recorded: false, reason: "That nominee is not in this award." };
 
   // Check no self-voting
@@ -1806,7 +1824,7 @@ export async function castAwardVote(input: { guildId: string; voterDiscordId: st
     award_id: input.awardId,
     voter_user_id: String(voterDiscord.user_id),
     nominee_user_id: String(nominee.user_id),
-    nominee_key: nomineeKey,
+    nominee_key: nominee.nominee_key ?? null,
     updated_at: nowIso()
   }, { onConflict: "award_id,voter_user_id" });
 

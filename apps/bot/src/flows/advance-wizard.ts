@@ -247,7 +247,9 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
         }
         for (const award of votingAwards) {
           const options = (award.nomineeOptions ?? []).slice(0, 25).map((n) =>
-            new StringSelectMenuOptionBuilder().setLabel(n.displayLabel.slice(0, 100)).setValue((n.nomineeKey ?? n.userId).slice(0, 100))
+            new StringSelectMenuOptionBuilder()
+              .setLabel(n.displayLabel.slice(0, 100))
+              .setValue(String(n.nomineeId ?? n.nomineeKey ?? n.userId).slice(0, 100))
           );
           if (options.length === 0) {
             warnings.push(`rec_award_${award.key}: no selectable nominee options`);
