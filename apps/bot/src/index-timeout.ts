@@ -967,7 +967,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
       const guild = interaction.guild;
 
       if (!guild) {
-        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription(`Created ${result.items?.length ?? 0} payout items. Guild context unavailable for DMs.`)], components: buildAdvanceMenuPanel().components });
+        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription(`Created ${result.items?.length ?? 0} payout items. Skipped ${result.skippedAlreadyIssued?.length ?? 0} already-issued payouts. Guild context unavailable for DMs.`)], components: buildAdvanceMenuPanel().components });
         return;
       }
 
@@ -1036,12 +1036,21 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
               const rankPart = item.rank ? `Rank ${item.rank} · ` : "";
               return `• ${mention} — ${rankPart}**$${item.amount}**`;
             });
+            const skippedLines = (result.skippedAlreadyIssued ?? []).map((item: any) => {
+              const mention = item.discordId ? `<@${item.discordId}>` : item.displayName ?? item.teamName ?? "Unknown";
+              const changed = Number(item.recalculatedAmount ?? item.originalAmount ?? 0) !== Number(item.originalAmount ?? 0)
+                ? `; current recalculation would be $${item.recalculatedAmount}`
+                : "";
+              return `- ${mention} - already issued **$${item.originalAmount}**${changed}`;
+            });
             const headerEmbed = new EmbedBuilder()
               .setTitle("EOS Payouts Issued")
               .setDescription([
                 `**Season ${result.seasonNumber}** payouts have been issued. Each recipient must approve via DM, and a commissioner must approve in the pending payouts channel.`,
                 "",
-                ...summaryLines
+                summaryLines.length ? "**New Pending Payouts**" : "**New Pending Payouts:** None",
+                ...summaryLines,
+                ...(skippedLines.length ? ["", "**Skipped Already-Issued Payouts**", ...skippedLines] : [])
               ].join("\n"))
               .setColor(0x5865f2);
             await ch.send({ embeds: [headerEmbed] }).catch(() => undefined);
@@ -1052,8 +1061,20 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
       // Post the per-coach commissioner approve/reject panels to the PENDING PAYOUTS channel
       // (falls back to announcements only if no pending payouts channel is configured).
       const approvalChannelId = result.pendingPayoutsChannelId ?? result.announcementsChannelId;
+      let removedOldEmbeds = 0;
       if (approvalChannelId) {
         try {
+          for (const ref of result.supersededMessages ?? []) {
+            try {
+              const oldCh = await guild.channels.fetch(ref.discordChannelId).catch(() => null) as TextChannel | null;
+              if (oldCh?.type !== ChannelType.GuildText) continue;
+              const oldMsg = await oldCh.messages.fetch(ref.discordMessageId).catch(() => null);
+              if (!oldMsg) continue;
+              await oldMsg.delete().catch(() => undefined);
+              removedOldEmbeds++;
+            } catch { /* non-fatal cleanup */ }
+          }
+
           const ch = await guild.channels.fetch(approvalChannelId).catch(() => null) as TextChannel | null;
           if (ch?.type === ChannelType.GuildText) {
             await ch.send({ embeds: [new EmbedBuilder()
@@ -1100,6 +1121,8 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
       await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription([
           `Payout items created: **${result.items?.length ?? 0}**`,
+          `Already-issued payouts skipped: **${result.skippedAlreadyIssued?.length ?? 0}**`,
+          `Superseded pending embeds removed: **${removedOldEmbeds}**`,
           `DMs sent: **${dmsSent}**`,
           "",
           "Each payout requires both recipient and commissioner approval before funds are credited."

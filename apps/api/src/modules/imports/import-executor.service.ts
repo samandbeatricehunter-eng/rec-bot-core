@@ -454,11 +454,23 @@ export async function executeImportJob(importJobId: string) {
   const results: ImportEndpointExecutionResult[] = [];
   let session: EaBlazeSession | undefined = initialSession;
   for (const endpointKey of endpointKeys) {
+    if (successfulKeys.has(endpointKey)) {
+      const attempt = successfulAttempts.find((item: any) => item.endpoint_key === endpointKey);
+      results.push({
+        endpointKey,
+        endpointLabel: attempt?.endpoint_label ?? endpointLabel(endpointKey),
+        status: "success",
+        recordsFound: attempt?.records_found ?? 0,
+        responseSummary: { ...(attempt?.response_summary ?? {}), skippedBecauseAlreadyStaged: true }
+      });
+      continue;
+    }
     const result = await runSingleEndpoint({ importJobId, job, endpointKey, eaContext, session });
     if (result.status === "failed") invalidateBlazeSession(eaContext.accountId);
     session = result.session ?? session;
     const { session: _session, ...withoutSession } = result;
     results.push(withoutSession);
+    if (result.status === "failed") break;
   }
   const failed = results.filter((result) => result.status === "failed").length;
   const skipped = results.filter((result) => result.status === "skipped").length;

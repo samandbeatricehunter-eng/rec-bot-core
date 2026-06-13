@@ -436,7 +436,16 @@ export async function clearPendingEosBatch(input: { guildId: string; clearReason
     .maybeSingle();
   if (error) throw error;
   if (!batch) return { cleared: false, reason: "No pending EOS batch found." };
-  await supabase.from("rec_eos_payout_items").update({ status: "voided", updated_at: new Date().toISOString() }).eq("batch_id", batch.id).eq("status", "pending");
+  const { data: supersededItems } = await supabase
+    .from("rec_eos_payout_items")
+    .select("id,discord_channel_id,discord_message_id,status")
+    .eq("batch_id", batch.id)
+    .in("status", ["pending", "approved"]);
+  await supabase
+    .from("rec_eos_payout_items")
+    .update({ status: "voided", updated_at: new Date().toISOString() })
+    .eq("batch_id", batch.id)
+    .in("status", ["pending", "approved"]);
   const { data: updated, error: updateError } = await supabase
     .from("rec_eos_payout_batches")
     .update({ status: "cleared", clear_reason: input.clearReason, cleared_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -444,7 +453,18 @@ export async function clearPendingEosBatch(input: { guildId: string; clearReason
     .select("*")
     .single();
   if (updateError) throw updateError;
-  return { cleared: true, batch: updated };
+  return {
+    cleared: true,
+    batch: updated,
+    supersededMessages: (supersededItems ?? [])
+      .filter((item: any) => item.discord_channel_id && item.discord_message_id)
+      .map((item: any) => ({
+        itemId: item.id,
+        discordChannelId: item.discord_channel_id,
+        discordMessageId: item.discord_message_id,
+        previousStatus: item.status
+      }))
+  };
 }
 
 async function getWeekGames(leagueId: string, seasonNumber: number, weekNumber: number) {
@@ -1864,17 +1884,6 @@ export async function previewEosPayouts(guildId: string) {
   return { seasonNumber, weekNumber: league.current_week, items, totalPayout: items.reduce((sum, i) => sum + i.projectedPayout, 0) };
 }
 
-const EOS_PAYOUT_TIERS = [
-  { rank: 1, label: "Regular Season Champion", amount: 250 },
-  { rank: 2, label: "2nd Place", amount: 175 },
-  { rank: 3, label: "3rd Place", amount: 125 },
-  { rank: 4, label: "4th Place", amount: 100 },
-  { rank: 5, label: "5th Place", amount: 75 },
-  { rank: 6, label: "6th Place", amount: 75 },
-  { rank: 7, label: "7th Place", amount: 50 },
-  { rank: 8, label: "8th Place", amount: 50 }
-];
-
 export async function runEosPollsAndAwards(guildId: string) {
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;
@@ -1935,42 +1944,31 @@ export async function issueEosPayouts(guildId: string) {
     throw new Error("EOS payouts can only be issued during Wild Card through Super Bowl weeks.");
   }
 
-  // Void any pending (unapproved) items from the existing batch, then create a fresh one.
-  await clearPendingEosBatch({ guildId, clearReason: "Superseded by new issuance" }).catch(() => undefined);
+  // Void any unissued items from the existing batch, then create a fresh one.
+  const clearedBatch = await clearPendingEosBatch({ guildId, clearReason: "Superseded by new issuance" }).catch(() => null);
 
   const { data: routes } = await supabase.from("rec_server_routes").select("*").eq("server_id", context.server_id).maybeSingle() as any;
   const serverName = league.name ?? "REC League";
 
-  // Fetch standings and stat payouts in parallel
-  const [recordsResult, statPayouts] = await Promise.all([
-    supabase
-      .from("rec_season_user_records")
-      .select("user_id,wins,losses,ties,point_differential,games_played")
-      .eq("league_id", leagueId)
-      .eq("season_number", seasonNumber)
-      .order("wins", { ascending: false }),
+  // Fetch rank payouts through the DB RPC so ordering is deterministic across runs.
+  const [rankRowsResult, statPayouts] = await Promise.all([
+    supabase.rpc("rec_eos_rank_payouts", { p_league_id: leagueId, p_season_number: seasonNumber }),
     (async () => {
       const { computeEosStatPayouts } = await import("./eos-stat-payouts.service.js");
       return computeEosStatPayouts(leagueId, seasonNumber);
     })().catch((err) => { console.error("[issueEosPayouts] stat payout computation failed:", err); return []; })
   ]);
 
-  const sorted = [...(recordsResult.data ?? [])].sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    return (b.point_differential ?? 0) - (a.point_differential ?? 0);
-  });
+  if (rankRowsResult.error) throw rankRowsResult.error;
 
   // Build rank map: userId → { rank, label, amount, wins, losses, ties }
   const rankMap = new Map<string, { rank: number; label: string; rankAmount: number; wins: number; losses: number; ties: number }>();
-  for (let idx = 0; idx < sorted.length; idx++) {
-    const record = sorted[idx];
+  for (const record of rankRowsResult.data ?? []) {
     if (!record.user_id) continue;
-    const rank = idx + 1;
-    const tier = EOS_PAYOUT_TIERS.find((t) => t.rank === rank);
     rankMap.set(String(record.user_id), {
-      rank,
-      label: tier?.label ?? `Rank ${rank}`,
-      rankAmount: tier?.amount ?? 0,
+      rank: asNumber(record.rank),
+      label: record.rank_label ?? `Rank ${record.rank}`,
+      rankAmount: asNumber(record.rank_amount),
       wins: record.wins ?? 0,
       losses: record.losses ?? 0,
       ties: record.ties ?? 0
@@ -1993,6 +1991,15 @@ export async function issueEosPayouts(guildId: string) {
   if (batchError) throw batchError;
 
   const items: any[] = [];
+  const skippedAlreadyIssued: any[] = [];
+  const { data: existingResolvedItems, error: existingResolvedError } = await supabase
+    .from("rec_eos_payout_items")
+    .select("id,user_id,payout_key,payout_label,amount,status,issued_at")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .in("status", ["issued"]);
+  if (existingResolvedError) throw existingResolvedError;
+  const issuedByPayoutKey = new Map((existingResolvedItems ?? []).map((item: any) => [String(item.payout_key), item]));
 
   for (const userId of allUserIds) {
     const rankData = rankMap.get(userId);
@@ -2006,6 +2013,20 @@ export async function issueEosPayouts(guildId: string) {
     const rank = rankData?.rank ?? null;
     const statCategories = statData?.categories ?? [];
     const payoutKey = `eos:${leagueId}:${seasonNumber}:combined:${userId}`;
+    const alreadyIssued = issuedByPayoutKey.get(payoutKey);
+    if (alreadyIssued) {
+      skippedAlreadyIssued.push({
+        ...alreadyIssued,
+        rank,
+        discordId: discordIds.get(userId) ?? null,
+        displayName: statData?.displayName ?? null,
+        teamName: statData?.teamName ?? null,
+        recalculatedAmount: grandTotal,
+        originalAmount: asNumber(alreadyIssued.amount),
+        reason: "already_issued"
+      });
+      continue;
+    }
 
     const rankLabel = rankData?.label ?? null;
     const labelParts = [rankLabel, statTotal > 0 ? "Stat Bonuses" : null].filter(Boolean);
@@ -2065,6 +2086,8 @@ export async function issueEosPayouts(guildId: string) {
   return {
     batchId: batch.id,
     items,
+    skippedAlreadyIssued,
+    supersededMessages: clearedBatch?.supersededMessages ?? [],
     seasonNumber,
     serverName,
     announcementsChannelId: routes?.announcements_channel_id ?? null,
@@ -2081,6 +2104,7 @@ export async function approveEosPayoutItem(input: { itemId: string; discordId: s
   if (error || !item) throw new Error("Payout item not found.");
   if (item.status === "issued") return { credited: false, reason: "already_issued", newBalance: null };
   if (item.status === "denied") return { credited: false, reason: "already_denied", newBalance: null };
+  if (item.status === "voided") return { credited: false, reason: "already_voided", newBalance: null };
 
   const { data: discordRow } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
   const actorUserId = discordRow?.user_id ?? null;
@@ -2120,7 +2144,12 @@ export async function approveEosPayoutItem(input: { itemId: string; discordId: s
       amount: asNumber(updated.amount),
       transactionType: "eos_payout",
       description: `${updated.payout_label} — Season ${updated.season_number} EOS Payout`,
-      sourceReference: { itemId: updated.id, batchId: updated.batch_id, idempotencyKey: `eos_payout_${updated.id}` }
+      sourceReference: {
+        itemId: updated.id,
+        batchId: updated.batch_id,
+        payoutKey: updated.payout_key,
+        idempotencyKey: String(updated.payout_key ?? `eos:${updated.league_id}:${updated.season_number}:combined:${updated.user_id}`)
+      }
     });
     await supabase.from("rec_eos_payout_items").update({
       status: "issued",

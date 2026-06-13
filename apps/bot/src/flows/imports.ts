@@ -579,24 +579,18 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       components: []
     });
 
-    for (const endpointKey of endpointKeys) {
-      const step = IMPORT_PROGRESS_STEPS.find((item) => item.key === endpointKey);
-      const label = step?.label ?? endpointKey;
-      progressLines.push(`RUNNING ${label}`);
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Staging Selected Endpoints").setDescription(progressLines.join("\n"))],
-        components: []
-      });
-
-      try {
-        const result = await recApi.stageImportEndpoint({ importJobId: importJobId!, endpointKey });
-        const summary = previewSummary(result.job);
-        const latest = summary.latestEndpoint ?? {};
-        progressLines[progressLines.length - 1] = `${statusIcon(latest.status ?? "success")} ${label} - ${latest.recordsFound ?? "?"} records`;
-      } catch (error) {
-        const message = extractApiErrorMessage(error);
-        progressLines[progressLines.length - 1] = `FAILED ${label} - ${message}`;
-        if (isEaReconnectRequired(error)) {
+    try {
+      const result = await recApi.executeImportJob(importJobId!);
+      const summary = previewSummary(result.job);
+      const endpointResults = summary.endpointExecution?.results ?? [];
+      progressLines.push(...endpointResults.map((endpoint: any) => {
+        const skipped = endpoint.responseSummary?.skippedBecauseAlreadyStaged ? " (already staged)" : "";
+        return `${statusIcon(endpoint.status)} ${endpoint.endpointLabel ?? endpoint.endpointKey} - ${endpoint.recordsFound ?? 0} records${skipped}`;
+      }));
+      const failedEndpoint = endpointResults.find((endpoint: any) => endpoint.status === "failed");
+      if (failedEndpoint) {
+        const message = failedEndpoint.errorMessage ?? failedEndpoint.responseSummary?.error ?? `${failedEndpoint.endpointLabel ?? failedEndpoint.endpointKey} failed during staging.`;
+        if (isEaReconnectRequired(new Error(message))) {
           const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: updatedDraft.eaConsole ?? "pc" }).catch(() => null);
           await interaction.editReply({
             embeds: [new EmbedBuilder().setTitle("EA Login Refresh Required").setDescription([
@@ -622,6 +616,33 @@ export async function handleImportButton(interaction: ButtonInteraction) {
         });
         return;
       }
+    } catch (error) {
+      const message = extractApiErrorMessage(error);
+      if (isEaReconnectRequired(error)) {
+        const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: updatedDraft.eaConsole ?? "pc" }).catch(() => null);
+        await interaction.editReply({
+          embeds: [new EmbedBuilder().setTitle("EA Login Refresh Required").setDescription([
+            ...progressLines, "",
+            "The import stopped because EA could not keep a valid Blaze session.",
+            "Successful endpoints remain staged and Resume Import will skip them.",
+            "No data was committed.", "",
+            `Error: ${message}`, "",
+            "Click **Open EA Login**, complete EA sign-in, then click **Enter EA Auth Code** before trying again."
+          ].join("\n"))],
+          components: status?.loginUrl ? buildEaConnectRows(status.loginUrl) : buildDiscoverFranchisesRows()
+        });
+        return;
+      }
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Import Staging Failed").setDescription([
+          ...progressLines, "",
+          "One endpoint failed. Successful endpoints remain staged.",
+          "No data was committed.", "",
+          `Error: ${message}`
+        ].join("\n"))],
+        components: buildImportJobCreatedRows()
+      });
+      return;
     }
 
     await interaction.editReply({
