@@ -35,17 +35,27 @@ type CategoryKey = (typeof EOS_AWARD_CATEGORIES)[number]["key"];
 async function getLeagueContext(guildId: string) {
   const { data: server } = await supabase
     .from("rec_discord_servers")
-    .select("id,league_id")
+    .select("id")
     .eq("guild_id", guildId)
     .maybeSingle();
-  if (!server?.league_id) throw new Error("No league found for this server.");
+  if (!server?.id) throw new Error("No league found for this server.");
+
+  const { data: link } = await supabase
+    .from("rec_server_league_links")
+    .select("league_id")
+    .eq("server_id", server.id)
+    .eq("is_primary", true)
+    .maybeSingle();
+  if (!link?.league_id) throw new Error("No league found for this server.");
+
   const { data: league } = await supabase
     .from("rec_leagues")
     .select("id,season_number,display_season_number")
-    .eq("id", server.league_id)
+    .eq("id", link.league_id)
     .maybeSingle();
   if (!league) throw new Error("League not found.");
-  return { leagueId: server.league_id as string, seasonNumber: (league.season_number ?? league.display_season_number ?? 1) as number };
+
+  return { leagueId: link.league_id as string, seasonNumber: (league.season_number ?? league.display_season_number ?? 1) as number };
 }
 
 async function getActiveNominees(leagueId: string) {
