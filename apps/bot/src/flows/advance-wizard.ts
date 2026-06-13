@@ -116,35 +116,35 @@ export function buildRecAwardVotingEmbed(award: any): EmbedBuilder {
 
 async function cleanAwardVotingChannel(channel: TextChannel, warnings: string[]): Promise<void> {
   try {
-    const fetched = await channel.messages.fetch({ limit: 100 });
-    const awardMessages = fetched.filter((message: Message) => {
-      if (message.author.id !== channel.client.user?.id) return false;
-      const embedTitle = message.embeds?.[0]?.title ?? "";
-      const footer = message.embeds?.[0]?.footer?.text ?? "";
-      const hasAwardSelect = message.components?.some((row: any) =>
-        row.components?.some((component: any) => String(component.customId ?? "").startsWith("rec_award_vote:") || String(component.customId ?? "").startsWith("eos_vote:"))
-      );
-      return Boolean(
-        hasAwardSelect ||
-        embedTitle === "Post-Season Voting Has Begun" ||
-        embedTitle === "REC Award Generation Failed" ||
-        footer.includes("votes logged") ||
-        footer.includes("Voting closes")
-      );
-    });
+    let deletedCount = 0;
+    let cursor: string | undefined;
 
-    const bulkDeletable = awardMessages.filter((message: Message) => message.bulkDeletable);
-    if (bulkDeletable.size > 0) {
-      await channel.bulkDelete(bulkDeletable, true).catch((err) =>
-        warnings.push(`award_channel_bulk_delete: ${err instanceof Error ? err.message : String(err)}`)
-      );
+    for (let page = 0; page < 10; page += 1) {
+      const fetched = await channel.messages.fetch({ limit: 100, before: cursor });
+      if (fetched.size === 0) break;
+      cursor = fetched.last()?.id;
+
+      const bulkDeletable = fetched.filter((message: Message) => message.bulkDeletable);
+      if (bulkDeletable.size > 0) {
+        const deleted = await channel.bulkDelete(bulkDeletable, true).catch((err) => {
+          warnings.push(`award_channel_bulk_delete_page_${page + 1}: ${err instanceof Error ? err.message : String(err)}`);
+          return null;
+        });
+        deletedCount += deleted?.size ?? 0;
+      }
+
+      const remaining = fetched.filter((message: Message) => !message.bulkDeletable && message.deletable);
+      for (const message of remaining.values()) {
+        await message.delete()
+          .then(() => { deletedCount += 1; })
+          .catch((err) => warnings.push(`award_channel_delete_${message.id}: ${err instanceof Error ? err.message : String(err)}`));
+      }
+
+      if (fetched.size < 100) break;
     }
 
-    const remaining = awardMessages.filter((message: Message) => !message.bulkDeletable && message.deletable);
-    for (const message of remaining.values()) {
-      await message.delete().catch((err) =>
-        warnings.push(`award_channel_delete_${message.id}: ${err instanceof Error ? err.message : String(err)}`)
-      );
+    if (deletedCount === 0) {
+      warnings.push("award_channel_cleanup: no messages were deleted; check bot Manage Messages permission or whether messages are too old/deletable");
     }
   } catch (err) {
     warnings.push(`award_channel_cleanup: ${err instanceof Error ? err.message : String(err)}`);

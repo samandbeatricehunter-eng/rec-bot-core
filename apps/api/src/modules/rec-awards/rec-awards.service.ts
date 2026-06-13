@@ -675,6 +675,34 @@ function mergeStats(target: Record<string, number>, source: Record<string, unkno
   for (const [key, value] of Object.entries(source ?? {})) addStat(target, key, value);
 }
 
+function weeklyStatDedupeKey(row: any) {
+  return [
+    row.league_id ?? "",
+    row.season_number ?? "",
+    row.week_number ?? "",
+    row.team_id ?? "",
+    row.player_id ?? "",
+    row.stat_category ?? ""
+  ].join(":::");
+}
+
+function dedupeWeeklyStatRows<T extends Record<string, any>>(rows: T[]): T[] {
+  const byKey = new Map<string, T>();
+  for (const row of rows ?? []) {
+    const key = weeklyStatDedupeKey(row);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, row);
+      continue;
+    }
+
+    const existingUpdated = Date.parse(String(existing.updated_at ?? existing.created_at ?? "")) || 0;
+    const rowUpdated = Date.parse(String(row.updated_at ?? row.created_at ?? "")) || 0;
+    if (rowUpdated >= existingUpdated) byKey.set(key, row);
+  }
+  return [...byKey.values()];
+}
+
 function yearsProFromPlayer(player: any): number {
   return asNum(player?.years_pro ?? player?.raw_payload?.yearsPro ?? player?.raw_payload?.years_pro ?? 0);
 }
@@ -850,10 +878,11 @@ async function getPlayerAwardCandidates(
     selectAllPages<any>((from, to) =>
       supabase
         .from("rec_player_weekly_stats")
-        .select("player_id,team_id,stat_category,stats,rec_players(full_name,position,raw_payload,years_pro)")
+        .select("league_id,season_number,week_number,player_id,team_id,stat_category,stats,created_at,updated_at,rec_players(full_name,position,raw_payload,years_pro)")
         .eq("league_id", leagueId)
         .eq("season_number", seasonNumber)
         .eq("season_stage", "regular_season")
+        .lte("week_number", 18)
         .eq("stat_category", category)
         .range(from, to)
     )
@@ -861,7 +890,7 @@ async function getPlayerAwardCandidates(
 
   const byPlayer = new Map<string, PlayerAwardCandidate>();
   for (const rows of pages) {
-    for (const row of rows ?? []) {
+    for (const row of dedupeWeeklyStatRows(rows ?? [])) {
       const teamId = String(row.team_id ?? "");
       const playerId = String(row.player_id ?? "");
       const coach = coachByTeamId.get(teamId);
@@ -889,9 +918,10 @@ async function getPlayerAwardCandidates(
       }
       const candidate = byPlayer.get(candidateKey)!;
       const category = String(row.stat_category ?? "unknown");
+      const rowStats = row.stats ?? {};
       if (!candidate.statsByCategory[category]) candidate.statsByCategory[category] = {};
-      mergeStats(candidate.statsByCategory[category], row.stats ?? {});
-      mergeStats(candidate.stats, row.stats ?? {});
+      mergeStats(candidate.statsByCategory[category], rowStats);
+      mergeStats(candidate.stats, rowStats);
     }
   }
 
@@ -916,6 +946,17 @@ function buildPlayerAwardScoreMaps(candidates: PlayerAwardCandidate[]) {
     candidates.filter((candidate) => candidate.position === "QB"),
     (candidate) => candidate.scores.passing + candidate.scores.rushing * 0.25
   );
+
+  const opoyRelativeByPosition = new Map<string, Map<string, number>>();
+  for (const position of ["QB", "HB", "FB", "WR", "TE"]) {
+    opoyRelativeByPosition.set(
+      position,
+      relativeScores(
+        candidates.filter((candidate) => candidate.position === position),
+        (candidate) => candidate.scores.offense
+      )
+    );
+  }
 
   function add(awardKey: string, candidate: PlayerAwardCandidate, rawScore: number) {
     if (!Number.isFinite(rawScore) || rawScore <= 0) return;
@@ -950,17 +991,21 @@ function buildPlayerAwardScoreMaps(candidates: PlayerAwardCandidate[]) {
   for (const candidate of candidates) {
     const twoWayBonus = Math.min(Math.min(candidate.scores.offense, candidate.scores.defense) * 0.18, 10);
     const baseImpact = Math.max(candidate.scores.offense, candidate.scores.defense) + twoWayBonus + candidate.winPct * 100 * 0.04;
-    mvpBase.set(candidate.playerId, baseImpact);
+    mvpBase.set(`${candidate.teamId}:::${candidate.playerId}`, baseImpact);
   }
 
   for (const candidate of candidates) {
     const relative = mvpRelative.get(candidate.playerId) ?? 50;
     const qbPeerBoost = candidate.position === "QB" ? (qbRelative.get(candidate.playerId) ?? 50) * 0.22 : 0;
-    const mvpScore = clamp((mvpBase.get(candidate.playerId) ?? 0) * 0.58 + relative * 0.34 + qbPeerBoost);
+    const mvpScore = clamp((mvpBase.get(`${candidate.teamId}:::${candidate.playerId}`) ?? 0) * 0.58 + relative * 0.34 + qbPeerBoost);
     add("mvp", candidate, mvpScore);
 
     if (OFFENSIVE_SKILL_POSITIONS.has(candidate.position)) {
-      if (candidate.yearsPro > 0) add("opoy", candidate, candidate.scores.offense);
+      if (candidate.yearsPro > 0) {
+        const posRelative = opoyRelativeByPosition.get(candidate.position)?.get(candidate.playerId) ?? 50;
+        const opoyScore = clamp(candidate.scores.offense * 0.55 + posRelative * 0.45);
+        add("opoy", candidate, opoyScore);
+      }
       if (candidate.yearsPro === 0) add("offensive_rookie", candidate, candidate.scores.offense);
     }
     if (DEFENSIVE_POSITIONS.has(candidate.position)) {
@@ -1007,7 +1052,7 @@ const POSITION_AWARD_PLAYER_CONFIG: Record<string, { category: string; positions
 // also pull rushing/receiving so RBs and WRs compete with QBs fairly.
 const COMPOSITE_EXTRA_CATEGORIES: Record<string, string[]> = {
   mvp: ["rushing", "receiving"],
-  opoy: ["rushing", "receiving"],
+  opoy: ["passing", "rushing", "receiving"],
   offensive_rookie: ["rushing", "receiving"],
 };
 
@@ -1028,10 +1073,11 @@ async function getTopPlayerPerTeam(
       selectAllPages<any>((from, to) =>
         supabase
           .from("rec_player_weekly_stats")
-          .select("player_id,team_id,stats,rec_players(full_name,position,raw_payload)")
+          .select("league_id,season_number,week_number,player_id,team_id,stat_category,stats,created_at,updated_at,rec_players(full_name,position,raw_payload)")
           .eq("league_id", leagueId)
           .eq("season_number", seasonNumber)
           .eq("season_stage", "regular_season")
+          .lte("week_number", 18)
           .eq("stat_category", cat)
           .range(from, to)
       )
@@ -1041,7 +1087,7 @@ async function getTopPlayerPerTeam(
   // Accumulate per player + team
   const playerAgg = new Map<string, { teamId: string; playerName: string; position: string; stats: Record<string, number> }>();
   for (const result of results) {
-    for (const row of result ?? []) {
+    for (const row of dedupeWeeklyStatRows(result ?? [])) {
       const teamId = String(row.team_id ?? "");
       const playerId = String((row as any).player_id ?? "");
       if (!teamId || !playerId) continue;
