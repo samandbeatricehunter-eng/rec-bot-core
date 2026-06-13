@@ -48,7 +48,7 @@ interface EosPollsData {
       description?: string;
       nomineeCount: number;
       status: string;
-      nomineeOptions?: Array<{ userId: string; nomineeKey?: string; discordId: string | null; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
+      nomineeOptions?: Array<{ nomineeId?: string; userId: string; nomineeKey?: string; discordId: string | null; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
       payoutAmount?: number;
       prizeText?: string;
       nominees?: Array<{ userId: string; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
