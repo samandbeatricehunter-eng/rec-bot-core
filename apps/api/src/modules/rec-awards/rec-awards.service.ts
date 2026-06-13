@@ -1414,6 +1414,8 @@ export async function generateAwardNominees(guildId: string) {
   const playerAwardData = await getRpcPlayerAwardData(leagueId, seasonNumber);
   const playerAwardCandidates = playerAwardData.candidateCount;
 
+  console.log(`[AWARDS] Player award data: ${playerAwardCandidates} candidates, keys: ${Object.keys(playerAwardData.detailsByAward).join(", ").slice(0, 100)}`);
+
   // Build score maps per award key
   const rawScores: Record<string, Map<string, number>> = {};
   const rawStatsPerUser: Record<string, Record<string, Record<string, number>>> = {};
@@ -1490,16 +1492,22 @@ export async function generateAwardNominees(guildId: string) {
 
   const allCoachUserIds = [...teamByUser.keys()];
 
+  console.log(`[AWARDS] Starting generation for league ${leagueId} season ${seasonNumber}, ${allCoachUserIds.length} coaches`);
+
   for (const def of AWARD_DEFINITIONS) {
     let scoreMap = rawScores[def.key];
     let nomineeCap = def.nomineeCount;
+    console.log(`[AWARDS] Processing award "${def.key}": scoreMap size = ${scoreMap?.size ?? 0}, nomineeCount = ${nomineeCap}`);
+    
     if (!scoreMap?.size) {
       if (def.key === "commissioners_award" && def.requiresVoting && allCoachUserIds.length > 0) {
         // Commissioner's Award is intentionally community-voted with no stat basis.
+        console.log(`[AWARDS] "${def.key}" is commissioner award, creating scoreMap with all ${allCoachUserIds.length} coaches`);
         scoreMap = new Map<string, number>(allCoachUserIds.map((uid) => [uid, 0]));
         nomineeCap = Math.min(allCoachUserIds.length, 25);
       } else {
         // Non-voting (auto-awarded) category with no data → record as no_nominees.
+        console.log(`[AWARDS] "${def.key}" has no scores, marking as no_nominees`);
         const { data: award } = await supabase
           .from("rec_awards")
           .upsert({
@@ -1583,10 +1591,15 @@ export async function generateAwardNominees(guildId: string) {
       .filter(Boolean) as any[];
 
     if (nomineeRows.length > 0) {
+      console.log(`[AWARDS] Award "${def.key}": upserting ${nomineeRows.length} nominees`);
       const { error: upsertError } = await supabase.from("rec_award_nominees").upsert(nomineeRows, { onConflict: "award_id,nominee_key", ignoreDuplicates: false });
       if (upsertError) {
         console.error(`[AWARDS] Upsert failed for award ${award.id}:`, upsertError);
+      } else {
+        console.log(`[AWARDS] Award "${def.key}" nominees upserted successfully`);
       }
+    } else {
+      console.log(`[AWARDS] Award "${def.key}": nomineeRows is empty, skipping upsert`);
     }
 
     if (!def.requiresVoting) {
@@ -1690,6 +1703,8 @@ export async function generateAwardNominees(guildId: string) {
       olTeamRatings: olTeamRatings.size,
     },
   };
+
+  console.log(`[AWARDS] Generation complete: ${generatedAwards.length} awards, diagnostics:`, JSON.stringify(diagnostics, null, 2).slice(0, 2000));
 
   return {
     generated: generatedAwards.length,
