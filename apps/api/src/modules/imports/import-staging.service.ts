@@ -129,6 +129,18 @@ function ensureRequiredExternalId(value: string | null | undefined, fallback: st
   return normalized.length > 0 ? normalized : fallback;
 }
 
+function dedupeBy<T>(rows: T[], keyFn: (row: T) => string) {
+  const map = new Map<string, T>();
+  for (const row of rows) map.set(keyFn(row), row);
+  return [...map.values()];
+}
+
+function chunks<T>(rows: T[], size: number) {
+  const output: T[][] = [];
+  for (let i = 0; i < rows.length; i += size) output.push(rows.slice(i, i + size));
+  return output;
+}
+
 export async function stageTeams(teams: StagedTeamInput[]) {
   if (teams.length === 0) return { count: 0, rows: [] };
 
@@ -310,36 +322,58 @@ export async function stageTeamStats(teamStats: StagedTeamStatInput[]) {
 export async function stagePlayerStats(playerStats: StagedPlayerStatInput[]) {
   if (playerStats.length === 0) return { count: 0, rows: [] };
 
-  const result = await supabase
-    .from("rec_import_staging_player_stats")
-    .upsert(
-      playerStats.map((player, index) => ({
-        import_job_id: player.importJobId,
-        league_id: player.leagueId,
-        ea_league_id: player.eaLeagueId ?? null,
-        season_number: player.seasonNumber,
-        season_index: player.seasonIndex ?? null,
-        season_stage: player.seasonStage ?? "regular_season",
-        week_number: player.weekNumber ?? null,
-        stat_category: player.statCategory ?? "unknown",
-        source_stat_id: player.sourceStatId ?? `week:${player.weekNumber ?? "na"}:cat:${player.statCategory ?? "unknown"}:player:${player.playerExternalId ?? `unknown-player-stat-${player.weekNumber ?? "na"}-${index}`}`,
-        source_schedule_id: player.sourceScheduleId ?? `week:${player.weekNumber ?? "na"}`,
-        player_external_id: ensureRequiredExternalId(player.playerExternalId, `unknown-player-stat-${player.weekNumber ?? "na"}-${index}`),
-        player_name: player.playerName ?? null,
-        team_external_id: player.teamExternalId ?? null,
-        team_name: player.teamName ?? null,
-        position: player.position ?? null,
-        stats: player.stats ?? {},
-        normalized: player.normalized ?? {},
-        raw_payload: player.rawPayload ?? {}
-      })),
-      { onConflict: "import_job_id,player_external_id,week_number,stat_category,source_stat_id,source_schedule_id" }
-    )
-    .select("*");
+  const mapped = playerStats.map((player, index) => {
+    const playerExternalId = ensureRequiredExternalId(player.playerExternalId, `unknown-player-stat-${player.weekNumber ?? "na"}-${index}`);
+    const statCategory = player.statCategory ?? "unknown";
+    const sourceStatId = player.sourceStatId ?? `week:${player.weekNumber ?? "na"}:cat:${statCategory}:player:${playerExternalId}`;
+    const sourceScheduleId = player.sourceScheduleId ?? `week:${player.weekNumber ?? "na"}`;
+    return {
+      import_job_id: player.importJobId,
+      league_id: player.leagueId,
+      ea_league_id: player.eaLeagueId ?? null,
+      season_number: player.seasonNumber,
+      season_index: player.seasonIndex ?? null,
+      season_stage: player.seasonStage ?? "regular_season",
+      week_number: player.weekNumber ?? null,
+      stat_category: statCategory,
+      source_stat_id: sourceStatId,
+      source_schedule_id: sourceScheduleId,
+      player_external_id: playerExternalId,
+      player_name: player.playerName ?? null,
+      team_external_id: player.teamExternalId ?? null,
+      team_name: player.teamName ?? null,
+      position: player.position ?? null,
+      stats: player.stats ?? {},
+      normalized: player.normalized ?? {},
+      raw_payload: player.rawPayload ?? {}
+    };
+  });
+  const deduped = dedupeBy(mapped, (row) => [
+    row.import_job_id,
+    row.player_external_id,
+    row.week_number ?? "",
+    row.stat_category,
+    row.source_stat_id,
+    row.source_schedule_id
+  ].join("|"));
 
-  if (result.error) {
-    throw new ApiError(500, "Failed to stage imported player stats.", result.error);
+  const rows: any[] = [];
+  for (const chunk of chunks(deduped, 500)) {
+    const result = await supabase
+      .from("rec_import_staging_player_stats")
+      .upsert(chunk, { onConflict: "import_job_id,player_external_id,week_number,stat_category,source_stat_id,source_schedule_id" })
+      .select("*");
+
+    if (result.error) {
+      throw new ApiError(500, "Failed to stage imported player stats.", {
+        ...result.error,
+        attemptedRows: mapped.length,
+        dedupedRows: deduped.length,
+        chunkRows: chunk.length
+      });
+    }
+    rows.push(...(result.data ?? []));
   }
 
-  return { count: result.data?.length ?? 0, rows: result.data ?? [] };
+  return { count: rows.length, rows };
 }

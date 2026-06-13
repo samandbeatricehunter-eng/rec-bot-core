@@ -409,7 +409,8 @@ async function runSingleEndpoint(input: { importJobId: string; job: any; endpoin
     console.log("[IMPORT ENDPOINT COMPLETE]", { importJobId: input.importJobId, endpointKey: input.endpointKey, status: result.status, recordsFound: result.recordsFound, responseSummary: result.responseSummary ?? {} });
     return result;
   } catch (error) {
-    const failed = { endpointKey: input.endpointKey, endpointLabel: label, status: "failed" as const, recordsFound: 0, errorMessage: error instanceof Error ? error.message : String(error), responseSummary: { error: error instanceof Error ? error.message : String(error) }, session: input.session };
+    const details = error instanceof ApiError ? error.details : null;
+    const failed = { endpointKey: input.endpointKey, endpointLabel: label, status: "failed" as const, recordsFound: 0, errorMessage: error instanceof Error ? error.message : String(error), responseSummary: { error: error instanceof Error ? error.message : String(error), details }, session: input.session };
     await updateEndpointAttempt({ importJobId: input.importJobId, endpointKey: input.endpointKey, endpointLabel: label, status: "failed", attemptNumber: 1, durationMs: Date.now() - startedAt, recordsFound: 0, errorMessage: failed.errorMessage, responseSummary: failed.responseSummary });
     console.error("[IMPORT ENDPOINT FAILED]", { importJobId: input.importJobId, endpointKey: input.endpointKey, error: failed.errorMessage });
     return failed;

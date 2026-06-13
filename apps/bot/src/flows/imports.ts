@@ -114,6 +114,22 @@ function isEaReconnectRequired(error: unknown) {
   );
 }
 
+function formatEndpointFailure(endpoint: any) {
+  const message = endpoint?.errorMessage ?? endpoint?.responseSummary?.error ?? `${endpoint?.endpointLabel ?? endpoint?.endpointKey ?? "Endpoint"} failed during staging.`;
+  const details = endpoint?.responseSummary?.details;
+  if (!details || typeof details !== "object") return message;
+  const detailParts = [
+    details.code,
+    details.message,
+    details.details,
+    details.hint,
+    typeof details.attemptedRows === "number" ? `attemptedRows=${details.attemptedRows}` : null,
+    typeof details.dedupedRows === "number" ? `dedupedRows=${details.dedupedRows}` : null,
+    typeof details.chunkRows === "number" ? `chunkRows=${details.chunkRows}` : null
+  ].filter(Boolean);
+  return detailParts.length ? `${message}\n${detailParts.join(" | ")}` : message;
+}
+
 function normalizeEaAuthCode(raw: string) {
   const trimmed = raw.trim();
   try {
@@ -589,7 +605,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       }));
       const failedEndpoint = endpointResults.find((endpoint: any) => endpoint.status === "failed");
       if (failedEndpoint) {
-        const message = failedEndpoint.errorMessage ?? failedEndpoint.responseSummary?.error ?? `${failedEndpoint.endpointLabel ?? failedEndpoint.endpointKey} failed during staging.`;
+        const message = formatEndpointFailure(failedEndpoint);
         if (isEaReconnectRequired(new Error(message))) {
           const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: updatedDraft.eaConsole ?? "pc" }).catch(() => null);
           await interaction.editReply({
