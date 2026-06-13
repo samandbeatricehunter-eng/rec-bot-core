@@ -48,7 +48,7 @@ interface EosPollsData {
       description?: string;
       nomineeCount: number;
       status: string;
-      nomineeOptions?: Array<{ userId: string; discordId: string | null; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
+      nomineeOptions?: Array<{ userId: string; nomineeKey?: string; discordId: string | null; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
       payoutAmount?: number;
       prizeText?: string;
       nominees?: Array<{ userId: string; displayLabel: string; performanceScore?: number; statLine?: string; voteCount?: number; liveScore?: number }>;
@@ -119,7 +119,7 @@ async function cleanAwardVotingChannel(channel: TextChannel, warnings: string[])
     let deletedCount = 0;
     let cursor: string | undefined;
 
-    for (let page = 0; page < 10; page += 1) {
+    for (let page = 0; page < 100; page += 1) {
       const fetched = await channel.messages.fetch({ limit: 100, before: cursor });
       if (fetched.size === 0) break;
       cursor = fetched.last()?.id;
@@ -247,7 +247,7 @@ export async function postEosPollsAndAwards(guild: Guild, pollsData: EosPollsDat
         }
         for (const award of votingAwards) {
           const options = (award.nomineeOptions ?? []).slice(0, 25).map((n) =>
-            new StringSelectMenuOptionBuilder().setLabel(n.displayLabel.slice(0, 100)).setValue(n.userId)
+            new StringSelectMenuOptionBuilder().setLabel(n.displayLabel.slice(0, 100)).setValue((n.nomineeKey ?? n.userId).slice(0, 100))
           );
           if (options.length === 0) {
             warnings.push(`rec_award_${award.key}: no selectable nominee options`);

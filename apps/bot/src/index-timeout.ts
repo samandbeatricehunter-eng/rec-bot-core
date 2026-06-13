@@ -141,6 +141,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId.startsWith("rec_award_vote:")) return handleRecAwardVote(interaction);
+      if (interaction.customId.startsWith("eos_vote:")) return handleEosVote(interaction);
       if (interaction.customId.startsWith("poty_nominate:")) return handlePotyNominateSelect(interaction);
       if (interaction.customId.startsWith("poty_category_select:")) return handlePotyCategorySelect(interaction);
       if (interaction.customId.startsWith("goty_nominate:")) return handleGotyNominateSelect(interaction);

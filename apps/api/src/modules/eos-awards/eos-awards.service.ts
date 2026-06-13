@@ -108,6 +108,11 @@ export async function createEosAwardPolls(leagueId: string, seasonNumber: number
     });
   }
 
+  const pollIds = polls.map((poll) => poll.id).filter(Boolean);
+  if (pollIds.length > 0) {
+    await supabase.from("rec_eos_award_votes").delete().in("poll_id", pollIds);
+  }
+
   const nominees = await getActiveNominees(leagueId);
   return { polls, nominees, closesAt };
 }

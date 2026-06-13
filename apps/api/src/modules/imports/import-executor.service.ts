@@ -264,7 +264,9 @@ function extractPlayerStatRows(payload: unknown, category: string, context: Exec
     const firstName = getStr(row, "firstName", "first");
     const lastName = getStr(row, "lastName", "last");
     const playerName = getStr(row, "fullName", "playerName", "name") || [firstName, lastName].filter(Boolean).join(" ");
-    return { importJobId: context.importJobId, leagueId: context.job.league_id, eaLeagueId: context.eaLeagueId, seasonNumber, seasonIndex, seasonStage: "regular_season", weekNumber, statCategory: category, playerExternalId: playerId ? String(playerId) : toStringOrNull(row.playerExternalId ?? `${category}-${weekNumber}-${index}`), playerName: playerName || null, teamExternalId: teamId ? String(teamId) : toStringOrNull(row.teamExternalId), teamName: getStr(row, "teamName", "displayName", "abbrName") || null, position: getPosition(row), stats: row, normalized: { playerId, teamId, playerName, weekNumber, category }, rawPayload: row };
+    const sourceStatId = toStringOrNull(row.statId ?? row.sourceStatId ?? row.id);
+    const sourceScheduleId = toStringOrNull(row.scheduleId ?? row.sourceScheduleId ?? row.gameId);
+    return { importJobId: context.importJobId, leagueId: context.job.league_id, eaLeagueId: context.eaLeagueId, seasonNumber, seasonIndex, seasonStage: "regular_season", weekNumber, statCategory: category, sourceStatId, sourceScheduleId, playerExternalId: playerId ? String(playerId) : toStringOrNull(row.playerExternalId ?? `${category}-${weekNumber}-${index}`), playerName: playerName || null, teamExternalId: teamId ? String(teamId) : toStringOrNull(row.teamExternalId), teamName: getStr(row, "teamName", "displayName", "abbrName") || null, position: getPosition(row), stats: row, normalized: { playerId, teamId, playerName, weekNumber, category, sourceStatId, sourceScheduleId }, rawPayload: row };
   });
 }
 

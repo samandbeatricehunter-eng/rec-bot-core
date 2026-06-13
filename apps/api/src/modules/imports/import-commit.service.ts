@@ -41,6 +41,28 @@ function collectPrefixed(raw: JsonObject, suffixes: string[]) { const out: JsonO
 function buildRatings(raw: JsonObject) { return collectPrefixed(raw, ["Rating", "Grade"]); }
 function buildTraits(raw: JsonObject) { return collectPrefixed(raw, ["Trait"]); }
 function buildContract(raw: JsonObject) { const keys = ["capHit", "capReleaseNetSavings", "capReleasePenalty", "contractBonus", "contractSalary", "contractYearsLeft", "contractLength", "desiredBonus", "desiredSalary", "desiredLength", "reSignStatus"]; return Object.fromEntries(keys.filter((key) => key in raw).map((key) => [key, raw[key]])); }
+function sourceStatId(row: any, category: string) {
+  const raw = asObject(row.raw_payload);
+  const normalized = asObject(row.normalized);
+  return toNullableText(row.source_stat_id ?? normalized.sourceStatId ?? raw.statId ?? raw.sourceStatId ?? raw.id)
+    ?? `week:${row.week_number ?? "na"}:cat:${category}:player:${row.player_external_id ?? row.external_player_id ?? "na"}:team:${row.team_external_id ?? row.external_team_id ?? "na"}`;
+}
+function sourceScheduleId(row: any) {
+  const raw = asObject(row.raw_payload);
+  const normalized = asObject(row.normalized);
+  return toNullableText(row.source_schedule_id ?? normalized.sourceScheduleId ?? raw.scheduleId ?? raw.sourceScheduleId ?? raw.gameId)
+    ?? `week:${row.week_number ?? "na"}`;
+}
+function sourceInt(row: any, key: string) {
+  const raw = asObject(row.raw_payload);
+  const normalized = asObject(row.normalized);
+  return toNullableInt((row as any)[key] ?? (normalized as any)[key] ?? (raw as any)[key]);
+}
+function sourceText(row: any, key: string) {
+  const raw = asObject(row.raw_payload);
+  const normalized = asObject(row.normalized);
+  return toNullableText((row as any)[key] ?? (normalized as any)[key] ?? (raw as any)[key]);
+}
 
 // PostgREST caps every response at 1,000 rows and embeds .in() values in the request URL,
 // so staged reads must be paged, value lists chunked, and bulk writes batched. A single
@@ -92,6 +114,23 @@ function dedupeBy<T>(rows: T[], keyFn: (row: T) => string): T[] {
   const map = new Map<string, T>();
   for (const row of rows) map.set(keyFn(row), row);
   return [...map.values()];
+}
+
+async function loadGuildIdForLeague(leagueId: string): Promise<string | null> {
+  const link = await supabase
+    .from("rec_server_league_links")
+    .select("server_id")
+    .eq("league_id", leagueId)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const serverId = (link.data as any)?.server_id;
+  if (!serverId) return null;
+  const server = await supabase
+    .from("rec_discord_servers")
+    .select("guild_id")
+    .eq("id", serverId)
+    .maybeSingle();
+  return (server.data as any)?.guild_id ? String((server.data as any).guild_id) : null;
 }
 
 async function loadStagedRows(table: string, importJobId: string) {
@@ -636,6 +675,7 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
   ]);
 
   const now = new Date().toISOString();
+  const guildId = await loadGuildIdForLeague(leagueId);
 
   // Tracks raw import keys that did not map to any canonical REC stat, for admin/debug surfacing.
   const unmappedKeyCounts = new Map<string, number>();
@@ -656,6 +696,7 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
     noteUnmapped(normalized.unmappedStats);
     return {
       league_id: leagueId,
+      guild_id: guildId,
       import_job_id: importJobId,
       season_number: seasonNumber,
       season_stage: row.season_stage ?? "regular_season",
@@ -664,6 +705,12 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
       team_id: maddenTeamId ? teamMap.get(maddenTeamId) ?? null : null,
       madden_player_id: maddenPlayerId,
       madden_team_id: maddenTeamId,
+      source_stat_id: sourceStatId(row, String(statCategory)),
+      source_schedule_id: sourceScheduleId(row),
+      source_stage_index: sourceInt(row, "stageIndex"),
+      source_week_index: sourceInt(row, "weekIndex"),
+      source_team_id: sourceText(row, "teamId") ?? maddenTeamId,
+      source_roster_id: sourceText(row, "rosterId") ?? maddenPlayerId,
       player_name: row.player_name ?? row.player_display_name ?? null,
       team_name: row.team_name ?? row.team_display_name ?? null,
       position: row.position ?? null,
@@ -689,12 +736,13 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
     if (row.madden_player_id) row.player_id = playerIdByMaddenId.get(String(row.madden_player_id)) ?? null;
   }
 
-  // rec_player_weekly_stats has UNIQUE (league_id, season_number, season_stage, week_number,
-  // madden_player_id, stat_category); a chunked bulk upsert handles insert and update together.
-  const dedupedPS = dedupeBy(playerStatRows, (r) => `${r.season_number}|${r.season_stage}|${r.week_number}|${r.madden_player_id}|${r.stat_category}`);
+  // rec_player_weekly_stats is keyed by league/season/team/player/category plus Madden source
+  // identity. source_stat_id/source_schedule_id are preferred; deterministic week fallbacks keep
+  // legacy payloads idempotent without merging rows across teams or schedules.
+  const dedupedPS = dedupeBy(playerStatRows, (r) => `${r.season_number}|${r.team_id ?? ""}|${r.player_id ?? ""}|${r.madden_player_id}|${r.stat_category}|${r.source_stat_id}|${r.source_schedule_id}`);
   const playerCount = await upsertInChunks(
     "rec_player_weekly_stats", dedupedPS,
-    "league_id,season_number,season_stage,week_number,madden_player_id,stat_category",
+    "league_id,season_number,team_id,player_id,madden_player_id,stat_category,source_stat_id,source_schedule_id",
     "Failed to upsert imported player weekly stats."
   );
 

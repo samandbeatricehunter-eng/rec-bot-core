@@ -28,7 +28,7 @@ export const AWARD_DEFINITIONS: AwardDefinition[] = [
   { key: "best_kicker", name: "Best Kicker", category: "football", requiresVoting: true, nomineeCount: 10, payoutAmount: 100, description: "Best kicker based on FG % (55%), XP % (30%), and longest FG (15%). Minimum 50 combined attempts." },
 
   // ── REC League Awards ────────────────────────────────────────────────────
-  { key: "commissioners_award", name: "Commissioner's Award", category: "community", requiresVoting: true, nomineeCount: 32, payoutAmount: 100, description: "Recognizes sportsmanship and fair play. All linked coaches are nominees." },
+  { key: "commissioners_award", name: "Commissioner's Award", category: "community", requiresVoting: true, nomineeCount: 32, payoutAmount: 100, description: "Vote for the coach who brings the fairest and most honest competition. This award honors someone who does not lean into glitches, broken mechanics, or cheap schemes to win, and who keeps playing the right way even when they are losing." },
   { key: "best_h2h_record", name: "Best H2H Record", category: "league", requiresVoting: false, nomineeCount: 10, payoutAmount: 100, description: "Highest H2H win percentage (minimum 8 games). Auto-awarded." },
   { key: "best_streamer", name: "Best Streamer", category: "league", requiresVoting: true, nomineeCount: 5, payoutAmount: 100, description: "Most streams logged. Top 5 nominees. Stream count is primary factor (75%)." },
   { key: "challenge_king", name: "Challenge King", category: "league", requiresVoting: false, nomineeCount: 10, payoutAmount: 100, description: "Most completed weekly challenges. Auto-awarded." },

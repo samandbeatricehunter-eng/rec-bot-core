@@ -108,6 +108,8 @@ export type StagedPlayerStatInput = {
   seasonStage?: string;
   weekNumber?: number | null;
   statCategory?: string | null;
+  sourceStatId?: string | null;
+  sourceScheduleId?: string | null;
   playerExternalId?: string | null;
   playerName?: string | null;
   teamExternalId?: string | null;
@@ -320,6 +322,8 @@ export async function stagePlayerStats(playerStats: StagedPlayerStatInput[]) {
         season_stage: player.seasonStage ?? "regular_season",
         week_number: player.weekNumber ?? null,
         stat_category: player.statCategory ?? "unknown",
+        source_stat_id: player.sourceStatId ?? `week:${player.weekNumber ?? "na"}:cat:${player.statCategory ?? "unknown"}:player:${player.playerExternalId ?? `unknown-player-stat-${player.weekNumber ?? "na"}-${index}`}`,
+        source_schedule_id: player.sourceScheduleId ?? `week:${player.weekNumber ?? "na"}`,
         player_external_id: ensureRequiredExternalId(player.playerExternalId, `unknown-player-stat-${player.weekNumber ?? "na"}-${index}`),
         player_name: player.playerName ?? null,
         team_external_id: player.teamExternalId ?? null,
@@ -329,7 +333,7 @@ export async function stagePlayerStats(playerStats: StagedPlayerStatInput[]) {
         normalized: player.normalized ?? {},
         raw_payload: player.rawPayload ?? {}
       })),
-      { onConflict: "import_job_id,player_external_id,week_number,stat_category" }
+      { onConflict: "import_job_id,player_external_id,week_number,stat_category,source_stat_id,source_schedule_id" }
     )
     .select("*");
 
