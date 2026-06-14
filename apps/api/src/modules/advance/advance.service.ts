@@ -476,7 +476,7 @@ async function getWeekGames(leagueId: string, seasonNumber: number, weekNumber: 
       .from("rec_games")
       .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(*), away_team:rec_teams!rec_games_away_team_id_fkey(*)")
       .eq("league_id", leagueId)
-      .eq("is_playoff", true)
+      .neq("phase", "regular_season")
       .order("week_number", { ascending: false });
     if (error) throw error;
     const rows = (data ?? []) as any[];
