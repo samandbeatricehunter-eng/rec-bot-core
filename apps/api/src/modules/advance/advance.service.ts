@@ -467,7 +467,24 @@ export async function clearPendingEosBatch(input: { guildId: string; clearReason
   };
 }
 
-async function getWeekGames(leagueId: string, seasonNumber: number, weekNumber: number) {
+async function getWeekGames(leagueId: string, seasonNumber: number, weekNumber: number, stage?: string) {
+  // The Super Bowl is stored in rec_games at EA's week number (22 in Madden franchise),
+  // which may differ from the league calendar week (e.g. 23 when week 22 is a Pro Bowl skip).
+  // When stage is super_bowl, find playoff games at the highest stored week number instead.
+  if (stage === "super_bowl") {
+    const { data, error } = await supabase
+      .from("rec_games")
+      .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(*), away_team:rec_teams!rec_games_away_team_id_fkey(*)")
+      .eq("league_id", leagueId)
+      .eq("is_playoff", true)
+      .order("week_number", { ascending: false });
+    if (error) throw error;
+    const rows = (data ?? []) as any[];
+    if (rows.length === 0) return [];
+    const maxWeek = rows[0].week_number;
+    return rows.filter((g: any) => g.week_number === maxWeek);
+  }
+
   const { data, error } = await supabase
     .from("rec_games")
     .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(*), away_team:rec_teams!rec_games_away_team_id_fkey(*)")
@@ -485,7 +502,8 @@ export async function getGameChannelPlans(guildId: string) {
   const routes = await getRoutes(context.server_id);
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const weekNumber = league.current_week ?? 1;
-  const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
+  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const games = await getWeekGames(context.league_id, seasonNumber, weekNumber, stage);
   const advanceTimes = formatAdvanceTimes(league.next_advance_at);
   const h2hGames = games.filter((g) => g.home_user_id && g.away_user_id);
 
@@ -494,7 +512,6 @@ export async function getGameChannelPlans(guildId: string) {
 
   // Pull the league's configured game rules (fourth-down / streaming) from rec_league_configuration.
   const config = await getLeagueConfiguration(context.league_id);
-  const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
   const isPlayoffStage = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(stage);
   // For playoffs: check explicit postseason setting first. If null but streaming_scope is
   // "playoffs_only", the league intended playoffs to require streaming — treat it as required.
@@ -800,7 +817,8 @@ export async function buildAdvanceDmPayloads(guildId: string) {
   const league = context.rec_leagues;
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const weekNumber = league.current_week ?? 1;
-  const games = await getWeekGames(context.league_id, seasonNumber, weekNumber);
+  const dmStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const games = await getWeekGames(context.league_id, seasonNumber, weekNumber, dmStage);
   const { data: challenges } = await supabase.from("rec_weekly_challenges").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
   const { data: channels } = await supabase.from("rec_game_channels").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
   const completedWeek = Math.max(1, weekNumber - 1);
