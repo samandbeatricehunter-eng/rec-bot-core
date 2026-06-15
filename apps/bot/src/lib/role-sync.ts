@@ -3,14 +3,22 @@ import type { RecTeamAuthority } from "@rec/shared";
 
 export const REC_MANAGED_ROLES = {
   member: { name: "REC League Member", color: 0x87ceeb },
-  compCommittee: { name: "REC League Comp. Committee", color: 0x0b2f6b },
+  compCommittee: { name: "REC League Comp. Committee", color: 0xc27c0e },
   commissioner: { name: "REC League Commissioner", color: 0xd4af37 }
 } as const;
 
+// Nicknames use just the team name (e.g. "Cleveland Browns" -> "Browns"), not the city.
+// NFL nicknames are the last word of the full name; single-word inputs pass through unchanged.
+function teamNickFromName(teamName: string): string {
+  const parts = teamName.trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1] : teamName.trim();
+}
+
 export function buildTeamNickname(teamName: string, authority: RecTeamAuthority) {
-  if (authority === "commissioner") return `${teamName} (Commissioner)`;
-  if (authority === "co_commissioner") return `${teamName} (Co-Commissioner)`;
-  return teamName;
+  const nick = teamNickFromName(teamName);
+  if (authority === "commissioner") return `${nick} (Commissioner)`;
+  if (authority === "co_commissioner") return `${nick} (Co-Commissioner)`;
+  return nick;
 }
 
 async function ensureRole(guild: Guild, input: { name: string; color: number }) {
