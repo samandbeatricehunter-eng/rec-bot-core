@@ -32,6 +32,8 @@ export const MENU_CUSTOM_IDS = {
   adminReselectGotw: "rec:admin:reselect_gotw",
   commissionerToolsSelect: "rec:admin:commissioner_tools_select",
   manageLeagueSelect: "rec:admin:manage_league_select",
+  serverLeagueSetupSelect: "rec:admin:server_league_setup_select",
+  eosFunctionsSelect: "rec:admin:eos_functions_select",
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input",
@@ -274,10 +276,8 @@ export function buildCommissionerToolsRows() {
     .setCustomId(MENU_CUSTOM_IDS.commissionerToolsSelect)
     .setPlaceholder("Select a commissioner tool")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Advance Menu").setValue("advance_menu").setDescription("Advance tools, EOS actions, and troubleshooting."),
       new StringSelectMenuOptionBuilder().setLabel("Manage League").setValue("manage_league").setDescription("Active checks, rules, user/team linking, and league settings."),
-      new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Register/update this Discord server."),
-      new StringSelectMenuOptionBuilder().setLabel("League Setup Wizard").setValue("league_setup").setDescription("Create/update league settings (full wizard)."),
+      new StringSelectMenuOptionBuilder().setLabel("Server / League Setup").setValue("server_league_setup").setDescription("Channel links, first-time setup, and setup tools."),
       new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
     );
 
@@ -290,11 +290,38 @@ export function buildManageLeagueRows() {
     .setCustomId(MENU_CUSTOM_IDS.manageLeagueSelect)
     .setPlaceholder("Select a league management tool")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Active Check").setValue("active_check").setDescription("Post a 24-hour activity confirmation check."),
-      new StringSelectMenuOptionBuilder().setLabel("View / Edit Rules").setValue("rules").setDescription("Review the REC rule base and editable league rule settings."),
       new StringSelectMenuOptionBuilder().setLabel("User / Team Linking").setValue("user_team_linking").setDescription("Link Discord users to Madden teams."),
-      new StringSelectMenuOptionBuilder().setLabel("Edit League Settings").setValue("edit_league_settings").setDescription("Adjust individual settings without re-running the full wizard."),
+      new StringSelectMenuOptionBuilder().setLabel("Troubleshoot Advance").setValue("troubleshoot_advance").setDescription("Repair failed advance steps, GOTW, channels, DMs, and records."),
+      new StringSelectMenuOptionBuilder().setLabel("EOS Functions").setValue("eos_functions").setDescription("Run EOS polls, awards, and payout actions."),
+      new StringSelectMenuOptionBuilder().setLabel("Active Check").setValue("active_check").setDescription("Post a 24-hour activity confirmation check."),
+      new StringSelectMenuOptionBuilder().setLabel("Edit League Settings").setValue("edit_league_settings").setDescription("Edit league settings and rules."),
       new StringSelectMenuOptionBuilder().setLabel("Back to Commissioner Tools").setValue("commissioner_tools")
+    );
+
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+export function buildServerLeagueSetupRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(MENU_CUSTOM_IDS.serverLeagueSetupSelect)
+    .setPlaceholder("Select a setup workflow")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Assign channels/categories used by bot features."),
+      new StringSelectMenuOptionBuilder().setLabel("League Setup Wizard").setValue("league_setup").setDescription("Create/update league setup through the full wizard."),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Commissioner Tools").setValue("commissioner_tools")
+    );
+
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+export function buildEosFunctionsRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(MENU_CUSTOM_IDS.eosFunctionsSelect)
+    .setPlaceholder("Select an EOS function")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("Run EOS Polls & Awards").setValue("run_eos_polls_and_awards").setDescription("Post community polls and REC Awards voting."),
+      new StringSelectMenuOptionBuilder().setLabel("Issue EOS Payouts").setValue("issue_eos_payouts").setDescription("Issue end-of-season payouts."),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Manage League").setValue("manage_league")
     );
 
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];

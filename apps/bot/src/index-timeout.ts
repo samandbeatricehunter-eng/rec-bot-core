@@ -6,8 +6,10 @@ import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import {
   buildAdminPanelEmbed,
   buildAdminPanelRows,
+  buildEosFunctionsRows,
   buildCommissionerToolsRows,
   buildManageLeagueRows,
+  buildServerLeagueSetupRows,
   buildMainMenuEmbed,
   buildMainMenuRows,
   buildRostersMenuEmbed,
@@ -81,8 +83,14 @@ async function expireWindow(interaction: Interaction) {
   if (!interaction.isRepliable()) return;
   const payload = { content: EXPIRED_WINDOW_MESSAGE, embeds: [], components: [] };
   if (interaction.isMessageComponent()) {
-    if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
-    else await interaction.update(payload).catch(async () => interaction.reply({ content: EXPIRED_WINDOW_MESSAGE, flags: MessageFlags.Ephemeral }).catch(() => undefined));
+    if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate().catch(() => undefined);
+    const deleted = await interaction.deleteReply().then(() => true).catch(() => false);
+    if (deleted) return;
+    if ("message" in interaction && interaction.message?.deletable) {
+      const messageDeleted = await interaction.message.delete().then(() => true).catch(() => false);
+      if (messageDeleted) return;
+    }
+    await interaction.editReply(payload).catch(() => undefined);
     return;
   }
   if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => undefined);
@@ -201,6 +209,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.commissionerToolsSelect) return handleCommissionerToolsSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageLeagueSelect) return handleManageLeagueSelect(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.serverLeagueSetupSelect) return handleServerLeagueSetupSelect(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.eosFunctionsSelect) return handleEosFunctionsSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectNfc || interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectAfc) return handleRosterTeamSelect(interaction);
@@ -842,22 +852,83 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
   }
   if (selected === "import_enter_data") return renderImportPanel(interaction);
   if (selected === "commissioner_tools") {
-    return interaction.update({ embeds: [buildCommissionerToolsEmbed()], components: buildCommissionerToolsRows() });
+    return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId ?? undefined)], components: buildCommissionerToolsRows() });
   }
 
   return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
 }
 
-function buildCommissionerToolsEmbed() {
+async function buildCommissionerToolsEmbed(guildId?: string | null) {
+  let header = "Current league information unavailable.";
+  let commissioner = "Not linked";
+  let compCommittee = "None linked";
+
+  if (guildId) {
+    const [week, links] = await Promise.all([
+      recApi.viewLeagueWeek(guildId).catch(() => null),
+      recApi.getLinkedUsersTeams(guildId).catch(() => null)
+    ]);
+    const league = week?.league ?? links?.league;
+    if (league) {
+      const season = league.season_number ?? league.display_season_number ?? "?";
+      const weekLabel = league.current_week ? `Week ${league.current_week}` : String(league.season_stage ?? league.current_phase ?? "Stage unknown").replaceAll("_", " ");
+      const stage = String(league.season_stage ?? league.current_phase ?? "").replaceAll("_", " ");
+      header = `Season ${season}, ${weekLabel}${stage ? ` (${stage})` : ""}`;
+    }
+
+    const linked = links?.linked ?? [];
+    const authorityOf = (row: any) => String(row.authority ?? row.role ?? row.notes ?? "").toLowerCase();
+    const commissioners = linked.filter((row: any) => authorityOf(row).includes("commissioner") && !authorityOf(row).includes("co_commissioner"));
+    const comp = linked.filter((row: any) => authorityOf(row).includes("co_commissioner") || authorityOf(row).includes("co-commissioner") || authorityOf(row).includes("comp"));
+    commissioner = commissioners[0]?.discordId ? `<@${commissioners[0].discordId}>` : commissioners[0]?.user?.display_name ?? "Not linked";
+    const compMentions = comp
+      .filter((row: any) => row.discordId !== commissioners[0]?.discordId)
+      .map((row: any) => row.discordId ? `<@${row.discordId}>` : row.user?.display_name)
+      .filter(Boolean);
+    compCommittee = compMentions.length ? compMentions.join(", ") : "None linked";
+  }
+
   return new EmbedBuilder()
     .setTitle("Commissioner Tools")
-    .setDescription("Advance the league, manage league settings, set up the server, or run the league setup wizard.");
+    .setDescription([
+      header,
+      "",
+      `Commissioner: ${commissioner}`,
+      `Comp. Committee (Co-Commish): ${compCommittee}`,
+      "",
+      "Manage League: Link teams, edit settings/rules/league data, etc..",
+      "Server/League Setup: Edit Channel links, run the first-time League Setup Wizard, delete league, etc.."
+    ].join("\n"));
 }
 
 function buildManageLeagueEmbed() {
   return new EmbedBuilder()
     .setTitle("Manage League")
-    .setDescription("Active checks, league rules, user/team linking, and individual league settings.");
+    .setDescription([
+      "Use this menu to manage your leagues operations.",
+      "",
+      "-User/Team Linking: Link users to teams within the league.",
+      "-Troubleshoot Advance: Failures with advance features, like game channel creation or gotw selection can be addressed using these options.",
+      "-EOS Functions: If EOS functions such as end of season payouts and REC Awards voting don't commence when league advances to post-season, you can retrigger them via this menu.",
+      "-Active Check: Posts a poll to the announcements channel tagging everyone with a 24 hour time limit to reply or Commissioners will be notified of failure to respond.",
+      "-Edit League Settings: Use this menu to edit league settings from the League Setup wizard or view and edit the rules for the league."
+    ].join("\n"));
+}
+
+function buildServerLeagueSetupEmbed() {
+  return new EmbedBuilder()
+    .setTitle("SERVER/LEAGUE SETUP")
+    .setDescription([
+      "-Server Setup: Use this to assign channels for certain bot features to execute. Failure to assign channels will result in certain actions not triggering and possibly causing complications. For game channels. you'll link a category. You will need the channel IDs/category ID, which requires setting your server to DEV mode first in the settings.",
+      "",
+      "-League Setup Wizard: Use this wizard to create the league in REC databases, as well as to designate the leagues settings for user reference. Please run this when setting up a new league for the first time. If you just need to edit individual settings, you'll need to go to Manage League then Edit League Settings to change individual settings without re-running the full wizard. Doing so after the initial run may wipe league data. Please be mindful and aware."
+    ].join("\n"));
+}
+
+function buildEosFunctionsEmbed() {
+  return new EmbedBuilder()
+    .setTitle("EOS Functions")
+    .setDescription("Run or repair end-of-season polls, REC Awards voting, and EOS payouts.");
 }
 
 // Commissioner Tools submenu router (Admin Panel -> Commissioner Tools).
@@ -868,13 +939,11 @@ async function handleCommissionerToolsSelect(interaction: Extract<Interaction, {
   }
   const selected = interaction.values[0];
   if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
-  if (selected === "advance_menu") return interaction.update(buildAdvanceMenuPanel());
-  if (selected === "server_setup") return interaction.update(buildServerSetupPanel());
-  if (selected === "league_setup") return interaction.showModal(buildSetupDangerModal("league_setup"));
+  if (selected === "server_league_setup") return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
   if (selected === "manage_league") {
     return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
   }
-  return interaction.update({ embeds: [buildCommissionerToolsEmbed()], components: buildCommissionerToolsRows() });
+  return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId)], components: buildCommissionerToolsRows() });
 }
 
 // Manage League submenu router (Commissioner Tools -> Manage League).
@@ -885,10 +954,11 @@ async function handleManageLeagueSelect(interaction: Extract<Interaction, { isSt
   }
   const selected = interaction.values[0];
   if (selected === "commissioner_tools") {
-    return interaction.update({ embeds: [buildCommissionerToolsEmbed()], components: buildCommissionerToolsRows() });
+    return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId)], components: buildCommissionerToolsRows() });
   }
   if (selected === "active_check") return handleStartActiveCheck(interaction);
-  if (selected === "rules") return interaction.update(buildRulesPanel());
+  if (selected === "troubleshoot_advance") return interaction.update(buildTroubleshootMenuPanel());
+  if (selected === "eos_functions") return interaction.update({ embeds: [buildEosFunctionsEmbed()], components: buildEosFunctionsRows() });
   if (selected === "user_team_linking") {
     const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
     return interaction.update(buildSimpleTeamLinkPanel());
@@ -907,6 +977,74 @@ async function handleManageLeagueSelect(interaction: Extract<Interaction, { isSt
     }
   }
   return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
+}
+
+async function handleServerLeagueSetupSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can use Server/League Setup.", flags: MessageFlags.Ephemeral });
+  }
+  const selected = interaction.values[0];
+  if (selected === "commissioner_tools") {
+    return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId)], components: buildCommissionerToolsRows() });
+  }
+  if (selected === "server_setup") return interaction.update(buildServerSetupPanel());
+  if (selected === "league_setup") return interaction.showModal(buildSetupDangerModal("league_setup"));
+  return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
+}
+
+async function handleEosFunctionsSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  if (!interaction.inCachedGuild()) {
+    return interaction.reply({ content: "EOS functions can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
+  }
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can use EOS functions.", flags: MessageFlags.Ephemeral });
+  }
+
+  const selected = interaction.values[0];
+  if (selected === "manage_league") return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
+
+  await interaction.deferUpdate();
+
+  if (selected === "run_eos_polls_and_awards") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Running EOS Polls & Awards...").setDescription("Generating nominees and posting community polls + REC Awards voting embeds.")], components: [] });
+    try {
+      const result = await recApi.runEosPollsAndAwards(interaction.guildId);
+      if (!result.allowed) {
+        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Not Available").setDescription(result.reason ?? "This action is only available during Wild Card through Super Bowl weeks.")], components: buildEosFunctionsRows() });
+        return;
+      }
+      const warnings = [...(result.warnings ?? []), ...await postEosPollsAndAwards(interaction.guild, result.pollsData)];
+      const pollCount = result.pollsData?.polls?.length ?? 0;
+      const awardCount = result.pollsData?.recAwardsData?.awards?.filter((a: any) => a.status === "voting" && a.nomineeCount > 0).length ?? 0;
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("EOS Polls & Awards Posted").setDescription([
+          `Community polls posted: **${pollCount}**`,
+          `REC Award voting embeds posted: **${awardCount}**`,
+          warnings.length ? `\nWarnings: ${warnings.join(", ")}` : ""
+        ].filter(Boolean).join("\n"))],
+        components: buildEosFunctionsRows()
+      });
+    } catch (error) {
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Polls Failed").setDescription(error instanceof Error ? error.message : String(error))], components: buildEosFunctionsRows() });
+    }
+    return;
+  }
+
+  if (selected === "issue_eos_payouts") {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Issuing EOS Payouts...").setDescription("Computing stat thresholds and rank bonuses. Already approved payouts are preserved.")], components: [] });
+    try {
+      const result = await recApi.issueEosPayouts(interaction.guildId);
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription(`Created ${result.items?.length ?? 0} payout items. Skipped ${result.skippedAlreadyIssued?.length ?? 0} already-issued payouts.`)],
+        components: buildEosFunctionsRows()
+      });
+    } catch (error) {
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Failed").setDescription(error instanceof Error ? error.message : String(error))], components: buildEosFunctionsRows() });
+    }
+    return;
+  }
 }
 
 async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
