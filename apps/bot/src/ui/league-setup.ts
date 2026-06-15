@@ -916,7 +916,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
         inline: false
       }
     )
-    .setFooter({ text: "Economy requires 8 verified linked users before payouts activate." });
+    .setFooter({ text: "Economy payouts activate for linked users when Coin Economy is enabled." });
 
   const saveRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()

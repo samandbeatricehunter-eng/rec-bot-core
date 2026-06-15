@@ -25,7 +25,7 @@ const higher = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRul
 const lower = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRule[] =>
   tiers.map(([tier, threshold, amount]) => ({ tier, threshold, amount, operator: "less_than" }));
 
-export const REC_EOS_MINIMUM_ACTIVE_LINKED_USERS = 12;
+export const REC_EOS_MINIMUM_ACTIVE_LINKED_USERS = 0;
 
 export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   { key: "qb_passing_yards", label: "QB Passing Yards", scope: "player", direction: "higher_is_better", statKey: "passYds", eligiblePositions: ["QB"], tiers: higher([["S", 6000, 200], ["A", 5500, 150], ["B", 5000, 100], ["C", 4000, 75], ["D", 3000, 50]]) },

@@ -955,7 +955,6 @@ export async function issueWeeklyGamePayouts(guildId: string) {
 const SAVINGS_INTEREST_RATE = 0.035;
 const INTEREST_RATE_LIMIT = 21; // advances per 24h before interest disables
 const INTEREST_DISABLE_HOURS = 24;
-const MIN_LINKED_USERS_FOR_INTEREST = 12;
 
 export async function applyAdvanceSavingsInterest(guildId: string) {
   const context = await getLeagueContext(guildId);
@@ -966,11 +965,7 @@ export async function applyAdvanceSavingsInterest(guildId: string) {
   const features = await getLeagueFeatureSettings(leagueId);
   if (!features?.coin_economy_enabled) return { skipped: "economy_disabled", credited: 0 };
 
-  // Minimum 12 linked users required
   const linkedUsers = await getLinkedActiveTeamUsers(leagueId);
-  if (linkedUsers.length < MIN_LINKED_USERS_FOR_INTEREST) {
-    return { skipped: "insufficient_linked_users", linked: linkedUsers.length, credited: 0 };
-  }
 
   // Rate-limit check — update the rolling 24h advance window atomically
   const now = new Date();
