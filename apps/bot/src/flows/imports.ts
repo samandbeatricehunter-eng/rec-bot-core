@@ -449,7 +449,7 @@ async function requireCurrentImportJob(interaction: ButtonInteraction | StringSe
   return null;
 }
 
-async function startImportMode(interaction: ButtonInteraction, importMode: RecImportMode) {
+export async function startImportMode(interaction: ButtonInteraction, importMode: RecImportMode) {
   await interaction.deferUpdate();
   importSessions.set(interaction.user.id, {
     ...(importSessions.get(interaction.user.id) ?? {}),

@@ -41,11 +41,11 @@ import {
   type LeagueSetupDraft,
   type LeagueSetupSettingsCategory
 } from "./ui/league-setup.js";
-import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel } from "./flows/imports.js";
+import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel, startImportMode } from "./flows/imports.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { buildAdvanceMenuPanel, buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
-import { advanceWizardSessions, ADVANCE_WIZARD_GOTW_CUSTOM_ID, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
+import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
 import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild, recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
 import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
 import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
@@ -260,6 +260,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         // League is already saved by this point; this button just closes the linking step.
         return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
       }
+      if (Object.values(ADVANCE_WIZARD_CUSTOM_IDS).includes(interaction.customId as any)) return handleAdvanceWizardButton(interaction);
       if (interaction.customId === ADVANCE_WIZARD_BACK_CUSTOM_ID) return interaction.update(buildAdvanceMenuPanel());
       if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.confirm) return handleAdvanceScheduleConfirm(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
@@ -837,9 +838,7 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
   if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
   if (selected === "advance_wizard") {
     if (!interaction.inCachedGuild()) return interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
-    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true };
-    advanceScheduleSessions.set(interaction.user.id, scheduleState);
-    return interaction.update(buildAdvanceSchedulePayload(scheduleState));
+    return interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
   }
   if (selected === "import_enter_data") return renderImportPanel(interaction);
   if (selected === "commissioner_tools") {
@@ -908,6 +907,49 @@ async function handleManageLeagueSelect(interaction: Extract<Interaction, { isSt
     }
   }
   return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
+}
+
+async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) {
+    await interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can use the Advance Wizard.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.back) {
+    await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.manualBack) {
+    await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.manual) {
+    await interaction.update(await buildAdvanceWizardManualPayload(interaction.guildId));
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.import) {
+    await interaction.update(buildAdvanceWizardImportPayload());
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.importData) {
+    await startImportMode(interaction, "ea_import");
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.mcaUrl) {
+    await interaction.reply({
+      content: "MCA URL placeholder: the API endpoint to receive and parse Madden Companion App exports is not configured yet.",
+      flags: MessageFlags.Ephemeral
+    });
+  }
 }
 
 

@@ -10,6 +10,17 @@ import { recreateGameChannelsForGuild, sendAdvanceDmsOnly } from "./game-channel
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 
 export const ADVANCE_WIZARD_GOTW_CUSTOM_ID = "rec:advance_wizard:gotw";
+export const ADVANCE_WIZARD_CUSTOM_IDS = {
+  manual: "rec:advance_wizard:manual",
+  import: "rec:advance_wizard:import",
+  back: "rec:advance_wizard:back_admin",
+  importData: "rec:advance_wizard:import_data",
+  mcaUrl: "rec:advance_wizard:mca_url",
+  manualBack: "rec:advance_wizard:manual_back",
+  manualInputFinals: "rec:advance_wizard:manual_input_finals",
+  manualMarkFsFw: "rec:advance_wizard:manual_mark_fs_fw",
+  manualNextStep: "rec:advance_wizard:manual_next_step"
+} as const;
 
 interface BadgeAnnouncement {
   userId: string;
@@ -74,6 +85,90 @@ interface AdvanceWizardState {
 }
 
 export const advanceWizardSessions = new ExpiringSessionStore<AdvanceWizardState>();
+
+function prettyStage(stage?: string | null) {
+  return String(stage ?? "regular_season").replaceAll("_", " ");
+}
+
+export async function buildAdvanceWizardEntryPayload(guildId: string) {
+  const week = await recApi.viewLeagueWeek(guildId).catch(() => null);
+  const league = week?.league;
+  const stage = prettyStage(league?.season_stage ?? league?.current_phase);
+  const current = league
+    ? `Season ${league.season_number ?? league.display_season_number ?? "?"}, Week ${league.current_week ?? "?"} (${stage})`
+    : "Current league week could not be loaded.";
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Advance Wizard")
+        .setDescription([
+          current,
+          "",
+          "Are you manually entering data or importing it?"
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.manual).setLabel("Manual").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.import).setLabel("Import").setStyle(ButtonStyle.Primary)
+      )
+    ]
+  };
+}
+
+export function buildAdvanceWizardImportPayload() {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Import Data")
+        .setDescription([
+          "If you are importing using our wizard, open the EA login flow, complete OAuth, and paste the success-code redirect when prompted.",
+          "",
+          "If you are exporting using the Madden Companion App, click MCA URL to receive the export URL. The Companion App receiver is not configured yet, so this is a placeholder for now."
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.importData).setLabel("Import Data").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.mcaUrl).setLabel("MCA URL").setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  };
+}
+
+export async function buildAdvanceWizardManualPayload(guildId: string) {
+  const week = await recApi.viewLeagueWeek(guildId).catch(() => null);
+  const league = week?.league;
+  const stage = prettyStage(league?.season_stage ?? league?.current_phase);
+  const heading = league
+    ? `Season ${league.season_number ?? league.display_season_number ?? "?"}, Week ${league.current_week ?? "?"} (${stage})`
+    : "Current week unavailable";
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Manual Outcome Entry")
+        .setDescription([
+          heading,
+          "",
+          "Manual finals entry will list this week's scheduled matchups here as Away @ Home once the matchup-entry API is wired into the wizard.",
+          "",
+          "Advance cannot continue from regular season or playoff weeks until all game outcomes are logged."
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.manualBack).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.manualInputFinals).setLabel("Input Finals").setStyle(ButtonStyle.Primary).setDisabled(true),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.manualMarkFsFw).setLabel("Mark FS/FW").setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.manualNextStep).setLabel("Next Step").setStyle(ButtonStyle.Success).setDisabled(true)
+      )
+    ]
+  };
+}
 
 function asAwardScore(v: unknown): number {
   const n = Number(v ?? 0);
