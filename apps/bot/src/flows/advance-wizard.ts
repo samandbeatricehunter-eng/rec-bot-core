@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Guild, Message, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, Guild, Message, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildMainMenuEmbed, buildMainMenuRows } from "../ui/menu.js";
 import { buildGotwAnnouncementContent, buildGotwVoteEmbed, buildGotwVoteRows } from "../ui/gotw.js";
 import { buildPowerRankingsEmbeds } from "../ui/power-rankings.js";
@@ -23,6 +23,9 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   manualNextStep: "rec:advance_wizard:manual_next_step",
   outcomesBack: "rec:advance_wizard:outcomes_back",
   outcomesMarkFsFw: "rec:advance_wizard:outcomes_mark_fs_fw",
+  outcomesOpenFsFwModal: "rec:advance_wizard:outcomes_open_fs_fw_modal",
+  outcomesFsFwModal: "rec:advance_wizard:outcomes_fs_fw_modal",
+  outcomesFsFwInput: "rec:advance_wizard:outcomes_fs_fw_input",
   outcomesSkip: "rec:advance_wizard:outcomes_skip",
   step2Back: "rec:advance_wizard:step2_back",
   step2Next: "rec:advance_wizard:step2_next"
@@ -186,6 +189,116 @@ export function buildAdvanceWizardPostImportPayload(summaryLines: string[] = [])
       )
     ]
   };
+}
+
+function outcomeLabel(value: unknown) {
+  const text = String(value ?? "").toLowerCase();
+  if (text === "fs") return "FS";
+  if (text === "fw") return "FW";
+  return "None";
+}
+
+function scoreLabel(game: any) {
+  return game.awayScore != null && game.homeScore != null
+    ? `${game.awayScore}-${game.homeScore}`
+    : "No final";
+}
+
+function formatOutcomeGameLine(game: any) {
+  return `**${game.number}.** ${game.awayTeam} @ ${game.homeTeam} - ${scoreLabel(game)} - **${outcomeLabel(game.outcomeOverride)}**`;
+}
+
+export async function buildAdvanceWizardOutcomeReviewPayload(guildId: string) {
+  const data = await recApi.getAdvanceWizardOutcomes(guildId);
+  const games = data.games ?? [];
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Advance Wizard - FS/FW Outcomes")
+        .setDescription([
+          `Season ${data.seasonNumber ?? "?"}, Week ${data.weekNumber ?? "?"} (${prettyStage(data.seasonStage)})`,
+          "",
+          games.length ? "**Current Matchups / Designations**" : "No matchups were found for this week.",
+          ...games.map(formatOutcomeGameLine),
+          "",
+          "Click **Mark FS/FW** to enter one line per matchup, such as `1 fs` or `2 fw`."
+        ].join("\n").slice(0, 4000))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesBack).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesOpenFsFwModal).setLabel("Mark FS/FW").setStyle(ButtonStyle.Secondary).setDisabled(!games.length),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesSkip).setLabel("Next").setStyle(ButtonStyle.Success)
+      )
+    ]
+  };
+}
+
+export async function buildAdvanceWizardFsFwModal(guildId: string) {
+  const data = await recApi.getAdvanceWizardOutcomes(guildId);
+  const games = data.games ?? [];
+  return new ModalBuilder()
+    .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesFsFwModal)
+    .setTitle("Mark FS/FW Outcomes")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesFsFwInput)
+          .setLabel("Enter matchup number + FS or FW")
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setPlaceholder("1 fs\n2 fw")
+      )
+    );
+}
+
+export async function handleAdvanceWizardFsFwModal(interaction: ModalSubmitInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can mark FS/FW outcomes.", ephemeral: true });
+    return;
+  }
+
+  const text = interaction.fields.getTextInputValue(ADVANCE_WIZARD_CUSTOM_IDS.outcomesFsFwInput);
+  const data = await recApi.getAdvanceWizardOutcomes(interaction.guildId);
+  const gameByNumber = new Map<number, any>((data.games ?? []).map((game: any) => [Number(game.number), game]));
+  const markings: Array<{ gameId: string; outcome: "fs" | "fw" }> = [];
+  const invalid: string[] = [];
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const match = line.match(/^(\d+)[.)]?\s+([a-z]{2})\b/i);
+    if (!match) {
+      invalid.push(line);
+      continue;
+    }
+    const number = Number(match[1]);
+    const outcome = match[2].toLowerCase();
+    const game = gameByNumber.get(number);
+    if (!game || !["fs", "fw"].includes(outcome)) {
+      invalid.push(line);
+      continue;
+    }
+    markings.push({ gameId: game.gameId, outcome: outcome as "fs" | "fw" });
+  }
+
+  if (invalid.length) {
+    await interaction.reply({
+      content: `Use one line per matchup in the format \`1 fs\` or \`2 fw\`. Invalid line(s): ${invalid.slice(0, 5).join("; ")}`,
+      ephemeral: true
+    });
+    return;
+  }
+
+  if (!markings.length) {
+    await interaction.reply({ content: "No FS/FW markings were entered.", ephemeral: true });
+    return;
+  }
+
+  await interaction.deferUpdate();
+  await recApi.markAdvanceWizardOutcomes({ guildId: interaction.guildId, markings, markedByDiscordId: interaction.user.id });
+  await interaction.editReply(await buildAdvanceWizardOutcomeReviewPayload(interaction.guildId));
 }
 
 export async function buildAdvanceWizardStep2Payload(guildId: string, dataEntered = true) {

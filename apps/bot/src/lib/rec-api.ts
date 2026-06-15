@@ -515,6 +515,18 @@ export const recApi = {
       body: JSON.stringify({ guildId })
     }),
 
+  getAdvanceWizardOutcomes: (guildId: string) =>
+    recFetch<any>("/v1/advance/wizard/outcomes", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
+  markAdvanceWizardOutcomes: (input: { guildId: string; markings: Array<{ gameId: string; outcome: "fs" | "fw" }>; markedByDiscordId: string }) =>
+    recFetch<any>("/v1/advance/wizard/outcomes/mark", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   finalizeAdvanceStep: (guildId: string) =>
     recFetch<any>("/v1/advance/finalize", {
       method: "POST",

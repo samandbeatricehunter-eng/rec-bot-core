@@ -1895,6 +1895,85 @@ export async function processPotwAward(guildId: string) {
   return { awards: announcementAwards, announcementsChannelId: routes?.announcements_channel_id ?? null, completed, warnings, weeklyBadgeAnnouncements };
 }
 
+export async function getAdvanceWizardOutcomes(guildId: string) {
+  const context = await getLeagueContext(guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = asNumber(league.season_number ?? league.display_season_number ?? 1);
+  const weekNumber = asNumber(league.current_week ?? 1);
+  const seasonStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const games = await getWeekGames(context.league_id, seasonNumber, weekNumber, seasonStage);
+
+  const { data: results } = await supabase
+    .from("rec_game_results")
+    .select("id,home_team_id,away_team_id,home_score,away_score,winning_team_id,source")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber);
+
+  const resultForGame = (game: any) => (results ?? []).find((result: any) =>
+    String(result.home_team_id) === String(game.home_team_id) &&
+    String(result.away_team_id) === String(game.away_team_id)
+  );
+
+  return {
+    leagueName: league.name,
+    seasonNumber,
+    weekNumber,
+    seasonStage,
+    games: games.map((game: any, index: number) => {
+      const result = resultForGame(game);
+      return {
+        number: index + 1,
+        gameId: game.id,
+        awayTeam: teamNickname(game.away_team?.name, "Away"),
+        homeTeam: teamNickname(game.home_team?.name, "Home"),
+        awayScore: result?.away_score ?? game.away_score ?? null,
+        homeScore: result?.home_score ?? game.home_score ?? null,
+        resultId: result?.id ?? null,
+        outcomeOverride: game.advance_outcome_override ?? null,
+        markedByDiscordId: game.advance_outcome_marked_by_discord_id ?? null,
+        markedAt: game.advance_outcome_marked_at ?? null
+      };
+    })
+  };
+}
+
+export async function markAdvanceWizardOutcomes(input: { guildId: string; markings: Array<{ gameId: string; outcome: string }>; markedByDiscordId?: string | null }) {
+  const context = await getLeagueContext(input.guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = asNumber(league.season_number ?? league.display_season_number ?? 1);
+  const weekNumber = asNumber(league.current_week ?? 1);
+  const seasonStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const games = await getWeekGames(context.league_id, seasonNumber, weekNumber, seasonStage);
+  const validGameIds = new Set(games.map((game: any) => String(game.id)));
+  const now = nowIso();
+  const saved: any[] = [];
+
+  for (const marking of input.markings) {
+    const gameId = String(marking.gameId);
+    const outcome = String(marking.outcome ?? "").trim().toLowerCase();
+    if (!validGameIds.has(gameId)) throw new Error("Cannot mark an outcome for a game outside the current advance week.");
+    if (!["fs", "fw"].includes(outcome)) throw new Error("Outcome markings must be FS or FW.");
+
+    const { data, error } = await supabase
+      .from("rec_games")
+      .update({
+        advance_outcome_override: outcome,
+        advance_outcome_marked_by_discord_id: input.markedByDiscordId ?? null,
+        advance_outcome_marked_at: now,
+        updated_at: now
+      })
+      .eq("id", gameId)
+      .eq("league_id", context.league_id)
+      .select("id,advance_outcome_override")
+      .single();
+    if (error) throw error;
+    saved.push(data);
+  }
+
+  return { saved, outcomes: await getAdvanceWizardOutcomes(input.guildId) };
+}
+
 export async function finalizeAdvanceStep(guildId: string) {
   const { step, warnings, completed } = makeStepRunner();
   await step("generate_challenges", () => generateWeeklyChallenges({ guildId, regenerate: false }));
