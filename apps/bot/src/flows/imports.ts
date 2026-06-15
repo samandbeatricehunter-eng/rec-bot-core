@@ -7,7 +7,6 @@ import {
   CORE_IMPORT_ENDPOINTS,
   buildEaConnectCodeModal,
   buildEaConnectRows,
-  buildEndpointSelectRow,
   buildFranchiseSelectRow,
   buildImportExecutedRows,
   buildImportFlowNavigationRows,
@@ -16,7 +15,6 @@ import {
   buildPendingImportRows,
   buildImportPreviewRows,
   buildDiscoverFranchisesRows,
-  buildWeekScopeRow,
   buildWeekSelectRow,
   IMPORT_CUSTOM_IDS,
   parseApproveImportCustomId
@@ -237,6 +235,12 @@ function previewSummary(job: any) {
   return job?.preview_summary ?? job?.previewSummary ?? {};
 }
 
+function previewHasMissingResults(result: any) {
+  const summary = previewSummary(result?.job ?? result);
+  const matchupResults = summary.matchupResults ?? {};
+  return Boolean((matchupResults.missingResultGames ?? []).length || Number(matchupResults.gamesMissingScores ?? 0) > 0);
+}
+
 function buildPreviewEmbeds(result: any) {
   const job = result.job;
   const summary = previewSummary(job);
@@ -344,7 +348,6 @@ function buildPreviewEmbeds(result: any) {
 
 function selectedEndpointKeys(draft: ImportDraft) {
   const keys = draft.endpointKeys?.length ? draft.endpointKeys : CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
-  if (keys.includes(ALL_ENDPOINTS_KEY)) return CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
   return keys;
 }
 
@@ -389,9 +392,9 @@ function buildImportDraftSummary(draft: ImportDraft) {
     `Mode: **${String(draft.importMode ?? "").replaceAll("_", " ")}**`,
     draft.eaExternalLeagueName ? `EA League: **${draft.eaExternalLeagueName}**` : undefined,
     `Weeks: **${selectedWeekSummary(draft)}**`,
-    `Endpoints: **${selectedEndpointKeys(draft).join(", ")}**`,
+    `Endpoints: **All core endpoints**`,
     "",
-    "When you continue, REC will create the import job and stage selected endpoints."
+    "When you continue, REC will create the import job and stage all core endpoints for the selected week."
   ].filter(Boolean).join("\n");
 }
 
@@ -559,7 +562,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       }
       await interaction.deferUpdate();
       try {
-        const selectedWeeks = normalizeSelectedWeeks(draft);
+        const selectedWeeks = normalizeSelectedWeeks(draft).slice(0, 1);
         const job = await recApi.createImportJob({
           guildId: interaction.guildId,
           importMode: draft.importMode ?? "ea_import",
@@ -567,11 +570,11 @@ export async function handleImportButton(interaction: ButtonInteraction) {
           requestedByDiscordId: interaction.user.id,
           eaExternalLeagueId: draft.eaExternalLeagueId,
           eaExternalLeagueName: draft.eaExternalLeagueName,
-          importScope: draft.weekScope,
+          importScope: "single_week",
           weekFrom: selectedWeeks[0],
           weekTo: selectedWeeks[selectedWeeks.length - 1],
           selectedWeeks,
-          selectedEndpointKeys: selectedEndpointKeys(draft)
+          selectedEndpointKeys: CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key)
         });
         importJobId = job.job.id;
         importSessions.set(interaction.user.id, { ...draft, importJobId });
@@ -669,7 +672,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
     });
 
     const preview = await recApi.previewImportJob(importJobId!);
-    await interaction.editReply({ embeds: buildPreviewEmbeds(preview), components: buildImportPreviewRows(preview) });
+    await interaction.editReply({ embeds: buildPreviewEmbeds(preview), components: buildImportPreviewRows(previewHasMissingResults(preview)) });
     return;
   }
 
@@ -678,24 +681,48 @@ export async function handleImportButton(interaction: ButtonInteraction) {
     if (!importJobId) return;
 
     await interaction.deferUpdate();
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Executing Import Job...").setDescription("Running the import job. This may take a moment.")], components: [] });
-    const executed = await recApi.executeImportJob(importJobId);
-    const refreshed = await recApi.getImportJob(importJobId).catch(() => executed);
-
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
-          .setTitle("Import Committed")
-          .setDescription([
-            "The staged import commit request completed.",
-            "",
-            formatImportJob(refreshed.job ?? executed.job),
-            "",
-            "Review Import Status before final approval."
-          ].join("\n"))
+          .setTitle("Committing Import...")
+          .setDescription("Approving and committing this import into REC Core. Large rosters can take a moment - please wait, do not click again.")
       ],
-      components: buildImportExecutedRows({ importJobId })
+      components: []
     });
+    try {
+      const approved = await recApi.approveImportJob(importJobId);
+      importSessions.delete(interaction.user.id);
+      const summary = previewSummary(approved.job);
+      const counts = summary.committedCounts ?? {};
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Import Approved")
+            .setDescription([
+              "Import committed into REC Core.",
+              "",
+              formatImportJob(approved.job),
+              "",
+              "**Committed Counts**",
+              `Teams: **${counts.teams ?? 0}**`,
+              `Games: **${counts.games ?? summary.gamesAdded ?? 0}**`,
+              `League Games Stored: **${counts.leagueGamesStored ?? counts.committedLeagueGames ?? 0}**`,
+              `Game Results: **${counts.gameResults ?? 0}**`,
+              `Players: **${counts.players ?? 0}**`,
+              `Roster Snapshots: **${counts.rosterSnapshots ?? 0}**`,
+              `Player Weekly Stats: **${counts.playerWeeklyStats ?? 0}**`,
+              `Team Weekly Stats: **${counts.teamWeeklyStats ?? 0}**`
+            ].join("\n"))
+        ],
+        components: buildImportPanelRows()
+      });
+    } catch (error) {
+      console.error("Import commit failed", error);
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Import Commit Failed").setDescription(extractApiErrorMessage(error))],
+        components: buildImportPreviewRows(false)
+      });
+    }
     return;
   }
 
@@ -859,9 +886,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
           ].join("\n"))
       ],
       components: [
-        buildWeekScopeRow(),
         buildWeekSelectRow(),
-        buildEndpointSelectRow(),
         ...buildImportJobCreatedRows()
       ]
     });
@@ -883,14 +908,14 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
-      components: [buildWeekScopeRow(), buildWeekSelectRow(), buildEndpointSelectRow(), ...buildImportJobCreatedRows()]
+      components: [buildWeekSelectRow(), ...buildImportJobCreatedRows()]
     });
     return;
   }
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.weekSelect) {
     const draft = importSessions.get(interaction.user.id) ?? {};
-    const weeks = interaction.values.map((value) => Number(value)).filter((week) => Number.isFinite(week)).sort((a, b) => a - b);
+    const weeks = interaction.values.map((value) => Number(value)).filter((week) => Number.isFinite(week)).sort((a, b) => a - b).slice(0, 1);
     importSessions.set(interaction.user.id, {
       ...draft,
       weekScope: draft.weekScope === "full_regular_season_schedule" ? "single_week" : draft.weekScope ?? "single_week",
@@ -902,7 +927,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
-      components: [buildWeekScopeRow(), buildWeekSelectRow(), buildEndpointSelectRow(), ...buildImportJobCreatedRows()]
+      components: [buildWeekSelectRow(), ...buildImportJobCreatedRows()]
     });
     return;
   }
@@ -916,7 +941,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
-      components: [buildWeekScopeRow(), buildWeekSelectRow(), buildEndpointSelectRow(), ...buildImportJobCreatedRows()]
+      components: [buildWeekSelectRow(), ...buildImportJobCreatedRows()]
     });
     return;
   }
