@@ -166,7 +166,7 @@ async function getTeamRosterFallback(guildId: string, teamId: string) {
 
   let query = supabase
     .from("rec_roster_snapshots")
-    .select("player_name, position, overall_rating, dev_trait, age, jersey_number, is_active, contract_years_left, contract_salary, raw_payload, rec_players(cap_hit, contract_years_left, contract_salary)")
+    .select("player_name, position, overall_rating, dev_trait, age, jersey_number, is_active, contract_years_left, contract_salary, raw_payload, rec_players(cap_hit, contract_years_left, contract_salary, dev_trait)")
     .eq("league_id", leagueId)
     .eq("team_id", teamId);
   if (season != null) query = query.eq("season_number", season);
@@ -180,7 +180,7 @@ async function getTeamRosterFallback(guildId: string, teamId: string) {
       name: r.player_name ?? "Unknown",
       position: (r.position ?? "").toUpperCase(),
       ovr: r.overall_rating ?? 0,
-      dev: r.dev_trait ?? null,
+      dev: (r as any).rec_players?.dev_trait ?? r.dev_trait ?? null,
       age: r.age ?? null,
       jersey: r.jersey_number ?? null,
       capHit: (r as any).rec_players?.cap_hit ?? (r.raw_payload as any)?.capHit ?? null,

@@ -632,10 +632,7 @@ function formatCapHit(value: unknown) {
 function formatRosterPlayer(member: any) {
   const dev = rosterDevEmoji(member.dev);
   const ovr = `\`${String(member.ovr ?? 0).padStart(2, " ")}\``;
-  const cap = formatCapHit(member.capHit);
-  const years = member.contractYearsLeft != null ? `${member.contractYearsLeft}y` : null;
-  const contract = [cap, years].filter(Boolean).join(" / ");
-  return `${dev ? `${dev} ` : ""}${ovr} ${member.name} (${member.position})${contract ? ` - ${contract}` : ""}`;
+  return `${dev ? `${dev} ` : ""}${ovr} ${member.name} (${member.position})`;
 }
 
 function rosterGroupValue(group: { members: any[] }) {
