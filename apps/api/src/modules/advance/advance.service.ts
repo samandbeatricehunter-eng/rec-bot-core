@@ -342,7 +342,7 @@ export async function setNextAdvance(input: { guildId: string; nextAdvanceAt: st
   return { league: data, nextAdvanceTimes: formatAdvanceTimes(data.next_advance_at) };
 }
 
-export async function setLeagueWeek(input: { guildId: string; seasonNumber?: number; weekNumber: number; seasonStage: string }) {
+export async function setLeagueWeek(input: { guildId: string; seasonNumber?: number; weekNumber: number; seasonStage: string; markAdvanced?: boolean }) {
   const context = await getLeagueContext(input.guildId);
   const currentLeague = context.rec_leagues;
   const seasonNumber = input.seasonNumber ?? currentLeague.season_number ?? currentLeague.display_season_number ?? 1;
@@ -362,6 +362,7 @@ export async function setLeagueWeek(input: { guildId: string; seasonNumber?: num
     ),
     updated_at: new Date().toISOString()
   };
+  if (input.markAdvanced) patch.last_advanced_at = new Date().toISOString();
   if (input.seasonNumber) patch.season_number = input.seasonNumber;
   const { data, error } = await supabase.from("rec_leagues").update(patch).eq("id", context.league_id).select("*").single();
   if (error) throw error;
@@ -1085,7 +1086,7 @@ export async function advanceLeagueWeek(guildId: string) {
     : previousStage === "draft" ? "preseason_training_camp"
     : previousStage === "preseason_training_camp" ? "regular_season"
     : previousStage;
-  const weekResult = await setLeagueWeek({ guildId, weekNumber, seasonStage });
+  const weekResult = await setLeagueWeek({ guildId, weekNumber, seasonStage, markAdvanced: true });
   return {
     previousWeek,
     weekNumber,
