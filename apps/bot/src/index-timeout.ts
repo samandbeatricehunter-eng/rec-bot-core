@@ -893,11 +893,11 @@ async function buildCommissionerToolsEmbed(guildId?: string | null) {
     .setDescription([
       header,
       "",
-      `Commissioner: ${commissioner}`,
-      `Comp. Committee (Co-Commish): ${compCommittee}`,
+      `**Commissioner:** ${commissioner}`,
+      `**Comp. Committee (Co-Commish):** ${compCommittee}`,
       "",
-      "Manage League: Link teams, edit settings/rules/league data, etc..",
-      "Server/League Setup: Edit Channel links, run the first-time League Setup Wizard, delete league, etc.."
+      "**Manage League:** Link teams, edit settings/rules/league data, etc..",
+      "**Server/League Setup:** Edit Channel links, run the first-time League Setup Wizard, delete league, etc.."
     ].join("\n"));
 }
 
@@ -907,11 +907,11 @@ function buildManageLeagueEmbed() {
     .setDescription([
       "Use this menu to manage your leagues operations.",
       "",
-      "-User/Team Linking: Link users to teams within the league.",
-      "-Troubleshoot Advance: Failures with advance features, like game channel creation or gotw selection can be addressed using these options.",
-      "-EOS Functions: If EOS functions such as end of season payouts and REC Awards voting don't commence when league advances to post-season, you can retrigger them via this menu.",
-      "-Active Check: Posts a poll to the announcements channel tagging everyone with a 24 hour time limit to reply or Commissioners will be notified of failure to respond.",
-      "-Edit League Settings: Use this menu to edit league settings from the League Setup wizard or view and edit the rules for the league."
+      "-**User/Team Linking:** Link users to teams within the league.",
+      "-**Troubleshoot Advance:** Failures with advance features, like game channel creation or gotw selection can be addressed using these options.",
+      "-**EOS Functions:** If EOS functions such as end of season payouts and REC Awards voting don't commence when league advances to post-season, you can retrigger them via this menu.",
+      "-**Active Check:** Posts a poll to the announcements channel tagging everyone with a 24 hour time limit to reply or Commissioners will be notified of failure to respond.",
+      "-**Edit League Settings:** Use this menu to edit league settings from the League Setup wizard or view and edit the rules for the league."
     ].join("\n"));
 }
 
@@ -919,9 +919,9 @@ function buildServerLeagueSetupEmbed() {
   return new EmbedBuilder()
     .setTitle("SERVER/LEAGUE SETUP")
     .setDescription([
-      "-Server Setup: Use this to assign channels for certain bot features to execute. Failure to assign channels will result in certain actions not triggering and possibly causing complications. For game channels. you'll link a category. You will need the channel IDs/category ID, which requires setting your server to DEV mode first in the settings.",
+      "-**Server Setup:** Use this to assign channels for certain bot features to execute. Failure to assign channels will result in certain actions not triggering and possibly causing complications. For game channels. you'll link a category. You will need the channel IDs/category ID, which requires setting your server to DEV mode first in the settings.",
       "",
-      "-League Setup Wizard: Use this wizard to create the league in REC databases, as well as to designate the leagues settings for user reference. Please run this when setting up a new league for the first time. If you just need to edit individual settings, you'll need to go to Manage League then Edit League Settings to change individual settings without re-running the full wizard. Doing so after the initial run may wipe league data. Please be mindful and aware."
+      "-**League Setup Wizard:** Use this wizard to create the league in REC databases, as well as to designate the leagues settings for user reference. Please run this when setting up a new league for the first time. If you just need to edit individual settings, you'll need to go to Manage League then Edit League Settings to change individual settings without re-running the full wizard. Doing so after the initial run may wipe league data. Please be mindful and aware."
     ].join("\n"));
 }
 

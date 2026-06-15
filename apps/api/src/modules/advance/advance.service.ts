@@ -65,6 +65,31 @@ function streamingRequirementText(requirement: string | null | undefined) {
   return "Based on league settings";
 }
 
+function nextWeekStage(currentWeek: number, currentStage: string) {
+  const weekNumber = currentWeek + 1;
+  const seasonStage =
+    currentStage === "regular_season" && weekNumber >= 19 ? "wild_card"
+    : currentStage === "wild_card" ? "divisional"
+    : currentStage === "divisional" ? "conference_championship"
+    : currentStage === "conference_championship" ? "super_bowl"
+    : currentStage === "super_bowl" ? "coach_hiring"
+    : currentStage === "coach_hiring" ? "final_resigning"
+    : currentStage === "final_resigning" ? "free_agency"
+    : currentStage === "free_agency" ? "draft"
+    : currentStage === "draft" ? "preseason_training_camp"
+    : currentStage === "preseason_training_camp" ? "regular_season"
+    : currentStage;
+  return { weekNumber, seasonStage };
+}
+
+function payoutWeekNumber(payout: any) {
+  return asNumber(payout?.source_reference?.weekNumber ?? payout?.source_reference?.week);
+}
+
+function oneRelation<T>(value: T | T[] | null | undefined): T | null {
+  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
 async function getLeagueConfiguration(leagueId: string) {
   const { data } = await supabase.from("rec_league_configuration").select("*").eq("league_id", leagueId).maybeSingle();
   return (data ?? null) as any;
@@ -819,7 +844,9 @@ export async function buildAdvanceDmPayloads(guildId: string) {
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const weekNumber = league.current_week ?? 1;
   const dmStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+  const next = nextWeekStage(asNumber(weekNumber), dmStage);
   const games = await getWeekGames(context.league_id, seasonNumber, weekNumber, dmStage);
+  const config = await getLeagueConfiguration(context.league_id);
   const { data: challenges } = await supabase.from("rec_weekly_challenges").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
   const { data: channels } = await supabase.from("rec_game_channels").select("*").eq("league_id", context.league_id).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("status", "active");
   const completedWeek = Math.max(1, weekNumber - 1);
@@ -831,19 +858,60 @@ export async function buildAdvanceDmPayloads(guildId: string) {
     .from("rec_dollar_ledger")
     .select("user_id,amount,transaction_type,description,source_reference,created_at")
     .eq("league_id", context.league_id)
-    .in("transaction_type", ["weekly_game_payout", "weekly_challenge", "potw", "gotw_correct_guess", "stream_payout", "credit"]);
+    .in("transaction_type", ["weekly_game_payout", "weekly_challenge", "potw", "gotw_correct_guess", "stream_payout", "credit", "savings_interest"]);
   const { data: wallets } = await supabase.from("rec_wallets").select("user_id,wallet_balance,savings_balance");
   const walletByUser = new Map((wallets ?? []).map((wallet: any) => [wallet.user_id, wallet]));
   const { data: discordAccounts } = await supabase.from("rec_discord_accounts").select("user_id,discord_id");
   const discordByUser = new Map((discordAccounts ?? []).map((d: any) => [d.user_id, d.discord_id]));
+  const { data: assignments } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,team:rec_teams(id,name,abbreviation)")
+    .eq("league_id", context.league_id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  const { data: gotwSelected } = await supabase
+    .from("rec_game_of_week_polls")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const { data: previousGotw } = await supabase
+    .from("rec_game_of_week_polls")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .lt("week_number", weekNumber)
+    .order("week_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const gotwVoteRows = previousGotw?.id
+    ? await supabase.from("rec_game_of_week_votes").select("user_id,selected_team_id,is_correct").eq("poll_id", previousGotw.id)
+    : { data: [] as any[] };
+  const previousGotwVotesByUser = new Map((gotwVoteRows.data ?? []).map((v: any) => [v.user_id, v]));
+  const { data: gotwRecords } = await supabase.from("rec_global_gotw_guessing_records").select("user_id,correct_guesses,wrong_guesses");
+  const gotwRecordByUser = new Map((gotwRecords ?? []).map((r: any) => [r.user_id, r]));
+  const streamingRequirement = dmStage === "regular_season"
+    ? config?.regular_season_streaming_requirement ?? config?.streaming_requirement
+    : config?.postseason_streaming_requirement
+      ?? (config?.streaming_scope === "playoffs_only" ? "required" : config?.streaming_requirement);
   const payloads: any[] = [];
+  const userIdsWithGames = new Set<string>();
   for (const game of games) {
     const sides = [
-      { userId: game.home_user_id, teamId: game.home_team_id, opponentTeam: teamNickname(game.away_team?.name, "Opponent"), location: "Home", opponentUserId: game.away_user_id },
-      { userId: game.away_user_id, teamId: game.away_team_id, opponentTeam: teamNickname(game.home_team?.name, "Opponent"), location: "Away", opponentUserId: game.home_user_id }
+      { userId: game.home_user_id, teamId: game.home_team_id, teamName: teamNickname(game.home_team?.name, "Team"), opponentTeam: teamNickname(game.away_team?.name, "Opponent"), location: "Home", opponentUserId: game.away_user_id, opponentTeamId: game.away_team_id },
+      { userId: game.away_user_id, teamId: game.away_team_id, teamName: teamNickname(game.away_team?.name, "Team"), opponentTeam: teamNickname(game.home_team?.name, "Opponent"), location: "Away", opponentUserId: game.home_user_id, opponentTeamId: game.home_team_id }
     ].filter((s) => s.userId);
     for (const side of sides) {
+      userIdsWithGames.add(String(side.userId));
       const gameChannel = (channels ?? []).find((c: any) => c.game_id === game.id);
+      const gotwRecord = gotwRecordByUser.get(side.userId);
+      const gotwCorrect = asNumber(gotwRecord?.correct_guesses);
+      const gotwWrong = asNumber(gotwRecord?.wrong_guesses);
+      const previousVote = previousGotwVotesByUser.get(side.userId);
+      const opponentDiscordId = side.opponentUserId ? (discordByUser.get(side.opponentUserId) ?? null) : null;
       payloads.push({
         userId: side.userId,
         discordId: discordByUser.get(side.userId),
@@ -852,19 +920,75 @@ export async function buildAdvanceDmPayloads(guildId: string) {
         seasonNumber,
         weekNumber,
         seasonStage: league.season_stage,
+        nextWeekStage: next,
+        team: { id: side.teamId, name: side.teamName },
         nextAdvanceTimes: formatAdvanceTimes(league.next_advance_at),
-        matchup: { opponent: side.opponentTeam, location: side.location, gameType: side.opponentUserId ? "User H2H" : "CPU", gameChannelId: gameChannel?.discord_channel_id ?? null },
-        streaming: { required: false, requirement: "Based on league settings" },
+        matchup: { opponent: side.opponentTeam, opponentDiscordId, location: side.location, gameType: side.opponentUserId ? "User H2H" : "CPU", gameChannelId: gameChannel?.discord_channel_id ?? null },
+        streaming: { required: streamingRequirement === "required", requirement: streamingRequirementText(streamingRequirement), side: config?.streaming_side ?? config?.streaming_required_side ?? null },
         challenges: (challenges ?? []).filter((c: any) => c.user_id === side.userId),
         payouts: (payouts ?? [])
-          .filter((payout: any) => payout.user_id === side.userId && asNumber(payout.source_reference?.weekNumber) === completedWeek)
+          .filter((payout: any) => payout.user_id === side.userId && [completedWeek, weekNumber].includes(payoutWeekNumber(payout)))
           .map((payout: any) => ({ label: payout.description ?? payout.transaction_type, amount: payout.amount ?? 0, type: payout.transaction_type })),
         walletBalance: walletByUser.get(side.userId)?.wallet_balance ?? 0,
+        savingsBalance: walletByUser.get(side.userId)?.savings_balance ?? 0,
         potwAwards: (awards ?? []).filter((a: any) => a.user_id === side.userId).map((a: any) => ({ label: `${a.conference} ${a.award_side === "offense" ? "Offensive" : "Defensive"} REC POTW`, playerName: a.player_name, amount: a.payout_amount ?? REC_POTW_PAYOUT_AMOUNT })),
-        gotw: { isParticipant: false, message: "Go to /menu to vote for the H2H GOTW winner. Correct guesses may earn a payout." },
+        gotw: {
+          selected: gotwSelected ? `${gotwSelected.away_team_name ?? "Away"} @ ${gotwSelected.home_team_name ?? "Home"}` : "Not selected yet",
+          isParticipant: gotwSelected ? [gotwSelected.away_user_id, gotwSelected.home_user_id].map(String).includes(String(side.userId)) : false,
+          votingRecord: gotwCorrect + gotwWrong > 0 ? `${gotwCorrect}-${gotwWrong} (${Math.round((gotwCorrect / Math.max(1, gotwCorrect + gotwWrong)) * 100)}%)` : "No votes yet",
+          previousOutcome: previousGotw ? {
+            matchup: `${previousGotw.away_team_name ?? "Away"} @ ${previousGotw.home_team_name ?? "Home"}`,
+            winner: previousGotw.winning_team_id ? (String(previousGotw.winning_team_id) === String(previousGotw.away_team_id) ? previousGotw.away_team_name : previousGotw.home_team_name) : "Not settled",
+            userPick: previousVote ? (String(previousVote.selected_team_id) === String(previousGotw.away_team_id) ? previousGotw.away_team_name : previousGotw.home_team_name) : "No vote recorded",
+            result: previousVote?.is_correct === true ? "Voted winner" : previousVote?.is_correct === false ? "Voted loser" : "No settled vote"
+          } : null,
+          message: "Go to /menu to vote for the H2H GOTW winner. Correct guesses may earn a payout."
+        },
         deadlines: []
       });
     }
+  }
+  for (const assignment of assignments ?? []) {
+    if (!assignment.user_id || userIdsWithGames.has(String(assignment.user_id))) continue;
+    const team = oneRelation(assignment.team);
+    const gotwRecord = gotwRecordByUser.get(assignment.user_id);
+    const gotwCorrect = asNumber(gotwRecord?.correct_guesses);
+    const gotwWrong = asNumber(gotwRecord?.wrong_guesses);
+    const previousVote = previousGotwVotesByUser.get(assignment.user_id);
+    payloads.push({
+      userId: assignment.user_id,
+      discordId: discordByUser.get(assignment.user_id),
+      leagueName: league.name,
+      serverName: context.rec_discord_servers?.name ?? "",
+      seasonNumber,
+      weekNumber,
+      seasonStage: league.season_stage,
+      nextWeekStage: next,
+      team: { id: team?.id ?? null, name: teamNickname(team?.name, "Team") },
+      nextAdvanceTimes: formatAdvanceTimes(league.next_advance_at),
+      matchup: { opponent: "BYE WEEK", opponentDiscordId: null, location: "NONE", gameType: "BYE", gameChannelId: null },
+      streaming: { required: false, requirement: "Not required on bye week", side: null },
+      challenges: [],
+      payouts: (payouts ?? [])
+        .filter((payout: any) => payout.user_id === assignment.user_id && [completedWeek, weekNumber].includes(payoutWeekNumber(payout)))
+        .map((payout: any) => ({ label: payout.description ?? payout.transaction_type, amount: payout.amount ?? 0, type: payout.transaction_type })),
+      walletBalance: walletByUser.get(assignment.user_id)?.wallet_balance ?? 0,
+      savingsBalance: walletByUser.get(assignment.user_id)?.savings_balance ?? 0,
+      potwAwards: (awards ?? []).filter((a: any) => a.user_id === assignment.user_id).map((a: any) => ({ label: `${a.conference} ${a.award_side === "offense" ? "Offensive" : "Defensive"} REC POTW`, playerName: a.player_name, amount: a.payout_amount ?? REC_POTW_PAYOUT_AMOUNT })),
+      gotw: {
+        selected: gotwSelected ? `${gotwSelected.away_team_name ?? "Away"} @ ${gotwSelected.home_team_name ?? "Home"}` : "Not selected yet",
+        isParticipant: false,
+        votingRecord: gotwCorrect + gotwWrong > 0 ? `${gotwCorrect}-${gotwWrong} (${Math.round((gotwCorrect / Math.max(1, gotwCorrect + gotwWrong)) * 100)}%)` : "No votes yet",
+        previousOutcome: previousGotw ? {
+          matchup: `${previousGotw.away_team_name ?? "Away"} @ ${previousGotw.home_team_name ?? "Home"}`,
+          winner: previousGotw.winning_team_id ? (String(previousGotw.winning_team_id) === String(previousGotw.away_team_id) ? previousGotw.away_team_name : previousGotw.home_team_name) : "Not settled",
+          userPick: previousVote ? (String(previousVote.selected_team_id) === String(previousGotw.away_team_id) ? previousGotw.away_team_name : previousGotw.home_team_name) : "No vote recorded",
+          result: previousVote?.is_correct === true ? "Voted winner" : previousVote?.is_correct === false ? "Voted loser" : "No settled vote"
+        } : null,
+        message: "Go to /menu to vote for the H2H GOTW winner. Correct guesses may earn a payout."
+      },
+      deadlines: []
+    });
   }
   const routes = await getRoutes(context.server_id);
   const announcementsChannelId = routes?.announcements_channel_id ?? null;

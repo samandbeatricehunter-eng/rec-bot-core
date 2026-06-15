@@ -62,6 +62,115 @@ function buildGameEmbeds(plan: any) {
   );
 }
 
+function stageLabel(value: unknown) {
+  const text = String(value ?? "").replaceAll("_", " ").trim();
+  return text ? text.replace(/\b\w/g, (char) => char.toUpperCase()) : "Stage TBD";
+}
+
+function money(value: unknown) {
+  const amount = Number(value ?? 0);
+  const prefix = amount < 0 ? "-" : "";
+  return `${prefix}$${Math.abs(amount).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+}
+
+function clampField(value: string, max = 1024) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 3).trimEnd()}...`;
+}
+
+function sideLabel(side: unknown) {
+  const text = String(side ?? "").toLowerCase();
+  if (text === "home") return "Home";
+  if (text === "away") return "Away";
+  if (text === "both") return "Both";
+  if (text === "either") return "Either";
+  return "Either";
+}
+
+function challengeLines(challenges: any[], side: "offense" | "defense") {
+  const sideChallenges = (challenges ?? []).filter((challenge: any) => challenge.challenge_side === side);
+  if (!sideChallenges.length) return "No challenge assigned.";
+  return sideChallenges.flatMap((challenge: any) => [
+    `**S Tier:** ${challenge.s_tier_goal ?? "TBD"} - $50`,
+    `**A Tier:** ${challenge.a_tier_goal ?? "TBD"} - $25`,
+    `**B Tier:** ${challenge.b_tier_goal ?? "TBD"} - $10`
+  ]).join("\n");
+}
+
+function matchupChannelText(payload: any) {
+  if (payload.matchup?.gameType === "BYE") return "BYE WEEK";
+  if (payload.matchup?.gameType === "CPU") return "CPU Matchup";
+  return payload.matchup?.gameChannelId ? `<#${payload.matchup.gameChannelId}>` : "Not created yet";
+}
+
+function streamingText(payload: any) {
+  const required = payload.streaming?.required ? "Yes" : "No";
+  if (!payload.streaming?.required) return required;
+  return `${required} (${sideLabel(payload.streaming?.side)})`;
+}
+
+function transactionsText(payload: any) {
+  const rows = (payload.payouts ?? []).map((payout: any) => {
+    const direction = Number(payout.amount ?? 0) < 0 ? "Outgoing" : "Incoming";
+    return `**${direction}:** ${payout.label ?? payout.type ?? "Transaction"} (${money(payout.amount)})`;
+  });
+  rows.push(`**Wallet Balance:** ${money(payload.walletBalance)}`);
+  rows.push(`**Savings Balance:** ${money(payload.savingsBalance)}`);
+  return rows.join("\n");
+}
+
+function potwText(payload: any) {
+  return payload.potwAwards?.length
+    ? payload.potwAwards.map((award: any) => `**${award.label}:** ${award.playerName} +${money(award.amount)}`).join("\n")
+    : "No POTW awards from the completed week.";
+}
+
+function gotwOutcomeText(payload: any) {
+  const outcome = payload.gotw?.previousOutcome;
+  if (!outcome) return "No previous GOTW outcome recorded.";
+  return [
+    `**Matchup:** ${outcome.matchup}`,
+    `**Winner:** ${outcome.winner}`,
+    `**Your Pick:** ${outcome.userPick}`,
+    `**Result:** ${outcome.result}`
+  ].join("\n");
+}
+
+function buildAdvanceDmEmbed(guild: Guild, payload: any) {
+  const seasonWeek = `Season ${payload.seasonNumber}, Week ${payload.weekNumber}${payload.seasonStage ? ` (${stageLabel(payload.seasonStage)})` : ""}`;
+  const opponent = payload.matchup?.opponentDiscordId ? `<@${payload.matchup.opponentDiscordId}>` : payload.matchup?.opponent ?? "TBD";
+  const nextWeekStage = payload.nextWeekStage
+    ? `Week ${payload.nextWeekStage.weekNumber} (${stageLabel(payload.nextWeekStage.seasonStage)})`
+    : "TBD";
+
+  return new EmbedBuilder()
+    .setTitle("REC League Advanced")
+    .addFields(
+      { name: "**LEAGUE NAME**", value: `[${payload.leagueName ?? guild.name}](https://discord.com/channels/${guild.id})`, inline: true },
+      { name: "**SEASON / WEEK**", value: seasonWeek, inline: true },
+      { name: "**Your Team**", value: payload.team?.name ?? "TBD", inline: true },
+      { name: "**Opponent**", value: opponent, inline: true },
+      {
+        name: "**MATCHUP DETAILS**",
+        value: clampField([
+          `**You are:** ${payload.matchup?.location ?? "NONE"}`,
+          `**Your Game Channel:** ${matchupChannelText(payload)}`,
+          `**Streaming Required:** ${streamingText(payload)}`,
+          `**Streaming Details:** ${payload.streaming?.requirement ?? "Based on league settings"}`
+        ].join("\n"))
+      },
+      { name: "**GOTW**", value: clampField(payload.gotw?.selected ?? "Not selected yet"), inline: true },
+      { name: "**GOTW Voting Record**", value: payload.gotw?.votingRecord ?? "No votes yet", inline: true },
+      { name: "**OFFENSIVE CHALLENGES**", value: clampField(challengeLines(payload.challenges, "offense")), inline: true },
+      { name: "**DEFENSIVE CHALLENGES**", value: clampField(challengeLines(payload.challenges, "defense")), inline: true },
+      { name: "**NEXT ADVANCE**", value: clampField(advanceLines(payload.nextAdvanceTimes)), inline: true },
+      { name: "**NEXT WEEK/STAGE**", value: nextWeekStage, inline: true },
+      { name: "**TRANSACTIONS**", value: clampField(transactionsText(payload)) },
+      { name: "**POTW Winners**", value: clampField(potwText(payload)) },
+      { name: "**GOTW Outcome**", value: clampField(gotwOutcomeText(payload)) }
+    );
+}
+
 export async function recreateGameChannelsForGuild(guild: Guild) {
   const active = await recApi.getActiveGameChannels(guild.id);
   for (const tracked of active.channels ?? []) {
@@ -136,45 +245,7 @@ export async function sendAdvanceDmsOnly(guild: Guild) {
     if (!payload.discordId) continue;
     const user = await guild.client.users.fetch(payload.discordId).catch(() => null);
     if (!user) { failed++; continue; }
-    const lines = [
-      "REC League Advanced",
-      "",
-      `League: ${payload.leagueName}`,
-      `Server: [${guild.name}](https://discord.com/channels/${guild.id})`,
-      `Season: ${payload.seasonNumber}`,
-      `Current Week: ${payload.weekNumber}`,
-      `Stage: ${String(payload.seasonStage ?? "").replaceAll("_", " ")}`,
-      "",
-      "Next Advance:",
-      advanceLines(payload.nextAdvanceTimes),
-      "",
-      "This Week’s Matchup:",
-      `Opponent: ${payload.matchup?.opponent ?? "TBD"}`,
-      `Location: ${payload.matchup?.location ?? "TBD"}`,
-      `Game Type: ${payload.matchup?.gameType ?? "TBD"}`,
-      payload.matchup?.gameChannelId ? `Game Channel: <#${payload.matchup.gameChannelId}>` : undefined,
-      "",
-      `Streaming Required: ${payload.streaming?.required ? "Yes" : "No"}`,
-      `Requirement: ${payload.streaming?.requirement ?? "Based on league settings"}`,
-      "",
-      "Weekly Challenges:",
-      ...(payload.challenges?.length ? payload.challenges.flatMap((challenge: any) => [
-        `${challenge.challenge_side === "offense" ? "Offensive" : "Defensive"} Challenge:`,
-        `S Tier: ${challenge.s_tier_goal} — $50`,
-        `A Tier: ${challenge.a_tier_goal} — $25`,
-        `B Tier: ${challenge.b_tier_goal} — $10`
-      ]) : ["No weekly challenges assigned."]),
-      "",
-      "POTW Awards:",
-      ...(payload.potwAwards?.length ? payload.potwAwards.map((award: any) => `• ${award.label}: ${award.playerName} +$${award.amount}`) : ["No POTW award this advance."]),
-      "",
-      "Payouts:",
-      ...(payload.payouts?.length ? payload.payouts.map((payout: any) => `• ${payout.label}: +$${payout.amount}`) : ["No automatic payouts recorded in this summary."]),
-      `Wallet Balance: $${payload.walletBalance ?? 0}`,
-      "",
-      payload.gotw?.isParticipant ? "Your game is the H2H Game of the Week." : payload.gotw?.message
-    ].filter(Boolean).join("\n");
-    try { await user.send(lines); sent++; } catch { failed++; }
+    try { await user.send({ embeds: [buildAdvanceDmEmbed(guild, payload)] }); sent++; } catch { failed++; }
   }
   return { sent, failed };
 }
