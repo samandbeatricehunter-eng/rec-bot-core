@@ -346,7 +346,7 @@ export function buildCustomTeamModal(conference: "AFC" | "NFC") {
 
   const replaceInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput)
-    .setLabel("Original team abbreviation (slot being replaced)")
+    .setLabel("Original team abbreviation to replace")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setPlaceholder("e.g. NO, BAL, DAL");
