@@ -200,7 +200,7 @@ export function buildSimpleTeamLinkPanel() {
     embeds: [
       new EmbedBuilder()
         .setTitle("Link User to Team")
-        .setDescription("Select a conference to view available teams.\n\nUse **Replace Team (No User)** to register a relocated/custom team without linking a coach — this keeps imports mapping correctly for unmanned teams.")
+        .setDescription("Select a conference to view available teams.\n\nUse **Add / Edit Custom Team** to register or update a relocated/custom team's data (city, name, abbreviation) without linking or relinking a coach. Works for unmanned teams and already-linked teams — any existing coach link is preserved.")
     ],
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -215,7 +215,7 @@ export function buildSimpleTeamLinkPanel() {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNoLink)
-          .setLabel("Replace Team (No User)")
+          .setLabel("Add / Edit Custom Team")
           .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId(TEAM_LINK_CUSTOM_IDS.clearAllLinks)

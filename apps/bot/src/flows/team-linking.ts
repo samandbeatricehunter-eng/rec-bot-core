@@ -751,8 +751,8 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
-            .setTitle("Custom Team Registered")
-            .setDescription(`**${displayName}** (${newAbbr}) now replaces **${replacedAbbr}** in the league.\n\nNo coach was linked — imports will map to this team. You can link a coach later from User/Team Linking.`)
+            .setTitle("Custom Team Saved")
+            .setDescription(`**${displayName}** (${newAbbr}) is set for the **${replacedAbbr}** slot.\n\nTeam data updated — imports will map to this team. Any existing coach link is preserved; no relinking needed. You can link a coach anytime from User/Team Linking.`)
         ],
         components: [buildNavigationRow({ includeAdminPanel: true })]
       });
