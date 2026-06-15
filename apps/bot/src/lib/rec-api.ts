@@ -118,6 +118,13 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  // Relocated/custom teams whose admin-entered data differs from the latest import identity.
+  getTeamDataConflicts: (guildId: string) =>
+    recFetch<any>("/v1/team-ownership/team-conflicts", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
   getEaAccountStatus: (input: { discordId: string; console?: RecEaConsole }) =>
     recFetch<any>(REC_API_ROUTES.eaAccountStatus, {
       method: "POST",

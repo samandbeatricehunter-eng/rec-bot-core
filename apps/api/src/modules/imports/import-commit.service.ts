@@ -178,6 +178,10 @@ async function upsertTeams(importJobId: string, leagueId: string) {
       division: canonical?.division ?? team.division_name ?? raw.divName ?? null,
       madden_team_id: teamExternalId(team),
       source: SOURCE_TYPE,
+      // Observed identity from this import, used to flag custom/relocated team data conflicts during advance.
+      import_city: toNullableText(raw.cityName),
+      import_nick: toNullableText(raw.nickName),
+      import_abbr: toNullableText(team.abbr_name ?? team.abbreviation ?? raw.abbrName),
       updated_at: new Date().toISOString()
     };
   }).filter((team) => team.name && team.madden_team_id);
@@ -254,6 +258,9 @@ async function upsertTeams(importJobId: string, leagueId: string) {
       if (row.abbreviation) patch.abbreviation = row.abbreviation;
       if (row.conference) patch.conference = row.conference;
       if (row.division) patch.division = row.division;
+      if (row.import_city) patch.import_city = row.import_city;
+      if (row.import_nick) patch.import_nick = row.import_nick;
+      if (row.import_abbr) patch.import_abbr = row.import_abbr;
       return supabase.from("rec_teams").update(patch).eq("id", id).select("id,name,madden_team_id").single();
     })
   );
