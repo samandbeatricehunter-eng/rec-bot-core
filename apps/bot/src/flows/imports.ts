@@ -2,7 +2,7 @@ import { ButtonInteraction, EmbedBuilder, Interaction, StringSelectMenuInteracti
 import type { RecImportMode } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
-import { buildAdvanceWizardPostImportPayload } from "./advance-wizard.js";
+import { buildPostImportPayloadWithConflictCheck } from "./advance-wizard.js";
 import {
   ALL_ENDPOINTS_KEY,
   CORE_IMPORT_ENDPOINTS,
@@ -703,7 +703,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       importSessions.delete(interaction.user.id);
       const summary = previewSummary(approved.job);
       const counts = summary.committedCounts ?? {};
-      await interaction.editReply(buildAdvanceWizardPostImportPayload([
+      await interaction.editReply(await buildPostImportPayloadWithConflictCheck(interaction.guildId ?? "", [
         "Import committed into REC Core.",
         "",
         formatImportJob(approved.job),

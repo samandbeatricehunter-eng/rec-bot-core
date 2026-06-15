@@ -28,7 +28,14 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   outcomesFsFwInput: "rec:advance_wizard:outcomes_fs_fw_input",
   outcomesSkip: "rec:advance_wizard:outcomes_skip",
   step2Back: "rec:advance_wizard:step2_back",
-  step2Next: "rec:advance_wizard:step2_next"
+  step2Next: "rec:advance_wizard:step2_next",
+  teamConflictSelect: "rec:advance_wizard:team_conflict_select",
+  teamConflictContinue: "rec:advance_wizard:team_conflict_continue",
+  teamConflictResolveModal: "rec:advance_wizard:team_conflict_modal",
+  teamConflictReplaceInput: "rec:advance_wizard:team_conflict_replace",
+  teamConflictCityInput: "rec:advance_wizard:team_conflict_city",
+  teamConflictNickInput: "rec:advance_wizard:team_conflict_nick",
+  teamConflictAbbrInput: "rec:advance_wizard:team_conflict_abbr"
 } as const;
 
 interface BadgeAnnouncement {
@@ -189,6 +196,139 @@ export function buildAdvanceWizardPostImportPayload(summaryLines: string[] = [])
       )
     ]
   };
+}
+
+// ── Custom team data conflicts (custom/relocated team data vs what the import contains) ──────────
+
+export function buildTeamConflictPayload(conflicts: any[]) {
+  const lines = conflicts.slice(0, 8).map((c) => {
+    const league = `${c.league?.city ?? "?"} ${c.league?.nick ?? ""}`.trim();
+    const mine = `${c.custom?.city ?? "?"} ${c.custom?.nick ?? ""}`.trim();
+    return [
+      `**${c.originalAbbreviation} slot** — mismatched: ${(c.mismatched ?? []).join(", ")}`,
+      `• League (import): **${league}** (${c.league?.abbr ?? "?"})`,
+      `• Yours: ${mine} (${c.custom?.abbr ?? "?"})`
+    ].join("\n");
+  });
+
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictSelect)
+    .setPlaceholder("Select a team to update")
+    .addOptions(
+      conflicts.slice(0, 25).map((c) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel((`${c.league?.city ?? ""} ${c.league?.nick ?? ""}`.trim() || c.originalAbbreviation).slice(0, 100))
+          .setValue(c.originalAbbreviation)
+          .setDescription(`League ${c.league?.abbr ?? "?"} · fix ${(c.mismatched ?? []).join(", ")}`.slice(0, 100))
+      )
+    );
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Custom Team Data Conflicts")
+        .setDescription([
+          "These relocated/custom teams don't match what the latest import contains. Select each team to update its data to match the league, then continue.",
+          "",
+          ...lines
+        ].join("\n").slice(0, 4000))
+    ],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictContinue).setLabel("Continue to FS/FW").setStyle(ButtonStyle.Success)
+      )
+    ]
+  };
+}
+
+export function buildTeamConflictResolveModal(conflict: any) {
+  const modal = new ModalBuilder()
+    .setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.teamConflictResolveModal}:${conflict.originalAbbreviation}`)
+    .setTitle(`Fix ${conflict.originalAbbreviation} Team Data`);
+  const replaceInput = new TextInputBuilder()
+    .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictReplaceInput)
+    .setLabel("Original team abbreviation")
+    .setStyle(TextInputStyle.Short).setRequired(true)
+    .setValue(conflict.originalAbbreviation ?? "");
+  const cityInput = new TextInputBuilder()
+    .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictCityInput)
+    .setLabel("Team city (per league)")
+    .setStyle(TextInputStyle.Short).setRequired(true)
+    .setValue(conflict.league?.city ?? "");
+  const nickInput = new TextInputBuilder()
+    .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictNickInput)
+    .setLabel("Team name (per league)")
+    .setStyle(TextInputStyle.Short).setRequired(true)
+    .setValue(conflict.league?.nick ?? "");
+  const abbrInput = new TextInputBuilder()
+    .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictAbbrInput)
+    .setLabel("Team abbreviation (per league)")
+    .setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(8)
+    .setValue(conflict.league?.abbr ?? "");
+  modal.addComponents(
+    new ActionRowBuilder<TextInputBuilder>().addComponents(replaceInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(cityInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(nickInput),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(abbrInput)
+  );
+  return modal;
+}
+
+// After an import commits, show the team-conflict screen if any relocated team data diverges from
+// the import; otherwise fall through to the normal post-import (FS/FW) step.
+export async function buildPostImportPayloadWithConflictCheck(guildId: string, summaryLines: string[] = []) {
+  const data = await recApi.getTeamDataConflicts(guildId).catch(() => ({ conflicts: [] }));
+  if (data?.conflicts?.length) return buildTeamConflictPayload(data.conflicts);
+  return buildAdvanceWizardPostImportPayload(summaryLines);
+}
+
+export async function handleTeamConflictSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can resolve team data conflicts.", ephemeral: true });
+    return;
+  }
+  const originalAbbr = interaction.values[0];
+  const data = await recApi.getTeamDataConflicts(interaction.guildId).catch(() => ({ conflicts: [] }));
+  const conflict = (data?.conflicts ?? []).find((c: any) => c.originalAbbreviation === originalAbbr);
+  if (!conflict) {
+    await interaction.reply({ content: "That conflict was already resolved.", ephemeral: true });
+    return;
+  }
+  await interaction.showModal(buildTeamConflictResolveModal(conflict));
+}
+
+export async function handleTeamConflictResolveModal(interaction: ModalSubmitInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can resolve team data conflicts.", ephemeral: true });
+    return;
+  }
+  const replacedAbbr = interaction.fields.getTextInputValue(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictReplaceInput).trim().toUpperCase();
+  const newCity = interaction.fields.getTextInputValue(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictCityInput).trim();
+  const newNick = interaction.fields.getTextInputValue(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictNickInput).trim();
+  const newAbbr = interaction.fields.getTextInputValue(ADVANCE_WIZARD_CUSTOM_IDS.teamConflictAbbrInput).trim().toUpperCase();
+  await interaction.deferUpdate();
+  try {
+    await recApi.createCustomTeamReplacement({
+      guildId: interaction.guildId,
+      replacementTeamAbbreviation: replacedAbbr,
+      customTeamName: newNick,
+      customDisplayCity: newCity,
+      customDisplayNick: newNick,
+      customDisplayAbbr: newAbbr,
+      requestedByDiscordId: interaction.user.id
+    });
+    await interaction.editReply(await buildPostImportPayloadWithConflictCheck(interaction.guildId, [`Updated ${newCity} ${newNick} (${newAbbr}) to match the league.`]));
+  } catch (error) {
+    await interaction.editReply({ content: `Failed to update team: ${error instanceof Error ? error.message : String(error)}`, components: [] });
+  }
+}
+
+export async function handleTeamConflictContinue(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.update(buildAdvanceWizardPostImportPayload(["Continued past team data conflicts."]));
 }
 
 function outcomeLabel(value: unknown) {

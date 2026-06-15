@@ -47,7 +47,7 @@ import { handleImportButton, handleImportModal, handleImportSelect, importSessio
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { buildAdvanceMenuPanel, buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
-import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardFsFwModal, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardOutcomeReviewPayload, buildAdvanceWizardStep2Payload, handleAdvanceWizardFsFwModal, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
+import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardFsFwModal, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardOutcomeReviewPayload, buildAdvanceWizardStep2Payload, handleAdvanceWizardFsFwModal, handleTeamConflictSelect, handleTeamConflictResolveModal, handleTeamConflictContinue, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
 import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild, recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
 import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
 import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
@@ -194,6 +194,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.roleSelect) return handleSimpleTeamLinkRoleSelect(interaction);
 
+      if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.teamConflictSelect) return handleTeamConflictSelect(interaction);
+
       if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.selectChannelType) {
         const channelType = interaction.values[0];
         serverSetupChannelSessions.set(interaction.user.id, channelType);
@@ -291,6 +293,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
 
     if (interaction.isModalSubmit() && interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesFsFwModal) return handleAdvanceWizardFsFwModal(interaction);
+
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.teamConflictResolveModal}:`)) return handleTeamConflictResolveModal(interaction);
 
     if (interaction.isModalSubmit()) {
       if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.channelIdModal) return handleServerSetupChannelIdModal(interaction);
@@ -1105,6 +1109,8 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
     await interaction.reply({ content: "Only authorized admins can use the Advance Wizard.", flags: MessageFlags.Ephemeral });
     return;
   }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.teamConflictContinue) return handleTeamConflictContinue(interaction);
 
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.back) {
     await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
