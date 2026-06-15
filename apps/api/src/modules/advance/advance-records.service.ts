@@ -54,6 +54,23 @@ async function incrementH2h(table: string, match: Record<string, any>, userAResu
   else await supabase.from(table).insert(row);
 }
 
+// All-time per-user Game-of-the-Week head-to-head record. Idempotent via the caller's
+// per-game records_applied_at guard (each game is processed exactly once).
+async function incrementGotwH2h(userId: string, result: "win" | "loss" | "tie") {
+  const { data: existing } = await supabase.from("rec_global_gotw_h2h_records").select("*").eq("user_id", userId).maybeSingle();
+  const row = {
+    user_id: userId,
+    wins: asNumber(existing?.wins) + (result === "win" ? 1 : 0),
+    losses: asNumber(existing?.losses) + (result === "loss" ? 1 : 0),
+    ties: asNumber(existing?.ties) + (result === "tie" ? 1 : 0),
+    games_played: asNumber(existing?.games_played) + 1,
+    last_result_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+  if (existing) await supabase.from("rec_global_gotw_h2h_records").update(row).eq("user_id", userId);
+  else await supabase.from("rec_global_gotw_h2h_records").insert(row);
+}
+
 export async function applyAdvanceRecords(guildId: string) {
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;
@@ -65,6 +82,19 @@ export async function applyAdvanceRecords(guildId: string) {
     .eq("season_number", seasonNumber)
     .is("records_applied_at", null);
   if (error) throw error;
+
+  // Selected Game-of-the-Week matchups for this season, keyed by week + sorted team pair,
+  // so we can also track GOTW head-to-head records as each GOTW game is applied.
+  const { data: gotwSelected } = await supabase
+    .from("rec_game_of_week_candidates")
+    .select("week_number, home_team_id, away_team_id")
+    .eq("league_id", context.league_id)
+    .eq("season_number", seasonNumber)
+    .eq("is_selected", true);
+  const gotwKeys = new Set(
+    (gotwSelected ?? []).map((c: any) => `${c.week_number}:${[c.home_team_id, c.away_team_id].sort().join("-")}`)
+  );
+
   let applied = 0;
   for (const game of games ?? []) {
     if (!isCompletedGame(game)) continue;
@@ -105,6 +135,15 @@ export async function applyAdvanceRecords(guildId: string) {
       const userAResult = { wins: userAPd > 0 ? 1 : 0, losses: userAPd < 0 ? 1 : 0, ties: userAPd === 0 ? 1 : 0, pointDifferential: userAPd };
       await incrementH2h("rec_user_h2h_global_records", { user_a_id: ids[0], user_b_id: ids[1] }, userAResult);
       await incrementH2h("rec_user_h2h_league_records", { league_id: context.league_id, user_a_id: ids[0], user_b_id: ids[1] }, userAResult);
+
+      // GOTW head-to-head: only count games that were the selected Game of the Week.
+      const gotwKey = `${game.week_number}:${[game.home_team_id, game.away_team_id].sort().join("-")}`;
+      if (gotwKeys.has(gotwKey)) {
+        const homeRes = home > away ? "win" : home < away ? "loss" : "tie";
+        const awayRes = away > home ? "win" : away < home ? "loss" : "tie";
+        await incrementGotwH2h(game.home_user_id, homeRes).catch(() => undefined);
+        await incrementGotwH2h(game.away_user_id, awayRes).catch(() => undefined);
+      }
     }
     await supabase.from("rec_game_results").update({ records_applied_at: new Date().toISOString(), records_apply_key: applyKey, updated_at: new Date().toISOString() }).eq("id", game.id);
     applied += 1;

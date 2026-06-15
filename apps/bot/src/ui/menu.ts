@@ -34,7 +34,19 @@ export const MENU_CUSTOM_IDS = {
   manageLeagueSelect: "rec:admin:manage_league_select",
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
-  leagueNameInput: "rec:admin:league_name_input"
+  leagueNameInput: "rec:admin:league_name_input",
+  // Main-menu Row 1 buttons
+  transferFunds: "rec:menu:transfer_funds",
+  placeWager: "rec:menu:place_wager",
+  manageWallet: "rec:menu:manage_wallet"
+} as const;
+
+// Custom IDs for the Manage My Wallet ephemeral.
+export const MANAGE_WALLET_CUSTOM_IDS = {
+  toSavings: "rec:wallet:to_savings",
+  fromSavings: "rec:wallet:from_savings",
+  pendingPurchases: "rec:wallet:pending_purchases",
+  makePurchase: "rec:wallet:make_purchase"
 } as const;
 
 // Custom IDs for the Rosters submenu
@@ -46,10 +58,10 @@ export const ROSTERS_CUSTOM_IDS = {
   snapshotBack: "rec:rosters:snapshot_back",
   // User selector dropdown
   snapshotUserSelect: "rec:rosters:snapshot_user_select",
-  // View Rosters by Team flow
-  conferenceSelect: "rec:rosters:conference_select",
-  teamSelect: "rec:rosters:team_select",
-  rosterBackToConf: "rec:rosters:back_to_conferences"
+  // View Players by Team — two team pickers (32 teams exceed one menu's 25-option cap) + nav dropdown
+  teamSelectNfc: "rec:rosters:team_nfc",
+  teamSelectAfc: "rec:rosters:team_afc",
+  byTeamNav: "rec:rosters:by_team_nav"
 } as const;
 
 // Custom IDs for the REC Bank dropdown
@@ -88,12 +100,36 @@ function formatBadgePreview(badges?: Array<{ name?: string; badge_name?: string;
   return preview.join("\n") + suffix;
 }
 
+// Lists up to the 10 most recently earned badges. NOTE: Discord embeds have no hover tooltips, so
+// each badge shows name + tier inline; richer descriptions would need a badge catalog lookup.
+function formatTop10Badges(badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>) {
+  if (!badges?.length) return "No badges earned yet.";
+  return badges
+    .slice(0, 10)
+    .map((badge, i) => {
+      const name = badge.label ?? badge.name ?? badge.badge_name ?? "Badge";
+      return `${i + 1}. ${name}${badge.tier ? ` (${badge.tier})` : ""}`;
+    })
+    .join("\n");
+}
+
+const MENU_GUIDE_LINES = [
+  "**Rosters** — View Players by team/position & open teams. View User Profiles for League Members.",
+  "**Manage My Franchise** — View & manage your roster, purchase upgrades and utilize management tools.",
+  "**Standings & Stats** — View League Standings, current and career stats and other league details.",
+  "**REC Sports Network** — View GOTW, GOTY & POTY (Play of the Year) nominations & records.",
+  "**Rules/FAQ** — View league rules & find answers to any frequently asked questions."
+];
+
+const ZERO_WIDTH = "​";
+
 export function buildMainMenuEmbed(input: {
   discordUsername?: string;
   teamName?: string | null;
   highestRole?: string | null;
   wallet?: number;
   savings?: number;
+  projectedInterest?: number;
   leagueName?: string;
   seasonNumber?: number | string | null;
   currentWeek?: number | string | null;
@@ -101,7 +137,15 @@ export function buildMainMenuEmbed(input: {
   leagueSeasonRecordText?: string;
   leagueSeasonPointDifferential?: number;
   currentMatchupText?: string;
+  youAreText?: string;
+  matchupType?: string;
+  opponentName?: string | null;
+  opponentRecordText?: string;
+  opponentPointDifferential?: number;
+  opponentStreakText?: string;
+  userStreakText?: string;
   gotwStatus?: string;
+  gotwH2hRecordText?: string;
   gotwVotingRecordText?: string;
   offensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
   defensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
@@ -112,72 +156,79 @@ export function buildMainMenuEmbed(input: {
   badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>;
   isAdmin: boolean;
 }) {
-  const userText = input.discordUsername ?? "Unlinked User";
-  const teamText = input.teamName ?? "None";
-  const roleText = formatRoleLabel(input.highestRole);
-  const seasonText = input.seasonNumber ?? "?";
-  const weekText = input.currentWeek ?? "?";
-  const stageText = input.seasonStage ? String(input.seasonStage).replaceAll("_", " ") : "regular season";
-
-  const description = [
-    `User: ${userText}`,
-    `Team: ${teamText}`,
-    `Role: ${roleText}`,
+  const userInfo = [
+    `User: ${input.discordUsername ?? "Unlinked User"}`,
     `Wallet: $${input.wallet ?? 0}`,
     `Savings: $${input.savings ?? 0}`,
-    "",
-    "**League Data**",
-    `League: ${input.leagueName ?? "Current League"}`,
-    `Season ${seasonText}, Week ${weekText}`,
-    `Stage: ${stageText}`,
-    `Season Record: ${input.leagueSeasonRecordText ?? "0-0-0"}`,
-    `Season Point Differential: ${input.leagueSeasonPointDifferential ?? 0}`,
-    `Current Matchup: ${input.currentMatchupText ?? "None"}`,
-    `Game of the Week: ${input.gotwStatus ?? "No"}`,
-    `GOTW Voting Record: ${input.gotwVotingRecordText ?? "No votes yet"}`,
-    "",
-    "**Current Weekly Challenges**",
-    "Offense:",
-    formatChallenge(input.offensiveChallenge),
-    "",
-    "Defense:",
-    formatChallenge(input.defensiveChallenge),
-    "",
-    "**Global Data**",
+    `Proj. Interest: $${input.projectedInterest ?? 0}`,
+    `Role: ${formatRoleLabel(input.highestRole)}`
+  ].join("\n");
+
+  const globalInfo = [
     `Global Record: ${input.globalRecordText ?? "0-0-0"}`,
     `Global Playoffs: ${input.globalPlayoffText ?? "0-0"}`,
     `Global Super Bowls: ${input.globalSuperbowlText ?? "0-0"}`,
-    `Global Point Differential: ${input.globalPointDifferential ?? 0}`,
-    "",
-    "**Recent Badges**",
-    formatBadgePreview(input.badges),
-    "",
-    "**Menu Guide**",
-    "Use Rosters below to view players, rosters, and your full badge history (User Snapshots).",
-    "Use Manage My Team to manage purchases, players and other facets of your team.",
-    "Use Standings & Stats to view league standings, player/team stats and other details of this league.",
-    "Use REC Bank to move funds between your savings and wallet.",
-    "Use Media Center to vote on Play of the Year nominations, Game of the Year nominations and review historical data from this league.",
-    "Use Help / Rules to view league rules and FAQs for more info.",
-    "If you're an admin/commissioner/co-commissioner, use Admin Menu to view the Admin controls."
+    `Global Point Differential: ${input.globalPointDifferential ?? 0}`
   ].join("\n");
 
+  const leagueInfo = [
+    `Team: ${input.teamName ?? "None"}`,
+    `Season ${input.seasonNumber ?? "?"}, Week ${input.currentWeek ?? "?"}`,
+    `Game of the Week: ${input.gotwStatus ?? "No"}`,
+    `GOTW H2H Record: ${input.gotwH2hRecordText ?? "No GOTW games yet"}`,
+    `GOTW Voting Record: ${input.gotwVotingRecordText ?? "No votes yet"}`,
+    `Season Record: ${input.leagueSeasonRecordText ?? "0-0-0"}`,
+    `Point Differential: ${input.leagueSeasonPointDifferential ?? 0}`,
+    `Streak: ${input.userStreakText ?? "—"}`
+  ].join("\n");
+
+  const matchupInfo = [
+    `You're: ${input.youAreText ?? "BYE WEEK"}`,
+    `Type: ${input.matchupType ?? "NONE"}`,
+    `Opponent: ${input.opponentName ?? "None"}`,
+    `Opponent Record: ${input.opponentRecordText ?? "—"}`,
+    `Point Differential: ${input.opponentPointDifferential ?? 0}`,
+    `Streak: ${input.opponentStreakText ?? "—"}`
+  ].join("\n");
+
+  const spacer = { name: ZERO_WIDTH, value: ZERO_WIDTH, inline: true };
+
   return new EmbedBuilder()
-    .setTitle("REC League HQ")
-    .setDescription(description.slice(0, 4096));
+    .setTitle(input.leagueName ? `${input.leagueName} — HQ` : "REC League HQ")
+    .addFields(
+      { name: "👤 User Info", value: userInfo.slice(0, 1024), inline: true },
+      { name: "🌎 Global Info", value: globalInfo.slice(0, 1024), inline: true },
+      spacer,
+      { name: "🏟️ League Info", value: leagueInfo.slice(0, 1024), inline: true },
+      { name: "📅 Matchup Info", value: matchupInfo.slice(0, 1024), inline: true },
+      spacer,
+      { name: "🏈 Matchup Challenge · Offense", value: formatChallenge(input.offensiveChallenge).slice(0, 1024), inline: true },
+      { name: "🛡️ Matchup Challenge · Defense", value: formatChallenge(input.defensiveChallenge).slice(0, 1024), inline: true },
+      spacer,
+      { name: "🏅 Top 10 Badges", value: formatTop10Badges(input.badges).slice(0, 1024), inline: false },
+      { name: "📖 Menu Guide", value: MENU_GUIDE_LINES.join("\n").slice(0, 1024), inline: false }
+    )
+    .setFooter({ text: "Use the buttons below to move funds, place a wager, or manage your transactions." });
 }
 
 export function buildMainMenuRows(isAdmin: boolean) {
+  // Row 1: wallet/wager action buttons (replace the former REC Bank top-level entry).
+  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.transferFunds).setLabel("Transfer Funds").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Place a Wager").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("Manage My Wallet").setStyle(ButtonStyle.Secondary)
+  );
+
+  // Row 2: department selector.
   const select = new StringSelectMenuBuilder()
     .setCustomId(MENU_CUSTOM_IDS.mainSelect)
     .setPlaceholder("Select a REC department")
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Rosters").setValue("rosters"),
-      new StringSelectMenuOptionBuilder().setLabel("Manage My Team").setValue("manage_team"),
+      new StringSelectMenuOptionBuilder().setLabel("Manage My Franchise").setValue("manage_franchise"),
       new StringSelectMenuOptionBuilder().setLabel("Standings & Stats").setValue("standings_stats"),
-      new StringSelectMenuOptionBuilder().setLabel("REC Bank").setValue("rec_bank"),
-      new StringSelectMenuOptionBuilder().setLabel("Media Center").setValue("media_center"),
-      new StringSelectMenuOptionBuilder().setLabel("Help / Rules").setValue("help_rules")
+      new StringSelectMenuOptionBuilder().setLabel("REC Sports Network").setValue("rec_sports_network"),
+      new StringSelectMenuOptionBuilder().setLabel("Rules/FAQ").setValue("rules_faq")
     );
 
   if (isAdmin) {
@@ -189,7 +240,7 @@ export function buildMainMenuRows(isAdmin: boolean) {
     );
   }
 
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+  return [buttonRow, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
 }
 
 export function buildAdminPanelEmbed() {
@@ -300,7 +351,7 @@ export function buildRostersMenuEmbed() {
     .setDescription([
       "Browse rosters, players, and coach profiles for this league.",
       "",
-      "**View Rosters by Team** — Full depth chart by team, sorted by position group",
+      "**View Players by Team** — Browse every team by division; open a team to see its roster",
       "**View Players by Position** — Filter all players by position group (coming soon)",
       "**View User Snapshots** — Season & global records, badges, power ranking, awards, and GOTW history for any linked coach"
     ].join("\n"));
@@ -311,12 +362,83 @@ export function buildRostersMenuRows() {
     .setCustomId(ROSTERS_CUSTOM_IDS.select)
     .setPlaceholder("Choose a roster view")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("View Rosters by Team").setValue("rosters_by_team").setDescription("Browse full team depth charts by position group"),
+      new StringSelectMenuOptionBuilder().setLabel("View Players by Team").setValue("rosters_by_team").setDescription("Browse every team by division; open one to see its roster"),
       new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position").setDescription("Filter players by position group (coming soon)"),
       new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots").setDescription("Season & global stats, badges, awards, GOTW history for any coach"),
       new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("rosters_back")
     );
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// ── View Players by Team ───────────────────────────────────────────────────────
+
+export type RosterTeam = {
+  id: string;
+  name: string;
+  abbreviation?: string | null;
+  linkedDiscordId?: string | null;
+  linkedName?: string | null;
+};
+export type RosterConference = {
+  conference: string;
+  divisions: Array<{ division: string; label: string; teams: RosterTeam[] }>;
+};
+
+// A linked team shows its coach as a Discord mention (renders as @nickname); unlinked teams show the team name.
+function teamGridLabel(team: RosterTeam) {
+  return team.linkedDiscordId ? `<@${team.linkedDiscordId}>` : team.name;
+}
+
+// Two-column embed: one inline field per conference (NFC left, AFC right), divisions bold-headed.
+// Discord renders exactly two inline fields side by side, giving the requested two-column layout.
+export function buildPlayersByTeamEmbed(conferences: RosterConference[]) {
+  const embed = new EmbedBuilder()
+    .setTitle("View Players by Team")
+    .setDescription("Pick a team from a dropdown below to open its roster (grouped by position, sorted by overall). Linked teams show their coach.");
+  for (const conf of conferences) {
+    const value = conf.divisions
+      .map((division) => [`**${division.label}**`, ...division.teams.map((team) => teamGridLabel(team))].join("\n"))
+      .join("\n\n");
+    embed.addFields({ name: conf.conference || "Teams", value: (value || "No teams found").slice(0, 1024), inline: true });
+  }
+  return embed;
+}
+
+// Component rows: one team dropdown per conference (each opens an ephemeral roster) + a nav dropdown.
+export function buildPlayersByTeamRows(conferences: RosterConference[]) {
+  const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
+
+  for (const conf of conferences) {
+    const teams = conf.divisions.flatMap((division) =>
+      division.teams.map((team) => ({ ...team, divisionLabel: division.label }))
+    );
+    if (!teams.length) continue;
+    const customId = conf.conference === "AFC" ? ROSTERS_CUSTOM_IDS.teamSelectAfc : ROSTERS_CUSTOM_IDS.teamSelectNfc;
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(customId)
+      .setPlaceholder(`Select an ${conf.conference} team`)
+      .addOptions(
+        teams.slice(0, 25).map((team) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(team.name.slice(0, 100))
+            .setValue(team.id)
+            .setDescription(`${team.divisionLabel}${team.linkedName ? ` · ${team.linkedName}` : ""}`.slice(0, 100))
+        )
+      );
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  }
+
+  const nav = new StringSelectMenuBuilder()
+    .setCustomId(ROSTERS_CUSTOM_IDS.byTeamNav)
+    .setPlaceholder("More options")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position"),
+      new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots"),
+      new StringSelectMenuOptionBuilder().setLabel("Return to Main Menu").setValue("main_menu")
+    );
+  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(nav));
+
+  return rows;
 }
 
 // Builds the user selector dropdown for the User Snapshots viewer.
@@ -345,10 +467,24 @@ export function buildRecBankRows() {
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Transfer to Savings").setValue("to_savings").setDescription("Move funds from your wallet into savings"),
       new StringSelectMenuOptionBuilder().setLabel("Transfer from Savings").setValue("from_savings").setDescription("Move funds from savings back to your wallet"),
-      new StringSelectMenuOptionBuilder().setLabel("Place a Wager").setValue("place_wager").setDescription("Wager coins on an upcoming game (coming soon)"),
       new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("bank_back")
     );
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// ── Manage My Wallet rows ──────────────────────────────────────────────────────
+
+// Two button rows: savings transfers, then pending purchases + make a purchase.
+export function buildManageWalletRows() {
+  const transfers = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.toSavings).setLabel("Transfer to Savings").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.fromSavings).setLabel("Transfer from Savings").setStyle(ButtonStyle.Secondary)
+  );
+  const purchases = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.pendingPurchases).setLabel("Pending Purchases").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.makePurchase).setLabel("Make a Purchase").setStyle(ButtonStyle.Primary)
+  );
+  return [transfers, purchases];
 }
 
 // ── Savings transfer modals ───────────────────────────────────────────────────

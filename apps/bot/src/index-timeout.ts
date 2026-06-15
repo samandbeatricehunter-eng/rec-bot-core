@@ -12,14 +12,18 @@ import {
   buildMainMenuRows,
   buildRostersMenuEmbed,
   buildRostersMenuRows,
+  buildPlayersByTeamEmbed,
+  buildPlayersByTeamRows,
   buildSnapshotUserSelectRows,
   buildRecBankRows,
+  buildManageWalletRows,
   buildToSavingsModal,
   buildFromSavingsModal,
   buildSetupDangerModal,
   MENU_CUSTOM_IDS,
   ROSTERS_CUSTOM_IDS,
   REC_BANK_CUSTOM_IDS,
+  MANAGE_WALLET_CUSTOM_IDS,
   type SetupDangerAction
 } from "./ui/menu.js";
 import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel, buildChannelIdModal } from "./ui/server-setup-admin.js";
@@ -199,8 +203,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.manageLeagueSelect) return handleManageLeagueSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.conferenceSelect) return handleRosterConferenceSelect(interaction);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.teamSelect) return handleRosterTeamSelect(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectNfc || interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectAfc) return handleRosterTeamSelect(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.byTeamNav) return handleByTeamNav(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (
@@ -264,7 +268,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotPrev) return handleSnapshotPageNav(interaction, -1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderRostersMenu(interaction);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.rosterBackToConf) return handleRosterBackToConf(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.transferFunds) return handleTransferFunds(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.toSavings) return interaction.showModal(buildToSavingsModal());
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.fromSavings) return interaction.showModal(buildFromSavingsModal());
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.pendingPurchases) return handleWalletPendingPurchases(interaction);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.makePurchase) return handleWalletMakePurchase(interaction);
     }
 
     if (interaction.isModalSubmit()) {
@@ -405,15 +415,7 @@ async function buildRecBankPayload(discordUserId: string, guildId: string | unde
   return { embeds: [embed], components: buildRecBankRows() };
 }
 
-async function renderRecBankFromSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading REC Bank...").setDescription("Fetching your wallet balance and recent transactions.")], components: [] });
-  const guildId = interaction.guild?.id ?? undefined;
-  await interaction.editReply(await buildRecBankPayload(interaction.user.id, guildId, isDiscordAdminInteraction(interaction)));
-}
-
-// Handles the REC Bank action dropdown (transfer, wager, back).
+// Handles the REC Bank action dropdown (transfer, back).
 async function handleRecBankSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
   const selected = interaction.values[0];
@@ -423,15 +425,6 @@ async function handleRecBankSelect(interaction: Extract<Interaction, { isStringS
   }
   if (selected === "to_savings") return interaction.showModal(buildToSavingsModal());
   if (selected === "from_savings") return interaction.showModal(buildFromSavingsModal());
-  if (selected === "place_wager") {
-    // Wager workflow placeholder — will be built in a future session.
-    await interaction.deferUpdate();
-    const guildId = interaction.guild?.id ?? undefined;
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Place a Wager").setDescription("The wager workflow is coming soon. You'll be able to wager coins on upcoming matchups from this menu.")],
-      components: buildRecBankRows()
-    });
-  }
 }
 
 // Processes the savings transfer modal submission.
@@ -471,6 +464,67 @@ async function handleSavingsTransferModal(interaction: Extract<Interaction, { is
   }
 }
 
+// ── Main-menu Row 1 wallet/wager buttons ──────────────────────────────────────
+
+// Transfer Funds: opens the REC Bank view (balance, transactions, transfer dropdown) ephemerally.
+async function handleTransferFunds(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const guildId = interaction.guild?.id ?? undefined;
+  await interaction.editReply(await buildRecBankPayload(interaction.user.id, guildId, isDiscordAdminInteraction(interaction)));
+}
+
+// Place a Wager: the wager workflow itself is not built yet.
+async function handlePlaceWager(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  return interaction.reply({
+    embeds: [new EmbedBuilder().setTitle("Place a Wager").setDescription("The wager workflow is coming soon. You'll be able to wager coins on upcoming matchups here.")],
+    flags: MessageFlags.Ephemeral
+  });
+}
+
+// Manage My Wallet ephemeral: balance + last 10 transactions + action buttons.
+async function buildManageWalletPayload(userId: string, guildId: string | undefined) {
+  const walletPayload = await recApi.getWallet(userId, guildId).catch(() => null);
+  const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
+  const transactions = Array.isArray(walletPayload?.transactions) ? walletPayload.transactions : [];
+  const txText = transactions.length ? transactions.slice(0, 10).map(formatTransactionLine).join("\n\n") : "No wallet transactions found.";
+  const embed = new EmbedBuilder()
+    .setTitle("Manage My Wallet")
+    .setDescription([
+      `Wallet Balance: **$${wallet.wallet_balance ?? 0}**`,
+      `Savings Balance: **$${wallet.savings_balance ?? 0}**`,
+      "",
+      "**Last 10 Transactions**",
+      txText
+    ].join("\n").slice(0, 4096));
+  return { embeds: [embed], components: buildManageWalletRows() };
+}
+
+async function handleManageWallet(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await interaction.editReply(await buildManageWalletPayload(interaction.user.id, interaction.guild?.id ?? undefined));
+}
+
+async function handleWalletPendingPurchases(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Pending Purchases").setDescription("You have no pending purchases or unapplied payouts.\n\n(Pending-purchase tracking arrives with the Manage My Franchise store.)")],
+    components: buildManageWalletRows()
+  });
+}
+
+async function handleWalletMakePurchase(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Make a Purchase").setDescription("The store will live in **Manage My Franchise** (coming soon). You'll be able to buy upgrades and management tools there.")],
+    components: buildManageWalletRows()
+  });
+}
+
 async function handleMainMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
   const selected = interaction.values[0];
@@ -478,14 +532,13 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
     if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
     return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   }
-  if (selected === "rec_bank") return renderRecBankFromSelect(interaction);
   if (selected === "rosters") return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
   // FUTURE: these four main-menu departments are connected shells (see docs/menu-map.md):
-  //   manage_team    -> coach self-service: my lineup/links, my contract+cap snapshot, my badges
-  //   standings_stats-> league standings table + leaderboards (rec_season_user_records, weekly stats, power rankings)
-  //   media_center   -> streams, highlights, POTW/GOTY galleries, award results
-  //   help_rules     -> player-facing rule reader + command help (admin rules panel exists via buildRulesPanel)
-  const labels: Record<string, string> = { manage_team: "Manage My Team", standings_stats: "Standings & Stats", media_center: "Media Center", help_rules: "Help / Rules" };
+  //   manage_franchise   -> coach self-service: my lineup/links, my contract+cap snapshot, my badges, purchases
+  //   standings_stats    -> league standings table + leaderboards (rec_season_user_records, weekly stats, power rankings)
+  //   rec_sports_network -> streams, highlights, POTW/GOTY galleries, award results
+  //   rules_faq          -> player-facing rule reader + command help (admin rules panel exists via buildRulesPanel)
+  const labels: Record<string, string> = { manage_franchise: "Manage My Franchise", standings_stats: "Standings & Stats", rec_sports_network: "REC Sports Network", rules_faq: "Rules/FAQ" };
   await interaction.update({ embeds: [new EmbedBuilder().setTitle(labels[selected] ?? "REC League HQ").setDescription("This department shell is connected. The detailed workflow will be built next.").setFooter({ text: "REC Core connected" })], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
 }
 
@@ -505,7 +558,7 @@ async function handleRostersMenuSelect(interaction: Extract<Interaction, { isStr
   }
 
   if (selected === "rosters_by_team") {
-    return renderRosterConferenceSelect(interaction);
+    return renderPlayersByTeam(interaction);
   }
 
   if (selected === "players_by_position") {
@@ -531,51 +584,28 @@ async function handleRostersMenuSelect(interaction: Extract<Interaction, { isStr
   }
 }
 
-// ── View Rosters by Team flow ─────────────────────────────────────────────────
+// ── View Players by Team ─────────────────────────────────────────────────
 
-function buildRosterConferenceSelectRows(conferences: Array<{ conference: string; teams: any[] }>) {
-  const options = conferences.slice(0, 25).map((c) =>
-    new StringSelectMenuOptionBuilder().setLabel(c.conference).setValue(c.conference)
-  );
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(ROSTERS_CUSTOM_IDS.conferenceSelect)
-    .setPlaceholder("Select a conference")
-    .addOptions(options);
-  const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotBack).setLabel("Back to Rosters").setStyle(ButtonStyle.Secondary)
-  );
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), backRow];
-}
-
-function buildRosterTeamSelectRows(conferenceName: string, teams: Array<{ id: string; name: string; abbreviation?: string }>) {
-  const options = teams.slice(0, 25).map((t) =>
-    new StringSelectMenuOptionBuilder()
-      .setLabel(t.name.slice(0, 100))
-      .setValue(t.id)
-      .setDescription((t.abbreviation ?? "").slice(0, 100))
-  );
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(ROSTERS_CUSTOM_IDS.teamSelect)
-    .setPlaceholder("Select a team")
-    .addOptions(options);
-  const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.rosterBackToConf).setLabel("Back to Conferences").setStyle(ButtonStyle.Secondary)
-  );
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), backRow];
-}
-
+// Renders a team's active roster, grouped by position group, sorted by overall (the API sorts).
 function buildRosterEmbed(rosterData: any): EmbedBuilder {
   const team = rosterData.team ?? {};
-  const groups: Array<{ label: string; posOrder: boolean; members: Array<{ name: string; ovr: number; dev: string; years: number; posLabel?: string }> }> = rosterData.groups ?? [];
-  const embed = new EmbedBuilder()
-    .setTitle(`${team.name ?? "Team"} — Roster`)
-    .setDescription(`${team.conference ?? ""}${team.division ? ` · ${team.division}` : ""}`);
+  const groups: Array<{ label: string; members: Array<{ name: string; position: string; ovr: number; dev?: string | null; age?: number | null }> }> = rosterData.groups ?? [];
+  const divisionLine = [team.conference, team.division].filter(Boolean).join(" ");
+  const meta = [divisionLine, rosterData.season != null ? `Season ${rosterData.season}` : null, `${rosterData.totalPlayers ?? 0} players`].filter(Boolean).join(" · ");
+  const embed = new EmbedBuilder().setTitle(`${team.name ?? "Team"} — Roster`);
 
+  if (!groups.length) {
+    embed.setDescription(`${meta}\n\nNo roster data available for this team yet.`);
+    return embed;
+  }
+
+  embed.setDescription(meta || "Roster");
   for (const group of groups) {
     if (!group.members.length) continue;
     const lines = group.members.map((m) => {
-      const pos = group.posOrder && m.posLabel ? `${m.posLabel} ` : "";
-      return `${pos}**${m.name}**  OVR ${m.ovr}  ${m.dev}  ${m.years}y`;
+      const dev = m.dev ? ` · ${m.dev}` : "";
+      const age = m.age != null ? ` · ${m.age}y` : "";
+      return `\`${String(m.ovr).padStart(2, " ")}\` ${m.name} (${m.position})${dev}${age}`;
     });
     embed.addFields({ name: group.label, value: lines.join("\n").slice(0, 1024), inline: false });
   }
@@ -583,86 +613,84 @@ function buildRosterEmbed(rosterData: any): EmbedBuilder {
   return embed;
 }
 
-async function renderRosterConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+// Landing page: a two-column NFC/AFC grid grouped by division, with a team dropdown per
+// conference (selecting a team opens its roster as an ephemeral message) plus a nav dropdown.
+async function renderPlayersByTeam(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
   await interaction.deferUpdate();
   if (!interaction.guildId) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Must be run inside a league server.")], components: buildRostersMenuRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Players by Team").setDescription("Must be run inside a league server.")], components: buildRostersMenuRows() });
   }
   let confData: any;
   try {
     confData = await recApi.getLeagueConferences(interaction.guildId);
   } catch {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Failed to load conferences. Please try again.")], components: buildRostersMenuRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Players by Team").setDescription("Failed to load teams. Please try again.")], components: buildRostersMenuRows() });
   }
-  const conferences: Array<{ conference: string; teams: any[] }> = confData?.conferences ?? [];
-  if (!conferences.length) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("No conferences found. Import data must be available first.")], components: buildRostersMenuRows() });
+  const conferences: any[] = confData?.conferences ?? [];
+  const hasTeams = conferences.some((c) => (c.divisions ?? []).some((d: any) => (d.teams ?? []).length));
+  if (!hasTeams) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Players by Team").setDescription("No teams found for this league yet. Import league data first.")], components: buildRostersMenuRows() });
   }
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Select a conference to browse teams.")],
-    components: buildRosterConferenceSelectRows(conferences)
+    embeds: [buildPlayersByTeamEmbed(conferences)],
+    components: buildPlayersByTeamRows(conferences)
   });
 }
 
-async function handleRosterConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  await interaction.deferUpdate();
-  const conferenceName = interaction.values[0];
-  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Must be run inside a league server.")], components: [] });
-  let confData: any;
-  try {
-    confData = await recApi.getLeagueConferences(interaction.guildId);
-  } catch {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Failed to load conference data.")], components: buildRostersMenuRows() });
-  }
-  const conferences: Array<{ conference: string; teams: any[] }> = confData?.conferences ?? [];
-  const conf = conferences.find((c) => c.conference === conferenceName);
-  if (!conf || !conf.teams.length) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle(`${conferenceName}`).setDescription("No teams found in this conference.")], components: buildRosterConferenceSelectRows(conferences) });
-  }
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle(`${conferenceName}`).setDescription("Select a team to view their roster.")],
-    components: buildRosterTeamSelectRows(conferenceName, conf.teams)
-  });
-}
-
+// A team was picked from the NFC or AFC dropdown. Reset the grid dropdowns (so the same team can be
+// re-selected immediately) and open the chosen team's roster as a separate ephemeral message.
 async function handleRosterTeamSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
   await interaction.deferUpdate();
   const teamId = interaction.values[0];
-  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Must be run inside a league server.")], components: [] });
+  if (!interaction.guildId) {
+    return interaction.followUp({ embeds: [new EmbedBuilder().setTitle("Roster").setDescription("Must be run inside a league server.")], flags: MessageFlags.Ephemeral });
+  }
+  // Re-render the grid with freshly built menus, which clears the visual selection (Discord won't
+  // fire a new interaction for re-picking an already-selected option otherwise).
+  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
+  if (confData?.conferences?.length) {
+    await interaction.editReply({ embeds: [buildPlayersByTeamEmbed(confData.conferences)], components: buildPlayersByTeamRows(confData.conferences) }).catch(() => undefined);
+  }
   let rosterData: any;
   try {
     rosterData = await recApi.getTeamRoster(interaction.guildId, teamId);
   } catch {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Roster").setDescription("Failed to load roster. Please try again.")], components: [] });
+    return interaction.followUp({ embeds: [new EmbedBuilder().setTitle("Roster").setDescription("Failed to load roster. Please try again.")], flags: MessageFlags.Ephemeral });
   }
-  const backRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.rosterBackToConf).setLabel("Back to Conferences").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(NAV_CUSTOM_IDS.mainMenu).setLabel("Main Menu").setStyle(ButtonStyle.Secondary)
-  );
-  return interaction.editReply({ embeds: [buildRosterEmbed(rosterData)], components: [backRow] });
+  return interaction.followUp({ embeds: [buildRosterEmbed(rosterData)], flags: MessageFlags.Ephemeral });
 }
 
-async function handleRosterBackToConf(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  await interaction.deferUpdate();
-  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rosters").setDescription("Must be run inside a league server.")], components: [] });
-  let confData: any;
-  try {
-    confData = await recApi.getLeagueConferences(interaction.guildId);
-  } catch {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Failed to load conferences.")], components: buildRostersMenuRows() });
+// Bottom navigation dropdown on the View Players by Team page.
+async function handleByTeamNav(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  const choice = interaction.values[0];
+
+  if (choice === "main_menu") {
+    return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
   }
-  const conferences: Array<{ conference: string; teams: any[] }> = confData?.conferences ?? [];
-  if (!conferences.length) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("No conferences found.")], components: buildRostersMenuRows() });
+
+  if (choice === "players_by_position") {
+    return interaction.update({
+      embeds: [new EmbedBuilder().setTitle("View Players by Position").setDescription("This view is coming soon. Check back after the next build update.")],
+      components: buildRostersMenuRows()
+    });
   }
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("View Rosters by Team").setDescription("Select a conference to browse teams.")],
-    components: buildRosterConferenceSelectRows(conferences)
-  });
+
+  if (choice === "user_snapshots") {
+    await interaction.deferUpdate();
+    if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("This must be run inside a league server.")], components: buildRostersMenuRows() });
+    const coachData = await recApi.getCoaches(interaction.guildId).catch(() => null);
+    const coaches = coachData?.coaches ?? [];
+    if (!coaches.length) {
+      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("No linked coaches found in this league. Team assignments must be configured first.")], components: buildRostersMenuRows() });
+    }
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("Select a coach from the dropdown below to view their full profile snapshot.")],
+      components: buildSnapshotUserSelectRows(coaches)
+    });
+  }
 }
 
 // ── User Snapshots paginated viewer ──────────────────────────────────────────

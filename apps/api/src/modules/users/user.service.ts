@@ -257,6 +257,29 @@ async function loadUserBadges(userId: string, leagueId: string) {
   }
 }
 
+// Current win/loss/tie streak for a user, derived from completed game results (most recent first).
+function streakFromGames(games: any[], userId: string): string {
+  const completed = games
+    .filter((g) => (Number(g.home_score) || 0) > 0 || (Number(g.away_score) || 0) > 0)
+    .sort((a, b) => (a.season_number - b.season_number) || (a.week_number - b.week_number));
+  let streak = 0;
+  let type: "W" | "L" | "T" | null = null;
+  for (let i = completed.length - 1; i >= 0; i--) {
+    const g = completed[i];
+    const isHome = g.home_user_id === userId;
+    const mine = Number(isHome ? g.home_score : g.away_score) || 0;
+    const opp = Number(isHome ? g.away_score : g.home_score) || 0;
+    const res: "W" | "L" | "T" = mine > opp ? "W" : mine < opp ? "L" : "T";
+    if (type === null) { type = res; streak = 1; }
+    else if (res === type) streak += 1;
+    else break;
+  }
+  return type && streak > 0 ? `${type}${streak}` : "—";
+}
+
+// Projected savings interest on the next advance (matches advance-time SAVINGS_INTEREST_RATE of 3.5%, floored).
+const SAVINGS_INTEREST_RATE = 0.035;
+
 export async function getUserMenuProfileByDiscordId(discordId: string, guildId: string) {
   const baseline = await getUserBaselineByDiscordId(discordId);
   const userId = baseline.user.id;
@@ -305,6 +328,10 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   let offensiveChallenge: any = null;
   let defensiveChallenge: any = null;
   let badges: any[] = [];
+  let youAre = "BYE WEEK";
+  let matchupType = "NONE";
+  let opponentUserId: string | null = null;
+  let opponentName: string | null = null;
 
   if (league?.id) {
     const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
@@ -363,6 +390,10 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
 
         currentGame = game;
         currentMatchup = `${opponent?.name ?? "Opponent"} (${opponentUser ? "User H2H" : "CPU"}, ${isHome ? "Home" : "Away"})`;
+        youAre = isHome ? "Home" : "Away";
+        matchupType = opponentUser ? "H2H" : "CPU";
+        opponentUserId = opponentUser ?? null;
+        opponentName = opponent?.name ?? null;
 
         const gotw = await supabase
           .from("rec_game_of_week_candidates")
@@ -425,6 +456,48 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     gotwVotingRecord = { correct, total, accuracy };
   }
 
+  // Projected next-advance savings interest (3.5% of savings, floored).
+  const savingsBalance = baseline.wallet?.savings_balance ?? 0;
+  const projectedInterest = Math.floor(savingsBalance * SAVINGS_INTEREST_RATE);
+
+  // User/opponent current streaks and opponent season record.
+  let userStreakText = "—";
+  let opponentRecordText = "—";
+  let opponentPointDifferential = 0;
+  let opponentStreakText = "—";
+  if (league?.id) {
+    const profileSeason = league.season_number ?? league.display_season_number ?? 1;
+    const { data: userGames } = await supabase
+      .from("rec_game_results")
+      .select("home_user_id,away_user_id,home_score,away_score,season_number,week_number")
+      .eq("league_id", league.id)
+      .eq("season_number", profileSeason)
+      .or(`home_user_id.eq.${userId},away_user_id.eq.${userId}`);
+    userStreakText = streakFromGames(userGames ?? [], userId);
+
+    if (opponentUserId) {
+      const [oppRecordResult, oppGamesResult] = await Promise.all([
+        supabase.from("rec_season_user_records").select("*").eq("league_id", league.id).eq("season_number", profileSeason).eq("user_id", opponentUserId).maybeSingle(),
+        supabase.from("rec_game_results").select("home_user_id,away_user_id,home_score,away_score,season_number,week_number").eq("league_id", league.id).eq("season_number", profileSeason).or(`home_user_id.eq.${opponentUserId},away_user_id.eq.${opponentUserId}`)
+      ]);
+      opponentRecordText = recordText(oppRecordResult.data ?? {});
+      opponentPointDifferential = oppRecordResult.data?.point_differential ?? 0;
+      opponentStreakText = streakFromGames(oppGamesResult.data ?? [], opponentUserId);
+    }
+  }
+
+  // All-time GOTW head-to-head record (populated during advance once GOTW games are settled).
+  let gotwH2hRecordText = "No GOTW games yet";
+  const { data: gotwH2h } = await supabase
+    .from("rec_global_gotw_h2h_records")
+    .select("wins,losses,ties")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (gotwH2h) {
+    const w = gotwH2h.wins ?? 0, l = gotwH2h.losses ?? 0, t = gotwH2h.ties ?? 0;
+    if (w + l + t > 0) gotwH2hRecordText = t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
+  }
+
   return {
     user: baseline.user,
     discord: baseline.discord,
@@ -460,6 +533,15 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       globalPlayoffText: playoffText(globalRecord),
       globalSuperbowlText: superbowlText(globalRecord),
       globalPointDifferential: globalRecord?.point_differential ?? 0,
+      projectedInterest,
+      youAreText: youAre,
+      matchupType,
+      opponentName,
+      opponentRecordText,
+      opponentPointDifferential,
+      opponentStreakText,
+      userStreakText,
+      gotwH2hRecordText,
       badges
     }
   };
