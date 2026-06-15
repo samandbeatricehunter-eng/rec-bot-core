@@ -168,8 +168,8 @@ function _buildAdvanceSchedulePayload(state: AdvanceScheduleState, isWizard: boo
     ],
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(daySelect),
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(hourSelect),
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(tzSelect),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(hourSelect),
       bottomRow
     ]
   };

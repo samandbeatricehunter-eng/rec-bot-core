@@ -260,7 +260,7 @@ export function buildAdminPanelRows() {
     .setCustomId(MENU_CUSTOM_IDS.adminSelect)
     .setPlaceholder("Select an admin workflow")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Import / Enter Data").setValue("import_enter_data").setDescription("Imports, companion exports, manual data, and import history."),
+      new StringSelectMenuOptionBuilder().setLabel("Advance Wizard").setValue("advance_wizard").setDescription("Run the guided weekly advance workflow."),
       new StringSelectMenuOptionBuilder().setLabel("Commissioner Tools").setValue("commissioner_tools").setDescription("Advance, league management, server setup, and the league setup wizard."),
       new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
     );
@@ -274,7 +274,7 @@ export function buildCommissionerToolsRows() {
     .setCustomId(MENU_CUSTOM_IDS.commissionerToolsSelect)
     .setPlaceholder("Select a commissioner tool")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Advance Menu").setValue("advance_menu").setDescription("Advance, catch-up, week/stage, channels, challenges, and audit tools."),
+      new StringSelectMenuOptionBuilder().setLabel("Advance Menu").setValue("advance_menu").setDescription("Advance tools, EOS actions, and troubleshooting."),
       new StringSelectMenuOptionBuilder().setLabel("Manage League").setValue("manage_league").setDescription("Active checks, rules, user/team linking, and league settings."),
       new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Register/update this Discord server."),
       new StringSelectMenuOptionBuilder().setLabel("League Setup Wizard").setValue("league_setup").setDescription("Create/update league settings (full wizard)."),

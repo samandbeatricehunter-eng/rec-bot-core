@@ -1,6 +1,11 @@
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 
+function isMissingRpcError(error: unknown) {
+  const err = error as { code?: string; message?: string };
+  return err?.code === "42883" || err?.code === "PGRST202" || /function .* does not exist/i.test(err?.message ?? "");
+}
+
 // Resolve the primary league linked to a Discord guild.
 // Chain: rec_discord_servers (guild_id) -> rec_server_league_links (is_primary) -> rec_leagues.
 async function resolveLeagueId(guildId: string): Promise<string> {
@@ -22,7 +27,6 @@ async function resolveLeagueId(guildId: string): Promise<string> {
   return link.league_id as string;
 }
 
-// Order conferences NFC first (Column A) then AFC (Column B); divisions in standard order.
 const CONFERENCE_ORDER = ["NFC", "AFC"];
 const DIVISION_ORDER = ["East", "North", "South", "West"];
 
@@ -44,8 +48,7 @@ type ConferenceTeam = {
 type DivisionGroup = { division: string; label: string; teams: ConferenceTeam[] };
 type ConferenceGroup = { conference: string; divisions: DivisionGroup[] };
 
-// Returns the league's teams grouped by conference and division for the "View Players by Team" grid.
-export async function getLeagueConferences(guildId: string) {
+async function getLeagueConferencesFallback(guildId: string) {
   const leagueId = await resolveLeagueId(guildId);
 
   const { data: teams, error } = await supabase
@@ -54,13 +57,13 @@ export async function getLeagueConferences(guildId: string) {
     .eq("league_id", leagueId);
   if (error) throw new ApiError(500, "Failed to load teams.", error);
 
-  // Map each team to its linked coach (active assignment) so the grid can show the @user instead of the name.
   const { data: assignments } = await supabase
     .from("rec_team_assignments")
     .select("team_id, rec_users(display_name, rec_discord_accounts(discord_id, global_name, username))")
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
+
   const linkByTeam = new Map<string, { discordId: string | null; name: string | null }>();
   for (const a of assignments ?? []) {
     const accounts = (a as any).rec_users?.rec_discord_accounts;
@@ -112,7 +115,6 @@ export async function getLeagueConferences(guildId: string) {
   return { conferences };
 }
 
-// Depth-chart ordering. Positions not listed fall into a trailing "Other" group.
 const POSITION_GROUPS: { label: string; positions: string[] }[] = [
   { label: "Quarterbacks", positions: ["QB"] },
   { label: "Running Backs", positions: ["HB", "RB", "FB"] },
@@ -131,8 +133,7 @@ function groupLabelFor(position: string): string {
   return group?.label ?? "Other";
 }
 
-// Returns one team's active roster grouped by position group, members sorted by overall rating descending.
-export async function getTeamRoster(guildId: string, teamId: string) {
+async function getTeamRosterFallback(guildId: string, teamId: string) {
   const leagueId = await resolveLeagueId(guildId);
 
   const { data: team } = await supabase
@@ -142,7 +143,6 @@ export async function getTeamRoster(guildId: string, teamId: string) {
     .maybeSingle();
   if (!team || team.league_id !== leagueId) throw new ApiError(404, "Team not found in this league.");
 
-  // Roster snapshots store one row per player; week_number is null, so latest is keyed by season.
   const { data: latest } = await supabase
     .from("rec_roster_snapshots")
     .select("season_number")
@@ -192,4 +192,33 @@ export async function getTeamRoster(guildId: string, teamId: string) {
     totalPlayers: players.length,
     groups: groups.filter((g) => g.members.length > 0)
   };
+}
+
+// Returns the league's teams grouped by conference/division for the "View Players by Team" grid.
+// Primary path uses Supabase RPC so the bot only renders the prepared payload.
+export async function getLeagueConferences(guildId: string) {
+  const { data, error } = await supabase.rpc("rec_roster_league_conferences", {
+    p_guild_id: guildId
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) return getLeagueConferencesFallback(guildId);
+    throw new ApiError(500, "Failed to load teams.", error);
+  }
+  return data ?? { conferences: [] };
+}
+
+// Returns one team's active roster grouped by position group, members sorted by overall rating.
+export async function getTeamRoster(guildId: string, teamId: string) {
+  const { data, error } = await supabase.rpc("rec_roster_team", {
+    p_guild_id: guildId,
+    p_team_id: teamId
+  });
+
+  if (error) {
+    if (isMissingRpcError(error)) return getTeamRosterFallback(guildId, teamId);
+    throw new ApiError(500, "Failed to load roster.", error);
+  }
+  if (!data) throw new ApiError(404, "Team not found in this league.");
+  return data;
 }

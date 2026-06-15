@@ -835,6 +835,12 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
   const selected = interaction.values[0];
 
   if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
+  if (selected === "advance_wizard") {
+    if (!interaction.inCachedGuild()) return interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
+    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true };
+    advanceScheduleSessions.set(interaction.user.id, scheduleState);
+    return interaction.update(buildAdvanceSchedulePayload(scheduleState));
+  }
   if (selected === "import_enter_data") return renderImportPanel(interaction);
   if (selected === "commissioner_tools") {
     return interaction.update({ embeds: [buildCommissionerToolsEmbed()], components: buildCommissionerToolsRows() });
