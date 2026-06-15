@@ -2,6 +2,7 @@ import { ButtonInteraction, EmbedBuilder, Interaction, StringSelectMenuInteracti
 import type { RecImportMode } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { buildAdvanceWizardPostImportPayload } from "./advance-wizard.js";
 import {
   ALL_ENDPOINTS_KEY,
   CORE_IMPORT_ENDPOINTS,
@@ -694,28 +695,21 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       importSessions.delete(interaction.user.id);
       const summary = previewSummary(approved.job);
       const counts = summary.committedCounts ?? {};
-      await interaction.editReply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("Import Approved")
-            .setDescription([
-              "Import committed into REC Core.",
-              "",
-              formatImportJob(approved.job),
-              "",
-              "**Committed Counts**",
-              `Teams: **${counts.teams ?? 0}**`,
-              `Games: **${counts.games ?? summary.gamesAdded ?? 0}**`,
-              `League Games Stored: **${counts.leagueGamesStored ?? counts.committedLeagueGames ?? 0}**`,
-              `Game Results: **${counts.gameResults ?? 0}**`,
-              `Players: **${counts.players ?? 0}**`,
-              `Roster Snapshots: **${counts.rosterSnapshots ?? 0}**`,
-              `Player Weekly Stats: **${counts.playerWeeklyStats ?? 0}**`,
-              `Team Weekly Stats: **${counts.teamWeeklyStats ?? 0}**`
-            ].join("\n"))
-        ],
-        components: buildImportPanelRows()
-      });
+      await interaction.editReply(buildAdvanceWizardPostImportPayload([
+        "Import committed into REC Core.",
+        "",
+        formatImportJob(approved.job),
+        "",
+        "**Committed Counts**",
+        `Teams: **${counts.teams ?? 0}**`,
+        `Games: **${counts.games ?? summary.gamesAdded ?? 0}**`,
+        `League Games Stored: **${counts.leagueGamesStored ?? counts.committedLeagueGames ?? 0}**`,
+        `Game Results: **${counts.gameResults ?? 0}**`,
+        `Players: **${counts.players ?? 0}**`,
+        `Roster Snapshots: **${counts.rosterSnapshots ?? 0}**`,
+        `Player Weekly Stats: **${counts.playerWeeklyStats ?? 0}**`,
+        `Team Weekly Stats: **${counts.teamWeeklyStats ?? 0}**`
+      ]));
     } catch (error) {
       console.error("Import commit failed", error);
       await interaction.editReply({

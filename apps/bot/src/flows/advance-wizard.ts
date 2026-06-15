@@ -19,7 +19,12 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   manualBack: "rec:advance_wizard:manual_back",
   manualInputFinals: "rec:advance_wizard:manual_input_finals",
   manualMarkFsFw: "rec:advance_wizard:manual_mark_fs_fw",
-  manualNextStep: "rec:advance_wizard:manual_next_step"
+  manualNextStep: "rec:advance_wizard:manual_next_step",
+  outcomesBack: "rec:advance_wizard:outcomes_back",
+  outcomesMarkFsFw: "rec:advance_wizard:outcomes_mark_fs_fw",
+  outcomesSkip: "rec:advance_wizard:outcomes_skip",
+  step2Back: "rec:advance_wizard:step2_back",
+  step2Next: "rec:advance_wizard:step2_next"
 } as const;
 
 interface BadgeAnnouncement {
@@ -90,6 +95,23 @@ function prettyStage(stage?: string | null) {
   return String(stage ?? "regular_season").replaceAll("_", " ");
 }
 
+function nextWeekStage(currentWeek: number, currentStage: string) {
+  const weekNumber = currentWeek + 1;
+  const seasonStage =
+    currentStage === "regular_season" && weekNumber >= 19 ? "wild_card"
+    : currentStage === "wild_card" ? "divisional"
+    : currentStage === "divisional" ? "conference_championship"
+    : currentStage === "conference_championship" ? "super_bowl"
+    : currentStage === "super_bowl" ? "coach_hiring"
+    : currentStage === "coach_hiring" ? "final_resigning"
+    : currentStage === "final_resigning" ? "free_agency"
+    : currentStage === "free_agency" ? "draft"
+    : currentStage === "draft" ? "preseason_training_camp"
+    : currentStage === "preseason_training_camp" ? "regular_season"
+    : currentStage;
+  return { weekNumber, seasonStage };
+}
+
 export async function buildAdvanceWizardEntryPayload(guildId: string) {
   const week = await recApi.viewLeagueWeek(guildId).catch(() => null);
   const league = week?.league;
@@ -113,6 +135,57 @@ export async function buildAdvanceWizardEntryPayload(guildId: string) {
         new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.manual).setLabel("Manual").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.import).setLabel("Import").setStyle(ButtonStyle.Primary)
+      )
+    ]
+  };
+}
+
+export function buildAdvanceWizardPostImportPayload(summaryLines: string[] = []) {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Import Complete")
+        .setDescription([
+          ...summaryLines,
+          "",
+          "If there were any Fair Sim or Force Win outcomes for your games, please use the button below to mark them."
+        ].filter(Boolean).join("\n").slice(0, 4000))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesBack).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesMarkFsFw).setLabel("Mark FS/FW").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.outcomesSkip).setLabel("Skip").setStyle(ButtonStyle.Success)
+      )
+    ]
+  };
+}
+
+export async function buildAdvanceWizardStep2Payload(guildId: string, dataEntered = true) {
+  const week = await recApi.viewLeagueWeek(guildId).catch(() => null);
+  const league = week?.league;
+  const currentWeek = Number(league?.current_week ?? 1);
+  const currentStage = String(league?.season_stage ?? league?.current_phase ?? "regular_season");
+  const next = nextWeekStage(currentWeek, currentStage);
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Advance Wizard - Review")
+        .setDescription([
+          `Season ${league?.season_number ?? league?.display_season_number ?? "?"}, Week ${league?.current_week ?? "?"} (${prettyStage(currentStage)})`,
+          "",
+          `Data Imported or Entered: **${dataEntered ? "Yes" : "No"}**`,
+          "Upcoming Week Schedule Stored: **Pending check**",
+          `Week/Stage Advancing To: **Week ${next.weekNumber} (${prettyStage(next.seasonStage)})**`,
+          "",
+          "Please click Next Step to proceed with the advance process, or Back to make changes."
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.step2Back).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.step2Next).setLabel("Next Step").setStyle(ButtonStyle.Primary)
       )
     ]
   };

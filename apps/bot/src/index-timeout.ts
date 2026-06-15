@@ -45,7 +45,7 @@ import { handleImportButton, handleImportModal, handleImportSelect, importSessio
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
 import { buildAdvanceMenuPanel, buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, buildAdvanceSchedulePayload, wallClockToUtc, DEFAULT_SCHEDULE_TIMEZONE, type AdvanceScheduleState } from "./ui/advance-schedule.js";
-import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
+import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardStep2Payload, handleWizardGotwSelect, runAdvanceWizardProcessing } from "./flows/advance-wizard.js";
 import { recreateGameChannelsForGuild, sendAdvanceDmsForGuild, recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
 import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
 import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
@@ -926,6 +926,31 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
 
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.manualBack) {
     await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesBack || interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.step2Back) {
+    await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesSkip) {
+    await interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true));
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesMarkFsFw) {
+    await interaction.reply({
+      content: "FS/FW marking is the next wizard slice. For now, use Skip if no Fair Sim or Force Win corrections are needed.",
+      flags: MessageFlags.Ephemeral
+    });
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.step2Next) {
+    const scheduleState: AdvanceScheduleState = { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true };
+    advanceScheduleSessions.set(interaction.user.id, scheduleState);
+    await interaction.update(buildAdvanceSchedulePayload(scheduleState));
     return;
   }
 
