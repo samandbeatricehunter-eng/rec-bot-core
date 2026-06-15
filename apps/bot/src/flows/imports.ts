@@ -389,13 +389,15 @@ function normalizeSelectedWeeks(draft: ImportDraft) {
 }
 
 function buildImportDraftSummary(draft: ImportDraft) {
+  const endpoints = selectedEndpointKeys(draft);
+  const endpointSummary = endpoints.length === CORE_IMPORT_ENDPOINTS.length ? "All core endpoints" : endpoints.join(", ");
   return [
     `Mode: **${String(draft.importMode ?? "").replaceAll("_", " ")}**`,
     draft.eaExternalLeagueName ? `EA League: **${draft.eaExternalLeagueName}**` : undefined,
     `Weeks: **${selectedWeekSummary(draft)}**`,
-    `Endpoints: **All core endpoints**`,
+    `Endpoints: **${endpointSummary}**`,
     "",
-    "When you continue, REC will create the import job and stage all core endpoints for the selected week."
+    "When you continue, REC will create the import job and stage the required endpoints for the selected week."
   ].filter(Boolean).join("\n");
 }
 
@@ -455,6 +457,12 @@ async function requireCurrentImportJob(interaction: ButtonInteraction | StringSe
 
 export async function startImportMode(interaction: ButtonInteraction, importMode: RecImportMode) {
   await interaction.deferUpdate();
+  const leagueWeek = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
+  const stage = String(leagueWeek?.league?.season_stage ?? leagueWeek?.league?.current_phase ?? "regular_season");
+  const endpointKeys = stage === "preseason_training_camp"
+    ? ["league_metadata", "teams", "schedule", "rosters"]
+    : CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
+
   importSessions.set(interaction.user.id, {
     ...(importSessions.get(interaction.user.id) ?? {}),
     importMode,
@@ -463,7 +471,7 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
     weekFrom: 1,
     weekTo: 1,
     selectedWeeks: [1],
-    endpointKeys: CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key),
+    endpointKeys,
     eaConsole: "pc"
   });
 
@@ -575,7 +583,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
           weekFrom: selectedWeeks[0],
           weekTo: selectedWeeks[selectedWeeks.length - 1],
           selectedWeeks,
-          selectedEndpointKeys: CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key)
+          selectedEndpointKeys: selectedEndpointKeys(draft)
         });
         importJobId = job.job.id;
         importSessions.set(interaction.user.id, { ...draft, importJobId });
