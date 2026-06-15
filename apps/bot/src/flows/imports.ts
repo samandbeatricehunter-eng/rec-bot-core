@@ -435,7 +435,7 @@ async function discoverAndRenderFranchises(interaction: ButtonInteraction | Stri
 
   await interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Select EA Franchise").setDescription(buildFranchiseDiscoveryDescription(result))],
-    components: franchises.length ? [buildFranchiseSelectRow(franchises), ...buildImportFlowNavigationRows()] : buildEaConnectRows(result.loginUrl)
+    components: franchises.length ? [buildFranchiseSelectRow(franchises), ...buildImportFlowNavigationRows()] : buildEaConnectRows(result.loginUrl, draft.eaConsole ?? "pc")
   });
 }
 
@@ -464,8 +464,11 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
   const isPreseason = stage === "preseason_training_camp";
   const endpointKeys = CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
 
+  const existing = importSessions.get(interaction.user.id) ?? {};
+  const eaConsole = existing.eaConsole ?? "pc";
+
   importSessions.set(interaction.user.id, {
-    ...(importSessions.get(interaction.user.id) ?? {}),
+    ...existing,
     importMode,
     pendingStartMode: importMode,
     weekScope: isPreseason ? "full_regular_season_schedule" : "single_week",
@@ -473,10 +476,10 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
     weekTo: isPreseason ? 18 : currentWeek,
     selectedWeeks: isPreseason ? Array.from({ length: 18 }, (_, index) => index + 1) : [currentWeek],
     endpointKeys,
-    eaConsole: "pc"
+    eaConsole
   });
 
-  const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: "pc" });
+  const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: eaConsole });
 
   if (status.connected) {
     await interaction.editReply({
@@ -486,10 +489,10 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
     try {
       await discoverAndRenderFranchises(interaction);
     } catch (error) {
-      const freshStatus = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: "pc" }).catch(() => null);
+      const freshStatus = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: eaConsole }).catch(() => null);
       await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(freshStatus?.loginUrl ? buildEaConnectDescription(freshStatus) : extractApiErrorMessage(error))],
-        components: buildEaConnectRows(freshStatus?.loginUrl)
+        components: buildEaConnectRows(freshStatus?.loginUrl, eaConsole)
       });
     }
     return;
@@ -497,7 +500,7 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
 
   await interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(buildEaConnectDescription(status))],
-    components: buildEaConnectRows(status.loginUrl)
+    components: buildEaConnectRows(status.loginUrl, eaConsole)
   });
 }
 
@@ -631,7 +634,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
               `Error: ${message}`, "",
               "Click **Open EA Login**, complete EA sign-in, then click **Enter EA Auth Code** before trying again."
             ].join("\n"))],
-            components: status?.loginUrl ? buildEaConnectRows(status.loginUrl) : buildDiscoverFranchisesRows()
+            components: status?.loginUrl ? buildEaConnectRows(status.loginUrl, updatedDraft.eaConsole ?? "pc") : buildDiscoverFranchisesRows()
           });
           return;
         }
@@ -659,7 +662,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
             `Error: ${message}`, "",
             "Click **Open EA Login**, complete EA sign-in, then click **Enter EA Auth Code** before trying again."
           ].join("\n"))],
-          components: status?.loginUrl ? buildEaConnectRows(status.loginUrl) : buildDiscoverFranchisesRows()
+          components: status?.loginUrl ? buildEaConnectRows(status.loginUrl, updatedDraft.eaConsole ?? "pc") : buildDiscoverFranchisesRows()
         });
         return;
       }
@@ -828,14 +831,15 @@ export async function handleImportButton(interaction: ButtonInteraction) {
     try {
       await discoverAndRenderFranchises(interaction);
     } catch (error) {
-      const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id }).catch(() => null);
+      const draft = importSessions.get(interaction.user.id) ?? {};
+      const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: draft.eaConsole ?? "pc" }).catch(() => null);
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
             .setTitle("Connect EA Account")
             .setDescription(status?.loginUrl ? buildEaConnectDescription(status) : extractApiErrorMessage(error))
         ],
-        components: buildEaConnectRows(status?.loginUrl)
+        components: buildEaConnectRows(status?.loginUrl, draft.eaConsole ?? "pc")
       });
     }
     return;
@@ -892,6 +896,20 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
       components: [
         ...buildImportJobCreatedRows()
       ]
+    });
+    return;
+  }
+
+  if (interaction.customId === IMPORT_CUSTOM_IDS.eaConsoleSelect) {
+    const draft = importSessions.get(interaction.user.id) ?? {};
+    const eaConsole = interaction.values[0] as ImportDraft["eaConsole"];
+    importSessions.set(interaction.user.id, { ...draft, eaConsole });
+    await interaction.deferUpdate();
+    // Re-fetch status for the chosen platform so the login URL is fresh, then re-render the connect panel.
+    const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: eaConsole }).catch(() => null);
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(status?.loginUrl ? buildEaConnectDescription(status) : `Platform set to **${String(eaConsole).toUpperCase()}**. Open EA Login and enter your auth code to connect.`)],
+      components: buildEaConnectRows(status?.loginUrl, eaConsole)
     });
     return;
   }

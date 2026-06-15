@@ -17,6 +17,7 @@ export const IMPORT_CUSTOM_IDS = {
   manualImport: "rec:imports:manual",
   connectEaAccount: "rec:imports:ea_connect",
   openEaLogin: "rec:imports:ea_open_login",
+  eaConsoleSelect: "rec:imports:ea_console_select",
   eaConnectCodeModal: "rec:imports:ea_connect_code_modal",
   eaAuthCodeInput: "rec:imports:ea_auth_code",
   discoverFranchises: "rec:imports:discover_franchises",
@@ -88,11 +89,29 @@ export function buildPendingImportRows() {
   ];
 }
 
-export function buildEaConnectRows(loginUrl?: string | null) {
+// Madden NFL 26 platforms. The EA entitlement/Blaze session is platform-specific, so the user must
+// pick the platform their franchise is on (AUTH_ERR_NO_SUCH_ENTITLEMENT otherwise).
+export const EA_CONSOLE_OPTIONS: Array<{ label: string; value: string }> = [
+  { label: "PlayStation 5", value: "ps5" },
+  { label: "Xbox Series X|S", value: "xbsx" },
+  { label: "PC", value: "pc" }
+];
+
+export function buildEaConnectRows(loginUrl?: string | null, selectedConsole: string = "pc") {
+  const consoleRow = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(IMPORT_CUSTOM_IDS.eaConsoleSelect)
+      .setPlaceholder("Select your Madden platform")
+      .addOptions(
+        EA_CONSOLE_OPTIONS.map((option) =>
+          new StringSelectMenuOptionBuilder().setLabel(option.label).setValue(option.value).setDefault(option.value === selectedConsole)
+        )
+      )
+  );
   const firstRow = new ActionRowBuilder<ButtonBuilder>();
   if (loginUrl) firstRow.addComponents(new ButtonBuilder().setLabel("Open EA Login").setStyle(ButtonStyle.Link).setURL(loginUrl), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.connectEaAccount).setLabel("Enter EA Auth Code").setStyle(ButtonStyle.Primary));
   else firstRow.addComponents(new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.connectEaAccount).setLabel("Enter EA Auth Code").setStyle(ButtonStyle.Primary));
-  return [firstRow, ...buildImportFlowNavigationRows()];
+  return [consoleRow, firstRow, ...buildImportFlowNavigationRows()];
 }
 
 export function buildEaConnectCodeModal() {
