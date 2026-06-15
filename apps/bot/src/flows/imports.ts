@@ -16,7 +16,6 @@ import {
   buildPendingImportRows,
   buildImportPreviewRows,
   buildDiscoverFranchisesRows,
-  buildWeekSelectRow,
   IMPORT_CUSTOM_IDS,
   parseApproveImportCustomId
 } from "../ui/imports.js";
@@ -459,18 +458,20 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
   await interaction.deferUpdate();
   const leagueWeek = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
   const stage = String(leagueWeek?.league?.season_stage ?? leagueWeek?.league?.current_phase ?? "regular_season");
-  const endpointKeys = stage === "preseason_training_camp"
-    ? ["league_metadata", "teams", "schedule", "rosters"]
-    : CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
+  const currentWeek = Number(leagueWeek?.league?.current_week) || 1;
+  // Preseason/training camp first advance pulls the full regular-season schedule + every data point.
+  // Otherwise the import always targets the league's current week (no manual week selection).
+  const isPreseason = stage === "preseason_training_camp";
+  const endpointKeys = CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
 
   importSessions.set(interaction.user.id, {
     ...(importSessions.get(interaction.user.id) ?? {}),
     importMode,
     pendingStartMode: importMode,
-    weekScope: "single_week",
-    weekFrom: 1,
-    weekTo: 1,
-    selectedWeeks: [1],
+    weekScope: isPreseason ? "full_regular_season_schedule" : "single_week",
+    weekFrom: isPreseason ? 1 : currentWeek,
+    weekTo: isPreseason ? 18 : currentWeek,
+    selectedWeeks: isPreseason ? Array.from({ length: 18 }, (_, index) => index + 1) : [currentWeek],
     endpointKeys,
     eaConsole: "pc"
   });
@@ -571,7 +572,8 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       }
       await interaction.deferUpdate();
       try {
-        const selectedWeeks = normalizeSelectedWeeks(draft).slice(0, 1);
+        const isFullSchedule = draft.weekScope === "full_regular_season_schedule";
+        const selectedWeeks = isFullSchedule ? normalizeSelectedWeeks(draft) : normalizeSelectedWeeks(draft).slice(0, 1);
         const job = await recApi.createImportJob({
           guildId: interaction.guildId,
           importMode: draft.importMode ?? "ea_import",
@@ -579,7 +581,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
           requestedByDiscordId: interaction.user.id,
           eaExternalLeagueId: draft.eaExternalLeagueId,
           eaExternalLeagueName: draft.eaExternalLeagueName,
-          importScope: "single_week",
+          importScope: isFullSchedule ? "full_regular_season_schedule" : "single_week",
           weekFrom: selectedWeeks[0],
           weekTo: selectedWeeks[selectedWeeks.length - 1],
           selectedWeeks,
@@ -888,7 +890,6 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
           ].join("\n"))
       ],
       components: [
-        buildWeekSelectRow(),
         ...buildImportJobCreatedRows()
       ]
     });
@@ -910,7 +911,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
-      components: [buildWeekSelectRow(), ...buildImportJobCreatedRows()]
+      components: [...buildImportJobCreatedRows()]
     });
     return;
   }
@@ -929,7 +930,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
-      components: [buildWeekSelectRow(), ...buildImportJobCreatedRows()]
+      components: [...buildImportJobCreatedRows()]
     });
     return;
   }
@@ -943,7 +944,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
-      components: [buildWeekSelectRow(), ...buildImportJobCreatedRows()]
+      components: [...buildImportJobCreatedRows()]
     });
     return;
   }
