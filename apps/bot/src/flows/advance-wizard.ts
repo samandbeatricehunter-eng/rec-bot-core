@@ -16,6 +16,7 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   back: "rec:advance_wizard:back_admin",
   importData: "rec:advance_wizard:import_data",
   mcaUrl: "rec:advance_wizard:mca_url",
+  offseasonAdvance: "rec:advance_wizard:offseason_advance",
   manualBack: "rec:advance_wizard:manual_back",
   manualInputFinals: "rec:advance_wizard:manual_input_finals",
   manualMarkFsFw: "rec:advance_wizard:manual_mark_fs_fw",
@@ -95,6 +96,10 @@ function prettyStage(stage?: string | null) {
   return String(stage ?? "regular_season").replaceAll("_", " ");
 }
 
+function isOffseasonStage(stage: string) {
+  return ["coach_hiring", "final_resigning", "free_agency", "draft"].includes(stage);
+}
+
 function nextWeekStage(currentWeek: number, currentStage: string) {
   const weekNumber = currentWeek + 1;
   const seasonStage =
@@ -116,9 +121,31 @@ export async function buildAdvanceWizardEntryPayload(guildId: string) {
   const week = await recApi.viewLeagueWeek(guildId).catch(() => null);
   const league = week?.league;
   const stage = prettyStage(league?.season_stage ?? league?.current_phase);
+  const rawStage = String(league?.season_stage ?? league?.current_phase ?? "regular_season");
   const current = league
     ? `Season ${league.season_number ?? league.display_season_number ?? "?"}, Week ${league.current_week ?? "?"} (${stage})`
     : "Current league week could not be loaded.";
+
+  if (isOffseasonStage(rawStage)) {
+    return {
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Advance Wizard")
+          .setDescription([
+            current,
+            "",
+            "This is an offseason stage, so no import or manual game outcomes are required.",
+            "Click Advance Week to move to the next offseason stage."
+          ].join("\n"))
+      ],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Secondary),
+          new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.offseasonAdvance).setLabel("Advance Week").setStyle(ButtonStyle.Success)
+        )
+      ]
+    };
+  }
 
   return {
     embeds: [

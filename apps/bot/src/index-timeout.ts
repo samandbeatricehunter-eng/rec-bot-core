@@ -969,6 +969,36 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
     return;
   }
 
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.offseasonAdvance) {
+    await interaction.deferUpdate();
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Advancing Offseason Stage...").setDescription("Moving the league to the next offseason stage.")],
+      components: []
+    });
+    try {
+      const result = await recApi.processAdvanceResults(interaction.guildId);
+      const week = result.week;
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Offseason Advance Complete")
+            .setDescription([
+              week ? `Advanced from **${String(week.previousStage).replaceAll("_", " ")} Week ${week.previousWeek}** to **${String(week.seasonStage).replaceAll("_", " ")} Week ${week.weekNumber}**.` : "Advance completed.",
+              "",
+              result.warnings?.length ? `Warnings:\n${result.warnings.slice(0, 8).map((w: string) => `- ${w}`).join("\n")}` : "No warnings reported."
+            ].join("\n").slice(0, 4000))
+        ],
+        components: buildAdminPanelRows()
+      });
+    } catch (error) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Offseason Advance Failed").setDescription(error instanceof Error ? error.message : String(error))],
+        components: buildAdminPanelRows()
+      });
+    }
+    return;
+  }
+
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.mcaUrl) {
     await interaction.reply({
       content: "MCA URL placeholder: the API endpoint to receive and parse Madden Companion App exports is not configured yet.",
