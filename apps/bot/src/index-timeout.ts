@@ -597,13 +597,51 @@ async function handleRostersMenuSelect(interaction: Extract<Interaction, { isStr
 
 // ── View Players by Team ─────────────────────────────────────────────────
 
-// Renders a team's active roster, grouped by position group, sorted by overall (the API sorts).
+const DEV_TRAIT_EMOJIS: Record<string, string> = {
+  "3": "<:XFactor:1494392253177663688>",
+  xfactor: "<:XFactor:1494392253177663688>",
+  x_factor: "<:XFactor:1494392253177663688>",
+  "x-factor": "<:XFactor:1494392253177663688>",
+  "2": "<:Superstar:1494392251776897134>",
+  superstar: "<:Superstar:1494392251776897134>",
+  "1": "<:Star:1494392249163972699>",
+  star: "<:Star:1494392249163972699>"
+};
+
+function rosterDevEmoji(dev: unknown) {
+  const key = String(dev ?? "").trim().toLowerCase().replace(/\s+/g, "_");
+  return DEV_TRAIT_EMOJIS[key] ?? "";
+}
+
+function formatCapHit(value: unknown) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(amount >= 10_000_000 ? 1 : 2)}M`;
+  if (amount >= 1_000) return `${Math.round(amount / 1_000)}K`;
+  return `${amount}`;
+}
+
+function formatRosterPlayer(member: any) {
+  const dev = rosterDevEmoji(member.dev);
+  const ovr = `\`${String(member.ovr ?? 0).padStart(2, " ")}\``;
+  const cap = formatCapHit(member.capHit);
+  const years = member.contractYearsLeft != null ? `${member.contractYearsLeft}y` : null;
+  const contract = [cap, years].filter(Boolean).join(" / ");
+  return `${dev ? `${dev} ` : ""}${ovr} ${member.name} (${member.position})${contract ? ` - ${contract}` : ""}`;
+}
+
+function rosterGroupValue(group: { members: any[] }) {
+  const value = group.members.map(formatRosterPlayer).join("\n");
+  return value.length > 1024 ? `${value.slice(0, 1018).trimEnd()}\n...` : value;
+}
+
+// Renders a team's active roster, grouped by side and position subgroup.
 function buildRosterEmbed(rosterData: any): EmbedBuilder {
   const team = rosterData.team ?? {};
-  const groups: Array<{ label: string; members: Array<{ name: string; position: string; ovr: number; dev?: string | null; age?: number | null }> }> = rosterData.groups ?? [];
+  const groups: Array<{ label: string; side?: string; members: Array<{ name: string; position: string; ovr: number; dev?: string | null; age?: number | null; capHit?: number | null; contractYearsLeft?: number | null }> }> = rosterData.groups ?? [];
   const divisionLine = [team.conference, team.division].filter(Boolean).join(" ");
-  const meta = [divisionLine, rosterData.season != null ? `Season ${rosterData.season}` : null, `${rosterData.totalPlayers ?? 0} players`].filter(Boolean).join(" · ");
-  const embed = new EmbedBuilder().setTitle(`${team.name ?? "Team"} — Roster`);
+  const meta = [divisionLine, rosterData.season != null ? `Season ${rosterData.season}` : null, `${rosterData.totalPlayers ?? 0} players`].filter(Boolean).join(" � ");
+  const embed = new EmbedBuilder().setTitle(`${team.name ?? "Team"} � Roster`);
 
   if (!groups.length) {
     embed.setDescription(`${meta}\n\nNo roster data available for this team yet.`);
@@ -611,14 +649,21 @@ function buildRosterEmbed(rosterData: any): EmbedBuilder {
   }
 
   embed.setDescription(meta || "Roster");
-  for (const group of groups) {
-    if (!group.members.length) continue;
-    const lines = group.members.map((m) => {
-      const dev = m.dev ? ` · ${m.dev}` : "";
-      const age = m.age != null ? ` · ${m.age}y` : "";
-      return `\`${String(m.ovr).padStart(2, " ")}\` ${m.name} (${m.position})${dev}${age}`;
-    });
-    embed.addFields({ name: group.label, value: lines.join("\n").slice(0, 1024), inline: false });
+  const offense = groups.filter((group) => group.side === "offense" && group.members.length);
+  const defense = groups.filter((group) => group.side === "defense" && group.members.length);
+  const special = groups.filter((group) => group.side === "special" && group.members.length);
+  const other = groups.filter((group) => !["offense", "defense", "special"].includes(String(group.side)) && group.members.length);
+  const leftColumn = [...offense, ...special, ...other];
+  const rows = Math.max(leftColumn.length, defense.length);
+
+  for (let i = 0; i < rows; i++) {
+    const left = leftColumn[i];
+    const right = defense[i];
+    embed.addFields(
+      left ? { name: left.label, value: rosterGroupValue(left), inline: true } : { name: "\u200B", value: "\u200B", inline: true },
+      right ? { name: right.label, value: rosterGroupValue(right), inline: true } : { name: "\u200B", value: "\u200B", inline: true },
+      { name: "\u200B", value: "\u200B", inline: true }
+    );
   }
 
   return embed;

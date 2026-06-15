@@ -897,26 +897,10 @@ async function runAdvanceWizardFinalize(
     warnings.push(`generate_challenges: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // 5b: send advance DMs and post announcement
+  // 5b: create game channels before DMs so each DM can link the matchup channel.
   await interaction.editReply({
     embeds: [processingEmbed(
-      "Step 6 of 6 — Sending Advance DMs",
-      "Gathering all data and sending advance notice DMs..."
-    )],
-    components: []
-  });
-
-  try {
-    await sendAdvanceDmsOnly(guild);
-  } catch (err) {
-    console.error("[WIZARD] sendAdvanceDmsOnly failed:", err);
-    warnings.push(`advance_dms: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  // 5c: create game channels (final step)
-  await interaction.editReply({
-    embeds: [processingEmbed(
-      "Step 6 of 6 — Creating Game Channels",
+      "Step 6 of 6 - Creating Game Channels",
       "Creating H2H game channels for the new week..."
     )],
     components: []
@@ -1072,6 +1056,21 @@ async function runAdvanceWizardFinalize(
     }
   }
 
+  // Final advance step: send advance DMs and post the advance announcement after every other advance side effect.
+  await interaction.editReply({
+    embeds: [processingEmbed(
+      "Step 6 of 6 - Sending Advance DMs",
+      "Gathering all advance data and sending final advance notice DMs..."
+    )],
+    components: []
+  });
+
+  try {
+    await sendAdvanceDmsOnly(guild);
+  } catch (err) {
+    console.error("[WIZARD] sendAdvanceDmsOnly failed:", err);
+    warnings.push(`advance_dms: ${err instanceof Error ? err.message : String(err)}`);
+  }
   advanceWizardSessions.delete(interaction.user.id);
   await interaction.editReply(buildWizardCompletePage(weekNumber, seasonStage, warnings));
 }

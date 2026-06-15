@@ -115,22 +115,34 @@ async function getLeagueConferencesFallback(guildId: string) {
   return { conferences };
 }
 
-const POSITION_GROUPS: { label: string; positions: string[] }[] = [
-  { label: "Quarterbacks", positions: ["QB"] },
-  { label: "Running Backs", positions: ["HB", "RB", "FB"] },
-  { label: "Wide Receivers", positions: ["WR"] },
-  { label: "Tight Ends", positions: ["TE"] },
-  { label: "Offensive Line", positions: ["LT", "LG", "C", "RG", "RT", "OL", "T", "G"] },
-  { label: "Defensive Line", positions: ["LEDGE", "REDGE", "LE", "RE", "DT", "DL", "EDGE"] },
-  { label: "Linebackers", positions: ["MIKE", "SAM", "WILL", "MLB", "LOLB", "ROLB", "LB"] },
-  { label: "Defensive Backs", positions: ["CB", "FS", "SS", "DB", "S"] },
-  { label: "Special Teams", positions: ["K", "P", "LS"] }
+const POSITION_GROUPS: { label: string; side: "offense" | "defense" | "special" | "other"; positions: string[] }[] = [
+  { label: "Quarterbacks", side: "offense", positions: ["QB"] },
+  { label: "Running Backs", side: "offense", positions: ["HB", "RB", "FB"] },
+  { label: "Wide Receivers", side: "offense", positions: ["WR"] },
+  { label: "Tight Ends", side: "offense", positions: ["TE"] },
+  { label: "Offensive Line", side: "offense", positions: ["LT", "LG", "C", "RG", "RT", "OL", "T", "G"] },
+  { label: "Defensive Line", side: "defense", positions: ["LEDGE", "DT", "REDGE", "LE", "RE", "DL", "EDGE"] },
+  { label: "Linebackers", side: "defense", positions: ["WILL", "MIKE", "SAM", "MLB", "LOLB", "ROLB", "LB"] },
+  { label: "Defensive Backs", side: "defense", positions: ["CB", "FS", "SS", "DB", "S"] },
+  { label: "Special Teams", side: "special", positions: ["K", "P", "LS"] }
 ];
 
 function groupLabelFor(position: string): string {
   const pos = (position ?? "").toUpperCase();
   const group = POSITION_GROUPS.find((g) => g.positions.includes(pos));
   return group?.label ?? "Other";
+}
+
+function groupSideFor(label: string) {
+  return POSITION_GROUPS.find((g) => g.label === label)?.side ?? "other";
+}
+
+function positionOrder(position: string) {
+  const pos = (position ?? "").toUpperCase();
+  const group = POSITION_GROUPS.find((g) => g.positions.includes(pos));
+  if (!group) return 99;
+  const index = group.positions.indexOf(pos);
+  return index === -1 ? 99 : index;
 }
 
 async function getTeamRosterFallback(guildId: string, teamId: string) {
@@ -154,7 +166,7 @@ async function getTeamRosterFallback(guildId: string, teamId: string) {
 
   let query = supabase
     .from("rec_roster_snapshots")
-    .select("player_name, position, overall_rating, dev_trait, age, jersey_number, is_active")
+    .select("player_name, position, overall_rating, dev_trait, age, jersey_number, is_active, contract_years_left, contract_salary, raw_payload, rec_players(cap_hit, contract_years_left, contract_salary)")
     .eq("league_id", leagueId)
     .eq("team_id", teamId);
   if (season != null) query = query.eq("season_number", season);
@@ -170,16 +182,21 @@ async function getTeamRosterFallback(guildId: string, teamId: string) {
       ovr: r.overall_rating ?? 0,
       dev: r.dev_trait ?? null,
       age: r.age ?? null,
-      jersey: r.jersey_number ?? null
+      jersey: r.jersey_number ?? null,
+      capHit: (r as any).rec_players?.cap_hit ?? (r.raw_payload as any)?.capHit ?? null,
+      contractYearsLeft: (r as any).rec_players?.contract_years_left ?? r.contract_years_left ?? (r.raw_payload as any)?.contractYearsLeft ?? null,
+      contractSalary: (r as any).rec_players?.contract_salary ?? r.contract_salary ?? (r.raw_payload as any)?.contractSalary ?? null,
+      positionOrder: positionOrder(String(r.position ?? ""))
     }))
-    .sort((a, b) => b.ovr - a.ovr);
+    .sort((a, b) => a.positionOrder - b.positionOrder || b.ovr - a.ovr || a.name.localeCompare(b.name));
 
   const groups = POSITION_GROUPS.map((g) => ({
     label: g.label,
+    side: g.side,
     members: players.filter((p) => g.positions.includes(p.position))
   }));
   const otherMembers = players.filter((p) => groupLabelFor(p.position) === "Other");
-  if (otherMembers.length) groups.push({ label: "Other", members: otherMembers });
+  if (otherMembers.length) groups.push({ label: "Other", side: "other", members: otherMembers });
 
   return {
     team: {
