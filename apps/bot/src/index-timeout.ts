@@ -59,6 +59,7 @@ import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import { buildRecAwardVotingEmbed, postEosPollsAndAwards } from "./flows/advance-wizard.js";
+import { ensureRecBaseRoles } from "./lib/role-sync.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 client.setMaxListeners(50);
@@ -1861,6 +1862,13 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Saving League Setup...").setDescription("Creating your league and applying configuration. This may take a moment.")], components: [] });
   const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id, serverName: interaction.guild?.name });
+  const roleWarnings: string[] = [];
+  try {
+    await ensureRecBaseRoles(interaction.guild);
+  } catch (error) {
+    console.error("[ERROR] Failed to create REC base roles:", error);
+    roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 
   // Persist the starting week/stage chosen during setup (defaults to regular-season week 1).
   const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek(draft.seasonWeek);
@@ -1873,7 +1881,7 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
   const wantsLinking = draft.linkTeamsAfterSetup;
   leagueSetupSessions.delete(interaction.user.id);
 
-  const savedDescription = [`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, `Import Mode: ${result.configuration.import_mode}`, `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Media: ${result.configuration.media_features_enabled ? "Enabled" : "Disabled"}`, `Draft Classes: ${result.configuration.draft_class_features_enabled ? result.configuration.draft_class_type : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Economy payouts activate for linked users when Coin Economy is enabled."].join("\n");
+  const savedDescription = [`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, `Import Mode: ${result.configuration.import_mode}`, `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Media: ${result.configuration.media_features_enabled ? "Enabled" : "Disabled"}`, `Draft Classes: ${result.configuration.draft_class_features_enabled ? result.configuration.draft_class_type : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**", ...roleWarnings, "", "Economy payouts activate for linked users when Coin Economy is enabled."].join("\n");
 
   if (!wantsLinking) {
     await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)], components: buildAdminPanelRows() });

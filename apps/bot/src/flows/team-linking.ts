@@ -2,7 +2,7 @@ import { ButtonInteraction, EmbedBuilder, Interaction, ModalSubmitInteraction, S
 import type { RecTeamAuthority } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
-import { syncMemberForTeam } from "../lib/role-sync.js";
+import { ensureRecBaseRoles, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildNavigationRow } from "../ui/navigation.js";
 import {
   buildAuthoritySelectRow,
@@ -610,16 +610,12 @@ export async function handleSimpleTeamLinkUserSelect(interaction: Extract<Intera
       selectedUserId: discordId
     });
 
-    // Find the league roles by name pattern
-    const allRoles = await interaction.guild.roles.fetch();
-    const commissionerRole = allRoles.find(r => r.name === "REC League Commissioner");
-    const compCommitteeRole = allRoles.find(r => r.name === "REC League Comp. Committee");
-    const memberRole = allRoles.find(r => r.name === "REC League Member");
+    const recRoles = await ensureRecBaseRoles(interaction.guild);
 
     const roles = {
-      commissioner: commissionerRole ? `${commissionerRole.name}:${commissionerRole.id}` : "Commissioner",
-      coCommissioner: compCommitteeRole ? `${compCommitteeRole.name}:${compCommitteeRole.id}` : "Comp. Committee",
-      member: memberRole ? `${memberRole.name}:${memberRole.id}` : "Member"
+      commissioner: `${recRoles.commissioner.name}:${recRoles.commissioner.id}`,
+      coCommissioner: `${recRoles.compCommittee.name}:${recRoles.compCommittee.id}`,
+      member: `${recRoles.member.name}:${recRoles.member.id}`
     };
 
     await interaction.update(buildRoleSelectionPanel(discordId, session.teamName, roles));
@@ -656,37 +652,6 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
     // Fetch the guild member
     const guildMember = await interaction.guild.members.fetch(session.selectedUserId).catch(() => null);
 
-    if (guildMember) {
-      // Find all REC League roles
-      const allRoles = await interaction.guild.roles.fetch();
-      const commissionerRole = allRoles.find(r => r.name === "REC League Commissioner");
-      const compCommitteeRole = allRoles.find(r => r.name === "REC League Comp. Committee");
-      const memberRole = allRoles.find(r => r.name === "REC League Member");
-
-      // Remove all league roles first
-      const rolesToRemove = [commissionerRole, compCommitteeRole, memberRole].filter(Boolean);
-      for (const r of rolesToRemove) {
-        if (r && guildMember.roles.cache.has(r.id)) {
-          await guildMember.roles.remove(r.id).catch(() => undefined);
-        }
-      }
-
-      // Add roles based on hierarchy: Commissioner > Comp. Committee > Member
-      if (role === "commissioner" && commissionerRole) {
-        // Commissioner gets all three roles
-        await guildMember.roles.add(commissionerRole.id).catch(() => undefined);
-        if (compCommitteeRole) await guildMember.roles.add(compCommitteeRole.id).catch(() => undefined);
-        if (memberRole) await guildMember.roles.add(memberRole.id).catch(() => undefined);
-      } else if (role === "co_commissioner" && compCommitteeRole) {
-        // Comp. Committee gets Comp. Committee and Member
-        await guildMember.roles.add(compCommitteeRole.id).catch(() => undefined);
-        if (memberRole) await guildMember.roles.add(memberRole.id).catch(() => undefined);
-      } else if (role === "member" && memberRole) {
-        // Member gets just Member role
-        await guildMember.roles.add(memberRole.id).catch(() => undefined);
-      }
-    }
-
     // Link the user to the team with the selected role
     await recApi.linkUserToTeam({
       guildId: interaction.guildId,
@@ -696,22 +661,10 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
       requestedByDiscordId: interaction.user.id
     });
 
-    // Extract team name (last word of team name, e.g., "Ravens" from "Baltimore Ravens"),
-    // then append a leadership-role suffix so their title is visible in the member list.
-    const teamNameWords = session.teamName.split(" ");
-    const baseNickname = teamNameWords[teamNameWords.length - 1];
-    let nickname = baseNickname;
-    if (role === "commissioner") {
-      nickname = `${baseNickname} (Commissioner)`;
-    } else if (role === "co_commissioner") {
-      nickname = `${baseNickname} (Co-Commissioner)`;
-    }
-    // Discord nicknames cap at 32 characters.
-    nickname = nickname.slice(0, 32);
-
-    if (guildMember) {
-      await guildMember.setNickname(nickname).catch(() => undefined);
-    }
+    const syncResult = guildMember
+      ? await syncMemberForTeam({ member: guildMember, teamName: session.teamName, authority: role })
+      : null;
+    const nickname = syncResult?.nickname ?? session.teamName;
 
     simpleTeamLinkSessions.delete(interaction.user.id);
     // Do NOT clear the member cache here: linking does not change guild membership, and clearing
@@ -731,6 +684,7 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
               `Team: **${session.teamName}** (${session.teamAbbr})`,
               `Role: **${roleText}**`,
               `Nickname: **${nickname}**`,
+              syncResult ? `Roles: ${syncResult.roleNames.join(", ")}` : "Roles: member could not be fetched",
               "",
               "Select a conference to link another team, or go back."
             ].join("\n")

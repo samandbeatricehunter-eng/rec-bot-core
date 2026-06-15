@@ -79,6 +79,8 @@ export async function syncMemberForTeam(input: {
 }) {
   const roles = await ensureRecBaseRoles(input.member.guild);
   const rolesToAdd: Role[] = [roles.member];
+  const rolesToRemove = [roles.member, roles.compCommittee, roles.commissioner]
+    .filter((role) => input.member.roles.cache.has(role.id));
 
   if (input.authority === "co_commissioner" || input.authority === "commissioner") {
     rolesToAdd.push(roles.compCommittee);
@@ -88,6 +90,9 @@ export async function syncMemberForTeam(input: {
     rolesToAdd.push(roles.commissioner);
   }
 
+  if (rolesToRemove.length) {
+    await input.member.roles.remove(rolesToRemove, "REC team ownership role sync").catch(() => undefined);
+  }
   await input.member.roles.add(rolesToAdd, "REC team ownership link").catch(() => undefined);
 
   const nickname = buildTeamNickname(input.teamName, input.authority);
