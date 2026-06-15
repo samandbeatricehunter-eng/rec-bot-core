@@ -32,6 +32,7 @@ export const TEAM_LINK_CUSTOM_IDS = {
   simpleUserSelect: "rec:teamlink:simple_user_select",
   clearAllLinks: "rec:teamlink:clear_all_links",
   roleSelect: "rec:teamlink:role_select",
+  customTeamNoLink: "rec:teamlink:custom_team_nolink",
   customTeamModal: "rec:teamlink:custom_team_modal",
   customTeamReplaceInput: "rec:teamlink:custom_team_replace",
   customTeamCityInput: "rec:teamlink:custom_team_city",
@@ -199,7 +200,7 @@ export function buildSimpleTeamLinkPanel() {
     embeds: [
       new EmbedBuilder()
         .setTitle("Link User to Team")
-        .setDescription("Select a conference to view available teams.")
+        .setDescription("Select a conference to view available teams.\n\nUse **Replace Team (No User)** to register a relocated/custom team without linking a coach — this keeps imports mapping correctly for unmanned teams.")
     ],
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -212,6 +213,10 @@ export function buildSimpleTeamLinkPanel() {
           )
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNoLink)
+          .setLabel("Replace Team (No User)")
+          .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
           .setCustomId(TEAM_LINK_CUSTOM_IDS.clearAllLinks)
           .setLabel("Clear All Links")
@@ -339,10 +344,10 @@ export function buildUserSelectionPanel(
   };
 }
 
-export function buildCustomTeamModal(conference: "AFC" | "NFC") {
+export function buildCustomTeamModal(conference?: "AFC" | "NFC") {
   const modal = new ModalBuilder()
-    .setCustomId(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:${conference}`)
-    .setTitle(`Register Custom ${conference} Team`);
+    .setCustomId(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:${conference ?? "GEN"}`)
+    .setTitle(conference ? `Register Custom ${conference} Team` : "Register Custom Team");
 
   const replaceInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput)

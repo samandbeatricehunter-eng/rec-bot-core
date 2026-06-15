@@ -56,7 +56,7 @@ import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekSetModal, buildLeagueWeekStageRo
 import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } from "./ui/economy-admin.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, buildActiveCheckAnnouncement } from "./ui/active-check.js";
 import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
-import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal } from "./flows/team-linking.js";
+import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal, handleCustomTeamNoLink } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import { buildRecAwardVotingEmbed, postEosPollsAndAwards } from "./flows/advance-wizard.js";
 import { ensureRecBaseRoles } from "./lib/role-sync.js";
@@ -237,6 +237,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith("eos_payout_reject:")) return handleEosPayoutReject(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) return interaction.reply(buildServerSetupPanel());
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) return handleClearAllTeamLinks(interaction);
+      if (interaction.customId === TEAM_LINK_CUSTOM_IDS.customTeamNoLink) return handleCustomTeamNoLink(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
       if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderImportPanel(interaction);
@@ -643,8 +644,8 @@ function buildRosterEmbed(rosterData: any): EmbedBuilder {
   const team = rosterData.team ?? {};
   const groups: Array<{ label: string; side?: string; members: Array<{ name: string; position: string; ovr: number; dev?: string | null; age?: number | null; capHit?: number | null; contractYearsLeft?: number | null }> }> = rosterData.groups ?? [];
   const divisionLine = [team.conference, team.division].filter(Boolean).join(" ");
-  const meta = [divisionLine, rosterData.season != null ? `Season ${rosterData.season}` : null, `${rosterData.totalPlayers ?? 0} players`].filter(Boolean).join(" · ");
-  const embed = new EmbedBuilder().setTitle(`${team.name ?? "Team"} — Roster`);
+  const meta = [divisionLine, rosterData.season != null ? `Season ${rosterData.season}` : null, `${rosterData.totalPlayers ?? 0} players`].filter(Boolean).join(" ï¿½ ");
+  const embed = new EmbedBuilder().setTitle(`${team.name ?? "Team"} ï¿½ Roster`);
 
   if (!groups.length) {
     embed.setDescription(`${meta}\n\nNo roster data available for this team yet.`);

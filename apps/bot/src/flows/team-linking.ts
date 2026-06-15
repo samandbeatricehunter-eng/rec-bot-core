@@ -33,7 +33,9 @@ export const simpleTeamLinkSessions = new Map<string, {
 
 export const customTeamPendingSessions = new Map<string, {
   guildId: string;
-  conference: "AFC" | "NFC";
+  conference?: "AFC" | "NFC";
+  // When false, the modal only registers the relocated team (so imports map) and does not link a user.
+  linkUser: boolean;
 }>();
 
 type CachedGuildUserList = {
@@ -457,7 +459,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     // showModal requires an unacknowledged interaction — must branch before deferUpdate
     if (teamAbbr === "CUSTOM_TEAM") {
       const { buildCustomTeamModal } = await import("../ui/team-options.js");
-      customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference });
+      customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference, linkUser: true });
       await interaction.showModal(buildCustomTeamModal(conference));
       return;
     }
@@ -702,6 +704,15 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
   }
 }
 
+// Opens the custom-team modal in "no user link" mode: it registers a relocated/custom team so imports
+// map correctly, without linking a coach to it.
+export async function handleCustomTeamNoLink(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  const { buildCustomTeamModal } = await import("../ui/team-options.js");
+  customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, linkUser: false });
+  await interaction.showModal(buildCustomTeamModal());
+}
+
 export async function handleCustomTeamModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
 
@@ -733,6 +744,21 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
     });
 
     const teamId = result.customTeam.id;
+    customTeamPendingSessions.delete(interaction.user.id);
+
+    // No-link mode: just confirm the relocation so imports map; skip user selection.
+    if (!pending.linkUser) {
+      await interaction.editReply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("Custom Team Registered")
+            .setDescription(`**${displayName}** (${newAbbr}) now replaces **${replacedAbbr}** in the league.\n\nNo coach was linked — imports will map to this team. You can link a coach later from User/Team Linking.`)
+        ],
+        components: [buildNavigationRow({ includeAdminPanel: true })]
+      });
+      return;
+    }
+
     const cachedUsers = await getCachedGuildUsers(interaction);
     const availableUsers = cachedUsers.map((u) => ({ label: u.label, discordId: u.discordId }));
 
@@ -742,7 +768,6 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
       teamAbbr: newAbbr,
       teamName: newNick
     });
-    customTeamPendingSessions.delete(interaction.user.id);
 
     await interaction.editReply(buildUserSelectionPanel(displayName, availableUsers, 0));
   } catch (error) {
