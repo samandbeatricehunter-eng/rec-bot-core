@@ -268,7 +268,8 @@ export async function exchangeEaAuthCode(input: { code: string; console: RecEaCo
       console: input.console,
       blazeService: BLAZE_SERVICE[input.console],
       blazeProductName: BLAZE_PRODUCT_NAME[input.console],
-      cause: error instanceof Error ? error.message : String(error)
+      cause: error instanceof Error ? error.message : String(error),
+      detail: error instanceof ApiError ? error.details : null
     });
   }
 }
@@ -356,9 +357,18 @@ export async function retrieveBlazeSession(token: EaCompanionToken): Promise<EaB
   const blazeId = parsed.userLoginInfo?.personaDetails?.personaId ?? parsed.userLoginInfo?.blazeId;
 
   if (!sessionKey || !blazeId || parsed.error) {
+    // The HTTP call returned 200 but no usable session — log the body (no session key present on
+    // this path) so the actual EA response is visible for diagnosis.
+    console.error("[EA BLAZE LOGIN] missing session", {
+      status: response.status,
+      hasUserLoginInfo: Boolean(parsed.userLoginInfo),
+      error: parsed.error ?? null,
+      body: text.slice(0, 2000)
+    });
     throw new ApiError(502, "Could not create EA Blaze session.", {
       status: response.status,
       error: parsed.error ?? null,
+      response: text.slice(0, 2000),
       console: token.console,
       blazeService: BLAZE_SERVICE[token.console],
       productName: BLAZE_PRODUCT_NAME[token.console]
