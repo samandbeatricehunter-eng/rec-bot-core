@@ -2,6 +2,7 @@ import { NFL_TEAMS, normalizeImportedStats } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { applyAdvanceRecords } from "../advance/advance.service.js";
+import { updateImportSyncState } from "./import-profile.service.js";
 import { getImportJob, updateImportJobStatus } from "./import.service.js";
 
 // Canonical NFL conference/division alignment, keyed by normalized name and abbreviation, so imports
@@ -1212,6 +1213,21 @@ export async function commitApprovedImport(importJobId: string) {
   const stats = await safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0, unmappedStatKeys: [] as Array<{ key: string; count: number }> });
   const leagueEvents = await safe("league_events", () => commitLeagueFeedEvents(importJobId, leagueId, committedTeamMap), { feedEvents: 0 });
   if ((leagueEvents as any).warning) commitWarnings.push((leagueEvents as any).warning);
+  const selectedEndpointKeys = Array.isArray((details.job as any).selected_endpoint_keys)
+    ? (details.job as any).selected_endpoint_keys.map(String)
+    : [];
+  await safe("season_sync_state", async () => {
+    await updateImportSyncState({
+      leagueId,
+      seasonNumber,
+      importJobId,
+      importProfile: (details.job as any).import_profile ?? (details.job.preview_summary as any)?.importProfile ?? null,
+      importScope: (details.job as any).import_scope ?? (details.job.preview_summary as any)?.importScope ?? null,
+      selectedEndpointKeys,
+      weekNumber
+    });
+    return null;
+  }, null);
 
   // Warn (non-fatally) when imported stat keys did not map to a canonical REC stat, so the
   // canonical definition map can be expanded. Does not block the import.

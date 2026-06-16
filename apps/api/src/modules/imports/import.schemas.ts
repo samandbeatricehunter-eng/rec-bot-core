@@ -4,6 +4,13 @@ export const ImportModeSchema = z.enum(["manual", "ea_import", "companion_app_ex
 
 export const ImportScopeSchema = z.enum(["current_week", "single_week", "full_regular_season_schedule"]);
 
+export const ImportProfileSchema = z.enum([
+  "season_start_schedule",
+  "weekly_competitive",
+  "offseason_roster_sync",
+  "manual_review_only"
+]);
+
 export const CoreImportEndpointSchema = z.enum([
   "league_metadata",
   "teams",
@@ -19,6 +26,7 @@ export const CreateImportJobSchema = z.object({
   requestedByDiscordId: z.string().min(1).optional(),
   eaExternalLeagueId: z.string().min(1).max(160).optional(),
   eaExternalLeagueName: z.string().min(1).max(160).optional(),
+  importProfile: ImportProfileSchema.optional(),
   importScope: ImportScopeSchema.default("current_week"),
   weekFrom: z.number().int().min(1).max(30).optional(),
   weekTo: z.number().int().min(1).max(30).optional(),
@@ -32,10 +40,10 @@ export const CreateImportJobSchema = z.object({
 
   if (input.importScope === "full_regular_season_schedule" && input.selectedEndpointKeys.length > 0) {
     // Schedule imports may include Teams so EA team IDs can be resolved to league teams.
-    const allowed = new Set(["weekly_stats", "teams"]);
+    const allowed = new Set(["league_metadata", "teams", "standings", "weekly_stats", "rosters"]);
     const invalidEndpoints = input.selectedEndpointKeys.filter((endpoint) => !allowed.has(endpoint));
     if (invalidEndpoints.length > 0) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["selectedEndpointKeys"], message: "Full regular season schedule imports may only use the teams and weekly stats endpoints." });
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["selectedEndpointKeys"], message: "Full regular season schedule imports may only use core season-start endpoints." });
     }
   }
 
@@ -77,5 +85,7 @@ export const UpdateImportJobStatusSchema = z.object({
 });
 
 export type CreateImportJobInput = z.infer<typeof CreateImportJobSchema>;
+export type CoreImportEndpoint = z.infer<typeof CoreImportEndpointSchema>;
+export type ImportProfile = z.infer<typeof ImportProfileSchema>;
 export type UpdateEndpointAttemptInput = z.infer<typeof UpdateEndpointAttemptSchema>;
 export type UpdateImportJobStatusInput = z.infer<typeof UpdateImportJobStatusSchema>;

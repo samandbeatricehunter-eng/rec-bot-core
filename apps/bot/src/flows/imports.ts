@@ -2,6 +2,7 @@ import { ButtonInteraction, EmbedBuilder, Interaction, StringSelectMenuInteracti
 import type { RecImportMode } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import type { RecImportProfile } from "../lib/rec-api.js";
 import { buildPostImportPayloadWithConflictCheck } from "./advance-wizard.js";
 import {
   ALL_ENDPOINTS_KEY,
@@ -29,6 +30,9 @@ export type ImportDraft = {
   weekFrom?: number;
   weekTo?: number;
   selectedWeeks?: number[];
+  importProfile?: RecImportProfile;
+  importProfileReason?: string;
+  fullScheduleAlreadyImported?: boolean;
   endpointKeys?: string[];
   eaFranchiseId?: string;
   eaExternalLeagueId?: string;
@@ -405,14 +409,21 @@ function normalizeSelectedWeeks(draft: ImportDraft) {
   return [...new Set(weeks.map((week) => Number(week)).filter((week) => Number.isFinite(week) && week >= 1))].sort((a, b) => a - b);
 }
 
+function formatImportProfile(profile?: RecImportProfile) {
+  if (!profile) return null;
+  return String(profile).replaceAll("_", " ");
+}
+
 function buildImportDraftSummary(draft: ImportDraft) {
   const endpoints = selectedEndpointKeys(draft);
   const endpointSummary = endpoints.length === CORE_IMPORT_ENDPOINTS.length ? "All core endpoints" : endpoints.join(", ");
   return [
     `Mode: **${String(draft.importMode ?? "").replaceAll("_", " ")}**`,
+    draft.importProfile ? `Profile: **${formatImportProfile(draft.importProfile)}**` : undefined,
     draft.eaExternalLeagueName ? `EA League: **${draft.eaExternalLeagueName}**` : undefined,
     `Weeks: **${selectedWeekSummary(draft)}**`,
     `Endpoints: **${endpointSummary}**`,
+    draft.importProfileReason ? `Plan: ${draft.importProfileReason}` : undefined,
     "",
     "When you continue, REC will create the import job and stage the required endpoints for the selected week."
   ].filter(Boolean).join("\n");
@@ -474,14 +485,31 @@ async function requireCurrentImportJob(interaction: ButtonInteraction | StringSe
 
 export async function startImportMode(interaction: ButtonInteraction, importMode: RecImportMode, options?: { fromAdvanceWizard?: boolean }) {
   await interaction.deferUpdate();
-  const leagueWeek = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
-  const stage = String(leagueWeek?.league?.season_stage ?? leagueWeek?.league?.current_phase ?? "regular_season");
-  const currentWeek = Number(leagueWeek?.league?.current_week) || 1;
-  // Preseason/training camp first advance pulls the full regular-season schedule.
-  // Otherwise the import always targets the league's current week (no manual week selection).
-  const isSeasonStartAdvance = Boolean(options?.fromAdvanceWizard) && stage === "preseason_training_camp";
-  const endpointKeys = isSeasonStartAdvance
-    ? ["teams", "weekly_stats"]
+  const requestedProfile: RecImportProfile | null = options?.fromAdvanceWizard ? "season_start_schedule" : null;
+  let resolved: any = null;
+  try {
+    resolved = interaction.guildId
+      ? await recApi.resolveImportProfile({ guildId: interaction.guildId, requestedProfile })
+      : null;
+  } catch (error) {
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Failed to Prepare Import").setDescription(extractApiErrorMessage(error))],
+      components: buildImportPanelRows()
+    });
+    return;
+  }
+  const importProfile = resolved?.importProfile;
+  if (importProfile?.profile === "manual_review_only") {
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Import Needs Review").setDescription(importProfile.reason ?? "REC does not have a safe import profile for this league stage.")],
+      components: buildImportPanelRows()
+    });
+    return;
+  }
+
+  const currentWeek = Number(importProfile?.weekFrom ?? 1) || 1;
+  const endpointKeys = Array.isArray(importProfile?.selectedEndpointKeys) && importProfile.selectedEndpointKeys.length
+    ? importProfile.selectedEndpointKeys
     : CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
 
   const existing = importSessions.get(interaction.user.id) ?? {};
@@ -491,10 +519,13 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
     ...existing,
     importMode,
     pendingStartMode: importMode,
-    weekScope: isSeasonStartAdvance ? "full_regular_season_schedule" : "single_week",
-    weekFrom: isSeasonStartAdvance ? 1 : currentWeek,
-    weekTo: isSeasonStartAdvance ? 18 : currentWeek,
-    selectedWeeks: isSeasonStartAdvance ? Array.from({ length: 18 }, (_, index) => index + 1) : [currentWeek],
+    importProfile: importProfile?.profile,
+    importProfileReason: importProfile?.reason,
+    fullScheduleAlreadyImported: importProfile?.fullScheduleAlreadyImported,
+    weekScope: importProfile?.importScope ?? "single_week",
+    weekFrom: importProfile?.weekFrom ?? currentWeek,
+    weekTo: importProfile?.weekTo ?? currentWeek,
+    selectedWeeks: importProfile?.selectedWeeks ?? [currentWeek],
     endpointKeys,
     eaConsole
   });
@@ -648,6 +679,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
           requestedByDiscordId: interaction.user.id,
           eaExternalLeagueId: draft.eaExternalLeagueId,
           eaExternalLeagueName: draft.eaExternalLeagueName,
+          importProfile: draft.importProfile,
           importScope: isFullSchedule ? "full_regular_season_schedule" : "single_week",
           weekFrom: selectedWeeks[0],
           weekTo: selectedWeeks[selectedWeeks.length - 1],

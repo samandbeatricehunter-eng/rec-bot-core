@@ -4,10 +4,11 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import {
   CreateImportJobSchema,
+  ImportProfileSchema,
   UpdateEndpointAttemptSchema,
   UpdateImportJobStatusSchema
 } from "./import.schemas.js";
-import { cancelActiveImportForGuild, createImportJob, getActiveImportJobForGuild } from "./import-locked.service.js";
+import { cancelActiveImportForGuild, createImportJob, getActiveImportJobForGuild, resolveImportProfileForGuild } from "./import-locked.service.js";
 import { executeImportEndpoint, executeImportJob } from "./import-executor.service.js";
 import {
   approveImportPreview,
@@ -31,6 +32,10 @@ import { listImportRawFieldDictionary } from "./raw-field-dictionary.service.js"
 import { getImportFieldMap, getStatDefinitionsCatalog, getUnmappedStatKeys } from "./stat-definitions.service.js";
 
 const ImportJobIdBodySchema = z.object({ importJobId: z.string().uuid() });
+const ResolveImportProfileBodySchema = z.object({
+  guildId: z.string().min(1),
+  requestedProfile: ImportProfileSchema.optional().nullable()
+});
 const StageImportEndpointBodySchema = z.object({
   importJobId: z.string().uuid(),
   endpointKey: z.string().min(1)
@@ -52,6 +57,15 @@ export async function importRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await createImportJob(CreateImportJobSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/imports/profile/resolve", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await resolveImportProfileForGuild(ResolveImportProfileBodySchema.parse(request.body)));
     } catch (error) {
       return sendError(reply, error);
     }
