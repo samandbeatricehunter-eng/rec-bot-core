@@ -25,6 +25,7 @@ export const IMPORT_CUSTOM_IDS = {
   history: "rec:imports:history",
   resumePending: "rec:imports:resume_pending",
   cancelPendingStartNew: "rec:imports:cancel_pending_start_new",
+  back: "rec:imports:back",
   weekScope: "rec:imports:week_scope",
   weekSelect: "rec:imports:week_select",
   endpoints: "rec:imports:endpoints",
@@ -130,4 +131,12 @@ export function buildEndpointSelectRow() { const allOption = new StringSelectMen
 export function buildImportJobCreatedRows() { return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.previewJob).setLabel("Preview Import").setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)), ...buildImportFlowNavigationRows()]; }
 export function buildImportPreviewRows(hasMissingResults = false) { return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.executeJob).setLabel("Commit Import").setStyle(ButtonStyle.Success).setDisabled(hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.refreshMissingResults).setLabel("Resolve Missing Results").setStyle(ButtonStyle.Primary).setDisabled(!hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)), ...buildImportFlowNavigationRows()]; }
 export function buildImportExecutedRows(input?: boolean | { hasMissingResults?: boolean; importJobId?: string | null }) { const hasMissingResults = typeof input === "boolean" ? input : Boolean(input?.hasMissingResults); const importJobId = typeof input === "object" ? input.importJobId : null; return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(buildApproveImportCustomId(importJobId)).setLabel("Approve Import").setStyle(ButtonStyle.Success).setDisabled(hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.refreshMissingResults).setLabel("Resolve Missing Results").setStyle(ButtonStyle.Primary).setDisabled(!hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)), ...buildImportFlowNavigationRows()]; }
-export function buildImportFlowNavigationRows() { return [buildNavigationRow({ includeAdminPanel: true })]; }
+export function buildImportFlowNavigationRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("rec:nav:admin_panel").setLabel("Admin Panel").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("rec:nav:main_menu").setLabel("Main Menu").setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}

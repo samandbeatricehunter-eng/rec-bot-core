@@ -1013,7 +1013,7 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
   }
 
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.importData) {
-    await startImportMode(interaction, "ea_import");
+    await startImportMode(interaction, "ea_import", { fromAdvanceWizard: true });
     return;
   }
 
@@ -1734,8 +1734,9 @@ async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButto
     roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  // Persist the starting week/stage chosen during setup (defaults to regular-season week 1).
-  const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek(draft.seasonWeek);
+  // New leagues always begin in Training Camp. The first advance into regular-season Week 1
+  // is the one place where REC imports the full regular-season schedule.
+  const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek("training_camp");
   try {
     await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
   } catch (error) {
@@ -1797,7 +1798,7 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
 
   if (importSessions.has(interaction.user.id)) {
     importSessions.delete(interaction.user.id);
-    return renderImportPanel(interaction);
+    return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   }
 
   await renderMainMenuFromComponent(interaction);

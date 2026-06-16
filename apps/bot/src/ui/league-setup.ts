@@ -201,7 +201,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     step: "league_type",
     leagueType: "regular_rosters",
     importMode: "manual",
-    seasonWeek: "week_1",
+    seasonWeek: "training_camp",
     coinEconomyEnabled: false,
     customPlayersEnabled: false,
     legendsEnabled: false,

@@ -27,6 +27,7 @@ const RESULT_SOURCE = "ea_import";
 
 function asObject(value: unknown): JsonObject { return value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {}; }
 function toNumber(value: unknown, fallback = 0) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
+function toNullableNumber(value: unknown) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : null; }
 function toNullableInt(value: unknown) { const parsed = Number(value); return Number.isFinite(parsed) ? Math.trunc(parsed) : null; }
 function toNullableText(value: unknown) { if (value == null) return null; const text = String(value).trim(); return text.length ? text : null; }
 function teamExternalId(row: any) { const raw = asObject(row.raw_payload); const normalized = asObject(row.normalized); return toNullableText(row.team_external_id ?? row.external_team_id ?? row.madden_team_id ?? normalized.teamId ?? raw.teamId ?? raw.id ?? raw.rosterId); }
@@ -554,43 +555,116 @@ async function upsertGamesAndResults(importJobId: string, leagueId: string, team
 }
 
 async function upsertStandings(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number) {
-  // W-L-T standings themselves are derived during advance, but we DO persist the EA playoff
-  // seed / playoffStatus per team into rec_season_team_seeds. This is the authoritative source for
-  // "did this team make the playoffs" — crucially it captures first-round-bye teams that have no
-  // wild-card game yet, which EOS payouts need so byes aren't flagged "missed playoffs".
+  // Persist both a rich standings snapshot and the existing season seed table. EA standings carries
+  // playoff seeds/status, ranking, record splits, yards/ranks, turnover differential, cap, and OVR.
   const staged = await loadStagedRows("rec_import_staging_standings", importJobId);
   if (!staged.length) return 0;
 
   const now = new Date().toISOString();
-  const rows = (staged as any[]).map((row: any) => {
+  const standingRows: any[] = [];
+  const seedRows: any[] = [];
+
+  for (const row of staged as any[]) {
     const ext = teamExternalId(row);
     const teamId = ext ? teamMap.get(ext) ?? null : null;
-    if (!teamId) return null;
+    if (!teamId) continue;
     const raw = asObject(row.raw_payload);
     const seed = toNullableInt(raw.seed);
     const playoffStatus = toNullableInt(raw.playoffStatus);
     // playoffStatus: 0 = eliminated, 2/3/4 = clinched (wildcard/division/bye). Fall back to seed
     // (per-conference 1..7 = in) when EA omits playoffStatus.
     const madePlayoffs = (playoffStatus != null && playoffStatus !== 0) || (seed != null && seed >= 1 && seed <= 7);
-    return {
+
+    seedRows.push({
       league_id: leagueId,
       season_number: seasonNumber,
       team_id: teamId,
-      conference: toNullableText(row.conference_name),
+      conference: toNullableText(raw.conferenceName),
       seed,
       playoff_status: playoffStatus,
       made_playoffs: madePlayoffs,
       updated_at: now
-    };
-  }).filter(Boolean) as any[];
+    });
 
-  if (!rows.length) return 0;
-  const deduped = dedupeBy(rows, (r) => r.team_id);
-  return await upsertInChunks(
-    "rec_season_team_seeds", deduped,
+    standingRows.push({
+      league_id: leagueId,
+      season_number: toNullableInt(row.season_number) ?? seasonNumber,
+      season_index: toNullableInt(row.season_index ?? raw.seasonIndex),
+      season_stage: row.season_stage ?? "regular_season",
+      week_number: toNullableInt(row.week_number ?? raw.weekIndex),
+      team_id: teamId,
+      madden_team_id: ext,
+      team_name: toNullableText(row.team_name ?? raw.teamName),
+      conference_id: toNullableInt(raw.conferenceId),
+      conference_name: toNullableText(raw.conferenceName),
+      division_id: toNullableInt(raw.divisionId),
+      division_name: toNullableText(raw.divisionName),
+      total_wins: toNullableInt(row.wins ?? raw.totalWins) ?? 0,
+      total_losses: toNullableInt(row.losses ?? raw.totalLosses) ?? 0,
+      total_ties: toNullableInt(row.ties ?? raw.totalTies) ?? 0,
+      home_wins: toNullableInt(raw.homeWins),
+      home_losses: toNullableInt(raw.homeLosses),
+      home_ties: toNullableInt(raw.homeTies),
+      away_wins: toNullableInt(raw.awayWins),
+      away_losses: toNullableInt(raw.awayLosses),
+      away_ties: toNullableInt(raw.awayTies),
+      conference_wins: toNullableInt(raw.confWins),
+      conference_losses: toNullableInt(raw.confLosses),
+      conference_ties: toNullableInt(raw.confTies),
+      division_wins: toNullableInt(raw.divWins),
+      division_losses: toNullableInt(raw.divLosses),
+      division_ties: toNullableInt(raw.divTies),
+      win_pct: toNullableNumber(raw.winPct),
+      win_loss_streak: toNullableInt(raw.winLossStreak),
+      standing_rank: toNullableInt(raw.rank),
+      previous_rank: toNullableInt(raw.prevRank),
+      playoff_seed: seed,
+      playoff_status: playoffStatus,
+      made_playoffs: madePlayoffs,
+      points_for: toNullableInt(row.points_for ?? raw.ptsFor),
+      points_against: toNullableInt(row.points_against ?? raw.ptsAgainst),
+      net_points: toNullableInt(raw.netPts),
+      turnover_differential: toNullableInt(raw.tODiff),
+      team_ovr: toNullableInt(raw.teamOvr),
+      cap_available: toNullableInt(raw.capAvailable),
+      cap_room: toNullableInt(raw.capRoom),
+      cap_spent: toNullableInt(raw.capSpent),
+      offensive_pass_yards: toNullableInt(raw.offPassYds),
+      offensive_rush_yards: toNullableInt(raw.offRushYds),
+      offensive_total_yards: toNullableInt(raw.offTotalYds),
+      defensive_pass_yards: toNullableInt(raw.defPassYds),
+      defensive_rush_yards: toNullableInt(raw.defRushYds),
+      defensive_total_yards: toNullableInt(raw.defTotalYds),
+      points_for_rank: toNullableInt(raw.ptsForRank),
+      points_against_rank: toNullableInt(raw.ptsAgainstRank),
+      offensive_pass_yards_rank: toNullableInt(raw.offPassYdsRank),
+      offensive_rush_yards_rank: toNullableInt(raw.offRushYdsRank),
+      offensive_total_yards_rank: toNullableInt(raw.offTotalYdsRank),
+      defensive_pass_yards_rank: toNullableInt(raw.defPassYdsRank),
+      defensive_rush_yards_rank: toNullableInt(raw.defRushYdsRank),
+      defensive_total_yards_rank: toNullableInt(raw.defTotalYdsRank),
+      raw_payload: raw,
+      updated_at: now
+    });
+  }
+
+  if (!standingRows.length) return 0;
+  const dedupedStandings = dedupeBy(standingRows, (r) => `${r.season_number}|${r.season_stage}|${r.team_id}`);
+  const standingsCount = await upsertInChunks(
+    "rec_team_standings_snapshots",
+    dedupedStandings,
+    "league_id,season_number,season_stage,team_id",
+    "Failed to upsert team standings snapshots."
+  );
+
+  const dedupedSeeds = dedupeBy(seedRows, (r) => r.team_id);
+  await upsertInChunks(
+    "rec_season_team_seeds",
+    dedupedSeeds,
     "league_id,season_number,team_id",
     "Failed to upsert season team seeds."
   );
+  return standingsCount;
 }
 
 async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map<string, string>, _seasonNumber: number, _weekNumber: number) {

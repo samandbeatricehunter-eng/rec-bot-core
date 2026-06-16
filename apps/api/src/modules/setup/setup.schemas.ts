@@ -31,7 +31,7 @@ export const CreateLeagueSchema = z.object({
   importMode: z.enum(["manual", "ea_import", "companion_app_export"]).default("manual"),
 
   seasonNumber: z.number().int().min(1).default(1),
-  seasonStage: SeasonStageSchema.default("regular_season"),
+  seasonStage: SeasonStageSchema.default("preseason_training_camp"),
   currentWeek: z.number().int().min(1).max(30).default(1),
 
   currentPhase: z.enum([

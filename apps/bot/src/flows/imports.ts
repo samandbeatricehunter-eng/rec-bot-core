@@ -23,6 +23,8 @@ import {
 export type ImportDraft = {
   importMode?: RecImportMode;
   importJobId?: string;
+  view?: ImportView;
+  previousView?: ImportView;
   weekScope?: "current_week" | "single_week" | "full_regular_season_schedule";
   weekFrom?: number;
   weekTo?: number;
@@ -38,6 +40,18 @@ export type ImportDraft = {
 };
 
 export const importSessions = new Map<string, ImportDraft>();
+
+type ImportView = "home" | "connect" | "franchise_select" | "configure" | "history" | "preview";
+
+function updateImportView(userId: string, view: ImportView, patch: Partial<ImportDraft> = {}) {
+  const current = importSessions.get(userId) ?? {};
+  importSessions.set(userId, {
+    ...current,
+    ...patch,
+    previousView: patch.previousView ?? (current.view && current.view !== view ? current.view : current.previousView),
+    view
+  });
+}
 
 const EXPERIMENTAL_FEED_ENDPOINTS = new Set<string>();
 
@@ -405,6 +419,7 @@ function buildImportDraftSummary(draft: ImportDraft) {
 }
 
 async function renderImportHome(interaction: ButtonInteraction | StringSelectMenuInteraction) {
+  updateImportView(interaction.user.id, "home");
   const active = await recApi.getActiveImport(interaction.guildId!);
   const history = await recApi.getImportHistory(interaction.guildId!);
   const activeJob = active?.job;
@@ -431,8 +446,7 @@ async function discoverAndRenderFranchises(interaction: ButtonInteraction | Stri
   const result = await recApi.discoverEaFranchises({ discordId: interaction.user.id, console: draft.eaConsole ?? "pc" });
   const franchises = result.franchises ?? [];
 
-  importSessions.set(interaction.user.id, {
-    ...draft,
+  updateImportView(interaction.user.id, "franchise_select", {
     franchises,
     eaLoginUrl: result.loginUrl ?? draft.eaLoginUrl
   });
@@ -458,29 +472,29 @@ async function requireCurrentImportJob(interaction: ButtonInteraction | StringSe
   return null;
 }
 
-export async function startImportMode(interaction: ButtonInteraction, importMode: RecImportMode) {
+export async function startImportMode(interaction: ButtonInteraction, importMode: RecImportMode, options?: { fromAdvanceWizard?: boolean }) {
   await interaction.deferUpdate();
   const leagueWeek = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
   const stage = String(leagueWeek?.league?.season_stage ?? leagueWeek?.league?.current_phase ?? "regular_season");
   const currentWeek = Number(leagueWeek?.league?.current_week) || 1;
   // Preseason/training camp first advance pulls the full regular-season schedule.
   // Otherwise the import always targets the league's current week (no manual week selection).
-  const isPreseason = stage === "preseason_training_camp";
-  const endpointKeys = isPreseason
+  const isSeasonStartAdvance = Boolean(options?.fromAdvanceWizard) && stage === "preseason_training_camp";
+  const endpointKeys = isSeasonStartAdvance
     ? ["teams", "weekly_stats"]
     : CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
 
   const existing = importSessions.get(interaction.user.id) ?? {};
   const eaConsole = existing.eaConsole ?? "pc";
 
-  importSessions.set(interaction.user.id, {
+  updateImportView(interaction.user.id, "connect", {
     ...existing,
     importMode,
     pendingStartMode: importMode,
-    weekScope: isPreseason ? "full_regular_season_schedule" : "single_week",
-    weekFrom: isPreseason ? 1 : currentWeek,
-    weekTo: isPreseason ? 18 : currentWeek,
-    selectedWeeks: isPreseason ? Array.from({ length: 18 }, (_, index) => index + 1) : [currentWeek],
+    weekScope: isSeasonStartAdvance ? "full_regular_season_schedule" : "single_week",
+    weekFrom: isSeasonStartAdvance ? 1 : currentWeek,
+    weekTo: isSeasonStartAdvance ? 18 : currentWeek,
+    selectedWeeks: isSeasonStartAdvance ? Array.from({ length: 18 }, (_, index) => index + 1) : [currentWeek],
     endpointKeys,
     eaConsole
   });
@@ -510,6 +524,44 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
   });
 }
 
+async function renderPreviousImportView(interaction: ButtonInteraction) {
+  const draft = importSessions.get(interaction.user.id);
+  const target = draft?.previousView ?? "home";
+  await interaction.deferUpdate();
+
+  if (target === "franchise_select" && draft?.franchises?.length) {
+    updateImportView(interaction.user.id, "franchise_select", { previousView: "connect" });
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Select EA Franchise").setDescription(buildFranchiseDiscoveryDescription({ franchises: draft.franchises }))],
+      components: [buildFranchiseSelectRow(draft.franchises), ...buildImportFlowNavigationRows()]
+    });
+    return;
+  }
+
+  if (target === "connect") {
+    const eaConsole = draft?.eaConsole ?? "pc";
+    const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: eaConsole }).catch(() => null);
+    updateImportView(interaction.user.id, "connect", { previousView: "home" });
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Connect EA Account").setDescription(status?.loginUrl ? buildEaConnectDescription(status) : "Connect your EA account to continue.")],
+      components: buildEaConnectRows(status?.loginUrl, eaConsole)
+    });
+    return;
+  }
+
+  if (target === "configure" && draft?.eaExternalLeagueId) {
+    updateImportView(interaction.user.id, "configure", { previousView: "franchise_select" });
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(draft))],
+      components: [...buildImportJobCreatedRows()]
+    });
+    return;
+  }
+
+  importSessions.delete(interaction.user.id);
+  await renderImportHome(interaction);
+}
+
 function isImportControl(interaction: Interaction) {
   return interaction.isButton() && Object.values(IMPORT_CUSTOM_IDS).some((id) => interaction.customId === id || interaction.customId.startsWith(id));
 }
@@ -524,6 +576,11 @@ export async function handleImportButton(interaction: ButtonInteraction) {
 
   if (!isDiscordAdminInteraction(interaction)) {
     await interaction.reply({ content: "Only server admins can use import controls.", ephemeral: true });
+    return;
+  }
+
+  if (interaction.customId === IMPORT_CUSTOM_IDS.back) {
+    await renderPreviousImportView(interaction);
     return;
   }
 
@@ -544,6 +601,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.history) {
     await interaction.deferUpdate();
+    updateImportView(interaction.user.id, "history");
     const historyData = await recApi.getImportHistory(interaction.guildId);
     const jobs = historyData?.jobs ?? [];
     const lines = jobs.length
@@ -551,7 +609,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       : ["No import history found."];
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Import History").setDescription(lines.join("\n"))],
-      components: buildImportPanelRows()
+      components: buildImportFlowNavigationRows()
     });
     return;
   }
@@ -597,7 +655,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
           selectedEndpointKeys: selectedEndpointKeys(draft)
         });
         importJobId = job.job.id;
-        importSessions.set(interaction.user.id, { ...draft, importJobId });
+        importSessions.set(interaction.user.id, { ...draft, importJobId, view: "preview", previousView: "configure" });
       } catch (error) {
         await interaction.editReply({
           embeds: [new EmbedBuilder().setTitle("Failed to Create Import Job").setDescription(extractApiErrorMessage(error))],
@@ -697,6 +755,7 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       components: []
     });
 
+    updateImportView(interaction.user.id, "preview", { importJobId, previousView: "configure" });
     const preview = await recApi.previewImportJob(importJobId!);
     await interaction.editReply({ embeds: buildPreviewEmbeds(preview), components: buildImportPreviewRows(previewHasMissingResults(preview)) });
     return;
@@ -884,8 +943,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
       selectedByDiscordId: interaction.user.id
     });
 
-    importSessions.set(interaction.user.id, {
-      ...draft,
+    updateImportView(interaction.user.id, "configure", {
       eaFranchiseId: selected.id,
       eaExternalLeagueId: String(selected.external_league_id),
       eaExternalLeagueName: selected.league_name ?? selected.leagueName ?? "Madden Franchise"
@@ -915,7 +973,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
   if (interaction.customId === IMPORT_CUSTOM_IDS.eaConsoleSelect) {
     const draft = importSessions.get(interaction.user.id) ?? {};
     const eaConsole = interaction.values[0] as ImportDraft["eaConsole"];
-    importSessions.set(interaction.user.id, { ...draft, eaConsole });
+    updateImportView(interaction.user.id, "connect", { ...draft, eaConsole });
     await interaction.deferUpdate();
     // Re-fetch status for the chosen platform so the login URL is fresh, then re-render the connect panel.
     const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: eaConsole }).catch(() => null);
@@ -995,7 +1053,7 @@ export async function handleEaConnectCodeSubmit(interaction: any) {
 
   try {
     const result = await recApi.connectEaAccount({ discordId: interaction.user.id, code, console: draft.eaConsole ?? "pc" });
-    importSessions.set(interaction.user.id, { ...draft, eaLoginUrl: result.loginUrl });
+    updateImportView(interaction.user.id, "connect", { ...draft, eaLoginUrl: result.loginUrl });
     await discoverAndRenderFranchises(interaction);
   } catch (error) {
     const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: draft.eaConsole ?? "pc" }).catch(() => null);
