@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import {
   fetchEaAllWeekSchedules,
+  fetchEaLeagueFeed,
   fetchEaLeagueTeams,
   fetchEaLeagueTeamsAndRosters,
   fetchEaStandings,
@@ -15,6 +17,7 @@ import {
 import { getImportJob, updateEndpointAttempt, updateImportJobStatus } from "./import.service.js";
 import {
   stageGames,
+  stageLeagueFeed,
   stagePlayerStats,
   stageRosters,
   stageStandings,
@@ -62,7 +65,7 @@ type ExecutorContext = {
 
 type EndpointExecutor = (context: ExecutorContext) => Promise<ImportEndpointExecutionResult & { session?: EaBlazeSession }>;
 
-const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "player_stats", "team_stats"];
+const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "player_stats", "team_stats", "news", "transactions", "injuries"];
 
 const IMPORT_PROGRESS_ENDPOINTS = [
   "league_metadata",
@@ -71,7 +74,10 @@ const IMPORT_PROGRESS_ENDPOINTS = [
   "schedule",
   "rosters",
   "team_stats",
-  "player_stats"
+  "player_stats",
+  "news",
+  "transactions",
+  "injuries"
 ] as const;
 
 const POS_NUM: Record<number, string> = {
@@ -120,6 +126,21 @@ function getBool(obj: Record<string, unknown>, ...keys: string[]) {
     if (typeof value === "string") return ["true", "1", "yes"].includes(value.toLowerCase());
   }
   return false;
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, val]) => `${JSON.stringify(key)}:${stableJson(val)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function hashPayload(value: unknown) {
+  return createHash("sha256").update(stableJson(value)).digest("hex");
 }
 
 function getPosition(row: Record<string, unknown>) {
@@ -283,6 +304,76 @@ function extractRosterPlayerRows(payload: unknown, context: ExecutorContext, tea
   });
 }
 
+function feedEventType(endpointKey: string, row: Record<string, unknown>) {
+  if (endpointKey === "news") return "league_news";
+  if (endpointKey === "injuries") return "injury_update";
+
+  const rawType = getStr(row, "transactionType", "type", "eventType", "newsType", "category").toLowerCase();
+  if (rawType.includes("sign")) return "player_signed";
+  if (rawType.includes("release") || rawType.includes("cut")) return "player_released";
+  if (rawType.includes("trade")) return "player_traded";
+  if (rawType.includes("position")) return "position_change";
+  if (rawType.includes("injur")) return "injury_update";
+  if (rawType.includes("ability") || rawType.includes("xfactor") || rawType.includes("superstar")) return "ability_update";
+  return endpointKey === "transactions" ? "transaction" : endpointKey;
+}
+
+function extractLeagueFeedRows(payload: unknown, context: ExecutorContext, endpointKey: "news" | "transactions" | "injuries") {
+  const candidateKeys = endpointKey === "news"
+    ? ["newsItemList", "newsItems", "news", "leagueNews", "items"]
+    : endpointKey === "transactions"
+      ? ["transactionList", "transactions", "transactionInfoList", "items"]
+      : ["injuryList", "injuries", "playerInjuryInfoList", "items"];
+  const rows = extractArray(payload, candidateKeys) as Record<string, unknown>[];
+  const { seasonIndex, seasonNumber } = getSeasonNumber(context, payload, rows);
+  const guildId = toStringOrNull(context.job.server?.guild_id ?? context.job.guild_id);
+
+  return rows.map((row, index) => {
+    const eventType = feedEventType(endpointKey, row);
+    const externalEventId = toStringOrNull(row.newsId ?? row.id ?? row.newsItemId ?? row.transactionId ?? row.eventId ?? row.injuryId);
+    const playerId = getN(row, "rosterId", "playerId", "playerExternalId");
+    const teamId = getN(row, "teamId", "teamExternalId");
+    const fromTeamId = getN(row, "fromTeamId", "oldTeamId");
+    const toTeamId = getN(row, "toTeamId", "newTeamId");
+    const title = getStr(row, "headline", "title", "newsHeadline", "header", "summary", "description")
+      || `${endpointLabel(endpointKey)} ${index + 1}`;
+    const body = getStr(row, "body", "newsBody", "content", "details", "message");
+    const occurredAt = toStringOrNull(row.createdAt ?? row.occurredAt ?? row.timestamp ?? row.date);
+    const sourceHash = externalEventId
+      ? hashPayload({ endpointKey, externalEventId })
+      : hashPayload({ endpointKey, title, body, row });
+
+    return {
+      importJobId: context.importJobId,
+      leagueId: context.job.league_id,
+      guildId,
+      eaLeagueId: context.eaLeagueId,
+      seasonNumber,
+      seasonIndex,
+      seasonStage: "regular_season",
+      weekNumber: toNumber(row.week ?? row.weekIndex ?? row.stageWeek ?? context.weekFrom, context.weekFrom),
+      endpointKey,
+      eventType,
+      eventCategory: toStringOrNull(row.newsType ?? row.category ?? row.type ?? row.transactionType),
+      externalEventId,
+      title,
+      body: body || null,
+      playerExternalId: playerId ? String(playerId) : toStringOrNull(row.playerExternalId),
+      playerName: getStr(row, "playerName", "name", "fullName") || null,
+      teamExternalId: teamId ? String(teamId) : toStringOrNull(row.teamExternalId),
+      teamName: getStr(row, "teamName", "team", "displayName") || null,
+      fromTeamExternalId: fromTeamId ? String(fromTeamId) : toStringOrNull(row.fromTeamExternalId),
+      fromTeamName: getStr(row, "fromTeam", "fromTeamName", "oldTeamName") || null,
+      toTeamExternalId: toTeamId ? String(toTeamId) : toStringOrNull(row.toTeamExternalId),
+      toTeamName: getStr(row, "toTeam", "toTeamName", "newTeamName") || null,
+      occurredAt,
+      sourceHash,
+      normalized: { endpointKey, eventType, externalEventId },
+      rawPayload: row
+    };
+  });
+}
+
 const EXECUTORS: Record<string, EndpointExecutor> = {
   league_metadata: async (context) => ({ endpointKey: context.endpointKey, endpointLabel: context.endpointLabel, status: "success", recordsFound: 1, responseSummary: { eaLeagueId: context.eaLeagueId, importScope: context.job.import_scope, weekFrom: context.weekFrom, weekTo: context.weekTo, weeks: context.weeks } }),
   teams: async (context) => {
@@ -357,7 +448,28 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
     const staged = await stageRosters(rows);
     return { endpointKey: context.endpointKey, endpointLabel: context.endpointLabel, status: "success", recordsFound: staged.count, responseSummary: { teamRosterPayloads: result.payloads.teamRosters.length, stagingWrites: staged.count }, session: result.session };
   },
-  players: async (context) => EXECUTORS.rosters(context)
+  players: async (context) => EXECUTORS.rosters(context),
+  news: async (context) => {
+    const result = await fetchEaLeagueFeed({ token: context.token, eaLeagueId: context.eaLeagueId, endpointKey: "news", session: context.session });
+    await captureRawPayload({ context, careerModeGet: "CareerMode_GetNews", payloadGroup: "league_news", payload: result.data });
+    const rows = extractLeagueFeedRows(result.data, context, "news");
+    const staged = await stageLeagueFeed(rows);
+    return { endpointKey: context.endpointKey, endpointLabel: context.endpointLabel, status: "success", recordsFound: staged.count, responseSummary: { payload: summarizePayload(result.data), stagingWrites: staged.count }, session: result.session };
+  },
+  transactions: async (context) => {
+    const result = await fetchEaLeagueFeed({ token: context.token, eaLeagueId: context.eaLeagueId, endpointKey: "transactions", session: context.session });
+    await captureRawPayload({ context, careerModeGet: "CareerMode_GetTransactions", payloadGroup: "transactions", payload: result.data });
+    const rows = extractLeagueFeedRows(result.data, context, "transactions");
+    const staged = await stageLeagueFeed(rows);
+    return { endpointKey: context.endpointKey, endpointLabel: context.endpointLabel, status: "success", recordsFound: staged.count, responseSummary: { payload: summarizePayload(result.data), stagingWrites: staged.count }, session: result.session };
+  },
+  injuries: async (context) => {
+    const result = await fetchEaLeagueFeed({ token: context.token, eaLeagueId: context.eaLeagueId, endpointKey: "injuries", session: context.session });
+    await captureRawPayload({ context, careerModeGet: "CareerMode_GetInjuries", payloadGroup: "injuries", payload: result.data });
+    const rows = extractLeagueFeedRows(result.data, context, "injuries");
+    const staged = await stageLeagueFeed(rows);
+    return { endpointKey: context.endpointKey, endpointLabel: context.endpointLabel, status: "success", recordsFound: staged.count, responseSummary: { payload: summarizePayload(result.data), stagingWrites: staged.count }, session: result.session };
+  }
 };
 
 export function getDefaultImportEndpointKeys() { return [...IMPORT_PROGRESS_ENDPOINTS]; }

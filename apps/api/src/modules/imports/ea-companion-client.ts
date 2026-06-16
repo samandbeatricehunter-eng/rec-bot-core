@@ -117,7 +117,10 @@ const EXPORT_ENDPOINTS = {
   schedules: "CareerMode_GetWeeklySchedulesExport",
   leagueTeams: "CareerMode_GetLeagueTeamsExport",
   standings: "CareerMode_GetStandingsExport",
-  teamRoster: "CareerMode_GetTeamRostersExport"
+  teamRoster: "CareerMode_GetTeamRostersExport",
+  news: "CareerMode_GetNewsExport",
+  transactions: "CareerMode_GetTransactionsExport",
+  injuries: "CareerMode_GetInjuriesExport"
 } as const;
 
 const dispatcher = new Agent({
@@ -664,6 +667,20 @@ export async function fetchEaStandings(input: {
   const validToken = input.session ? input.token : await refreshCompanionToken(input.token);
   const validSession = input.session ?? await retrieveBlazeSession(validToken);
   const data = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS.standings, {
+    leagueId: input.eaLeagueId
+  });
+  return { token: validToken, session: validSession, data };
+}
+
+export async function fetchEaLeagueFeed(input: {
+  token: EaCompanionToken;
+  eaLeagueId: number;
+  endpointKey: "news" | "transactions" | "injuries";
+  session?: EaBlazeSession;
+}) {
+  const validToken = input.session ? input.token : await refreshCompanionToken(input.token);
+  const validSession = input.session ?? await retrieveBlazeSession(validToken);
+  const data = await fetchEaExportData(validToken, validSession, EXPORT_ENDPOINTS[input.endpointKey], {
     leagueId: input.eaLeagueId
   });
   return { token: validToken, session: validSession, data };

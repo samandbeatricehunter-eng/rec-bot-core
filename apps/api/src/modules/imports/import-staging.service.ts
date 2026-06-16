@@ -120,6 +120,35 @@ export type StagedPlayerStatInput = {
   rawPayload?: JsonObject;
 };
 
+export type StagedLeagueFeedInput = {
+  importJobId: string;
+  leagueId: string;
+  guildId?: string | null;
+  eaLeagueId?: number | null;
+  seasonNumber?: number | null;
+  seasonIndex?: number | null;
+  seasonStage?: string | null;
+  weekNumber?: number | null;
+  endpointKey: string;
+  eventType: string;
+  eventCategory?: string | null;
+  externalEventId?: string | null;
+  title?: string | null;
+  body?: string | null;
+  playerExternalId?: string | null;
+  playerName?: string | null;
+  teamExternalId?: string | null;
+  teamName?: string | null;
+  fromTeamExternalId?: string | null;
+  fromTeamName?: string | null;
+  toTeamExternalId?: string | null;
+  toTeamName?: string | null;
+  occurredAt?: string | null;
+  sourceHash: string;
+  normalized?: JsonObject;
+  rawPayload?: JsonObject;
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -386,4 +415,59 @@ export async function stagePlayerStats(playerStats: StagedPlayerStatInput[]) {
   }
 
   return { count: rows.length, rows };
+}
+
+export async function stageLeagueFeed(feedItems: StagedLeagueFeedInput[]) {
+  if (feedItems.length === 0) return { count: 0, rows: [] };
+
+  const mapped = feedItems.map((item) => ({
+    import_job_id: item.importJobId,
+    league_id: item.leagueId,
+    guild_id: item.guildId ?? null,
+    ea_league_id: item.eaLeagueId ?? null,
+    season_number: item.seasonNumber ?? null,
+    season_index: item.seasonIndex ?? null,
+    season_stage: item.seasonStage ?? null,
+    week_number: item.weekNumber ?? null,
+    endpoint_key: item.endpointKey,
+    event_type: item.eventType,
+    event_category: item.eventCategory ?? null,
+    external_event_id: item.externalEventId ?? null,
+    title: item.title ?? null,
+    body: item.body ?? null,
+    player_external_id: item.playerExternalId ?? null,
+    player_name: item.playerName ?? null,
+    team_external_id: item.teamExternalId ?? null,
+    team_name: item.teamName ?? null,
+    from_team_external_id: item.fromTeamExternalId ?? null,
+    from_team_name: item.fromTeamName ?? null,
+    to_team_external_id: item.toTeamExternalId ?? null,
+    to_team_name: item.toTeamName ?? null,
+    occurred_at: item.occurredAt ?? null,
+    source_hash: item.sourceHash,
+    normalized: item.normalized ?? {},
+    raw_payload: item.rawPayload ?? {},
+    updated_at: nowIso()
+  }));
+
+  const deduped = dedupeBy(mapped, (row) => [row.import_job_id, row.endpoint_key, row.source_hash].join("|"));
+  let count = 0;
+  for (const chunk of chunks(deduped, 500)) {
+    const result = await supabase
+      .from("rec_import_staging_league_feed")
+      .upsert(chunk, { onConflict: "import_job_id,endpoint_key,source_hash" })
+      .select("id");
+
+    if (result.error) {
+      throw new ApiError(500, "Failed to stage imported league feed items.", {
+        ...result.error,
+        attemptedRows: feedItems.length,
+        dedupedRows: deduped.length,
+        chunkRows: chunk.length
+      });
+    }
+    count += result.data?.length ?? 0;
+  }
+
+  return { count, rows: [] };
 }

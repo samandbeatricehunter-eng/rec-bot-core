@@ -793,6 +793,214 @@ async function upsertWeeklyStats(importJobId: string, leagueId: string, teamMap:
   return { playerCount, teamCount, unmappedStatKeys };
 }
 
+async function commitLeagueFeedEvents(importJobId: string, leagueId: string, teamMap: Map<string, string>) {
+  const staged = await loadStagedRows("rec_import_staging_league_feed", importJobId);
+  if (!staged.length) return { feedEvents: 0 };
+
+  const guildId = await loadGuildIdForLeague(leagueId);
+  if (!guildId) return { feedEvents: 0, warning: "No guild_id found for league feed events." };
+
+  const playerExternalIds = [...new Set(staged.map((row: any) => row.player_external_id).filter(Boolean).map(String))];
+  const playersByExternal = new Map<string, string>();
+  if (playerExternalIds.length) {
+    const rows = await loadExistingByColumn("rec_players", "id,madden_player_id", leagueId, "madden_player_id", playerExternalIds, "Failed to load players for feed event linking.");
+    for (const row of rows) {
+      if ((row as any).madden_player_id) playersByExternal.set(String((row as any).madden_player_id), String((row as any).id));
+    }
+  }
+
+  const events = staged.map((row: any, index: number) => {
+    const teamId = row.team_external_id ? teamMap.get(String(row.team_external_id)) ?? null : null;
+    const fromTeamId = row.from_team_external_id ? teamMap.get(String(row.from_team_external_id)) ?? null : null;
+    const toTeamId = row.to_team_external_id ? teamMap.get(String(row.to_team_external_id)) ?? null : null;
+    const title = toNullableText(row.title) ?? `${String(row.event_type ?? "League event").replaceAll("_", " ")} ${index + 1}`;
+    const eventHash = row.external_event_id
+      ? `${row.endpoint_key}:${row.external_event_id}`
+      : `${row.endpoint_key}:${row.source_hash}`;
+
+    return {
+      guild_id: guildId,
+      league_id: leagueId,
+      import_job_id: importJobId,
+      season_number: row.season_number,
+      season_index: row.season_index,
+      season_stage: row.season_stage,
+      week_number: row.week_number,
+      source: "ea_import",
+      source_endpoint: row.endpoint_key,
+      event_type: row.event_type,
+      event_category: row.event_category,
+      external_event_id: row.external_event_id,
+      event_hash: eventHash,
+      title,
+      body: row.body,
+      player_id: row.player_external_id ? playersByExternal.get(String(row.player_external_id)) ?? null : null,
+      player_external_id: row.player_external_id,
+      player_name: row.player_name,
+      team_id: teamId,
+      team_external_id: row.team_external_id,
+      team_name: row.team_name,
+      from_team_id: fromTeamId,
+      from_team_external_id: row.from_team_external_id,
+      from_team_name: row.from_team_name,
+      to_team_id: toTeamId,
+      to_team_external_id: row.to_team_external_id,
+      to_team_name: row.to_team_name,
+      payload: row.raw_payload ?? {},
+      occurred_at: row.occurred_at,
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  const count = await upsertInChunks(
+    "rec_league_event_logs",
+    dedupeBy(events, (row) => row.event_hash),
+    "league_id,event_hash",
+    "Failed to upsert league feed events."
+  );
+  return { feedEvents: count };
+}
+
+async function commitRosterDiffEvents(importJobId: string, leagueId: string, seasonNumber: number, weekNumber: number | null) {
+  const staged = await loadStagedRows("rec_import_staging_rosters", importJobId);
+  if (!staged.length) return { rosterDiffEvents: 0 };
+
+  const guildId = await loadGuildIdForLeague(leagueId);
+  if (!guildId) return { rosterDiffEvents: 0, warning: "No guild_id found for roster diff events." };
+
+  const incoming = staged.map((row: any) => {
+    const raw = asObject(row.raw_payload);
+    const maddenPlayerId = toNullableText(row.player_external_id ?? row.external_player_id ?? raw.rosterId ?? raw.playerId);
+    const firstName = toNullableText(row.first_name ?? raw.firstName);
+    const lastName = toNullableText(row.last_name ?? raw.lastName);
+    const fullName = toNullableText(row.player_name ?? row.player_display_name) ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
+    const devTrait = toNullableText(raw.devTrait ?? raw.devtrait ?? raw.developmentTrait);
+    const overallRating = toNullableInt(raw.overallRating ?? raw.overall ?? raw.playerBestOvr ?? raw.playerSchemeOvr ?? raw.ovrRating);
+    const abilityCount = Array.isArray(raw.signatureSlotList)
+      ? raw.signatureSlotList.filter((s: any) => s && s.isEmpty === false).length
+      : null;
+    return {
+      maddenPlayerId,
+      fullName,
+      position: toNullableText(row.position ?? raw.position),
+      devTrait,
+      overallRating,
+      abilityCount,
+      raw
+    };
+  }).filter((row) => row.maddenPlayerId && row.fullName);
+
+  const deduped = dedupeBy(incoming, (row) => String(row.maddenPlayerId));
+  const ids = deduped.map((row) => String(row.maddenPlayerId));
+  if (!ids.length) return { rosterDiffEvents: 0 };
+
+  const existing = await loadExistingByColumn(
+    "rec_players",
+    "id,madden_player_id,full_name,position,dev_trait,overall_rating,ability_count",
+    leagueId,
+    "madden_player_id",
+    ids,
+    "Failed to load players for roster diff events."
+  );
+  const existingByMaddenId = new Map(existing.map((row: any) => [String(row.madden_player_id), row]));
+  const events: any[] = [];
+
+  const addEvent = (row: typeof deduped[number], previous: any, eventType: string, label: string, fromValue: unknown, toValue: unknown) => {
+    if (fromValue == null || toValue == null || String(fromValue) === String(toValue)) return;
+    const playerName = row.fullName ?? previous.full_name ?? `Player ${row.maddenPlayerId}`;
+    events.push({
+      guild_id: guildId,
+      league_id: leagueId,
+      import_job_id: importJobId,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      source: "roster_diff",
+      source_endpoint: "rosters",
+      event_type: eventType,
+      event_category: label,
+      external_event_id: null,
+      event_hash: `roster_diff:${row.maddenPlayerId}:${label}:${fromValue}:${toValue}:s${seasonNumber}:w${weekNumber ?? "na"}`,
+      title: `${playerName} ${label.replaceAll("_", " ")}`,
+      body: `${playerName}: ${String(fromValue)} -> ${String(toValue)}`,
+      player_id: previous.id,
+      player_external_id: row.maddenPlayerId,
+      player_name: playerName,
+      payload: { fromValue, toValue, raw: row.raw },
+      updated_at: new Date().toISOString()
+    });
+  };
+
+  for (const row of deduped) {
+    const previous = existingByMaddenId.get(String(row.maddenPlayerId));
+    if (!previous) continue;
+    addEvent(row, previous, "position_change", "position_change", previous.position, row.position);
+    addEvent(row, previous, "ability_update", "dev_trait_change", previous.dev_trait, row.devTrait);
+    addEvent(row, previous, "ability_update", "ability_count_change", previous.ability_count, row.abilityCount);
+    addEvent(row, previous, "player_rating_update", "overall_rating_change", previous.overall_rating, row.overallRating);
+  }
+
+  if (!events.length) return { rosterDiffEvents: 0 };
+  const count = await upsertInChunks(
+    "rec_league_event_logs",
+    dedupeBy(events, (row) => row.event_hash),
+    "league_id,event_hash",
+    "Failed to upsert roster diff events."
+  );
+  return { rosterDiffEvents: count };
+}
+
+async function commitScheduleEvents(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number) {
+  const staged = await loadStagedRows("rec_import_staging_games", importJobId);
+  if (!staged.length) return { scheduleEvents: 0 };
+
+  const guildId = await loadGuildIdForLeague(leagueId);
+  if (!guildId) return { scheduleEvents: 0, warning: "No guild_id found for schedule update events." };
+
+  const events = staged.map((row: any, index: number) => {
+    const away = toNullableText(row.away_team_name) ?? `Away ${row.away_team_external_id ?? ""}`.trim();
+    const home = toNullableText(row.home_team_name) ?? `Home ${row.home_team_external_id ?? ""}`.trim();
+    const week = Number(row.week_number ?? 0) || null;
+    const gameKey = toNullableText(row.external_game_id) ?? `week:${week ?? "na"}:${row.away_team_external_id ?? "away"}:${row.home_team_external_id ?? "home"}:${index}`;
+    return {
+      guild_id: guildId,
+      league_id: leagueId,
+      import_job_id: importJobId,
+      season_number: row.season_number ?? seasonNumber,
+      season_index: row.season_index,
+      season_stage: row.season_stage,
+      week_number: week,
+      source: "ea_import",
+      source_endpoint: "schedule",
+      event_type: "schedule_update",
+      event_category: row.game_status,
+      external_event_id: gameKey,
+      event_hash: `schedule:${gameKey}`,
+      title: `${away} at ${home}`,
+      body: `Week ${week ?? "?"}: ${away} at ${home}`,
+      team_id: row.home_team_external_id ? teamMap.get(String(row.home_team_external_id)) ?? null : null,
+      team_external_id: row.home_team_external_id,
+      team_name: home,
+      from_team_id: row.away_team_external_id ? teamMap.get(String(row.away_team_external_id)) ?? null : null,
+      from_team_external_id: row.away_team_external_id,
+      from_team_name: away,
+      to_team_id: row.home_team_external_id ? teamMap.get(String(row.home_team_external_id)) ?? null : null,
+      to_team_external_id: row.home_team_external_id,
+      to_team_name: home,
+      payload: row.raw_payload ?? {},
+      occurred_at: row.played_at,
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  const count = await upsertInChunks(
+    "rec_league_event_logs",
+    dedupeBy(events, (row) => row.event_hash),
+    "league_id,event_hash",
+    "Failed to upsert schedule update events."
+  );
+  return { scheduleEvents: count };
+}
+
 export async function commitApprovedImport(importJobId: string) {
   const details = await getImportJob(importJobId);
   const leagueId = details.job.league_id as string;
@@ -825,9 +1033,13 @@ export async function commitApprovedImport(importJobId: string) {
   };
 
   const gameCommit = await upsertGamesAndResults(importJobId, leagueId, committedTeamMap, assignmentMap, seasonNumber);
+  const scheduleEvents = await safe("schedule_events", () => commitScheduleEvents(importJobId, leagueId, committedTeamMap, seasonNumber), { scheduleEvents: 0 });
+  if ((scheduleEvents as any).warning) commitWarnings.push((scheduleEvents as any).warning);
   const standings = await safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap, seasonNumber), 0);
   // Players must commit before weekly stats so the stats' player_id FK lookup can resolve.
   const weekNumber = Number((details.job as any).week_number ?? 1) || 1;
+  const rosterDiffEvents = await safe("roster_diff_events", () => commitRosterDiffEvents(importJobId, leagueId, seasonNumber, weekNumber), { rosterDiffEvents: 0 });
+  if ((rosterDiffEvents as any).warning) commitWarnings.push((rosterDiffEvents as any).warning);
   const players = await safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap, seasonNumber, weekNumber), 0);
   const rosterSnapshots = await safe(
     "roster_snapshots",
@@ -835,6 +1047,8 @@ export async function commitApprovedImport(importJobId: string) {
     { sourceRows: 0, insertedRows: 0, updatedRows: 0, deactivatedRows: 0, activeSnapshotRows: 0 }
   );
   const stats = await safe("weekly_stats", () => upsertWeeklyStats(importJobId, leagueId, committedTeamMap, seasonNumber), { playerCount: 0, teamCount: 0, unmappedStatKeys: [] as Array<{ key: string; count: number }> });
+  const leagueEvents = await safe("league_events", () => commitLeagueFeedEvents(importJobId, leagueId, committedTeamMap), { feedEvents: 0 });
+  if ((leagueEvents as any).warning) commitWarnings.push((leagueEvents as any).warning);
 
   // Warn (non-fatally) when imported stat keys did not map to a canonical REC stat, so the
   // canonical definition map can be expanded. Does not block the import.
@@ -860,11 +1074,14 @@ export async function commitApprovedImport(importJobId: string) {
     leagueGamesStored: gameCommit.gamesAddedOrUpdated,
     gameResults: gameCommit.resultsAddedOrUpdated,
     gamesSkipped: gameCommit.gamesSkipped,
+    scheduleEvents: scheduleEvents.scheduleEvents,
     standings,
     players,
     rosterSnapshots,
     playerWeeklyStats: stats.playerCount,
     teamWeeklyStats: stats.teamCount,
+    leagueEvents: leagueEvents.feedEvents,
+    rosterDiffEvents: rosterDiffEvents.rosterDiffEvents,
     unmappedStatKeys: stats.unmappedStatKeys ?? [],
     warnings: commitWarnings
   };

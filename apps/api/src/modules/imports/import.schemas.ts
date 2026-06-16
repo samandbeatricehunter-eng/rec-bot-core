@@ -12,7 +12,10 @@ export const CoreImportEndpointSchema = z.enum([
   "rosters",
   "players",
   "player_stats",
-  "team_stats"
+  "team_stats",
+  "news",
+  "transactions",
+  "injuries"
 ]);
 
 export const CreateImportJobSchema = z.object({

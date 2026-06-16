@@ -462,7 +462,9 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
   // Preseason/training camp first advance pulls the full regular-season schedule + every data point.
   // Otherwise the import always targets the league's current week (no manual week selection).
   const isPreseason = stage === "preseason_training_camp";
-  const endpointKeys = CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
+  const endpointKeys = isPreseason
+    ? ["teams", "schedule"]
+    : CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
 
   const existing = importSessions.get(interaction.user.id) ?? {};
   const eaConsole = existing.eaConsole ?? "pc";
