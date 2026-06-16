@@ -593,7 +593,7 @@ async function upsertStandings(importJobId: string, leagueId: string, teamMap: M
   );
 }
 
-async function upsertPlayers(importJobId: string, leagueId: string, _teamMap: Map<string, string>, _seasonNumber: number, _weekNumber: number) {
+async function upsertPlayers(importJobId: string, leagueId: string, teamMap: Map<string, string>, _seasonNumber: number, _weekNumber: number) {
   const staged = await loadStagedRows("rec_import_staging_rosters", importJobId);
   if (staged.length === 0) return 0;
 
@@ -613,6 +613,8 @@ async function upsertPlayers(importJobId: string, leagueId: string, _teamMap: Ma
     return {
       league_id: leagueId,
       madden_player_id: maddenPlayerId,
+      // Current team (mapped from the roster's madden teamId). Free agents map to no team -> null.
+      team_id: toNullableText(raw.teamId) ? teamMap.get(String(raw.teamId)) ?? null : null,
       first_name: firstName,
       last_name: lastName,
       full_name: fullName,
@@ -861,7 +863,7 @@ async function commitLeagueFeedEvents(importJobId: string, leagueId: string, tea
   return { feedEvents: count };
 }
 
-async function commitRosterDiffEvents(importJobId: string, leagueId: string, seasonNumber: number, weekNumber: number | null) {
+async function commitRosterDiffEvents(importJobId: string, leagueId: string, teamMap: Map<string, string>, seasonNumber: number, weekNumber: number | null) {
   const staged = await loadStagedRows("rec_import_staging_rosters", importJobId);
   if (!staged.length) return { rosterDiffEvents: 0 };
 
@@ -896,12 +898,35 @@ async function commitRosterDiffEvents(importJobId: string, leagueId: string, sea
 
   const existing = await loadExistingByColumn(
     "rec_players",
-    "id,madden_player_id,full_name,position,dev_trait,overall_rating,ability_count",
+    "id,madden_player_id,full_name,position,dev_trait,overall_rating,ability_count,team_id,raw_payload",
     leagueId,
     "madden_player_id",
     ids,
     "Failed to load players for roster diff events."
   );
+
+  // Team name/id lookup (by madden team id) for transaction from/to resolution.
+  const teamLookup = await supabase
+    .from("rec_teams")
+    .select("id,name,madden_team_id,display_city,display_nick,display_abbr,is_relocated")
+    .eq("league_id", leagueId);
+  const teamByMaddenId = new Map<string, { id: string; name: string }>();
+  for (const t of teamLookup.data ?? []) {
+    const name = t.is_relocated && t.display_city ? `${t.display_city} ${t.display_nick ?? ""}`.trim() : (t.name ?? "");
+    if (t.madden_team_id) teamByMaddenId.set(String(t.madden_team_id), { id: t.id as string, name });
+  }
+
+  // Signature abilities currently equipped (non-empty slot with a named ability).
+  const abilitiesOf = (raw: any): Set<string> => {
+    const slots = Array.isArray(raw?.signatureSlotList) ? raw.signatureSlotList : [];
+    const set = new Set<string>();
+    for (const slot of slots) {
+      if (!slot || slot.isEmpty === true) continue;
+      const title = toNullableText(slot.signatureAbility?.signatureTitle);
+      if (title) set.add(title);
+    }
+    return set;
+  };
   const existingByMaddenId = new Map(existing.map((row: any) => [String(row.madden_player_id), row]));
   const events: any[] = [];
 
@@ -937,6 +962,70 @@ async function commitRosterDiffEvents(importJobId: string, leagueId: string, sea
     addEvent(row, previous, "ability_update", "dev_trait_change", previous.dev_trait, row.devTrait);
     addEvent(row, previous, "ability_update", "ability_count_change", previous.ability_count, row.abilityCount);
     addEvent(row, previous, "player_rating_update", "overall_rating_change", previous.overall_rating, row.overallRating);
+
+    // Transaction: the player moved from one roster to another between imports.
+    const prevTeamMadden = toNullableText(asObject(previous.raw_payload).teamId);
+    const newTeamMadden = toNullableText(row.raw.teamId);
+    if (prevTeamMadden && newTeamMadden && prevTeamMadden !== newTeamMadden) {
+      const playerName = row.fullName ?? previous.full_name ?? `Player ${row.maddenPlayerId}`;
+      const fromTeam = teamByMaddenId.get(prevTeamMadden) ?? null;
+      const toTeam = teamByMaddenId.get(newTeamMadden) ?? null;
+      events.push({
+        guild_id: guildId,
+        league_id: leagueId,
+        import_job_id: importJobId,
+        season_number: seasonNumber,
+        week_number: weekNumber,
+        source: "roster_diff",
+        source_endpoint: "rosters",
+        event_type: "transaction",
+        event_category: "roster_move",
+        external_event_id: null,
+        event_hash: `transaction:${row.maddenPlayerId}:${prevTeamMadden}:${newTeamMadden}:s${seasonNumber}:w${weekNumber ?? "na"}`,
+        title: `${playerName} changed teams`,
+        body: `${playerName}: ${fromTeam?.name ?? prevTeamMadden} -> ${toTeam?.name ?? newTeamMadden}`,
+        player_id: previous.id,
+        player_external_id: row.maddenPlayerId,
+        player_name: playerName,
+        from_team_id: fromTeam?.id ?? null,
+        from_team_external_id: prevTeamMadden,
+        from_team_name: fromTeam?.name ?? null,
+        to_team_id: toTeam?.id ?? null,
+        to_team_external_id: newTeamMadden,
+        to_team_name: toTeam?.name ?? null,
+        payload: { fromTeamMaddenId: prevTeamMadden, toTeamMaddenId: newTeamMadden },
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    // Signature ability changes (gained/lost) between imports.
+    const prevAbilities = abilitiesOf(asObject(previous.raw_payload));
+    const newAbilities = abilitiesOf(row.raw);
+    if (prevAbilities.size || newAbilities.size) {
+      const playerName = row.fullName ?? previous.full_name ?? `Player ${row.maddenPlayerId}`;
+      const abilityEvent = (eventType: string, verb: string, ability: string) => ({
+        guild_id: guildId,
+        league_id: leagueId,
+        import_job_id: importJobId,
+        season_number: seasonNumber,
+        week_number: weekNumber,
+        source: "roster_diff",
+        source_endpoint: "rosters",
+        event_type: eventType,
+        event_category: "ability_change",
+        external_event_id: null,
+        event_hash: `ability:${row.maddenPlayerId}:${eventType}:${ability}:s${seasonNumber}:w${weekNumber ?? "na"}`,
+        title: `${playerName} ${verb} ${ability}`,
+        body: `${playerName} ${verb} the ${ability} ability`,
+        player_id: previous.id,
+        player_external_id: row.maddenPlayerId,
+        player_name: playerName,
+        payload: { ability },
+        updated_at: new Date().toISOString()
+      });
+      for (const ability of newAbilities) if (!prevAbilities.has(ability)) events.push(abilityEvent("ability_added", "gained", ability));
+      for (const ability of prevAbilities) if (!newAbilities.has(ability)) events.push(abilityEvent("ability_removed", "lost", ability));
+    }
   }
 
   if (!events.length) return { rosterDiffEvents: 0 };
@@ -1038,7 +1127,7 @@ export async function commitApprovedImport(importJobId: string) {
   const standings = await safe("standings", () => upsertStandings(importJobId, leagueId, committedTeamMap, seasonNumber), 0);
   // Players must commit before weekly stats so the stats' player_id FK lookup can resolve.
   const weekNumber = Number((details.job as any).week_number ?? 1) || 1;
-  const rosterDiffEvents = await safe("roster_diff_events", () => commitRosterDiffEvents(importJobId, leagueId, seasonNumber, weekNumber), { rosterDiffEvents: 0 });
+  const rosterDiffEvents = await safe("roster_diff_events", () => commitRosterDiffEvents(importJobId, leagueId, committedTeamMap, seasonNumber, weekNumber), { rosterDiffEvents: 0 });
   if ((rosterDiffEvents as any).warning) commitWarnings.push((rosterDiffEvents as any).warning);
   const players = await safe("players", () => upsertPlayers(importJobId, leagueId, committedTeamMap, seasonNumber, weekNumber), 0);
   const rosterSnapshots = await safe(
