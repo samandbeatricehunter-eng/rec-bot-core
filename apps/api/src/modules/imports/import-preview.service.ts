@@ -251,10 +251,10 @@ async function buildEndpointMissingData(importJobId: string) {
     .filter((row) => row.missingFields.length > 0);
 
   return [
-    { endpointKey: "schedule", endpointLabel: "Schedule / Games", affectedRows: gameMissing.length, rows: gameMissing },
+    { endpointKey: "weekly_stats", endpointLabel: "Weekly Stats / Games", affectedRows: gameMissing.length, rows: gameMissing },
     { endpointKey: "standings", endpointLabel: "Standings", affectedRows: standingMissing.length, rows: standingMissing },
-    { endpointKey: "team_stats", endpointLabel: "Team Stats", affectedRows: teamStatMissing.length, rows: teamStatMissing },
-    { endpointKey: "player_stats", endpointLabel: "Player Stats", affectedRows: playerStatMissing.length, rows: playerStatMissing }
+    { endpointKey: "weekly_stats", endpointLabel: "Weekly Stats / Team Stats", affectedRows: teamStatMissing.length, rows: teamStatMissing },
+    { endpointKey: "weekly_stats", endpointLabel: "Weekly Stats / Player Stats", affectedRows: playerStatMissing.length, rows: playerStatMissing }
   ].filter((endpoint) => endpoint.affectedRows > 0);
 }
 

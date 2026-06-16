@@ -39,7 +39,7 @@ export type ImportDraft = {
 
 export const importSessions = new Map<string, ImportDraft>();
 
-const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["transactions"]);
+const EXPERIMENTAL_FEED_ENDPOINTS = new Set<string>();
 
 function isExperimentalFeedEndpoint(endpointKey?: string | null) {
   return endpointKey ? EXPERIMENTAL_FEED_ENDPOINTS.has(endpointKey) : false;
@@ -54,10 +54,8 @@ const IMPORT_PROGRESS_STEPS = [
   { key: "league_metadata", label: "Preparing import context" },
   { key: "teams", label: "Importing teams" },
   { key: "standings", label: "Importing standings" },
-  { key: "schedule", label: "Importing schedule" },
-  { key: "rosters", label: "Importing rosters and player attributes" },
-  { key: "team_stats", label: "Importing team stats" },
-  { key: "player_stats", label: "Importing player stats" }
+  { key: "weekly_stats", label: "Importing weekly games and stats" },
+  { key: "rosters", label: "Importing rosters and player attributes" }
 ] as const;
 
 export function buildImportPanelPayload() {
@@ -465,11 +463,11 @@ export async function startImportMode(interaction: ButtonInteraction, importMode
   const leagueWeek = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
   const stage = String(leagueWeek?.league?.season_stage ?? leagueWeek?.league?.current_phase ?? "regular_season");
   const currentWeek = Number(leagueWeek?.league?.current_week) || 1;
-  // Preseason/training camp first advance pulls the full regular-season schedule + every data point.
+  // Preseason/training camp first advance pulls the full regular-season schedule.
   // Otherwise the import always targets the league's current week (no manual week selection).
   const isPreseason = stage === "preseason_training_camp";
   const endpointKeys = isPreseason
-    ? ["teams", "schedule"]
+    ? ["teams", "weekly_stats"]
     : CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key);
 
   const existing = importSessions.get(interaction.user.id) ?? {};

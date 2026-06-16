@@ -11,25 +11,22 @@ const CORE_ENDPOINT_KEYS = [
   "league_metadata",
   "teams",
   "standings",
-  "schedule",
+  "weekly_stats",
   "rosters",
-  "players",
-  "player_stats",
-  "team_stats"
 ] as const;
 
 function selectedEndpointKeys(input: CreateImportJobInput) {
   if (input.importScope === "full_regular_season_schedule") {
     // Always stage Teams alongside Schedule so EA team IDs resolve to existing league teams.
-    return ["teams", "schedule"];
+    return ["teams", "weekly_stats"];
   }
   if (input.selectedEndpointKeys.length > 0) {
     return input.selectedEndpointKeys.length > 0
       ? input.selectedEndpointKeys
-      : ["league_metadata", "standings", "schedule", "team_stats", "player_stats"];
+      : ["league_metadata", "standings", "weekly_stats"];
   }
   if (input.importScope === "current_week" || input.importScope === "single_week") {
-    return ["league_metadata", "standings", "schedule", "team_stats", "player_stats"];
+    return ["league_metadata", "standings", "weekly_stats"];
   }
   return [...CORE_ENDPOINT_KEYS];
 }

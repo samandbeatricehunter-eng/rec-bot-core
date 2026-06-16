@@ -14,10 +14,10 @@ const IMPORT_RAW_SOURCES: Array<{
 }> = [
   { endpointKey: "teams", table: "rec_import_staging_teams", scope: "team", columns: ["raw_payload", "normalized"] },
   { endpointKey: "standings", table: "rec_import_staging_standings", scope: "standing", columns: ["raw_payload", "normalized", "stats"] },
-  { endpointKey: "schedule", table: "rec_import_staging_games", scope: "game", columns: ["raw_payload", "normalized"] },
+  { endpointKey: "weekly_stats", table: "rec_import_staging_games", scope: "game", columns: ["raw_payload", "normalized"] },
   { endpointKey: "rosters", table: "rec_import_staging_rosters", scope: "roster", columns: ["raw_payload", "normalized"] },
-  { endpointKey: "player_stats", table: "rec_import_staging_player_stats", scope: "player", columns: ["raw_payload", "normalized", "stats"], statScope: "player" },
-  { endpointKey: "team_stats", table: "rec_import_staging_team_stats", scope: "team", columns: ["raw_payload", "normalized", "stats"], statScope: "team" }
+  { endpointKey: "weekly_stats", table: "rec_import_staging_player_stats", scope: "player", columns: ["raw_payload", "normalized", "stats"], statScope: "player" },
+  { endpointKey: "weekly_stats", table: "rec_import_staging_team_stats", scope: "team", columns: ["raw_payload", "normalized", "stats"], statScope: "team" }
 ];
 
 // Full canonical definition catalog + usage groupings. Backs GET /v1/imports/stat-definitions.

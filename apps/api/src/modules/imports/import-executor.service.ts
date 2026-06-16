@@ -65,17 +65,14 @@ type ExecutorContext = {
 
 type EndpointExecutor = (context: ExecutorContext) => Promise<ImportEndpointExecutionResult & { session?: EaBlazeSession }>;
 
-const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "player_stats", "team_stats", "transactions"];
+const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "weekly_stats", "rosters"];
 
 const IMPORT_PROGRESS_ENDPOINTS = [
   "league_metadata",
   "teams",
   "standings",
-  "schedule",
-  "rosters",
-  "team_stats",
-  "player_stats",
-  "transactions"
+  "weekly_stats",
+  "rosters"
 ] as const;
 
 const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["transactions"]);
@@ -318,6 +315,77 @@ function extractRosterPlayerRows(payload: unknown, context: ExecutorContext, tea
   });
 }
 
+async function stageWeeklyStatsBundle(context: ExecutorContext) {
+  let session = context.session;
+  let gameCount = 0;
+  let teamStatCount = 0;
+  let playerStatCount = 0;
+  const weeks: number[] = [];
+
+  if (context.job.import_scope === "full_regular_season_schedule") {
+    const result = await fetchEaAllWeekSchedules({
+      token: context.token,
+      eaLeagueId: context.eaLeagueId,
+      startWeek: context.weekFrom,
+      totalWeeks: context.weekTo,
+      stageIndex: context.stageIndex,
+      session
+    });
+    session = result.session;
+
+    const gameRows: any[] = [];
+    for (const week of result.weekResults) {
+      weeks.push(week.weekNumber);
+      await captureRawPayload({
+        context,
+        careerModeGet: "CareerMode_GetSchedule",
+        payloadGroup: `week_${week.weekNumber}_schedule`,
+        payload: week.data
+      });
+      gameRows.push(...extractGameRows(week.data, context, week.weekNumber));
+    }
+
+    const stagedGames = await stageGames(gameRows);
+    gameCount += stagedGames.count;
+    return { session, gameCount, teamStatCount, playerStatCount, weeks };
+  }
+
+  for (const week of context.weeks) {
+    weeks.push(week);
+    const result = await fetchEaWeeklyStats({
+      token: context.token,
+      eaLeagueId: context.eaLeagueId,
+      weekIndex: week - 1,
+      stageIndex: context.stageIndex,
+      session
+    });
+    session = result.session;
+    await captureWeeklyStatsPayloads(context, week, result.payloads);
+
+    const gameRows = extractGameRows(result.payloads.schedules, context, week);
+    const teamStatRows = extractTeamStatRows(result.payloads.teamStats, context, week);
+    const playerStatRows = [
+      ...extractPlayerStatRows(result.payloads.passing, "passing", context, week),
+      ...extractPlayerStatRows(result.payloads.rushing, "rushing", context, week),
+      ...extractPlayerStatRows(result.payloads.receiving, "receiving", context, week),
+      ...extractPlayerStatRows(result.payloads.defense, "defense", context, week),
+      ...extractPlayerStatRows(result.payloads.kicking, "kicking", context, week),
+      ...extractPlayerStatRows(result.payloads.punting, "punting", context, week)
+    ];
+
+    const [stagedGames, stagedTeamStats, stagedPlayerStats] = await Promise.all([
+      stageGames(gameRows),
+      stageTeamStats(teamStatRows),
+      stagePlayerStats(playerStatRows)
+    ]);
+    gameCount += stagedGames.count;
+    teamStatCount += stagedTeamStats.count;
+    playerStatCount += stagedPlayerStats.count;
+  }
+
+  return { session, gameCount, teamStatCount, playerStatCount, weeks };
+}
+
 function feedEventType(endpointKey: string, row: Record<string, unknown>) {
   if (endpointKey === "news") return "league_news";
   if (endpointKey === "injuries") return "injury_update";
@@ -403,6 +471,24 @@ const EXECUTORS: Record<string, EndpointExecutor> = {
     const rows = extractStandingRows(result.data, context);
     const staged = await stageStandings(rows);
     return { endpointKey: context.endpointKey, endpointLabel: context.endpointLabel, status: "success", recordsFound: staged.count, responseSummary: { payload: summarizePayload(result.data), stagingWrites: staged.count }, session: result.session };
+  },
+  weekly_stats: async (context) => {
+    const result = await stageWeeklyStatsBundle(context);
+    const total = result.gameCount + result.teamStatCount + result.playerStatCount;
+    return {
+      endpointKey: context.endpointKey,
+      endpointLabel: context.endpointLabel,
+      status: "success",
+      recordsFound: total,
+      responseSummary: {
+        stagingWrites: total,
+        games: result.gameCount,
+        teamStats: result.teamStatCount,
+        playerStats: result.playerStatCount,
+        weeks: result.weeks
+      },
+      session: result.session
+    };
   },
   schedule: async (context) => {
     let session = context.session;

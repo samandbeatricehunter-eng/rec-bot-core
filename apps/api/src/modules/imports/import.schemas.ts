@@ -8,12 +8,8 @@ export const CoreImportEndpointSchema = z.enum([
   "league_metadata",
   "teams",
   "standings",
-  "schedule",
-  "rosters",
-  "players",
-  "player_stats",
-  "team_stats",
-  "transactions"
+  "weekly_stats",
+  "rosters"
 ]);
 
 export const CreateImportJobSchema = z.object({
@@ -36,10 +32,10 @@ export const CreateImportJobSchema = z.object({
 
   if (input.importScope === "full_regular_season_schedule" && input.selectedEndpointKeys.length > 0) {
     // Schedule imports may include Teams so EA team IDs can be resolved to league teams.
-    const allowed = new Set(["schedule", "teams"]);
+    const allowed = new Set(["weekly_stats", "teams"]);
     const invalidEndpoints = input.selectedEndpointKeys.filter((endpoint) => !allowed.has(endpoint));
     if (invalidEndpoints.length > 0) {
-      context.addIssue({ code: z.ZodIssueCode.custom, path: ["selectedEndpointKeys"], message: "Full regular season schedule imports may only use the teams and schedule endpoints." });
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["selectedEndpointKeys"], message: "Full regular season schedule imports may only use the teams and weekly stats endpoints." });
     }
   }
 

@@ -12,12 +12,8 @@ const CORE_EA_ENDPOINTS = [
   { endpoint_key: "league_metadata", endpoint_label: "League Metadata" },
   { endpoint_key: "teams", endpoint_label: "Teams" },
   { endpoint_key: "standings", endpoint_label: "Standings" },
-  { endpoint_key: "schedule", endpoint_label: "Schedule" },
-  { endpoint_key: "rosters", endpoint_label: "Rosters" },
-  { endpoint_key: "players", endpoint_label: "Players" },
-  { endpoint_key: "player_stats", endpoint_label: "Player Stats" },
-  { endpoint_key: "team_stats", endpoint_label: "Team Stats" },
-  { endpoint_key: "transactions", endpoint_label: "Transactions" }
+  { endpoint_key: "weekly_stats", endpoint_label: "Weekly Stats" },
+  { endpoint_key: "rosters", endpoint_label: "Rosters / Players" }
 ] as const;
 
 function buildInitialPreviewSummary(input: CreateImportJobInput) {
