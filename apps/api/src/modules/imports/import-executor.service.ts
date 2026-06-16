@@ -80,12 +80,18 @@ const IMPORT_PROGRESS_ENDPOINTS = [
   "injuries"
 ] as const;
 
+const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["news", "transactions", "injuries"]);
+
 const POS_NUM: Record<number, string> = {
   0: "QB", 1: "HB", 2: "FB", 3: "WR", 4: "TE", 5: "LT", 6: "LG", 7: "C", 8: "RG", 9: "RT", 10: "LE", 11: "RE", 12: "DT", 13: "LOLB", 14: "MLB", 15: "ROLB", 16: "CB", 17: "FS", 18: "SS", 19: "K", 20: "P", 21: "KR", 22: "PR", 23: "LS"
 };
 
 function endpointLabel(endpointKey: string) {
   return endpointKey.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function isExperimentalFeedEndpoint(endpointKey: string) {
+  return EXPERIMENTAL_FEED_ENDPOINTS.has(endpointKey);
 }
 
 function toNumber(value: unknown, fallback = 0) {
@@ -593,7 +599,7 @@ export async function executeImportJob(importJobId: string) {
     session = result.session ?? session;
     const { session: _session, ...withoutSession } = result;
     results.push(withoutSession);
-    if (result.status === "failed") break;
+    if (result.status === "failed" && !isExperimentalFeedEndpoint(endpointKey)) break;
   }
   const failed = results.filter((result) => result.status === "failed").length;
   const skipped = results.filter((result) => result.status === "skipped").length;

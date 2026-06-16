@@ -39,6 +39,12 @@ export type ImportDraft = {
 
 export const importSessions = new Map<string, ImportDraft>();
 
+const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["news", "transactions", "injuries"]);
+
+function isExperimentalFeedEndpoint(endpointKey?: string | null) {
+  return endpointKey ? EXPERIMENTAL_FEED_ENDPOINTS.has(endpointKey) : false;
+}
+
 export function importWeekLabel(week: number) {
   if (week <= 18) return `Week ${week}`;
   return week === 19 ? "Wild Card" : week === 20 ? "Divisional" : week === 21 ? "Conference Championship" : "Super Bowl";
@@ -614,15 +620,17 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       components: []
     });
 
+    let hadExperimentalFeedFailure = false;
     try {
       const result = await recApi.executeImportJob(importJobId!);
       const summary = previewSummary(result.job);
       const endpointResults = summary.endpointExecution?.results ?? [];
+      hadExperimentalFeedFailure = endpointResults.some((endpoint: any) => endpoint.status === "failed" && isExperimentalFeedEndpoint(endpoint.endpointKey));
       progressLines.push(...endpointResults.map((endpoint: any) => {
         const skipped = endpoint.responseSummary?.skippedBecauseAlreadyStaged ? " (already staged)" : "";
         return `${statusIcon(endpoint.status)} ${endpoint.endpointLabel ?? endpoint.endpointKey} - ${endpoint.recordsFound ?? 0} records${skipped}`;
       }));
-      const failedEndpoint = endpointResults.find((endpoint: any) => endpoint.status === "failed");
+      const failedEndpoint = endpointResults.find((endpoint: any) => endpoint.status === "failed" && !isExperimentalFeedEndpoint(endpoint.endpointKey));
       if (failedEndpoint) {
         const message = formatEndpointFailure(failedEndpoint);
         if (isEaReconnectRequired(new Error(message))) {
@@ -682,7 +690,11 @@ export async function handleImportButton(interaction: ButtonInteraction) {
 
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Generating Import Preview").setDescription([
-        "All endpoints staged.", "", ...progressLines, "", "Generating preview now..."
+        hadExperimentalFeedFailure ? "Core endpoints staged. Experimental feed probes may show warnings." : "All endpoints staged.",
+        "",
+        ...progressLines,
+        "",
+        "Generating preview now..."
       ].join("\n"))],
       components: []
     });
