@@ -65,7 +65,7 @@ type ExecutorContext = {
 
 type EndpointExecutor = (context: ExecutorContext) => Promise<ImportEndpointExecutionResult & { session?: EaBlazeSession }>;
 
-const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "player_stats", "team_stats", "news", "transactions", "injuries"];
+const DEFAULT_ENDPOINT_KEYS = ["league_metadata", "teams", "standings", "schedule", "rosters", "player_stats", "team_stats", "transactions", "injuries"];
 
 const IMPORT_PROGRESS_ENDPOINTS = [
   "league_metadata",
@@ -75,12 +75,11 @@ const IMPORT_PROGRESS_ENDPOINTS = [
   "rosters",
   "team_stats",
   "player_stats",
-  "news",
   "transactions",
   "injuries"
 ] as const;
 
-const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["news", "transactions", "injuries"]);
+const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["transactions", "injuries"]);
 
 const POS_NUM: Record<number, string> = {
   0: "QB", 1: "HB", 2: "FB", 3: "WR", 4: "TE", 5: "LT", 6: "LG", 7: "C", 8: "RG", 9: "RT", 10: "LE", 11: "RE", 12: "DT", 13: "LOLB", 14: "MLB", 15: "ROLB", 16: "CB", 17: "FS", 18: "SS", 19: "K", 20: "P", 21: "KR", 22: "PR", 23: "LS"

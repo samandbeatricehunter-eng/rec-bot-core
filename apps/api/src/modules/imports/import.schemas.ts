@@ -13,7 +13,6 @@ export const CoreImportEndpointSchema = z.enum([
   "players",
   "player_stats",
   "team_stats",
-  "news",
   "transactions",
   "injuries"
 ]);

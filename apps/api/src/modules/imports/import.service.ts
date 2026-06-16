@@ -17,7 +17,6 @@ const CORE_EA_ENDPOINTS = [
   { endpoint_key: "players", endpoint_label: "Players" },
   { endpoint_key: "player_stats", endpoint_label: "Player Stats" },
   { endpoint_key: "team_stats", endpoint_label: "Team Stats" },
-  { endpoint_key: "news", endpoint_label: "League News" },
   { endpoint_key: "transactions", endpoint_label: "Transactions" },
   { endpoint_key: "injuries", endpoint_label: "Injuries" }
 ] as const;
