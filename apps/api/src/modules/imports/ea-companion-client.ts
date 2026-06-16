@@ -88,16 +88,26 @@ export type RosterExportPayloads = {
 
 const YEAR = "2026";
 
-// Blaze service id (X-BLAZE-ID). Must include the console-generation suffix or EA Blaze returns
-// ERR_SYSTEM for current-gen platforms. gen4 = PS4/Xbox One, gen5 = PS5/Xbox Series/PC/Stadia.
-// Matches the working snallabot reference (only the suffix differed from our earlier values).
+// Blaze service id (X-BLAZE-ID). Madden 26 uses the un-suffixed service name; the gen4/gen5 suffix
+// used in older titles 404s here. (Validated empirically: madden-2026-ps5 -> 200, ...-gen5 -> 404.)
 const BLAZE_SERVICE: Record<RecEaConsole, string> = {
-  xone: `madden-${YEAR}-xone-gen4`,
-  ps4: `madden-${YEAR}-ps4-gen4`,
-  pc: `madden-${YEAR}-pc-gen5`,
-  ps5: `madden-${YEAR}-ps5-gen5`,
-  xbsx: `madden-${YEAR}-xbsx-gen5`,
-  stadia: `madden-${YEAR}-stadia-gen5`
+  xone: `madden-${YEAR}-xone`,
+  ps4: `madden-${YEAR}-ps4`,
+  pc: `madden-${YEAR}-pc`,
+  ps5: `madden-${YEAR}-ps5`,
+  xbsx: `madden-${YEAR}-xbsx`,
+  stadia: `madden-${YEAR}-stadia`
+};
+
+// Persona namespace per platform. EA's Blaze companion session needs a PERSONA-scoped token, and the
+// persona is platform-specific (all PlayStation share "ps3"; Xbox uses "xbox"; PC uses the EA persona).
+const PERSONA_NAMESPACE: Record<RecEaConsole, string> = {
+  xone: "xbox",
+  ps4: "ps3",
+  pc: "cem_ea_id",
+  ps5: "ps3",
+  xbsx: "xbox",
+  stadia: "stadia"
 };
 
 const BLAZE_PRODUCT_NAME: Record<RecEaConsole, string> = {
@@ -212,6 +222,98 @@ export function getEaLoginUrl() {
   return `https://accounts.ea.com/connect/auth?${params.toString()}`;
 }
 
+// The account-level OAuth token is not accepted by the Blaze companion session (returns ERR_SYSTEM).
+// Mirror the official Madden Companion App: resolve the account's personas, re-authenticate against
+// the platform persona, and exchange that for a PERSONA-scoped token to use for Blaze.
+async function resolvePersonaScopedToken(accountAccessToken: string, gameConsole: RecEaConsole): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+  const eaHeaders = {
+    "Accept-Charset": "UTF-8",
+    Accept: "application/json",
+    "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 13; sdk_gphone_x86_64 Build/TE1A.220922.031)",
+    "Accept-Encoding": "gzip"
+  };
+
+  // 1. tokeninfo -> the account's nucleus pid.
+  const tokenInfoRes = await fetch(`https://accounts.ea.com/connect/tokeninfo?access_token=${encodeURIComponent(accountAccessToken)}`, {
+    headers: { ...eaHeaders, "X-Include-Deviceid": "true" }
+  });
+  const tokenInfo: any = await tokenInfoRes.json().catch(() => ({}));
+  const pidId = tokenInfo?.pid_id;
+  if (!pidId) {
+    throw new ApiError(502, "Could not resolve EA account id (tokeninfo).", { status: tokenInfoRes.status, body: JSON.stringify(tokenInfo).slice(0, 400) });
+  }
+
+  // 2. personas for the account.
+  const personasRes = await fetch(`https://gateway.ea.com/proxy/identity/pids/${pidId}/personas?status=ACTIVE&access_token=${encodeURIComponent(accountAccessToken)}`, {
+    headers: { ...eaHeaders, "X-Expand-Results": "true" }
+  });
+  const personasJson: any = await personasRes.json().catch(() => ({}));
+  const personas: Array<{ namespaceName?: string; personaId?: number }> = personasJson?.personas?.persona ?? [];
+
+  // 3. pick the persona for the selected platform (fall back to the non-EA console persona).
+  const wantNamespace = PERSONA_NAMESPACE[gameConsole];
+  const persona =
+    personas.find((p) => p.namespaceName === wantNamespace) ??
+    (gameConsole === "pc"
+      ? personas.find((p) => p.namespaceName === "cem_ea_id")
+      : personas.find((p) => p.namespaceName && p.namespaceName !== "cem_ea_id")) ??
+    personas[0];
+  if (!persona?.personaId || !persona.namespaceName) {
+    console.error("[EA PERSONA] no persona for console", { console: gameConsole, wantNamespace, namespaces: personas.map((p) => p.namespaceName) });
+    throw new ApiError(502, "No matching EA persona for the selected platform.", { console: gameConsole, wantNamespace, availableNamespaces: personas.map((p) => p.namespaceName) });
+  }
+
+  // 4. persona-scoped re-auth -> authorization code (from the redirect Location header).
+  const authUrl =
+    `https://accounts.ea.com/connect/auth?hide_create=true&release_type=prod&response_type=code` +
+    `&redirect_uri=${encodeURIComponent(env.EA_MCA_REDIRECT_URL)}&client_id=${encodeURIComponent(env.EA_MCA_CLIENT_ID)}` +
+    `&machineProfileKey=444d362e8e067fe2&authentication_source=${encodeURIComponent(String(env.EA_MCA_AUTH_SOURCE))}` +
+    `&access_token=${encodeURIComponent(accountAccessToken)}&persona_id=${persona.personaId}&persona_namespace=${encodeURIComponent(persona.namespaceName)}`;
+  const authRes = await fetch(authUrl, {
+    redirect: "manual",
+    headers: {
+      "Upgrade-Insecure-Requests": "1",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 13; sdk_gphone_x86_64 Build/TE1A.220922.031; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.71 Mobile Safari/537.36",
+      "X-Requested-With": "com.ea.gp.madden19companionapp",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+  });
+  const location = authRes.headers.get("location");
+  const personaCode = location ? new URLSearchParams(location.split("?")[1] ?? "").get("code") : null;
+  if (!personaCode) {
+    console.error("[EA PERSONA] no code from persona re-auth", { status: authRes.status, location: location?.slice(0, 200) ?? null });
+    throw new ApiError(502, "EA persona authentication did not return a code.", { status: authRes.status, location: location?.slice(0, 200) ?? null });
+  }
+
+  // 5. exchange the persona code for the persona-scoped token.
+  const tokenBody = new URLSearchParams({
+    grant_type: "authorization_code",
+    code: personaCode,
+    client_id: env.EA_MCA_CLIENT_ID,
+    redirect_uri: env.EA_MCA_REDIRECT_URL,
+    release_type: "prod",
+    authentication_source: String(env.EA_MCA_AUTH_SOURCE),
+    token_format: "JWS"
+  });
+  if (env.EA_MCA_CLIENT_SECRET) tokenBody.set("client_secret", env.EA_MCA_CLIENT_SECRET);
+  const tokenRes = await fetch("https://accounts.ea.com/connect/token", {
+    method: "POST",
+    headers: {
+      "Accept-Charset": "UTF-8",
+      "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 13; sdk_gphone_x86_64 Build/TE1A.220922.031)",
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "Accept-Encoding": "gzip"
+    },
+    body: tokenBody.toString()
+  });
+  const tokenJson: any = await tokenRes.json().catch(() => ({}));
+  console.log("[EA PERSONA TOKEN]", { status: tokenRes.status, console: gameConsole, namespace: persona.namespaceName, hasAccessToken: Boolean(tokenJson?.access_token) });
+  if (!tokenJson?.access_token || !tokenJson?.refresh_token || !tokenJson?.expires_in) {
+    throw new ApiError(502, "Persona token exchange failed.", { status: tokenRes.status, body: JSON.stringify(tokenJson).slice(0, 300) });
+  }
+  return { access_token: tokenJson.access_token, refresh_token: tokenJson.refresh_token, expires_in: Number(tokenJson.expires_in) };
+}
+
 export async function exchangeEaAuthCode(input: { code: string; console: RecEaConsole }) {
   const code = extractEaAuthCode(input.code);
   const body = new URLSearchParams({
@@ -250,10 +352,14 @@ export async function exchangeEaAuthCode(input: { code: string; console: RecEaCo
     });
   }
 
+  // EA's Blaze companion session rejects the account-level token (ERR_SYSTEM). Re-authenticate
+  // against the platform persona to obtain a persona-scoped token for Blaze.
+  const personaToken = await resolvePersonaScopedToken(parsed.access_token, input.console);
+
   const partialToken: EaCompanionToken = {
-    accessToken: parsed.access_token,
-    refreshToken: parsed.refresh_token,
-    expiry: new Date(Date.now() + Number(parsed.expires_in) * 1000),
+    accessToken: personaToken.access_token,
+    refreshToken: personaToken.refresh_token,
+    expiry: new Date(Date.now() + personaToken.expires_in * 1000),
     console: input.console,
     blazeId: "0"
   };
