@@ -975,28 +975,27 @@ export async function handleEaConnectCodeSubmit(interaction: any) {
   const code = normalizeEaAuthCode(raw);
   const draft = importSessions.get(interaction.user.id) ?? {};
 
-  await interaction.deferReply({ ephemeral: true });
+  // The modal was opened from the import panel's button, so update that panel in place instead of
+  // posting a separate message — on success we go straight to franchise discovery on the same embed.
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Connecting EA Account...").setDescription("Verifying your EA login and discovering your Madden franchises. This can take a moment.")],
+    components: []
+  });
+
   try {
     const result = await recApi.connectEaAccount({ discordId: interaction.user.id, code, console: draft.eaConsole ?? "pc" });
     importSessions.set(interaction.user.id, { ...draft, eaLoginUrl: result.loginUrl });
-
-    const message = [
-      "EA account connected successfully.",
-      "",
-      "Return to the import panel and discover franchises."
-    ].join("\n");
-
-    await interaction.editReply({ content: message });
+    await discoverAndRenderFranchises(interaction);
   } catch (error) {
     const status = await recApi.getEaAccountStatus({ discordId: interaction.user.id, console: draft.eaConsole ?? "pc" }).catch(() => null);
     await interaction.editReply({
-      content: [
-        "EA connection failed.",
-        "",
+      embeds: [new EmbedBuilder().setTitle("EA Connection Failed").setDescription([
         extractApiErrorMessage(error),
         "",
-        status?.loginUrl ? `Open a fresh login URL and try again: ${status.loginUrl}` : "Open a fresh login URL from the import panel and try again."
-      ].join("\n")
+        status?.loginUrl ? "Use **Open EA Login** below for a fresh code, then **Enter EA Auth Code** again." : "Open a fresh login URL and try again."
+      ].join("\n"))],
+      components: buildEaConnectRows(status?.loginUrl, draft.eaConsole ?? "pc")
     });
   }
 }
