@@ -88,13 +88,16 @@ export type RosterExportPayloads = {
 
 const YEAR = "2026";
 
+// Blaze service id (X-BLAZE-ID). Must include the console-generation suffix or EA Blaze returns
+// ERR_SYSTEM for current-gen platforms. gen4 = PS4/Xbox One, gen5 = PS5/Xbox Series/PC/Stadia.
+// Matches the working snallabot reference (only the suffix differed from our earlier values).
 const BLAZE_SERVICE: Record<RecEaConsole, string> = {
-  xone: `madden-${YEAR}-xone`,
-  ps4: `madden-${YEAR}-ps4`,
-  pc: `madden-${YEAR}-pc`,
-  ps5: `madden-${YEAR}-ps5`,
-  xbsx: `madden-${YEAR}-xbsx`,
-  stadia: `madden-${YEAR}-stadia`
+  xone: `madden-${YEAR}-xone-gen4`,
+  ps4: `madden-${YEAR}-ps4-gen4`,
+  pc: `madden-${YEAR}-pc-gen5`,
+  ps5: `madden-${YEAR}-ps5-gen5`,
+  xbsx: `madden-${YEAR}-xbsx-gen5`,
+  stadia: `madden-${YEAR}-stadia-gen5`
 };
 
 const BLAZE_PRODUCT_NAME: Record<RecEaConsole, string> = {
