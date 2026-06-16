@@ -50,25 +50,26 @@ create table if not exists public.rec_active_check_events (
 
 create table if not exists public.rec_active_check_responses (
   id uuid primary key default gen_random_uuid(),
-  active_check_id uuid not null references public.rec_active_check_events(id) on delete cascade,
+  event_id uuid not null references public.rec_active_check_events(id) on delete cascade,
   league_id uuid not null references public.rec_leagues(id) on delete cascade,
-  user_id uuid references public.rec_users(id) on delete set null,
+  user_id uuid not null references public.rec_users(id) on delete cascade,
   discord_id text not null,
+  team_id uuid references public.rec_teams(id) on delete set null,
   responded_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique(active_check_id, discord_id)
+  unique(event_id, user_id)
 );
 
 create table if not exists public.rec_active_check_misses (
   id uuid primary key default gen_random_uuid(),
-  active_check_id uuid not null references public.rec_active_check_events(id) on delete cascade,
+  event_id uuid not null references public.rec_active_check_events(id) on delete cascade,
   league_id uuid not null references public.rec_leagues(id) on delete cascade,
   user_id uuid not null references public.rec_users(id) on delete cascade,
   team_id uuid references public.rec_teams(id) on delete set null,
   missed_at timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  unique(active_check_id, user_id)
+  unique(event_id, user_id)
 );
 
 create table if not exists public.rec_stream_compliance_logs (

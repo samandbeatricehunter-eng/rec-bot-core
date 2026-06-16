@@ -17,8 +17,6 @@ import {
   buildPlayersByTeamEmbed,
   buildPlayersByTeamRows,
   buildSnapshotUserSelectRows,
-  buildRecBankRows,
-  buildManageWalletRows,
   buildToSavingsModal,
   buildFromSavingsModal,
   buildSetupDangerModal,
@@ -54,12 +52,22 @@ import { buildGotwSelectionPayload, GOTW_CUSTOM_IDS } from "./ui/gotw.js";
 import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
 import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
 import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } from "./ui/economy-admin.js";
-import { ACTIVE_CHECK_CUSTOM_IDS, buildActiveCheckAnnouncement } from "./ui/active-check.js";
+import { ACTIVE_CHECK_CUSTOM_IDS } from "./ui/active-check.js";
 import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal, handleCustomTeamNoLink } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import { buildRecAwardVotingEmbed, postEosPollsAndAwards } from "./flows/advance-wizard.js";
 import { ensureRecBaseRoles } from "./lib/role-sync.js";
+import { handleActiveCheckResponse, handleStartActiveCheck, startActiveCheckCloseoutLoop } from "./handlers/active-check.js";
+import {
+  handleManageWallet,
+  handlePlaceWager,
+  handleRecBankSelect,
+  handleSavingsTransferModal,
+  handleTransferFunds,
+  handleWalletMakePurchase,
+  handleWalletPendingPurchases
+} from "./handlers/wallet.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 client.setMaxListeners(50);
@@ -218,7 +226,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectNfc || interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectAfc) return handleRosterTeamSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.byTeamNav) return handleByTeamNav(interaction);
-      if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction);
+      if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction, buildMainMenuPayload);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (
         Object.values(IMPORT_CUSTOM_IDS).some(
@@ -386,163 +394,6 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
   await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
 }
 
-
-function formatRecDateTime(value?: string | null) {
-  if (!value) return "Unknown time";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown time";
-  return date.toLocaleString("en-US", {
-    timeZone: "America/Chicago",
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true
-  }) + " CST";
-}
-
-function formatTransactionLine(transaction: any) {
-  const amount = Number(transaction?.amount ?? 0);
-  const sign = amount > 0 ? "+" : "";
-  const type = String(transaction?.transaction_type ?? "transaction").replaceAll("_", " ");
-  const reason = transaction?.description ?? transaction?.source ?? "No reason provided";
-  return `**${sign}$${amount}** — ${type}\n${formatRecDateTime(transaction?.created_at)} • ${reason}`;
-}
-
-// Builds the REC Bank embed and returns the payload (used when opening or refreshing the bank view).
-async function buildRecBankPayload(discordUserId: string, guildId: string | undefined, isAdmin: boolean) {
-  const walletPayload = await recApi.getWallet(discordUserId, guildId);
-  const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
-  const transactions = Array.isArray(walletPayload?.transactions) ? walletPayload.transactions : [];
-  // API already limits to 10 when guildId is provided; show label accordingly
-  const countLabel = guildId ? "Last 10 Transactions (This League)" : "Last 25 Transactions (All Leagues)";
-  const transactionText = transactions.length
-    ? transactions.map(formatTransactionLine).join("\n\n")
-    : "No wallet transactions found.";
-
-  const embed = new EmbedBuilder()
-    .setTitle("REC Bank")
-    .setDescription([
-      `Wallet Balance: **$${wallet.wallet_balance ?? 0}**`,
-      `Savings Balance: **$${wallet.savings_balance ?? 0}**`,
-      "",
-      `**${countLabel}**`,
-      transactionText
-    ].join("\n").slice(0, 4096));
-
-  return { embeds: [embed], components: buildRecBankRows() };
-}
-
-// Handles the REC Bank action dropdown (transfer, back).
-async function handleRecBankSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  const selected = interaction.values[0];
-
-  if (selected === "bank_back") {
-    return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
-  }
-  if (selected === "to_savings") return interaction.showModal(buildToSavingsModal());
-  if (selected === "from_savings") return interaction.showModal(buildFromSavingsModal());
-}
-
-// Processes the savings transfer modal submission.
-async function handleSavingsTransferModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>, direction: "to_savings" | "from_savings") {
-  if (!interaction.isModalSubmit()) return;
-  await interaction.deferUpdate();
-  const inputId = direction === "to_savings" ? REC_BANK_CUSTOM_IDS.toSavingsAmountInput : REC_BANK_CUSTOM_IDS.fromSavingsAmountInput;
-  const raw = interaction.fields.getTextInputValue(inputId);
-  const amount = parseFloat(raw.replace(/[^0-9.]/g, ""));
-  const guildId = interaction.guild?.id ?? undefined;
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Invalid Amount").setDescription("Please enter a valid positive number (e.g. 50).")],
-      components: buildRecBankRows()
-    });
-  }
-
-  try {
-    const result = await recApi.transferSavings(interaction.user.id, amount, direction);
-    const dirLabel = direction === "to_savings" ? "moved to savings" : "withdrawn from savings";
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Transfer Complete").setDescription([
-        `**$${amount}** ${dirLabel}.`,
-        "",
-        `Wallet Balance: **$${result.wallet_balance ?? 0}**`,
-        `Savings Balance: **$${result.savings_balance ?? 0}**`
-      ].join("\n"))],
-      components: buildRecBankRows()
-    });
-  } catch (err: any) {
-    const msg = err?.message ?? "Transfer failed. Please try again.";
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Transfer Failed").setDescription(msg)],
-      components: buildRecBankRows()
-    });
-  }
-}
-
-// ── Main-menu Row 1 wallet/wager buttons ──────────────────────────────────────
-
-// Transfer Funds: opens the REC Bank view (balance, transactions, transfer dropdown) ephemerally.
-async function handleTransferFunds(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const guildId = interaction.guild?.id ?? undefined;
-  await interaction.editReply(await buildRecBankPayload(interaction.user.id, guildId, isDiscordAdminInteraction(interaction)));
-}
-
-// Place a Wager: the wager workflow itself is not built yet.
-async function handlePlaceWager(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  return interaction.reply({
-    embeds: [new EmbedBuilder().setTitle("Place a Wager").setDescription("The wager workflow is coming soon. You'll be able to wager coins on upcoming matchups here.")],
-    flags: MessageFlags.Ephemeral
-  });
-}
-
-// Manage My Wallet ephemeral: balance + last 10 transactions + action buttons.
-async function buildManageWalletPayload(userId: string, guildId: string | undefined) {
-  const walletPayload = await recApi.getWallet(userId, guildId).catch(() => null);
-  const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
-  const transactions = Array.isArray(walletPayload?.transactions) ? walletPayload.transactions : [];
-  const txText = transactions.length ? transactions.slice(0, 10).map(formatTransactionLine).join("\n\n") : "No wallet transactions found.";
-  const embed = new EmbedBuilder()
-    .setTitle("Manage My Wallet")
-    .setDescription([
-      `Wallet Balance: **$${wallet.wallet_balance ?? 0}**`,
-      `Savings Balance: **$${wallet.savings_balance ?? 0}**`,
-      "",
-      "**Last 10 Transactions**",
-      txText
-    ].join("\n").slice(0, 4096));
-  return { embeds: [embed], components: buildManageWalletRows() };
-}
-
-async function handleManageWallet(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  await interaction.editReply(await buildManageWalletPayload(interaction.user.id, interaction.guild?.id ?? undefined));
-}
-
-async function handleWalletPendingPurchases(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  await interaction.deferUpdate();
-  await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Pending Purchases").setDescription("You have no pending purchases or unapplied payouts.\n\n(Pending-purchase tracking arrives with the Manage My Franchise store.)")],
-    components: buildManageWalletRows()
-  });
-}
-
-async function handleWalletMakePurchase(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  await interaction.deferUpdate();
-  await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Make a Purchase").setDescription("The store will live in **Manage My Franchise** (coming soon). You'll be able to buy upgrades and management tools there.")],
-    components: buildManageWalletRows()
-  });
-}
 
 async function handleMainMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
@@ -2648,62 +2499,6 @@ async function handleLeagueWeekView(interaction: Extract<Interaction, { isButton
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await recApi.viewLeagueWeek(interaction.guildId);
   await interaction.editReply(`League: ${result.league?.name ?? "Unknown"}\nSeason: ${result.league?.season_number ?? "?"}\nWeek: ${result.league?.current_week ?? "?"}\nStage: ${result.league?.season_stage ?? result.league?.current_phase ?? "?"}`);
-}
-
-async function handleStartActiveCheck(interaction: ButtonInteraction | StringSelectMenuInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can start an Active Check.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await recApi.createActiveCheck({ guildId: interaction.guildId, createdByDiscordId: interaction.user.id });
-  if (!result.channelId) {
-    await interaction.editReply("No league announcements channel is configured. Set announcements during server/league setup before starting an Active Check.");
-    return;
-  }
-  const channel = await interaction.guild.channels.fetch(result.channelId).catch(() => null);
-  if (!channel || !("send" in channel)) {
-    await interaction.editReply("The configured announcements channel could not be accessed.");
-    return;
-  }
-  const sent = await (channel as any).send(buildActiveCheckAnnouncement(result.event, result.deadlineDisplay ?? {}));
-  await recApi.recordActiveCheckMessage({ eventId: result.event.id, discordChannelId: result.channelId, discordMessageId: sent.id });
-  await interaction.editReply(`Active Check posted in <#${result.channelId}>. It closes in 24 hours.`);
-}
-
-async function handleActiveCheckResponse(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  const eventId = interaction.customId.slice(ACTIVE_CHECK_CUSTOM_IDS.activePrefix.length);
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await recApi.recordActiveCheckResponse({ eventId, discordId: interaction.user.id });
-  await interaction.editReply(result.recorded ? "Active Check recorded. You are marked active for this league." : result.reason ?? "Your Active Check could not be recorded.");
-}
-
-function startActiveCheckCloseoutLoop(activeClient: Client) {
-  setInterval(async () => {
-    for (const guild of activeClient.guilds.cache.values()) {
-      const result = await recApi.getOpenActiveChecks(guild.id).catch(() => null);
-      for (const event of result?.events ?? []) {
-        if (!event.closes_at || new Date(event.closes_at).getTime() > Date.now()) continue;
-        const closed = await recApi.closeActiveCheck(event.id).catch(() => null);
-        if (!closed?.closed) continue;
-        if (closed.event?.discord_channel_id && closed.event?.discord_message_id) {
-          const channel = await guild.channels.fetch(closed.event.discord_channel_id).catch(() => null) as any;
-          const message = channel?.messages ? await channel.messages.fetch(closed.event.discord_message_id).catch(() => null) : null;
-          await message?.edit({ components: [] }).catch(() => undefined);
-        }
-        if (closed.commissionerOfficeChannelId) {
-          const office = await guild.channels.fetch(closed.commissionerOfficeChannelId).catch(() => null) as any;
-          const missing = closed.missing ?? [];
-          const lines = missing.length
-            ? missing.map((user: any) => user.discord_id ? `<@${user.discord_id}>` : user.rec_users?.display_name ?? user.user_id)
-            : ["All linked team users responded as active."];
-          await office?.send?.(["Active Check Closed", "", "Users who did not respond:", ...lines].join("\n")).catch(() => undefined);
-        }
-      }
-    }
-  }, 300_000).unref();
 }
 
 await client.login(env.DISCORD_TOKEN);

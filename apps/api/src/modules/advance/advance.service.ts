@@ -1515,6 +1515,31 @@ export async function createActiveCheck(input: { guildId: string; createdByDisco
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const weekNumber = league.current_week ?? 1;
   const closesAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: existingOpen, error: existingError } = await supabase
+    .from("rec_active_check_events")
+    .select("*")
+    .eq("league_id", context.league_id)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existingOpen) {
+    console.info("[active-check] create skipped; open active check already exists", {
+      guildId: input.guildId,
+      leagueId: context.league_id,
+      eventId: existingOpen.id,
+      closesAt: existingOpen.closes_at
+    });
+    return {
+      event: existingOpen,
+      channelId: routes?.announcements_channel_id ?? existingOpen.discord_channel_id ?? null,
+      deadlineDisplay: deadlineDisplay(new Date(existingOpen.closes_at ?? closesAt)),
+      alreadyOpen: true
+    };
+  }
+
   const { data, error } = await supabase.from("rec_active_check_events").insert({
     league_id: context.league_id,
     season_number: seasonNumber,
@@ -1527,7 +1552,15 @@ export async function createActiveCheck(input: { guildId: string; createdByDisco
     updated_at: nowIso()
   }).select("*").single();
   if (error) throw error;
-  return { event: data, channelId: routes?.announcements_channel_id ?? null, deadlineDisplay: deadlineDisplay(new Date(closesAt)) };
+  console.info("[active-check] created", {
+    guildId: input.guildId,
+    leagueId: context.league_id,
+    eventId: data.id,
+    seasonNumber,
+    weekNumber,
+    closesAt
+  });
+  return { event: data, channelId: routes?.announcements_channel_id ?? null, deadlineDisplay: deadlineDisplay(new Date(closesAt)), alreadyOpen: false };
 }
 
 export async function recordActiveCheckMessage(input: { eventId: string; discordChannelId: string; discordMessageId: string }) {
@@ -1598,6 +1631,11 @@ export async function closeActiveCheck(input: { eventId: string }) {
   const routes = context.data?.server_id ? await getRoutes(context.data.server_id) : null;
   const discordRows = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", missing.map((m: any) => m.user_id));
   const discordByUser = new Map((discordRows.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+  console.info("[active-check] closed", {
+    eventId: input.eventId,
+    leagueId: event.league_id,
+    missingCount: missing.length
+  });
   return { closed: true, event: updated, missing: missing.map((row: any) => ({ ...row, discord_id: discordByUser.get(row.user_id) ?? null })), commissionerOfficeChannelId: routes?.commissioner_office_channel_id ?? routes?.admin_import_log_channel_id ?? null };
 }
 
