@@ -273,13 +273,14 @@ export async function recordHighlightMessage(message: any) {
     if (result?.payoutEligible && result.pendingPayoutsChannelId) {
       const channel = await message.guild.channels.fetch(result.pendingPayoutsChannelId).catch(() => null);
       if (channel?.isTextBased()) {
-        await channel.send({
+        const reviewMessage = await channel.send({
           embeds: [new EmbedBuilder()
-            .setTitle("Highlight Payout")
+            .setTitle("HIGHLIGHT PAYOUT REVIEW")
             .setColor(0x2ecc71)
             .setDescription([
               `User: <@${message.author.id}>`,
               `Week: ${result.post?.week_number ?? "?"}`,
+              `Amount: $25 REC Cash`,
               `[View Highlight](${message.url ?? result.post?.message_url ?? "N/A"})`
             ].join("\n"))],
           components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -287,6 +288,13 @@ export async function recordHighlightMessage(message: any) {
             new ButtonBuilder().setCustomId(`highlight_payout:deny:${result.post?.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
           )]
         }).catch(() => undefined);
+        if (reviewMessage && result.inbox?.id) {
+          await recApi.recordCommissionersInboxMessage({
+            inboxId: result.inbox.id,
+            discordChannelId: reviewMessage.channelId,
+            discordMessageId: reviewMessage.id
+          }).catch(() => undefined);
+        }
       }
     }
 
@@ -340,12 +348,13 @@ export async function recordGameChannelMessage(message: any) {
   if (streamResult?.needsReview && streamResult.pendingPayoutsChannelId) {
     const channel = await message.guild.channels.fetch(streamResult.pendingPayoutsChannelId).catch(() => null);
     if (channel?.isTextBased()) {
-      await channel.send({
+      const reviewMessage = await channel.send({
         embeds: [new EmbedBuilder()
-          .setTitle("Pending Stream Payout Review")
+          .setTitle("STREAM PAYOUT REVIEW")
           .setDescription([
             `User: <@${message.author.id}>`,
             `Week: ${streamResult.log?.week_number ?? "?"}`,
+            `Amount: $25 REC Cash`,
             `Reason: User mentioned Discord as their stream source but no supported stream link was detected.`,
             `Original Message: ${message.url ?? "Unavailable"}`
           ].join("\n"))],
@@ -354,6 +363,13 @@ export async function recordGameChannelMessage(message: any) {
           new ButtonBuilder().setCustomId(`rec:stream_review:deny:${streamResult.review?.id}`).setLabel("Deny Stream Payout").setStyle(ButtonStyle.Danger)
         )]
       }).catch(() => undefined);
+      if (reviewMessage && streamResult.inbox?.id) {
+        await recApi.recordCommissionersInboxMessage({
+          inboxId: streamResult.inbox.id,
+          discordChannelId: reviewMessage.channelId,
+          discordMessageId: reviewMessage.id
+        }).catch(() => undefined);
+      }
     }
   }
 }

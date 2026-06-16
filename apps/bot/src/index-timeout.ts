@@ -2120,6 +2120,7 @@ async function handleHighlightPayout(interaction: Extract<Interaction, { isButto
       await interaction.editReply({ content: `Failed to approve: ${err instanceof Error ? err.message : String(err)}` });
     }
   } else {
+    await recApi.denyHighlightPayout({ postId: postId!, discordId: interaction.user.id, deniedReason: "Denied by commissioner review." }).catch(() => undefined);
     await interaction.message.edit({ components: [] }).catch(() => undefined);
     await interaction.editReply({ content: "Highlight payout denied." });
   }

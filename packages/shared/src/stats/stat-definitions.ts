@@ -227,6 +227,8 @@ const TEAM_OFFENSE: StatDefinition[] = [
     aliases: ["firstDowns"], usedFor: ["challenge"] }),
   d({ canonicalKey: "red_zone_tds", label: "Red Zone Touchdowns", shortLabel: "RZ TD", scope: "team", side: "offense", category: "team_offense", aggregate: "sum",
     aliases: ["offRedZoneTDs", "redZoneTDs"], usedFor: ["challenge", "leaderboard"] }),
+  d({ canonicalKey: "red_zone_td_rate", label: "Red Zone TD Rate", shortLabel: "RZ TD%", scope: "team", side: "offense", category: "team_offense", aggregate: "latest",
+    valueType: "percentage", precision: 1, aliases: ["redZoneTdRate", "redZoneTDRate", "red_zone_td_pct", "redZoneTDPct"], usedFor: ["eos_payout", "leaderboard"] }),
   d({ canonicalKey: "turnovers", label: "Giveaways", shortLabel: "GA", scope: "team", side: "offense", category: "team_offense", aggregate: "sum",
     higherIsBetter: false, aliases: ["giveaways", "teamTurnovers"], usedFor: ["challenge", "eos_payout"] }),
   d({ canonicalKey: "offensive_plays", label: "Offensive Plays", shortLabel: "Plays", scope: "team", side: "offense", category: "team_offense", aggregate: "sum",
@@ -237,7 +239,7 @@ const TEAM_OFFENSE: StatDefinition[] = [
     aliases: ["gamesPlayed", "games"] }),
   // derived
   d({ canonicalKey: "points_per_game", label: "Points Per Game", shortLabel: "PPG", scope: "team", side: "offense", category: "team_offense", aggregate: "derived",
-    valueType: "number", precision: 1, derived: true, formula: "points_for / games_played", dependencies: ["points_for", "games_played"], usedFor: ["award", "eos_payout", "leaderboard"] }),
+    valueType: "number", precision: 1, derived: true, formula: "points_for / games_played", dependencies: ["points_for", "games_played"], aliases: ["pointsPerGame"], usedFor: ["award", "eos_payout", "leaderboard"] }),
   d({ canonicalKey: "yards_per_game", label: "Yards Per Game", shortLabel: "YPG", scope: "team", side: "offense", category: "team_offense", aggregate: "derived",
     valueType: "number", precision: 1, derived: true, formula: "total_offense_yards / games_played", dependencies: ["total_offense_yards", "games_played"], usedFor: ["eos_payout", "leaderboard"] })
 ];
@@ -257,14 +259,18 @@ const TEAM_DEFENSE: StatDefinition[] = [
   d({ canonicalKey: "team_sacks", label: "Team Sacks", shortLabel: "Sk", scope: "team", side: "defense", category: "team_defense", aggregate: "sum",
     valueType: "number", precision: 1, aliases: ["teamSacks", "defensiveSacks", "defSacks"], usedFor: ["challenge", "eos_payout", "leaderboard"] }),
   d({ canonicalKey: "team_interceptions", label: "Team Interceptions", shortLabel: "INT", scope: "team", side: "defense", category: "team_defense", aggregate: "sum",
-    aliases: ["teamInterceptions", "defensiveInterceptions"], usedFor: ["eos_payout", "challenge", "leaderboard"] }),
+    aliases: ["teamInterceptions", "defensiveInterceptions", "defInts"], usedFor: ["eos_payout", "challenge", "leaderboard"] }),
   d({ canonicalKey: "fumbles_forced_team", label: "Team Forced Fumbles", shortLabel: "FF", scope: "team", side: "defense", category: "team_defense", aggregate: "sum",
     aliases: ["teamForcedFumbles"] }),
   d({ canonicalKey: "red_zone_tds_allowed", label: "Red Zone TDs Allowed", shortLabel: "RZ TD Alw", scope: "team", side: "defense", category: "team_defense", aggregate: "sum",
     higherIsBetter: false, aliases: ["defRedZoneTDs"], usedFor: ["challenge", "leaderboard"] }),
+  d({ canonicalKey: "red_zone_td_rate_allowed", label: "Red Zone TD Rate Allowed", shortLabel: "RZ TD% Alw", scope: "team", side: "defense", category: "team_defense", aggregate: "latest",
+    valueType: "percentage", precision: 1, higherIsBetter: false, aliases: ["oppRedZoneTdRate", "oppRedZoneTDRate", "defRedZoneTdRate", "redZoneTdRateAllowed"], usedFor: ["eos_payout", "leaderboard"] }),
+  d({ canonicalKey: "turnover_differential", label: "Turnover Differential", shortLabel: "TO Diff", scope: "team", side: "general", category: "team_general", aggregate: "latest",
+    aliases: ["turnoverDifferential", "turnoverDiff", "toDifferential", "toDiff"], usedFor: ["award", "eos_payout", "leaderboard"] }),
   // derived
   d({ canonicalKey: "points_allowed_per_game", label: "Points Allowed Per Game", shortLabel: "PAPG", scope: "team", side: "defense", category: "team_defense", aggregate: "derived",
-    valueType: "number", precision: 1, higherIsBetter: false, derived: true, formula: "points_allowed / games_played", dependencies: ["points_allowed", "games_played"], usedFor: ["award", "eos_payout", "leaderboard"] }),
+    valueType: "number", precision: 1, higherIsBetter: false, derived: true, formula: "points_allowed / games_played", dependencies: ["points_allowed", "games_played"], aliases: ["oppPointsPerGame"], usedFor: ["award", "eos_payout", "leaderboard"] }),
   d({ canonicalKey: "yards_allowed_per_game", label: "Yards Allowed Per Game", shortLabel: "YAPG", scope: "team", side: "defense", category: "team_defense", aggregate: "derived",
     valueType: "number", precision: 1, higherIsBetter: false, derived: true, formula: "total_yards_allowed / games_played", dependencies: ["total_yards_allowed", "games_played"], usedFor: ["eos_payout", "leaderboard"] })
 ];

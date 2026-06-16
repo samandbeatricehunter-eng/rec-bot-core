@@ -122,21 +122,28 @@ async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, th
   const latestPassRows = (passingRows ?? []).filter((r: any) => r.week_number === latestPassWeek);
   const latestRushRows = (rushingRows ?? []).filter((r: any) => r.week_number === latestRushWeek);
 
-  let topPasserName: string | null = null, topPassYds = 0, avgPassYdsPerGame = 0;
+  let topPasserName: string | null = null, topPassYds = 0, totalPassYds = 0;
+  const passWeeks = new Set<number>();
   for (const row of latestPassRows) {
     const s = (row.stats ?? {}) as Record<string, any>;
     const yds = readStat(s, "pass_yards");
     if (yds > topPassYds) { topPassYds = yds; topPasserName = (s.fullName as string) ?? row.player_name ?? null; }
-    const ypg = asNumber(s.passYdsPerGame);
-    if (ypg > avgPassYdsPerGame) avgPassYdsPerGame = ypg;
   }
-  let topRusherName: string | null = null, topRushYds = 0, avgRushYdsPerGame = 0;
+  for (const row of passingRows ?? []) {
+    totalPassYds += readStat((row.stats ?? {}) as Record<string, unknown>, "pass_yards");
+    if (row.week_number != null) passWeeks.add(Number(row.week_number));
+  }
+
+  let topRusherName: string | null = null, topRushYds = 0, totalRushYds = 0;
+  const rushWeeks = new Set<number>();
   for (const row of latestRushRows) {
     const s = (row.stats ?? {}) as Record<string, any>;
     const yds = readStat(s, "rush_yards");
     if (yds > topRushYds) { topRushYds = yds; topRusherName = (s.fullName as string) ?? row.player_name ?? null; }
-    const ypg = asNumber(s.rushYdsPerGame);
-    if (ypg > avgRushYdsPerGame) avgRushYdsPerGame = ypg;
+  }
+  for (const row of rushingRows ?? []) {
+    totalRushYds += readStat((row.stats ?? {}) as Record<string, unknown>, "rush_yards");
+    if (row.week_number != null) rushWeeks.add(Number(row.week_number));
   }
 
   let totalPoints = 0, totalAllowed = 0, gamesPlayed = 0;
@@ -160,8 +167,8 @@ async function buildTeamSeasonProfile(leagueId: string, seasonNumber: number, th
 
   return {
     teamId,
-    avgPassYdsPerGame,
-    avgRushYdsPerGame,
+    avgPassYdsPerGame: passWeeks.size > 0 ? totalPassYds / passWeeks.size : 0,
+    avgRushYdsPerGame: rushWeeks.size > 0 ? totalRushYds / rushWeeks.size : 0,
     avgPointsPerGame: gamesPlayed > 0 ? totalPoints / gamesPlayed : 0,
     avgPointsAllowedPerGame: gamesPlayed > 0 ? totalAllowed / gamesPlayed : 0,
     avgTurnoversPerGame: (totalInts + totalFumbles) / defGames,

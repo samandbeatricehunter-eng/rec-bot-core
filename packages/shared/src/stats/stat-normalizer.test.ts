@@ -28,6 +28,7 @@ test("context-sensitive: interceptions", () => {
   // explicit unambiguous aliases still work
   assert.equal(resolveCanonicalKey("passInts", "player", "passing"), "interceptions_thrown");
   assert.equal(resolveCanonicalKey("defInts", "player", "defense"), "interceptions");
+  assert.equal(resolveCanonicalKey("defInts", "team", "team_defense"), "team_interceptions");
 });
 
 test("context-sensitive: sacks", () => {
@@ -74,6 +75,26 @@ test("normalizeImportedStats: never throws on nested / odd values", () => {
   assert.equal(result.canonicalStats.points_allowed, 280);
   // nested/array values are ignored, not crashed on
   assert.equal("nested" in result.canonicalStats, false);
+});
+
+test("normalizeImportedStats: maps imported team rate and differential fields", () => {
+  const offense = normalizeImportedStats({
+    scope: "team",
+    statCategory: "team_offense",
+    stats: { redZoneTdRate: 66.7, turnoverDifferential: 8, pointsPerGame: 31.5 }
+  });
+  assert.equal(offense.canonicalStats.red_zone_td_rate, 66.7);
+  assert.equal(offense.canonicalStats.turnover_differential, 8);
+  assert.equal(offense.canonicalStats.points_per_game, 31.5);
+
+  const defense = normalizeImportedStats({
+    scope: "team",
+    statCategory: "team_defense",
+    stats: { oppRedZoneTdRate: 42.5, oppPointsPerGame: 18.2, defInts: 21 }
+  });
+  assert.equal(defense.canonicalStats.red_zone_td_rate_allowed, 42.5);
+  assert.equal(defense.canonicalStats.points_allowed_per_game, 18.2);
+  assert.equal(defense.canonicalStats.team_interceptions, 21);
 });
 
 test("readStat: backward compatible with legacy raw keys and canonical keys", () => {

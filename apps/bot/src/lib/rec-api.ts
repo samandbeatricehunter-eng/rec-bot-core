@@ -510,6 +510,16 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  recordCommissionersInboxMessage: (input: {
+    inboxId: string;
+    discordChannelId: string;
+    discordMessageId: string;
+  }) =>
+    recFetch<any>("/v1/commissioners-inbox/message", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   processAdvanceResults: (guildId: string) =>
     recFetch<any>("/v1/advance/process-results", {
       method: "POST",
@@ -639,6 +649,12 @@ export const recApi = {
 
   approveHighlightPayout: (input: { postId: string; discordId: string }) =>
     recFetch<any>("/v1/highlights/approve", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  denyHighlightPayout: (input: { postId: string; discordId: string; deniedReason?: string | null }) =>
+    recFetch<any>("/v1/highlights/deny", {
       method: "POST",
       body: JSON.stringify(input)
     }),

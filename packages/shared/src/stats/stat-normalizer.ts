@@ -43,7 +43,7 @@ export const DEF_BY_KEY = new Map<string, StatDefinition>(
 // Ambiguous aliases are resolved by scope + statCategory rather than a flat index.
 const AMBIGUOUS_ALIASES = new Set<string>(
   [
-    "interceptions", "ints", "int", "picks",
+    "interceptions", "ints", "int", "picks", "defints",
     "sacks", "sack", "defsacks",
     "passyards", "passingyards", "passyds", "passingyds",
     "rushyards", "rushingyards", "rushyds", "rushingyds",
@@ -74,7 +74,7 @@ function resolveAmbiguous(norm: string, scope: StatScope, cat: string): string |
   const isPassing = cat.includes("passing") || cat.includes("pass");
   const isDefense = cat.includes("defense") || cat.includes("def");
 
-  if (["interceptions", "ints", "int", "picks"].includes(norm)) {
+  if (["interceptions", "ints", "int", "picks", "defints"].includes(norm)) {
     if (scope === "team") return "team_interceptions";
     if (scope === "player" && isPassing && !isDefense) return "interceptions_thrown";
     if (scope === "player") return "interceptions";

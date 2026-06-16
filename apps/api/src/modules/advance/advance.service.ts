@@ -174,6 +174,100 @@ async function getRoutes(serverId: string) {
 
 function nowIso() { return new Date().toISOString(); }
 
+async function getGuildIdForServer(serverId?: string | null) {
+  if (!serverId) return null;
+  const { data, error } = await supabase.from("rec_discord_servers").select("guild_id").eq("id", serverId).maybeSingle();
+  if (error) throw error;
+  return data?.guild_id ?? null;
+}
+
+async function upsertCommissionersInboxItem(input: {
+  guildId: string;
+  serverId: string;
+  leagueId: string;
+  seasonNumber?: number | null;
+  weekNumber?: number | null;
+  queueType: string;
+  status?: "pending" | "approved" | "denied" | "cancelled" | "expired" | "resolved";
+  priority?: number;
+  header: string;
+  summary?: string | null;
+  requesterUserId?: string | null;
+  requesterDiscordId?: string | null;
+  targetUserId?: string | null;
+  targetDiscordId?: string | null;
+  teamId?: string | null;
+  amount?: number | null;
+  sourceTable: string;
+  sourceId: string;
+  sourceReference?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+}) {
+  const { data, error } = await supabase
+    .from("rec_commissioners_inbox")
+    .upsert({
+      guild_id: input.guildId,
+      server_id: input.serverId,
+      league_id: input.leagueId,
+      season_number: input.seasonNumber ?? null,
+      week_number: input.weekNumber ?? null,
+      queue_type: input.queueType,
+      status: input.status ?? "pending",
+      priority: input.priority ?? 0,
+      header: input.header,
+      summary: input.summary ?? null,
+      requester_user_id: input.requesterUserId ?? null,
+      requester_discord_id: input.requesterDiscordId ?? null,
+      target_user_id: input.targetUserId ?? null,
+      target_discord_id: input.targetDiscordId ?? null,
+      team_id: input.teamId ?? null,
+      amount: input.amount ?? null,
+      source_table: input.sourceTable,
+      source_id: input.sourceId,
+      source_reference: input.sourceReference ?? {},
+      payload: input.payload ?? {},
+      updated_at: nowIso()
+    }, { onConflict: "guild_id,queue_type,source_table,source_id" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function updateCommissionersInboxBySource(input: {
+  guildId?: string | null;
+  queueType: string;
+  sourceTable: string;
+  sourceId: string;
+  patch: Record<string, unknown>;
+}) {
+  let query = supabase
+    .from("rec_commissioners_inbox")
+    .update({ ...input.patch, updated_at: nowIso() })
+    .eq("queue_type", input.queueType)
+    .eq("source_table", input.sourceTable)
+    .eq("source_id", input.sourceId);
+  if (input.guildId) query = query.eq("guild_id", input.guildId);
+  const { data, error } = await query.select("*").maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function recordCommissionersInboxMessage(input: { inboxId: string; discordChannelId: string; discordMessageId: string }) {
+  const { data, error } = await supabase
+    .from("rec_commissioners_inbox")
+    .update({
+      review_channel_id: input.discordChannelId,
+      review_message_id: input.discordMessageId,
+      updated_at: nowIso()
+    })
+    .eq("id", input.inboxId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return { recorded: true, inbox: data };
+}
+
 function deadlineDisplay(date: Date) {
   return Object.fromEntries(formatAdvanceTimes(date.toISOString()).map((time) => [time.label, time.value]));
 }
@@ -1689,6 +1783,7 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
   // Generate a payout review if the post is a valid stream (url link OR "discord" mention), not
   // offseason, AND it's the first stream this advance week (deduped per user/season/week below).
   let review = null;
+  let inbox = null;
   const payoutBlocked = OFFSEASON_STAGES.has(stage);
   const isValidStreamPost = hasStreamLink || mentionsDiscordStream;
   if (isValidStreamPost && !payoutBlocked) {
@@ -1708,21 +1803,61 @@ export async function recordStreamPost(input: { guildId: string; discordId: stri
       }, { onConflict: "stream_log_id" }).select("*").single();
       if (reviewError) throw reviewError;
       review = reviewRow;
+      inbox = await upsertCommissionersInboxItem({
+        guildId: input.guildId,
+        serverId: context.server_id,
+        leagueId: context.league_id,
+        seasonNumber,
+        weekNumber,
+        queueType: "stream_payout",
+        priority: 50,
+        header: "STREAM PAYOUT REVIEW",
+        summary: `Week ${weekNumber} stream payout for <@${input.discordId}>.`,
+        requesterUserId: discord.user_id,
+        requesterDiscordId: input.discordId,
+        targetUserId: discord.user_id,
+        targetDiscordId: input.discordId,
+        teamId: assignment.team_id,
+        amount: 25,
+        sourceTable: "rec_stream_payout_reviews",
+        sourceId: reviewRow.id,
+        sourceReference: { type: "stream_payout_review", reviewId: reviewRow.id, streamLogId: data.id },
+        payload: {
+          reason: mentionsDiscordStream ? "discord_stream_needs_review" : "stream_link_payout",
+          streamLogId: data.id,
+          streamMessageUrl: input.messageUrl ?? null,
+          contentPreview: content.slice(0, 300)
+        }
+      });
     }
   }
   // Stream-payout reviews are a payout approval, so they post to the pending payouts channel
   // (falling back to the legacy pending economy channel if payouts is unconfigured).
-  return { recorded: true, log: data, review, needsReview: review !== null, invalidStreamPost: status === "invalid", shouldDelete: status === "invalid", pendingPayoutsChannelId: routes?.pending_payouts_channel_id ?? routes?.pending_economy_channel_id ?? null };
+  return { recorded: true, log: data, review, inbox, needsReview: review !== null, invalidStreamPost: status === "invalid", shouldDelete: status === "invalid", pendingPayoutsChannelId: routes?.pending_payouts_channel_id ?? routes?.pending_economy_channel_id ?? null };
 }
 
 export async function reviewStreamPayout(input: { reviewId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
   const { data: review, error } = await supabase.from("rec_stream_payout_reviews").select("*").eq("id", input.reviewId).single();
   if (error) throw error;
   if (review.status !== "pending") return { updated: false, reason: "Review is not pending.", review };
+  const { data: serverLink } = await supabase.from("rec_server_league_links").select("server_id").eq("league_id", review.league_id).limit(1).maybeSingle();
+  const guildId = serverLink?.server_id ? await getGuildIdForServer(serverLink.server_id) : null;
   if (input.action === "deny") {
     const { data, error: updateError } = await supabase.from("rec_stream_payout_reviews").update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, denied_reason: input.deniedReason ?? null, reviewed_at: nowIso(), updated_at: nowIso() }).eq("id", input.reviewId).select("*").single();
     if (updateError) throw updateError;
-    return { updated: true, review: data };
+    const inbox = await updateCommissionersInboxBySource({
+      guildId,
+      queueType: "stream_payout",
+      sourceTable: "rec_stream_payout_reviews",
+      sourceId: input.reviewId,
+      patch: {
+        status: "denied",
+        reviewed_by_discord_id: input.reviewedByDiscordId,
+        reviewed_at: nowIso(),
+        review_reason: input.deniedReason ?? null
+      }
+    });
+    return { updated: true, review: data, inbox };
   }
   const { data: ledger, error: ledgerError } = await supabase.from("rec_dollar_ledger").insert({
     user_id: review.user_id,
@@ -1737,12 +1872,24 @@ export async function reviewStreamPayout(input: { reviewId: string; action: "app
   if (ledgerError) throw ledgerError;
   const { data, error: updateError } = await supabase.from("rec_stream_payout_reviews").update({ status: "issued", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: nowIso(), issued_at: nowIso(), issued_ledger_id: ledger?.id ?? null, updated_at: nowIso() }).eq("id", input.reviewId).select("*").single();
   if (updateError) throw updateError;
+  const inbox = await updateCommissionersInboxBySource({
+    guildId,
+    queueType: "stream_payout",
+    sourceTable: "rec_stream_payout_reviews",
+    sourceId: input.reviewId,
+    patch: {
+      status: "approved",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      reviewed_at: nowIso(),
+      source_reference: { type: "stream_payout_review", reviewId: review.id, streamLogId: review.stream_log_id, ledgerId: ledger?.id ?? null }
+    }
+  });
   const { data: streamLog } = await supabase
     .from("rec_stream_compliance_logs")
     .select("discord_channel_id, discord_message_id")
     .eq("id", review.stream_log_id)
     .maybeSingle();
-  return { updated: true, review: data, ledger, streamLog };
+  return { updated: true, review: data, ledger, streamLog, inbox };
 }
 
 export async function settleGotwVotes(guildId: string) {
@@ -2901,7 +3048,36 @@ export async function recordHighlightPost(input: { guildId: string; discordId: s
     updated_at: nowIso()
   }).select("*").single();
   if (error) throw error;
-  return { recorded: true, post, isFirstThisWeek, payoutEligible, pendingPayoutsChannelId: routes?.pending_payouts_channel_id ?? null };
+  let inbox = null;
+  if (payoutEligible) {
+    inbox = await upsertCommissionersInboxItem({
+      guildId: input.guildId,
+      serverId: context.server_id,
+      leagueId: context.league_id,
+      seasonNumber,
+      weekNumber,
+      queueType: "highlight_payout",
+      priority: 45,
+      header: "HIGHLIGHT PAYOUT REVIEW",
+      summary: `Week ${weekNumber} highlight payout for <@${input.discordId}>.`,
+      requesterUserId: discord.user_id,
+      requesterDiscordId: input.discordId,
+      targetUserId: discord.user_id,
+      targetDiscordId: input.discordId,
+      teamId: assignment.team_id,
+      amount: 25,
+      sourceTable: "rec_highlight_posts",
+      sourceId: post.id,
+      sourceReference: { type: "highlight_payout", postId: post.id },
+      payload: {
+        highlightMessageUrl: input.messageUrl ?? null,
+        contentPreview: (input.content ?? "").slice(0, 300),
+        isFirstThisWeek,
+        payoutEligible
+      }
+    });
+  }
+  return { recorded: true, post, inbox, isFirstThisWeek, payoutEligible, pendingPayoutsChannelId: routes?.pending_payouts_channel_id ?? null };
 }
 
 export async function approveHighlightPayout(input: { postId: string; discordId: string }) {
@@ -2918,7 +3094,42 @@ export async function approveHighlightPayout(input: { postId: string; discordId:
     sourceReference: { type: "highlight_payout", postId: post.id, idempotencyKey: `highlight_payout_${post.id}` }
   });
   await supabase.from("rec_highlight_posts").update({ payout_review_id: credit.ledger?.id ?? null, payout_issued: true, updated_at: nowIso() }).eq("id", input.postId);
-  return { approved: true, ledger: credit.ledger };
+  const { data: serverLink } = await supabase.from("rec_server_league_links").select("server_id").eq("league_id", post.league_id).limit(1).maybeSingle();
+  const guildId = serverLink?.server_id ? await getGuildIdForServer(serverLink.server_id) : null;
+  const inbox = await updateCommissionersInboxBySource({
+    guildId,
+    queueType: "highlight_payout",
+    sourceTable: "rec_highlight_posts",
+    sourceId: post.id,
+    patch: {
+      status: "approved",
+      reviewed_by_discord_id: input.discordId,
+      reviewed_at: nowIso(),
+      source_reference: { type: "highlight_payout", postId: post.id, ledgerId: credit.ledger?.id ?? null }
+    }
+  });
+  return { approved: true, ledger: credit.ledger, inbox };
+}
+
+export async function denyHighlightPayout(input: { postId: string; discordId: string; deniedReason?: string | null }) {
+  const { data: post, error } = await supabase.from("rec_highlight_posts").select("*").eq("id", input.postId).single();
+  if (error) throw error;
+  if (post.payout_issued) return { denied: false, reason: "Payout already issued for this post." };
+  const { data: serverLink } = await supabase.from("rec_server_league_links").select("server_id").eq("league_id", post.league_id).limit(1).maybeSingle();
+  const guildId = serverLink?.server_id ? await getGuildIdForServer(serverLink.server_id) : null;
+  const inbox = await updateCommissionersInboxBySource({
+    guildId,
+    queueType: "highlight_payout",
+    sourceTable: "rec_highlight_posts",
+    sourceId: post.id,
+    patch: {
+      status: "denied",
+      reviewed_by_discord_id: input.discordId,
+      reviewed_at: nowIso(),
+      review_reason: input.deniedReason ?? "Denied by commissioner review."
+    }
+  });
+  return { denied: true, inbox };
 }
 
 export async function submitPotyNomination(input: { guildId: string; nominatorDiscordId: string; nomineeDiscordId: string; potyCategory?: string; highlightId?: string }) {
