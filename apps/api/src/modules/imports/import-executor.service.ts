@@ -215,16 +215,26 @@ function getWeekBounds(job: any): { weekFrom: number; weekTo: number; weeks: num
 async function loadEaContext(importJobId: string, job: any): Promise<EaExecutionContext> {
   const externalLeagueId = job.ea_external_league_id;
   if (!externalLeagueId) throw new ApiError(409, "Import job is missing EA external league id.");
-  const franchise = await supabase.from("rec_ea_franchises").select("*, account:rec_ea_accounts(*)").eq("external_league_id", String(externalLeagueId)).maybeSingle();
-  if (franchise.error) throw new ApiError(500, "Failed to load selected EA franchise.", franchise.error);
-  const account = (franchise.data as any)?.account;
-  if (!franchise.data || !account) throw new ApiError(404, "Selected EA franchise/account was not found. Reconnect EA and rediscover franchises.");
+  // The same EA league can be discovered by multiple accounts/connect sessions, so external_league_id
+  // is not unique (and .maybeSingle() would error on duplicates). Pick the franchise whose account
+  // currently holds a usable token (the live connect), preferring the most recently discovered.
+  const franchises = await supabase
+    .from("rec_ea_franchises")
+    .select("*, account:rec_ea_accounts(*)")
+    .eq("external_league_id", String(externalLeagueId))
+    .order("last_discovered_at", { ascending: false });
+  if (franchises.error) throw new ApiError(500, "Failed to load selected EA franchise.", franchises.error);
+  const franchiseRows = (franchises.data ?? []) as any[];
+  const franchiseRow =
+    franchiseRows.find((f) => f.account?.access_token && f.account?.refresh_token && f.account?.blaze_id) ?? franchiseRows[0];
+  const account = franchiseRow?.account;
+  if (!franchiseRow || !account) throw new ApiError(404, "Selected EA franchise/account was not found. Reconnect EA and rediscover franchises.");
   if (!account.access_token || !account.refresh_token || !account.expires_at || !account.blaze_id) throw new ApiError(401, "EA reconnect required. Saved EA token data is missing or expired.", { reconnectRequired: true, importJobId });
-  const token: EaCompanionToken = { accessToken: account.access_token, refreshToken: account.refresh_token, expiry: new Date(account.expires_at), console: (account.platform ?? franchise.data.console ?? "pc") as EaCompanionToken["console"], blazeId: String(account.blaze_id) };
+  const token: EaCompanionToken = { accessToken: account.access_token, refreshToken: account.refresh_token, expiry: new Date(account.expires_at), console: (account.platform ?? franchiseRow.console ?? "pc") as EaCompanionToken["console"], blazeId: String(account.blaze_id) };
   const { weekFrom, weekTo, weeks } = getWeekBounds(job);
-  const seasonIndex = franchise.data.season_index == null ? null : toNumber(franchise.data.season_index, 0);
-  const seasonNumber = seasonIndex == null ? toNumber(job.season_number ?? franchise.data.calendar_year, 1) : seasonIndex + 1;
-  return { accountId: account.id, token, eaLeagueId: Number(franchise.data.external_league_id), seasonNumber, seasonIndex, weekFrom, weekTo, weeks, stageIndex: 1 };
+  const seasonIndex = franchiseRow.season_index == null ? null : toNumber(franchiseRow.season_index, 0);
+  const seasonNumber = seasonIndex == null ? toNumber(job.season_number ?? franchiseRow.calendar_year, 1) : seasonIndex + 1;
+  return { accountId: account.id, token, eaLeagueId: Number(franchiseRow.external_league_id), seasonNumber, seasonIndex, weekFrom, weekTo, weeks, stageIndex: 1 };
 }
 
 async function persistRefreshedEaToken(accountId: string, token: EaCompanionToken) {
