@@ -53,8 +53,7 @@ export const CORE_IMPORT_ENDPOINTS = [
   { key: "rosters", label: "Rosters / Players" },
   { key: "player_stats", label: "Player Stats" },
   { key: "team_stats", label: "Team Stats" },
-  { key: "transactions", label: "Transactions" },
-  { key: "injuries", label: "Injuries" }
+  { key: "transactions", label: "Transactions" }
 ] as const;
 
 export function buildApproveImportCustomId(importJobId?: string | null) {

@@ -39,7 +39,7 @@ export type ImportDraft = {
 
 export const importSessions = new Map<string, ImportDraft>();
 
-const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["transactions", "injuries"]);
+const EXPERIMENTAL_FEED_ENDPOINTS = new Set(["transactions"]);
 
 function isExperimentalFeedEndpoint(endpointKey?: string | null) {
   return endpointKey ? EXPERIMENTAL_FEED_ENDPOINTS.has(endpointKey) : false;
