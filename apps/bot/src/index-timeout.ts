@@ -283,7 +283,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
       }
       if (Object.values(ADVANCE_WIZARD_CUSTOM_IDS).includes(interaction.customId as any)) return handleAdvanceWizardButton(interaction);
-      if (interaction.customId === ADVANCE_WIZARD_BACK_CUSTOM_ID) return interaction.update(buildAdvanceMenuPanel());
+      if (interaction.customId === ADVANCE_WIZARD_BACK_CUSTOM_ID) {
+        if (!interaction.guildId) return interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
+        return interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true));
+      }
       if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.confirm) return handleAdvanceScheduleConfirm(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
@@ -966,6 +969,11 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
   }
 
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.manualBack) {
+    await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
+    return;
+  }
+
+  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.importBack) {
     await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
     return;
   }

@@ -66,7 +66,7 @@ function streamingRequirementText(requirement: string | null | undefined) {
 }
 
 function nextWeekStage(currentWeek: number, currentStage: string) {
-  const weekNumber = currentWeek + 1;
+  const weekNumber = currentStage === "preseason_training_camp" ? 1 : currentWeek + 1;
   const seasonStage =
     currentStage === "regular_season" && weekNumber >= 19 ? "wild_card"
     : currentStage === "wild_card" ? "divisional"
@@ -1287,7 +1287,7 @@ export async function advanceLeagueWeek(guildId: string) {
   const league = context.rec_leagues;
   const previousWeek = asNumber(league.current_week ?? 1);
   const previousStage = String(league.season_stage ?? league.current_phase ?? "regular_season");
-  const weekNumber = previousWeek + 1;
+  const weekNumber = previousStage === "preseason_training_camp" ? 1 : previousWeek + 1;
   // REC season: weeks 1-18 regular season, week 19 = wild_card, 20 = divisional,
   // 21 = conference_championship, 22 = super_bowl.
   // Offseason chain: super_bowl → coach_hiring → final_resigning → free_agency → draft → preseason_training_camp → regular_season (season 2+).

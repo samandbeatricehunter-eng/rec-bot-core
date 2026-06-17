@@ -14,6 +14,7 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   manual: "rec:advance_wizard:manual",
   import: "rec:advance_wizard:import",
   back: "rec:advance_wizard:back_admin",
+  importBack: "rec:advance_wizard:import_back",
   importData: "rec:advance_wizard:import_data",
   mcaUrl: "rec:advance_wizard:mca_url",
   offseasonAdvance: "rec:advance_wizard:offseason_advance",
@@ -111,7 +112,7 @@ function isOffseasonStage(stage: string) {
 }
 
 function nextWeekStage(currentWeek: number, currentStage: string) {
-  const weekNumber = currentWeek + 1;
+  const weekNumber = currentStage === "preseason_training_camp" ? 1 : currentWeek + 1;
   const seasonStage =
     currentStage === "regular_season" && weekNumber >= 19 ? "wild_card"
     : currentStage === "wild_card" ? "divisional"
@@ -170,7 +171,7 @@ export async function buildAdvanceWizardEntryPayload(guildId: string) {
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.manual).setLabel("Manual").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.importBack).setLabel("Back").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.import).setLabel("Import").setStyle(ButtonStyle.Primary)
       )
     ]
