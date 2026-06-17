@@ -1,5 +1,6 @@
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 function isMissingRpcError(error: unknown) {
   const err = error as { code?: string; message?: string };
@@ -9,22 +10,8 @@ function isMissingRpcError(error: unknown) {
 // Resolve the primary league linked to a Discord guild.
 // Chain: rec_discord_servers (guild_id) -> rec_server_league_links (is_primary) -> rec_leagues.
 async function resolveLeagueId(guildId: string): Promise<string> {
-  const { data: server } = await supabase
-    .from("rec_discord_servers")
-    .select("id")
-    .eq("guild_id", guildId)
-    .maybeSingle();
-  if (!server?.id) throw new ApiError(404, "Server not found for this guild.");
-
-  const { data: link } = await supabase
-    .from("rec_server_league_links")
-    .select("league_id")
-    .eq("server_id", server.id)
-    .eq("is_primary", true)
-    .maybeSingle();
-  if (!link?.league_id) throw new ApiError(404, "No league linked to this server.");
-
-  return link.league_id as string;
+  const context = await getCurrentLeagueContext(guildId);
+  return context.leagueId;
 }
 
 const CONFERENCE_ORDER = ["NFC", "AFC"];

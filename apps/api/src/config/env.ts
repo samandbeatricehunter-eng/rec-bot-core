@@ -15,6 +15,7 @@ const EnvSchema = z.object({
   API_HOST: z.string().default("0.0.0.0"),
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  REC_DATABASE_URL: z.string().url().optional(),
   REC_INTERNAL_API_KEY: z.string().optional(),
   EA_MCA_CLIENT_ID: z.string().default("MCA_26_COMP_APP"),
   EA_MCA_CLIENT_SECRET: z.string().optional(),

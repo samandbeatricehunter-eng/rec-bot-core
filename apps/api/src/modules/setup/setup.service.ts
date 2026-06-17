@@ -1,6 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import type {
   CreateLeagueInput,
   RegisterServerInput,
@@ -296,13 +297,10 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
 }
 
 export async function updateLeagueConfig(input: CreateLeagueInput) {
-  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", input.guildId).maybeSingle();
-  if (server.error || !server.data) throw new ApiError(404, "Server not found");
-  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).limit(1).maybeSingle();
-  if (link.error || !link.data?.league_id) throw new ApiError(404, "No primary league found for this server");
+  const context = await getCurrentLeagueContext(input.guildId);
 
   const configurationPayload = {
-    league_id: link.data.league_id,
+    league_id: context.leagueId,
     roster_type: input.leagueType,
     import_mode: input.importMode,
     coin_economy_enabled: input.coinEconomyEnabled,
@@ -362,13 +360,10 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
 }
 
 export async function getLeagueConfigAsDraft(guildId: string) {
-  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
-  if (server.error || !server.data) throw new ApiError(404, "Server not found");
-  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).limit(1).maybeSingle();
-  if (link.error || !link.data?.league_id) throw new ApiError(404, "No primary league found for this server");
+  const context = await getCurrentLeagueContext(guildId);
   const [league, config] = await Promise.all([
-    supabase.from("rec_leagues").select("name").eq("id", link.data.league_id).single(),
-    supabase.from("rec_league_configuration").select("*").eq("league_id", link.data.league_id).maybeSingle()
+    supabase.from("rec_leagues").select("name").eq("id", context.leagueId).single(),
+    supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle()
   ]);
   if (league.error) throw new ApiError(500, "Failed to load league", league.error);
   const c = config.data ?? {};

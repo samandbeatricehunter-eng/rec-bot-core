@@ -2,30 +2,12 @@ import { AFC_TEAMS, NFC_TEAMS, getTeamByAbbreviation } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 
 export async function getCurrentLeagueForGuild(guildId: string) {
-  const server = await supabase
-    .from("rec_discord_servers")
-    .select("id,guild_id,name")
-    .eq("guild_id", guildId)
-    .single();
-
-  if (server.error) throw new ApiError(404, "This Discord server is not registered in REC Core yet.", server.error);
-
-  const link = await supabase
-    .from("rec_server_league_links")
-    .select("league_id,is_primary")
-    .eq("server_id", server.data.id)
-    .eq("is_primary", true)
-    .single();
-
-  if (link.error) throw new ApiError(404, "This Discord server does not have a current REC league linked yet.", link.error);
-
-  const league = await supabase.from("rec_leagues").select("*").eq("id", link.data.league_id).single();
-  if (league.error) throw new ApiError(404, "Linked REC league could not be loaded.", league.error);
-
-  return { server: server.data, league: league.data };
+  const context = await getCurrentLeagueContext(guildId);
+  return { server: context.rec_discord_servers, league: context.rec_leagues };
 }
 
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {

@@ -4,6 +4,7 @@ import { calculateAdvanceGamePayouts } from "./advance-payouts.service.js";
 import { assignWeeklyBadges, assignSeasonEndBadges, assignPlayoffBadges } from "./advance-badges.service.js";
 import { generateWeeklyChallenges, getChallengeAudit, evaluateWeeklyChallenges } from "./advance-challenges.service.js";
 import { applyAdvanceRecords, auditAndRepairRecords } from "./advance-records.service.js";
+import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 const TIME_ZONES = [
   ["EST", "America/New_York"],
@@ -148,22 +149,14 @@ function slug(input: string) {
 }
 
 async function findLeagueContext(guildId: string) {
-  const serverResult = await supabase.from("rec_discord_servers").select("id,name,guild_id").eq("guild_id", guildId).maybeSingle();
-  if (serverResult.error) throw serverResult.error;
-  if (!serverResult.data) return null;
-  const linkResult = await supabase.from("rec_server_league_links").select("server_id, league_id").eq("server_id", serverResult.data.id).eq("is_primary", true).limit(1).maybeSingle();
-  if (linkResult.error) throw linkResult.error;
-  if (!linkResult.data?.league_id) return null;
-  const leagueResult = await supabase.from("rec_leagues").select("*").eq("id", linkResult.data.league_id).maybeSingle();
-  if (leagueResult.error) throw leagueResult.error;
-  if (!leagueResult.data) return null;
-  return { server_id: serverResult.data.id, league_id: linkResult.data.league_id, rec_discord_servers: serverResult.data, rec_leagues: leagueResult.data } as any;
+  const context = await findCurrentLeagueContext(guildId);
+  if (!context) return null;
+  return { ...context, server_id: context.serverId, league_id: context.leagueId } as any;
 }
 
 async function getLeagueContext(guildId: string) {
-  const context = await findLeagueContext(guildId);
-  if (!context) throw new Error("No REC league is set up for this Discord server.");
-  return context;
+  const context = await getCurrentLeagueContext(guildId);
+  return { ...context, server_id: context.serverId, league_id: context.leagueId } as any;
 }
 
 async function getRoutes(serverId: string) {

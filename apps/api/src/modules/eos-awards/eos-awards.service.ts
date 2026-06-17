@@ -1,5 +1,6 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 function asNumber(v: unknown) {
   const n = Number(v ?? 0);
@@ -34,35 +35,11 @@ export const EOS_AWARD_CATEGORIES = [
 type CategoryKey = (typeof EOS_AWARD_CATEGORIES)[number]["key"];
 
 async function getLeagueContext(guildId: string) {
-  const { data: serverRows, error: serverError } = await supabase
-    .from("rec_discord_servers")
-    .select("id")
-    .eq("guild_id", guildId)
-    .limit(1);
-  if (serverError) throw new ApiError(500, "Failed to load Discord server for EOS awards.", serverError);
-  const server = serverRows?.[0];
-  if (!server?.id) throw new ApiError(404, "This Discord server is not registered in REC Core.");
-
-  const { data: linkRows, error: linkError } = await supabase
-    .from("rec_server_league_links")
-    .select("league_id")
-    .eq("server_id", server.id)
-    .eq("is_primary", true)
-    .limit(1);
-  if (linkError) throw new ApiError(500, "Failed to load league link for EOS awards.", linkError);
-  const link = linkRows?.[0];
-  if (!link?.league_id) throw new ApiError(404, "This Discord server does not have a primary REC league linked.");
-
-  const { data: leagueRows, error: leagueError } = await supabase
-    .from("rec_leagues")
-    .select("id,season_number,display_season_number")
-    .eq("id", link.league_id)
-    .limit(1);
-  if (leagueError) throw new ApiError(500, "Failed to load league information for EOS awards.", leagueError);
-  const league = leagueRows?.[0];
-  if (!league) throw new ApiError(404, "Linked REC league could not be found.");
-
-  return { leagueId: link.league_id as string, seasonNumber: (league.season_number ?? league.display_season_number ?? 1) as number };
+  const context = await getCurrentLeagueContext(guildId);
+  return {
+    leagueId: context.leagueId,
+    seasonNumber: (context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1) as number
+  };
 }
 
 async function getActiveNominees(leagueId: string) {

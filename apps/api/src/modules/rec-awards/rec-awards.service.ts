@@ -1,6 +1,7 @@
 import { supabase } from "../../lib/supabase.js";
 import { AWARD_DEFINITIONS, AWARD_KEYS, getAwardDef } from "./rec-awards-config.js";
 import { creditUserWallet } from "../advance/advance.service.js";
+import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 function asNum(v: unknown) {
   const n = Number(v ?? 0);
@@ -33,35 +34,13 @@ function topN(rawMap: Map<string, number>, n: number): { nomineeKey: string; raw
 }
 
 async function getLeagueContext(guildId: string) {
-  const { data: server } = await supabase
-    .from("rec_discord_servers")
-    .select("id")
-    .eq("guild_id", guildId)
-    .maybeSingle();
-  if (!server?.id) throw new Error("Server not found.");
-
-  const { data: link } = await supabase
-    .from("rec_server_league_links")
-    .select("league_id")
-    .eq("server_id", server.id)
-    .eq("is_primary", true)
-    .maybeSingle();
-  if (!link?.league_id) throw new Error("No league linked to this server.");
-
-  const { data: league } = await supabase
-    .from("rec_leagues")
-    .select("id,name,season_number,display_season_number,current_week")
-    .eq("id", link.league_id)
-    .single();
-  if (!league) throw new Error("League not found.");
-
-  const { data: routes } = await supabase
-    .from("rec_server_routes")
-    .select("*")
-    .eq("server_id", server.id)
-    .maybeSingle();
-
-  return { leagueId: league.id as string, league, routes, serverId: server.id as string };
+  const context = await getCurrentLeagueContext(guildId);
+  return {
+    leagueId: context.leagueId,
+    league: context.rec_leagues,
+    routes: context.routes,
+    serverId: context.serverId
+  };
 }
 
 type CoachAssignment = {
@@ -524,16 +503,13 @@ export async function getAwardVotingSummary(input: { guildId: string; awardId: s
 }
 
 export async function castAwardVote(input: { guildId: string; voterDiscordId: string; awardId: string; nomineeUserId: string }) {
-  const { data: server } = await supabase.from("rec_discord_servers").select("id").eq("guild_id", input.guildId).maybeSingle();
-  if (!server?.id) return { recorded: false, reason: "Server not found." };
-
-  const { data: link } = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.id).eq("is_primary", true).maybeSingle();
-  if (!link?.league_id) return { recorded: false, reason: "No league found." };
+  const context = await findCurrentLeagueContext(input.guildId);
+  if (!context?.leagueId) return { recorded: false, reason: "No league found." };
 
   const { data: voterDiscord } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.voterDiscordId).maybeSingle();
   if (!voterDiscord?.user_id) return { recorded: false, reason: "Your Discord account is not linked to a REC profile." };
 
-  const { data: voterAssignment } = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", link.league_id).eq("user_id", voterDiscord.user_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  const { data: voterAssignment } = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", context.leagueId).eq("user_id", voterDiscord.user_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
   if (!voterAssignment) return { recorded: false, reason: "Only linked coaches in this league can vote." };
 
   const { data: award } = await supabase.from("rec_awards").select("id,status,voting_closes_at,award_name").eq("id", input.awardId).maybeSingle();

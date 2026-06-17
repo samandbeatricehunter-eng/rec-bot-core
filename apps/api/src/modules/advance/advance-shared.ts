@@ -2,6 +2,7 @@
 // advance.service.ts (that creates a circular dependency since it re-exports everything).
 import { readStat } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
+import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 export { supabase };
 
@@ -22,44 +23,22 @@ export function nowIso() {
 }
 
 export async function findLeagueContext(guildId: string) {
-  const serverResult = await supabase
-    .from("rec_discord_servers")
-    .select("id,name,guild_id")
-    .eq("guild_id", guildId)
-    .maybeSingle();
-  if (serverResult.error) throw serverResult.error;
-  if (!serverResult.data) return null;
-
-  const linkResult = await supabase
-    .from("rec_server_league_links")
-    .select("server_id, league_id")
-    .eq("server_id", serverResult.data.id)
-    .eq("is_primary", true)
-    .limit(1)
-    .maybeSingle();
-  if (linkResult.error) throw linkResult.error;
-  if (!linkResult.data?.league_id) return null;
-
-  const leagueResult = await supabase
-    .from("rec_leagues")
-    .select("*")
-    .eq("id", linkResult.data.league_id)
-    .maybeSingle();
-  if (leagueResult.error) throw leagueResult.error;
-  if (!leagueResult.data) return null;
-
+  const context = await findCurrentLeagueContext(guildId);
+  if (!context) return null;
   return {
-    server_id: serverResult.data.id,
-    league_id: linkResult.data.league_id,
-    rec_discord_servers: serverResult.data,
-    rec_leagues: leagueResult.data
+    ...context,
+    server_id: context.serverId,
+    league_id: context.leagueId
   } as any;
 }
 
 export async function getLeagueContext(guildId: string) {
-  const context = await findLeagueContext(guildId);
-  if (!context) throw new Error("No REC league is set up for this Discord server.");
-  return context;
+  const context = await getCurrentLeagueContext(guildId);
+  return {
+    ...context,
+    server_id: context.serverId,
+    league_id: context.leagueId
+  } as any;
 }
 
 export async function getLinkedActiveTeamUsers(leagueId: string) {

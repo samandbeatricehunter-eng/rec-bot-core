@@ -3,6 +3,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { getUserBaselineByDiscordId, getUserMenuProfileByDiscordId, getWalletByDiscordId, transferSavings, getUserSnapshot } from "./user.service.js";
 import { supabase } from "../../lib/supabase.js";
+import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 export async function userRoutes(app: FastifyInstance) {
   app.get("/v1/users/:discordId/baseline", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; return reply.send(await getUserBaselineByDiscordId(discordId)); } catch (error) { return sendError(reply, error); }});
   app.get("/v1/users/:discordId/wallet", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = (request.query ?? {}) as { guildId?: string }; return reply.send(await getWalletByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});
@@ -16,14 +17,12 @@ export async function userRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       const { guildId } = request.params as { guildId: string };
-      const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
-      if (!server.data) return reply.send({ coaches: [] });
-      const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).maybeSingle();
-      if (!link.data?.league_id) return reply.send({ coaches: [] });
+      const context = await findCurrentLeagueContext(guildId);
+      if (!context?.leagueId) return reply.send({ coaches: [] });
       const { data } = await supabase
         .from("rec_team_assignments")
         .select("user_id,team_id,rec_users(display_name,rec_discord_accounts(discord_id,username,global_name)),rec_teams(name,abbreviation)")
-        .eq("league_id", link.data.league_id)
+        .eq("league_id", context.leagueId)
         .eq("assignment_status", "active")
         .is("ended_at", null);
       const coaches = (data ?? []).map((row: any) => {

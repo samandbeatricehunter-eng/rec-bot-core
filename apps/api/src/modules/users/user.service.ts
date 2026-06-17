@@ -1,5 +1,6 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 export async function getUserBaselineByDiscordId(discordId: string) {
   const account = await supabase
@@ -37,20 +38,8 @@ export async function getWalletByDiscordId(discordId: string, guildId?: string) 
 
   let leagueId: string | null = null;
   if (guildId) {
-    const server = await supabase
-      .from("rec_discord_servers")
-      .select("id")
-      .eq("guild_id", guildId)
-      .maybeSingle();
-    if (server.data) {
-      const link = await supabase
-        .from("rec_server_league_links")
-        .select("league_id")
-        .eq("server_id", server.data.id)
-        .eq("is_primary", true)
-        .maybeSingle();
-      leagueId = link.data?.league_id ?? null;
-    }
+    const context = await findCurrentLeagueContext(guildId);
+    leagueId = context?.leagueId ?? null;
   }
 
   // When scoped to a guild, show only 10 transactions for that league.
@@ -126,11 +115,8 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const baseline = await getUserBaselineByDiscordId(targetDiscordId);
   const userId = baseline.user.id;
 
-  // Resolve league for this guild
-  const server = await supabase.from("rec_discord_servers").select("id").eq("guild_id", guildId).maybeSingle();
-  if (!server.data) throw new ApiError(404, "Server not found for this guild.");
-  const link = await supabase.from("rec_server_league_links").select("league_id").eq("server_id", server.data.id).eq("is_primary", true).maybeSingle();
-  const leagueId = link.data?.league_id ?? null;
+  const context = await findCurrentLeagueContext(guildId);
+  const leagueId = context?.leagueId ?? null;
 
   // Step 1: get assignment first so we can use teamId for the power ranking lookup.
   const assignmentResult = leagueId
@@ -285,41 +271,9 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   const baseline = await getUserBaselineByDiscordId(discordId);
   const userId = baseline.user.id;
 
-  const serverResult = await supabase
-    .from("rec_discord_servers")
-    .select("id,name,guild_id")
-    .eq("guild_id", guildId)
-    .maybeSingle();
-
-  if (serverResult.error) throw new ApiError(500, "Failed to load Discord server", serverResult.error);
-
-  const server = serverResult.data;
-  let league: any = null;
-
-  if (server?.id) {
-    const leagueLinkResult = await supabase
-      .from("rec_server_league_links")
-      .select("league_id")
-      .eq("server_id", server.id)
-      .eq("is_primary", true)
-      .limit(1)
-      .maybeSingle();
-
-    if (leagueLinkResult.error) {
-      throw new ApiError(500, "Failed to load server league link", leagueLinkResult.error);
-    }
-
-    if (leagueLinkResult.data?.league_id) {
-      const leagueResult = await supabase
-        .from("rec_leagues")
-        .select("*")
-        .eq("id", leagueLinkResult.data.league_id)
-        .maybeSingle();
-
-      if (leagueResult.error) throw new ApiError(500, "Failed to load current league", leagueResult.error);
-      league = leagueResult.data;
-    }
-  }
+  const context = await findCurrentLeagueContext(guildId);
+  const server: any = context?.rec_discord_servers ?? null;
+  const league: any = context?.rec_leagues ?? null;
 
   let assignment: any = null;
   let membership: any = null;
