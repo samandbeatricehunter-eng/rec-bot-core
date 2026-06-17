@@ -14,8 +14,11 @@ export const GOTW_CUSTOM_IDS = {
   voteHomePrefix: "rec:gotw:vote:home:"
 } as const;
 
-export function buildGotwSelectionPayload(candidates: any[]) {
-  const options = candidates.slice(0, 25).map((candidate: any) => {
+export function buildGotwSelectionPayload(
+  candidates: any[],
+  navigation: { backCustomId?: string; backLabel?: string } = {}
+) {
+  const candidateOptions = candidates.slice(0, 25).map((candidate: any) => {
     const label = `${candidate.matchup_title}`.slice(0, 80);
     const flag = candidate.previous_gotw_user_flag ? " • Previous GOTW user" : "";
     return new StringSelectMenuOptionBuilder()
@@ -37,10 +40,13 @@ export function buildGotwSelectionPayload(candidates: any[]) {
         new StringSelectMenuBuilder()
           .setCustomId(GOTW_CUSTOM_IDS.select)
           .setPlaceholder("Select this week’s GOTW")
-          .addOptions(options)
+          .addOptions(candidateOptions)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(NAV_CUSTOM_IDS.adminPanel).setLabel("Back to Admin Panel").setStyle(ButtonStyle.Secondary)
+        new ButtonBuilder()
+          .setCustomId(navigation.backCustomId ?? NAV_CUSTOM_IDS.adminPanel)
+          .setLabel(navigation.backLabel ?? "Back to Admin Panel")
+          .setStyle(ButtonStyle.Secondary)
       )
     ]
   };

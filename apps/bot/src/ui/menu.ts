@@ -278,7 +278,7 @@ export function buildCommissionerToolsRows() {
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Manage League").setValue("manage_league").setDescription("Active checks, rules, user/team linking, and league settings."),
       new StringSelectMenuOptionBuilder().setLabel("Server / League Setup").setValue("server_league_setup").setDescription("Channel links, first-time setup, and setup tools."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
+      new StringSelectMenuOptionBuilder().setLabel("Back to Admin Panel").setValue("admin_panel")
     );
 
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];

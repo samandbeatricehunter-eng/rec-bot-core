@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
+import { getLeagueContext } from "../advance/advance-shared.js";
 import { castEosVote, getEosAwardPolls, lockEosAwardPolls, resolveCanTShutUpTiebreaker } from "./eos-awards.service.js";
 
 export async function eosAwardsRoutes(app: FastifyInstance) {
@@ -17,14 +18,10 @@ export async function eosAwardsRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       const { guildId } = request.body as { guildId: string };
-      const { data: server } = await import("../../lib/supabase.js").then(({ supabase }) =>
-        supabase.from("rec_discord_servers").select("league_id").eq("guild_id", guildId).maybeSingle()
-      );
-      const { data: league } = await import("../../lib/supabase.js").then(({ supabase }) =>
-        supabase.from("rec_leagues").select("season_number,display_season_number").eq("id", (server as any)?.league_id).maybeSingle()
-      );
-      const leagueId = (server as any)?.league_id;
-      const seasonNumber = (league as any)?.season_number ?? (league as any)?.display_season_number ?? 1;
+      const context = await getLeagueContext(guildId);
+      const league = context.rec_leagues;
+      const leagueId = context.league_id;
+      const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
       return reply.send(await lockEosAwardPolls(leagueId, seasonNumber));
     } catch (error) {
       return sendError(reply, error);

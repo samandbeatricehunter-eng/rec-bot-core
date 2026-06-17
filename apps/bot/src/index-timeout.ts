@@ -266,6 +266,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         )
       ) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
+      if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.troubleshootBack) return interaction.update(buildTroubleshootMenuPanel());
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
         const draft = leagueSetupSessions.get(interaction.user.id);
         if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
@@ -842,7 +843,8 @@ async function handleCommissionerToolsSelect(interaction: Extract<Interaction, {
     return interaction.reply({ content: "Only authorized admins can use Commissioner Tools.", flags: MessageFlags.Ephemeral });
   }
   const selected = interaction.values[0];
-  if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
+  if (selected === "admin_panel") return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+  if (selected === "main_menu") return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   if (selected === "server_league_setup") return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
   if (selected === "manage_league") {
     return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
@@ -1126,7 +1128,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
     try {
       const result = await recApi.runEosPollsAndAwards(interaction.guildId);
       if (!result.allowed) {
-        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Not Available").setDescription(result.reason ?? "This action is only available during Wild Card through Super Bowl weeks.")], components: buildAdvanceMenuPanel().components });
+        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Not Available").setDescription(result.reason ?? "This action is only available during Wild Card through Super Bowl weeks.")], components: buildManageLeagueRows() });
         return;
       }
       const guild = interaction.guild!;
@@ -1139,10 +1141,10 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
           `REC Award voting embeds posted: **${awardCount}**`,
           warnings.length ? `\nWarnings: ${warnings.join(", ")}` : ""
         ].filter(Boolean).join("\n"))],
-        components: buildAdvanceMenuPanel().components
+        components: buildManageLeagueRows()
       });
     } catch (error) {
-      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Polls Failed").setDescription(error instanceof Error ? error.message : String(error))], components: buildAdvanceMenuPanel().components });
+      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Polls Failed").setDescription(error instanceof Error ? error.message : String(error))], components: buildManageLeagueRows() });
     }
     return;
   }
@@ -1154,7 +1156,7 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
       const guild = interaction.guild;
 
       if (!guild) {
-        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription(`Created ${result.items?.length ?? 0} payout items. Skipped ${result.skippedAlreadyIssued?.length ?? 0} already-issued payouts. Guild context unavailable for DMs.`)], components: buildAdvanceMenuPanel().components });
+        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription(`Created ${result.items?.length ?? 0} payout items. Skipped ${result.skippedAlreadyIssued?.length ?? 0} already-issued payouts. Guild context unavailable for DMs.`)], components: buildManageLeagueRows() });
         return;
       }
 
@@ -1314,18 +1316,18 @@ async function handleAdvanceMenuSelect(interaction: Extract<Interaction, { isStr
           "",
           "Each payout requires both recipient and commissioner approval before funds are credited."
         ].join("\n"))],
-        components: buildAdvanceMenuPanel().components
+        components: buildManageLeagueRows()
       });
     } catch (error) {
       await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("EOS Payout Failed").setDescription(error instanceof Error ? error.message : String(error))],
-        components: buildAdvanceMenuPanel().components
+        components: buildManageLeagueRows()
       });
     }
     return;
   }
 
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Advance Menu").setDescription("Unrecognized action.")], components: buildAdvanceMenuPanel().components });
+  await interaction.editReply({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
 }
 
 async function handleTroubleshootMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
@@ -1340,7 +1342,9 @@ async function handleTroubleshootMenuSelect(interaction: Extract<Interaction, { 
   }
 
   const selected = interaction.values[0];
-  if (selected === "back_advance_menu") return interaction.update(buildAdvanceMenuPanel());
+  if (selected === "back_manage_league" || selected === "back_advance_menu") {
+    return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
+  }
 
   await interaction.deferUpdate();
 
@@ -1369,7 +1373,10 @@ async function handleTroubleshootMenuSelect(interaction: Extract<Interaction, { 
       });
       return;
     }
-    await interaction.editReply(buildGotwSelectionPayload(result.candidates));
+    await interaction.editReply(buildGotwSelectionPayload(result.candidates, {
+      backCustomId: ADVANCE_MENU_CUSTOM_IDS.troubleshootBack,
+      backLabel: "Back to Troubleshoot"
+    }));
     return;
   }
 

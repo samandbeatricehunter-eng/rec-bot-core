@@ -47,6 +47,7 @@ export async function getWalletByDiscordId(discordId: string, guildId?: string) 
         .from("rec_server_league_links")
         .select("league_id")
         .eq("server_id", server.data.id)
+        .eq("is_primary", true)
         .maybeSingle();
       leagueId = link.data?.league_id ?? null;
     }
@@ -300,6 +301,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       .from("rec_server_league_links")
       .select("league_id")
       .eq("server_id", server.id)
+      .eq("is_primary", true)
       .limit(1)
       .maybeSingle();
 

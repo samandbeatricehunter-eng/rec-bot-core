@@ -151,7 +151,7 @@ async function findLeagueContext(guildId: string) {
   const serverResult = await supabase.from("rec_discord_servers").select("id,name,guild_id").eq("guild_id", guildId).maybeSingle();
   if (serverResult.error) throw serverResult.error;
   if (!serverResult.data) return null;
-  const linkResult = await supabase.from("rec_server_league_links").select("server_id, league_id").eq("server_id", serverResult.data.id).limit(1).maybeSingle();
+  const linkResult = await supabase.from("rec_server_league_links").select("server_id, league_id").eq("server_id", serverResult.data.id).eq("is_primary", true).limit(1).maybeSingle();
   if (linkResult.error) throw linkResult.error;
   if (!linkResult.data?.league_id) return null;
   const leagueResult = await supabase.from("rec_leagues").select("*").eq("id", linkResult.data.league_id).maybeSingle();

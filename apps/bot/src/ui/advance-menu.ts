@@ -3,7 +3,8 @@ import { NAV_CUSTOM_IDS } from "./navigation.js";
 
 export const ADVANCE_MENU_CUSTOM_IDS = {
   select: "rec:advance_menu:select",
-  troubleshootSelect: "rec:advance_menu:troubleshoot_select"
+  troubleshootSelect: "rec:advance_menu:troubleshoot_select",
+  troubleshootBack: "rec:advance_menu:troubleshoot_back"
 } as const;
 
 export type AdvanceMenuAction =
@@ -23,7 +24,7 @@ export type TroubleshootMenuAction =
   | "set_week"
   | "recalculate_eos_payouts"
   | "audit_repair_records"
-  | "back_advance_menu";
+  | "back_manage_league";
 
 export function buildAdvanceMenuPanel() {
   return {
@@ -120,8 +121,8 @@ export function buildTroubleshootMenuPanel() {
               .setValue("audit_repair_records")
               .setDescription("Rebuild season and league W/L/T records from game results. Safe to re-run."),
             new StringSelectMenuOptionBuilder()
-              .setLabel("Back to Advance Menu")
-              .setValue("back_advance_menu")
+              .setLabel("Back to Manage League")
+              .setValue("back_manage_league")
           )
       )
     ]

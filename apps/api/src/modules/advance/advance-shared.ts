@@ -34,6 +34,7 @@ export async function findLeagueContext(guildId: string) {
     .from("rec_server_league_links")
     .select("server_id, league_id")
     .eq("server_id", serverResult.data.id)
+    .eq("is_primary", true)
     .limit(1)
     .maybeSingle();
   if (linkResult.error) throw linkResult.error;
