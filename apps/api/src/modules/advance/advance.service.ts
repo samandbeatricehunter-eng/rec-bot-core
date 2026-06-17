@@ -1902,7 +1902,14 @@ export async function settleGotwVotes(guildId: string) {
   for (const poll of polls ?? []) {
     const { data: game } = await supabase.from("rec_game_results").select("*").eq("league_id", poll.league_id).eq("season_number", poll.season_number).eq("week_number", poll.week_number).eq("home_team_id", poll.home_team_id).eq("away_team_id", poll.away_team_id).maybeSingle();
     const winningTeamId = game?.winning_team_id ?? (asNumber(game?.home_score) > asNumber(game?.away_score) ? game?.home_team_id : asNumber(game?.away_score) > asNumber(game?.home_score) ? game?.away_team_id : null);
-    if (!winningTeamId) continue;
+    if (!winningTeamId) {
+      // We've advanced past this week but the game has no recorded result, so a winner can't be
+      // determined. Close the poll anyway (no payouts) so it doesn't linger as an open vote.
+      if (poll.status === "open") {
+        await supabase.from("rec_game_of_week_polls").update({ status: "closed", closed_at: nowIso(), updated_at: nowIso() }).eq("id", poll.id);
+      }
+      continue;
+    }
     const { data: votes } = await supabase.from("rec_game_of_week_votes").select("*").eq("poll_id", poll.id);
     for (const vote of votes ?? []) {
       const isCorrect = String(vote.selected_team_id) === String(winningTeamId);
