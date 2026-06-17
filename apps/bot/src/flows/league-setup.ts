@@ -1,0 +1,292 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, type Interaction } from "discord.js";
+import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { recApi } from "../lib/rec-api.js";
+import { ExpiringSessionStore } from "../lib/session-timeout.js";
+import { ensureRecBaseRoles } from "../lib/role-sync.js";
+import { buildAdminPanelEmbed, buildAdminPanelRows, buildSetupDangerModal, MENU_CUSTOM_IDS, type SetupDangerAction } from "../ui/menu.js";
+import {
+  applyLeagueSetupDependencies,
+  buildCoachAbilitiesRestrictionModal,
+  buildLeagueSetupWindow,
+  buildSettingsPickerWindow,
+  createDefaultLeagueSetupDraft,
+  getNextLeagueSetupStep,
+  LEAGUE_SETUP_CUSTOM_IDS,
+  type LeagueSetupDraft,
+  type LeagueSetupSettingsCategory
+} from "../ui/league-setup.js";
+import { TEAM_LINK_CUSTOM_IDS } from "../ui/team-options.js";
+
+export const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
+export async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can use setup workflows.", flags: MessageFlags.Ephemeral });
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Setup workflows must be run inside a Discord server.", flags: MessageFlags.Ephemeral });
+  const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
+  if (action === "league_setup") {
+    const draft = createDefaultLeagueSetupDraft(interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leagueNameInput).trim());
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.reply({ ...buildLeagueSetupWindow(draft), flags: MessageFlags.Ephemeral });
+  }
+}
+
+export async function handleLeagueSetupSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
+  const value = interaction.values[0];
+
+  // Season week (and its offseason ":postseason" variant) both set the same field.
+  if (interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) {
+    draft.seasonWeek = value;
+    draft.step = getNextLeagueSetupStep(draft.step, draft);
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  // Optional team-linking step: record the choice and advance to review.
+  // Linking can only happen once the league exists, so it opens after Save (see handleLeagueSetupSave).
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.teamLinkingOptional) {
+    draft.linkTeamsAfterSetup = value === "yes";
+    draft.step = "review";
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  // Settings picker: navigate directly to the chosen step without saving
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.settingsPicker) {
+    if (value === "back_admin") {
+      leagueSetupSessions.delete(interaction.user.id);
+      return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+    }
+    if (value.startsWith("category:")) {
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, value.slice("category:".length) as LeagueSetupSettingsCategory));
+    }
+    if (value === "settings_categories") {
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft));
+    }
+    draft.step = value as LeagueSetupDraft["step"];
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  switch (interaction.customId) {
+    case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.importMode: draft.importMode = value as LeagueSetupDraft["importMode"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.featureToggles: {
+      const values = new Set(interaction.values);
+      draft.coinEconomyEnabled = values.has("coin_economy");
+      draft.customPlayersEnabled = values.has("custom_players");
+      draft.legendsEnabled = values.has("legends");
+      draft.devUpgradesEnabled = values.has("dev_upgrades");
+      draft.ageResetsEnabled = values.has("age_resets");
+      draft.trainingPackagesEnabled = values.has("training_packages");
+      draft.contractAdjustmentPurchasesEnabled = values.has("contract_purchases");
+      draft.capManagementAssistantEnabled = values.has("cap_assistant");
+      draft.draftClassFeaturesEnabled = values.has("draft_class_features");
+      draft.scoutingPurchasesEnabled = values.has("draft_class_features");
+      draft.mediaFeaturesEnabled = values.has("media_features");
+      break;
+    }
+    case LEAGUE_SETUP_CUSTOM_IDS.draftClassType: draft.draftClassType = value as LeagueSetupDraft["draftClassType"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming: draft.regularSeasonStreamingRequirement = value as LeagueSetupDraft["regularSeasonStreamingRequirement"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming: draft.postseasonStreamingRequirement = value as LeagueSetupDraft["postseasonStreamingRequirement"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.streamingSide: draft.streamingSide = value as LeagueSetupDraft["streamingSide"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRuleRegular: draft.fourthDownRuleTypeRegular = value as LeagueSetupDraft["fourthDownRuleTypeRegular"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRulePlayoff: draft.fourthDownRuleTypePlayoff = value as LeagueSetupDraft["fourthDownRuleTypePlayoff"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.positionChangePolicy: draft.positionChangePolicy = value as LeagueSetupDraft["positionChangePolicy"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.customCoachesRequired: draft.customCoachesRequired = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.customPlaybooksAllowedSelect: draft.customPlaybooksAllowed = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestricted: {
+      if (value === "yes_custom") {
+        draft.coachAbilitiesRestricted = true;
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildCoachAbilitiesRestrictionModal(draft));
+      }
+      draft.coachAbilitiesRestricted = false;
+      draft.coachAbilitiesRestrictionNotes = "";
+      break;
+    }
+    case LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy: draft.tradeApprovalPolicy = value as LeagueSetupDraft["tradeApprovalPolicy"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.cpuRules: { const values = new Set(interaction.values); draft.cpuTradingAllowed = values.has("cpu_trading"); draft.cpuFreeAgencyPolicy = values.has("cpu_fa_open") ? "open" : "disabled"; break; }
+    case LEAGUE_SETUP_CUSTOM_IDS.difficulty: draft.difficulty = value as LeagueSetupDraft["difficulty"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.quarterLength: draft.quarterLengthMinutes = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockEnabled: draft.acceleratedClockEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockSeconds: draft.acceleratedClockMinimumSeconds = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.salaryCap: draft.salaryCapEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.tradeDeadline: draft.tradeDeadlineEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.abilities: draft.abilitiesEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.wearAndTear: draft.wearAndTearEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.injuryPolicy: draft.injuryPolicy = value as LeagueSetupDraft["injuryPolicy"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled: draft.offensivePlayCallLimitsEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit: draft.offensivePlayCallLimit = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldownEnabled: draft.offensivePlayCallCooldownEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldown: draft.offensivePlayCallCooldown = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveLimitsEnabled: draft.defensivePlayCallLimitsEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit: draft.defensivePlayCallLimit = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldownEnabled: draft.defensivePlayCallCooldownEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown: draft.defensivePlayCallCooldown = Number(value); break;
+  }
+
+  // In edit mode: save the change to DB immediately, then return to the settings picker
+  if (draft.editMode && interaction.guildId) {
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    try {
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save league setting edit:", err);
+    }
+    draft.step = "settings_picker";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildSettingsPickerWindow(draft));
+  }
+
+  draft.step = getNextLeagueSetupStep(draft.step, draft);
+  applyLeagueSetupDependencies(draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  await interaction.update(buildLeagueSetupWindow(draft));
+}
+
+export async function handleActivityRequirementsModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+
+  draft.fairSimRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.fairSimInput).trim();
+  draft.forceWinRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.forceWinInput).trim();
+  leagueSetupSessions.set(interaction.user.id, draft);
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (draft.editMode && interaction.guildId) {
+    try {
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save activity requirements:", err);
+    }
+    draft.step = "settings_picker";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.editReply(buildSettingsPickerWindow(draft));
+  }
+
+  draft.step = getNextLeagueSetupStep(draft.step, draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  return interaction.editReply(buildLeagueSetupWindow(draft));
+}
+
+export async function handleCoachAbilitiesRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+
+  draft.coachAbilitiesRestricted = true;
+  draft.coachAbilitiesRestrictionNotes = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionInput).trim();
+  leagueSetupSessions.set(interaction.user.id, draft);
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (draft.editMode && interaction.guildId) {
+    try {
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save coach ability restrictions:", err);
+    }
+    draft.step = "settings_picker";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.editReply(buildSettingsPickerWindow(draft));
+  }
+
+  draft.step = getNextLeagueSetupStep(draft.step, draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  return interaction.editReply(buildLeagueSetupWindow(draft));
+}
+
+// Maps the setup season-week selection to the league's current_week + season_stage.
+function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; seasonStage: string } {
+  if (seasonWeek.startsWith("week_")) {
+    const n = Number(seasonWeek.slice("week_".length));
+    return { weekNumber: Number.isFinite(n) && n > 0 ? n : 1, seasonStage: "regular_season" };
+  }
+  switch (seasonWeek) {
+    case "wildcard": return { weekNumber: 19, seasonStage: "wild_card" };
+    case "divisional": return { weekNumber: 20, seasonStage: "divisional" };
+    case "conference": return { weekNumber: 21, seasonStage: "conference_championship" };
+    case "super_bowl": return { weekNumber: 22, seasonStage: "super_bowl" };
+    case "coach_hiring":    return { weekNumber: 1, seasonStage: "coach_hiring" };
+    case "final_resigning": return { weekNumber: 1, seasonStage: "final_resigning" };
+    case "free_agency":     return { weekNumber: 1, seasonStage: "free_agency" };
+    case "draft":           return { weekNumber: 1, seasonStage: "draft" };
+    case "training_camp":   return { weekNumber: 1, seasonStage: "preseason_training_camp" };
+    default: return { weekNumber: 1, seasonStage: "regular_season" };
+  }
+}
+
+export async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can save League Setup.", flags: MessageFlags.Ephemeral });
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Saving League Setup...").setDescription("Creating your league and applying configuration. This may take a moment.")], components: [] });
+  const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id, serverName: interaction.guild?.name });
+  const roleWarnings: string[] = [];
+  try {
+    await ensureRecBaseRoles(interaction.guild);
+  } catch (error) {
+    console.error("[ERROR] Failed to create REC base roles:", error);
+    roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  // New leagues always begin in Training Camp. The first advance into regular-season Week 1
+  // is the one place where REC imports the full regular-season schedule.
+  const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek("training_camp");
+  try {
+    await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
+  } catch (error) {
+    console.error("[ERROR] Failed to set league starting week:", error);
+  }
+
+  const wantsLinking = draft.linkTeamsAfterSetup;
+  leagueSetupSessions.delete(interaction.user.id);
+
+  const savedDescription = [`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, `Import Mode: ${result.configuration.import_mode}`, `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Media: ${result.configuration.media_features_enabled ? "Enabled" : "Disabled"}`, `Draft Classes: ${result.configuration.draft_class_features_enabled ? result.configuration.draft_class_type : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**", ...roleWarnings, "", "Economy payouts activate for linked users when Coin Economy is enabled."].join("\n");
+
+  if (!wantsLinking) {
+    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)], components: buildAdminPanelRows() });
+    return;
+  }
+
+  // League now exists — ensure default teams are present, then open the linking selector.
+  try {
+    const openTeams = await recApi.getOpenTeams(interaction.guildId);
+    if (!openTeams?.openTeams || openTeams.openTeams.length === 0) {
+      await recApi.createDefaultTeams(interaction.guildId);
+    }
+  } catch (error) {
+    console.error("[ERROR] Failed to ensure default teams before linking:", error);
+  }
+
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("League Setup Saved — Link Teams").setDescription([savedDescription, "", "Select a conference to begin linking users to teams, or click Done."].join("\n"))],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect)
+          .setPlaceholder("Select conference")
+          .addOptions(
+            new StringSelectMenuOptionBuilder().setLabel("AFC Teams").setValue("AFC"),
+            new StringSelectMenuOptionBuilder().setLabel("NFC Teams").setValue("NFC")
+          )
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId("rec:league_setup:skip_team_linking").setLabel("Done").setStyle(ButtonStyle.Secondary)
+      )
+    ]
+  });
+}
+
