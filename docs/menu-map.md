@@ -2,59 +2,70 @@
 
 Map of the `/menu` interaction tree and the shells that are wired but not yet built
 out. Status: **[built]** = working workflow · **[shell]** = connected placeholder
-("built next" / "coming soon"). Routing lives in `apps/bot/src/index-timeout.ts`
-(the runtime entry; `index.ts` is a legacy duplicate slated for removal); UI builders
-in `apps/bot/src/ui/`.
+("coming soon" / "built next"). Routing lives in `apps/bot/src/index-timeout.ts`;
+UI builders in `apps/bot/src/ui/`. Last reviewed 2026-06-18.
 
 ## Tree
 
 ```
 /menu  (buildMainMenuRows · handleMainMenuSelect)
-├─ Rosters                         [built]   (buildRostersMenuRows)
-│  ├─ View Rosters by Team         [built]   (conference → team depth chart)
-│  ├─ View Players by Position     [shell]   "coming soon" (index-timeout.ts:500)
-│  └─ View User Snapshots          [built]   (season/global stats, badges, awards, GOTW)
-├─ Manage My Team                  [shell]   department shell (handleMainMenuSelect:475)
-├─ Standings & Stats               [shell]   department shell
-├─ REC Bank                        [built]   (renderRecBankFromSelect)
-│  ├─ Transfer to Savings          [built]
-│  ├─ Transfer from Savings        [built]
-│  └─ Place a Wager                [shell]   wager workflow placeholder (index-timeout.ts:419)
-├─ Media Center                    [shell]   department shell
-├─ Help / Rules                    [shell]   department shell
-└─ Admin Panel (admins only)       [built]
-   ├─ Import / Enter Data          [built]   (renderImportPanel)
-   └─ Commissioner Tools           [built]
-      ├─ Advance Menu              [built]
-      │  ├─ Advance Current Week   [built]
-      │  ├─ Run EOS Polls & Awards [built]
-      │  ├─ Issue EOS Payouts      [built]
-      │  └─ Troubleshoot Advance   [built]
-      │     ├─ GOTW / challenges / channels / DMs / week-stage  [built]
-      │     ├─ Re-Generate POTW    [shell]   "coming soon" (index-timeout.ts:1139)
-      │     └─ (generic repair action fallback)  [shell] (index-timeout.ts:1254)
-      ├─ Manage League             [built]
-      │  ├─ Active Check           [built]
-      │  ├─ View / Edit Rules      [built]   (buildRulesPanel)
-      │  ├─ User / Team Linking    [built]   (buildSimpleTeamLinkPanel)
-      │  └─ Edit League Settings   [built]   (settings picker)
-      ├─ Server Setup              [built]
-      └─ League Setup Wizard       [built]   (full wizard)
+│
+├─ Row 1 buttons
+│  ├─ Transfer Funds                 [built]   (handlers/wallet.ts)
+│  ├─ Place a Wager                  [shell]   coming soon (handlers/wallet.ts)
+│  └─ Manage My Wallet               [built]
+│     ├─ Transfer to Savings         [built]
+│     ├─ Transfer from Savings       [built]
+│     ├─ Pending Purchases           [built]
+│     └─ Make a Purchase (store)     [shell]   coming soon (lives in Manage My Franchise)
+│
+├─ Row 2 department dropdown
+│  ├─ Rosters                        [built]   (buildRostersMenuRows)
+│  │  ├─ View Players by Team        [built]   (conference → team depth chart)  ← fixed 2026-06-18
+│  │  ├─ View Players by Position    [shell]   coming soon
+│  │  └─ View User Snapshots         [built]   (season/global stats, badges, awards, GOTW)
+│  ├─ Manage My Franchise            [shell]   department shell
+│  ├─ Standings & Stats              [shell]   department shell
+│  ├─ REC Sports Network             [shell]   department shell
+│  ├─ Rules / FAQ                    [shell]   department shell
+│  └─ Admin Panel (admins only)      [built]
+│     ├─ Advance Wizard              [built]   (guided weekly advance; catch-up; FS/FW)
+│     │  └─ Import (EA Companion)    [built]   · MCA URL export receiver [shell] (not configured)
+│     │  └─ Manual game entry        [shell]   Input Finals / Mark FS-FW disabled (needs matchup-entry API)
+│     └─ Commissioner Tools          [built]
+│        ├─ Manage League            [built]
+│        │  ├─ User / Team Linking   [built]   (buildSimpleTeamLinkPanel)
+│        │  ├─ Troubleshoot Advance  [built]   (GOTW / challenges / channels / DMs / week-stage / records)
+│        │  │  ├─ Re-Generate POTW   [shell]   coming soon
+│        │  │  └─ generic repair fallback [shell]
+│        │  ├─ EOS Functions         [built]   (Run EOS Polls & Awards, Issue EOS Payouts)
+│        │  ├─ Active Check          [built]
+│        │  └─ Edit League Settings  [built]   (settings picker)
+│        └─ Server / League Setup    [built]
+│           ├─ Server Setup          [built]
+│           ├─ League Setup Wizard   [built]
+│           └─ Delete League Data    [built]   ← added 2026-06-18
 ```
 
 ## Unbuilt shells — inventory & intent
 
-| Shell | Location | Planned direction |
+| Shell | Where | Planned direction |
 |---|---|---|
-| **Manage My Team** | `handleMainMenuSelect` department shell | Coach self-service: view/set my lineup info, my team links, my contract/cap snapshot, my badges. |
-| **Standings & Stats** | department shell | League standings table + leaderboards (uses `rec_season_user_records`, weekly stats, power rankings). Now unblocked by the canonical stat backfill. |
-| **Media Center** | department shell | Streams, highlights, POTW/GOTY galleries, award results. |
-| **Help / Rules** | department shell | Player-facing rule base reader + command help. (Rules panel exists on the admin side via `buildRulesPanel`.) |
-| **View Players by Position** | `index-timeout.ts:500` | Position-group filtered player browser (now easy with the promoted `position`/`overall_rating`/`scheme` columns). |
-| **Place a Wager** | `index-timeout.ts:419` | Wager coins on upcoming matchups; settle on advance via game results. |
-| **Re-Generate POTW** | `index-timeout.ts:1139` | Troubleshoot tool to recompute Player of the Week. |
-| **Troubleshoot repair fallback** | `index-timeout.ts:1254` | Generic repair-action shell for not-yet-wired repair items. |
+| **Manage My Franchise** | main dropdown | Coach self-service: my team & lineup, contracts/cap snapshot, my badges, upgrade store. |
+| **Standings & Stats** | main dropdown | Standings table + stat leaderboards + power rankings (uses `rec_season_user_records`, weekly stats). |
+| **REC Sports Network** | main dropdown | Streams, highlights, POTW/GOTY galleries, award results. |
+| **Rules / FAQ** | main dropdown | Player-facing rulebook reader + FAQ (admin rules panel already exists via `buildRulesPanel`). |
+| **View Players by Position** | Rosters | Position-group filtered player browser (data is ready: `position`/`overall_rating`/`scheme`). |
+| **Place a Wager** | Row-1 button | Wager coins on upcoming matchups; settle on advance from game results. |
+| **Make a Purchase (store)** | Manage My Wallet | Buy upgrades/management tools; ties into Manage My Franchise. |
+| **MCA URL receiver** | Advance Wizard → Import | Endpoint to receive & parse Madden Companion App exports (EA OAuth import is the working path). |
+| **Manual game entry** | Advance Wizard → Manual | Enter finals + FS/FW per matchup (needs the matchup-entry API wired). |
+| **Re-Generate POTW** | Troubleshoot Advance | Recompute Player of the Week. |
+| **Troubleshoot repair fallback** | Troubleshoot Advance | Generic shell for not-yet-wired repair items. |
 
 ## Cleanup notes
-- `apps/bot/src/index.ts` is a **legacy duplicate** of the runtime entry `index-timeout.ts` (~1500 lines of parallel handlers). It is compiled but not run. Delete in the modularization pass.
-- `apps/bot/src/ui/economy-admin.ts` + its handlers are now **orphaned** (Economy Reviews was removed from the menu). Delete in the modularization pass.
+- `adminUserTeamLinking` (a standalone Admin button) is a dead/duplicate stub — the working flow is Manage League → User / Team Linking. Remove or point it at the real panel.
+- `apps/bot/src/index.ts` is a legacy duplicate of `index-timeout.ts`; `apps/bot/src/ui/economy-admin.ts` is orphaned. Delete in the modularization pass.
+
+## Consistency notes (theme)
+Standard lives in `menu-navigation-standard.md`. Conventions in use: select options carry a one-line `.setDescription` ending in a period; "Back to <parent>" for return options; slashes spaced ("Server / League Setup", "User / Team Linking", "Rules / FAQ"); shells say "coming soon" so users aren't surprised. Remaining gap: a few admin embeds predate the description convention.

@@ -414,8 +414,14 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
   //   standings_stats    -> league standings table + leaderboards (rec_season_user_records, weekly stats, power rankings)
   //   rec_sports_network -> streams, highlights, POTW/GOTY galleries, award results
   //   rules_faq          -> player-facing rule reader + command help (admin rules panel exists via buildRulesPanel)
-  const labels: Record<string, string> = { manage_franchise: "Manage My Franchise", standings_stats: "Standings & Stats", rec_sports_network: "REC Sports Network", rules_faq: "Rules/FAQ" };
-  await interaction.update({ embeds: [new EmbedBuilder().setTitle(labels[selected] ?? "REC League HQ").setDescription("This department shell is connected. The detailed workflow will be built next.").setFooter({ text: "REC Core connected" })], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
+  const shells: Record<string, { title: string; blurb: string }> = {
+    manage_franchise: { title: "Manage My Franchise", blurb: "Your coach hub — your team and lineup, contracts and cap, badges, and the upgrade store will live here." },
+    standings_stats: { title: "Standings & Stats", blurb: "League standings, stat leaderboards, and power rankings will live here." },
+    rec_sports_network: { title: "REC Sports Network", blurb: "Streams, highlights, Player/Game of the Week galleries, and award results will live here." },
+    rules_faq: { title: "Rules / FAQ", blurb: "The league rulebook and answers to common questions will live here." }
+  };
+  const shell = shells[selected] ?? { title: "REC League HQ", blurb: "This department is coming soon." };
+  await interaction.update({ embeds: [new EmbedBuilder().setTitle(shell.title).setDescription(`${shell.blurb}\n\n**Coming soon** — use the menu below to head elsewhere.`).setFooter({ text: "REC Core" })], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
 }
 
 async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {

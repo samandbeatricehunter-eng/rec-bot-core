@@ -230,11 +230,11 @@ export function buildMainMenuRows(isAdmin: boolean) {
     .setCustomId(MENU_CUSTOM_IDS.mainSelect)
     .setPlaceholder("Select a REC department")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Rosters").setValue("rosters"),
-      new StringSelectMenuOptionBuilder().setLabel("Manage My Franchise").setValue("manage_franchise"),
-      new StringSelectMenuOptionBuilder().setLabel("Standings & Stats").setValue("standings_stats"),
-      new StringSelectMenuOptionBuilder().setLabel("REC Sports Network").setValue("rec_sports_network"),
-      new StringSelectMenuOptionBuilder().setLabel("Rules/FAQ").setValue("rules_faq")
+      new StringSelectMenuOptionBuilder().setLabel("Rosters").setValue("rosters").setDescription("Browse team rosters, players, and coach snapshots."),
+      new StringSelectMenuOptionBuilder().setLabel("Manage My Franchise").setValue("manage_franchise").setDescription("Your team, lineup, contracts, badges, and store (coming soon)."),
+      new StringSelectMenuOptionBuilder().setLabel("Standings & Stats").setValue("standings_stats").setDescription("League standings, leaderboards, and power rankings (coming soon)."),
+      new StringSelectMenuOptionBuilder().setLabel("REC Sports Network").setValue("rec_sports_network").setDescription("Streams, highlights, and award showcases (coming soon)."),
+      new StringSelectMenuOptionBuilder().setLabel("Rules / FAQ").setValue("rules_faq").setDescription("League rules and frequently asked questions (coming soon).")
     );
 
   if (isAdmin) {
@@ -548,9 +548,9 @@ export function buildPlayersByTeamRows(rawConferences: RosterConference[]) {
     .setCustomId(ROSTERS_CUSTOM_IDS.byTeamNav)
     .setPlaceholder("More options")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position"),
-      new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots"),
-      new StringSelectMenuOptionBuilder().setLabel("Return to Main Menu").setValue("main_menu")
+      new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position").setDescription("Filter players by position group (coming soon)."),
+      new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots").setDescription("Season & global stats, badges, awards, GOTW history."),
+      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
     );
   rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(nav));
 
