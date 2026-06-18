@@ -30,7 +30,6 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   outcomesSkip: "rec:advance_wizard:outcomes_skip",
   step2Back: "rec:advance_wizard:step2_back",
   step2Next: "rec:advance_wizard:step2_next",
-  catchUpSelect: "rec:advance_wizard:catch_up_select",
   teamConflictSelect: "rec:advance_wizard:team_conflict_select",
   teamConflictContinue: "rec:advance_wizard:team_conflict_continue",
   teamConflictResolveModal: "rec:advance_wizard:team_conflict_modal",
@@ -146,25 +145,8 @@ function catchUpWeekLabel(weekNumber: number, seasonStage: string) {
   }
 }
 
-// Forward sequence of (week, stage) states reachable from the current state, one entry per advance.
-// Used to offer "what week is your server on now?" catch-up targets.
-function buildForwardStates(currentWeek: number, currentStage: string, count: number) {
-  const states: Array<{ weekNumber: number; seasonStage: string; advances: number }> = [];
-  let week = currentWeek;
-  let stage = currentStage;
-  for (let i = 1; i <= count; i++) {
-    const next = nextWeekStage(week, stage);
-    states.push({ weekNumber: next.weekNumber, seasonStage: next.seasonStage, advances: i });
-    week = next.weekNumber;
-    stage = next.seasonStage;
-    // Stop once we reach the first offseason stage — catch-up only spans competitive weeks.
-    if (next.seasonStage === "coach_hiring") break;
-  }
-  return states;
-}
-
-// Catch-up target the user selected on the review screen ("what week is your server on now?").
-// Keyed by Discord user id; read at the start of runAdvanceWizardProcessing and then cleared.
+// Catch-up target derived from the import-screen pick ("what week have you played through?").
+// Keyed by Discord user id; read on the review screen + at the start of runAdvanceWizardProcessing.
 const catchUpTargets = new Map<string, { targetWeek: number; targetStage: string; advances: number }>();
 
 export function clearCatchUpTarget(userId: string) {
@@ -206,9 +188,16 @@ export async function buildAdvanceWizardEntryPayload(guildId: string) {
       new EmbedBuilder()
         .setTitle("Advance Wizard")
         .setDescription([
-          current,
+          `**${current}**`,
           "",
-          "Are you manually entering data or importing it?"
+          "**How each week works:**",
+          "**1.** Play your games in Madden.",
+          "**2.** **Import** this week's results from the EA Companion App (or enter them **Manually**).",
+          "**3.** REC logs records, pays out games, awards Player of the Week, updates badges, and opens the next Game of the Week vote — then you set when the next advance is due.",
+          "",
+          "**Several weeks behind?** Choose **Import** — you can tell REC the last week you played and it will catch the server up in one pass (one combined summary, no channel spam for the skipped weeks).",
+          "",
+          "Are you **importing** this week's data or entering it **manually**?"
         ].join("\n"))
     ],
     components: [
@@ -492,78 +481,52 @@ export async function buildAdvanceWizardStep2Payload(guildId: string, dataEntere
   const currentStage = String(league?.season_stage ?? league?.current_phase ?? "regular_season");
   const next = nextWeekStage(currentWeek, currentStage);
 
-  // Catch-up: offer the weeks reachable ahead so a commissioner whose imported data is several weeks
-  // ahead can land the server on the right week in one pass. The first option is a normal single
-  // advance. Only meaningful for competitive stages (offseason advances one stage at a time).
-  const isCompetitive = currentStage === "regular_season" || ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(currentStage);
-  const forwardStates = isCompetitive ? buildForwardStates(currentWeek, currentStage, 24) : [];
+  // The catch-up plan (if any) was chosen once on the import screen ("what week have you played
+  // through?"). Here we only confirm what the advance will do — there is no second pick.
   const target = userId ? catchUpTargets.get(userId) : undefined;
-  const landing = target ? { weekNumber: target.targetWeek, seasonStage: target.targetStage } : next;
   const isCatchUp = Boolean(target && target.advances > 1);
+  const landing = isCatchUp ? { weekNumber: target!.targetWeek, seasonStage: target!.targetStage } : next;
 
-  const components: Array<ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>> = [];
-  if (forwardStates.length > 1) {
-    const select = new StringSelectMenuBuilder()
-      .setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.catchUpSelect)
-      .setPlaceholder("What week is your server on now? (catch-up)")
-      .addOptions(
-        forwardStates.map((state) => {
-          const label = state.advances === 1
-            ? `Advance 1 week → ${catchUpWeekLabel(state.weekNumber, state.seasonStage)}`
-            : `Catch up ${state.advances} weeks → ${catchUpWeekLabel(state.weekNumber, state.seasonStage)}`;
-          return new StringSelectMenuOptionBuilder()
-            .setLabel(label.slice(0, 100))
-            .setValue(`${state.advances}:${state.weekNumber}:${state.seasonStage}`)
-            .setDescription(state.advances === 1 ? "Normal single-week advance." : `Process every week up to ${catchUpWeekLabel(state.weekNumber, state.seasonStage)}.`)
-            .setDefault(target ? state.advances === target.advances : state.advances === 1);
-        })
-      );
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  const lines = [
+    `**Now:** Season ${league?.season_number ?? league?.display_season_number ?? "?"}, Week ${league?.current_week ?? "?"} (${prettyStage(currentStage)})`,
+    `**Data imported/entered:** ${dataEntered ? "Yes" : "No"}`,
+    `**Advancing to:** ${catchUpWeekLabel(landing.weekNumber, landing.seasonStage)}`,
+    ""
+  ];
+  if (isCatchUp) {
+    lines.push(
+      `**Catching up ${target!.advances} weeks in one pass.** REC will apply records, payouts, POTW, and badges for every week, post one combined summary, and DM each week's results. Only the final week — **${catchUpWeekLabel(landing.weekNumber, landing.seasonStage)}** — creates game channels and a Game of the Week poll.`,
+      ""
+    );
+  } else {
+    lines.push(
+      "This is a normal single-week advance. If you played several weeks and need to catch up, go **Back → Import** and pick the week you have played through.",
+      ""
+    );
   }
-  components.push(
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.step2Back).setLabel("Back").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.step2Next).setLabel("Next Step").setStyle(ButtonStyle.Primary)
-    )
-  );
+  lines.push("Click **Next Step** to set the next advance time and run the advance, or **Back** to make changes.");
 
   return {
     embeds: [
-      new EmbedBuilder()
-        .setTitle("Advance Wizard - Review")
-        .setDescription([
-          `Season ${league?.season_number ?? league?.display_season_number ?? "?"}, Week ${league?.current_week ?? "?"} (${prettyStage(currentStage)})`,
-          "",
-          `Data Imported or Entered: **${dataEntered ? "Yes" : "No"}**`,
-          "Upcoming Week Schedule Stored: **Pending check**",
-          `Week/Stage Advancing To: **${catchUpWeekLabel(landing.weekNumber, landing.seasonStage)}**`,
-          isCatchUp ? `Catch-up: processing **${target!.advances} weeks** in one pass (only the final week posts game channels and a GOTW poll).` : "",
-          forwardStates.length > 1 ? "" : undefined,
-          forwardStates.length > 1 ? "If your imported data is several weeks ahead, pick the week your server should land on. Otherwise leave it on the single-week advance." : undefined,
-          "",
-          "Please click Next Step to proceed with the advance process, or Back to make changes."
-        ].filter((line) => line !== undefined && line !== "").join("\n"))
+      new EmbedBuilder().setTitle("Advance Wizard — Review").setDescription(lines.join("\n").slice(0, 4000))
     ],
-    components
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.step2Back).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.step2Next).setLabel("Next Step").setStyle(ButtonStyle.Primary)
+      )
+    ]
   };
 }
 
-// Stores the catch-up target chosen on the review screen, then re-renders the review screen.
-export async function handleAdvanceWizardCatchUpSelect(interaction: StringSelectMenuInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can run the Advance Wizard.", ephemeral: true });
-    return;
-  }
-  const [advancesRaw, weekRaw, stage] = String(interaction.values[0] ?? "").split(":");
-  const advances = Number(advancesRaw);
-  const targetWeek = Number(weekRaw);
-  if (!Number.isFinite(advances) || advances <= 1 || !Number.isFinite(targetWeek) || !stage) {
-    catchUpTargets.delete(interaction.user.id);
-  } else {
-    catchUpTargets.set(interaction.user.id, { targetWeek, targetStage: stage, advances });
-  }
-  await interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true, interaction.user.id));
+// Derives the catch-up advance plan from the single import-screen pick ("played through week N"), so
+// the commissioner chooses the span only once. Stored per user; read on the review screen + advance.
+export function setCatchUpTargetFromPlayedWeek(userId: string, fromWeek: number, throughWeek: number, fromStage = "regular_season") {
+  const from = Math.max(1, Number(fromWeek) || 1);
+  const through = Math.max(from, Number(throughWeek) || from);
+  if (through <= from) { catchUpTargets.delete(userId); return; }
+  const landing = nextWeekStage(through, fromStage);
+  catchUpTargets.set(userId, { targetWeek: landing.weekNumber, targetStage: landing.seasonStage, advances: through - from + 1 });
 }
 
 export function buildAdvanceWizardImportPayload() {
@@ -907,13 +870,16 @@ function buildWizardGotwSelectionPayload(candidates: any[], weekNumber: number) 
 }
 
 function buildWizardCompletePage(weekNumber: number, seasonStage: string, warnings: string[]) {
-  const stageLabel = String(seasonStage ?? "regular_season").replaceAll("_", " ");
+  const stageLabel = catchUpWeekLabel(weekNumber, String(seasonStage ?? "regular_season"));
   const lines = [
-    `The advance process has completed. It is now **Week ${weekNumber}** (${stageLabel}).`,
+    `The advance is complete — the league is now on **${stageLabel}**.`,
     "",
     warnings.length ? `**${warnings.length} warning(s) during advance:**` : "All advance steps completed successfully.",
-    ...warnings.slice(0, 8).map((w) => `• ${w}`)
-  ].filter(Boolean);
+    ...warnings.slice(0, 8).map((w) => `• ${w}`),
+    warnings.length ? "" : undefined,
+    "Players have been DM'd their matchups, game channels are open, and the next advance time is set.",
+    "**Next week:** everyone plays their games, then run the Advance Wizard again to import results and advance."
+  ].filter((line) => line !== undefined);
 
   return {
     embeds: [new EmbedBuilder().setTitle("Advance Complete").setDescription(lines.join("\n").slice(0, 4000))],

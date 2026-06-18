@@ -43,7 +43,7 @@ import { buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advanc
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, DEFAULT_SCHEDULE_TIMEZONE } from "./ui/advance-schedule.js";
 import { handleAdvanceScheduleConfirm, handleAdvanceScheduleSelect, startAdvanceScheduleSession } from "./flows/advance-schedule.js";
 import { handleAdvanceMenuSelect, handleTroubleshootMenuSelect } from "./flows/advance-menu.js";
-import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardFsFwModal, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardOutcomeReviewPayload, buildAdvanceWizardStep2Payload, handleAdvanceWizardFsFwModal, handleTeamConflictSelect, handleTeamConflictResolveModal, handleTeamConflictContinue, handleWizardGotwSelect, handleAdvanceWizardCatchUpSelect, clearCatchUpTarget } from "./flows/advance-wizard.js";
+import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardFsFwModal, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardOutcomeReviewPayload, buildAdvanceWizardStep2Payload, handleAdvanceWizardFsFwModal, handleTeamConflictSelect, handleTeamConflictResolveModal, handleTeamConflictContinue, handleWizardGotwSelect, clearCatchUpTarget } from "./flows/advance-wizard.js";
 import { recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
 import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
 import { GOTW_CUSTOM_IDS } from "./ui/gotw.js";
@@ -203,7 +203,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       }
 
       if (interaction.customId === ADVANCE_WIZARD_GOTW_CUSTOM_ID) return handleWizardGotwSelect(interaction);
-      if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.catchUpSelect) return handleAdvanceWizardCatchUpSelect(interaction);
       if (interaction.customId.startsWith("eos_vote:")) return handleEosVote(interaction);
       if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
       if (interaction.customId === RULES_CUSTOM_IDS.select) return handleRulesSelect(interaction);
@@ -585,7 +584,7 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
   }
 
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesSkip) {
-    clearCatchUpTarget(interaction.user.id);
+    // The catch-up plan was set on the import screen; keep it so the review screen can show it.
     await interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true, interaction.user.id));
     return;
   }

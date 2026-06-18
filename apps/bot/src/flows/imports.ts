@@ -3,7 +3,7 @@ import type { RecImportMode } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import type { RecImportProfile } from "../lib/rec-api.js";
-import { buildPostImportPayloadWithConflictCheck } from "./advance-wizard.js";
+import { buildPostImportPayloadWithConflictCheck, setCatchUpTargetFromPlayedWeek, clearCatchUpTarget } from "./advance-wizard.js";
 import {
   ALL_ENDPOINTS_KEY,
   CORE_IMPORT_ENDPOINTS,
@@ -430,6 +430,8 @@ function configureRows(draft: ImportDraft) {
 function buildImportDraftSummary(draft: ImportDraft) {
   const endpoints = selectedEndpointKeys(draft);
   const endpointSummary = endpoints.length === CORE_IMPORT_ENDPOINTS.length ? "All core endpoints" : endpoints.join(", ");
+  const from = Number(draft.weekFrom ?? draft.selectedWeeks?.[0] ?? 1) || 1;
+  const showsCatchUp = draft.weekScope === "single_week" && from >= 1 && from <= 17;
   return [
     `Mode: **${String(draft.importMode ?? "").replaceAll("_", " ")}**`,
     draft.importProfile ? `Profile: **${formatImportProfile(draft.importProfile)}**` : undefined,
@@ -438,7 +440,11 @@ function buildImportDraftSummary(draft: ImportDraft) {
     `Endpoints: **${endpointSummary}**`,
     draft.importProfileReason ? `Plan: ${draft.importProfileReason}` : undefined,
     "",
-    "When you continue, REC will create the import job and stage the required endpoints for the selected week."
+    showsCatchUp
+      ? "**Caught up?** Leave the dropdown on the current week. **Behind?** Pick the last week you played in Madden and REC will import every week through it and catch the server up when you advance."
+      : "When you continue, REC will create the import job and stage the required endpoints for the selected week.",
+    "",
+    "Then click **Preview Import** to stage the data."
   ].filter(Boolean).join("\n");
 }
 
@@ -498,6 +504,8 @@ async function requireCurrentImportJob(interaction: ButtonInteraction | StringSe
 
 export async function startImportMode(interaction: ButtonInteraction, importMode: RecImportMode, options?: { fromAdvanceWizard?: boolean }) {
   await interaction.deferUpdate();
+  // Fresh import run — drop any stale catch-up plan from a previous session.
+  clearCatchUpTarget(interaction.user.id);
   const requestedProfile: RecImportProfile | null = options?.fromAdvanceWizard ? "season_start_schedule" : null;
   let resolved: any = null;
   try {
@@ -1084,6 +1092,8 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
       weekFrom: weeks[0],
       weekTo: weeks[weeks.length - 1]
     });
+    // Single pick: this also sets the advance catch-up plan so the review screen just confirms it.
+    setCatchUpTargetFromPlayedWeek(interaction.user.id, from, to, "regular_season");
     await interaction.deferUpdate();
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({

@@ -52,6 +52,7 @@ type ExecutorContext = {
   endpointKey: string;
   endpointLabel: string;
   job: any;
+  accountId: string;
   token: EaCompanionToken;
   eaLeagueId: number;
   seasonNumber: number;
@@ -323,14 +324,23 @@ async function stageWeeklyStatsBundle(context: ExecutorContext) {
   const weeks: number[] = [];
 
   if (context.job.import_scope === "full_regular_season_schedule") {
-    const result = await fetchEaAllWeekSchedules({
-      token: context.token,
+    const fetchAll = (sessionToUse: EaBlazeSession | undefined, tokenToUse: EaCompanionToken) => fetchEaAllWeekSchedules({
+      token: tokenToUse,
       eaLeagueId: context.eaLeagueId,
       startWeek: context.weekFrom,
       totalWeeks: context.weekTo,
       stageIndex: context.stageIndex,
-      session
+      session: sessionToUse
     });
+    let result;
+    try {
+      result = await fetchAll(session, context.token);
+    } catch (error) {
+      // Long 18-week schedule pulls can outlive a Blaze session — re-establish once and retry.
+      if (!isLikelyExpiredSessionError(error)) throw error;
+      const fresh = await reestablishBlazeSession(context.accountId, context.token);
+      result = await fetchAll(fresh.session, fresh.token);
+    }
     session = result.session;
 
     const gameRows: any[] = [];
@@ -350,15 +360,37 @@ async function stageWeeklyStatsBundle(context: ExecutorContext) {
     return { session, gameCount, teamStatCount, playerStatCount, weeks };
   }
 
+  let weeklyToken = context.token;
+  let reestablishCount = 0;
   for (const week of context.weeks) {
     weeks.push(week);
-    const result = await fetchEaWeeklyStats({
-      token: context.token,
+    let result = await fetchEaWeeklyStats({
+      token: weeklyToken,
       eaLeagueId: context.eaLeagueId,
       weekIndex: week - 1,
       stageIndex: context.stageIndex,
       session
     });
+    // If the Blaze session expired partway through a long catch-up, re-establish it once and retry
+    // this week (capped, with a throttle pause inside, so we never hammer EA's login endpoint).
+    if (weeklyFetchExpiredSession(result.payloads) && reestablishCount < 3) {
+      reestablishCount += 1;
+      const fresh = await reestablishBlazeSession(context.accountId, weeklyToken).catch((error) => {
+        console.error("[IMPORT] Blaze session re-establish failed:", error);
+        return null;
+      });
+      if (fresh) {
+        weeklyToken = fresh.token;
+        session = fresh.session;
+        result = await fetchEaWeeklyStats({
+          token: weeklyToken,
+          eaLeagueId: context.eaLeagueId,
+          weekIndex: week - 1,
+          stageIndex: context.stageIndex,
+          session
+        });
+      }
+    }
     session = result.session;
     await captureWeeklyStatsPayloads(context, week, result.payloads);
 
@@ -586,6 +618,32 @@ const blazeSessionCache = new Map<string, { token: EaCompanionToken; session: Ea
 
 function invalidateBlazeSession(accountId: string) {
   blazeSessionCache.delete(accountId);
+}
+
+// Re-establish a Blaze session mid-import when the current one appears to have expired during a long
+// multi-week catch-up. EA throttles rapid re-logins, so pause first, then refresh the token and log
+// in once; cache the fresh session so the rest of the import reuses it.
+async function reestablishBlazeSession(accountId: string, token: EaCompanionToken) {
+  invalidateBlazeSession(accountId);
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const refreshed = await refreshCompanionToken(token);
+  await persistRefreshedEaToken(accountId, refreshed);
+  const session = await retrieveBlazeSession(refreshed);
+  blazeSessionCache.set(accountId, { token: refreshed, session, cachedAt: Date.now() });
+  return { token: refreshed, session };
+}
+
+function isLikelyExpiredSessionError(error: unknown) {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return /blaze|session|auth|expir|token|401|403/.test(message);
+}
+
+// A week whose required stat exports all came back empty with auth/session-style errors signals the
+// Blaze session expired mid-import, as opposed to a genuinely empty week.
+function weeklyFetchExpiredSession(payloads: { teamStats: unknown; passing: unknown; rushing: unknown; receiving: unknown; defense: unknown; errors?: Record<string, string> }) {
+  const requiredAllFailed = payloads.teamStats == null && payloads.passing == null && payloads.rushing == null && payloads.receiving == null && payloads.defense == null;
+  if (!requiredAllFailed) return false;
+  return Object.values(payloads.errors ?? {}).some((message) => isLikelyExpiredSessionError(message));
 }
 
 async function prepareEaExecution(importJobId: string, job: any) {
