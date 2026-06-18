@@ -1083,21 +1083,32 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
   }
 
   if (interaction.customId === IMPORT_CUSTOM_IDS.catchUpWeeks) {
+    await interaction.deferUpdate();
     const draft = importSessions.get(interaction.user.id) ?? {};
     const from = Number(draft.weekFrom ?? draft.selectedWeeks?.[0] ?? 1) || 1;
     const to = Math.max(from, Number(interaction.values[0]) || from);
     const weeks: number[] = [];
     for (let week = from; week <= to; week++) weeks.push(week);
+    const isCatchUp = to > from;
+    // Changing the range invalidates any job already staged for this session; cancel it so the next
+    // Preview rebuilds the job with the new weeks/endpoints instead of reusing the stale one.
+    if (draft.importJobId && interaction.guildId) {
+      await recApi.cancelActiveImport({ guildId: interaction.guildId, reason: "Catch-up week range changed." }).catch(() => null);
+    }
     importSessions.set(interaction.user.id, {
       ...draft,
       weekScope: "single_week",
       selectedWeeks: weeks,
       weekFrom: weeks[0],
-      weekTo: weeks[weeks.length - 1]
+      weekTo: weeks[weeks.length - 1],
+      // A multi-week catch-up imports played game weeks, so force the competitive endpoint set
+      // (standings + weekly stats + games) even when the league's stage resolved to a roster-only
+      // profile (e.g. preseason/offseason after the schedule was already imported).
+      endpointKeys: isCatchUp ? CORE_IMPORT_ENDPOINTS.map((endpoint) => endpoint.key) : draft.endpointKeys,
+      importJobId: undefined
     });
     // Single pick: this also sets the advance catch-up plan so the review screen just confirms it.
     setCatchUpTargetFromPlayedWeek(interaction.user.id, from, to);
-    await interaction.deferUpdate();
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
