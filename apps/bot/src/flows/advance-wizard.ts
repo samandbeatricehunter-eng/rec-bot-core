@@ -960,9 +960,11 @@ export async function runAdvanceWizardProcessing(
       components: []
     });
     try {
-      // Bound the fast-forward to exactly the intended number of intermediate advances, so a stale
-      // target can never run the league forward further than the commissioner selected.
-      const catchUp = await recApi.catchUpAdvance({ guildId, targetWeek: catchUpTarget.targetWeek, targetStage: catchUpTarget.targetStage, maxSteps: intermediate });
+      // Bound the fast-forward so a stale target can't run the league forward indefinitely. Use the
+      // full advance count (not advances-1) as the cap: the server stops on next==target for a normal
+      // catch-up, and the extra step of headroom covers the "free" preseason training-camp -> Week 1
+      // transition (which advances the stage without completing a week) so the final week isn't dropped.
+      const catchUp = await recApi.catchUpAdvance({ guildId, targetWeek: catchUpTarget.targetWeek, targetStage: catchUpTarget.targetStage, maxSteps: catchUpTarget.advances });
       allWarnings.push(...(catchUp?.warnings ?? []));
       const weeks: any[] = catchUp?.weeks ?? [];
       const announceId = weeks.find((w: any) => w.announcementsChannelId)?.announcementsChannelId ?? null;
