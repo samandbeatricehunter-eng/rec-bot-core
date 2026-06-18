@@ -28,6 +28,7 @@ export const IMPORT_CUSTOM_IDS = {
   back: "rec:imports:back",
   weekScope: "rec:imports:week_scope",
   weekSelect: "rec:imports:week_select",
+  catchUpWeeks: "rec:imports:catch_up_weeks",
   endpoints: "rec:imports:endpoints",
   previewJob: "rec:imports:preview_job",
   executeJob: "rec:imports:execute_job",
@@ -129,6 +130,32 @@ export function buildWeekScopeRow() { return new ActionRowBuilder<StringSelectMe
 export function buildWeekSelectRow() { const labels = [...Array.from({ length: 18 }, (_, index) => ({ label: `Week ${index + 1}`, value: String(index + 1), description: `Import regular season Week ${index + 1}.` })), { label: "Wild Card", value: "19", description: "Import Wild Card playoff week." }, { label: "Divisional", value: "20", description: "Import Divisional playoff week." }, { label: "Conference Championship", value: "21", description: "Import Conference Championship week." }, { label: "Super Bowl", value: "22", description: "Import Super Bowl week." }]; return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(IMPORT_CUSTOM_IDS.weekSelect).setPlaceholder("Select one Madden week to import").setMinValues(1).setMaxValues(1).addOptions(...labels.map((week) => new StringSelectMenuOptionBuilder().setLabel(week.label).setValue(week.value).setDescription(week.description)))); }
 export function buildEndpointSelectRow() { const allOption = new StringSelectMenuOptionBuilder().setLabel("All Core Endpoints").setValue(ALL_ENDPOINTS_KEY).setDescription("Select every endpoint below."); const endpointOptions = CORE_IMPORT_ENDPOINTS.map((endpoint) => new StringSelectMenuOptionBuilder().setLabel(endpoint.label).setValue(endpoint.key)); return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(IMPORT_CUSTOM_IDS.endpoints).setPlaceholder("Select endpoints to import").setMinValues(1).setMaxValues(CORE_IMPORT_ENDPOINTS.length + 1).addOptions(allOption, ...endpointOptions)); }
 export function buildImportJobCreatedRows() { return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.previewJob).setLabel("Preview Import").setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)), ...buildImportFlowNavigationRows()]; }
+// Catch-up range: import every regular-season week from the league's current week through the
+// week the commissioner has actually played up to, so a server several weeks behind can pull all the
+// missing data in one import. Defaults to just the current week (a normal single-week import).
+export function buildCatchUpImportRow(weekFrom: number, selectedTo: number) {
+  const from = Math.max(1, Math.min(weekFrom, 18));
+  const options: StringSelectMenuOptionBuilder[] = [];
+  for (let week = from; week <= 18 && options.length < 25; week++) {
+    const count = week - from + 1;
+    options.push(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(week === from ? `Just Week ${from} (current)` : `Through Week ${week} (${count} weeks)`)
+        .setValue(String(week))
+        .setDescription(week === from ? "Normal single-week import." : `Import Weeks ${from}-${week} in one pass.`)
+        .setDefault(week === Math.max(from, Math.min(selectedTo, 18)))
+    );
+  }
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(IMPORT_CUSTOM_IDS.catchUpWeeks)
+      .setPlaceholder("Catch up: how many weeks are you importing?")
+      .addOptions(...options)
+  );
+}
+export function buildCatchUpImportRows(weekFrom: number, selectedTo: number) {
+  return [buildCatchUpImportRow(weekFrom, selectedTo), ...buildImportJobCreatedRows()];
+}
 export function buildImportPreviewRows(hasMissingResults = false) { return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.executeJob).setLabel("Commit Import").setStyle(ButtonStyle.Success).setDisabled(hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.refreshMissingResults).setLabel("Resolve Missing Results").setStyle(ButtonStyle.Primary).setDisabled(!hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)), ...buildImportFlowNavigationRows()]; }
 export function buildImportExecutedRows(input?: boolean | { hasMissingResults?: boolean; importJobId?: string | null }) { const hasMissingResults = typeof input === "boolean" ? input : Boolean(input?.hasMissingResults); const importJobId = typeof input === "object" ? input.importJobId : null; return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(buildApproveImportCustomId(importJobId)).setLabel("Approve Import").setStyle(ButtonStyle.Success).setDisabled(hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.refreshMissingResults).setLabel("Resolve Missing Results").setStyle(ButtonStyle.Primary).setDisabled(!hasMissingResults), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)), ...buildImportFlowNavigationRows()]; }
 export function buildImportFlowNavigationRows() {

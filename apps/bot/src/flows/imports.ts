@@ -13,6 +13,7 @@ import {
   buildImportExecutedRows,
   buildImportFlowNavigationRows,
   buildImportJobCreatedRows,
+  buildCatchUpImportRows,
   buildImportPanelRows,
   buildPendingImportRows,
   buildImportPreviewRows,
@@ -414,6 +415,18 @@ function formatImportProfile(profile?: RecImportProfile) {
   return String(profile).replaceAll("_", " ");
 }
 
+// Configure-screen action rows. For a normal weekly import inside the regular season, offer a
+// catch-up range so a server several weeks behind can pull all the missing weeks in one import.
+function configureRows(draft: ImportDraft) {
+  const weeks = draft.selectedWeeks ?? [];
+  const from = Number(draft.weekFrom ?? weeks[0] ?? 1) || 1;
+  const to = Number(draft.weekTo ?? weeks[weeks.length - 1] ?? from) || from;
+  if (draft.weekScope === "single_week" && from >= 1 && from <= 17) {
+    return buildCatchUpImportRows(from, to);
+  }
+  return buildImportJobCreatedRows();
+}
+
 function buildImportDraftSummary(draft: ImportDraft) {
   const endpoints = selectedEndpointKeys(draft);
   const endpointSummary = endpoints.length === CORE_IMPORT_ENDPOINTS.length ? "All core endpoints" : endpoints.join(", ");
@@ -584,7 +597,7 @@ async function renderPreviousImportView(interaction: ButtonInteraction) {
     updateImportView(interaction.user.id, "configure", { previousView: "franchise_select" });
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(draft))],
-      components: [...buildImportJobCreatedRows()]
+      components: [...configureRows(draft)]
     });
     return;
   }
@@ -671,7 +684,10 @@ export async function handleImportButton(interaction: ButtonInteraction) {
       await interaction.deferUpdate();
       try {
         const isFullSchedule = draft.weekScope === "full_regular_season_schedule";
-        const selectedWeeks = isFullSchedule ? normalizeSelectedWeeks(draft) : normalizeSelectedWeeks(draft).slice(0, 1);
+        // Honor the full selected range so a catch-up import can pull several weeks at once. The
+        // default weekly import still resolves to a single week (the profile selects only the
+        // current week unless the commissioner widened it on the configure screen).
+        const selectedWeeks = normalizeSelectedWeeks(draft);
         const job = await recApi.createImportJob({
           guildId: interaction.guildId,
           importMode: draft.importMode ?? "ea_import",
@@ -996,7 +1012,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
           ].join("\n"))
       ],
       components: [
-        ...buildImportJobCreatedRows()
+        ...configureRows(importSessions.get(interaction.user.id) ?? {})
       ]
     });
     return;
@@ -1051,6 +1067,28 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
       components: [...buildImportJobCreatedRows()]
+    });
+    return;
+  }
+
+  if (interaction.customId === IMPORT_CUSTOM_IDS.catchUpWeeks) {
+    const draft = importSessions.get(interaction.user.id) ?? {};
+    const from = Number(draft.weekFrom ?? draft.selectedWeeks?.[0] ?? 1) || 1;
+    const to = Math.max(from, Number(interaction.values[0]) || from);
+    const weeks: number[] = [];
+    for (let week = from; week <= to; week++) weeks.push(week);
+    importSessions.set(interaction.user.id, {
+      ...draft,
+      weekScope: "single_week",
+      selectedWeeks: weeks,
+      weekFrom: weeks[0],
+      weekTo: weeks[weeks.length - 1]
+    });
+    await interaction.deferUpdate();
+    const updated = importSessions.get(interaction.user.id) ?? {};
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Configure Import").setDescription(buildImportDraftSummary(updated))],
+      components: [...configureRows(updated)]
     });
     return;
   }
