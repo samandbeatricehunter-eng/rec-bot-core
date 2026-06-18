@@ -982,7 +982,9 @@ export async function runAdvanceWizardProcessing(
       components: []
     });
     try {
-      const catchUp = await recApi.catchUpAdvance({ guildId, targetWeek: catchUpTarget.targetWeek, targetStage: catchUpTarget.targetStage });
+      // Bound the fast-forward to exactly the intended number of intermediate advances, so a stale
+      // target can never run the league forward further than the commissioner selected.
+      const catchUp = await recApi.catchUpAdvance({ guildId, targetWeek: catchUpTarget.targetWeek, targetStage: catchUpTarget.targetStage, maxSteps: intermediate });
       allWarnings.push(...(catchUp?.warnings ?? []));
       const weeks: any[] = catchUp?.weeks ?? [];
       const announceId = weeks.find((w: any) => w.announcementsChannelId)?.announcementsChannelId ?? null;
