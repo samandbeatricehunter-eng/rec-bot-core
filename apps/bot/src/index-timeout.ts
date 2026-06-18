@@ -51,7 +51,6 @@ import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/g
 import { GOTW_CUSTOM_IDS } from "./ui/gotw.js";
 import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
 import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
-import { ECONOMY_ADMIN_CUSTOM_IDS, buildClearEosModal, buildEconomyAdminPanel } from "./ui/economy-admin.js";
 import { ACTIVE_CHECK_CUSTOM_IDS } from "./ui/active-check.js";
 import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal, handleCustomTeamNoLink } from "./flows/team-linking.js";
@@ -177,12 +176,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    if (interaction.isChannelSelectMenu()) {
-      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel || interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
-        return handleEconomyChannelSelect(interaction);
-      }
-    }
-
     if (interaction.isStringSelectMenu()) {
       const { TEAM_LINK_CUSTOM_IDS } = await import("./ui/team-options.js");
       if (
@@ -250,14 +243,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         if (!leagueName) return interaction.reply({ content: "No league is set up for this server.", flags: MessageFlags.Ephemeral });
         return interaction.showModal(buildDeleteLeagueModal(leagueName));
       }
-      if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
       if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderImportPanel(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.adminActiveCheck) return handleStartActiveCheck(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminReselectGotw) return renderGotwSelection(interaction);
       if (interaction.customId === ACTIVE_CHECK_CUSTOM_IDS.start) return handleStartActiveCheck(interaction);
       if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.selectGotw) return renderGotwSelection(interaction);
-      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEos) return interaction.showModal(buildClearEosModal());
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.view) return handleLeagueWeekView(interaction);
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.set) return interaction.reply({ content: "Choose the stage first.", components: [buildLeagueWeekStageRow()], ephemeral: true });
       if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) return handleImportButton(interaction);
@@ -322,7 +313,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionModal) return handleCoachAbilitiesRestrictionModal(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
       if (interaction.customId === REC_BANK_CUSTOM_IDS.fromSavingsModal) return handleSavingsTransferModal(interaction, "from_savings");
-      if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.clearEosModal) return handleClearEosModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_WEEK_CUSTOM_IDS.setModal}:`)) return handleLeagueWeekSetModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`)) return handleCustomTeamModal(interaction);
     }
@@ -1272,28 +1262,8 @@ async function handleRecAwardApprove(interaction: Extract<Interaction, { isButto
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Admin handler implementations (previously only in the dead index.ts)
+// Admin handler implementations
 // ─────────────────────────────────────────────────────────────────────────────
-
-async function handleEconomyChannelSelect(interaction: any) {
-  if (!interaction.isChannelSelectMenu() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can change economy routing.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const channelId = interaction.values[0];
-  if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setPendingChannel) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, pendingEconomyChannelId: channelId });
-    await interaction.reply({ content: `Pending Purchases / Payouts channel set to <#${channelId}>.`, flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (interaction.customId === ECONOMY_ADMIN_CUSTOM_IDS.setGameCategory) {
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, gameChannelsCategoryId: channelId });
-    await interaction.reply({ content: `Game Channels category set to <#${channelId}>.`, flags: MessageFlags.Ephemeral });
-    return;
-  }
-  await interaction.reply({ content: "Unknown Economy Reviews channel selector.", flags: MessageFlags.Ephemeral });
-}
 
 function appendReviewActionToMessage(interaction: any, actionLabel: string) {
   const userMention = `<@${interaction.user.id}>`;
@@ -1331,17 +1301,6 @@ async function handleStreamReviewButton(interaction: any) {
   if (interaction.message?.editable) {
     await appendReviewActionToMessage(interaction, action === "approve" ? "Applied" : "Denied");
   }
-}
-
-async function handleClearEosModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
-  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can clear EOS batches.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const clearReason = interaction.fields.getTextInputValue(ECONOMY_ADMIN_CUSTOM_IDS.clearReasonInput);
-  const result = await recApi.clearPendingEosBatch({ guildId: interaction.guildId, clearReason });
-  await interaction.reply({ content: result.cleared ? "Pending EOS batch cleared. Reissue after correcting payout logic." : result.reason ?? "No pending EOS batch found.", flags: MessageFlags.Ephemeral });
 }
 
 async function handleLeagueWeekSetModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {

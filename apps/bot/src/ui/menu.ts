@@ -21,7 +21,6 @@ export const MENU_CUSTOM_IDS = {
   adminSelect: "rec:admin:select",
   adminServerSetup: "rec:admin:server_setup",
   adminLeagueSetup: "rec:admin:league_setup",
-  adminUserTeamLinking: "rec:admin:user_team_linking",
   adminImportEnterData: "rec:admin:import_enter_data",
   adminImports: "rec:admin:imports",
   adminAdvanceMenu: "rec:admin:advance_menu",

@@ -64,8 +64,7 @@ UI builders in `apps/bot/src/ui/`. Last reviewed 2026-06-18.
 | **Troubleshoot repair fallback** | Troubleshoot Advance | Generic shell for not-yet-wired repair items. |
 
 ## Cleanup notes
-- `adminUserTeamLinking` (a standalone Admin button) is a dead/duplicate stub — the working flow is Manage League → User / Team Linking. Remove or point it at the real panel.
-- `apps/bot/src/index.ts` is a legacy duplicate of `index-timeout.ts`; `apps/bot/src/ui/economy-admin.ts` is orphaned. Delete in the modularization pass.
+- Done 2026-06-18: removed the dead `adminUserTeamLinking` stub (custom id + unreachable handler; the working flow is Manage League → User / Team Linking) and deleted the orphaned `apps/bot/src/ui/economy-admin.ts` (its panel was never rendered; Server Setup covers the Pending Payouts / Game Channels Category channels). `apps/bot/src/index.ts` was already gone. Runtime entry is `index-timeout.ts`.
 
 ## Consistency notes (theme)
 Standard lives in `menu-navigation-standard.md`. Conventions in use: select options carry a one-line `.setDescription` ending in a period; "Back to <parent>" for return options; slashes spaced ("Server / League Setup", "User / Team Linking", "Rules / FAQ"); shells say "coming soon" so users aren't surprised. Remaining gap: a few admin embeds predate the description convention.
