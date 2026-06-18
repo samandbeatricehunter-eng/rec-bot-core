@@ -239,10 +239,16 @@ export async function sendAdvanceDmsOnly(guild: Guild) {
     }
   }
 
+  return sendAdvanceDmPayloads(guild, payloads);
+}
+
+// Sends per-user advance DMs from already-built payloads. Used by the catch-up advance to DM each
+// caught-up week's payloads (the orchestrator returns per-week payloads it captured at the time).
+export async function sendAdvanceDmPayloads(guild: Guild, payloads: any[]) {
   let sent = 0;
   let failed = 0;
-  for (const payload of payloads) {
-    if (!payload.discordId) continue;
+  for (const payload of payloads ?? []) {
+    if (!payload?.discordId) continue;
     const user = await guild.client.users.fetch(payload.discordId).catch(() => null);
     if (!user) { failed++; continue; }
     try { await user.send({ embeds: [buildAdvanceDmEmbed(guild, payload)] }); sent++; } catch { failed++; }

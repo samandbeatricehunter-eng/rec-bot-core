@@ -43,7 +43,7 @@ import { buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advanc
 import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, DEFAULT_SCHEDULE_TIMEZONE } from "./ui/advance-schedule.js";
 import { handleAdvanceScheduleConfirm, handleAdvanceScheduleSelect, startAdvanceScheduleSession } from "./flows/advance-schedule.js";
 import { handleAdvanceMenuSelect, handleTroubleshootMenuSelect } from "./flows/advance-menu.js";
-import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardFsFwModal, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardOutcomeReviewPayload, buildAdvanceWizardStep2Payload, handleAdvanceWizardFsFwModal, handleTeamConflictSelect, handleTeamConflictResolveModal, handleTeamConflictContinue, handleWizardGotwSelect } from "./flows/advance-wizard.js";
+import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardFsFwModal, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardOutcomeReviewPayload, buildAdvanceWizardStep2Payload, handleAdvanceWizardFsFwModal, handleTeamConflictSelect, handleTeamConflictResolveModal, handleTeamConflictContinue, handleWizardGotwSelect, handleAdvanceWizardCatchUpSelect, clearCatchUpTarget } from "./flows/advance-wizard.js";
 import { recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
 import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
 import { GOTW_CUSTOM_IDS } from "./ui/gotw.js";
@@ -203,6 +203,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       }
 
       if (interaction.customId === ADVANCE_WIZARD_GOTW_CUSTOM_ID) return handleWizardGotwSelect(interaction);
+      if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.catchUpSelect) return handleAdvanceWizardCatchUpSelect(interaction);
       if (interaction.customId.startsWith("eos_vote:")) return handleEosVote(interaction);
       if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
       if (interaction.customId === RULES_CUSTOM_IDS.select) return handleRulesSelect(interaction);
@@ -277,7 +278,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (Object.values(ADVANCE_WIZARD_CUSTOM_IDS).includes(interaction.customId as any)) return handleAdvanceWizardButton(interaction);
       if (interaction.customId === ADVANCE_WIZARD_BACK_CUSTOM_ID) {
         if (!interaction.guildId) return interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
-        return interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true));
+        return interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true, interaction.user.id));
       }
       if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.confirm) return handleAdvanceScheduleConfirm(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
@@ -573,6 +574,7 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
   }
 
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesBack || interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.step2Back) {
+    clearCatchUpTarget(interaction.user.id);
     await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
     return;
   }
@@ -583,7 +585,8 @@ async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
   }
 
   if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesSkip) {
-    await interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true));
+    clearCatchUpTarget(interaction.user.id);
+    await interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true, interaction.user.id));
     return;
   }
 

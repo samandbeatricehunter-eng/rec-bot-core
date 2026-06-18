@@ -1377,6 +1377,122 @@ export async function runPostAdvanceAutomation(input: string | { guildId: string
   };
 }
 
+// Human-readable label for a (week, stage) pair, used in catch-up summaries.
+function catchUpWeekLabel(weekNumber: number, seasonStage: string) {
+  switch (seasonStage) {
+    case "wild_card": return "Wild Card";
+    case "divisional": return "Divisional Round";
+    case "conference_championship": return "Conference Championship";
+    case "super_bowl": return "Super Bowl";
+    case "coach_hiring": return "Coach Hiring";
+    case "final_resigning": return "Final Re-signing";
+    case "free_agency": return "Free Agency";
+    case "draft": return "Draft";
+    case "preseason_training_camp": return "Preseason (Training Camp)";
+    case "regular_season": return `Week ${weekNumber}`;
+    default: return `Week ${weekNumber}`;
+  }
+}
+
+// Catch-up advance: fast-forward through already-imported intermediate weeks up to (but NOT
+// including) the target. Each intermediate week runs the normal scoring/payouts/POTW/badges, but
+// not game-channel recreation, GOTW polls, or reminder scheduling (#16). The caller then runs a
+// normal interactive advance for the final landed week so it keeps its GOTW selection, game
+// channels, and DMs. Returns a per-week summary plus each week's advance DM payloads so the bot can
+// post one cumulative summary embed and DM users for every week that was caught up (#15).
+export async function runCatchUpAdvance(input: {
+  guildId: string;
+  targetWeek: number;
+  targetStage: string;
+  maxSteps?: number;
+}) {
+  const guildId = input.guildId;
+  const targetWeek = asNumber(input.targetWeek);
+  const targetStage = String(input.targetStage);
+  // Safety cap: a full season + offseason is well under 30 advances; never loop unbounded.
+  const maxSteps = Math.min(Math.max(asNumber(input.maxSteps) || 30, 1), 40);
+
+  const weeks: Array<Record<string, any>> = [];
+  const warnings: string[] = [];
+  let stoppedReason: "reached_target" | "advance_failed" | "max_steps" = "max_steps";
+
+  for (let i = 0; i < maxSteps; i++) {
+    const context = await getLeagueContext(guildId);
+    const league = context.rec_leagues;
+    const cur = asNumber(league.current_week ?? 1);
+    const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
+    const next = nextWeekStage(cur, stage);
+
+    // The advance that lands on the target is performed by the normal wizard flow afterward, so the
+    // final week keeps its GOTW selection, game channels, and advance DMs.
+    if (next.weekNumber === targetWeek && next.seasonStage === targetStage) {
+      stoppedReason = "reached_target";
+      break;
+    }
+
+    const { step, warnings: stepWarnings, completed } = makeStepRunner();
+    let week: any = null;
+    let potwAwards: any[] = [];
+    let badgesEarned: any[] = [];
+
+    await step("advance_week", async () => { week = await advanceLeagueWeek(guildId); });
+    if (!week) {
+      // Could not advance (e.g. league lookup failed) — stop rather than spin.
+      warnings.push(...stepWarnings);
+      stoppedReason = "advance_failed";
+      break;
+    }
+
+    await step("apply_records", () => applyAdvanceRecords(guildId));
+    await step("game_payouts", () => issueWeeklyGamePayouts(guildId));
+    await step("savings_interest", () => applyAdvanceSavingsInterest(guildId));
+    await step("settle_gotw", () => settleGotwVotes(guildId));
+    await step("evaluate_challenges", () => evaluateWeeklyChallenges(guildId));
+    await step("calculate_potw", async () => { const r: any = await calculateRecPotw(guildId); potwAwards = r?.awards ?? []; });
+    await step("potw_payouts", () => issueRecPotwPayouts(guildId));
+    await step("stream_compliance", () => evaluateStreamCompliance(guildId));
+    await step("generate_challenges", () => generateWeeklyChallenges({ guildId, regenerate: false }));
+    await step("assign_badges", async () => { const r: any = await assignWeeklyBadges(guildId); badgesEarned = r?.earned ?? []; });
+
+    let dmPayloads: any[] = [];
+    let announcementsChannelId: string | null = null;
+    try {
+      const dm: any = await buildAdvanceDmPayloads(guildId);
+      dmPayloads = dm?.payloads ?? [];
+      announcementsChannelId = dm?.announcementsChannelId ?? null;
+    } catch (error) {
+      stepWarnings.push(`advance_dms: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    weeks.push({
+      weekNumber: week.weekNumber,
+      seasonStage: week.seasonStage,
+      previousWeek: week.previousWeek,
+      previousStage: week.previousStage,
+      // The week whose results were just processed (current_week - 1 in normal advance semantics).
+      completedWeekLabel: catchUpWeekLabel(week.previousWeek, week.previousStage),
+      landedWeekLabel: catchUpWeekLabel(week.weekNumber, week.seasonStage),
+      potwAwards,
+      badgesEarned,
+      completed,
+      warnings: stepWarnings,
+      dmPayloads,
+      announcementsChannelId
+    });
+    warnings.push(...stepWarnings);
+  }
+
+  return {
+    ok: warnings.length === 0,
+    targetWeek,
+    targetStage,
+    weeksProcessed: weeks.length,
+    stoppedReason,
+    weeks,
+    warnings
+  };
+}
+
 export async function getGotwCandidates(guildId: string) {
   const context = await getLeagueContext(guildId);
   const league = context.rec_leagues;

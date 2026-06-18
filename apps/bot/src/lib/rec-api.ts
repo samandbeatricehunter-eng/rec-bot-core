@@ -363,6 +363,14 @@ export const recApi = {
       body: JSON.stringify({ guildId, mode })
     }),
 
+  // Fast-forward intermediate imported weeks up to (but not including) the target. The wizard then
+  // runs a normal advance for the final landed week. Returns per-week summaries + DM payloads.
+  catchUpAdvance: (input: { guildId: string; targetWeek: number; targetStage: string }) =>
+    recFetch<any>("/v1/advance/catch-up", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   getAdvanceDmPayloads: (guildId: string) =>
     recFetch<any>("/v1/advance/dm-payloads", {
       method: "POST",
