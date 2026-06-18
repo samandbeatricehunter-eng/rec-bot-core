@@ -441,8 +441,9 @@ function buildImportDraftSummary(draft: ImportDraft) {
     draft.importProfileReason ? `Plan: ${draft.importProfileReason}` : undefined,
     "",
     showsCatchUp
-      ? "**Caught up?** Leave the dropdown on the current week. **Behind?** Pick the last week you played in Madden and REC will import every week through it and catch the server up when you advance."
+      ? "**Caught up?** Leave the dropdown on the current week. **Behind?** Pick the last week you played in Madden — REC imports every week through it and advances the server to the following week in one pass. The dropdown spells out exactly which weeks import and where the server lands."
       : "When you continue, REC will create the import job and stage the required endpoints for the selected week.",
+    showsCatchUp ? "⚠️ Imports and advances **cannot be undone** — confirm the week is correct before continuing." : undefined,
     "",
     "Then click **Preview Import** to stage the data."
   ].filter(Boolean).join("\n");

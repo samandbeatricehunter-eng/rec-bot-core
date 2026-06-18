@@ -130,10 +130,17 @@ export function buildWeekScopeRow() { return new ActionRowBuilder<StringSelectMe
 export function buildWeekSelectRow() { const labels = [...Array.from({ length: 18 }, (_, index) => ({ label: `Week ${index + 1}`, value: String(index + 1), description: `Import regular season Week ${index + 1}.` })), { label: "Wild Card", value: "19", description: "Import Wild Card playoff week." }, { label: "Divisional", value: "20", description: "Import Divisional playoff week." }, { label: "Conference Championship", value: "21", description: "Import Conference Championship week." }, { label: "Super Bowl", value: "22", description: "Import Super Bowl week." }]; return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(IMPORT_CUSTOM_IDS.weekSelect).setPlaceholder("Select one Madden week to import").setMinValues(1).setMaxValues(1).addOptions(...labels.map((week) => new StringSelectMenuOptionBuilder().setLabel(week.label).setValue(week.value).setDescription(week.description)))); }
 export function buildEndpointSelectRow() { const allOption = new StringSelectMenuOptionBuilder().setLabel("All Core Endpoints").setValue(ALL_ENDPOINTS_KEY).setDescription("Select every endpoint below."); const endpointOptions = CORE_IMPORT_ENDPOINTS.map((endpoint) => new StringSelectMenuOptionBuilder().setLabel(endpoint.label).setValue(endpoint.key)); return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(IMPORT_CUSTOM_IDS.endpoints).setPlaceholder("Select endpoints to import").setMinValues(1).setMaxValues(CORE_IMPORT_ENDPOINTS.length + 1).addOptions(allOption, ...endpointOptions)); }
 export function buildImportJobCreatedRows() { return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.previewJob).setLabel("Preview Import").setStyle(ButtonStyle.Primary), new ButtonBuilder().setCustomId(IMPORT_CUSTOM_IDS.cancelJob).setLabel("Cancel Import").setStyle(ButtonStyle.Danger)), ...buildImportFlowNavigationRows()]; }
+// The week the server lands on after processing through `throughWeek` (Week 18 → Wild Card).
+function advanceLandingLabel(throughWeek: number) {
+  return throughWeek >= 18 ? "Wild Card" : `Week ${throughWeek + 1}`;
+}
+
 // Single catch-up pick: "what week have you played through in Madden?" Picking the current week is a
 // normal single-week import; picking a later week imports every regular-season week from the current
-// one through it in one pass AND tells the advance to process all of them. Options run through Week
-// 18 (the last regular-season week); playoff catch-up is not supported via this range.
+// one through it in one pass AND tells the advance to process all of them. Each option spells out the
+// exact outcome (which weeks are imported and the week the server will land on) because imports and
+// advances cannot be undone. Options run through Week 18 (the last regular-season week); playoff
+// catch-up is not supported via this range.
 export function buildCatchUpImportRow(weekFrom: number, selectedTo: number) {
   const from = Math.max(1, Math.min(weekFrom, 18));
   const options: StringSelectMenuOptionBuilder[] = [];
@@ -143,7 +150,12 @@ export function buildCatchUpImportRow(weekFrom: number, selectedTo: number) {
       new StringSelectMenuOptionBuilder()
         .setLabel(week === from ? `Week ${from} only (normal advance)` : `Played through Week ${week} — ${count} weeks`)
         .setValue(String(week))
-        .setDescription(week === from ? "Import just this week." : `Import & catch up Weeks ${from}-${week} in one pass.`)
+        .setDescription(
+          (week === from
+            ? `Import Week ${from}, then advance to ${advanceLandingLabel(from)}.`
+            : `Import Weeks ${from}-${week}, then advance to ${advanceLandingLabel(week)}.`
+          ).slice(0, 100)
+        )
         .setDefault(week === Math.max(from, Math.min(selectedTo, 18)))
     );
   }

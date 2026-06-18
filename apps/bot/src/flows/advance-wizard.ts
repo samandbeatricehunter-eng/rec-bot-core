@@ -504,6 +504,7 @@ export async function buildAdvanceWizardStep2Payload(guildId: string, dataEntere
       ""
     );
   }
+  lines.push("⚠️ Advancing **cannot be undone**. Confirm the target above is correct.");
   lines.push("Click **Next Step** to set the next advance time and run the advance, or **Back** to make changes.");
 
   return {
