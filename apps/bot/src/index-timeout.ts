@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
@@ -17,6 +17,8 @@ import {
   buildToSavingsModal,
   buildFromSavingsModal,
   buildSetupDangerModal,
+  buildDeleteLeagueWarningPayload,
+  buildDeleteLeagueModal,
   MENU_CUSTOM_IDS,
   ROSTERS_CUSTOM_IDS,
   REC_BANK_CUSTOM_IDS,
@@ -240,6 +242,14 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) return handleClearAllTeamLinks(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.customTeamNoLink) return handleCustomTeamNoLink(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
+      if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueCancel) return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
+      if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueConfirm) {
+        if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can delete league data.", flags: MessageFlags.Ephemeral });
+        const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
+        const leagueName = week?.league?.name;
+        if (!leagueName) return interaction.reply({ content: "No league is set up for this server.", flags: MessageFlags.Ephemeral });
+        return interaction.showModal(buildDeleteLeagueModal(leagueName));
+      }
       if (interaction.customId === MENU_CUSTOM_IDS.adminUserTeamLinking) return interaction.update({ embeds: [new EmbedBuilder().setTitle("User / Team Linking").setDescription("This panel is available. The full link workflow is the next build target.")], components: [] });
       if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderImportPanel(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminRules) return interaction.update(buildRulesPanel());
@@ -307,6 +317,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         )
       ) return handleImportModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueModal) return handleDeleteLeagueModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionModal) return handleCoachAbilitiesRestrictionModal(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
@@ -488,7 +499,42 @@ async function handleServerLeagueSetupSelect(interaction: Extract<Interaction, {
   }
   if (selected === "server_setup") return interaction.update(buildServerSetupPanel());
   if (selected === "league_setup") return interaction.showModal(buildSetupDangerModal("league_setup"));
+  if (selected === "delete_league") {
+    const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
+    const leagueName = week?.league?.name;
+    if (!leagueName) {
+      return interaction.update({ embeds: [new EmbedBuilder().setTitle("Delete League Data").setDescription("No league is set up for this server, so there is nothing to delete.")], components: buildServerLeagueSetupRows() });
+    }
+    return interaction.update(buildDeleteLeagueWarningPayload(leagueName));
+  }
   return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
+}
+
+async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can delete league data.", flags: MessageFlags.Ephemeral });
+  }
+  const confirmationText = interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.deleteLeagueNameInput);
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Deleting League Data...").setDescription("Erasing all league records, links, and data. This may take a moment.")], components: [] });
+  try {
+    const result = await recApi.deleteLeagueData({ guildId: interaction.guildId, requestedByDiscordId: interaction.user.id, confirmationText });
+    const rows = result?.result?.rows_deleted ?? 0;
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("League Data Deleted").setColor(0x2ecc71).setDescription([
+        `**${result?.leagueName ?? "The league"}** has been permanently erased (${rows} row${rows === 1 ? "" : "s"} removed across league tables).`,
+        "",
+        "Run the League Setup Wizard to set up a new league for this server."
+      ].join("\n"))],
+      components: buildServerLeagueSetupRows()
+    });
+  } catch (error) {
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Delete Failed").setColor(0xe74c3c).setDescription(error instanceof Error ? error.message : String(error))],
+      components: buildServerLeagueSetupRows()
+    });
+  }
 }
 
 async function handleEosFunctionsSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {

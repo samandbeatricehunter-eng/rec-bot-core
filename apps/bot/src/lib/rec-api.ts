@@ -72,6 +72,12 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  deleteLeagueData: (input: { guildId: string; requestedByDiscordId?: string; confirmationText: string }) =>
+    recFetch<any>("/v1/setup/league/delete", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   createDefaultTeams: (guildId: string) =>
     recFetch<any>(REC_API_ROUTES.createDefaultTeams, {
       method: "POST",

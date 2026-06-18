@@ -37,6 +37,10 @@ export const MENU_CUSTOM_IDS = {
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input",
+  deleteLeagueConfirm: "rec:admin:delete_league_confirm",
+  deleteLeagueCancel: "rec:admin:delete_league_cancel",
+  deleteLeagueModal: "rec:admin:delete_league_modal",
+  deleteLeagueNameInput: "rec:admin:delete_league_name_input",
   // Main-menu Row 1 buttons
   transferFunds: "rec:menu:transfer_funds",
   placeWager: "rec:menu:place_wager",
@@ -308,10 +312,56 @@ export function buildServerLeagueSetupRows() {
     .addOptions(
       new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Assign channels/categories used by bot features."),
       new StringSelectMenuOptionBuilder().setLabel("League Setup Wizard").setValue("league_setup").setDescription("Create/update league setup through the full wizard."),
+      new StringSelectMenuOptionBuilder().setLabel("Delete League Data").setValue("delete_league").setDescription("Permanently erase this league's data and user links."),
       new StringSelectMenuOptionBuilder().setLabel("Back to Commissioner Tools").setValue("commissioner_tools")
     );
 
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+// Step 1 of league deletion: a warning embed naming the league and what is erased, with a red
+// confirm button that opens the typed-confirmation modal.
+export function buildDeleteLeagueWarningPayload(leagueName: string) {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("⚠️ Delete League Data — Permanent")
+        .setColor(0xe74c3c)
+        .setDescription([
+          `This will **permanently erase** the league **${leagueName}** from REC. This cannot be undone.`,
+          "",
+          "**Deleted:** all teams, rosters, records, standings, payouts/economy ledger for this league, badges, awards, GOTW polls, game channels data, imports, settings/rules, and every user-to-team link in this league.",
+          "**Kept:** each member's Discord account, global career record, wallet balance, and legacy history — and the Discord server itself.",
+          "",
+          "Use this to wipe a league that needs to start over before it goes inactive. After deletion you can run the League Setup Wizard to set up a new league.",
+          "",
+          "Press **Delete League Data** to confirm by typing the league name, or **Cancel**."
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.deleteLeagueCancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.deleteLeagueConfirm).setLabel("Delete League Data").setStyle(ButtonStyle.Danger)
+      )
+    ]
+  };
+}
+
+// Step 2: typed-confirmation modal. The commissioner must type the league name exactly.
+export function buildDeleteLeagueModal(leagueName: string) {
+  return new ModalBuilder()
+    .setCustomId(MENU_CUSTOM_IDS.deleteLeagueModal)
+    .setTitle("Delete League Data")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(MENU_CUSTOM_IDS.deleteLeagueNameInput)
+          .setLabel("Type the league name to confirm")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder(leagueName.slice(0, 100))
+      )
+    );
 }
 
 export function buildEosFunctionsRows() {

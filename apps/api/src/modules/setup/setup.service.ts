@@ -423,3 +423,31 @@ export async function getLeagueConfigAsDraft(guildId: string) {
   };
   return { draft };
 }
+
+/**
+ * Permanently deletes the guild's current league and every row scoped to it (records, links,
+ * imports, teams, players, settings, etc.). Global user identity/economy and the Discord server
+ * row are preserved. Requires the caller to type the league name exactly as confirmation.
+ */
+export async function deleteLeagueData(input: { guildId: string; requestedByDiscordId?: string; confirmationText: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  if (!context?.leagueId) throw new ApiError(404, "No league is set up for this server.");
+  const leagueName = String(context.rec_leagues?.name ?? "").trim();
+  const confirmation = String(input.confirmationText ?? "").trim();
+  if (!confirmation || confirmation.toLowerCase() !== leagueName.toLowerCase()) {
+    throw new ApiError(400, `Confirmation did not match. Type the league name exactly ("${leagueName}") to delete it.`);
+  }
+
+  const { data, error } = await supabase.rpc("rec_delete_league", { p_league_id: context.leagueId });
+  if (error) throw new ApiError(500, "Failed to delete league data.", error);
+
+  await writeAuditLog({
+    action: "league.data.deleted",
+    entityType: "rec_leagues",
+    entityId: context.leagueId,
+    reason: input.requestedByDiscordId ? `Deleted by discord:${input.requestedByDiscordId}` : null,
+    newValue: { leagueName, result: data }
+  }).catch(() => undefined);
+
+  return { ok: true, leagueName, result: data };
+}
