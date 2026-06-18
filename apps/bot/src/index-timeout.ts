@@ -217,7 +217,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.eosFunctionsSelect) return handleEosFunctionsSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction, buildMainMenuPayload);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectNfc || interaction.customId === ROSTERS_CUSTOM_IDS.teamSelectAfc) return handleRosterTeamSelect(interaction);
+      if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.teamSelect}:`)) return handleRosterTeamSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.byTeamNav) return handleByTeamNav(interaction, buildMainMenuPayload);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction, buildMainMenuPayload);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);

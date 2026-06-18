@@ -64,9 +64,9 @@ export const ROSTERS_CUSTOM_IDS = {
   snapshotBack: "rec:rosters:snapshot_back",
   // User selector dropdown
   snapshotUserSelect: "rec:rosters:snapshot_user_select",
-  // View Players by Team — two team pickers (32 teams exceed one menu's 25-option cap) + nav dropdown
-  teamSelectNfc: "rec:rosters:team_nfc",
-  teamSelectAfc: "rec:rosters:team_afc",
+  // View Players by Team — one team picker per conference (each gets a unique id by index, so
+  // duplicate/odd conference data can never collide on the same custom_id) + a nav dropdown.
+  teamSelect: "rec:rosters:team_pick",
   byTeamNav: "rec:rosters:by_team_nav"
 } as const;
 
@@ -453,6 +453,7 @@ export type RosterTeam = {
   id: string;
   name: string;
   abbreviation?: string | null;
+  division?: string | null;
   linkedDiscordId?: string | null;
   linkedName?: string | null;
 };
@@ -466,9 +467,46 @@ function teamGridLabel(team: RosterTeam) {
   return team.linkedDiscordId ? `<@${team.linkedDiscordId}>` : team.name;
 }
 
+// Relocated/custom teams sometimes come back with a blank conference and a division like "NFC East".
+// Re-bucket every team into NFC/AFC (inferring from the division text when the conference is blank)
+// so the grid always renders exactly the two real conferences — no empty/duplicate groups.
+function normalizeRosterConferences(conferences: RosterConference[]): RosterConference[] {
+  const inferConf = (confName: string, divisionText: string) => {
+    const c = String(confName ?? "").toUpperCase().trim();
+    if (c === "NFC" || c === "AFC") return c;
+    const text = String(divisionText ?? "").toUpperCase();
+    if (text.includes("AFC")) return "AFC";
+    if (text.includes("NFC")) return "NFC";
+    return "Other";
+  };
+  const confMap = new Map<string, Map<string, RosterTeam[]>>();
+  for (const conf of conferences ?? []) {
+    for (const division of conf.divisions ?? []) {
+      for (const team of division.teams ?? []) {
+        const label = String(division.label || team.division || "Other");
+        const c = inferConf(conf.conference, `${label} ${team.division ?? ""}`);
+        if (!confMap.has(c)) confMap.set(c, new Map());
+        const divMap = confMap.get(c)!;
+        if (!divMap.has(label)) divMap.set(label, []);
+        divMap.get(label)!.push(team);
+      }
+    }
+  }
+  const order = ["NFC", "AFC", "Other"];
+  return [...confMap.keys()]
+    .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99))
+    .map((c) => ({
+      conference: c === "Other" ? "Other" : c,
+      divisions: [...confMap.get(c)!.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([label, teams]) => ({ division: label, label, teams: [...teams].sort((x, y) => x.name.localeCompare(y.name)) }))
+    }));
+}
+
 // Two-column embed: one inline field per conference (NFC left, AFC right), divisions bold-headed.
 // Discord renders exactly two inline fields side by side, giving the requested two-column layout.
-export function buildPlayersByTeamEmbed(conferences: RosterConference[]) {
+export function buildPlayersByTeamEmbed(rawConferences: RosterConference[]) {
+  const conferences = normalizeRosterConferences(rawConferences);
   const embed = new EmbedBuilder()
     .setTitle("View Players by Team")
     .setDescription("Pick a team from a dropdown below to open its roster (grouped by position, sorted by overall). Linked teams show their coach.");
@@ -482,18 +520,19 @@ export function buildPlayersByTeamEmbed(conferences: RosterConference[]) {
 }
 
 // Component rows: one team dropdown per conference (each opens an ephemeral roster) + a nav dropdown.
-export function buildPlayersByTeamRows(conferences: RosterConference[]) {
+export function buildPlayersByTeamRows(rawConferences: RosterConference[]) {
+  const conferences = normalizeRosterConferences(rawConferences);
   const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
 
-  for (const conf of conferences) {
+  // Max 5 action rows per message; reserve one for the nav dropdown.
+  conferences.slice(0, 4).forEach((conf, index) => {
     const teams = conf.divisions.flatMap((division) =>
       division.teams.map((team) => ({ ...team, divisionLabel: division.label }))
     );
-    if (!teams.length) continue;
-    const customId = conf.conference === "AFC" ? ROSTERS_CUSTOM_IDS.teamSelectAfc : ROSTERS_CUSTOM_IDS.teamSelectNfc;
+    if (!teams.length) return;
     const select = new StringSelectMenuBuilder()
-      .setCustomId(customId)
-      .setPlaceholder(`Select an ${conf.conference} team`)
+      .setCustomId(`${ROSTERS_CUSTOM_IDS.teamSelect}:${index}`)
+      .setPlaceholder(`Select ${conf.conference === "Other" ? "a" : `an ${conf.conference}`} team`)
       .addOptions(
         teams.slice(0, 25).map((team) =>
           new StringSelectMenuOptionBuilder()
@@ -503,7 +542,7 @@ export function buildPlayersByTeamRows(conferences: RosterConference[]) {
         )
       );
     rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
-  }
+  });
 
   const nav = new StringSelectMenuBuilder()
     .setCustomId(ROSTERS_CUSTOM_IDS.byTeamNav)
