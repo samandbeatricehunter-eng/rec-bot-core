@@ -421,7 +421,9 @@ function configureRows(draft: ImportDraft) {
   const weeks = draft.selectedWeeks ?? [];
   const from = Number(draft.weekFrom ?? weeks[0] ?? 1) || 1;
   const to = Number(draft.weekTo ?? weeks[weeks.length - 1] ?? from) || from;
-  if (draft.weekScope === "single_week" && from >= 1 && from <= 17) {
+  // Offer catch-up from any competitive week with something ahead (regular season + playoffs up to
+  // the Conference Championship; nothing to catch up to from the Super Bowl).
+  if (draft.weekScope === "single_week" && from >= 1 && from <= 21) {
     return buildCatchUpImportRows(from, to);
   }
   return buildImportJobCreatedRows();
@@ -431,7 +433,7 @@ function buildImportDraftSummary(draft: ImportDraft) {
   const endpoints = selectedEndpointKeys(draft);
   const endpointSummary = endpoints.length === CORE_IMPORT_ENDPOINTS.length ? "All core endpoints" : endpoints.join(", ");
   const from = Number(draft.weekFrom ?? draft.selectedWeeks?.[0] ?? 1) || 1;
-  const showsCatchUp = draft.weekScope === "single_week" && from >= 1 && from <= 17;
+  const showsCatchUp = draft.weekScope === "single_week" && from >= 1 && from <= 21;
   return [
     `Mode: **${String(draft.importMode ?? "").replaceAll("_", " ")}**`,
     draft.importProfile ? `Profile: **${formatImportProfile(draft.importProfile)}**` : undefined,
@@ -1094,7 +1096,7 @@ export async function handleImportSelect(interaction: StringSelectMenuInteractio
       weekTo: weeks[weeks.length - 1]
     });
     // Single pick: this also sets the advance catch-up plan so the review screen just confirms it.
-    setCatchUpTargetFromPlayedWeek(interaction.user.id, from, to, "regular_season");
+    setCatchUpTargetFromPlayedWeek(interaction.user.id, from, to);
     await interaction.deferUpdate();
     const updated = importSessions.get(interaction.user.id) ?? {};
     await interaction.editReply({

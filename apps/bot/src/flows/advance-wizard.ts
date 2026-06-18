@@ -520,13 +520,24 @@ export async function buildAdvanceWizardStep2Payload(guildId: string, dataEntere
   };
 }
 
+// REC week number -> competitive stage (1-18 regular season, 19-22 the four playoff rounds).
+function stageForWeek(week: number): string {
+  if (week <= 18) return "regular_season";
+  if (week === 19) return "wild_card";
+  if (week === 20) return "divisional";
+  if (week === 21) return "conference_championship";
+  return "super_bowl";
+}
+
 // Derives the catch-up advance plan from the single import-screen pick ("played through week N"), so
 // the commissioner chooses the span only once. Stored per user; read on the review screen + advance.
-export function setCatchUpTargetFromPlayedWeek(userId: string, fromWeek: number, throughWeek: number, fromStage = "regular_season") {
+// Works across the regular-season -> playoff transitions by resolving the stage of the played-through
+// week before computing where the server lands.
+export function setCatchUpTargetFromPlayedWeek(userId: string, fromWeek: number, throughWeek: number) {
   const from = Math.max(1, Number(fromWeek) || 1);
   const through = Math.max(from, Number(throughWeek) || from);
   if (through <= from) { catchUpTargets.delete(userId); return; }
-  const landing = nextWeekStage(through, fromStage);
+  const landing = nextWeekStage(through, stageForWeek(through));
   catchUpTargets.set(userId, { targetWeek: landing.weekNumber, targetStage: landing.seasonStage, advances: through - from + 1 });
 }
 
