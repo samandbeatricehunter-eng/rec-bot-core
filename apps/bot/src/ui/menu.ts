@@ -91,6 +91,8 @@ export const ROSTERS_CUSTOM_IDS = {
   snapshotPrev: "rec:rosters:snapshot_prev",
   snapshotNext: "rec:rosters:snapshot_next",
   snapshotBack: "rec:rosters:snapshot_back",
+  snapshotConferenceSelect: "rec:profiles:conference_select",
+  snapshotTeamSelect: "rec:profiles:team_select",
   // User selector dropdown
   snapshotUserSelect: "rec:rosters:snapshot_user_select",
   // View Players by Team — one team picker per conference (each gets a unique id by index, so
@@ -838,6 +840,42 @@ export function buildSnapshotUserSelectRows(coaches: Array<{ userId: string; dis
 // ── REC Bank rows ─────────────────────────────────────────────────────────────
 
 // The bank embed already shows balances and transactions; these rows power the action menu.
+export function buildSnapshotConferenceSelectRows(rawConferences: RosterConference[]) {
+  const conferences = normalizeRosterConferences(rawConferences)
+    .filter((conference) => conference.divisions.some((division) => division.teams.some((team) => team.linkedDiscordId)));
+  const options = conferences.slice(0, 24).map((conference) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(conference.conference.slice(0, 100))
+      .setValue(conference.conference)
+      .setDescription("View linked teams in this conference.")
+  );
+  options.push(new StringSelectMenuOptionBuilder().setLabel("Back to Menu").setValue("profiles_back_menu"));
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ROSTERS_CUSTOM_IDS.snapshotConferenceSelect)
+    .setPlaceholder("Select a conference")
+    .addOptions(options);
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+export function buildSnapshotTeamSelectRows(rawConferences: RosterConference[], conferenceName: string) {
+  const conference = normalizeRosterConferences(rawConferences).find((conf) => conf.conference === conferenceName);
+  const teams = (conference?.divisions ?? [])
+    .flatMap((division) => division.teams.map((team) => ({ ...team, divisionLabel: division.label })))
+    .filter((team) => team.linkedDiscordId);
+  const options = teams.slice(0, 24).map((team) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(team.name.slice(0, 100))
+      .setValue(team.linkedDiscordId!)
+      .setDescription(`${team.linkedName ?? "Linked User"} - ${team.divisionLabel}`.slice(0, 100))
+  );
+  options.push(new StringSelectMenuOptionBuilder().setLabel("Back to Profiles").setValue("profiles_back"));
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`${ROSTERS_CUSTOM_IDS.snapshotTeamSelect}:${conferenceName}`)
+    .setPlaceholder(`Select a ${conferenceName} team`)
+    .addOptions(options);
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
 export function buildRecBankRows() {
   const select = new StringSelectMenuBuilder()
     .setCustomId(REC_BANK_CUSTOM_IDS.select)

@@ -8,7 +8,8 @@ import {
   buildMaddenTeamsRows,
   buildRostersMenuEmbed,
   buildRostersMenuRows,
-  buildSnapshotUserSelectRows,
+  buildSnapshotConferenceSelectRows,
+  buildSnapshotTeamSelectRows,
   ROSTERS_CUSTOM_IDS,
   type MaddenTeamsPage
 } from "../ui/menu.js";
@@ -190,21 +191,43 @@ export async function handleByTeamNav(interaction: StringSelectMenuInteraction, 
 
 export async function renderUserSnapshotPicker(interaction: ButtonInteraction | StringSelectMenuInteraction) {
   await interaction.deferUpdate();
-  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("This must be run inside a league server.")], components: buildRostersMenuRows() });
-  const coachData = await recApi.getCoaches(interaction.guildId).catch(() => null);
-  const coaches = coachData?.coaches ?? [];
-  if (!coaches.length) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("No linked coaches found in this league. Team assignments must be configured first.")], components: buildRostersMenuRows() });
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Profiles").setDescription("This must be run inside a league server.")], components: [] });
+  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
+  const conferences: any[] = confData?.conferences ?? [];
+  const hasLinkedTeams = conferences.some((c) => (c.divisions ?? []).some((d: any) => (d.teams ?? []).some((team: any) => team.linkedDiscordId)));
+  if (!hasLinkedTeams) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Profiles").setDescription("No linked coaches found in this league. Team assignments must be configured first.")], components: buildSnapshotConferenceSelectRows([]) });
   }
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("Select a coach from the dropdown below to view their full profile snapshot.")],
-    components: buildSnapshotUserSelectRows(coaches)
+    embeds: [new EmbedBuilder().setTitle("User Profiles").setDescription("Select a conference below to view linked user teams in that conference.")],
+    components: buildSnapshotConferenceSelectRows(conferences)
   });
+}
+
+export async function handleSnapshotConferenceSelect(interaction: StringSelectMenuInteraction, buildMainMenuPayload: MainMenuPayloadBuilder) {
+  const selected = interaction.values[0];
+  if (selected === "profiles_back_menu") {
+    return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
+  }
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return;
+  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
+  const conferences: any[] = confData?.conferences ?? [];
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle(`${selected} User Profiles`).setDescription("Select a linked team below to open that user's paginated profile.")],
+    components: buildSnapshotTeamSelectRows(conferences, selected)
+  });
+}
+
+export async function handleSnapshotTeamSelect(interaction: StringSelectMenuInteraction) {
+  const selected = interaction.values[0];
+  if (selected === "profiles_back") return renderUserSnapshotPicker(interaction);
+  return handleSnapshotUserSelect(interaction);
 }
 
 function buildSnapshotNavRows(currentPage: number, totalPages: number) {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotBack).setLabel("Back to Rosters").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotBack).setLabel("Back to Profiles").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotPrev).setLabel("Prev").setStyle(ButtonStyle.Primary).setDisabled(currentPage === 0),
     new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.snapshotNext).setLabel("Next").setStyle(ButtonStyle.Primary).setDisabled(currentPage >= totalPages - 1)
   );
@@ -279,7 +302,7 @@ export async function handleSnapshotUserSelect(interaction: StringSelectMenuInte
   const targetDiscordId = interaction.values[0];
   const snapshot = await recApi.getUserSnapshot(targetDiscordId, interaction.guildId).catch(() => null);
   if (!snapshot) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Snapshot Unavailable").setDescription("Could not load this coach's snapshot. They may not be fully linked.")], components: buildRostersMenuRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Profile Unavailable").setDescription("Could not load this user's profile. They may not be fully linked.")], components: buildSnapshotConferenceSelectRows([]) });
   }
 
   const displayName = snapshot.discord?.global_name ?? snapshot.user?.display_name ?? "Coach";
@@ -295,12 +318,12 @@ export async function handleSnapshotPageNav(interaction: ButtonInteraction, delt
 
   const session = snapshotSessions.get(interaction.user.id);
   if (!session) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Session Expired").setDescription("Your snapshot session expired. Please reopen Rosters > User Snapshots.")], components: buildRostersMenuRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Session Expired").setDescription("Your profile session expired. Please reopen User Profiles.")], components: buildSnapshotConferenceSelectRows([]) });
   }
 
   const snapshot = await recApi.getUserSnapshot(session.targetDiscordId, interaction.guildId).catch(() => null);
   if (!snapshot) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Snapshot Unavailable").setDescription("Could not reload this snapshot.")], components: buildRostersMenuRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Profile Unavailable").setDescription("Could not reload this profile.")], components: buildSnapshotConferenceSelectRows([]) });
   }
 
   const newPage = session.currentPage + delta;

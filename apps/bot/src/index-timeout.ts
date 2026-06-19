@@ -41,7 +41,7 @@ import {
 } from "./ui/league-setup.js";
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel, startImportMode } from "./flows/imports.js";
 import { buildCommissionerToolsEmbed, buildEosFunctionsEmbed, buildManageLeagueEmbed, buildServerLeagueSetupEmbed } from "./flows/commissioner-tools.js";
-import { handleByTeamNav, handleRosterTeamSelect, handleRostersMenuSelect, handleSnapshotPageNav, handleSnapshotUserSelect, handleTeamsPage, renderRostersMenu, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { handleByTeamNav, handleRosterTeamSelect, handleRostersMenuSelect, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleSnapshotUserSelect, handleTeamsPage, renderRostersMenu, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import { renderScheduleMenu, renderSchedulePlaceholder } from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import { handleActivityRequirementsModal, handleCoachAbilitiesRestrictionModal, handleLeagueSetupSave, handleLeagueSetupSelect, handleSetupModal, leagueSetupSessions } from "./flows/league-setup.js";
@@ -247,6 +247,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.serverLeagueSetupSelect) return handleServerLeagueSetupSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.eosFunctionsSelect) return handleEosFunctionsSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction, buildMainMenuPayload);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotConferenceSelect) return handleSnapshotConferenceSelect(interaction, buildMainMenuPayload);
+      if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.snapshotTeamSelect}:`)) return handleSnapshotTeamSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
       if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.teamSelect}:`)) return handleRosterTeamSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.byTeamNav) return handleByTeamNav(interaction, buildMainMenuPayload);
@@ -326,7 +328,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotPrev) return handleSnapshotPageNav(interaction, -1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderRostersMenu(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleSelectTeam) return renderSchedulePlaceholder(interaction, "Select Team", "Team schedule selection is coming soon. This will let you view any team's schedule.");
