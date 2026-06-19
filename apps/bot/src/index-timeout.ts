@@ -113,7 +113,9 @@ async function safeInteractionError(interaction: Interaction, error: unknown) {
 }
 
 client.once("clientReady", async () => {
-  console.log(`REC Bot logged in as ${client.user?.tag ?? "unknown"}`);
+  // Log the deployed commit so it's easy to confirm Railway is running the latest build.
+  const deployedCommit = process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? "unknown";
+  console.log(`REC Bot logged in as ${client.user?.tag ?? "unknown"} — build ${deployedCommit.slice(0, 12)}`);
   try {
     const health = await recApi.health();
     console.log(`Connected to ${health.service}`);
