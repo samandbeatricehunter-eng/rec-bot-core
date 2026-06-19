@@ -27,6 +27,8 @@ export const MENU_CUSTOM_IDS = {
   uploadScoringSummary: "rec:menu:upload_scoring_summary",
   helpRules: "rec:menu:help_rules",
   leagueMgmt: "rec:menu:league_mgmt",
+  requestTeam: "rec:teams:request",
+  teamsBack: "rec:teams:back",
   adminSelect: "rec:admin:select",
   adminServerSetup: "rec:admin:server_setup",
   adminLeagueSetup: "rec:admin:league_setup",
@@ -565,6 +567,11 @@ export type RosterTeam = {
   division?: string | null;
   linkedDiscordId?: string | null;
   linkedName?: string | null;
+  wins?: number | null;
+  losses?: number | null;
+  ties?: number | null;
+  pointDifferential?: number | null;
+  recordText?: string | null;
 };
 export type RosterConference = {
   conference: string;
@@ -574,6 +581,25 @@ export type RosterConference = {
 // A linked team shows its coach as a Discord mention (renders as @nickname); unlinked teams show the team name.
 function teamGridLabel(team: RosterTeam) {
   return team.linkedDiscordId ? `<@${team.linkedDiscordId}>` : team.name;
+}
+
+function teamNickname(name?: string | null) {
+  const text = String(name ?? "").trim();
+  if (!text) return "Team";
+  const parts = text.split(/\s+/);
+  return parts[parts.length - 1] || text;
+}
+
+function openTeamUrl(team: RosterTeam) {
+  return `https://rec.local/teams/${encodeURIComponent(team.id)}`;
+}
+
+function maddenTeamLine(team: RosterTeam) {
+  const record = team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
+  const label = teamNickname(team.name);
+  const teamText = team.linkedDiscordId ? label : `[${label}](${openTeamUrl(team)})`;
+  const coach = team.linkedDiscordId ? ` (<@${team.linkedDiscordId}>)` : "";
+  return `${teamText} (${record})${coach}`;
 }
 
 // Relocated/custom teams sometimes come back with a blank conference and a division like "NFC East".
@@ -626,6 +652,31 @@ export function buildPlayersByTeamEmbed(rawConferences: RosterConference[]) {
     embed.addFields({ name: conf.conference || "Teams", value: (value || "No teams found").slice(0, 1024), inline: true });
   }
   return embed;
+}
+
+export function buildMaddenTeamsEmbed(rawConferences: RosterConference[]) {
+  const conferences = normalizeRosterConferences(rawConferences);
+  const embed = new EmbedBuilder()
+    .setTitle("Teams")
+    .setDescription("Open teams are linked. Linked teams show the assigned Discord user.");
+
+  for (const conf of conferences.filter((c) => c.conference === "NFC" || c.conference === "AFC")) {
+    const value = conf.divisions
+      .map((division) => [`**${division.label}**`, ...division.teams.map(maddenTeamLine)].join("\n"))
+      .join("\n\n");
+    embed.addFields({ name: conf.conference, value: (value || "No teams found").slice(0, 1024), inline: true });
+  }
+
+  return embed;
+}
+
+export function buildMaddenTeamsRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
+    )
+  ];
 }
 
 // Component rows: one team dropdown per conference (each opens an ephemeral roster) + a nav dropdown.

@@ -7,15 +7,15 @@ function isMissingRpcError(error: unknown) {
   return err?.code === "42883" || err?.code === "PGRST202" || /function .* does not exist/i.test(err?.message ?? "");
 }
 
+const CONFERENCE_ORDER = ["NFC", "AFC"];
+const DIVISION_ORDER = ["East", "North", "South", "West"];
+
 // Resolve the primary league linked to a Discord guild.
 // Chain: rec_discord_servers (guild_id) -> rec_server_league_links (is_primary) -> rec_leagues.
 async function resolveLeagueId(guildId: string): Promise<string> {
   const context = await getCurrentLeagueContext(guildId);
   return context.leagueId;
 }
-
-const CONFERENCE_ORDER = ["NFC", "AFC"];
-const DIVISION_ORDER = ["East", "North", "South", "West"];
 
 function teamDisplayName(t: any): string {
   if (t.is_relocated && t.display_city) {
@@ -31,12 +31,80 @@ type ConferenceTeam = {
   division: string;
   linkedDiscordId: string | null;
   linkedName: string | null;
+  wins: number;
+  losses: number;
+  ties: number;
+  pointDifferential: number;
+  recordText: string;
 };
 type DivisionGroup = { division: string; label: string; teams: ConferenceTeam[] };
 type ConferenceGroup = { conference: string; divisions: DivisionGroup[] };
 
+function asNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatRecord(record?: { wins?: number; losses?: number; ties?: number } | null) {
+  return `${record?.wins ?? 0}-${record?.losses ?? 0}-${record?.ties ?? 0}`;
+}
+
+function sortTeamsByRecord(a: ConferenceTeam, b: ConferenceTeam) {
+  const aPlayed = a.wins + a.losses + a.ties;
+  const bPlayed = b.wins + b.losses + b.ties;
+  const aPct = aPlayed ? (a.wins + a.ties * 0.5) / aPlayed : 0;
+  const bPct = bPlayed ? (b.wins + b.ties * 0.5) / bPlayed : 0;
+  return bPct - aPct || b.wins - a.wins || b.pointDifferential - a.pointDifferential || a.name.localeCompare(b.name);
+}
+
+async function loadTeamRecords(leagueId: string, seasonNumber: number) {
+  const { data: assignments } = await supabase
+    .from("rec_team_assignments")
+    .select("team_id,user_id")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+
+  const teamByUser = new Map<string, string>();
+  const userIds: string[] = [];
+  for (const assignment of assignments ?? []) {
+    if (!assignment.user_id || !assignment.team_id) continue;
+    teamByUser.set(String(assignment.user_id), String(assignment.team_id));
+    userIds.push(String(assignment.user_id));
+  }
+
+  const records = new Map<string, { wins: number; losses: number; ties: number; pointDifferential: number; recordText: string }>();
+  if (!userIds.length) return records;
+
+  const { data } = await supabase
+    .from("rec_season_user_records")
+    .select("user_id,wins,losses,ties,point_differential")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .in("user_id", userIds);
+
+  for (const row of data ?? []) {
+    const teamId = teamByUser.get(String(row.user_id));
+    if (!teamId) continue;
+    const wins = asNumber(row.wins);
+    const losses = asNumber(row.losses);
+    const ties = asNumber(row.ties);
+    records.set(teamId, {
+      wins,
+      losses,
+      ties,
+      pointDifferential: asNumber(row.point_differential),
+      recordText: formatRecord({ wins, losses, ties })
+    });
+  }
+  return records;
+}
+
 async function getLeagueConferencesFallback(guildId: string) {
-  const leagueId = await resolveLeagueId(guildId);
+  const context = await getCurrentLeagueContext(guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = asNumber(context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1);
+  const records = await loadTeamRecords(leagueId, seasonNumber);
 
   const { data: teams, error } = await supabase
     .from("rec_teams")
@@ -63,6 +131,7 @@ async function getLeagueConferencesFallback(guildId: string) {
 
   const rows = (teams ?? []).map((t) => {
     const link = linkByTeam.get(t.id as string);
+    const record = records.get(t.id as string) ?? { wins: 0, losses: 0, ties: 0, pointDifferential: 0, recordText: "0-0-0" };
     return {
       id: t.id as string,
       name: teamDisplayName(t),
@@ -70,7 +139,12 @@ async function getLeagueConferencesFallback(guildId: string) {
       conference: (t.conference ?? "").toUpperCase(),
       division: t.division ?? "",
       linkedDiscordId: link?.discordId ?? null,
-      linkedName: link?.name ?? null
+      linkedName: link?.name ?? null,
+      wins: record.wins,
+      losses: record.losses,
+      ties: record.ties,
+      pointDifferential: record.pointDifferential,
+      recordText: record.recordText
     };
   });
 
@@ -93,13 +167,39 @@ async function getLeagueConferencesFallback(guildId: string) {
       label: `${conference} ${division}`.trim(),
       teams: confTeams
         .filter((r) => r.division === division)
-        .map(({ id, name, abbreviation, linkedDiscordId, linkedName }) => ({ id, name, abbreviation, division, linkedDiscordId, linkedName }))
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(({ id, name, abbreviation, linkedDiscordId, linkedName, wins, losses, ties, pointDifferential, recordText }) => ({ id, name, abbreviation, division, linkedDiscordId, linkedName, wins, losses, ties, pointDifferential, recordText }))
+        .sort(sortTeamsByRecord)
     }));
     return { conference, divisions };
   });
 
-  return { conferences };
+  return { leagueType: context.rec_leagues?.league_type ?? context.rec_leagues?.leagueType ?? null, conferences };
+}
+
+async function enrichConferencesWithRecords(guildId: string, payload: any) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = asNumber(context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1);
+  const records = await loadTeamRecords(context.leagueId, seasonNumber);
+  const conferences = (payload?.conferences ?? []).map((conference: any) => ({
+    ...conference,
+    divisions: (conference.divisions ?? []).map((division: any) => ({
+      ...division,
+      teams: (division.teams ?? [])
+        .map((team: any) => {
+          const record = records.get(String(team.id)) ?? { wins: 0, losses: 0, ties: 0, pointDifferential: 0, recordText: "0-0-0" };
+          return {
+            ...team,
+            wins: record.wins,
+            losses: record.losses,
+            ties: record.ties,
+            pointDifferential: record.pointDifferential,
+            recordText: record.recordText
+          };
+        })
+        .sort(sortTeamsByRecord)
+    }))
+  }));
+  return { ...payload, leagueType: context.rec_leagues?.league_type ?? context.rec_leagues?.leagueType ?? null, conferences };
 }
 
 const POSITION_GROUPS: { label: string; side: "offense" | "defense" | "special" | "other"; positions: string[] }[] = [
@@ -209,7 +309,7 @@ export async function getLeagueConferences(guildId: string) {
     if (isMissingRpcError(error)) return getLeagueConferencesFallback(guildId);
     throw new ApiError(500, "Failed to load teams.", error);
   }
-  return data ?? { conferences: [] };
+  return enrichConferencesWithRecords(guildId, data ?? { conferences: [] });
 }
 
 // Returns one team's active roster grouped by position group, members sorted by overall rating.

@@ -4,6 +4,8 @@ import { recApi } from "../lib/rec-api.js";
 import {
   buildPlayersByTeamEmbed,
   buildPlayersByTeamRows,
+  buildMaddenTeamsEmbed,
+  buildMaddenTeamsRows,
   buildRostersMenuEmbed,
   buildRostersMenuRows,
   buildSnapshotUserSelectRows,
@@ -37,6 +39,25 @@ export async function handleRostersMenuSelect(interaction: StringSelectMenuInter
   }
 
   if (selected === "user_snapshots") return renderUserSnapshotPicker(interaction);
+}
+
+export async function renderTeamsMenu(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildMaddenTeamsRows() });
+  }
+
+  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
+  const conferences: any[] = confData?.conferences ?? [];
+  const hasTeams = conferences.some((c) => (c.divisions ?? []).some((d: any) => (d.teams ?? []).length));
+  if (!hasTeams) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("No teams found for this league yet.")], components: buildMaddenTeamsRows() });
+  }
+
+  return interaction.editReply({
+    embeds: [buildMaddenTeamsEmbed(conferences)],
+    components: buildMaddenTeamsRows()
+  });
 }
 
 const DEV_TRAIT_EMOJIS: Record<string, string> = {
