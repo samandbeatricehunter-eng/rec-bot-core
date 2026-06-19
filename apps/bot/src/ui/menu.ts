@@ -359,27 +359,26 @@ export function buildLeagueMenuEmbed(input: {
     .setFooter({ text: "Powered by the REC Scout bot © 2026" });
 }
 
-export function buildLeagueMenuRows(_isAdmin: boolean) {
-  return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Teams").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Schedule").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.helpRules).setLabel("Help/Rules").setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("My Wallet").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.makePurchase).setLabel("Purchase").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Wager").setStyle(ButtonStyle.Success)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.stream).setLabel("Stream").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadBoxScore).setLabel("Box Score & Scoring Summary").setStyle(ButtonStyle.Primary)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("User Profiles").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)
-    )
-  ];
+export function buildLeagueMenuRows(_isAdmin: boolean, isLinkedToTeam = true) {
+  const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Teams").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Schedule").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.helpRules).setLabel("Help/Rules").setStyle(ButtonStyle.Secondary)
+  );
+  const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("My Wallet").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.makePurchase).setLabel("Purchase").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Wager").setStyle(ButtonStyle.Success)
+  );
+  const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.stream).setLabel("Stream").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadBoxScore).setLabel("Box Score & Scoring Summary").setStyle(ButtonStyle.Primary)
+  );
+  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("User Profiles").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)
+  );
+  return isLinkedToTeam ? [row1, row2, row3, row4] : [row1, row4];
 }
 
 export function buildAdminPanelEmbed() {

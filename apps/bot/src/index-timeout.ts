@@ -360,12 +360,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 async function buildMainMenuPayload(userId: string, guildId: string | null, isAdmin: boolean) {
   let menuEmbed = buildLeagueMenuEmbed({ discordUsername: "Loading REC profile..." });
+  let isLinkedToTeamForRows = false;
   const unregisteredNotice = "You are not currently registered in the REC League's database, so you have not participated in a REC League before. You must select an open team using Teams below and, once a Commissioner/League Manager approves your request, you'll be added to the database.";
 
   if (!guildId) {
     return {
       embeds: [buildLeagueMenuEmbed({ discordUsername: "Open /menu inside a REC Discord server" })],
-      components: buildLeagueMenuRows(isAdmin)
+      components: buildLeagueMenuRows(isAdmin, false)
     };
   }
 
@@ -374,6 +375,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
     const display = profile?.display ?? {};
     const hasResolvedProfile = Boolean(profile?.user || profile?.discord || profile?.league || profile?.team || display.discordUsername);
     const isLinkedToTeam = Boolean(profile?.team);
+    isLinkedToTeamForRows = isLinkedToTeam;
 
     menuEmbed = buildLeagueMenuEmbed({
       ...display,
@@ -411,7 +413,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
 
   return {
     embeds: [menuEmbed],
-    components: buildLeagueMenuRows(isAdmin)
+    components: buildLeagueMenuRows(isAdmin, isLinkedToTeamForRows)
   };
 }
 
