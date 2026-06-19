@@ -503,13 +503,16 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
   if (!interaction.isButton()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (draft) {
-    const previous = getPreviousLeagueSetupStep(draft.step);
+    const previous = getPreviousLeagueSetupStep(draft.step, draft);
     if (previous === "admin_panel") {
       leagueSetupSessions.delete(interaction.user.id);
       return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
     }
     draft.step = previous;
     leagueSetupSessions.set(interaction.user.id, draft);
+    if (draft.editMode && previous === "settings_picker") {
+      return interaction.update(buildSettingsPickerWindow(draft));
+    }
     return interaction.update(buildLeagueSetupWindow(draft));
   }
 

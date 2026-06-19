@@ -2,9 +2,12 @@ import { REC_API_ROUTES, type RecTeamAuthority } from "@rec/shared";
 import { env } from "../config/env.js";
 import type { LeagueSetupDraft } from "../ui/league-setup.js";
 
+const REC_API_TIMEOUT_MS = 30_000;
+
 async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${env.REC_CORE_API_URL}${path}`, {
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(REC_API_TIMEOUT_MS),
     headers: {
       "content-type": "application/json",
       "x-rec-api-key": env.REC_INTERNAL_API_KEY ?? "",

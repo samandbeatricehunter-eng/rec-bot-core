@@ -383,70 +383,135 @@ function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; se
   }
 }
 
+function formatLeagueSetupSaveError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("AbortError") || message.includes("timed out")) {
+    return "Saving timed out while contacting the REC API. Check that the API is running, then try again.";
+  }
+  if (message.includes("REC API request failed")) {
+    return `Saving failed: ${message.slice(0, 900)}`;
+  }
+  return `Saving failed: ${message.slice(0, 900)}`;
+}
+
 export async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can save League Setup.", flags: MessageFlags.Ephemeral });
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
+
   await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Saving League Setup...").setDescription("Creating your league and applying configuration. This may take a moment.")], components: [] });
-  const result = await recApi.createLeague({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id, serverName: interaction.guild?.name });
-  const roleWarnings: string[] = [];
-  try {
-    await ensureRecBaseRoles(interaction.guild);
-  } catch (error) {
-    console.error("[ERROR] Failed to create REC base roles:", error);
-    roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
-
-  // New leagues always begin in Training Camp. The first advance into regular-season Week 1
-  // is the one place where REC imports the full regular-season schedule.
-  const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek("training_camp");
-  try {
-    await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
-  } catch (error) {
-    console.error("[ERROR] Failed to set league starting week:", error);
-  }
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Saving League Setup...").setDescription("Creating your league and applying configuration. This may take a moment.")],
+    components: []
+  });
 
   try {
-    await recApi.setEconomyConfig({
+    const result = await recApi.createLeague({
+      ...applyLeagueSetupDependencies(draft),
       guildId: interaction.guildId,
-      commissionerOfficeChannelId: draft.commissionerOfficeChannelId ?? undefined,
-      announcementsChannelId: draft.announcementsChannelId ?? undefined,
-      votingPollsChannelId: draft.votingPollsChannelId ?? undefined,
-      streamsChannelId: draft.streamsChannelId ?? undefined,
-      highlightsChannelId: draft.highlightsChannelId ?? undefined,
-      pendingPayoutsChannelId: draft.pendingPayoutsChannelId ?? undefined,
-      pendingPurchasesChannelId: draft.pendingPurchasesChannelId ?? undefined,
-      gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
+      requestedByDiscordId: interaction.user.id,
+      serverName: interaction.guild?.name
+    });
+
+    const roleWarnings: string[] = [];
+    try {
+      await ensureRecBaseRoles(interaction.guild);
+    } catch (error) {
+      console.error("[ERROR] Failed to create REC base roles:", error);
+      roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // New leagues always begin in Training Camp. The first advance into regular-season Week 1
+    // is the one place where REC imports the full regular-season schedule.
+    const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek("training_camp");
+    try {
+      await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
+    } catch (error) {
+      console.error("[ERROR] Failed to set league starting week:", error);
+    }
+
+    try {
+      await recApi.setEconomyConfig({
+        guildId: interaction.guildId,
+        commissionerOfficeChannelId: draft.commissionerOfficeChannelId ?? undefined,
+        announcementsChannelId: draft.announcementsChannelId ?? undefined,
+        votingPollsChannelId: draft.votingPollsChannelId ?? undefined,
+        streamsChannelId: draft.streamsChannelId ?? undefined,
+        highlightsChannelId: draft.highlightsChannelId ?? undefined,
+        pendingPayoutsChannelId: draft.pendingPayoutsChannelId ?? undefined,
+        pendingPurchasesChannelId: draft.pendingPurchasesChannelId ?? undefined,
+        gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
+      });
+    } catch (error) {
+      console.error("[ERROR] Failed to save server setup routes:", error);
+    }
+
+    const wantsLinking = draft.linkTeamsAfterSetup;
+    leagueSetupSessions.delete(interaction.user.id);
+
+    const savedDescription = [
+      `League: **${result.league.name}**`,
+      "",
+      `Type: ${result.configuration.roster_type}`,
+      "Starts: Season 1, Training Camp",
+      `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`,
+      `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`,
+      `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`,
+      `Injuries: ${result.configuration.injury_policy}`,
+      "",
+      "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**",
+      ...roleWarnings,
+      "",
+      "Economy payouts activate for linked users when Economy is enabled."
+    ].join("\n");
+
+    if (!wantsLinking) {
+      await interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)],
+        components: buildAdminPanelRows()
+      });
+      return;
+    }
+
+    // League now exists — ensure default teams are present, then open the linking selector.
+    try {
+      const openTeams = await recApi.getOpenTeams(interaction.guildId);
+      if (!openTeams?.openTeams || openTeams.openTeams.length === 0) {
+        await recApi.createDefaultTeams(interaction.guildId);
+      }
+    } catch (error) {
+      console.error("[ERROR] Failed to ensure default teams before linking:", error);
+    }
+
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("League Setup Saved — Teams")
+          .setDescription([
+            savedDescription,
+            "",
+            "Default NFL teams are available. Use the Teams workflow below to link multiple users, edit custom/relocated teams, or leave team linking for later."
+          ].join("\n")),
+        ...buildLeagueMgmtTeamsPanel().embeds
+      ],
+      components: buildLeagueMgmtTeamsPanel().components
     });
   } catch (error) {
-    console.error("[ERROR] Failed to save server setup routes:", error);
+    console.error("[ERROR] League setup save failed:", error);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("League Setup Save Failed")
+          .setDescription([
+            formatLeagueSetupSaveError(error),
+            "",
+            "Your answers are still in this session. Fix the issue, then press **Save League Setup** again."
+          ].join("\n"))
+      ],
+      components: buildLeagueSetupWindow({ ...draft, step: "review" }).components
+    });
   }
-
-  const wantsLinking = draft.linkTeamsAfterSetup;
-  leagueSetupSessions.delete(interaction.user.id);
-
-  const savedDescription = [`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, "Starts: Season 1, Training Camp", `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**", ...roleWarnings, "", "Economy payouts activate for linked users when Economy is enabled."].join("\n");
-
-  if (!wantsLinking) {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)], components: buildAdminPanelRows() });
-    return;
-  }
-
-  // League now exists — ensure default teams are present, then open the linking selector.
-  try {
-    const openTeams = await recApi.getOpenTeams(interaction.guildId);
-    if (!openTeams?.openTeams || openTeams.openTeams.length === 0) {
-      await recApi.createDefaultTeams(interaction.guildId);
-    }
-  } catch (error) {
-    console.error("[ERROR] Failed to ensure default teams before linking:", error);
-  }
-
-  await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("League Setup Saved — Teams").setDescription([savedDescription, "", "Default NFL teams are available. Use the Teams workflow below to link multiple users, edit custom/relocated teams, or leave team linking for later."].join("\n")), ...buildLeagueMgmtTeamsPanel().embeds],
-    components: buildLeagueMgmtTeamsPanel().components
-  });
 }
 

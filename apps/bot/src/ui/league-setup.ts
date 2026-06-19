@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { buildNavigationRow } from "./navigation.js";
+import { buildNavigationRow, NAV_CUSTOM_IDS } from "./navigation.js";
 
 export const LEAGUE_SETUP_CUSTOM_IDS = {
   leagueType: "rec:league_setup:league_type",
@@ -309,11 +309,33 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
   };
 }
 
-export function getPreviousLeagueSetupStep(step: LeagueSetupStep): LeagueSetupStep | "admin_panel" {
-  if (step === "server_setup") return "economy";
+function isStepOnForwardPath(draft: LeagueSetupDraft, target: LeagueSetupStep): boolean {
+  let current: LeagueSetupStep = "league_type";
+  const seen = new Set<LeagueSetupStep>();
+
+  while (!seen.has(current)) {
+    seen.add(current);
+    if (current === target) return true;
+    if (current === "review") return false;
+    current = getNextLeagueSetupStep(current, draft);
+  }
+
+  return false;
+}
+
+export function getPreviousLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep | "admin_panel" {
+  if (draft.editMode && step !== "settings_picker") return "settings_picker";
+
   const index = STEP_ORDER.indexOf(step);
   if (index <= 0) return "admin_panel";
-  return STEP_ORDER[index - 1];
+
+  for (let i = index - 1; i >= 0; i--) {
+    const candidate = STEP_ORDER[i];
+    if (!isStepOnForwardPath(draft, candidate)) continue;
+    if (getNextLeagueSetupStep(candidate, draft) === step) return candidate;
+  }
+
+  return "admin_panel";
 }
 
 /**
@@ -542,7 +564,7 @@ export function buildFeatureDecisionWindow(draft: LeagueSetupDraft) {
         new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate).setLabel("Deactivate Feature").setStyle(ButtonStyle.Danger)
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId("rec:navigation:back").setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(NAV_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.cancelWizard).setLabel("Cancel Wizard").setStyle(ButtonStyle.Danger)
       )
     ]
