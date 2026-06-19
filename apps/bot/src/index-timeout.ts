@@ -38,7 +38,7 @@ import {
 } from "./ui/league-setup.js";
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel, startImportMode } from "./flows/imports.js";
 import { buildCommissionerToolsEmbed, buildEosFunctionsEmbed, buildManageLeagueEmbed, buildServerLeagueSetupEmbed } from "./flows/commissioner-tools.js";
-import { handleByTeamNav, handleRosterTeamSelect, handleRostersMenuSelect, handleSnapshotPageNav, handleSnapshotUserSelect, renderRostersMenu, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { handleByTeamNav, handleRosterTeamSelect, handleRostersMenuSelect, handleSnapshotPageNav, handleSnapshotUserSelect, handleTeamsPage, renderRostersMenu, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import { handleActivityRequirementsModal, handleCoachAbilitiesRestrictionModal, handleLeagueSetupSave, handleLeagueSetupSelect, handleSetupModal, leagueSetupSessions } from "./flows/league-setup.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
@@ -302,6 +302,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Upload Scoring Summary", "Scoring summary screenshot uploads are coming soon. This will log game details, payouts, and story generation.");
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
+      if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return replyMenuPlaceholder(interaction, "Request Team", "Team requests are coming soon. This will let users request an available team from this league.");
       if (interaction.customId === MENU_CUSTOM_IDS.teamsBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.toSavings) return interaction.showModal(buildToSavingsModal());
@@ -337,6 +338,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 async function buildMainMenuPayload(userId: string, guildId: string | null, isAdmin: boolean) {
   let menuEmbed = buildLeagueMenuEmbed({ discordUsername: "Loading REC profile..." });
+  const unregisteredNotice = "You are not currently registered in the REC League's database, so you have not participated in a REC League before. You must select an open team using Teams below and, once a Commissioner/League Manager approves your request, you'll be added to the database.";
 
   if (!guildId) {
     return {
@@ -349,6 +351,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
     const profile = await recApi.getMenuProfile(userId, guildId);
     const display = profile?.display ?? {};
     const hasResolvedProfile = Boolean(profile?.user || profile?.discord || profile?.league || profile?.team || display.discordUsername);
+    const isLinkedToTeam = Boolean(profile?.team);
 
     menuEmbed = buildLeagueMenuEmbed({
       ...display,
@@ -359,7 +362,9 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
       leagueName: display.leagueName ?? profile?.league?.name ?? "Current League",
       seasonNumber: display.seasonNumber ?? profile?.league?.season_number ?? profile?.league?.display_season_number ?? null,
       currentWeek: display.currentWeek ?? profile?.league?.current_week ?? null,
-      seasonStage: display.seasonStage ?? profile?.league?.season_stage ?? profile?.league?.current_phase ?? "regular_season"
+      seasonStage: display.seasonStage ?? profile?.league?.season_stage ?? profile?.league?.current_phase ?? "regular_season",
+      hideLeagueInfo: !isLinkedToTeam,
+      noticeText: isLinkedToTeam ? undefined : unregisteredNotice
     });
 
     if (!hasResolvedProfile) {
@@ -367,11 +372,18 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
     }
   } catch (error) {
     console.warn("Failed to load REC menu profile", { userId, guildId, error });
+    const message = error instanceof Error ? error.message : String(error);
+    const isMissingRecUser = message.includes("404") || /Discord account not found/i.test(message);
     menuEmbed = buildLeagueMenuEmbed({
-      discordUsername: "REC profile failed to load",
-      teamName: "Check API logs",
-      leagueName: "Profile endpoint error",
-      seasonStage: "regular_season"
+      discordUsername: isMissingRecUser ? `<@${userId}>` : "REC profile failed to load",
+      wallet: isMissingRecUser ? "No Balance" : 0,
+      savings: isMissingRecUser ? "No Balance" : 0,
+      projectedInterest: isMissingRecUser ? "None" : 0,
+      teamName: isMissingRecUser ? null : "Check API logs",
+      leagueName: isMissingRecUser ? "REC League" : "Profile endpoint error",
+      seasonStage: "regular_season",
+      hideLeagueInfo: isMissingRecUser,
+      noticeText: isMissingRecUser ? unregisteredNotice : undefined
     });
   }
 

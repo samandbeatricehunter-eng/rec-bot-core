@@ -29,6 +29,7 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmt: "rec:menu:league_mgmt",
   requestTeam: "rec:teams:request",
   teamsBack: "rec:teams:back",
+  teamsPage: "rec:teams:page",
   adminSelect: "rec:admin:select",
   adminServerSetup: "rec:admin:server_setup",
   adminLeagueSetup: "rec:admin:league_setup",
@@ -280,9 +281,9 @@ function formatMenuSeasonWeek(input: { seasonNumber?: number | string | null; cu
 export function buildLeagueMenuEmbed(input: {
   discordUsername?: string;
   teamName?: string | null;
-  wallet?: number;
-  savings?: number;
-  projectedInterest?: number;
+  wallet?: number | string;
+  savings?: number | string;
+  projectedInterest?: number | string;
   leagueName?: string;
   seasonNumber?: number | string | null;
   currentWeek?: number | string | null;
@@ -292,12 +293,14 @@ export function buildLeagueMenuEmbed(input: {
   userStreakText?: string;
   purchaseCapsActive?: boolean;
   purchaseCaps?: Array<{ label: string; purchased?: number | null; allowed?: number | null }>;
+  hideLeagueInfo?: boolean;
+  noticeText?: string;
 }) {
   const userInfo = [
     `**User:** ${input.discordUsername ?? "Unlinked User"}`,
-    `**Wallet:** $${input.wallet ?? 0}`,
-    `**Savings:** $${input.savings ?? 0}`,
-    `**Proj. Interest:** $${input.projectedInterest ?? 0}`
+    `**Wallet:** ${typeof input.wallet === "string" ? input.wallet : `$${input.wallet ?? 0}`}`,
+    `**Savings:** ${typeof input.savings === "string" ? input.savings : `$${input.savings ?? 0}`}`,
+    `**Proj. Interest:** ${typeof input.projectedInterest === "string" ? input.projectedInterest : `$${input.projectedInterest ?? 0}`}`
   ].join("\n");
 
   const leagueInfo = [
@@ -330,8 +333,9 @@ export function buildLeagueMenuEmbed(input: {
     .setTitle(input.leagueName ? `${input.leagueName} Menu` : "REC League Menu")
     .addFields(
       { name: "USER INFO", value: userInfo.slice(0, 1024), inline: false },
-      { name: "LEAGUE INFO", value: leagueInfo.slice(0, 1024), inline: false },
-      ...(purchaseCaps ? [{ name: "PURCHASE CAPS", value: purchaseCaps.slice(0, 1024), inline: false }] : []),
+      ...(input.hideLeagueInfo ? [] : [{ name: "LEAGUE INFO", value: leagueInfo.slice(0, 1024), inline: false }]),
+      ...(input.noticeText ? [{ name: "NOTICE", value: input.noticeText.slice(0, 1024), inline: false }] : []),
+      ...(!input.hideLeagueInfo && purchaseCaps ? [{ name: "PURCHASE CAPS", value: purchaseCaps.slice(0, 1024), inline: false }] : []),
       { name: "MENU", value: menuText.slice(0, 1024), inline: false }
     )
     .setFooter({ text: "Powered by the REC Scout bot © 2026" });
@@ -590,15 +594,11 @@ function teamNickname(name?: string | null) {
   return parts[parts.length - 1] || text;
 }
 
-function openTeamUrl(team: RosterTeam) {
-  return `https://rec.local/teams/${encodeURIComponent(team.id)}`;
-}
-
 function maddenTeamLine(team: RosterTeam) {
   const record = team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
   const label = teamNickname(team.name);
-  const teamText = team.linkedDiscordId ? label : `[${label}](${openTeamUrl(team)})`;
-  const coach = team.linkedDiscordId ? ` (<@${team.linkedDiscordId}>)` : "";
+  const teamText = team.linkedDiscordId ? `~~${label}~~` : label;
+  const coach = team.linkedDiscordId ? ` (${team.linkedName ?? "Linked User"})` : "";
   return `${teamText} (${record})${coach}`;
 }
 
@@ -654,24 +654,33 @@ export function buildPlayersByTeamEmbed(rawConferences: RosterConference[]) {
   return embed;
 }
 
-export function buildMaddenTeamsEmbed(rawConferences: RosterConference[]) {
-  const conferences = normalizeRosterConferences(rawConferences);
-  const embed = new EmbedBuilder()
-    .setTitle("Teams")
-    .setDescription("Open teams are linked. Linked teams show the assigned Discord user.");
+export type MaddenTeamsPage = "NFC" | "AFC";
 
-  for (const conf of conferences.filter((c) => c.conference === "NFC" || c.conference === "AFC")) {
-    const value = conf.divisions
-      .map((division) => [`**${division.label}**`, ...division.teams.map(maddenTeamLine)].join("\n"))
-      .join("\n\n");
-    embed.addFields({ name: conf.conference, value: (value || "No teams found").slice(0, 1024), inline: true });
+export function buildMaddenTeamsEmbed(rawConferences: RosterConference[], page: MaddenTeamsPage = "NFC") {
+  const conferences = normalizeRosterConferences(rawConferences);
+  const conf = conferences.find((c) => c.conference === page) ?? conferences.find((c) => c.conference === "NFC" || c.conference === "AFC");
+  const embed = new EmbedBuilder()
+    .setTitle(`${conf?.conference ?? page} Teams`)
+    .setDescription("Open teams are shown plainly. Linked teams are struck through with the assigned Discord username in parentheses.");
+
+  for (const division of conf?.divisions ?? []) {
+    embed.addFields({
+      name: division.label,
+      value: (division.teams.map(maddenTeamLine).join("\n") || "No teams found").slice(0, 1024),
+      inline: false
+    });
   }
 
   return embed;
 }
 
-export function buildMaddenTeamsRows() {
+export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC") {
+  const nextPage: MaddenTeamsPage = page === "NFC" ? "AFC" : "NFC";
   return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel("Forward").setStyle(ButtonStyle.Secondary)
+    ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)

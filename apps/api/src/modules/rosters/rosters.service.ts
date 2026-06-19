@@ -100,11 +100,28 @@ async function loadTeamRecords(leagueId: string, seasonNumber: number) {
   return records;
 }
 
+async function loadTeamDiscordUsernames(leagueId: string) {
+  const { data } = await supabase
+    .from("rec_team_assignments")
+    .select("team_id, rec_users(rec_discord_accounts(username, global_name))")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  const names = new Map<string, string>();
+  for (const assignment of data ?? []) {
+    const accounts = (assignment as any).rec_users?.rec_discord_accounts;
+    const account = Array.isArray(accounts) ? accounts[0] : accounts;
+    if ((assignment as any).team_id) names.set(String((assignment as any).team_id), account?.username ?? account?.global_name ?? "Linked User");
+  }
+  return names;
+}
+
 async function getLeagueConferencesFallback(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const seasonNumber = asNumber(context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1);
   const records = await loadTeamRecords(leagueId, seasonNumber);
+  const discordNames = await loadTeamDiscordUsernames(leagueId);
 
   const { data: teams, error } = await supabase
     .from("rec_teams")
@@ -139,7 +156,7 @@ async function getLeagueConferencesFallback(guildId: string) {
       conference: (t.conference ?? "").toUpperCase(),
       division: t.division ?? "",
       linkedDiscordId: link?.discordId ?? null,
-      linkedName: link?.name ?? null,
+      linkedName: discordNames.get(t.id as string) ?? link?.name ?? null,
       wins: record.wins,
       losses: record.losses,
       ties: record.ties,
@@ -180,6 +197,7 @@ async function enrichConferencesWithRecords(guildId: string, payload: any) {
   const context = await getCurrentLeagueContext(guildId);
   const seasonNumber = asNumber(context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1);
   const records = await loadTeamRecords(context.leagueId, seasonNumber);
+  const discordNames = await loadTeamDiscordUsernames(context.leagueId);
   const conferences = (payload?.conferences ?? []).map((conference: any) => ({
     ...conference,
     divisions: (conference.divisions ?? []).map((division: any) => ({
@@ -189,6 +207,7 @@ async function enrichConferencesWithRecords(guildId: string, payload: any) {
           const record = records.get(String(team.id)) ?? { wins: 0, losses: 0, ties: 0, pointDifferential: 0, recordText: "0-0-0" };
           return {
             ...team,
+            linkedName: discordNames.get(String(team.id)) ?? team.linkedName ?? null,
             wins: record.wins,
             losses: record.losses,
             ties: record.ties,

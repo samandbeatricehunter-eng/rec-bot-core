@@ -9,7 +9,8 @@ import {
   buildRostersMenuEmbed,
   buildRostersMenuRows,
   buildSnapshotUserSelectRows,
-  ROSTERS_CUSTOM_IDS
+  ROSTERS_CUSTOM_IDS,
+  type MaddenTeamsPage
 } from "../ui/menu.js";
 
 type MainMenuPayloadBuilder = (userId: string, guildId: string | null, isAdmin: boolean) => Promise<any>;
@@ -55,8 +56,22 @@ export async function renderTeamsMenu(interaction: ButtonInteraction) {
   }
 
   return interaction.editReply({
-    embeds: [buildMaddenTeamsEmbed(conferences)],
-    components: buildMaddenTeamsRows()
+    embeds: [buildMaddenTeamsEmbed(conferences, "NFC")],
+    components: buildMaddenTeamsRows("NFC")
+  });
+}
+
+export async function handleTeamsPage(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildMaddenTeamsRows("NFC") });
+  }
+  const page = interaction.customId.split(":").pop() === "AFC" ? "AFC" : "NFC";
+  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
+  const conferences: any[] = confData?.conferences ?? [];
+  return interaction.editReply({
+    embeds: [buildMaddenTeamsEmbed(conferences, page as MaddenTeamsPage)],
+    components: buildMaddenTeamsRows(page as MaddenTeamsPage)
   });
 }
 
