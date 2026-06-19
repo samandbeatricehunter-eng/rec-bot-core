@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ButtonInteraction, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalSubmitInteraction } from "discord.js";
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
@@ -7,7 +7,6 @@ import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import {
   buildAdminPanelEmbed,
   buildAdminPanelRows,
-  buildEosFunctionsRows,
   buildCommissionerToolsRows,
   buildManageLeagueRows,
   buildServerLeagueSetupRows,
@@ -26,7 +25,7 @@ import {
   REC_BANK_CUSTOM_IDS,
   MANAGE_WALLET_CUSTOM_IDS
 } from "./ui/menu.js";
-import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel, buildChannelIdModal } from "./ui/server-setup-admin.js";
+import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel } from "./ui/server-setup-admin.js";
 import { NAV_CUSTOM_IDS } from "./ui/navigation.js";
 import {
   buildActivityRequirementsModal,
@@ -154,6 +153,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId.startsWith("rec:stream_review:")) {
+      await handleStreamReviewButton(interaction);
+      return;
+    }
+
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       await expireWindow(interaction);
@@ -176,8 +180,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.roleSelect) return handleSimpleTeamLinkRoleSelect(interaction);
 
-      if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.teamConflictSelect) return handleTeamConflictSelect(interaction);
-
       if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.selectChannelType) {
         const channelType = interaction.values[0];
         serverSetupChannelSessions.set(interaction.user.id, channelType);
@@ -185,9 +187,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return interaction.showModal(buildChannelIdModal(channelType));
       }
 
-      if (interaction.customId === ADVANCE_WIZARD_GOTW_CUSTOM_ID) return handleWizardGotwSelect(interaction);
-      if (interaction.customId.startsWith("eos_vote:")) return handleEosVote(interaction);
-      if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction);
       if (interaction.customId === RULES_CUSTOM_IDS.select) return handleRulesSelect(interaction);
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.stageSelect) return interaction.showModal(buildLeagueWeekSetModal(interaction.values[0]));
       if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
@@ -195,7 +194,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.commissionerToolsSelect) return handleCommissionerToolsSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageLeagueSelect) return handleManageLeagueSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.serverLeagueSetupSelect) return handleServerLeagueSetupSelect(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.eosFunctionsSelect) return handleEosFunctionsSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotConferenceSelect) return handleSnapshotConferenceSelect(interaction, buildMainMenuPayload);
       if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.snapshotTeamSelect}:`)) return handleSnapshotTeamSelect(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConferenceSelect) return handleLeagueTeamsConferenceSelect(interaction);
@@ -206,23 +204,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
-      if (
-        Object.values(IMPORT_CUSTOM_IDS).some(
-          (id) => interaction.customId === id || interaction.customId.startsWith(`${id}:`)
-        )
-      ) return handleImportSelect(interaction);
-      if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.select) return handleAdvanceMenuSelect(interaction);
-      if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.troubleshootSelect) return handleTroubleshootMenuSelect(interaction);
-      if (
-        interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.daySelect ||
-        interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.hourSelect ||
-        interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.tzSelect
-      ) return handleAdvanceScheduleSelect(interaction);
     }
 
     if (interaction.isButton()) {
-      if (interaction.customId.startsWith("eos_payout_approve:")) return handleEosPayoutApprove(interaction);
-      if (interaction.customId.startsWith("eos_payout_reject:")) return handleEosPayoutReject(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) return interaction.reply(buildServerSetupPanel());
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) return handleClearAllTeamLinks(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.customTeamNoLink) return handleCustomTeamNoLink(interaction);
@@ -242,22 +226,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         if (!leagueName) return interaction.reply({ content: "No league is set up for this server.", flags: MessageFlags.Ephemeral });
         return interaction.showModal(buildDeleteLeagueModal(leagueName));
       }
-      if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderImportPanel(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderUnavailableAdminFeature(interaction, "Schedule Imports");
       if (interaction.customId === MENU_CUSTOM_IDS.adminRules) return interaction.update(buildRulesPanel());
-      if (interaction.customId === MENU_CUSTOM_IDS.adminActiveCheck) return handleStartActiveCheck(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.adminReselectGotw) return renderGotwSelection(interaction);
-      if (interaction.customId === ACTIVE_CHECK_CUSTOM_IDS.start) return handleStartActiveCheck(interaction);
-      if (interaction.customId === WEEKLY_CHALLENGE_CUSTOM_IDS.selectGotw) return renderGotwSelection(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.adminActiveCheck) return renderUnavailableAdminFeature(interaction, "Active Check");
+      if (interaction.customId === MENU_CUSTOM_IDS.adminReselectGotw) return renderUnavailableAdminFeature(interaction, "Game of the Week");
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.view) return handleLeagueWeekView(interaction);
       if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.set) return interaction.reply({ content: "Choose the stage first.", components: [buildLeagueWeekStageRow()], ephemeral: true });
-      if (interaction.customId.startsWith(IMPORT_CUSTOM_IDS.approveJob)) return handleImportButton(interaction);
-      if (
-        Object.values(IMPORT_CUSTOM_IDS).some(
-          (id) => interaction.customId === id || interaction.customId.startsWith(`${id}:`)
-        )
-      ) return handleImportButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
-      if (interaction.customId === ADVANCE_MENU_CUSTOM_IDS.troubleshootBack) return interaction.update(buildTroubleshootMenuPanel());
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
         const draft = leagueSetupSessions.get(interaction.user.id);
         if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
@@ -274,12 +249,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         // League is already saved by this point; this button just closes the linking step.
         return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
       }
-      if (Object.values(ADVANCE_WIZARD_CUSTOM_IDS).includes(interaction.customId as any)) return handleAdvanceWizardButton(interaction);
-      if (interaction.customId === ADVANCE_WIZARD_BACK_CUSTOM_ID) {
-        if (!interaction.guildId) return interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
-        return interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true, interaction.user.id));
-      }
-      if (interaction.customId === ADVANCE_SCHEDULE_CUSTOM_IDS.confirm) return handleAdvanceScheduleConfirm(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
@@ -325,17 +294,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.makePurchase) return handleWalletMakePurchase(interaction);
     }
 
-    if (interaction.isModalSubmit() && interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesFsFwModal) return handleAdvanceWizardFsFwModal(interaction);
-
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.teamConflictResolveModal}:`)) return handleTeamConflictResolveModal(interaction);
-
     if (interaction.isModalSubmit()) {
       if (interaction.customId === SERVER_SETUP_CUSTOM_IDS.channelIdModal) return handleServerSetupChannelIdModal(interaction);
-      if (
-        Object.values(IMPORT_CUSTOM_IDS).some(
-          (id) => interaction.customId === id || interaction.customId.startsWith(`${id}:`)
-        )
-      ) return handleImportModal(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.setupModal}:`)) return handleSetupModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueModal) return handleDeleteLeagueModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
@@ -420,14 +380,12 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
 
 async function renderMainMenuFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
-  importSessions.delete(interaction.user.id);
   await interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
 }
 
 async function renderAdminPanelFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
-  importSessions.delete(interaction.user.id);
   await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
 }
 
@@ -435,6 +393,18 @@ async function replyMenuPlaceholder(interaction: ButtonInteraction, title: strin
   return interaction.reply({
     embeds: [new EmbedBuilder().setTitle(title).setDescription(description)],
     flags: MessageFlags.Ephemeral
+  });
+}
+
+async function renderUnavailableAdminFeature(interaction: ButtonInteraction, title: string) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can use this league management tool.", flags: MessageFlags.Ephemeral });
+  }
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle(title)
+      .setDescription("This tool is temporarily unavailable while the advance/import tooling is being rebuilt.")],
+    components: buildAdminPanelRows()
   });
 }
 
@@ -472,10 +442,17 @@ async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStri
 
   if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
   if (selected === "advance_wizard") {
-    if (!interaction.inCachedGuild()) return interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
-    return interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
+    return interaction.update({
+      embeds: [new EmbedBuilder().setTitle("Advance Wizard").setDescription("The Advance Wizard is temporarily unavailable while it is being rebuilt.")],
+      components: buildAdminPanelRows()
+    });
   }
-  if (selected === "import_enter_data") return renderImportPanel(interaction);
+  if (selected === "import_enter_data") {
+    return interaction.update({
+      embeds: [new EmbedBuilder().setTitle("Schedule Imports").setDescription("Schedule imports are temporarily unavailable while the import tooling is being rebuilt.")],
+      components: buildAdminPanelRows()
+    });
+  }
   if (selected === "commissioner_tools") {
     return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId ?? undefined)], components: buildCommissionerToolsRows() });
   }
@@ -509,9 +486,19 @@ async function handleManageLeagueSelect(interaction: Extract<Interaction, { isSt
   if (selected === "commissioner_tools") {
     return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId)], components: buildCommissionerToolsRows() });
   }
-  if (selected === "active_check") return handleStartActiveCheck(interaction);
-  if (selected === "troubleshoot_advance") return interaction.update(buildTroubleshootMenuPanel());
-  if (selected === "eos_functions") return interaction.update({ embeds: [buildEosFunctionsEmbed()], components: buildEosFunctionsRows() });
+  if (selected === "active_check" || selected === "troubleshoot_advance" || selected === "eos_functions") {
+    const labels: Record<string, string> = {
+      active_check: "Active Check",
+      troubleshoot_advance: "Troubleshoot Advance",
+      eos_functions: "EOS Functions"
+    };
+    return interaction.update({
+      embeds: [new EmbedBuilder()
+        .setTitle(labels[selected] ?? "League Management")
+        .setDescription("This tool is temporarily unavailable while the advance/import tooling is being rebuilt.")],
+      components: buildManageLeagueRows()
+    });
+  }
   if (selected === "user_team_linking") {
     const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
     return interaction.update(buildSimpleTeamLinkPanel());
@@ -543,15 +530,24 @@ async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only authorized admins can manage league schedule imports.", flags: MessageFlags.Ephemeral });
   }
-  return renderImportPanel(interaction);
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Schedule")
+      .setDescription("Schedule management is temporarily unavailable while the import tooling is being rebuilt.")],
+    components: buildAdminPanelRows()
+  });
 }
 
 async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only authorized admins can advance the league.", flags: MessageFlags.Ephemeral });
   }
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
-  return interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Advance")
+      .setDescription("The Advance Wizard is temporarily unavailable while it is being rebuilt.")],
+    components: buildAdminPanelRows()
+  });
 }
 
 async function handleLeagueMgmtSettings(interaction: ButtonInteraction) {
@@ -648,176 +644,8 @@ async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
   }
 }
 
-async function handleEosFunctionsSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  if (!interaction.inCachedGuild()) {
-    return interaction.reply({ content: "EOS functions can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
-  }
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can use EOS functions.", flags: MessageFlags.Ephemeral });
-  }
-
-  const selected = interaction.values[0];
-  if (selected === "manage_league") return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
-
-  await interaction.deferUpdate();
-
-  if (selected === "run_eos_polls_and_awards") {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Running EOS Polls & Awards...").setDescription("Generating nominees and posting community polls + REC Awards voting embeds.")], components: [] });
-    try {
-      const result = await recApi.runEosPollsAndAwards(interaction.guildId);
-      if (!result.allowed) {
-        await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Not Available").setDescription(result.reason ?? "This action is only available during Wild Card through Super Bowl weeks.")], components: buildEosFunctionsRows() });
-        return;
-      }
-      const warnings = [...(result.warnings ?? []), ...await postEosPollsAndAwards(interaction.guild, result.pollsData)];
-      const pollCount = result.pollsData?.polls?.length ?? 0;
-      const awardCount = result.pollsData?.recAwardsData?.awards?.filter((a: any) => a.status === "voting" && a.nomineeCount > 0).length ?? 0;
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("EOS Polls & Awards Posted").setDescription([
-          `Community polls posted: **${pollCount}**`,
-          `REC Award voting embeds posted: **${awardCount}**`,
-          warnings.length ? `\nWarnings: ${warnings.join(", ")}` : ""
-        ].filter(Boolean).join("\n"))],
-        components: buildEosFunctionsRows()
-      });
-    } catch (error) {
-      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Polls Failed").setDescription(error instanceof Error ? error.message : String(error))], components: buildEosFunctionsRows() });
-    }
-    return;
-  }
-
-  if (selected === "issue_eos_payouts") {
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Issuing EOS Payouts...").setDescription("Computing stat thresholds and rank bonuses. Already approved payouts are preserved.")], components: [] });
-    try {
-      const result = await recApi.issueEosPayouts(interaction.guildId);
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("EOS Payouts Issued").setDescription(`Created ${result.items?.length ?? 0} payout items. Skipped ${result.skippedAlreadyIssued?.length ?? 0} already-issued payouts.`)],
-        components: buildEosFunctionsRows()
-      });
-    } catch (error) {
-      await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Failed").setDescription(error instanceof Error ? error.message : String(error))], components: buildEosFunctionsRows() });
-    }
-    return;
-  }
-}
-
-async function handleAdvanceWizardButton(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) {
-    await interaction.reply({ content: "The Advance Wizard can only be used inside a Discord server.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can use the Advance Wizard.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.teamConflictContinue) return handleTeamConflictContinue(interaction);
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.back) {
-    await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.manualBack) {
-    await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.importBack) {
-    await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesBack || interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.step2Back) {
-    clearCatchUpTarget(interaction.user.id);
-    await interaction.update(await buildAdvanceWizardEntryPayload(interaction.guildId));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.manualMarkFsFw) {
-    await interaction.update(await buildAdvanceWizardOutcomeReviewPayload(interaction.guildId));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesSkip) {
-    // The catch-up plan was set on the import screen; keep it so the review screen can show it.
-    await interaction.update(await buildAdvanceWizardStep2Payload(interaction.guildId, true, interaction.user.id));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesMarkFsFw) {
-    await interaction.update(await buildAdvanceWizardOutcomeReviewPayload(interaction.guildId));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.outcomesOpenFsFwModal) {
-    await interaction.showModal(await buildAdvanceWizardFsFwModal(interaction.guildId));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.step2Next) {
-    await interaction.update(startAdvanceScheduleSession(interaction.user.id, { timezone: DEFAULT_SCHEDULE_TIMEZONE, wizardMode: true }));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.manual) {
-    await interaction.update(await buildAdvanceWizardManualPayload(interaction.guildId));
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.import) {
-    await interaction.update(buildAdvanceWizardImportPayload());
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.importData) {
-    await startImportMode(interaction, "ea_import", { fromAdvanceWizard: true });
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.offseasonAdvance) {
-    await interaction.deferUpdate();
-    await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Advancing Offseason Stage...").setDescription("Moving the league to the next offseason stage.")],
-      components: []
-    });
-    try {
-      const result = await recApi.processAdvanceResults(interaction.guildId);
-      const week = result.week;
-      await interaction.editReply({
-        embeds: [
-          new EmbedBuilder()
-            .setTitle("Offseason Advance Complete")
-            .setDescription([
-              week ? `Advanced from **${String(week.previousStage).replaceAll("_", " ")} Week ${week.previousWeek}** to **${String(week.seasonStage).replaceAll("_", " ")} Week ${week.weekNumber}**.` : "Advance completed.",
-              "",
-              result.warnings?.length ? `Warnings:\n${result.warnings.slice(0, 8).map((w: string) => `- ${w}`).join("\n")}` : "No warnings reported."
-            ].join("\n").slice(0, 4000))
-        ],
-        components: buildAdminPanelRows()
-      });
-    } catch (error) {
-      await interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Offseason Advance Failed").setDescription(error instanceof Error ? error.message : String(error))],
-        components: buildAdminPanelRows()
-      });
-    }
-    return;
-  }
-
-  if (interaction.customId === ADVANCE_WIZARD_CUSTOM_IDS.mcaUrl) {
-    await interaction.reply({
-      content: "MCA URL placeholder: the API endpoint to receive and parse Madden Companion App exports is not configured yet.",
-      flags: MessageFlags.Ephemeral
-    });
-  }
-}
-
-
 async function renderMainMenuFromSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu()) return;
-  importSessions.delete(interaction.user.id);
   await interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
 }
 
@@ -833,11 +661,6 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
     draft.step = previous;
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
-  }
-
-  if (importSessions.has(interaction.user.id)) {
-    importSessions.delete(interaction.user.id);
-    return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   }
 
   await renderMainMenuFromComponent(interaction);
@@ -893,492 +716,6 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
     });
   }
 }
-
-async function handleEosPayoutApprove(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  // customId: eos_payout_approve:{role}:{itemId}
-  const parts = interaction.customId.split(":");
-  const role = parts[1] as "user" | "commissioner";
-  const itemId = parts[2];
-
-  if (role === "commissioner" && !isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized commissioners can approve EOS payouts.", flags: MessageFlags.Ephemeral });
-  }
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-  try {
-    const result = await recApi.approveEosPayoutItem({ itemId, discordId: interaction.user.id, role });
-
-    if (result.reason === "already_issued") {
-      return interaction.editReply({ content: "This payout has already been issued." });
-    }
-    if (result.reason === "already_denied") {
-      return interaction.editReply({ content: "This payout has already been rejected." });
-    }
-    if (result.reason === "already_voided") {
-      return interaction.editReply({ content: "This payout has been voided by a newer EOS payout batch." });
-    }
-    if (result.reason === "already_user_approved") {
-      return interaction.editReply({ content: "You already approved this payout. It is still waiting on commissioner approval." });
-    }
-    if (result.reason === "already_commissioner_approved") {
-      return interaction.editReply({ content: "A commissioner has already approved this payout. It is still waiting on recipient approval." });
-    }
-    if (result.reason === "not_recipient") {
-      return interaction.editReply({ content: "You are not the recipient of this payout." });
-    }
-
-    if (result.credited) {
-      // Both approvals collected — payout issued
-      const balanceStr = result.newBalance !== null ? ` Your new wallet balance: **$${result.newBalance?.wallet ?? 0}**.` : "";
-      await interaction.editReply({ content: `✅ Payout approved! **$${result.amount}** — ${result.payoutLabel} has been credited to your wallet.${balanceStr}` });
-
-      // Edit the original message to reflect completed state
-      try {
-        await interaction.message.edit({
-          embeds: [new EmbedBuilder()
-            .setTitle("✅ Payout Issued")
-            .setDescription(`**$${result.amount}** — ${result.payoutLabel}\nBoth approvals received. Funds credited.`)
-            .setColor(0x57f287)],
-          components: []
-        });
-      } catch { /* non-fatal if message is in DM */ }
-    } else if (result.reason === "awaiting_commissioner") {
-      await interaction.editReply({ content: "✅ You approved your payout. Awaiting commissioner approval before funds are credited." });
-      // Update the DM message to show pending state
-      try {
-        await interaction.message.edit({
-          embeds: [new EmbedBuilder()
-            .setTitle("⏳ Awaiting Commissioner Approval")
-            .setDescription(interaction.message.embeds[0]?.description ?? "Payout pending.")
-            .setColor(0xfee75c)],
-          components: interaction.message.components
-        });
-      } catch { /* non-fatal */ }
-      // Update the commissioner channel embed and ping roles
-      if (result.commissionerChannelId && result.commissionerMessageId && result.guildId) {
-        try {
-          const guild = await client.guilds.fetch(result.guildId).catch(() => null);
-          if (guild) {
-            const commCh = await guild.channels.fetch(result.commissionerChannelId).catch(() => null) as TextChannel | null;
-            if (commCh?.type === ChannelType.GuildText) {
-              const commMsg = await commCh.messages.fetch(result.commissionerMessageId).catch(() => null);
-              if (commMsg) {
-                const originalDesc = commMsg.embeds[0]?.description ?? "";
-                await commMsg.edit({
-                  embeds: [new EmbedBuilder()
-                    .setDescription(originalDesc)
-                    .setTitle("✅ User Approved — Awaiting Commissioner")
-                    .setColor(0xfee75c)],
-                  components: commMsg.components
-                }).catch(() => undefined);
-                // Ping commissioner/co-commissioner roles
-                const allRoles = await guild.roles.fetch();
-                const pingParts = (["REC League Commissioner", "REC League Comp. Committee"] as const)
-                  .map(name => allRoles.find(r => r.name === name))
-                  .filter(Boolean)
-                  .map(r => `<@&${r!.id}>`);
-                if (pingParts.length > 0) {
-                  await commCh.send({
-                    content: `${pingParts.join(" ")} — <@${interaction.user.id}> approved their **${result.payoutLabel ?? "EOS"}** payout ($${result.amount}). Only your sign-off is needed to issue funds.`
-                  }).catch(() => undefined);
-                }
-              }
-            }
-          }
-        } catch { /* non-fatal */ }
-      }
-    } else if (result.reason === "awaiting_user") {
-      await interaction.editReply({ content: "✅ Commissioner approval recorded. Waiting for the recipient to approve via DM." });
-    }
-  } catch (err) {
-    await interaction.editReply({ content: `Failed to process approval: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handleEosPayoutReject(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  // customId: eos_payout_reject:{itemId}
-  const itemId = interaction.customId.split(":")[1];
-
-  // Either the recipient OR a commissioner can reject
-  const isAdmin = isDiscordAdminInteraction(interaction);
-  // Non-admins can only reject in DMs (their own payout)
-  if (!isAdmin && interaction.guild) {
-    return interaction.reply({ content: "Only commissioners can reject payouts from this panel. Recipients may reject via their DM.", flags: MessageFlags.Ephemeral });
-  }
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-  try {
-    const result = await recApi.rejectEosPayoutItem({ itemId, discordId: interaction.user.id });
-
-    if (!result.rejected) {
-      return interaction.editReply({ content: "This payout has already been resolved." });
-    }
-
-    await interaction.editReply({ content: `Payout rejected — **${result.payoutLabel}** ($${result.amount}) has been cancelled.` });
-
-    // Edit the original message to close it (remove buttons)
-    try {
-      await interaction.message.edit({
-        embeds: [new EmbedBuilder()
-          .setTitle("❌ Payout Rejected")
-          .setDescription(`**$${result.amount}** — ${result.payoutLabel}\nThis payout was rejected and will not be credited.`)
-          .setColor(0xed4245)],
-        components: []
-      });
-    } catch { /* non-fatal */ }
-  } catch (err) {
-    await interaction.editReply({ content: `Failed to process rejection: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handleEosVote(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  // Custom ID format: eos_vote:{pollId}:{categoryKey}
-  const parts = interaction.customId.split(":");
-  const categoryKey = parts[2] ?? "";
-  const nomineeDiscordId = interaction.values[0];
-  const guildId = interaction.guild?.id;
-
-  if (!guildId || !nomineeDiscordId || !categoryKey) {
-    return interaction.reply({ content: "Could not process your vote. Missing data.", flags: MessageFlags.Ephemeral });
-  }
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-  try {
-    const result = await recApi.castEosVote({
-      guildId,
-      voterDiscordId: interaction.user.id,
-      categoryKey,
-      nomineeDiscordId
-    });
-
-    if (result.recorded) {
-      return interaction.editReply({ content: `Your vote for **${result.categoryLabel}** has been recorded! You may change your vote at any time before voting closes.` });
-    } else {
-      return interaction.editReply({ content: `Could not record your vote: ${result.reason}` });
-    }
-  } catch (err) {
-    console.error("[EOS Vote] Error:", err);
-    return interaction.editReply({ content: "An error occurred while recording your vote. Please try again." });
-  }
-}
-
-// ─── Message handler: routes messages to stream/highlight tracking ───────────
-client.on("messageCreate", async (message: Message) => {
-  if (message.author?.bot || !message.guildId) return;
-  // Run both handlers; each checks internally if the message is in its designated channel.
-  await Promise.allSettled([
-    recordGameChannelMessage(message),
-    recordHighlightMessage(message)
-  ]);
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Handler functions for interactions that appear outside of /menu sessions.
-// Called from the session-gate bypass block at the top of interactionCreate.
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function handleHighlightPayout(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only admins can manage highlight payouts.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const [, action, postId] = interaction.customId.split(":");
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  if (action === "approve") {
-    try {
-      await recApi.approveHighlightPayout({ postId: postId!, discordId: interaction.user.id });
-      await interaction.message.edit({ components: [] }).catch(() => undefined);
-      await interaction.editReply({ content: "Highlight payout approved." });
-    } catch (err) {
-      await interaction.editReply({ content: `Failed to approve: ${err instanceof Error ? err.message : String(err)}` });
-    }
-  } else {
-    await recApi.denyHighlightPayout({ postId: postId!, discordId: interaction.user.id, deniedReason: "Denied by commissioner review." }).catch(() => undefined);
-    await interaction.message.edit({ components: [] }).catch(() => undefined);
-    await interaction.editReply({ content: "Highlight payout denied." });
-  }
-}
-
-async function handleRecAwardVote(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  const parts = interaction.customId.split(":");
-  const guildId = parts[1] ?? interaction.guildId ?? "";
-  const awardId = parts[2] ?? "";
-  const nomineeUserId = interaction.values[0];
-  if (!guildId || !awardId || !nomineeUserId) {
-    return interaction.reply({ content: "Could not process vote.", flags: MessageFlags.Ephemeral });
-  }
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    const result = await recApi.castAwardVote({ guildId, voterDiscordId: interaction.user.id, awardId, nomineeUserId });
-    if (result.recorded) {
-      await interaction.editReply({ content: `Your vote for **${result.awardName ?? "this award"}** has been recorded!` });
-      if (result.award) {
-        await interaction.message.edit({ embeds: [buildRecAwardVotingEmbed(result.award)] }).catch((err) => console.warn("Failed to refresh REC award voting embed", err));
-      }
-    } else {
-      await interaction.editReply({ content: result.reason ?? "Could not record your vote." });
-    }
-  } catch (err) {
-    await interaction.editReply({ content: `Failed to record vote: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handlePotyNominateSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  const guildId = interaction.customId.split(":")[1] ?? interaction.guildId ?? "";
-  const nomineeDiscordId = interaction.values[0];
-  if (!guildId || !nomineeDiscordId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    await recApi.submitPotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nomineeDiscordId });
-    const nominated = await interaction.client.users.fetch(nomineeDiscordId).catch(() => null);
-    await interaction.editReply({ content: `Your POTY nomination for **${nominated?.displayName ?? nomineeDiscordId}** has been recorded!` });
-  } catch (err) {
-    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handleGotyNominateSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  const guildId = interaction.customId.split(":")[1] ?? interaction.guildId ?? "";
-  const nominatedGameId = interaction.values[0];
-  if (!guildId || !nominatedGameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    await recApi.submitGotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nominatedGameId });
-    await interaction.editReply({ content: "Your GOTY nomination has been recorded!" });
-  } catch (err) {
-    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handlePotyNominateOwn(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  const parts = interaction.customId.split(":");
-  const guildId = parts[1] ?? interaction.guildId ?? "";
-  const highlightId = parts[2] ?? "";
-  if (!guildId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-  await interaction.reply({
-    flags: MessageFlags.Ephemeral,
-    content: "Select a category for your Play of the Year nomination:",
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(`poty_category_select:${guildId}:${highlightId}`)
-        .setPlaceholder("Choose a category")
-        .addOptions([
-          new StringSelectMenuOptionBuilder().setLabel("Best Touchdown").setValue("best_td"),
-          new StringSelectMenuOptionBuilder().setLabel("Best Run Play").setValue("best_run"),
-          new StringSelectMenuOptionBuilder().setLabel("Best Catch").setValue("best_catch"),
-          new StringSelectMenuOptionBuilder().setLabel("Best Defensive Play").setValue("best_defensive_play"),
-          new StringSelectMenuOptionBuilder().setLabel("Best Special Teams Play").setValue("best_special_teams"),
-          new StringSelectMenuOptionBuilder().setLabel("Most Clutch Moment").setValue("most_clutch")
-        ])
-    )]
-  });
-}
-
-async function handlePotyCategorySelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  const parts = interaction.customId.split(":");
-  const guildId = parts[1] ?? interaction.guildId ?? "";
-  const highlightId = parts[2] ?? "";
-  const potyCategory = interaction.values[0];
-  if (!guildId || !potyCategory) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-  await interaction.deferUpdate();
-  try {
-    await recApi.submitPotyNomination({
-      guildId,
-      nominatorDiscordId: interaction.user.id,
-      nomineeDiscordId: interaction.user.id,
-      potyCategory,
-      highlightId: highlightId || undefined
-    });
-    await interaction.editReply({ content: `Your **Play of the Year** nomination has been recorded in the **${potyCategory.replace(/_/g, " ")}** category!`, components: [] });
-  } catch (err) {
-    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}`, components: [] });
-  }
-}
-
-async function handleGotyNominateBtn(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  const parts = interaction.customId.split(":");
-  const guildId = parts[1] ?? interaction.guildId ?? "";
-  const gameId = parts[2] ?? "";
-  if (!guildId || !gameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-  const modal = new ModalBuilder()
-    .setCustomId(`goty_nominate_modal:${guildId}:${gameId}`)
-    .setTitle("Game of the Year Nomination");
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder()
-        .setCustomId("goty_notes")
-        .setLabel("What made this game memorable?")
-        .setStyle(TextInputStyle.Paragraph)
-        .setMaxLength(1000)
-        .setRequired(true)
-        .setPlaceholder("Describe the highlights, key moments, or why this game should win GOTY...")
-    )
-  );
-  await interaction.showModal(modal);
-}
-
-async function handleGotyNominateModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
-  if (!interaction.isModalSubmit()) return;
-  const parts = interaction.customId.split(":");
-  const guildId = parts[1] ?? interaction.guildId ?? "";
-  const gameId = parts[2] ?? "";
-  const notes = interaction.fields.getTextInputValue("goty_notes").trim();
-  if (!guildId || !gameId) return interaction.reply({ content: "Could not process nomination.", flags: MessageFlags.Ephemeral });
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    await recApi.submitGotyNomination({ guildId, nominatorDiscordId: interaction.user.id, nominatedGameId: gameId, nominationNotes: notes });
-    await interaction.editReply({ content: "Your Game of the Year nomination has been recorded!" });
-  } catch (err) {
-    await interaction.editReply({ content: `Failed to record nomination: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handleCantShutUpTiebreaker(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only commissioners can resolve this tiebreaker.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const pollId = interaction.customId.split(":")[2] ?? "";
-  const winnerUserId = interaction.values[0];
-  if (!pollId || !winnerUserId) return interaction.reply({ content: "Missing tiebreaker data.", flags: MessageFlags.Ephemeral });
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    await recApi.resolveEosTiebreaker({ pollId, winnerUserId });
-    await interaction.message.edit({ components: [] }).catch(() => undefined);
-    await interaction.editReply({ content: "Tiebreaker resolved! Winner has been set." });
-  } catch (err) {
-    await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handleRecAwardCloseVoting(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only commissioners can close award voting.", flags: MessageFlags.Ephemeral });
-  }
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const guildId = interaction.guildId ?? "";
-  try {
-    const result = await recApi.closeAwardVoting(guildId);
-    if (!result.closed) {
-      return interaction.editReply({ content: "No awards are currently open for closing." });
-    }
-
-    // Auto-approved awards (non-voting: best_h2h_record, challenge_king, badge_collector, best_roster, best_ol)
-    // — no human vote so we announce winners immediately
-    const autoAnnounceCh = result.announcementsChannelId
-      ? await interaction.guild?.channels.fetch(result.announcementsChannelId).catch(() => null) as TextChannel | null
-      : interaction.channel as TextChannel | null;
-    if (result.autoApproved?.length && autoAnnounceCh && "send" in autoAnnounceCh) {
-      for (const award of result.autoApproved) {
-        const winner = award.winner;
-        const mention = winner.discordId ? `<@${winner.discordId}>` : winner.displayLabel;
-        await autoAnnounceCh.send({
-          embeds: [new EmbedBuilder()
-            .setTitle(`${award.awardName} — Winner`)
-            .setDescription([
-              `**Winner:** ${mention}${winner.teamName ? ` (${winner.teamName})` : ""}`,
-              `**Score:** ${Number(winner.finalScore ?? 0).toFixed(1)}`,
-              `**Bonus:** +$${award.payoutAmount ?? 100} REC Cash ${winner.payoutIssued ? "(issued)" : "(pending)"}`
-            ].join("\n"))
-            .setColor(0x2ecc71)
-          ]
-        }).catch(() => undefined);
-      }
-    }
-
-    // Voted awards that still need commissioner approval
-    const approvals = await recApi.getPendingAwardApprovals(guildId);
-    if (approvals?.awards?.length) {
-      const configuredCh = approvals.pendingPayoutsChannelId
-        ? await interaction.guild?.channels.fetch(approvals.pendingPayoutsChannelId).catch(() => null) as TextChannel | null
-        : null;
-      const postCh = (configuredCh?.type === ChannelType.GuildText ? configuredCh : interaction.channel) as TextChannel;
-      for (const award of approvals.awards) {
-        const topNominee = award.nominees?.[0];
-        if (!topNominee) continue;
-        const lines = (award.nominees ?? []).slice(0, 5).map((n: any, i: number) =>
-          `${i + 1}. ${n.display_label ?? "Unknown"} — Perf: ${Number(n.performance_score ?? 0).toFixed(1)} · Votes: ${n.vote_count ?? 0} · Final: ${Number(n.final_score ?? 0).toFixed(2)}`
-        );
-        await postCh.send({
-          embeds: [new EmbedBuilder()
-            .setTitle(`Award Review: ${award.award_name}`)
-            .setDescription([`**Category:** ${award.award_category}`, `**Payout:** $${award.payout_amount ?? 100}`, "", "**Top Nominees:**", ...lines].join("\n"))
-            .setColor(0xf1c40f)
-          ],
-          components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder().setCustomId(`rec_award_approve:${guildId}:${award.id}`).setLabel(`Approve Winner: ${(topNominee.display_label ?? "Unknown").slice(0, 40)}`).setStyle(ButtonStyle.Success)
-          )]
-        }).catch(() => undefined);
-      }
-    }
-
-    const autoCount = result.autoApproved?.length ?? 0;
-    const reviewCount = approvals?.awards?.length ?? 0;
-    const parts: string[] = [`Closed **${result.closed}** award(s).`];
-    if (autoCount) parts.push(`**${autoCount}** auto-awarded${result.announcementsChannelId ? ` and posted to <#${result.announcementsChannelId}>` : ""}.`);
-    if (reviewCount) {
-      const where = approvals?.pendingPayoutsChannelId ? `<#${approvals.pendingPayoutsChannelId}>` : "this channel";
-      parts.push(`**${reviewCount}** voted award(s) need commissioner approval in ${where}.`);
-    }
-    await interaction.editReply({ content: parts.join(" ") });
-  } catch (err) {
-    await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-async function handleRecAwardApprove(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only commissioners can approve award winners.", flags: MessageFlags.Ephemeral });
-  }
-  const parts = interaction.customId.split(":");
-  const guildId = parts[1] ?? interaction.guildId ?? "";
-  const awardId = parts[2] ?? "";
-  if (!guildId || !awardId) return interaction.reply({ content: "Missing award data.", flags: MessageFlags.Ephemeral });
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    const result = await recApi.approveAwardWinner({ guildId, awardId, approvedByDiscordId: interaction.user.id });
-    const winner = result.winner;
-    const mention = winner?.discordId ? `<@${winner.discordId}>` : winner?.teamName ?? "Unknown";
-    await interaction.message.edit({ components: [] }).catch(() => undefined);
-    const awardCh = interaction.channel;
-    if (awardCh && "send" in awardCh) await awardCh.send({
-      embeds: [new EmbedBuilder()
-        .setTitle(`${result.awardName} — Winner Approved!`)
-        .setDescription([
-          `**Winner:** ${mention} (${winner?.teamName ?? "?"})`,
-          `**Performance Score:** ${Number(winner?.performanceScore ?? 0).toFixed(1)}`,
-          `**Vote Count:** ${winner?.voteCount ?? 0}`,
-          `**Final Score:** ${Number(winner?.finalScore ?? 0).toFixed(2)}`,
-          `**Bonus:** +$${winner?.payoutAmount ?? 100} REC Cash ${winner?.payoutIssued ? "(issued)" : "(pending)"}`
-        ].join("\n"))
-        .setColor(0x2ecc71)
-      ]
-    }).catch(() => undefined);
-    await interaction.editReply({ content: `Winner approved and payout issued!` });
-  } catch (err) {
-    await interaction.editReply({ content: `Failed: ${err instanceof Error ? err.message : String(err)}` });
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Admin handler implementations
-// ─────────────────────────────────────────────────────────────────────────────
 
 function appendReviewActionToMessage(interaction: any, actionLabel: string) {
   const userMention = `<@${interaction.user.id}>`;
