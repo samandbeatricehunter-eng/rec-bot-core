@@ -324,6 +324,12 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  getEconomyConfig: (guildId: string) =>
+    recFetch<any>("/v1/economy/config/view", {
+      method: "POST",
+      body: JSON.stringify({ guildId })
+    }),
+
   clearPendingEosBatch: (input: { guildId: string; clearReason: string }) =>
     recFetch<any>("/v1/eos/clear-pending", {
       method: "POST",
@@ -517,6 +523,8 @@ export const recApi = {
     discordMessageId: string;
     messageUrl?: string | null;
     content?: string | null;
+    service?: string | null;
+    submissionType?: "link" | "discord_live" | null;
   }) =>
     recFetch<any>("/v1/streams/post", {
       method: "POST",

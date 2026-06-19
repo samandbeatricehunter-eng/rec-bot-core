@@ -17,11 +17,13 @@ import {
   buildRostersMenuRows,
   buildToSavingsModal,
   buildFromSavingsModal,
+  buildWalletTransferCustomModal,
   buildSetupDangerModal,
   buildDeleteLeagueWarningPayload,
   buildDeleteLeagueModal,
   MENU_CUSTOM_IDS,
   ROSTERS_CUSTOM_IDS,
+  STREAM_CUSTOM_IDS,
   REC_BANK_CUSTOM_IDS,
   MANAGE_WALLET_CUSTOM_IDS
 } from "./ui/menu.js";
@@ -61,6 +63,11 @@ import { buildRecAwardVotingEmbed, postEosPollsAndAwards } from "./flows/advance
 import { handleActiveCheckResponse, handleStartActiveCheck, startActiveCheckCloseoutLoop } from "./handlers/active-check.js";
 import {
   handleManageWallet,
+  handleWalletCustomTransferModal,
+  handleWalletTransactions,
+  handleWalletTransferAll,
+  handleWalletTransferDirection,
+  handleWalletTransferOpen,
   handlePlaceWager,
   handleRecBankSelect,
   handleSavingsTransferModal,
@@ -68,6 +75,7 @@ import {
   handleWalletMakePurchase,
   handleWalletPendingPurchases
 } from "./handlers/wallet.js";
+import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 client.setMaxListeners(50);
@@ -217,6 +225,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.teamSelect}:`)) return handleRosterTeamSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.byTeamNav) return handleByTeamNav(interaction, buildMainMenuPayload);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction, buildMainMenuPayload);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
+      if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
       if (
         Object.values(IMPORT_CUSTOM_IDS).some(
@@ -302,7 +312,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "The purchase store is coming soon. It will only show purchase types enabled for this league.");
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.stream) return replyMenuPlaceholder(interaction, "Stream", "Stream posting is coming soon. Users will be able to post a stream link or select Discord streaming options here.");
+      if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.uploadBoxScore) return replyMenuPlaceholder(interaction, "Box Score & Scoring Summary", "Screenshot uploads are coming soon. This will log game results, scoring details, eligible payouts, and story generation.");
       if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Upload Scoring Summary", "Scoring summary screenshot uploads are coming soon. This will log game details, payouts, and story generation.");
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
@@ -310,6 +320,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return replyMenuPlaceholder(interaction, "Request Team", "Team requests are coming soon. This will let users request an available team from this league.");
       if (interaction.customId === MENU_CUSTOM_IDS.teamsBack) return renderMainMenuFromComponent(interaction);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transfer) return handleWalletTransferOpen(interaction);
+      if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferAll}:`)) return handleWalletTransferAll(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
+      if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustom}:`)) return interaction.showModal(buildWalletTransferCustomModal(interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings"));
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transactions) return handleWalletTransactions(interaction);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.back) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.toSavings) return interaction.showModal(buildToSavingsModal());
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.fromSavings) return interaction.showModal(buildFromSavingsModal());
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.pendingPurchases) return handleWalletPendingPurchases(interaction);
@@ -333,6 +348,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionModal) return handleCoachAbilitiesRestrictionModal(interaction);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
       if (interaction.customId === REC_BANK_CUSTOM_IDS.fromSavingsModal) return handleSavingsTransferModal(interaction, "from_savings");
+      if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
+      if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_WEEK_CUSTOM_IDS.setModal}:`)) return handleLeagueWeekSetModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`)) return handleCustomTeamModal(interaction);
     }

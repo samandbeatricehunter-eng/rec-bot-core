@@ -67,7 +67,21 @@ export const MANAGE_WALLET_CUSTOM_IDS = {
   toSavings: "rec:wallet:to_savings",
   fromSavings: "rec:wallet:from_savings",
   pendingPurchases: "rec:wallet:pending_purchases",
-  makePurchase: "rec:wallet:make_purchase"
+  makePurchase: "rec:wallet:make_purchase",
+  transfer: "rec:wallet:transfer",
+  transferDirection: "rec:wallet:transfer_direction",
+  transferAll: "rec:wallet:transfer_all",
+  transferCustom: "rec:wallet:transfer_custom",
+  transferCustomModal: "rec:wallet:transfer_custom_modal",
+  transferCustomAmountInput: "rec:wallet:transfer_custom_amount",
+  transactions: "rec:wallet:transactions",
+  back: "rec:wallet:back"
+} as const;
+
+export const STREAM_CUSTOM_IDS = {
+  serviceSelect: "rec:stream:service",
+  linkModal: "rec:stream:link_modal",
+  linkInput: "rec:stream:link"
 } as const;
 
 // Custom IDs for the Rosters submenu
@@ -841,15 +855,92 @@ export function buildRecBankRows() {
 
 // Two button rows: savings transfers, then pending purchases + make a purchase.
 export function buildManageWalletRows() {
-  const transfers = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.toSavings).setLabel("Transfer to Savings").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.fromSavings).setLabel("Transfer from Savings").setStyle(ButtonStyle.Secondary)
-  );
-  const purchases = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.pendingPurchases).setLabel("Pending Purchases").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.makePurchase).setLabel("Make a Purchase").setStyle(ButtonStyle.Primary)
-  );
-  return [transfers, purchases];
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.transfer).setLabel("Transfer").setStyle(ButtonStyle.Success)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.transactions).setLabel("Transactions").setStyle(ButtonStyle.Primary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+export function buildWalletTransferDirectionRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(MANAGE_WALLET_CUSTOM_IDS.transferDirection)
+    .setPlaceholder("Select transfer direction")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("Transfer To Savings").setValue("to_savings").setDescription("Move funds from wallet into savings."),
+      new StringSelectMenuOptionBuilder().setLabel("Transfer From Savings").setValue("from_savings").setDescription("Move funds from savings into wallet.")
+    );
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+export function buildWalletTransferAmountRows(direction: "to_savings" | "from_savings") {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${MANAGE_WALLET_CUSTOM_IDS.transferAll}:${direction}`).setLabel("Transfer All").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`${MANAGE_WALLET_CUSTOM_IDS.transferCustom}:${direction}`).setLabel("Custom Amount").setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+    )
+  ];
+}
+
+export function buildWalletTransferCustomModal(direction: "to_savings" | "from_savings") {
+  return new ModalBuilder()
+    .setCustomId(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:${direction}`)
+    .setTitle(direction === "to_savings" ? "Transfer To Savings" : "Transfer From Savings")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(MANAGE_WALLET_CUSTOM_IDS.transferCustomAmountInput)
+          .setLabel("Amount")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("e.g. 50")
+      )
+    );
+}
+
+export function buildStreamRows() {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(STREAM_CUSTOM_IDS.serviceSelect)
+    .setPlaceholder("Select streaming service")
+    .addOptions(
+      new StringSelectMenuOptionBuilder().setLabel("Discord Live Stream").setValue("discord").setDescription("Submit a Discord Live stream payout request."),
+      new StringSelectMenuOptionBuilder().setLabel("Twitch").setValue("twitch").setDescription("Submit a Twitch stream link."),
+      new StringSelectMenuOptionBuilder().setLabel("YouTube").setValue("youtube").setDescription("Submit a YouTube stream link."),
+      new StringSelectMenuOptionBuilder().setLabel("Kick").setValue("kick").setDescription("Submit a Kick stream link."),
+      new StringSelectMenuOptionBuilder().setLabel("Other").setValue("other").setDescription("Submit another streaming link.")
+    );
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+export function buildStreamLinkModal(service: string) {
+  const label = service.charAt(0).toUpperCase() + service.slice(1);
+  return new ModalBuilder()
+    .setCustomId(`${STREAM_CUSTOM_IDS.linkModal}:${service}`)
+    .setTitle(`${label} Stream Link`)
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(STREAM_CUSTOM_IDS.linkInput)
+          .setLabel("Stream Link")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("https://...")
+      )
+    );
 }
 
 // ── Savings transfer modals ───────────────────────────────────────────────────
