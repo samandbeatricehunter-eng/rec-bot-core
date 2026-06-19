@@ -61,10 +61,12 @@ Two separate Railway services, one per app.
 | `REC_CORE_API_URL` | yes | Internal Railway URL of the API service |
 | `REC_INTERNAL_API_KEY` | recommended | Must match the API service value |
 
-### Register slash commands (one-time or on change)
+### Register slash commands
+
+The bot registers global commands on startup, so each Railway deploy refreshes `/menu` automatically. If `DISCORD_GUILD_ID` is set, that guild is also refreshed for faster propagation during testing.
 
 ```bash
-# Locally
+# Manual refresh, if needed
 pnpm --filter @rec/bot register
 
 # On Railway (run in bot service shell)

@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
+import { registerApplicationCommands } from "./commands.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
@@ -1380,5 +1381,9 @@ async function handleLeagueWeekView(interaction: Extract<Interaction, { isButton
   const result = await recApi.viewLeagueWeek(interaction.guildId);
   await interaction.editReply(`League: ${result.league?.name ?? "Unknown"}\nSeason: ${result.league?.season_number ?? "?"}\nWeek: ${result.league?.current_week ?? "?"}\nStage: ${result.league?.season_stage ?? result.league?.current_phase ?? "?"}`);
 }
+
+await registerApplicationCommands().catch((error) => {
+  console.error("Failed to register Discord application commands before startup", error);
+});
 
 await client.login(env.DISCORD_TOKEN);
