@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { CreateDefaultTeamsSchema, CustomTeamReplacementSchema, LinkUserToTeamSchema, UnlinkAllTeamsSchema, UnlinkTeamSchema } from "./team-ownership.schemas.js";
-import { createCustomTeamReplacement, createDefaultTeamsForGuild, getTeamDataConflicts, linkUserToTeam, listLinkedUsersTeams, listOpenTeams, unlinkAllTeamsForGuild, unlinkTeamForGuild } from "./team-ownership.service.js";
+import { CreateDefaultTeamsSchema, CustomTeamReplacementSchema, LinkUserToTeamSchema, ResetDefaultTeamsSchema, UnlinkAllTeamsSchema, UnlinkTeamSchema } from "./team-ownership.schemas.js";
+import { createCustomTeamReplacement, createDefaultTeamsForGuild, getTeamDataConflicts, linkUserToTeam, listLinkedUsersTeams, listOpenTeams, resetDefaultTeamsForGuild, unlinkAllTeamsForGuild, unlinkTeamForGuild } from "./team-ownership.service.js";
 export async function teamOwnershipRoutes(app: FastifyInstance) {
  app.post("/v1/team-ownership/default-teams", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await createDefaultTeamsForGuild(CreateDefaultTeamsSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
+ app.post("/v1/team-ownership/reset-default-teams", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await resetDefaultTeamsForGuild(ResetDefaultTeamsSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/custom-team-replacement", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await createCustomTeamReplacement(CustomTeamReplacementSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/team-conflicts", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await getTeamDataConflicts((request.body as { guildId: string }).guildId)); } catch (error) { return sendError(reply, error); } });
  app.post("/v1/team-ownership/link-user-team", async (request, reply) => { try { requireInternalApiKey(request); return reply.send(await linkUserToTeam(LinkUserToTeamSchema.parse(request.body))); } catch (error) { return sendError(reply, error); } });

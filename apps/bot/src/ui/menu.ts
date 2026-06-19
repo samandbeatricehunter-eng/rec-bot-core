@@ -615,12 +615,21 @@ function normalizeRosterConferences(conferences: RosterConference[]): RosterConf
     if (text.includes("NFC")) return "NFC";
     return "Other";
   };
+  const divisionOrder = ["East", "North", "South", "West"];
+  const normalizeDivisionLabel = (value: string, conference: string) => {
+    const cleaned = String(value || "Other")
+      .replace(new RegExp(`^${conference}\\s+`, "i"), "")
+      .replace(/^(AFC|NFC)\s+/i, "")
+      .trim();
+    return cleaned || "Other";
+  };
   const confMap = new Map<string, Map<string, RosterTeam[]>>();
   for (const conf of conferences ?? []) {
     for (const division of conf.divisions ?? []) {
       for (const team of division.teams ?? []) {
-        const label = String(division.label || team.division || "Other");
-        const c = inferConf(conf.conference, `${label} ${team.division ?? ""}`);
+        const rawLabel = String(division.label || team.division || "Other");
+        const c = inferConf(conf.conference, `${rawLabel} ${team.division ?? ""}`);
+        const label = normalizeDivisionLabel(rawLabel, c);
         if (!confMap.has(c)) confMap.set(c, new Map());
         const divMap = confMap.get(c)!;
         if (!divMap.has(label)) divMap.set(label, []);
@@ -634,7 +643,11 @@ function normalizeRosterConferences(conferences: RosterConference[]): RosterConf
     .map((c) => ({
       conference: c === "Other" ? "Other" : c,
       divisions: [...confMap.get(c)!.entries()]
-        .sort((a, b) => a[0].localeCompare(b[0]))
+        .sort((a, b) => {
+          const ai = divisionOrder.indexOf(a[0]);
+          const bi = divisionOrder.indexOf(b[0]);
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a[0].localeCompare(b[0]);
+        })
         .map(([label, teams]) => ({ division: label, label, teams: [...teams].sort((x, y) => x.name.localeCompare(y.name)) }))
     }));
 }
@@ -663,9 +676,9 @@ export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC") {
   const nextPage: MaddenTeamsPage = page === "NFC" ? "AFC" : "NFC";
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(nextPage === "AFC" ? ButtonStyle.Danger : ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
     )
   ];
 }

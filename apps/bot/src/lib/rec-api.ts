@@ -86,6 +86,12 @@ export const recApi = {
       body: JSON.stringify({ guildId })
     }),
 
+  resetDefaultTeams: (guildId: string, requestedByDiscordId?: string) =>
+    recFetch<any>("/v1/team-ownership/reset-default-teams", {
+      method: "POST",
+      body: JSON.stringify({ guildId, requestedByDiscordId })
+    }),
+
   getLinkedUsersTeams: (guildId: string) => recFetch<any>(REC_API_ROUTES.linkedUsersTeams(guildId)),
   getOpenTeams: (guildId: string) => recFetch<any>(REC_API_ROUTES.openTeams(guildId)),
 

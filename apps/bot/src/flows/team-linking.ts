@@ -8,9 +8,11 @@ import {
   buildAuthoritySelectRow,
   buildConferenceSelectRow,
   buildLeagueMgmtTeamsPanel,
+  buildLeagueTeamsEditPanel,
   buildLeagueTeamsConferencePanel,
   buildLeagueTeamsTeamSelectPanel,
   buildLeagueTeamsUnlinkConfirmPanel,
+  buildEditTeamModal,
   buildTeamLinkHomeRows,
   buildOpenTeamSelectRow,
   buildUserSelectionPanel,
@@ -50,6 +52,8 @@ const leagueTeamsPendingUnlinks = new Map<string, LeagueTeamsPendingUnlink>();
 export const customTeamPendingSessions = new Map<string, {
   guildId: string;
   conference?: "AFC" | "NFC";
+  replacementTeamAbbreviation?: string;
+  returnToLeagueTeams?: boolean;
   // When false, the modal only registers the relocated team (so imports map) and does not link a user.
   linkUser: boolean;
 }>();
@@ -507,8 +511,9 @@ export async function handleLeagueTeamsEdit(interaction: Extract<Interaction, { 
     await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
     return;
   }
-  customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, linkUser: false });
-  await interaction.showModal((await import("../ui/team-options.js")).buildCustomTeamModal());
+  await interaction.deferUpdate();
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  await interaction.editReply(buildLeagueTeamsEditPanel(conferences, "AFC"));
 }
 
 export async function handleLeagueTeamsConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
@@ -565,6 +570,62 @@ export async function handleLeagueTeamsTeamSelect(interaction: Extract<Interacti
     conference
   });
   return interaction.editReply(buildUserSelectionPanel(team.name ?? team.abbreviation ?? "Team", users, 0));
+}
+
+export async function handleLeagueTeamsEditConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
+    return;
+  }
+  await interaction.deferUpdate();
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  return interaction.editReply(buildLeagueTeamsEditPanel(conferences, interaction.values[0] ?? "AFC"));
+}
+
+export async function handleLeagueTeamsEditTeamSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
+    return;
+  }
+  const teamId = interaction.values[0];
+  if (teamId === "NO_TEAMS") return interaction.reply({ content: "No teams are available to edit. Reset default teams first.", ephemeral: true });
+  const conference = interaction.customId.split(":").pop() ?? "AFC";
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  const team = findConferenceTeam(conferences, conference, teamId);
+  const replacementAbbreviation = team.originalAbbreviation ?? team.abbreviation;
+  if (!replacementAbbreviation) return interaction.reply({ content: "That team could not be found.", ephemeral: true });
+  customTeamPendingSessions.set(interaction.user.id, {
+    guildId: interaction.guildId,
+    conference: conference as "AFC" | "NFC",
+    replacementTeamAbbreviation: replacementAbbreviation,
+    returnToLeagueTeams: true,
+    linkUser: false
+  });
+  return interaction.showModal(buildEditTeamModal(team.name ?? team.abbreviation));
+}
+
+export async function handleLeagueTeamsResetDefaults(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can reset teams.", ephemeral: true });
+    return;
+  }
+  await interaction.deferUpdate();
+  try {
+    await recApi.resetDefaultTeams(interaction.guildId, interaction.user.id);
+    const conferences = await loadLeagueConferences(interaction.guildId);
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Teams Reset").setDescription("The league teams have been restored to the default 32 NFL teams across the 8 divisions.")],
+      components: buildLeagueTeamsEditPanel(conferences, "AFC").components
+    });
+  } catch (error) {
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Reset Failed").setDescription(error instanceof Error ? error.message : String(error))],
+      components: buildLeagueMgmtTeamsPanel().components
+    });
+  }
 }
 
 export async function handleLeagueTeamsConfirmBack(interaction: Extract<Interaction, { isButton(): boolean }>) {
@@ -913,7 +974,7 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
 
   const { TEAM_LINK_CUSTOM_IDS, buildUserSelectionPanel } = await import("../ui/team-options.js");
 
-  const replacedAbbr = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput).trim().toUpperCase();
+  const replacedAbbr = pending.replacementTeamAbbreviation ?? interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput).trim().toUpperCase();
   const newCity = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamCityInput).trim();
   const newNick = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamNickInput).trim();
   const newAbbr = interaction.fields.getTextInputValue(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput).trim().toUpperCase();
@@ -943,7 +1004,7 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
             .setTitle("Custom Team Saved")
             .setDescription(`**${displayName}** (${newAbbr}) is set for the **${replacedAbbr}** slot.\n\nTeam data updated — imports will map to this team. Any existing coach link is preserved; no relinking needed. You can link a coach anytime from User/Team Linking.`)
         ],
-        components: [buildNavigationRow({ includeAdminPanel: true })]
+        components: pending.returnToLeagueTeams ? buildLeagueMgmtTeamsPanel().components : [buildNavigationRow({ includeAdminPanel: true })]
       });
       return;
     }

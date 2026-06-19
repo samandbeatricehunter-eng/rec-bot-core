@@ -30,10 +30,15 @@ export const TEAM_LINK_CUSTOM_IDS = {
   leagueTeamsAddRemove: "rec:league_teams:add_remove",
   leagueTeamsEdit: "rec:league_teams:edit",
   leagueTeamsBack: "rec:league_teams:back",
+  leagueTeamsEditBack: "rec:league_teams:edit_back",
   leagueTeamsConferenceSelect: "rec:league_teams:conference",
   leagueTeamsTeamSelect: "rec:league_teams:team",
+  leagueTeamsEditConferenceSelect: "rec:league_teams:edit_conference",
+  leagueTeamsEditTeamSelect: "rec:league_teams:edit_team",
+  leagueTeamsResetDefaults: "rec:league_teams:reset_defaults",
   leagueTeamsConfirmBack: "rec:league_teams:confirm_back",
   leagueTeamsConfirmUnlink: "rec:league_teams:confirm_unlink",
+  editTeamModal: "rec:league_teams:edit_team_modal",
   userIdModal: "rec:teamlink:user_id_modal",
   userIdInput: "rec:teamlink:user_id_input",
   simpleUserSelect: "rec:teamlink:simple_user_select",
@@ -259,7 +264,7 @@ export function buildLeagueMgmtTeamsPanel() {
 }
 
 export function buildLeagueTeamsConferencePanel(conferences: Array<{ conference: string }>) {
-  const options = [...new Set(conferences.map((conf) => conf.conference).filter(Boolean))]
+  const options = [...new Set(normalizeLeagueTeamConferences(conferences).map((conf) => conf.conference).filter(Boolean))]
     .slice(0, 24)
     .map((conference) =>
       new StringSelectMenuOptionBuilder()
@@ -285,6 +290,47 @@ export function buildLeagueTeamsConferencePanel(conferences: Array<{ conference:
   };
 }
 
+const DIVISION_ORDER = ["East", "North", "South", "West"];
+
+function normalizeDivisionName(value: unknown, conference: string) {
+  const cleaned = String(value ?? "Other")
+    .replace(new RegExp(`^${conference}\\s+`, "i"), "")
+    .replace(/^(AFC|NFC)\s+/i, "")
+    .trim();
+  return cleaned || "Other";
+}
+
+function normalizeLeagueTeamConferences(rawConferences: any[]) {
+  const confMap = new Map<string, Map<string, any[]>>();
+  for (const conference of rawConferences ?? []) {
+    const confName = String(conference.conference ?? "").toUpperCase() || "Other";
+    for (const division of conference.divisions ?? []) {
+      const label = normalizeDivisionName(division.label ?? division.division, confName);
+      if (!confMap.has(confName)) confMap.set(confName, new Map());
+      const divMap = confMap.get(confName)!;
+      if (!divMap.has(label)) divMap.set(label, []);
+      divMap.get(label)!.push(...(division.teams ?? []));
+    }
+  }
+  const confOrder = ["NFC", "AFC", "Other"];
+  return [...confMap.entries()]
+    .sort((a, b) => {
+      const ai = confOrder.indexOf(a[0]);
+      const bi = confOrder.indexOf(b[0]);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a[0].localeCompare(b[0]);
+    })
+    .map(([conference, divisions]) => ({
+      conference,
+      divisions: [...divisions.entries()]
+        .sort((a, b) => {
+          const ai = DIVISION_ORDER.indexOf(a[0]);
+          const bi = DIVISION_ORDER.indexOf(b[0]);
+          return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a[0].localeCompare(b[0]);
+        })
+        .map(([label, teams]) => ({ label, division: label, teams: [...teams].sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""))) }))
+    }));
+}
+
 function teamRecordText(team: any) {
   return team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
 }
@@ -297,7 +343,7 @@ function adminTeamLine(team: any) {
 }
 
 export function buildLeagueTeamsTeamSelectPanel(rawConferences: any[], conferenceName: string) {
-  const conference = rawConferences.find((conf) => conf.conference === conferenceName);
+  const conference = normalizeLeagueTeamConferences(rawConferences).find((conf) => conf.conference === conferenceName);
   const teams = (conference?.divisions ?? [])
     .flatMap((division: any) => (division.teams ?? []).map((team: any) => ({ ...team, divisionLabel: division.label ?? division.division ?? "Teams" })));
   const options = teams.slice(0, 24).map((team: any) =>
@@ -325,6 +371,50 @@ export function buildLeagueTeamsTeamSelectPanel(rawConferences: any[], conferenc
           .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsTeamSelect}:${conferenceName}`)
           .setPlaceholder(`Select ${conferenceName} team`)
           .addOptions(options)
+      )
+    ]
+  };
+}
+
+export function buildLeagueTeamsEditPanel(rawConferences: any[], selectedConference = "AFC") {
+  const conferences = normalizeLeagueTeamConferences(rawConferences);
+  const selected = conferences.find((conf) => conf.conference === selectedConference) ?? conferences[0];
+  const conferenceOptions = conferences.slice(0, 25).map((conference) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(`${conference.conference} Teams`.slice(0, 100))
+      .setValue(conference.conference)
+      .setDefault(conference.conference === selected?.conference)
+  );
+  const teams = (selected?.divisions ?? []).flatMap((division: any) => division.teams ?? []);
+  const teamOptions = teams.slice(0, 25).map((team: any) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(String(team.name ?? team.abbreviation ?? "Team").slice(0, 100))
+      .setValue(String(team.id))
+      .setDescription(`Current abbreviation: ${team.abbreviation ?? "None"}`.slice(0, 100))
+  );
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Edit Teams")
+        .setDescription("Select a conference, then choose a team to edit its abbreviation, city, and team name.")
+    ],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEditConferenceSelect)
+          .setPlaceholder("Select conference")
+          .addOptions(conferenceOptions)
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsResetDefaults).setLabel("Reset All Teams").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEditBack).setLabel("Back to Teams").setStyle(ButtonStyle.Primary)
+      ),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditTeamSelect}:${selected?.conference ?? selectedConference}`)
+          .setPlaceholder(`Select ${selected?.conference ?? selectedConference} team`)
+          .addOptions(teamOptions.length ? teamOptions : [new StringSelectMenuOptionBuilder().setLabel("No teams found").setValue("NO_TEAMS").setDescription("Reset default teams, then try again.")])
       )
     ]
   };
@@ -504,6 +594,39 @@ export function buildCustomTeamModal(conference?: "AFC" | "NFC") {
     new ActionRowBuilder<TextInputBuilder>().addComponents(abbrInput)
   );
   return modal;
+}
+
+export function buildEditTeamModal(teamName: string) {
+  return new ModalBuilder()
+    .setCustomId(TEAM_LINK_CUSTOM_IDS.editTeamModal)
+    .setTitle(`Edit ${teamName}`.slice(0, 45))
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput)
+          .setLabel("New team abbreviation")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(8)
+          .setPlaceholder("e.g. SDC")
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamCityInput)
+          .setLabel("New team city")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("e.g. San Diego")
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNickInput)
+          .setLabel("New team name")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setPlaceholder("e.g. Chargers")
+      )
+    );
 }
 
 export function buildUserIdModal(teamName: string) {

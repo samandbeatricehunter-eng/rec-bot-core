@@ -125,7 +125,7 @@ async function getLeagueConferencesFallback(guildId: string) {
 
   const { data: teams, error } = await supabase
     .from("rec_teams")
-    .select("id, name, abbreviation, conference, division, display_city, display_nick, display_abbr, is_relocated")
+    .select("id, name, abbreviation, conference, division, display_city, display_nick, display_abbr, is_relocated, original_abbreviation")
     .eq("league_id", leagueId);
   if (error) throw new ApiError(500, "Failed to load teams.", error);
 
@@ -153,6 +153,7 @@ async function getLeagueConferencesFallback(guildId: string) {
       id: t.id as string,
       name: teamDisplayName(t),
       abbreviation: (t.is_relocated && t.display_abbr ? t.display_abbr : t.abbreviation) ?? null,
+      originalAbbreviation: (t.original_abbreviation ?? t.abbreviation) ?? null,
       conference: (t.conference ?? "").toUpperCase(),
       division: t.division ?? "",
       linkedDiscordId: link?.discordId ?? null,
@@ -184,7 +185,7 @@ async function getLeagueConferencesFallback(guildId: string) {
       label: `${conference} ${division}`.trim(),
       teams: confTeams
         .filter((r) => r.division === division)
-        .map(({ id, name, abbreviation, linkedDiscordId, linkedName, wins, losses, ties, pointDifferential, recordText }) => ({ id, name, abbreviation, division, linkedDiscordId, linkedName, wins, losses, ties, pointDifferential, recordText }))
+        .map(({ id, name, abbreviation, originalAbbreviation, linkedDiscordId, linkedName, wins, losses, ties, pointDifferential, recordText }: any) => ({ id, name, abbreviation, originalAbbreviation, division, linkedDiscordId, linkedName, wins, losses, ties, pointDifferential, recordText }))
         .sort(sortTeamsByRecord)
     }));
     return { conference, divisions };
@@ -198,6 +199,25 @@ async function enrichConferencesWithRecords(guildId: string, payload: any) {
   const seasonNumber = asNumber(context.rec_leagues?.season_number ?? context.rec_leagues?.display_season_number ?? 1);
   const records = await loadTeamRecords(context.leagueId, seasonNumber);
   const discordNames = await loadTeamDiscordUsernames(context.leagueId);
+  const teamIds = (payload?.conferences ?? [])
+    .flatMap((conference: any) => conference.divisions ?? [])
+    .flatMap((division: any) => division.teams ?? [])
+    .map((team: any) => team.id)
+    .filter(Boolean)
+    .map(String);
+  const teamSlots = new Map<string, { originalAbbreviation: string | null; abbreviation: string | null }>();
+  if (teamIds.length) {
+    const { data: teams } = await supabase
+      .from("rec_teams")
+      .select("id,abbreviation,original_abbreviation")
+      .in("id", teamIds);
+    for (const team of teams ?? []) {
+      teamSlots.set(String(team.id), {
+        originalAbbreviation: (team as any).original_abbreviation ?? (team as any).abbreviation ?? null,
+        abbreviation: (team as any).abbreviation ?? null
+      });
+    }
+  }
   const conferences = (payload?.conferences ?? []).map((conference: any) => ({
     ...conference,
     divisions: (conference.divisions ?? []).map((division: any) => ({
@@ -207,6 +227,7 @@ async function enrichConferencesWithRecords(guildId: string, payload: any) {
           const record = records.get(String(team.id)) ?? { wins: 0, losses: 0, ties: 0, pointDifferential: 0, recordText: "0-0-0" };
           return {
             ...team,
+            originalAbbreviation: teamSlots.get(String(team.id))?.originalAbbreviation ?? team.originalAbbreviation ?? team.abbreviation ?? null,
             linkedName: discordNames.get(String(team.id)) ?? team.linkedName ?? null,
             wins: record.wins,
             losses: record.losses,
