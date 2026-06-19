@@ -88,6 +88,14 @@ export async function resolveImportProfile(input: {
     profile = fullScheduleAlreadyImported ? "offseason_roster_sync" : "manual_review_only";
   }
 
+  // A training-camp league whose full schedule is already imported is effectively mid-season for
+  // import purposes: the commissioner is playing weeks even though REC hasn't advanced out of camp.
+  // Import game weeks (standings + weekly games/stats) instead of a roster-only sync, so a normal or
+  // catch-up import actually stages results rather than 0 games/stats.
+  if (stage === "preseason_training_camp" && fullScheduleAlreadyImported && profile === "offseason_roster_sync") {
+    profile = "weekly_competitive";
+  }
+
   if (profile === "season_start_schedule") {
     return {
       profile,
