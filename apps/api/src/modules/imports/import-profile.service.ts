@@ -29,7 +29,7 @@ const OFFSEASON_STAGES = new Set(["coach_hiring", "final_resigning", "free_agenc
 
 export type ResolvedImportProfile = {
   profile: ImportProfile;
-  importScope: "current_week" | "single_week" | "full_regular_season_schedule";
+  importScope: "current_week" | "single_week" | "full_regular_season_schedule" | "catch_up_auto";
   selectedEndpointKeys: CoreImportEndpoint[];
   selectedWeeks: number[] | null;
   weekFrom: number | null;
@@ -88,12 +88,21 @@ export async function resolveImportProfile(input: {
     profile = fullScheduleAlreadyImported ? "offseason_roster_sync" : "manual_review_only";
   }
 
-  // A training-camp league whose full schedule is already imported is effectively mid-season for
-  // import purposes: the commissioner is playing weeks even though REC hasn't advanced out of camp.
-  // Import game weeks (standings + weekly games/stats) instead of a roster-only sync, so a normal or
-  // catch-up import actually stages results rather than 0 games/stats.
-  if (stage === "preseason_training_camp" && fullScheduleAlreadyImported && profile === "offseason_roster_sync") {
-    profile = "weekly_competitive";
+  // A training-camp league whose full schedule is already imported is a catch-up: the commissioner
+  // has been playing weeks even though REC hasn't advanced out of camp. Auto-detect the in-game week
+  // from live standings and import every played week (the executor fills in the actual weeks), so the
+  // commissioner never has to know or pick the number.
+  if (stage === "preseason_training_camp" && fullScheduleAlreadyImported) {
+    return {
+      profile: "weekly_competitive",
+      importScope: "catch_up_auto",
+      selectedEndpointKeys: [...CORE_IMPORT_ENDPOINT_KEYS],
+      selectedWeeks: null,
+      weekFrom: 1,
+      weekTo: null,
+      reason: "Catch-up: auto-detect your in-game week from standings and import every played week.",
+      fullScheduleAlreadyImported
+    };
   }
 
   if (profile === "season_start_schedule") {

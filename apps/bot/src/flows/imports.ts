@@ -27,7 +27,7 @@ export type ImportDraft = {
   importJobId?: string;
   view?: ImportView;
   previousView?: ImportView;
-  weekScope?: "current_week" | "single_week" | "full_regular_season_schedule";
+  weekScope?: "current_week" | "single_week" | "full_regular_season_schedule" | "catch_up_auto";
   weekFrom?: number;
   weekTo?: number;
   selectedWeeks?: number[];
@@ -375,6 +375,7 @@ function selectedEndpointKeys(draft: ImportDraft) {
 }
 
 function selectedWeekSummary(draft: ImportDraft) {
+  if (draft.weekScope === "catch_up_auto") return "Auto-detect — every week you've played";
   if (draft.weekScope === "full_regular_season_schedule") return "Full regular season schedule (Weeks 1-18)";
   const weeks = draft.selectedWeeks?.length ? draft.selectedWeeks : [draft.weekFrom ?? 1];
   return summarizeWeeks(weeks);
@@ -433,6 +434,7 @@ function buildImportDraftSummary(draft: ImportDraft) {
   const endpoints = selectedEndpointKeys(draft);
   const endpointSummary = endpoints.length === CORE_IMPORT_ENDPOINTS.length ? "All core endpoints" : endpoints.join(", ");
   const from = Number(draft.weekFrom ?? draft.selectedWeeks?.[0] ?? 1) || 1;
+  const isAutoCatchUp = draft.weekScope === "catch_up_auto";
   const showsCatchUp = draft.weekScope === "single_week" && from >= 1 && from <= 21;
   return [
     `Mode: **${String(draft.importMode ?? "").replaceAll("_", " ")}**`,
@@ -442,9 +444,11 @@ function buildImportDraftSummary(draft: ImportDraft) {
     `Endpoints: **${endpointSummary}**`,
     draft.importProfileReason ? `Plan: ${draft.importProfileReason}` : undefined,
     "",
-    showsCatchUp
-      ? "**Caught up?** Leave the dropdown on the current week. **Behind?** Pick the last week you played in Madden — REC imports every week through it and advances the server to the following week in one pass. The dropdown spells out exactly which weeks import and where the server lands."
-      : "When you continue, REC will create the import job and stage the required endpoints for the selected week.",
+    isAutoCatchUp
+      ? "**Catch-up:** REC will read your league standings to detect your current in-game week and import **every week you've played** in one pass — there's no week to pick."
+      : showsCatchUp
+        ? "**Caught up?** Leave the dropdown on the current week. **Behind?** Pick the last week you played in Madden — REC imports every week through it and advances the server to the following week in one pass. The dropdown spells out exactly which weeks import and where the server lands."
+        : "When you continue, REC will create the import job and stage the required endpoints for the selected week.",
     showsCatchUp ? "⚠️ Imports and advances **cannot be undone** — confirm the week is correct before continuing." : undefined,
     "",
     "Then click **Preview Import** to stage the data."
@@ -836,6 +840,12 @@ export async function handleImportButton(interaction: ButtonInteraction) {
     try {
       const approved = await recApi.approveImportJob(importJobId);
       importSessions.delete(interaction.user.id);
+      // For an auto-detected catch-up import, prime the advance catch-up target to the detected
+      // in-game week so the next Advance Wizard run fast-forwards through every imported week.
+      const detectedThrough = Number((approved.job as any)?.week_to ?? (approved.job as any)?.weekTo);
+      if ((approved.job as any)?.import_scope === "catch_up_auto" && Number.isFinite(detectedThrough) && detectedThrough > 1) {
+        setCatchUpTargetFromPlayedWeek(interaction.user.id, 1, detectedThrough);
+      }
       const summary = previewSummary(approved.job);
       const counts = summary.committedCounts ?? {};
       await interaction.editReply(await buildPostImportPayloadWithConflictCheck(interaction.guildId ?? "", [

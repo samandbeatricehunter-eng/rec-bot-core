@@ -360,9 +360,36 @@ async function stageWeeklyStatsBundle(context: ExecutorContext) {
     return { session, gameCount, teamStatCount, playerStatCount, weeks };
   }
 
+  // Catch-up auto-detect: figure out how many weeks the franchise has actually played from the live
+  // standings (the furthest team's games played = the last completed week) and import every week up
+  // to it, so the commissioner never has to know or pick the number.
+  let weekList = context.weeks;
+  if (context.job.import_scope === "catch_up_auto") {
+    try {
+      const standings = await fetchEaStandings({ token: context.token, eaLeagueId: context.eaLeagueId, session });
+      session = standings.session;
+      const rows = extractArray(standings.data, ["teamStandingInfoList", "standingInfoList", "standings", "items"]) as Record<string, unknown>[];
+      let lastCompletedWeek = 1;
+      for (const row of rows) {
+        const played = toNumber((row as any).totalWins ?? (row as any).wins, 0)
+          + toNumber((row as any).totalLosses ?? (row as any).losses, 0)
+          + toNumber((row as any).totalTies ?? (row as any).ties, 0);
+        if (played > lastCompletedWeek) lastCompletedWeek = played;
+      }
+      lastCompletedWeek = Math.min(Math.max(lastCompletedWeek, 1), 18);
+      weekList = Array.from({ length: lastCompletedWeek }, (_, index) => index + 1);
+      await supabase.from("rec_import_jobs")
+        .update({ selected_weeks: weekList, week_from: 1, week_to: lastCompletedWeek, updated_at: new Date().toISOString() })
+        .eq("id", context.importJobId);
+      console.log("[IMPORT] catch_up_auto detected last completed week", { importJobId: context.importJobId, lastCompletedWeek });
+    } catch (error) {
+      console.error("[IMPORT] catch_up_auto detection failed; importing the requested weeks instead:", error);
+    }
+  }
+
   let weeklyToken = context.token;
   let reestablishCount = 0;
-  for (const week of context.weeks) {
+  for (const week of weekList) {
     weeks.push(week);
     let result = await fetchEaWeeklyStats({
       token: weeklyToken,

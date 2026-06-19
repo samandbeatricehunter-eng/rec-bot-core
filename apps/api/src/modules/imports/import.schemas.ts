@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const ImportModeSchema = z.enum(["manual", "ea_import", "companion_app_export"]);
 
-export const ImportScopeSchema = z.enum(["current_week", "single_week", "full_regular_season_schedule"]);
+export const ImportScopeSchema = z.enum(["current_week", "single_week", "full_regular_season_schedule", "catch_up_auto"]);
 
 export const ImportProfileSchema = z.enum([
   "season_start_schedule",
