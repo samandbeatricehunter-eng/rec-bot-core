@@ -63,7 +63,7 @@ Two separate Railway services, one per app.
 
 ### Register slash commands
 
-The bot registers global commands on startup, so each Railway deploy refreshes `/menu` automatically. If `DISCORD_GUILD_ID` is set, that guild is also refreshed for faster propagation during testing.
+The bot registers global commands before login and refreshes guild commands for every visible guild on startup, so each Railway deploy refreshes `/menu` automatically. If `DISCORD_GUILD_ID` is set, that guild is also refreshed before login for faster propagation during testing.
 
 ```bash
 # Manual refresh, if needed

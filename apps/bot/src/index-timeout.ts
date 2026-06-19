@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, Message, MessageFlags, ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
-import { registerApplicationCommands } from "./commands.js";
+import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
@@ -133,12 +133,37 @@ client.once("clientReady", async () => {
   } catch (error) {
     console.error("REC Core API health check failed", error);
   }
+  await registerCommandsForVisibleGuilds();
   startActiveCheckCloseoutLoop(client);
 });
 
 client.on("error", (error) => {
   console.error("Discord client error", error);
 });
+
+client.on("guildCreate", async (guild) => {
+  await registerGuildCommands(guild.id).catch((error) => {
+    console.error(`Failed to register commands for newly joined guild ${guild.id}`, error);
+  });
+});
+
+async function registerCommandsForVisibleGuilds() {
+  const guildIds = [...client.guilds.cache.keys()];
+  if (!guildIds.length) {
+    console.warn("No guilds were visible while refreshing guild commands.");
+    return;
+  }
+  let registered = 0;
+  for (const guildId of guildIds) {
+    try {
+      await registerGuildCommands(guildId);
+      registered += 1;
+    } catch (error) {
+      console.error(`Failed to register commands for guild ${guildId}`, error);
+    }
+  }
+  console.log(`Refreshed guild application commands for ${registered}/${guildIds.length} visible guilds.`);
+}
 
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
