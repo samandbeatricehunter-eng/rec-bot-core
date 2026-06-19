@@ -31,6 +31,8 @@ export const recApi = {
     recFetch<any>(`/v1/users/${discordId}/wallet/transfer`, { method: "POST", body: JSON.stringify({ amount, direction }) }),
   getUserSnapshot: (discordId: string, guildId: string) =>
     recFetch<any>(`/v1/users/${discordId}/snapshot?guildId=${guildId}`),
+  getUserSchedule: (discordId: string, guildId: string) =>
+    recFetch<any>(`/v1/users/${discordId}/schedule?guildId=${guildId}`),
   getCoaches: (guildId: string) =>
     recFetch<any>(`/v1/guilds/${guildId}/coaches`),
 

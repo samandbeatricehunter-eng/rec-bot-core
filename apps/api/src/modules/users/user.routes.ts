@@ -1,13 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { getUserBaselineByDiscordId, getUserMenuProfileByDiscordId, getWalletByDiscordId, transferSavings, getUserSnapshot } from "./user.service.js";
+import { getUserBaselineByDiscordId, getUserMenuProfileByDiscordId, getWalletByDiscordId, transferSavings, getUserSnapshot, getUserScheduleByDiscordId } from "./user.service.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 export async function userRoutes(app: FastifyInstance) {
   app.get("/v1/users/:discordId/baseline", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; return reply.send(await getUserBaselineByDiscordId(discordId)); } catch (error) { return sendError(reply, error); }});
   app.get("/v1/users/:discordId/wallet", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = (request.query ?? {}) as { guildId?: string }; return reply.send(await getWalletByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});
   app.get("/v1/users/:discordId/menu-profile", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = request.query as { guildId: string }; return reply.send(await getUserMenuProfileByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});
+  app.get("/v1/users/:discordId/schedule", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = request.query as { guildId: string }; return reply.send(await getUserScheduleByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});
   // Transfer between wallet and savings. direction: "to_savings" | "from_savings", amount: number (positive).
   app.post("/v1/users/:discordId/wallet/transfer", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { amount, direction } = request.body as { amount: number; direction: "to_savings" | "from_savings" }; return reply.send(await transferSavings(discordId, amount, direction)); } catch (error) { return sendError(reply, error); }});
   // Full user snapshot for the Rosters > User Snapshots paginated viewer.

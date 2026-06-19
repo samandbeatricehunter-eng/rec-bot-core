@@ -212,6 +212,140 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   };
 }
 
+function schedulePhaseOrder(phase?: string | null) {
+  const normalized = String(phase ?? "regular_season");
+  const order: Record<string, number> = {
+    regular_season: 0,
+    wild_card: 1,
+    divisional: 2,
+    conference_championship: 3,
+    super_bowl: 4
+  };
+  return order[normalized] ?? 9;
+}
+
+function teamName(row: any, side: "home" | "away") {
+  const team = side === "home" ? row.home_team : row.away_team;
+  return team?.name ?? team?.abbreviation ?? (side === "home" ? "Home" : "Away");
+}
+
+function matchupKey(row: any) {
+  return `match:${row.season_number ?? ""}:${row.week_number ?? ""}:${row.home_team_id ?? ""}:${row.away_team_id ?? ""}`;
+}
+
+export async function getUserScheduleByDiscordId(discordId: string, guildId: string) {
+  const context = await findCurrentLeagueContext(guildId);
+  const league: any = context?.rec_leagues ?? null;
+  if (!context?.leagueId || !league?.id) {
+    return { isLinked: false, league: null, team: null, games: [] };
+  }
+
+  const account = await supabase
+    .from("rec_discord_accounts")
+    .select("user_id,discord_id,username,global_name")
+    .eq("discord_id", discordId)
+    .maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to load Discord account", account.error);
+  if (!account.data?.user_id) {
+    return { isLinked: false, league, team: null, games: [] };
+  }
+
+  const assignment = await supabase
+    .from("rec_team_assignments")
+    .select("team_id,team:rec_teams(id,name,abbreviation)")
+    .eq("league_id", league.id)
+    .eq("user_id", account.data.user_id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (assignment.error) throw new ApiError(500, "Failed to load linked team", assignment.error);
+  const teamId = (assignment.data as any)?.team_id;
+  if (!teamId) {
+    return { isLinked: false, league, team: null, games: [] };
+  }
+
+  const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const [gamesResult, resultsResult] = await Promise.all([
+    supabase
+      .from("rec_games")
+      .select("id,external_game_id,season_number,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation)")
+      .eq("league_id", league.id)
+      .eq("season_number", seasonNumber)
+      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`),
+    supabase
+      .from("rec_game_results")
+      .select("id,game_id,external_game_id,season_number,week_number,game_type,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,winning_team_id,losing_team_id,is_user_h2h,is_cpu_game,is_playoff,home_team:rec_teams!rec_game_results_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_game_results_away_team_id_fkey(id,name,abbreviation)")
+      .eq("league_id", league.id)
+      .eq("season_number", seasonNumber)
+      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+  ]);
+
+  if (gamesResult.error) throw new ApiError(500, "Failed to load schedule", gamesResult.error);
+  if (resultsResult.error) throw new ApiError(500, "Failed to load schedule results", resultsResult.error);
+
+  const resultByGameId = new Map<string, any>();
+  const resultByExternalId = new Map<string, any>();
+  const resultByMatchup = new Map<string, any>();
+  for (const result of resultsResult.data ?? []) {
+    if (result.game_id) resultByGameId.set(String(result.game_id), result);
+    if (result.external_game_id) resultByExternalId.set(String(result.external_game_id), result);
+    resultByMatchup.set(matchupKey(result), result);
+  }
+
+  const rows = new Map<string, any>();
+  const consumedResultIds = new Set<string>();
+  for (const game of gamesResult.data ?? []) {
+    const key = `game:${game.id}`;
+    const result = resultByGameId.get(String(game.id))
+      ?? (game.external_game_id ? resultByExternalId.get(String(game.external_game_id)) : null)
+      ?? resultByMatchup.get(matchupKey(game));
+    if (result?.id) consumedResultIds.add(String(result.id));
+    rows.set(key, {
+      id: game.id,
+      weekNumber: game.week_number,
+      phase: result?.game_type ?? game.phase ?? "regular_season",
+      homeTeamId: game.home_team_id,
+      awayTeamId: game.away_team_id,
+      homeTeamName: teamName(result ?? game, "home"),
+      awayTeamName: teamName(result ?? game, "away"),
+      homeScore: result?.home_score ?? game.home_score ?? null,
+      awayScore: result?.away_score ?? game.away_score ?? null,
+      isCompleted: Boolean(result?.id) || String(game.status ?? "").toLowerCase() === "completed",
+      isH2h: result?.is_user_h2h ?? Boolean(game.home_user_id && game.away_user_id)
+    });
+  }
+
+  for (const result of resultsResult.data ?? []) {
+    if (consumedResultIds.has(String(result.id))) continue;
+    const key = result.game_id ? `game:${result.game_id}` : result.external_game_id ? `external:${result.external_game_id}` : matchupKey(result);
+    rows.set(key, {
+      id: result.game_id ?? result.id,
+      weekNumber: result.week_number,
+      phase: result.game_type ?? (result.is_playoff ? "postseason" : "regular_season"),
+      homeTeamId: result.home_team_id,
+      awayTeamId: result.away_team_id,
+      homeTeamName: teamName(result, "home"),
+      awayTeamName: teamName(result, "away"),
+      homeScore: result.home_score ?? null,
+      awayScore: result.away_score ?? null,
+      isCompleted: true,
+      isH2h: result.is_user_h2h ?? !result.is_cpu_game
+    });
+  }
+
+  const games = [...rows.values()].sort((a, b) =>
+    schedulePhaseOrder(a.phase) - schedulePhaseOrder(b.phase)
+    || Number(a.weekNumber ?? 0) - Number(b.weekNumber ?? 0)
+  );
+
+  return {
+    isLinked: true,
+    league,
+    team: (assignment.data as any)?.team ?? null,
+    games
+  };
+}
+
 function recordText(record: any) {
   return `${record?.wins ?? 0}-${record?.losses ?? 0}-${record?.ties ?? 0}`;
 }

@@ -20,6 +20,10 @@ export const MENU_CUSTOM_IDS = {
   mainSelect: "rec:menu:main_select",
   openTeams: "rec:menu:open_teams",
   schedule: "rec:menu:schedule",
+  scheduleSelectTeam: "rec:schedule:select_team",
+  scheduleSos: "rec:schedule:sos",
+  scheduleHistory: "rec:schedule:history",
+  scheduleBack: "rec:schedule:back",
   makePurchase: "rec:menu:make_purchase",
   viewUserProfiles: "rec:menu:view_user_profiles",
   stream: "rec:menu:stream",
@@ -681,6 +685,85 @@ export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC") {
       new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+export type TeamScheduleGame = {
+  weekNumber?: number | null;
+  phase?: string | null;
+  homeTeamId?: string | null;
+  awayTeamId?: string | null;
+  homeTeamName?: string | null;
+  awayTeamName?: string | null;
+  homeScore?: number | null;
+  awayScore?: number | null;
+  isCompleted?: boolean;
+  isH2h?: boolean;
+};
+
+function formatScheduleStage(phase?: string | null, weekNumber?: number | null) {
+  const normalized = String(phase ?? "regular_season");
+  if (normalized === "regular_season") return `Week ${weekNumber ?? "?"}`;
+  if (normalized === "wild_card") return "Wild Card";
+  if (normalized === "divisional") return "Divisional";
+  if (normalized === "conference_championship") return "Conference Championship";
+  if (normalized === "super_bowl") return "Super Bowl";
+  return normalized
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ") || `Week ${weekNumber ?? "?"}`;
+}
+
+function formatScheduleTeam(name?: string | null, lost?: boolean) {
+  const label = name?.trim() || "Team";
+  return lost ? `~~${label}~~` : label;
+}
+
+function formatScheduleLine(game: TeamScheduleGame) {
+  const completed = Boolean(game.isCompleted && game.homeScore != null && game.awayScore != null);
+  const homeLost = completed && Number(game.homeScore) < Number(game.awayScore);
+  const awayLost = completed && Number(game.awayScore) < Number(game.homeScore);
+  const away = formatScheduleTeam(game.awayTeamName, awayLost);
+  const home = formatScheduleTeam(game.homeTeamName, homeLost);
+  const suffix = completed ? `${game.awayScore}-${game.homeScore}` : (game.isH2h ? "H2H" : "CPU");
+  return `${formatScheduleStage(game.phase, game.weekNumber)}: ${away} VS ${home} (${suffix})`;
+}
+
+export function buildScheduleEmbed(input: {
+  leagueName?: string | null;
+  teamName?: string | null;
+  isLinked?: boolean;
+  games?: TeamScheduleGame[];
+}) {
+  const embed = new EmbedBuilder().setTitle(input.teamName ? `${input.teamName} Schedule` : "Schedule");
+
+  if (!input.isLinked) {
+    return embed.setDescription("You are not currently linked to a team. Please use the Select Team button below to view a teams schedule.");
+  }
+
+  const games = input.games ?? [];
+  const scheduleText = games.length
+    ? games.map(formatScheduleLine).join("\n")
+    : "No schedule has been logged for your team yet.";
+
+  return embed.setDescription([
+    scheduleText,
+    "",
+    "To view another teams schedule, please use the Select Team button below."
+  ].join("\n").slice(0, 4096));
+}
+
+export function buildScheduleRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSelectTeam).setLabel("Select Team").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSos).setLabel("SOS").setStyle(ButtonStyle.Primary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleHistory).setLabel("History").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
     )
   ];
 }

@@ -39,6 +39,7 @@ import {
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel, startImportMode } from "./flows/imports.js";
 import { buildCommissionerToolsEmbed, buildEosFunctionsEmbed, buildManageLeagueEmbed, buildServerLeagueSetupEmbed } from "./flows/commissioner-tools.js";
 import { handleByTeamNav, handleRosterTeamSelect, handleRostersMenuSelect, handleSnapshotPageNav, handleSnapshotUserSelect, handleTeamsPage, renderRostersMenu, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { renderScheduleMenu, renderSchedulePlaceholder } from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import { handleActivityRequirementsModal, handleCoachAbilitiesRestrictionModal, handleLeagueSetupSave, handleLeagueSetupSelect, handleSetupModal, leagueSetupSessions } from "./flows/league-setup.js";
 import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
@@ -291,7 +292,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderRostersMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.schedule) return replyMenuPlaceholder(interaction, "Schedule", "The league schedule view is coming soon. This will show matchups by league week for each team.");
+      if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSelectTeam) return renderSchedulePlaceholder(interaction, "Select Team", "Team schedule selection is coming soon. This will let you view any team's schedule.");
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return renderSchedulePlaceholder(interaction, "SOS", "Strength of schedule is coming soon.");
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleHistory) return renderSchedulePlaceholder(interaction, "History", "Schedule history is coming soon.");
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.transferFunds) return handleTransferFunds(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
