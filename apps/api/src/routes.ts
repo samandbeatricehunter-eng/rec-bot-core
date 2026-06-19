@@ -1,5 +1,9 @@
 import type { FastifyInstance } from "fastify";
+import { leagueWeekRoutes } from "./modules/league-week/league-week.routes.js";
+import { rosterRoutes } from "./modules/rosters/rosters.routes.js";
+import { serverConfigRoutes } from "./modules/server-config/server-config.routes.js";
 import { setupRoutes } from "./modules/setup/setup.routes.js";
+import { streamRoutes } from "./modules/streams/streams.routes.js";
 import { teamOwnershipRoutes } from "./modules/team-ownership/team-ownership.routes.js";
 import { userRoutes } from "./modules/users/user.routes.js";
 
@@ -9,4 +13,8 @@ export async function registerRoutes(app: FastifyInstance) {
   await userRoutes(app);
   await setupRoutes(app);
   await teamOwnershipRoutes(app);
+  await rosterRoutes(app);
+  await serverConfigRoutes(app);
+  await leagueWeekRoutes(app);
+  await streamRoutes(app);
 }

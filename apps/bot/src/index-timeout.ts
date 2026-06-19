@@ -7,14 +7,8 @@ import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import {
   buildAdminPanelEmbed,
   buildAdminPanelRows,
-  buildCommissionerToolsRows,
-  buildManageLeagueRows,
-  buildServerLeagueSetupRows,
   buildLeagueMenuEmbed,
   buildLeagueMenuRows,
-  buildMainMenuRows,
-  buildToSavingsModal,
-  buildFromSavingsModal,
   buildWalletTransferCustomModal,
   buildSetupDangerModal,
   buildDeleteLeagueWarningPayload,
@@ -22,7 +16,6 @@ import {
   MENU_CUSTOM_IDS,
   ROSTERS_CUSTOM_IDS,
   STREAM_CUSTOM_IDS,
-  REC_BANK_CUSTOM_IDS,
   MANAGE_WALLET_CUSTOM_IDS
 } from "./ui/menu.js";
 import { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel } from "./ui/server-setup-admin.js";
@@ -36,13 +29,11 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft,
 } from "./ui/league-setup.js";
-import { buildCommissionerToolsEmbed, buildManageLeagueEmbed, buildServerLeagueSetupEmbed } from "./flows/commissioner-tools.js";
 import { handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import { renderScheduleMenu, renderSchedulePlaceholder } from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import { handleActivityRequirementsModal, handleCoachAbilitiesRestrictionModal, handleLeagueSetupSave, handleLeagueSetupSelect, handleSetupModal, leagueSetupSessions } from "./flows/league-setup.js";
 import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
-import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal, handleCustomTeamNoLink, renderLeagueMgmtTeams, handleLeagueTeamsAddRemove, handleLeagueTeamsEdit, handleLeagueTeamsConferenceSelect, handleLeagueTeamsTeamSelect, handleLeagueTeamsEditConferenceSelect, handleLeagueTeamsEditTeamSelect, handleLeagueTeamsResetDefaults, handleLeagueTeamsConfirmBack, handleLeagueTeamsConfirmUnlink } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import {
@@ -53,9 +44,6 @@ import {
   handleWalletTransferDirection,
   handleWalletTransferOpen,
   handlePlaceWager,
-  handleRecBankSelect,
-  handleSavingsTransferModal,
-  handleTransferFunds,
   handleWalletMakePurchase,
   handleWalletPendingPurchases
 } from "./handlers/wallet.js";
@@ -188,26 +176,18 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       }
 
       if (interaction.customId === RULES_CUSTOM_IDS.select) return handleRulesSelect(interaction);
-      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.stageSelect) return interaction.showModal(buildLeagueWeekSetModal(interaction.values[0]));
-      if (interaction.customId === MENU_CUSTOM_IDS.mainSelect) return handleMainMenuSelect(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.adminSelect) return handleAdminPanelSelect(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.commissionerToolsSelect) return handleCommissionerToolsSelect(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.manageLeagueSelect) return handleManageLeagueSelect(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.serverLeagueSetupSelect) return handleServerLeagueSetupSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotConferenceSelect) return handleSnapshotConferenceSelect(interaction, buildMainMenuPayload);
       if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.snapshotTeamSelect}:`)) return handleSnapshotTeamSelect(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConferenceSelect) return handleLeagueTeamsConferenceSelect(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsTeamSelect}:`)) return handleLeagueTeamsTeamSelect(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsEditConferenceSelect) return handleLeagueTeamsEditConferenceSelect(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditTeamSelect}:`)) return handleLeagueTeamsEditTeamSelect(interaction);
-      if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction, buildMainMenuPayload);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any) || interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) return handleLeagueSetupSelect(interaction);
     }
 
     if (interaction.isButton()) {
-      if (interaction.customId === MENU_CUSTOM_IDS.adminServerSetup) return interaction.reply(buildServerSetupPanel());
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.clearAllLinks) return handleClearAllTeamLinks(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.customTeamNoLink) return handleCustomTeamNoLink(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsAddRemove) return handleLeagueTeamsAddRemove(interaction);
@@ -217,8 +197,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsEditBack) return renderLeagueMgmtTeams(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConfirmBack) return handleLeagueTeamsConfirmBack(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConfirmUnlink) return handleLeagueTeamsConfirmUnlink(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.adminLeagueSetup) return interaction.showModal(buildSetupDangerModal("league_setup"));
-      if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueCancel) return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
+      if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueCancel) return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
       if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueConfirm) {
         if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can delete league data.", flags: MessageFlags.Ephemeral });
         const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
@@ -226,12 +205,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         if (!leagueName) return interaction.reply({ content: "No league is set up for this server.", flags: MessageFlags.Ephemeral });
         return interaction.showModal(buildDeleteLeagueModal(leagueName));
       }
-      if (interaction.customId === MENU_CUSTOM_IDS.adminImports || interaction.customId === MENU_CUSTOM_IDS.adminImportEnterData) return renderUnavailableAdminFeature(interaction, "Schedule Imports");
-      if (interaction.customId === MENU_CUSTOM_IDS.adminRules) return interaction.update(buildRulesPanel());
-      if (interaction.customId === MENU_CUSTOM_IDS.adminActiveCheck) return renderUnavailableAdminFeature(interaction, "Active Check");
-      if (interaction.customId === MENU_CUSTOM_IDS.adminReselectGotw) return renderUnavailableAdminFeature(interaction, "Game of the Week");
-      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.view) return handleLeagueWeekView(interaction);
-      if (interaction.customId === LEAGUE_WEEK_CUSTOM_IDS.set) return interaction.reply({ content: "Choose the stage first.", components: [buildLeagueWeekStageRow()], ephemeral: true });
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsOpen) {
         const draft = leagueSetupSessions.get(interaction.user.id);
@@ -253,6 +226,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTeams) return handleLeagueMgmtTeams(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtServerSetup) return handleLeagueMgmtServerSetup(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSchedule) return handleLeagueMgmtSchedule(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvance) return handleLeagueMgmtAdvance(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSettings) return handleLeagueMgmtSettings(interaction);
@@ -269,7 +243,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return renderSchedulePlaceholder(interaction, "SOS", "Strength of schedule is coming soon.");
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleHistory) return renderSchedulePlaceholder(interaction, "History", "Schedule history is coming soon.");
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleBack) return renderMainMenuFromComponent(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.transferFunds) return handleTransferFunds(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "The purchase store is coming soon. It will only show purchase types enabled for this league.");
@@ -288,8 +261,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustom}:`)) return interaction.showModal(buildWalletTransferCustomModal(interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings"));
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transactions) return handleWalletTransactions(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.back) return renderMainMenuFromComponent(interaction);
-      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.toSavings) return interaction.showModal(buildToSavingsModal());
-      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.fromSavings) return interaction.showModal(buildFromSavingsModal());
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.pendingPurchases) return handleWalletPendingPurchases(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.makePurchase) return handleWalletMakePurchase(interaction);
     }
@@ -300,11 +271,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueModal) return handleDeleteLeagueModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.activityRequirementsModal) return handleActivityRequirementsModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionModal) return handleCoachAbilitiesRestrictionModal(interaction);
-      if (interaction.customId === REC_BANK_CUSTOM_IDS.toSavingsModal) return handleSavingsTransferModal(interaction, "to_savings");
-      if (interaction.customId === REC_BANK_CUSTOM_IDS.fromSavingsModal) return handleSavingsTransferModal(interaction, "from_savings");
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
-      if (interaction.customId.startsWith(`${LEAGUE_WEEK_CUSTOM_IDS.setModal}:`)) return handleLeagueWeekSetModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);
     }
   } catch (error) {
@@ -396,134 +364,18 @@ async function replyMenuPlaceholder(interaction: ButtonInteraction, title: strin
   });
 }
 
-async function renderUnavailableAdminFeature(interaction: ButtonInteraction, title: string) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can use this league management tool.", flags: MessageFlags.Ephemeral });
-  }
-  return interaction.update({
-    embeds: [new EmbedBuilder()
-      .setTitle(title)
-      .setDescription("This tool is temporarily unavailable while the advance/import tooling is being rebuilt.")],
-    components: buildAdminPanelRows()
-  });
-}
-
-
-async function handleMainMenuSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  const selected = interaction.values[0];
-  if (selected === "admin_panel") {
-    if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
-    return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
-  }
-  if (selected === "rosters") return renderUserSnapshotPicker(interaction);
-  // FUTURE: these four main-menu departments are connected shells (see docs/menu-map.md):
-  //   manage_franchise   -> coach self-service: my lineup/links, my contract+cap snapshot, my badges, purchases
-  //   standings_stats    -> league standings table + leaderboards (rec_season_user_records, weekly stats, power rankings)
-  //   rec_sports_network -> streams, highlights, POTW/GOTY galleries, award results
-  //   rules_faq          -> player-facing rule reader + command help (admin rules panel exists via buildRulesPanel)
-  const shells: Record<string, { title: string; blurb: string }> = {
-    manage_franchise: { title: "Manage My Franchise", blurb: "Your coach hub — your team and lineup, contracts and cap, badges, and the upgrade store will live here." },
-    standings_stats: { title: "Standings & Stats", blurb: "League standings, stat leaderboards, and power rankings will live here." },
-    rec_sports_network: { title: "REC Sports Network", blurb: "Streams, highlights, Player/Game of the Week galleries, and award results will live here." },
-    rules_faq: { title: "Rules / FAQ", blurb: "The league rulebook and answers to common questions will live here." }
-  };
-  const shell = shells[selected] ?? { title: "REC League HQ", blurb: "This department is coming soon." };
-  await interaction.update({ embeds: [new EmbedBuilder().setTitle(shell.title).setDescription(`${shell.blurb}\n\n**Coming soon** — use the menu below to head elsewhere.`).setFooter({ text: "REC Core" })], components: buildMainMenuRows(isDiscordAdminInteraction(interaction)) });
-}
-
-async function handleAdminPanelSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can use Admin Panel workflows.", flags: MessageFlags.Ephemeral });
-  }
-
-  const selected = interaction.values[0];
-
-  if (selected === "main_menu") return renderMainMenuFromSelect(interaction);
-  if (selected === "advance_wizard") {
-    return interaction.update({
-      embeds: [new EmbedBuilder().setTitle("Advance Wizard").setDescription("The Advance Wizard is temporarily unavailable while it is being rebuilt.")],
-      components: buildAdminPanelRows()
-    });
-  }
-  if (selected === "import_enter_data") {
-    return interaction.update({
-      embeds: [new EmbedBuilder().setTitle("Schedule Imports").setDescription("Schedule imports are temporarily unavailable while the import tooling is being rebuilt.")],
-      components: buildAdminPanelRows()
-    });
-  }
-  if (selected === "commissioner_tools") {
-    return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId ?? undefined)], components: buildCommissionerToolsRows() });
-  }
-
-  return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
-}
-
-// Commissioner Tools submenu router (Admin Panel -> Commissioner Tools).
-async function handleCommissionerToolsSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can use Commissioner Tools.", flags: MessageFlags.Ephemeral });
-  }
-  const selected = interaction.values[0];
-  if (selected === "admin_panel") return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
-  if (selected === "main_menu") return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
-  if (selected === "server_league_setup") return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
-  if (selected === "manage_league") {
-    return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
-  }
-  return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId)], components: buildCommissionerToolsRows() });
-}
-
-// Manage League submenu router (Commissioner Tools -> Manage League).
-async function handleManageLeagueSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can manage the league.", flags: MessageFlags.Ephemeral });
-  }
-  const selected = interaction.values[0];
-  if (selected === "commissioner_tools") {
-    return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId)], components: buildCommissionerToolsRows() });
-  }
-  if (selected === "active_check" || selected === "troubleshoot_advance" || selected === "eos_functions") {
-    const labels: Record<string, string> = {
-      active_check: "Active Check",
-      troubleshoot_advance: "Troubleshoot Advance",
-      eos_functions: "EOS Functions"
-    };
-    return interaction.update({
-      embeds: [new EmbedBuilder()
-        .setTitle(labels[selected] ?? "League Management")
-        .setDescription("This tool is temporarily unavailable while the advance/import tooling is being rebuilt.")],
-      components: buildManageLeagueRows()
-    });
-  }
-  if (selected === "user_team_linking") {
-    const { buildSimpleTeamLinkPanel } = await import("./ui/team-options.js");
-    return interaction.update(buildSimpleTeamLinkPanel());
-  }
-  if (selected === "edit_league_settings") {
-    if (!interaction.inCachedGuild()) return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
-    await interaction.deferUpdate();
-    await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading League Settings...").setDescription("Fetching current league configuration.")], components: [] });
-    try {
-      const result = await recApi.getLeagueConfig(interaction.guildId);
-      const draft = { ...result.draft, step: "settings_picker" as const, editMode: true };
-      leagueSetupSessions.set(interaction.user.id, draft as LeagueSetupDraft);
-      return interaction.editReply({ ...buildSettingsPickerWindow(draft as LeagueSetupDraft), components: buildSettingsPickerWindow(draft as LeagueSetupDraft).components });
-    } catch {
-      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription("No league configuration found. Run League Setup first.")], components: buildManageLeagueRows() });
-    }
-  }
-  return interaction.update({ embeds: [buildManageLeagueEmbed()], components: buildManageLeagueRows() });
-}
-
 async function handleLeagueMgmtTeams(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only authorized admins can manage league teams.", flags: MessageFlags.Ephemeral });
   }
   return renderLeagueMgmtTeams(interaction);
+}
+
+async function handleLeagueMgmtServerSetup(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can manage server setup.", flags: MessageFlags.Ephemeral });
+  }
+  return interaction.update(buildServerSetupPanel());
 }
 
 async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
@@ -595,28 +447,6 @@ async function handleLeagueMgmtDeleteLeague(interaction: ButtonInteraction) {
   return interaction.update(buildDeleteLeagueWarningPayload(leagueName));
 }
 
-async function handleServerLeagueSetupSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can use Server/League Setup.", flags: MessageFlags.Ephemeral });
-  }
-  const selected = interaction.values[0];
-  if (selected === "commissioner_tools") {
-    return interaction.update({ embeds: [await buildCommissionerToolsEmbed(interaction.guildId)], components: buildCommissionerToolsRows() });
-  }
-  if (selected === "server_setup") return interaction.update(buildServerSetupPanel());
-  if (selected === "league_setup") return interaction.showModal(buildSetupDangerModal("league_setup"));
-  if (selected === "delete_league") {
-    const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
-    const leagueName = week?.league?.name;
-    if (!leagueName) {
-      return interaction.update({ embeds: [new EmbedBuilder().setTitle("Delete League Data").setDescription("No league is set up for this server, so there is nothing to delete.")], components: buildServerLeagueSetupRows() });
-    }
-    return interaction.update(buildDeleteLeagueWarningPayload(leagueName));
-  }
-  return interaction.update({ embeds: [buildServerLeagueSetupEmbed()], components: buildServerLeagueSetupRows() });
-}
-
 async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
   if (!interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) {
@@ -634,19 +464,14 @@ async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
         "",
         "Run the League Setup Wizard to set up a new league for this server."
       ].join("\n"))],
-      components: buildServerLeagueSetupRows()
+      components: buildAdminPanelRows()
     });
   } catch (error) {
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Delete Failed").setColor(0xe74c3c).setDescription(error instanceof Error ? error.message : String(error))],
-      components: buildServerLeagueSetupRows()
+      components: buildAdminPanelRows()
     });
   }
-}
-
-async function renderMainMenuFromSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu()) return;
-  await interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
 }
 
 async function handleBackNavigation(interaction: Extract<Interaction, { isButton(): boolean }>) {
@@ -753,30 +578,6 @@ async function handleStreamReviewButton(interaction: any) {
   if (interaction.message?.editable) {
     await appendReviewActionToMessage(interaction, action === "approve" ? "Applied" : "Denied");
   }
-}
-
-async function handleLeagueWeekSetModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
-  if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can set league week.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const seasonStage = interaction.customId.split(":").at(-1) ?? "regular_season";
-  const weekNumber = Number(interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.weekInput));
-  const seasonRaw = interaction.fields.getTextInputValue(LEAGUE_WEEK_CUSTOM_IDS.seasonInput).trim();
-  const seasonNumber = seasonRaw ? Number(seasonRaw) : undefined;
-  const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage, seasonNumber });
-  await interaction.reply({
-    content: [`League week set to ${seasonStage} week ${weekNumber}.`, result.warning ? `Warning: ${result.warning}` : undefined].filter(Boolean).join("\n"),
-    flags: MessageFlags.Ephemeral
-  });
-}
-
-async function handleLeagueWeekView(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await recApi.viewLeagueWeek(interaction.guildId);
-  await interaction.editReply(`League: ${result.league?.name ?? "Unknown"}\nSeason: ${result.league?.season_number ?? "?"}\nWeek: ${result.league?.current_week ?? "?"}\nStage: ${result.league?.season_stage ?? result.league?.current_phase ?? "?"}`);
 }
 
 await registerApplicationCommands().catch((error) => {

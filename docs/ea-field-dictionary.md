@@ -1,11 +1,11 @@
 # EA Madden CFM Import — Field Dictionary
 
-Reference for the raw EA `careermode_get` export fields captured during import (see the
-raw-field capture in `apps/api/src/modules/imports/raw-field-dictionary.service.ts` and the
-live `/v1/imports/raw-field-dictionary` route). Every import stores the full raw payload in
-`raw_payload`; the import commit additionally merges canonical REC stat keys via
-`normalizeImportedStats`. Semantics below were validated against committed league data
-(2026-06-12).
+Reference for the raw EA `careermode_get` export fields captured during the archived import
+pipeline. The import API/module is currently removed while the platform trim is in progress;
+keep this as field-reference material for the future import rebuild. Every historical import
+stored the full raw payload in `raw_payload`; the import commit additionally merged canonical
+REC stat keys via `normalizeImportedStats`. Semantics below were validated against committed
+league data (2026-06-12).
 
 Each endpoint wraps its data array in an envelope: `success` (bool), `message` (string).
 

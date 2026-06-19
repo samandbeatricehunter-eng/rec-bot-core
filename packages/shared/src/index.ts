@@ -6,56 +6,36 @@ export const REC_API_ROUTES = {
   userBaseline: (discordId: string) => `/v1/users/${discordId}/baseline`,
   userWallet: (discordId: string) => `/v1/users/${discordId}/wallet`,
   menuProfile: (discordId: string, guildId: string) => `/v1/users/${discordId}/menu-profile?guildId=${encodeURIComponent(guildId)}`,
+  userSchedule: (discordId: string, guildId: string) => `/v1/users/${discordId}/schedule?guildId=${encodeURIComponent(guildId)}`,
+  userSnapshot: (discordId: string, guildId: string) => `/v1/users/${discordId}/snapshot?guildId=${encodeURIComponent(guildId)}`,
+  transferWallet: (discordId: string) => `/v1/users/${discordId}/wallet/transfer`,
 
   registerServer: "/v1/setup/server/register",
   createLeague: "/v1/setup/league/create",
+  getLeagueConfig: "/v1/setup/league/config",
+  updateLeagueConfig: "/v1/setup/league/config/update",
+  deleteLeague: "/v1/setup/league/delete",
   updateServerRoutes: "/v1/setup/server/routes",
 
   createDefaultTeams: "/v1/team-ownership/default-teams",
+  resetDefaultTeams: "/v1/team-ownership/reset-default-teams",
   linkedUsersTeams: (guildId: string) => `/v1/team-ownership/${guildId}/linked`,
   openTeams: (guildId: string) => `/v1/team-ownership/${guildId}/open-teams`,
   linkUserToTeam: "/v1/team-ownership/link-user-team",
   createCustomTeamReplacement: "/v1/team-ownership/custom-team-replacement",
+  unlinkAllTeams: "/v1/team-ownership/unlink-all",
+  unlinkTeam: "/v1/team-ownership/unlink-team",
 
-  createImportJob: "/v1/imports/create",
-  importJob: (jobId: string) => `/v1/imports/${jobId}`,
-  importMissingResults: (jobId: string) => `/v1/imports/${jobId}/missing-results`,
-  importStatus: (guildId: string) => `/v1/imports/guild/${guildId}/status`,
-  importHistory: (guildId: string) => `/v1/imports/guild/${guildId}/history`,
-  activeImport: (guildId: string) => `/v1/imports/guild/${guildId}/active`,
-  cancelActiveImport: "/v1/imports/guild/cancel-active",
-
-  eaAccountStatus: "/v1/imports/ea-account/status",
-  eaAccountConnect: "/v1/imports/ea-account/connect",
-  discoverEaFranchises: "/v1/imports/ea-franchise/discover",
-  eaFranchises: (guildId: string) => `/v1/imports/ea-franchise/${guildId}`,
-  selectEaFranchise: "/v1/imports/ea-franchise/select",
-
-  updateImportJobStatus: "/v1/imports/job/status",
-  updateImportEndpointAttempt: "/v1/imports/job/endpoint",
-  stageImportEndpoint: "/v1/imports/job/stage-endpoint",
-  executeImportJob: "/v1/imports/job/execute",
-  previewImportJob: "/v1/imports/job/preview",
-  approveImportJob: "/v1/imports/job/approve",
-  cancelImportJob: "/v1/imports/job/cancel",
-
-  requestMissingResultReimport: (gameId: string) => `/v1/imports/missing-results/${gameId}/reimport`,
-  manualMissingResultScore: (gameId: string) => `/v1/imports/missing-results/${gameId}/manual-score`,
-  ignoreMissingResult: (gameId: string) => `/v1/imports/missing-results/${gameId}/ignore`
+  serverConfigView: "/v1/economy/config/view",
+  serverConfigSet: "/v1/economy/config/set",
+  viewLeagueWeek: "/v1/league-week/view",
+  setLeagueWeek: "/v1/league-week/set",
+  recordStreamPost: "/v1/streams/post",
+  reviewStreamPayout: "/v1/streams/review",
+  leagueConferences: "/v1/rosters/conferences"
 } as const;
 
 export type RecTeamAuthority = "member" | "commissioner" | "co_commissioner";
-export type RecImportMode = "manual" | "ea_import" | "companion_app_export";
-export type RecImportStatus =
-  | "created"
-  | "queued"
-  | "running"
-  | "validating"
-  | "reconciling"
-  | "completed"
-  | "completed_with_warnings"
-  | "failed"
-  | "cancelled";
 
 export type RecWallet = { user_id: string; wallet_balance: number; savings_balance: number };
 export type RecGlobalRecord = {

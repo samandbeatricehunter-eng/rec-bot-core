@@ -1,70 +1,63 @@
-# Bot Menu Map & Unbuilt-Shells Inventory
+# Bot Menu Map & Rebuild Backlog
 
-Map of the `/menu` interaction tree and the shells that are wired but not yet built
-out. Status: **[built]** = working workflow · **[shell]** = connected placeholder
-("coming soon" / "built next"). Routing lives in `apps/bot/src/index-timeout.ts`;
-UI builders in `apps/bot/src/ui/`. Last reviewed 2026-06-18.
+Canonical runtime entry: `apps/bot/src/index-timeout.ts`. Current `/menu` UI is `buildLeagueMenuEmbed()` and `buildLeagueMenuRows()` in `apps/bot/src/ui/menu.ts`. Last reviewed 2026-06-19 after the platform trim.
 
-## Tree
+Status: **[built]** = working workflow, **[placeholder]** = intentionally visible but not built, **[deferred]** = removed from navigation until a rebuild slice restores it.
 
-```
-/menu  (buildMainMenuRows · handleMainMenuSelect)
-│
-├─ Row 1 buttons
-│  ├─ Transfer Funds                 [built]   (handlers/wallet.ts)
-│  ├─ Place a Wager                  [shell]   coming soon (handlers/wallet.ts)
-│  └─ Manage My Wallet               [built]
-│     ├─ Transfer to Savings         [built]
-│     ├─ Transfer from Savings       [built]
-│     ├─ Pending Purchases           [built]
-│     └─ Make a Purchase (store)     [shell]   coming soon (lives in Manage My Franchise)
-│
-├─ Row 2 department dropdown
-│  ├─ Rosters                        [built]   (buildRostersMenuRows)
-│  │  ├─ View Players by Team        [built]   (conference → team depth chart)  ← fixed 2026-06-18
-│  │  ├─ View Players by Position    [shell]   coming soon
-│  │  └─ View User Snapshots         [built]   (season/global stats, badges, awards, GOTW)
-│  ├─ Manage My Franchise            [shell]   department shell
-│  ├─ Standings & Stats              [shell]   department shell
-│  ├─ REC Sports Network             [shell]   department shell
-│  ├─ Rules / FAQ                    [shell]   department shell
-│  └─ Admin Panel (admins only)      [built]
-│     ├─ Advance Wizard              [built]   (guided weekly advance; catch-up; FS/FW)
-│     │  └─ Import (EA Companion)    [built]   · MCA URL export receiver [shell] (not configured)
-│     │  └─ Manual game entry        [shell]   Input Finals / Mark FS-FW disabled (needs matchup-entry API)
-│     └─ Commissioner Tools          [built]
-│        ├─ Manage League            [built]
-│        │  ├─ User / Team Linking   [built]   (buildSimpleTeamLinkPanel)
-│        │  ├─ Troubleshoot Advance  [built]   (GOTW / challenges / channels / DMs / week-stage / records)
-│        │  │  ├─ Re-Generate POTW   [shell]   coming soon
-│        │  │  └─ generic repair fallback [shell]
-│        │  ├─ EOS Functions         [built]   (Run EOS Polls & Awards, Issue EOS Payouts)
-│        │  ├─ Active Check          [built]
-│        │  └─ Edit League Settings  [built]   (settings picker)
-│        └─ Server / League Setup    [built]
-│           ├─ Server Setup          [built]
-│           ├─ League Setup Wizard   [built]
-│           └─ Delete League Data    [built]   ← added 2026-06-18
+## Current Tree
+
+```text
+/menu
+├─ Teams                              [built]
+│  ├─ NFC / AFC pages                 [built]
+│  └─ Request Team                    [placeholder]
+├─ Schedule                           [built partial]
+│  ├─ My schedule                     [built]
+│  ├─ Select Team                     [placeholder]
+│  ├─ SOS                             [placeholder]
+│  └─ History                         [placeholder]
+├─ Help/Rules                         [built]
+├─ My Wallet                          [built]
+│  ├─ Transfer                        [built]
+│  └─ Transactions                    [built]
+├─ Purchase                           [placeholder]
+├─ Wager                              [placeholder]
+├─ Stream                             [built]
+│  ├─ Public stream post              [built]
+│  └─ Discord Live payout review      [built]
+├─ Box Score & Scoring Summary        [placeholder]
+├─ User Profiles                      [built]
+└─ League Mgmt                        [built admin shell]
+   ├─ Teams                           [built]
+   ├─ Server Setup                    [built]
+   ├─ Schedule                        [placeholder: import tooling rebuild]
+   ├─ Advance                         [placeholder: Advance Wizard rebuild]
+   ├─ Settings                        [built]
+   ├─ First-Time Setup                [built]
+   ├─ Delete League                   [built]
+   ├─ Roles                           [placeholder]
+   └─ Back to Menu                    [built]
 ```
 
-## Unbuilt shells — inventory & intent
+## Deferred Rebuild Backlog
 
-| Shell | Where | Planned direction |
+| Area | Current state | Planned direction |
 |---|---|---|
-| **Manage My Franchise** | main dropdown | Coach self-service: my team & lineup, contracts/cap snapshot, my badges, upgrade store. |
-| **Standings & Stats** | main dropdown | Standings table + stat leaderboards + power rankings (uses `rec_season_user_records`, weekly stats). |
-| **REC Sports Network** | main dropdown | Streams, highlights, POTW/GOTY galleries, award results. |
-| **Rules / FAQ** | main dropdown | Player-facing rulebook reader + FAQ (admin rules panel already exists via `buildRulesPanel`). |
-| **View Players by Position** | Rosters | Position-group filtered player browser (data is ready: `position`/`overall_rating`/`scheme`). |
-| **Place a Wager** | Row-1 button | Wager coins on upcoming matchups; settle on advance from game results. |
-| **Make a Purchase (store)** | Manage My Wallet | Buy upgrades/management tools; ties into Manage My Franchise. |
-| **MCA URL receiver** | Advance Wizard → Import | Endpoint to receive & parse Madden Companion App exports (EA OAuth import is the working path). |
-| **Manual game entry** | Advance Wizard → Manual | Enter finals + FS/FW per matchup (needs the matchup-entry API wired). |
-| **Re-Generate POTW** | Troubleshoot Advance | Recompute Player of the Week. |
-| **Troubleshoot repair fallback** | Troubleshoot Advance | Generic shell for not-yet-wired repair items. |
+| Wager | Placeholder button. | Wager coins on upcoming matchups and settle from game results. |
+| Purchase / Store | Placeholder button and wallet copy. | Move into Manage My Franchise with purchase caps and enabled purchase types. |
+| Box score / scoring screenshots | Placeholder button. | Upload screenshots to log results, scoring details, payouts, and story generation. |
+| Team requests | Placeholder from Teams. | Let users request available teams for commissioner approval. |
+| Schedule subfeatures | Select Team, SOS, History placeholders. | Add any-team schedule view, strength of schedule, and historical schedule views. |
+| Advance Wizard | Admin placeholder. | Rebuild weekly advance, catch-up, FS/FW, POTW, GOTW, payouts, game channels, and DMs. |
+| Imports | Admin placeholder. | Rebuild EA/MCA/manual import tooling before exposing schedule management again. |
+| EOS / Awards / Active Check / Troubleshoot Advance | Removed from navigation. | Reintroduce one workflow at a time after the advance/import surface is stable. |
+| Standings & Stats | Removed legacy department shell. | League standings, stat leaderboards, and power rankings. |
+| Manage My Franchise | Removed legacy department shell. | Coach hub for team, lineup, contracts/cap, badges, and store. |
+| REC Sports Network | Removed legacy department shell. | Streams, highlights, GOTW/GOTY/POTY galleries, and award results. |
 
-## Cleanup notes
-- Done 2026-06-18: removed the dead `adminUserTeamLinking` stub (custom id + unreachable handler; the working flow is Manage League → User / Team Linking) and deleted the orphaned `apps/bot/src/ui/economy-admin.ts` (its panel was never rendered; Server Setup covers the Pending Payouts / Game Channels Category channels). `apps/bot/src/index.ts` was already gone. Runtime entry is `index-timeout.ts`.
+## Trim Notes
 
-## Consistency notes (theme)
-Standard lives in `menu-navigation-standard.md`. Conventions in use: select options carry a one-line `.setDescription` ending in a period; "Back to <parent>" for return options; slashes spaced ("Server / League Setup", "User / Team Linking", "Rules / FAQ"); shells say "coming soon" so users aren't surprised. Remaining gap: a few admin embeds predate the description convention.
+- Removed the legacy HQ dropdown (`buildMainMenuRows`) and orphaned Commissioner Tools select tree.
+- Removed orphaned UI modules for league week, EOS rows, weekly challenges, power rankings, score review IDs, and baseline import snapshots.
+- Kept small API compatibility routes for currently reachable flows: rosters/conferences, server route config, league week view/set, stream post/review.
+- No destructive table-drop migration was added; schema cleanup should wait until the rebuilt feature surface is stable.

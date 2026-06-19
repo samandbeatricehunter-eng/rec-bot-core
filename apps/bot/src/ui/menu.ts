@@ -17,7 +17,6 @@ import {
  * from these custom IDs through buttons, select menus, and modals.
  */
 export const MENU_CUSTOM_IDS = {
-  mainSelect: "rec:menu:main_select",
   openTeams: "rec:menu:open_teams",
   schedule: "rec:menu:schedule",
   scheduleSelectTeam: "rec:schedule:select_team",
@@ -35,18 +34,8 @@ export const MENU_CUSTOM_IDS = {
   requestTeam: "rec:teams:request",
   teamsBack: "rec:teams:back",
   teamsPage: "rec:teams:page",
-  adminSelect: "rec:admin:select",
-  adminServerSetup: "rec:admin:server_setup",
-  adminLeagueSetup: "rec:admin:league_setup",
-  adminImportEnterData: "rec:admin:import_enter_data",
-  adminImports: "rec:admin:imports",
-  adminAdvanceMenu: "rec:admin:advance_menu",
-  adminWeeklyChallenges: "rec:admin:weekly_challenges",
-  adminLeagueWeek: "rec:admin:league_week",
-  adminActiveCheck: "rec:admin:active_check",
-  adminRules: "rec:admin:rules",
-  adminReselectGotw: "rec:admin:reselect_gotw",
   leagueMgmtTeams: "rec:league_mgmt:teams",
+  leagueMgmtServerSetup: "rec:league_mgmt:server_setup",
   leagueMgmtSchedule: "rec:league_mgmt:schedule",
   leagueMgmtAdvance: "rec:league_mgmt:advance",
   leagueMgmtSettings: "rec:league_mgmt:settings",
@@ -54,10 +43,6 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtDeleteLeague: "rec:league_mgmt:delete_league",
   leagueMgmtRoles: "rec:league_mgmt:roles",
   leagueMgmtBack: "rec:league_mgmt:back",
-  commissionerToolsSelect: "rec:admin:commissioner_tools_select",
-  manageLeagueSelect: "rec:admin:manage_league_select",
-  serverLeagueSetupSelect: "rec:admin:server_league_setup_select",
-  eosFunctionsSelect: "rec:admin:eos_functions_select",
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input",
@@ -65,8 +50,6 @@ export const MENU_CUSTOM_IDS = {
   deleteLeagueCancel: "rec:admin:delete_league_cancel",
   deleteLeagueModal: "rec:admin:delete_league_modal",
   deleteLeagueNameInput: "rec:admin:delete_league_name_input",
-  // Main-menu Row 1 buttons
-  transferFunds: "rec:menu:transfer_funds",
   placeWager: "rec:menu:place_wager",
   manageWallet: "rec:menu:manage_wallet"
 } as const;
@@ -102,184 +85,7 @@ export const ROSTERS_CUSTOM_IDS = {
   snapshotTeamSelect: "rec:profiles:team_select"
 } as const;
 
-// Custom IDs for the REC Bank dropdown
-export const REC_BANK_CUSTOM_IDS = {
-  select: "rec:bank:select",
-  // Modals for savings transfers
-  toSavingsModal: "rec:bank:to_savings_modal",
-  fromSavingsModal: "rec:bank:from_savings_modal",
-  toSavingsAmountInput: "rec:bank:to_savings_amount",
-  fromSavingsAmountInput: "rec:bank:from_savings_amount"
-} as const;
-
 export type SetupDangerAction = "server_setup" | "league_setup";
-
-function formatRoleLabel(role?: string | null) {
-  if (role === "commissioner") return "Commissioner";
-  if (role === "co_commissioner" || role === "comp_committee") return "Comp Committee";
-  if (role === "member" || role === "approved_member") return "Approved Member";
-  return "None";
-}
-
-
-function formatChallenge(challenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null) {
-  if (!challenge) return "Not generated yet";
-  return [`S: ${challenge.s_tier_goal ?? "Not set"} ($50)`, `A: ${challenge.a_tier_goal ?? "Not set"} ($25)`, `B: ${challenge.b_tier_goal ?? "Win the game"} ($10)`].join("\n");
-}
-
-// Shows the 3 most recently earned badges; the full list lives in User Profiles.
-function formatBadgePreview(badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>) {
-  if (!badges?.length) return "None yet — view all via User Profiles";
-  const preview = badges.slice(0, 3).map((badge) => {
-    const name = badge.name ?? badge.badge_name ?? badge.label ?? "Badge";
-    return badge.tier ? `${name} (${badge.tier})` : name;
-  });
-  const suffix = badges.length > 3 ? `\n+${badges.length - 3} more — view all via User Profiles` : "";
-  return preview.join("\n") + suffix;
-}
-
-// Lists up to the 10 most recently earned badges. NOTE: Discord embeds have no hover tooltips, so
-// each badge shows name + tier inline; richer descriptions would need a badge catalog lookup.
-function formatTop10Badges(badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>) {
-  if (!badges?.length) return "No badges earned yet.";
-  return badges
-    .slice(0, 10)
-    .map((badge, i) => {
-      const name = badge.label ?? badge.name ?? badge.badge_name ?? "Badge";
-      return `${i + 1}. ${name}${badge.tier ? ` (${badge.tier})` : ""}`;
-    })
-    .join("\n");
-}
-
-const MENU_GUIDE_LINES = [
-  "**User Profiles** — View user profiles for league members.",
-  "**Manage My Franchise** — View & manage your roster, purchase upgrades and utilize management tools.",
-  "**Standings & Stats** — View League Standings, current and career stats and other league details.",
-  "**REC Sports Network** — View GOTW, GOTY & POTY (Play of the Year) nominations & records.",
-  "**Rules/FAQ** — View league rules & find answers to any frequently asked questions."
-];
-
-const ZERO_WIDTH = "​";
-
-export function buildMainMenuEmbed(input: {
-  discordUsername?: string;
-  teamName?: string | null;
-  highestRole?: string | null;
-  wallet?: number;
-  savings?: number;
-  projectedInterest?: number;
-  leagueName?: string;
-  seasonNumber?: number | string | null;
-  currentWeek?: number | string | null;
-  seasonStage?: string | null;
-  leagueSeasonRecordText?: string;
-  leagueSeasonPointDifferential?: number;
-  currentMatchupText?: string;
-  youAreText?: string;
-  matchupType?: string;
-  opponentName?: string | null;
-  opponentRecordText?: string;
-  opponentPointDifferential?: number;
-  opponentStreakText?: string;
-  userStreakText?: string;
-  gotwStatus?: string;
-  gotwH2hRecordText?: string;
-  gotwVotingRecordText?: string;
-  offensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
-  defensiveChallenge?: { s_tier_goal?: string; a_tier_goal?: string; b_tier_goal?: string } | null;
-  globalRecordText?: string;
-  globalPlayoffText?: string;
-  globalSuperbowlText?: string;
-  globalPointDifferential?: number;
-  badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>;
-  isAdmin: boolean;
-}) {
-  const userInfo = [
-    `User: ${input.discordUsername ?? "Unlinked User"}`,
-    `Wallet: $${input.wallet ?? 0}`,
-    `Savings: $${input.savings ?? 0}`,
-    `Proj. Interest: $${input.projectedInterest ?? 0}`,
-    `Role: ${formatRoleLabel(input.highestRole)}`
-  ].join("\n");
-
-  const globalInfo = [
-    `Global Record: ${input.globalRecordText ?? "0-0-0"}`,
-    `Global Playoffs: ${input.globalPlayoffText ?? "0-0"}`,
-    `Global Super Bowls: ${input.globalSuperbowlText ?? "0-0"}`,
-    `Global Point Differential: ${input.globalPointDifferential ?? 0}`
-  ].join("\n");
-
-  const leagueInfo = [
-    `Team: ${input.teamName ?? "None"}`,
-    `Season ${input.seasonNumber ?? "?"}, Week ${input.currentWeek ?? "?"}`,
-    `Game of the Week: ${input.gotwStatus ?? "No"}`,
-    `GOTW H2H Record: ${input.gotwH2hRecordText ?? "No GOTW games yet"}`,
-    `GOTW Voting Record: ${input.gotwVotingRecordText ?? "No votes yet"}`,
-    `Season Record: ${input.leagueSeasonRecordText ?? "0-0-0"}`,
-    `Point Differential: ${input.leagueSeasonPointDifferential ?? 0}`,
-    `Streak: ${input.userStreakText ?? "—"}`
-  ].join("\n");
-
-  const matchupInfo = [
-    `You're: ${input.youAreText ?? "BYE WEEK"}`,
-    `Type: ${input.matchupType ?? "NONE"}`,
-    `Opponent: ${input.opponentName ?? "None"}`,
-    `Opponent Record: ${input.opponentRecordText ?? "—"}`,
-    `Point Differential: ${input.opponentPointDifferential ?? 0}`,
-    `Streak: ${input.opponentStreakText ?? "—"}`
-  ].join("\n");
-
-  const spacer = { name: ZERO_WIDTH, value: ZERO_WIDTH, inline: true };
-
-  return new EmbedBuilder()
-    .setTitle(input.leagueName ? `${input.leagueName} — HQ` : "REC League HQ")
-    .addFields(
-      { name: "👤 User Info", value: userInfo.slice(0, 1024), inline: true },
-      { name: "🌎 Global Info", value: globalInfo.slice(0, 1024), inline: true },
-      spacer,
-      { name: "🏟️ League Info", value: leagueInfo.slice(0, 1024), inline: true },
-      { name: "📅 Matchup Info", value: matchupInfo.slice(0, 1024), inline: true },
-      spacer,
-      { name: "🏈 Matchup Challenge · Offense", value: formatChallenge(input.offensiveChallenge).slice(0, 1024), inline: true },
-      { name: "🛡️ Matchup Challenge · Defense", value: formatChallenge(input.defensiveChallenge).slice(0, 1024), inline: true },
-      spacer,
-      { name: "🏅 Top 10 Badges", value: formatTop10Badges(input.badges).slice(0, 1024), inline: false },
-      { name: "📖 Menu Guide", value: MENU_GUIDE_LINES.join("\n").slice(0, 1024), inline: false }
-    )
-    .setFooter({ text: "Use the buttons below to move funds, place a wager, or manage your transactions." });
-}
-
-export function buildMainMenuRows(isAdmin: boolean) {
-  // Row 1: wallet/wager action buttons (replace the former REC Bank top-level entry).
-  const buttonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.transferFunds).setLabel("Transfer Funds").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Place a Wager").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("Manage My Wallet").setStyle(ButtonStyle.Secondary)
-  );
-
-  // Row 2: department selector.
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(MENU_CUSTOM_IDS.mainSelect)
-    .setPlaceholder("Select a REC department")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("User Profiles").setValue("rosters").setDescription("View league member profiles."),
-      new StringSelectMenuOptionBuilder().setLabel("Manage My Franchise").setValue("manage_franchise").setDescription("Your team, lineup, contracts, badges, and store (coming soon)."),
-      new StringSelectMenuOptionBuilder().setLabel("Standings & Stats").setValue("standings_stats").setDescription("League standings, leaderboards, and power rankings (coming soon)."),
-      new StringSelectMenuOptionBuilder().setLabel("REC Sports Network").setValue("rec_sports_network").setDescription("Streams, highlights, and award showcases (coming soon)."),
-      new StringSelectMenuOptionBuilder().setLabel("Rules / FAQ").setValue("rules_faq").setDescription("League rules and frequently asked questions (coming soon).")
-    );
-
-  if (isAdmin) {
-    select.addOptions(
-      new StringSelectMenuOptionBuilder()
-        .setLabel("Admin Panel")
-        .setValue("admin_panel")
-        .setDescription("Commissioner setup, imports, links, and audit tools.")
-    );
-  }
-
-  return [buttonRow, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
-}
 
 function formatLeagueStage(value?: string | null) {
   const stage = String(value ?? "regular_season");
@@ -391,9 +197,10 @@ export function buildAdminPanelEmbed() {
       "From this menu, you can manage your league in a variety of ways.",
       "",
       "**Teams** - Add/Remove users and teams (custom/relocated) from the league.",
-      "**Schedule** - Submit schedule screenshots, box scores, award races, summaries, etc. for the league.",
-      "**Advance** - Advance the current league week/stage to the next using the Advance Wizard.",
-      "**Settings** - Change league settings, repair issues within the league such as automated features not triggering, etc.",
+      "**Server Setup** - Assign Discord channels/categories used by bot features.",
+      "**Schedule** - Temporarily unavailable while import tooling is rebuilt.",
+      "**Advance** - Temporarily unavailable while the Advance Wizard is rebuilt.",
+      "**Settings** - Change league settings from the League Setup wizard.",
       "**First-Time Setup** - Wizard for setting up your league for the first time. **WARNING** This will clear ALL league data if ran more than once.",
       "**Delete League** - This will delete all league data for this server. Use this when your league is done and/or you're starting a new league in the same server.",
       "**Roles** - Change users assigned roles to one of the three designated server roles."
@@ -404,6 +211,7 @@ export function buildAdminPanelRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtServerSetup).setLabel("Server Setup").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -419,51 +227,6 @@ export function buildAdminPanelRows() {
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
     )
   ];
-}
-
-// Commissioner Tools submenu (Admin Panel -> Commissioner Tools).
-export function buildCommissionerToolsRows() {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(MENU_CUSTOM_IDS.commissionerToolsSelect)
-    .setPlaceholder("Select a commissioner tool")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Manage League").setValue("manage_league").setDescription("Active checks, rules, user/team linking, and league settings."),
-      new StringSelectMenuOptionBuilder().setLabel("Server / League Setup").setValue("server_league_setup").setDescription("Channel links, first-time setup, and setup tools."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Admin Panel").setValue("admin_panel")
-    );
-
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
-}
-
-// Manage League submenu (Commissioner Tools -> Manage League).
-export function buildManageLeagueRows() {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(MENU_CUSTOM_IDS.manageLeagueSelect)
-    .setPlaceholder("Select a league management tool")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("User / Team Linking").setValue("user_team_linking").setDescription("Link Discord users to Madden teams."),
-      new StringSelectMenuOptionBuilder().setLabel("Troubleshoot Advance").setValue("troubleshoot_advance").setDescription("Repair failed advance steps, GOTW, channels, DMs, and records."),
-      new StringSelectMenuOptionBuilder().setLabel("EOS Functions").setValue("eos_functions").setDescription("Run EOS polls, awards, and payout actions."),
-      new StringSelectMenuOptionBuilder().setLabel("Active Check").setValue("active_check").setDescription("Post a 24-hour activity confirmation check."),
-      new StringSelectMenuOptionBuilder().setLabel("Edit League Settings").setValue("edit_league_settings").setDescription("Edit league settings and rules."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Commissioner Tools").setValue("commissioner_tools")
-    );
-
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
-}
-
-export function buildServerLeagueSetupRows() {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(MENU_CUSTOM_IDS.serverLeagueSetupSelect)
-    .setPlaceholder("Select a setup workflow")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Server Setup").setValue("server_setup").setDescription("Assign channels/categories used by bot features."),
-      new StringSelectMenuOptionBuilder().setLabel("League Setup Wizard").setValue("league_setup").setDescription("Create/update league setup through the full wizard."),
-      new StringSelectMenuOptionBuilder().setLabel("Delete League Data").setValue("delete_league").setDescription("Permanently erase this league's data and user links."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Commissioner Tools").setValue("commissioner_tools")
-    );
-
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
 }
 
 // Step 1 of league deletion: a warning embed naming the league and what is erased, with a red
@@ -509,19 +272,6 @@ export function buildDeleteLeagueModal(leagueName: string) {
           .setPlaceholder(leagueName.slice(0, 100))
       )
     );
-}
-
-export function buildEosFunctionsRows() {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(MENU_CUSTOM_IDS.eosFunctionsSelect)
-    .setPlaceholder("Select an EOS function")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Run EOS Polls & Awards").setValue("run_eos_polls_and_awards").setDescription("Post community polls and REC Awards voting."),
-      new StringSelectMenuOptionBuilder().setLabel("Issue EOS Payouts").setValue("issue_eos_payouts").setDescription("Issue end-of-season payouts."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Manage League").setValue("manage_league")
-    );
-
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
 }
 
 /**
@@ -798,18 +548,6 @@ export function buildSnapshotTeamSelectRows(rawConferences: RosterConference[], 
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
 }
 
-export function buildRecBankRows() {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(REC_BANK_CUSTOM_IDS.select)
-    .setPlaceholder("Choose a bank action")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Transfer to Savings").setValue("to_savings").setDescription("Move funds from your wallet into savings"),
-      new StringSelectMenuOptionBuilder().setLabel("Transfer from Savings").setValue("from_savings").setDescription("Move funds from savings back to your wallet"),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("bank_back")
-    );
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
-}
-
 // ── Manage My Wallet rows ──────────────────────────────────────────────────────
 
 // Two button rows: savings transfers, then pending purchases + make a purchase.
@@ -905,26 +643,4 @@ export function buildStreamLinkModal(service: string) {
           .setPlaceholder("https://...")
       )
     );
-}
-
-// ── Savings transfer modals ───────────────────────────────────────────────────
-
-export function buildToSavingsModal() {
-  const modal = new ModalBuilder().setCustomId(REC_BANK_CUSTOM_IDS.toSavingsModal).setTitle("Transfer to Savings");
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder().setCustomId(REC_BANK_CUSTOM_IDS.toSavingsAmountInput).setLabel("Amount to move to savings").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 50")
-    )
-  );
-  return modal;
-}
-
-export function buildFromSavingsModal() {
-  const modal = new ModalBuilder().setCustomId(REC_BANK_CUSTOM_IDS.fromSavingsModal).setTitle("Transfer from Savings");
-  modal.addComponents(
-    new ActionRowBuilder<TextInputBuilder>().addComponents(
-      new TextInputBuilder().setCustomId(REC_BANK_CUSTOM_IDS.fromSavingsAmountInput).setLabel("Amount to withdraw from savings").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("e.g. 50")
-    )
-  );
-  return modal;
 }
