@@ -7,8 +7,13 @@ import { buildNavigationRow } from "../ui/navigation.js";
 import {
   buildAuthoritySelectRow,
   buildConferenceSelectRow,
+  buildLeagueMgmtTeamsPanel,
+  buildLeagueTeamsConferencePanel,
+  buildLeagueTeamsTeamSelectPanel,
+  buildLeagueTeamsUnlinkConfirmPanel,
   buildTeamLinkHomeRows,
   buildOpenTeamSelectRow,
+  buildUserSelectionPanel,
   buildUserSelectRows,
   getTeamLinkUserPageInfo,
   TEAM_LINK_CUSTOM_IDS,
@@ -28,8 +33,19 @@ export const simpleTeamLinkSessions = new Map<string, {
   teamId: string;
   teamAbbr: string;
   teamName: string;
+  conference?: "AFC" | "NFC";
   selectedUserId?: string;
 }>();
+
+type LeagueTeamsPendingUnlink = {
+  guildId: string;
+  conference: "AFC" | "NFC";
+  teamId: string;
+  teamName: string;
+  discordId: string;
+};
+
+const leagueTeamsPendingUnlinks = new Map<string, LeagueTeamsPendingUnlink>();
 
 export const customTeamPendingSessions = new Map<string, {
   guildId: string;
@@ -124,6 +140,54 @@ async function getEligibleGuildUsers(interaction: ButtonInteraction | StringSele
 
   const guildUsers = await getCachedGuildUsers(interaction);
   return guildUsers.filter((user) => !linkedDiscordIds.has(user.discordId));
+}
+
+async function loadLeagueConferences(guildId: string) {
+  let confData = await recApi.getLeagueConferences(guildId).catch(() => null);
+  let conferences = confData?.conferences ?? [];
+  const hasTeams = conferences.some((conf: any) => (conf.divisions ?? []).some((division: any) => (division.teams ?? []).length));
+  if (!hasTeams) {
+    await recApi.createDefaultTeams(guildId).catch(() => null);
+    confData = await recApi.getLeagueConferences(guildId).catch(() => null);
+    conferences = confData?.conferences ?? [];
+  }
+  return conferences;
+}
+
+function findConferenceTeam(conferences: any[], conferenceName: string, teamId: string) {
+  const conference = conferences.find((conf: any) => conf.conference === conferenceName);
+  for (const division of conference?.divisions ?? []) {
+    const team = (division.teams ?? []).find((row: any) => String(row.id) === String(teamId));
+    if (team) return { ...team, divisionLabel: division.label ?? division.division ?? "Teams" };
+  }
+  return null;
+}
+
+async function clearLinkedMemberState(interaction: ButtonInteraction | StringSelectMenuInteraction, discordId: string) {
+  if (!interaction.inCachedGuild()) return;
+  const guildMember = await interaction.guild.members.fetch(discordId).catch(() => null);
+  if (!guildMember) return;
+  await guildMember.setNickname(null).catch(() => undefined);
+  const allRoles = await interaction.guild.roles.fetch();
+  for (const roleName of ["REC League Commissioner", "REC League Comp. Committee", "REC League Member"]) {
+    const role = allRoles.find((row) => row.name === roleName);
+    if (role && guildMember.roles.cache.has(role.id)) {
+      await guildMember.roles.remove(role.id).catch(() => undefined);
+    }
+  }
+}
+
+async function renderLeagueTeamsConferenceSelect(interaction: ButtonInteraction | StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  return interaction.editReply(buildLeagueTeamsConferencePanel(conferences));
+}
+
+async function renderLeagueTeamsTeamSelect(interaction: ButtonInteraction | StringSelectMenuInteraction, conference: "AFC" | "NFC") {
+  if (!interaction.inCachedGuild()) return;
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  return interaction.editReply(buildLeagueTeamsTeamSelectPanel(conferences, conference));
 }
 
 async function renderUserSelection(interaction: ButtonInteraction | StringSelectMenuInteraction, page = 0) {
@@ -418,6 +482,131 @@ export async function startSimpleTeamLink(interaction: Extract<Interaction, { is
   await interaction.update(buildSimpleTeamLinkPanel());
 }
 
+export async function renderLeagueMgmtTeams(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can manage teams.", ephemeral: true });
+    return;
+  }
+  leagueTeamsPendingUnlinks.delete(interaction.user.id);
+  await interaction.update(buildLeagueMgmtTeamsPanel());
+}
+
+export async function handleLeagueTeamsAddRemove(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can add/remove users.", ephemeral: true });
+    return;
+  }
+  return renderLeagueTeamsConferenceSelect(interaction);
+}
+
+export async function handleLeagueTeamsEdit(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
+    return;
+  }
+  customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, linkUser: false });
+  await interaction.showModal((await import("../ui/team-options.js")).buildCustomTeamModal());
+}
+
+export async function handleLeagueTeamsConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can manage teams.", ephemeral: true });
+    return;
+  }
+  const selected = interaction.values[0];
+  if (selected === "back_to_teams") {
+    return interaction.update(buildLeagueMgmtTeamsPanel());
+  }
+  await interaction.deferUpdate();
+  return renderLeagueTeamsTeamSelect(interaction, selected as "AFC" | "NFC");
+}
+
+export async function handleLeagueTeamsTeamSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can manage teams.", ephemeral: true });
+    return;
+  }
+
+  const conference = interaction.customId.split(":").pop() as "AFC" | "NFC";
+  const selected = interaction.values[0];
+  if (selected === "back_to_conferences") {
+    return renderLeagueTeamsConferenceSelect(interaction);
+  }
+
+  await interaction.deferUpdate();
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  const team = findConferenceTeam(conferences, conference, selected);
+  if (!team) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Team Not Found").setDescription("That team could not be found. Please go back and try again.")], components: buildLeagueMgmtTeamsPanel().components });
+  }
+
+  if (team.linkedDiscordId) {
+    leagueTeamsPendingUnlinks.set(interaction.user.id, {
+      guildId: interaction.guildId,
+      conference,
+      teamId: team.id,
+      teamName: team.name ?? team.abbreviation ?? "Team",
+      discordId: team.linkedDiscordId
+    });
+    return interaction.editReply(buildLeagueTeamsUnlinkConfirmPanel(team.name ?? team.abbreviation ?? "Team", team.linkedDiscordId));
+  }
+
+  const users = (await getCachedGuildUsers(interaction)).map((user) => ({ label: user.label, discordId: user.discordId }));
+  simpleTeamLinkSessions.set(interaction.user.id, {
+    guildId: interaction.guildId,
+    teamId: team.id,
+    teamAbbr: team.abbreviation ?? team.name ?? "TEAM",
+    teamName: team.name ?? team.abbreviation ?? "Team",
+    conference
+  });
+  return interaction.editReply(buildUserSelectionPanel(team.name ?? team.abbreviation ?? "Team", users, 0));
+}
+
+export async function handleLeagueTeamsConfirmBack(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  const pending = leagueTeamsPendingUnlinks.get(interaction.user.id);
+  if (!pending) return interaction.update(buildLeagueMgmtTeamsPanel());
+  leagueTeamsPendingUnlinks.delete(interaction.user.id);
+  await interaction.deferUpdate();
+  return renderLeagueTeamsTeamSelect(interaction, pending.conference);
+}
+
+export async function handleLeagueTeamsConfirmUnlink(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can unlink users.", ephemeral: true });
+    return;
+  }
+  const pending = leagueTeamsPendingUnlinks.get(interaction.user.id);
+  if (!pending) return interaction.update(buildLeagueMgmtTeamsPanel());
+
+  await interaction.deferUpdate();
+  try {
+    await recApi.unlinkTeam({ guildId: interaction.guildId, teamId: pending.teamId, requestedByDiscordId: interaction.user.id });
+    await clearLinkedMemberState(interaction, pending.discordId);
+    clearTeamLinkGuildUserCache(interaction.guildId);
+    leagueTeamsPendingUnlinks.delete(interaction.user.id);
+    await interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("User Unlinked")
+          .setDescription(`<@${pending.discordId}> has been unlinked from **${pending.teamName}**.`)
+      ],
+      components: buildLeagueMgmtTeamsPanel().components
+    });
+  } catch (error) {
+    await interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Unlink Failed").setDescription(error instanceof Error ? error.message : String(error))],
+      components: buildLeagueMgmtTeamsPanel().components
+    });
+  }
+}
+
 export async function handleSimpleTeamLinkSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
   if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
 
@@ -675,7 +864,7 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
 
     const roleText = role === "commissioner" ? "Commissioner" : role === "co_commissioner" ? "Comp. Committee" : "Member";
 
-    const { buildSimpleTeamLinkPanel } = await import("../ui/team-options.js");
+    const nextPanel = session.conference ? buildLeagueMgmtTeamsPanel() : (await import("../ui/team-options.js")).buildSimpleTeamLinkPanel();
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
@@ -692,7 +881,7 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
             ].join("\n")
           )
       ],
-      components: buildSimpleTeamLinkPanel().components
+      components: nextPanel.components
     });
   } catch (error) {
     console.error("[ERROR] Simple team link role select failed:", error);
@@ -825,15 +1014,12 @@ export async function handleClearAllTeamLinks(interaction: Extract<Interaction, 
 
     clearTeamLinkGuildUserCache(interaction.guildId);
 
-    // Update the message to show refreshed team list
-    // Go back to conference selection so teams can be viewed again
-    const { buildSimpleTeamLinkPanel } = await import("../ui/team-options.js");
     await interaction.update({
-      ...buildSimpleTeamLinkPanel(),
+      ...buildLeagueMgmtTeamsPanel(),
       embeds: [
         new EmbedBuilder()
           .setTitle("All Links Cleared")
-          .setDescription(`Cleared ${linkedUsers.length} team links and removed Discord roles and nicknames. Select a conference to view available teams.`)
+          .setDescription(`Cleared ${linkedUsers.length} team links and removed Discord roles and nicknames.`)
       ]
     });
   } catch (error) {

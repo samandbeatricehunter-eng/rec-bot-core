@@ -27,6 +27,13 @@ export const TEAM_LINK_CUSTOM_IDS = {
   simpleConferenceSelect: "rec:teamlink:simple_conference",
   simpleAfcTeamSelect: "rec:teamlink:simple_afc",
   simpleNfcTeamSelect: "rec:teamlink:simple_nfc",
+  leagueTeamsAddRemove: "rec:league_teams:add_remove",
+  leagueTeamsEdit: "rec:league_teams:edit",
+  leagueTeamsBack: "rec:league_teams:back",
+  leagueTeamsConferenceSelect: "rec:league_teams:conference",
+  leagueTeamsTeamSelect: "rec:league_teams:team",
+  leagueTeamsConfirmBack: "rec:league_teams:confirm_back",
+  leagueTeamsConfirmUnlink: "rec:league_teams:confirm_unlink",
   userIdModal: "rec:teamlink:user_id_modal",
   userIdInput: "rec:teamlink:user_id_input",
   simpleUserSelect: "rec:teamlink:simple_user_select",
@@ -223,6 +230,118 @@ export function buildSimpleTeamLinkPanel() {
           .setStyle(ButtonStyle.Danger)
       ),
       buildNavigationRow({ includeAdminPanel: true })
+    ]
+  };
+}
+
+export function buildLeagueMgmtTeamsPanel() {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Teams")
+        .setDescription([
+          "**Add/Remove User** - Link users to open teams or unlink assigned users from teams.",
+          "**Edit Teams** - Add or edit custom/relocated teams.",
+          "**Clear All Links** - Remove every user/team link in this league."
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsAddRemove).setLabel("Add/Remove User").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEdit).setLabel("Edit Teams").setStyle(ButtonStyle.Success)
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.clearAllLinks).setLabel("Clear All Links").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+      )
+    ]
+  };
+}
+
+export function buildLeagueTeamsConferencePanel(conferences: Array<{ conference: string }>) {
+  const options = [...new Set(conferences.map((conf) => conf.conference).filter(Boolean))]
+    .slice(0, 24)
+    .map((conference) =>
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`${conference} Teams`.slice(0, 100))
+        .setValue(conference)
+    );
+  options.push(new StringSelectMenuOptionBuilder().setLabel("Back to Teams").setValue("back_to_teams"));
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Add/Remove User")
+        .setDescription("Select a conference below to view teams in that conference.")
+    ],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsConferenceSelect)
+          .setPlaceholder("Select conference")
+          .addOptions(options)
+      )
+    ]
+  };
+}
+
+function teamRecordText(team: any) {
+  return team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
+}
+
+function adminTeamLine(team: any) {
+  const name = team.name ?? team.abbreviation ?? "Team";
+  const label = team.linkedDiscordId ? `~~${name}~~` : name;
+  const user = team.linkedDiscordId ? ` (<@${team.linkedDiscordId}>)` : "";
+  return `${label} (${teamRecordText(team)})${user}`;
+}
+
+export function buildLeagueTeamsTeamSelectPanel(rawConferences: any[], conferenceName: string) {
+  const conference = rawConferences.find((conf) => conf.conference === conferenceName);
+  const teams = (conference?.divisions ?? [])
+    .flatMap((division: any) => (division.teams ?? []).map((team: any) => ({ ...team, divisionLabel: division.label ?? division.division ?? "Teams" })));
+  const options = teams.slice(0, 24).map((team: any) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(String(team.name ?? team.abbreviation ?? "Team").slice(0, 100))
+      .setValue(String(team.id))
+      .setDescription((team.linkedDiscordId ? `Linked to ${team.linkedName ?? "user"}` : "Unlinked").slice(0, 100))
+  );
+  options.push(new StringSelectMenuOptionBuilder().setLabel("Back to Conferences").setValue("back_to_conferences"));
+
+  const divisionLines = (conference?.divisions ?? []).map((division: any) => {
+    const lines = (division.teams ?? []).map(adminTeamLine).join("\n") || "No teams found";
+    return `**${division.label ?? division.division ?? "Teams"}**\n${lines}`;
+  });
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle(`${conferenceName} Teams`)
+        .setDescription((divisionLines.join("\n\n") || "No teams found.").slice(0, 4096))
+    ],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsTeamSelect}:${conferenceName}`)
+          .setPlaceholder(`Select ${conferenceName} team`)
+          .addOptions(options)
+      )
+    ]
+  };
+}
+
+export function buildLeagueTeamsUnlinkConfirmPanel(teamName: string, discordId: string) {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Unlink User?")
+        .setDescription(`<@${discordId}> is currently linked to **${teamName}**. Proceeding will unlink that user from this team.`)
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsConfirmBack).setLabel("Back to Team Select").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsConfirmUnlink).setLabel("Unlink User").setStyle(ButtonStyle.Danger)
+      )
     ]
   };
 }
