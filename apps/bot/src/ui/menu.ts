@@ -598,7 +598,7 @@ function maddenTeamLine(team: RosterTeam) {
   const record = team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
   const label = teamNickname(team.name);
   const teamText = team.linkedDiscordId ? `~~${label}~~` : label;
-  const coach = team.linkedDiscordId ? ` (${team.linkedName ?? "Linked User"})` : "";
+  const coach = team.linkedDiscordId ? ` (<@${team.linkedDiscordId}>)` : "";
   return `${teamText} (${record})${coach}`;
 }
 
@@ -678,11 +678,8 @@ export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC") {
   const nextPage: MaddenTeamsPage = page === "NFC" ? "AFC" : "NFC";
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:back:${nextPage}`).setLabel("Back").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:forward:${nextPage}`).setLabel("Forward").setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
     )
   ];
