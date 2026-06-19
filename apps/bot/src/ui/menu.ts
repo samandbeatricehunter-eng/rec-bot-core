@@ -46,6 +46,14 @@ export const MENU_CUSTOM_IDS = {
   adminActiveCheck: "rec:admin:active_check",
   adminRules: "rec:admin:rules",
   adminReselectGotw: "rec:admin:reselect_gotw",
+  leagueMgmtTeams: "rec:league_mgmt:teams",
+  leagueMgmtSchedule: "rec:league_mgmt:schedule",
+  leagueMgmtAdvance: "rec:league_mgmt:advance",
+  leagueMgmtSettings: "rec:league_mgmt:settings",
+  leagueMgmtFirstTimeSetup: "rec:league_mgmt:first_time_setup",
+  leagueMgmtDeleteLeague: "rec:league_mgmt:delete_league",
+  leagueMgmtRoles: "rec:league_mgmt:roles",
+  leagueMgmtBack: "rec:league_mgmt:back",
   commissionerToolsSelect: "rec:admin:commissioner_tools_select",
   manageLeagueSelect: "rec:admin:manage_league_select",
   serverLeagueSetupSelect: "rec:admin:server_league_setup_select",
@@ -378,27 +386,39 @@ export function buildLeagueMenuRows(_isAdmin: boolean, isLinkedToTeam = true) {
 
 export function buildAdminPanelEmbed() {
   return new EmbedBuilder()
-    .setTitle("REC Admin Panel")
+    .setTitle("League Mgmt")
     .setDescription([
-      "Choose an administrative workflow from the dropdown below.",
+      "From this menu, you can manage your league in a variety of ways.",
       "",
-      "Server Setup and League Setup will open a warning modal first because rerunning setup can affect existing league data."
+      "**Teams** - Add/Remove users and teams (custom/relocated) from the league.",
+      "**Schedule** - Submit schedule screenshots, box scores, award races, summaries, etc. for the league.",
+      "**Advance** - Advance the current league week/stage to the next using the Advance Wizard.",
+      "**Settings** - Change league settings, repair issues within the league such as automated features not triggering, etc.",
+      "**First-Time Setup** - Wizard for setting up your league for the first time. **WARNING** This will clear ALL league data if ran more than once.",
+      "**Delete League** - This will delete all league data for this server. Use this when your league is done and/or you're starting a new league in the same server.",
+      "**Roles** - Change users assigned roles to one of the three designated server roles."
     ].join("\n"));
 }
 
-// Top-level Admin Panel: only two workflows. Everything else is nested under
-// Commissioner Tools to keep the top level shallow.
 export function buildAdminPanelRows() {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(MENU_CUSTOM_IDS.adminSelect)
-    .setPlaceholder("Select an admin workflow")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Advance Wizard").setValue("advance_wizard").setDescription("Run the guided weekly advance workflow."),
-      new StringSelectMenuOptionBuilder().setLabel("Commissioner Tools").setValue("commissioner_tools").setDescription("Advance, league management, server setup, and the league setup wizard."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
-    );
-
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Primary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSettings).setLabel("Settings").setStyle(ButtonStyle.Success)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup).setLabel("First-Time Setup").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtDeleteLeague).setLabel("Delete League").setStyle(ButtonStyle.Danger)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtRoles).setLabel("Roles").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
+    )
+  ];
 }
 
 // Commissioner Tools submenu (Admin Panel -> Commissioner Tools).
