@@ -1,13 +1,9 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type ButtonInteraction, MessageFlags, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import {
-  buildPlayersByTeamEmbed,
-  buildPlayersByTeamRows,
   buildMaddenTeamsEmbed,
   buildMaddenTeamsRows,
-  buildRostersMenuEmbed,
-  buildRostersMenuRows,
   buildSnapshotConferenceSelectRows,
   buildSnapshotTeamSelectRows,
   ROSTERS_CUSTOM_IDS,
@@ -18,30 +14,6 @@ type MainMenuPayloadBuilder = (userId: string, guildId: string | null, isAdmin: 
 type SnapshotSession = { targetDiscordId: string; targetDisplayName: string; currentPage: number };
 
 const snapshotSessions = new Map<string, SnapshotSession>();
-
-export async function renderRostersMenu(interaction: ButtonInteraction | StringSelectMenuInteraction) {
-  if (interaction.isButton()) return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
-  if (interaction.isStringSelectMenu()) return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
-}
-
-export async function handleRostersMenuSelect(interaction: StringSelectMenuInteraction, buildMainMenuPayload: MainMenuPayloadBuilder) {
-  const selected = interaction.values[0];
-
-  if (selected === "rosters_back") {
-    return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
-  }
-
-  if (selected === "rosters_by_team") return renderPlayersByTeam(interaction);
-
-  if (selected === "players_by_position") {
-    return interaction.update({
-      embeds: [new EmbedBuilder().setTitle("View Players by Position").setDescription("This view is coming soon. Check back after the next build update.")],
-      components: buildRostersMenuRows()
-    });
-  }
-
-  if (selected === "user_snapshots") return renderUserSnapshotPicker(interaction);
-}
 
 export async function renderTeamsMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
@@ -74,119 +46,6 @@ export async function handleTeamsPage(interaction: ButtonInteraction) {
     embeds: [buildMaddenTeamsEmbed(conferences, page as MaddenTeamsPage)],
     components: buildMaddenTeamsRows(page as MaddenTeamsPage)
   });
-}
-
-const DEV_TRAIT_EMOJIS: Record<string, string> = {
-  "3": "<:XFactor:1494392253177663688>",
-  xfactor: "<:XFactor:1494392253177663688>",
-  x_factor: "<:XFactor:1494392253177663688>",
-  "x-factor": "<:XFactor:1494392253177663688>",
-  "2": "<:Superstar:1494392251776897134>",
-  superstar: "<:Superstar:1494392251776897134>",
-  "1": "<:Star:1494392249163972699>",
-  star: "<:Star:1494392249163972699>"
-};
-
-function rosterDevEmoji(dev: unknown) {
-  const key = String(dev ?? "").trim().toLowerCase().replace(/\s+/g, "_");
-  return DEV_TRAIT_EMOJIS[key] ?? "";
-}
-
-function formatRosterPlayer(member: any) {
-  const dev = rosterDevEmoji(member.dev);
-  const ovr = `\`${String(member.ovr ?? 0).padStart(2, " ")}\``;
-  return `${dev ? `${dev} ` : ""}${ovr} ${member.name} (${member.position})`;
-}
-
-function rosterGroupValue(group: { members: any[] }) {
-  const value = group.members.map(formatRosterPlayer).join("\n");
-  return value.length > 1024 ? `${value.slice(0, 1018).trimEnd()}\n...` : value;
-}
-
-function buildRosterEmbed(rosterData: any): EmbedBuilder {
-  const team = rosterData.team ?? {};
-  const groups: Array<{ label: string; side?: string; members: Array<{ name: string; position: string; ovr: number; dev?: string | null }> }> = rosterData.groups ?? [];
-  const divisionLine = [team.conference, team.division].filter(Boolean).join(" ");
-  const meta = [divisionLine, rosterData.season != null ? `Season ${rosterData.season}` : null, `${rosterData.totalPlayers ?? 0} players`].filter(Boolean).join(" - ");
-  const embed = new EmbedBuilder().setTitle(`${team.name ?? "Team"} - Roster`);
-
-  if (!groups.length) {
-    embed.setDescription(`${meta}\n\nNo roster data available for this team yet.`);
-    return embed;
-  }
-
-  embed.setDescription(meta || "Roster");
-  const offense = groups.filter((group) => group.side === "offense" && group.members.length);
-  const defense = groups.filter((group) => group.side === "defense" && group.members.length);
-  const special = groups.filter((group) => group.side === "special" && group.members.length);
-  const other = groups.filter((group) => !["offense", "defense", "special"].includes(String(group.side)) && group.members.length);
-  const leftColumn = [...offense, ...special, ...other];
-  const rows = Math.max(leftColumn.length, defense.length);
-
-  for (let i = 0; i < rows; i++) {
-    const left = leftColumn[i];
-    const right = defense[i];
-    embed.addFields(
-      left ? { name: left.label, value: rosterGroupValue(left), inline: true } : { name: "\u200B", value: "\u200B", inline: true },
-      right ? { name: right.label, value: rosterGroupValue(right), inline: true } : { name: "\u200B", value: "\u200B", inline: true },
-      { name: "\u200B", value: "\u200B", inline: true }
-    );
-  }
-
-  return embed;
-}
-
-async function renderPlayersByTeam(interaction: StringSelectMenuInteraction) {
-  await interaction.deferUpdate();
-  if (!interaction.guildId) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Players by Team").setDescription("Must be run inside a league server.")], components: buildRostersMenuRows() });
-  }
-  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
-  const conferences: any[] = confData?.conferences ?? [];
-  const hasTeams = conferences.some((c) => (c.divisions ?? []).some((d: any) => (d.teams ?? []).length));
-  if (!hasTeams) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Players by Team").setDescription("No teams found for this league yet. Import league data first.")], components: buildRostersMenuRows() });
-  }
-  return interaction.editReply({
-    embeds: [buildPlayersByTeamEmbed(conferences)],
-    components: buildPlayersByTeamRows(conferences)
-  });
-}
-
-export async function handleRosterTeamSelect(interaction: StringSelectMenuInteraction) {
-  await interaction.deferUpdate();
-  const teamId = interaction.values[0];
-  if (!interaction.guildId) {
-    return interaction.followUp({ embeds: [new EmbedBuilder().setTitle("Roster").setDescription("Must be run inside a league server.")], flags: MessageFlags.Ephemeral });
-  }
-
-  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
-  if (confData?.conferences?.length) {
-    await interaction.editReply({ embeds: [buildPlayersByTeamEmbed(confData.conferences)], components: buildPlayersByTeamRows(confData.conferences) }).catch(() => undefined);
-  }
-
-  const rosterData = await recApi.getTeamRoster(interaction.guildId, teamId).catch(() => null);
-  if (!rosterData) {
-    return interaction.followUp({ embeds: [new EmbedBuilder().setTitle("Roster").setDescription("Failed to load roster. Please try again.")], flags: MessageFlags.Ephemeral });
-  }
-  return interaction.followUp({ embeds: [buildRosterEmbed(rosterData)], flags: MessageFlags.Ephemeral });
-}
-
-export async function handleByTeamNav(interaction: StringSelectMenuInteraction, buildMainMenuPayload: MainMenuPayloadBuilder) {
-  const choice = interaction.values[0];
-
-  if (choice === "main_menu") {
-    return interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
-  }
-
-  if (choice === "players_by_position") {
-    return interaction.update({
-      embeds: [new EmbedBuilder().setTitle("View Players by Position").setDescription("This view is coming soon. Check back after the next build update.")],
-      components: buildRostersMenuRows()
-    });
-  }
-
-  if (choice === "user_snapshots") return renderUserSnapshotPicker(interaction);
 }
 
 export async function renderUserSnapshotPicker(interaction: ButtonInteraction | StringSelectMenuInteraction) {

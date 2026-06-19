@@ -84,21 +84,13 @@ export const STREAM_CUSTOM_IDS = {
   linkInput: "rec:stream:link"
 } as const;
 
-// Custom IDs for the Rosters submenu
+// Custom IDs for the User Profiles viewer.
 export const ROSTERS_CUSTOM_IDS = {
-  select: "rec:rosters:select",
-  // User Snapshots paginated viewer — page nav buttons
   snapshotPrev: "rec:rosters:snapshot_prev",
   snapshotNext: "rec:rosters:snapshot_next",
   snapshotBack: "rec:rosters:snapshot_back",
   snapshotConferenceSelect: "rec:profiles:conference_select",
-  snapshotTeamSelect: "rec:profiles:team_select",
-  // User selector dropdown
-  snapshotUserSelect: "rec:rosters:snapshot_user_select",
-  // View Players by Team — one team picker per conference (each gets a unique id by index, so
-  // duplicate/odd conference data can never collide on the same custom_id) + a nav dropdown.
-  teamSelect: "rec:rosters:team_pick",
-  byTeamNav: "rec:rosters:by_team_nav"
+  snapshotTeamSelect: "rec:profiles:team_select"
 } as const;
 
 // Custom IDs for the REC Bank dropdown
@@ -126,14 +118,14 @@ function formatChallenge(challenge?: { s_tier_goal?: string; a_tier_goal?: strin
   return [`S: ${challenge.s_tier_goal ?? "Not set"} ($50)`, `A: ${challenge.a_tier_goal ?? "Not set"} ($25)`, `B: ${challenge.b_tier_goal ?? "Win the game"} ($10)`].join("\n");
 }
 
-// Shows the 3 most recently earned badges; the full list lives in Rosters > User Snapshots.
+// Shows the 3 most recently earned badges; the full list lives in User Profiles.
 function formatBadgePreview(badges?: Array<{ name?: string; badge_name?: string; label?: string; tier?: string }>) {
-  if (!badges?.length) return "None yet — view all via Rosters > User Snapshots";
+  if (!badges?.length) return "None yet — view all via User Profiles";
   const preview = badges.slice(0, 3).map((badge) => {
     const name = badge.name ?? badge.badge_name ?? badge.label ?? "Badge";
     return badge.tier ? `${name} (${badge.tier})` : name;
   });
-  const suffix = badges.length > 3 ? `\n+${badges.length - 3} more — view all via Rosters > User Snapshots` : "";
+  const suffix = badges.length > 3 ? `\n+${badges.length - 3} more — view all via User Profiles` : "";
   return preview.join("\n") + suffix;
 }
 
@@ -151,7 +143,7 @@ function formatTop10Badges(badges?: Array<{ name?: string; badge_name?: string; 
 }
 
 const MENU_GUIDE_LINES = [
-  "**Rosters** — View Players by team/position & open teams. View User Profiles for League Members.",
+  "**User Profiles** — View user profiles for league members.",
   "**Manage My Franchise** — View & manage your roster, purchase upgrades and utilize management tools.",
   "**Standings & Stats** — View League Standings, current and career stats and other league details.",
   "**REC Sports Network** — View GOTW, GOTY & POTY (Play of the Year) nominations & records.",
@@ -261,7 +253,7 @@ export function buildMainMenuRows(isAdmin: boolean) {
     .setCustomId(MENU_CUSTOM_IDS.mainSelect)
     .setPlaceholder("Select a REC department")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Rosters").setValue("rosters").setDescription("Browse team rosters, players, and coach snapshots."),
+      new StringSelectMenuOptionBuilder().setLabel("User Profiles").setValue("rosters").setDescription("View league member profiles."),
       new StringSelectMenuOptionBuilder().setLabel("Manage My Franchise").setValue("manage_franchise").setDescription("Your team, lineup, contracts, badges, and store (coming soon)."),
       new StringSelectMenuOptionBuilder().setLabel("Standings & Stats").setValue("standings_stats").setDescription("League standings, leaderboards, and power rankings (coming soon)."),
       new StringSelectMenuOptionBuilder().setLabel("REC Sports Network").setValue("rec_sports_network").setDescription("Streams, highlights, and award showcases (coming soon)."),
@@ -554,34 +546,7 @@ export function buildSetupDangerModal(action: SetupDangerAction) {
   return modal;
 }
 
-// ── Rosters submenu ───────────────────────────────────────────────────────────
-
-export function buildRostersMenuEmbed() {
-  return new EmbedBuilder()
-    .setTitle("Rosters")
-    .setDescription([
-      "Browse rosters, players, and coach profiles for this league.",
-      "",
-      "**View Players by Team** — Browse every team by division; open a team to see its roster",
-      "**View Players by Position** — Filter all players by position group (coming soon)",
-      "**View User Snapshots** — Season & global records, badges, power ranking, awards, and GOTW history for any linked coach"
-    ].join("\n"));
-}
-
-export function buildRostersMenuRows() {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(ROSTERS_CUSTOM_IDS.select)
-    .setPlaceholder("Choose a roster view")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("View Players by Team").setValue("rosters_by_team").setDescription("Browse every team by division; open one to see its roster"),
-      new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position").setDescription("Filter players by position group (coming soon)"),
-      new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots").setDescription("Season & global stats, badges, awards, GOTW history for any coach"),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("rosters_back")
-    );
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
-}
-
-// ── View Players by Team ───────────────────────────────────────────────────────
+// ── Teams and user profiles ───────────────────────────────────────────────────
 
 export type RosterTeam = {
   id: string;
@@ -602,10 +567,6 @@ export type RosterConference = {
 };
 
 // A linked team shows its coach as a Discord mention (renders as @nickname); unlinked teams show the team name.
-function teamGridLabel(team: RosterTeam) {
-  return team.linkedDiscordId ? `<@${team.linkedDiscordId}>` : team.name;
-}
-
 function teamNickname(name?: string | null) {
   const text = String(name ?? "").trim();
   if (!text) return "Team";
@@ -655,22 +616,6 @@ function normalizeRosterConferences(conferences: RosterConference[]): RosterConf
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([label, teams]) => ({ division: label, label, teams: [...teams].sort((x, y) => x.name.localeCompare(y.name)) }))
     }));
-}
-
-// Two-column embed: one inline field per conference (NFC left, AFC right), divisions bold-headed.
-// Discord renders exactly two inline fields side by side, giving the requested two-column layout.
-export function buildPlayersByTeamEmbed(rawConferences: RosterConference[]) {
-  const conferences = normalizeRosterConferences(rawConferences);
-  const embed = new EmbedBuilder()
-    .setTitle("View Players by Team")
-    .setDescription("Pick a team from a dropdown below to open its roster (grouped by position, sorted by overall). Linked teams show their coach.");
-  for (const conf of conferences) {
-    const value = conf.divisions
-      .map((division) => [`**${division.label}**`, ...division.teams.map((team) => teamGridLabel(team))].join("\n"))
-      .join("\n\n");
-    embed.addFields({ name: conf.conference || "Teams", value: (value || "No teams found").slice(0, 1024), inline: true });
-  }
-  return embed;
 }
 
 export type MaddenTeamsPage = "NFC" | "AFC";
@@ -783,63 +728,6 @@ export function buildScheduleRows() {
   ];
 }
 
-// Component rows: one team dropdown per conference (each opens an ephemeral roster) + a nav dropdown.
-export function buildPlayersByTeamRows(rawConferences: RosterConference[]) {
-  const conferences = normalizeRosterConferences(rawConferences);
-  const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
-
-  // Max 5 action rows per message; reserve one for the nav dropdown.
-  conferences.slice(0, 4).forEach((conf, index) => {
-    const teams = conf.divisions.flatMap((division) =>
-      division.teams.map((team) => ({ ...team, divisionLabel: division.label }))
-    );
-    if (!teams.length) return;
-    const select = new StringSelectMenuBuilder()
-      .setCustomId(`${ROSTERS_CUSTOM_IDS.teamSelect}:${index}`)
-      .setPlaceholder(`Select ${conf.conference === "Other" ? "a" : `an ${conf.conference}`} team`)
-      .addOptions(
-        teams.slice(0, 25).map((team) =>
-          new StringSelectMenuOptionBuilder()
-            .setLabel(team.name.slice(0, 100))
-            .setValue(team.id)
-            .setDescription(`${team.divisionLabel}${team.linkedName ? ` · ${team.linkedName}` : ""}`.slice(0, 100))
-        )
-      );
-    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
-  });
-
-  const nav = new StringSelectMenuBuilder()
-    .setCustomId(ROSTERS_CUSTOM_IDS.byTeamNav)
-    .setPlaceholder("More options")
-    .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("View Players by Position").setValue("players_by_position").setDescription("Filter players by position group (coming soon)."),
-      new StringSelectMenuOptionBuilder().setLabel("View User Snapshots").setValue("user_snapshots").setDescription("Season & global stats, badges, awards, GOTW history."),
-      new StringSelectMenuOptionBuilder().setLabel("Back to Main Menu").setValue("main_menu")
-    );
-  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(nav));
-
-  return rows;
-}
-
-// Builds the user selector dropdown for the User Snapshots viewer.
-// coaches: array of { userId, discordId, displayName, teamName } from /v1/guilds/:guildId/coaches
-export function buildSnapshotUserSelectRows(coaches: Array<{ userId: string; discordId?: string | null; displayName: string; teamName?: string | null }>) {
-  const options = coaches.slice(0, 25).map((coach) =>
-    new StringSelectMenuOptionBuilder()
-      .setLabel(`${coach.teamName ?? coach.displayName}`.slice(0, 100))
-      .setValue(coach.discordId ?? coach.userId)
-      .setDescription((`${coach.displayName}` + (coach.teamName ? ` — ${coach.teamName}` : "")).slice(0, 100))
-  );
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(ROSTERS_CUSTOM_IDS.snapshotUserSelect)
-    .setPlaceholder("Select a coach to view their snapshot")
-    .addOptions(options);
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
-}
-
-// ── REC Bank rows ─────────────────────────────────────────────────────────────
-
-// The bank embed already shows balances and transactions; these rows power the action menu.
 export function buildSnapshotConferenceSelectRows(rawConferences: RosterConference[]) {
   const conferences = normalizeRosterConferences(rawConferences)
     .filter((conference) => conference.divisions.some((division) => division.teams.some((team) => team.linkedDiscordId)));

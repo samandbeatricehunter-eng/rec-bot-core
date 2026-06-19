@@ -14,8 +14,6 @@ import {
   buildLeagueMenuEmbed,
   buildLeagueMenuRows,
   buildMainMenuRows,
-  buildRostersMenuEmbed,
-  buildRostersMenuRows,
   buildToSavingsModal,
   buildFromSavingsModal,
   buildWalletTransferCustomModal,
@@ -41,7 +39,7 @@ import {
 } from "./ui/league-setup.js";
 import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel, startImportMode } from "./flows/imports.js";
 import { buildCommissionerToolsEmbed, buildEosFunctionsEmbed, buildManageLeagueEmbed, buildServerLeagueSetupEmbed } from "./flows/commissioner-tools.js";
-import { handleByTeamNav, handleRosterTeamSelect, handleRostersMenuSelect, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleSnapshotUserSelect, handleTeamsPage, renderRostersMenu, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import { renderScheduleMenu, renderSchedulePlaceholder } from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import { handleActivityRequirementsModal, handleCoachAbilitiesRestrictionModal, handleLeagueSetupSave, handleLeagueSetupSelect, handleSetupModal, leagueSetupSessions } from "./flows/league-setup.js";
@@ -246,12 +244,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.manageLeagueSelect) return handleManageLeagueSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.serverLeagueSetupSelect) return handleServerLeagueSetupSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.eosFunctionsSelect) return handleEosFunctionsSelect(interaction);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.select) return handleRostersMenuSelect(interaction, buildMainMenuPayload);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotConferenceSelect) return handleSnapshotConferenceSelect(interaction, buildMainMenuPayload);
       if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.snapshotTeamSelect}:`)) return handleSnapshotTeamSelect(interaction);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotUserSelect) return handleSnapshotUserSelect(interaction);
-      if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.teamSelect}:`)) return handleRosterTeamSelect(interaction);
-      if (interaction.customId === ROSTERS_CUSTOM_IDS.byTeamNav) return handleByTeamNav(interaction, buildMainMenuPayload);
       if (interaction.customId === REC_BANK_CUSTOM_IDS.select) return handleRecBankSelect(interaction, buildMainMenuPayload);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
@@ -480,7 +474,7 @@ async function handleMainMenuSelect(interaction: Extract<Interaction, { isString
     if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
     return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   }
-  if (selected === "rosters") return interaction.update({ embeds: [buildRostersMenuEmbed()], components: buildRostersMenuRows() });
+  if (selected === "rosters") return renderUserSnapshotPicker(interaction);
   // FUTURE: these four main-menu departments are connected shells (see docs/menu-map.md):
   //   manage_franchise   -> coach self-service: my lineup/links, my contract+cap snapshot, my badges, purchases
   //   standings_stats    -> league standings table + leaderboards (rec_season_user_records, weekly stats, power rankings)
