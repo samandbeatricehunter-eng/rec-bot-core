@@ -27,6 +27,7 @@ export const MENU_CUSTOM_IDS = {
   makePurchase: "rec:menu:make_purchase",
   viewUserProfiles: "rec:menu:view_user_profiles",
   stream: "rec:menu:stream",
+  streamBack: "rec:stream:back",
   uploadBoxScore: "rec:menu:upload_box_score",
   uploadScoringSummary: "rec:menu:upload_scoring_summary",
   helpRules: "rec:menu:help_rules",
@@ -848,7 +849,12 @@ export function buildStreamRows() {
       new StringSelectMenuOptionBuilder().setLabel("Kick").setValue("kick").setDescription("Submit a Kick stream link."),
       new StringSelectMenuOptionBuilder().setLabel("Other").setValue("other").setDescription("Submit another streaming link.")
     );
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.streamBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+    )
+  ];
 }
 
 export function buildStreamLinkModal(service: string) {
