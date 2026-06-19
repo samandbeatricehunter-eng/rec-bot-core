@@ -6,7 +6,7 @@ import { readStat, formatStatValue, getStatShortLabel } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { wallClockToUtc } from "../ui/advance-schedule.js";
-import { recreateGameChannelsForGuild, sendAdvanceDmsOnly, sendAdvanceDmPayloads } from "./game-channels.js";
+import { recreateGameChannelsForGuild, sendAdvanceDmsOnly } from "./game-channels.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 
 export const ADVANCE_WIZARD_GOTW_CUSTOM_ID = "rec:advance_wizard:gotw";
@@ -929,6 +929,24 @@ function buildCatchUpSummaryEmbed(result: any) {
     ].join("\n").slice(0, 4000));
 }
 
+// A single simplified catch-up DM (league totals only) — sent once per user instead of one DM per
+// caught-up week, so a multi-week catch-up doesn't spam everyone with a DM for every week.
+function buildCatchUpDmEmbed(result: any, landedLabel: string) {
+  const weeks: any[] = result?.weeks ?? [];
+  const potwCount = weeks.reduce((sum, w) => sum + (w.potwAwards?.length ?? 0), 0);
+  const badgeCount = weeks.reduce((sum, w) => sum + (w.badgesEarned?.length ?? 0), 0);
+  return new EmbedBuilder()
+    .setTitle("Your League Caught Up")
+    .setColor(0x3498db)
+    .setDescription([
+      `Your league fast-forwarded **${weeks.length}** week${weeks.length === 1 ? "" : "s"} of results and is now on **${landedLabel}**.`,
+      "",
+      `Records and payouts were applied for every week — **${potwCount}** Player of the Week award${potwCount === 1 ? "" : "s"} and **${badgeCount}** badge${badgeCount === 1 ? "" : "s"} handed out across the league.`,
+      "",
+      "Check your league's announcements channel for the full week-by-week summary."
+    ].join("\n"));
+}
+
 export async function runAdvanceWizardProcessing(
   interaction: ButtonInteraction,
   date: string,
@@ -972,8 +990,16 @@ export async function runAdvanceWizardProcessing(
         const ch = await guild.channels.fetch(announceId).catch(() => null) as TextChannel | null;
         if (ch?.type === ChannelType.GuildText) await ch.send({ embeds: [buildCatchUpSummaryEmbed(catchUp)] }).catch((e) => console.error("[WIZARD] catch-up summary post failed:", e));
       }
-      for (const w of weeks) {
-        if (w.dmPayloads?.length) await sendAdvanceDmPayloads(guild, w.dmPayloads).catch((e: unknown) => console.error("[WIZARD] catch-up DM send failed:", e));
+      // One simplified catch-up DM per user (not one per caught-up week): collect every recipient
+      // across the weeks and DM them a single league-totals summary.
+      const recipientIds = new Set<string>();
+      for (const w of weeks) for (const p of (w.dmPayloads ?? [])) if (p?.discordId) recipientIds.add(String(p.discordId));
+      if (recipientIds.size) {
+        const dmEmbed = buildCatchUpDmEmbed(catchUp, catchUpWeekLabel(catchUpTarget.targetWeek, catchUpTarget.targetStage));
+        for (const discordId of recipientIds) {
+          const user = await guild.client.users.fetch(discordId).catch(() => null);
+          if (user) await user.send({ embeds: [dmEmbed] }).catch(() => undefined);
+        }
       }
     } catch (err) {
       console.error("[WIZARD] catchUpAdvance failed:", err);

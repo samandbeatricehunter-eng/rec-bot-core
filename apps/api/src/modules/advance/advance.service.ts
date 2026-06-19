@@ -2892,6 +2892,9 @@ export async function calculateAndStorePowerRankings(guildId: string) {
     const awayId = String(g.away_team_id ?? "");
     const home = asNumber(g.home_score);
     const away = asNumber(g.away_score);
+    // Skip unplayed schedule rows: imported but unplayed games come back 0-0 (not null), and a real
+    // 0-0 is effectively impossible in Madden — counting them would show phantom ties for every team.
+    if (home === 0 && away === 0) continue;
     if (homeId) {
       if (!teamGames.has(homeId)) teamGames.set(homeId, []);
       teamGames.get(homeId)!.push({ score: home, oppScore: away, oppTeamId: awayId, weekNumber: asNumber(g.week_number) });
