@@ -291,36 +291,36 @@ export function buildLeagueMenuEmbed(input: {
   purchaseCaps?: Array<{ label: string; purchased?: number | null; allowed?: number | null }>;
 }) {
   const userInfo = [
-    `User: ${input.discordUsername ?? "Unlinked User"}`,
-    `Wallet: $${input.wallet ?? 0}`,
-    `Savings: $${input.savings ?? 0}`,
-    `Proj. Interest: $${input.projectedInterest ?? 0}`
+    `**User:** ${input.discordUsername ?? "Unlinked User"}`,
+    `**Wallet:** $${input.wallet ?? 0}`,
+    `**Savings:** $${input.savings ?? 0}`,
+    `**Proj. Interest:** $${input.projectedInterest ?? 0}`
   ].join("\n");
 
   const leagueInfo = [
-    `Team: ${input.teamName ?? "None"}`,
-    `Szn/Wk: ${formatMenuSeasonWeek(input)}`,
-    `Record: ${input.leagueSeasonRecordText ?? "0-0-0"}`,
-    `Streak: ${input.userStreakText ?? "-"}`,
-    `PointDiff: ${input.leagueSeasonPointDifferential ?? 0}`
+    `**Team:** ${input.teamName ?? "None"}`,
+    `**Szn/Wk:** ${formatMenuSeasonWeek(input)}`,
+    `**Record:** ${input.leagueSeasonRecordText ?? "0-0-0"}`,
+    `**Streak:** ${input.userStreakText ?? "-"}`,
+    `**PointDiff:** ${input.leagueSeasonPointDifferential ?? 0}`
   ].join("\n");
 
   const purchaseCaps = input.purchaseCapsActive && input.purchaseCaps?.length
-    ? input.purchaseCaps.map((cap) => `${cap.label}: ${cap.purchased ?? 0}/${cap.allowed ?? 0}`).join("\n")
+    ? input.purchaseCaps.map((cap) => `**${cap.label}:** ${cap.purchased ?? 0}/${cap.allowed ?? 0}`).join("\n")
     : null;
 
   const menuText = [
     "Please use the buttons below to navigate to your destination.",
-    "Open Teams - Displays open teams and allows a user to request a team.",
-    "Schedule - Displays the season schedule, by league week, for each team.",
-    "Manage My Wallet - Move funds to/from savings, send funds to/from users.",
-    "Make a Purchase - Make a variety of purchases, depending on league settings.",
-    "Place a Wager - Put your money where your mouth is against users or the house.",
-    "View User Profiles - View user profiles for actively linked users in this league.",
-    "Upload Box Score - Upload your box score screenshots here to log results and get paid.",
-    "Upload Scoring Summary - Upload your scoring summary screenshots here to log details, get paid and have a story generated about your game.",
-    "Help/Rules - Find a list of all league rules and various FAQ here.",
-    "League Mgmt - Admin Only. Use this menu to manage this league."
+    "**Open Teams** - Displays open teams and allows a user to request a team.",
+    "**Schedule** - Displays the season schedule, by league week, for each team.",
+    "**Manage My Wallet** - Move funds to/from savings, send funds to/from users.",
+    "**Make a Purchase** - Make a variety of purchases, depending on league settings.",
+    "**Place a Wager** - Put your money where your mouth is against users or the house.",
+    "**View User Profiles** - View user profiles for actively linked users in this league.",
+    "**Upload Box Score** - Upload your box score screenshots here to log results and get paid.",
+    "**Upload Scoring Summary** - Upload your scoring summary screenshots here to log details, get paid and have a story generated about your game.",
+    "**Help/Rules** - Find a list of all league rules and various FAQ here.",
+    "**League Mgmt** - Admin Only. Use this menu to manage this league."
   ].join("\n");
 
   return new EmbedBuilder()
