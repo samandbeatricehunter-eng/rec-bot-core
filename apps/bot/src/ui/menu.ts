@@ -46,6 +46,7 @@ export const MENU_CUSTOM_IDS = {
   setupModal: "rec:admin:setup_modal",
   serverSetupAcknowledgeInput: "rec:admin:server_setup_ack",
   leagueNameInput: "rec:admin:league_name_input",
+  leaguePasswordInput: "rec:admin:league_password_input",
   deleteLeagueConfirm: "rec:admin:delete_league_confirm",
   deleteLeagueCancel: "rec:admin:delete_league_cancel",
   deleteLeagueModal: "rec:admin:delete_league_modal",
@@ -197,10 +198,9 @@ export function buildAdminPanelEmbed() {
       "From this menu, you can manage your league in a variety of ways.",
       "",
       "**Teams** - Add/Remove users and teams (custom/relocated) from the league.",
-      "**Server Setup** - Assign Discord channels/categories used by bot features.",
       "**Schedule** - Temporarily unavailable while import tooling is rebuilt.",
       "**Advance** - Temporarily unavailable while the Advance Wizard is rebuilt.",
-      "**Settings** - Change league settings from the League Setup wizard.",
+      "**Settings** - Change league and server setup settings from the League Setup wizard.",
       "**First-Time Setup** - Wizard for setting up your league for the first time. **WARNING** This will clear ALL league data if ran more than once.",
       "**Delete League** - This will delete all league data for this server. Use this when your league is done and/or you're starting a new league in the same server.",
       "**Roles** - Change users assigned roles to one of the three designated server roles."
@@ -211,7 +211,6 @@ export function buildAdminPanelRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtServerSetup).setLabel("Server Setup").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -299,7 +298,17 @@ export function buildSetupDangerModal(action: SetupDangerAction) {
       .setRequired(true)
       .setPlaceholder("Use exact in-game Madden league name if known.");
 
-    modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(leagueNameInput));
+    const leaguePasswordInput = new TextInputBuilder()
+      .setCustomId(MENU_CUSTOM_IDS.leaguePasswordInput)
+      .setLabel("League Password (optional for public leagues)")
+      .setStyle(TextInputStyle.Short)
+      .setRequired(false)
+      .setPlaceholder("Leave blank if the league is not private or has no password.");
+
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(leagueNameInput),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(leaguePasswordInput)
+    );
     return modal;
   }
 

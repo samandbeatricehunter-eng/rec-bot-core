@@ -6,6 +6,7 @@ type SetServerConfigInput = {
   guildId: string;
   pendingEconomyChannelId?: string | null;
   pendingPayoutsChannelId?: string | null;
+  pendingPurchasesChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   commissionerOfficeChannelId?: string | null;
   streamsChannelId?: string | null;
@@ -35,6 +36,7 @@ export async function setServerConfig(input: SetServerConfigInput) {
     server_id: context.serverId,
     pending_economy_channel_id: input.pendingEconomyChannelId,
     pending_payouts_channel_id: input.pendingPayoutsChannelId,
+    pending_purchases_channel_id: input.pendingPurchasesChannelId,
     game_channels_category_id: input.gameChannelsCategoryId,
     commissioner_office_channel_id: input.commissionerOfficeChannelId,
     streams_channel_id: input.streamsChannelId,

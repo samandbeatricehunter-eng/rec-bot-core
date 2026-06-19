@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, type Interaction } from "discord.js";
+import { EmbedBuilder, MessageFlags, type Interaction, type ModalSubmitInteraction } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
@@ -7,15 +7,22 @@ import { buildAdminPanelEmbed, buildAdminPanelRows, buildSetupDangerModal, MENU_
 import {
   applyLeagueSetupDependencies,
   buildCoachAbilitiesRestrictionModal,
+  buildCpuTradingRestrictionModal,
+  buildDifficultyCustomModal,
+  buildFourthDownCustomModal,
   buildLeagueSetupWindow,
+  buildLeagueSetupServerChannelModal,
+  buildPositionRestrictionModal,
   buildSettingsPickerWindow,
   createDefaultLeagueSetupDraft,
   getNextLeagueSetupStep,
   LEAGUE_SETUP_CUSTOM_IDS,
+  setLeagueSetupFeatureAnswer,
+  setLeagueSetupServerChannel,
   type LeagueSetupDraft,
   type LeagueSetupSettingsCategory
 } from "../ui/league-setup.js";
-import { TEAM_LINK_CUSTOM_IDS } from "../ui/team-options.js";
+import { buildLeagueMgmtTeamsPanel } from "../ui/team-options.js";
 
 export const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 export async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
@@ -25,6 +32,7 @@ export async function handleSetupModal(interaction: Extract<Interaction, { isMod
   const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
   if (action === "league_setup") {
     const draft = createDefaultLeagueSetupDraft(interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leagueNameInput).trim());
+    draft.leaguePassword = interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leaguePasswordInput).trim() || null;
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.reply({ ...buildLeagueSetupWindow(draft), flags: MessageFlags.Ephemeral });
   }
@@ -36,13 +44,9 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   const value = interaction.values[0];
 
-  // Season week (and its offseason ":postseason" variant) both set the same field.
-  if (interaction.customId.startsWith(LEAGUE_SETUP_CUSTOM_IDS.seasonWeek)) {
-    draft.seasonWeek = value;
-    draft.step = getNextLeagueSetupStep(draft.step, draft);
-    applyLeagueSetupDependencies(draft);
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.serverSetupSelect) {
     leagueSetupSessions.set(interaction.user.id, draft);
-    return interaction.update(buildLeagueSetupWindow(draft));
+    return interaction.showModal(buildLeagueSetupServerChannelModal(value, draft));
   }
 
   // Optional team-linking step: record the choice and advance to review.
@@ -76,29 +80,36 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
 
   switch (interaction.customId) {
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.importMode: draft.importMode = value as LeagueSetupDraft["importMode"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.featureToggles: {
-      const values = new Set(interaction.values);
-      draft.coinEconomyEnabled = values.has("coin_economy");
-      draft.customPlayersEnabled = values.has("custom_players");
-      draft.legendsEnabled = values.has("legends");
-      draft.devUpgradesEnabled = values.has("dev_upgrades");
-      draft.ageResetsEnabled = values.has("age_resets");
-      draft.trainingPackagesEnabled = values.has("training_packages");
-      draft.contractAdjustmentPurchasesEnabled = values.has("contract_purchases");
-      draft.capManagementAssistantEnabled = values.has("cap_assistant");
-      draft.draftClassFeaturesEnabled = values.has("draft_class_features");
-      draft.scoutingPurchasesEnabled = values.has("draft_class_features");
-      draft.mediaFeaturesEnabled = values.has("media_features");
-      break;
-    }
-    case LEAGUE_SETUP_CUSTOM_IDS.draftClassType: draft.draftClassType = value as LeagueSetupDraft["draftClassType"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming: draft.regularSeasonStreamingRequirement = value as LeagueSetupDraft["regularSeasonStreamingRequirement"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming: draft.postseasonStreamingRequirement = value as LeagueSetupDraft["postseasonStreamingRequirement"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.streamingSide: draft.streamingSide = value as LeagueSetupDraft["streamingSide"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRuleRegular: draft.fourthDownRuleTypeRegular = value as LeagueSetupDraft["fourthDownRuleTypeRegular"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRulePlayoff: draft.fourthDownRuleTypePlayoff = value as LeagueSetupDraft["fourthDownRuleTypePlayoff"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.positionChangePolicy: draft.positionChangePolicy = value as LeagueSetupDraft["positionChangePolicy"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRuleRegular: {
+      draft.fourthDownRuleTypeRegular = value as LeagueSetupDraft["fourthDownRuleTypeRegular"];
+      if (draft.fourthDownRuleTypeRegular === "custom") {
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildFourthDownCustomModal(draft, "regular"));
+      }
+      draft.customFourthDownRuleRegular = "";
+      break;
+    }
+    case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRulePlayoff: {
+      draft.fourthDownRuleTypePlayoff = value as LeagueSetupDraft["fourthDownRuleTypePlayoff"];
+      if (draft.fourthDownRuleTypePlayoff === "custom") {
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildFourthDownCustomModal(draft, "playoff"));
+      }
+      draft.customFourthDownRulePlayoff = "";
+      break;
+    }
+    case LEAGUE_SETUP_CUSTOM_IDS.positionChangePolicy: {
+      draft.positionChangePolicy = value as LeagueSetupDraft["positionChangePolicy"];
+      if (draft.positionChangePolicy !== "open") {
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildPositionRestrictionModal(draft));
+      }
+      draft.positionChangePolicyDescription = "";
+      break;
+    }
     case LEAGUE_SETUP_CUSTOM_IDS.customCoachesRequired: draft.customCoachesRequired = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.customPlaybooksAllowedSelect: draft.customPlaybooksAllowed = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestricted: {
@@ -112,8 +123,24 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
       break;
     }
     case LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy: draft.tradeApprovalPolicy = value as LeagueSetupDraft["tradeApprovalPolicy"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.cpuRules: { const values = new Set(interaction.values); draft.cpuTradingAllowed = values.has("cpu_trading"); draft.cpuFreeAgencyPolicy = values.has("cpu_fa_open") ? "open" : "disabled"; break; }
-    case LEAGUE_SETUP_CUSTOM_IDS.difficulty: draft.difficulty = value as LeagueSetupDraft["difficulty"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.cpuTradingPolicy: {
+      draft.cpuTradingPolicy = value as LeagueSetupDraft["cpuTradingPolicy"];
+      if (draft.cpuTradingPolicy === "restricted") {
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildCpuTradingRestrictionModal(draft));
+      }
+      draft.cpuTradingRestriction = "";
+      break;
+    }
+    case LEAGUE_SETUP_CUSTOM_IDS.difficulty: {
+      draft.difficulty = value as LeagueSetupDraft["difficulty"];
+      if (draft.difficulty === "custom") {
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildDifficultyCustomModal(draft));
+      }
+      draft.difficultyCustomSettings = "";
+      break;
+    }
     case LEAGUE_SETUP_CUSTOM_IDS.quarterLength: draft.quarterLengthMinutes = Number(value); break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockEnabled: draft.acceleratedClockEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockSeconds: draft.acceleratedClockMinimumSeconds = Number(value); break;
@@ -150,6 +177,71 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   applyLeagueSetupDependencies(draft);
   leagueSetupSessions.set(interaction.user.id, draft);
   await interaction.update(buildLeagueSetupWindow(draft));
+}
+
+async function saveDraftEditIfNeeded(interaction: { guildId: string | null; user: { id: string } }, draft: LeagueSetupDraft) {
+  if (!draft.editMode || !interaction.guildId) return;
+  try {
+    await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    await recApi.setEconomyConfig({
+      guildId: interaction.guildId,
+      commissionerOfficeChannelId: draft.commissionerOfficeChannelId ?? undefined,
+      announcementsChannelId: draft.announcementsChannelId ?? undefined,
+      votingPollsChannelId: draft.votingPollsChannelId ?? undefined,
+      streamsChannelId: draft.streamsChannelId ?? undefined,
+      highlightsChannelId: draft.highlightsChannelId ?? undefined,
+      pendingPayoutsChannelId: draft.pendingPayoutsChannelId ?? undefined,
+      pendingPurchasesChannelId: draft.pendingPurchasesChannelId ?? undefined,
+      gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
+    });
+  } catch (err) {
+    console.error("[ERROR] Failed to save league setup edit:", err);
+  }
+}
+
+export async function handleLeagueSetupButton(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "League Setup session expired. Open /menu again.", flags: MessageFlags.Ephemeral });
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.cancelWizard) {
+    leagueSetupSessions.delete(interaction.user.id);
+    return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureActivate || interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate) {
+    setLeagueSetupFeatureAnswer(draft, interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureActivate);
+    applyLeagueSetupDependencies(draft);
+    if (draft.editMode) {
+      await saveDraftEditIfNeeded(interaction, draft);
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft));
+    }
+    draft.step = getNextLeagueSetupStep(draft.step, draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.serverSetupDone) {
+    await saveDraftEditIfNeeded(interaction, draft);
+    draft.step = draft.editMode ? "settings_picker" : getNextLeagueSetupStep(draft.step, draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(draft.editMode ? buildSettingsPickerWindow(draft) : buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)) {
+    const section = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`.length);
+    const sectionStart: Record<string, LeagueSetupDraft["step"]> = {
+      features: "economy",
+      server_setup: "server_setup",
+      rules: "regular_season_streaming",
+      gameplay: "difficulty"
+    };
+    draft.step = sectionStart[section] ?? "review";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
 }
 
 export async function handleActivityRequirementsModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
@@ -206,6 +298,71 @@ export async function handleCoachAbilitiesRestrictionModal(interaction: Extract<
   return interaction.editReply(buildLeagueSetupWindow(draft));
 }
 
+async function finishModalStep(interaction: ModalSubmitInteraction, draft: LeagueSetupDraft) {
+  leagueSetupSessions.set(interaction.user.id, draft);
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (draft.editMode && interaction.guildId) {
+    await saveDraftEditIfNeeded(interaction, draft);
+    draft.step = "settings_picker";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.editReply(buildSettingsPickerWindow(draft));
+  }
+
+  draft.step = getNextLeagueSetupStep(draft.step, draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  return interaction.editReply(buildLeagueSetupWindow(draft));
+}
+
+export async function handleLeagueSetupServerChannelModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+  const channelType = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelModal}:`.length);
+  const value = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelInput).trim() || null;
+  setLeagueSetupServerChannel(draft, channelType, value);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  await saveDraftEditIfNeeded(interaction, draft);
+  return interaction.reply({ ...buildLeagueSetupWindow(draft), flags: MessageFlags.Ephemeral });
+}
+
+export async function handleFourthDownCustomModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+  const phase = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.fourthDownCustomModal}:`.length);
+  const value = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.fourthDownCustomInput).trim();
+  if (phase === "playoff") draft.customFourthDownRulePlayoff = value;
+  else draft.customFourthDownRuleRegular = value;
+  return finishModalStep(interaction, draft);
+}
+
+export async function handlePositionRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+  draft.positionChangePolicyDescription = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.positionChangeRestrictionInput).trim();
+  return finishModalStep(interaction, draft);
+}
+
+export async function handleCpuTradingRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+  draft.cpuTradingPolicy = "restricted";
+  draft.cpuTradingRestriction = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionInput).trim();
+  return finishModalStep(interaction, draft);
+}
+
+export async function handleDifficultyCustomModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+  draft.difficulty = "custom";
+  draft.difficultyCustomSettings = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomInput).trim();
+  return finishModalStep(interaction, draft);
+}
+
 // Maps the setup season-week selection to the league's current_week + season_stage.
 function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; seasonStage: string } {
   if (seasonWeek.startsWith("week_")) {
@@ -251,10 +408,26 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
     console.error("[ERROR] Failed to set league starting week:", error);
   }
 
+  try {
+    await recApi.setEconomyConfig({
+      guildId: interaction.guildId,
+      commissionerOfficeChannelId: draft.commissionerOfficeChannelId ?? undefined,
+      announcementsChannelId: draft.announcementsChannelId ?? undefined,
+      votingPollsChannelId: draft.votingPollsChannelId ?? undefined,
+      streamsChannelId: draft.streamsChannelId ?? undefined,
+      highlightsChannelId: draft.highlightsChannelId ?? undefined,
+      pendingPayoutsChannelId: draft.pendingPayoutsChannelId ?? undefined,
+      pendingPurchasesChannelId: draft.pendingPurchasesChannelId ?? undefined,
+      gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
+    });
+  } catch (error) {
+    console.error("[ERROR] Failed to save server setup routes:", error);
+  }
+
   const wantsLinking = draft.linkTeamsAfterSetup;
   leagueSetupSessions.delete(interaction.user.id);
 
-  const savedDescription = [`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, `Import Mode: ${result.configuration.import_mode}`, `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Media: ${result.configuration.media_features_enabled ? "Enabled" : "Disabled"}`, `Draft Classes: ${result.configuration.draft_class_features_enabled ? result.configuration.draft_class_type : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**", ...roleWarnings, "", "Economy payouts activate for linked users when Coin Economy is enabled."].join("\n");
+  const savedDescription = [`League: **${result.league.name}**`, "", `Type: ${result.configuration.roster_type}`, "Starts: Season 1, Training Camp", `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`, `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`, `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`, `Injuries: ${result.configuration.injury_policy}`, "", "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**", ...roleWarnings, "", "Economy payouts activate for linked users when Economy is enabled."].join("\n");
 
   if (!wantsLinking) {
     await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)], components: buildAdminPanelRows() });
@@ -272,21 +445,8 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
   }
 
   await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("League Setup Saved — Link Teams").setDescription([savedDescription, "", "Select a conference to begin linking users to teams, or click Done."].join("\n"))],
-    components: [
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect)
-          .setPlaceholder("Select conference")
-          .addOptions(
-            new StringSelectMenuOptionBuilder().setLabel("AFC Teams").setValue("AFC"),
-            new StringSelectMenuOptionBuilder().setLabel("NFC Teams").setValue("NFC")
-          )
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId("rec:league_setup:skip_team_linking").setLabel("Done").setStyle(ButtonStyle.Secondary)
-      )
-    ]
+    embeds: [new EmbedBuilder().setTitle("League Setup Saved — Teams").setDescription([savedDescription, "", "Default NFL teams are available. Use the Teams workflow below to link multiple users, edit custom/relocated teams, or leave team linking for later."].join("\n")), ...buildLeagueMgmtTeamsPanel().embeds],
+    components: buildLeagueMgmtTeamsPanel().components
   });
 }
 

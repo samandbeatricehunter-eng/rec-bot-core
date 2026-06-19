@@ -26,6 +26,7 @@ export const SeasonStageSchema = z.enum([
 export const CreateLeagueSchema = z.object({
   guildId: z.string().min(1),
   name: z.string().min(1),
+  leaguePassword: z.string().optional().nullable(),
 
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
   importMode: z.enum(["manual", "ea_import", "companion_app_export"]).default("manual"),
@@ -54,6 +55,8 @@ export const CreateLeagueSchema = z.object({
   devUpgradesEnabled: z.boolean().default(false),
   ageResetsEnabled: z.boolean().default(false),
   trainingPackagesEnabled: z.boolean().default(false),
+  attributePurchasesEnabled: z.boolean().default(false),
+  playerTraitPurchasesEnabled: z.boolean().default(false),
   contractAdjustmentPurchasesEnabled: z.boolean().default(false),
   capManagementAssistantEnabled: z.boolean().default(false),
 
@@ -69,7 +72,11 @@ export const CreateLeagueSchema = z.object({
   streamingSide: z.enum(["home", "away", "either", "both"]).default("either"),
 
   fourthDownRuleType: z.enum(["none", "standard_rec", "custom"]).default("standard_rec"),
+  fourthDownRuleTypeRegular: z.enum(["none", "standard_rec", "custom"]).default("standard_rec"),
+  fourthDownRuleTypePlayoff: z.enum(["none", "standard_rec", "custom"]).default("standard_rec"),
   customFourthDownRule: z.string().optional().nullable(),
+  customFourthDownRuleRegular: z.string().optional().nullable(),
+  customFourthDownRulePlayoff: z.string().optional().nullable(),
 
   positionChangePolicy: z.enum(["open", "restricted", "highly_restricted"]).default("restricted"),
   positionChangePolicyDescription: z.string().optional(),
@@ -80,10 +87,13 @@ export const CreateLeagueSchema = z.object({
   coachAbilitiesRestrictionNotes: z.string().optional().nullable(),
   tradeApprovalPolicy: z.enum(["no_approval_required", "commissioner_review", "competition_committee_review"]).default("competition_committee_review"),
   cpuTradingAllowed: z.boolean().default(true),
+  cpuTradingPolicy: z.enum(["allowed", "restricted", "not_allowed"]).default("allowed"),
+  cpuTradingRestriction: z.string().optional().nullable(),
   cpuFreeAgencyPolicy: z.enum(["open", "restricted", "disabled"]).default("open"),
   injuryPolicy: z.enum(["off", "on_standard", "on_reduced"]).default("on_standard"),
 
-  difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden"]).default("all_madden"),
+  difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden", "custom"]).default("all_madden"),
+  difficultyCustomSettings: z.string().optional().nullable(),
   quarterLengthMinutes: z.number().int().min(1).max(15).default(8),
   acceleratedClockEnabled: z.boolean().default(true),
   acceleratedClockMinimumSeconds: z.number().int().min(0).max(40).default(20),
@@ -104,6 +114,14 @@ export const CreateLeagueSchema = z.object({
 
   fairSimRequirements: z.string().optional().nullable(),
   forceWinRequirements: z.string().optional().nullable(),
+  commissionerOfficeChannelId: z.string().optional().nullable(),
+  announcementsChannelId: z.string().optional().nullable(),
+  votingPollsChannelId: z.string().optional().nullable(),
+  streamsChannelId: z.string().optional().nullable(),
+  highlightsChannelId: z.string().optional().nullable(),
+  pendingPayoutsChannelId: z.string().optional().nullable(),
+  pendingPurchasesChannelId: z.string().optional().nullable(),
+  gameChannelsCategoryId: z.string().optional().nullable(),
   requestedByDiscordId: z.string().min(1).optional(),
   serverName: z.string().optional()
 });
@@ -119,6 +137,7 @@ export const UpdateServerRoutesSchema = z.object({
   streamsChannelId: z.string().optional().nullable(),
   highlightsChannelId: z.string().optional().nullable(),
   pendingPayoutsChannelId: z.string().optional().nullable(),
+  pendingPurchasesChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
   commissionerOfficeChannelId: z.string().optional().nullable(),
   votingPollsChannelId: z.string().optional().nullable()

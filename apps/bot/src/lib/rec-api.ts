@@ -116,6 +116,7 @@ export const recApi = {
     guildId: string;
     pendingEconomyChannelId?: string;
     pendingPayoutsChannelId?: string;
+    pendingPurchasesChannelId?: string;
     gameChannelsCategoryId?: string;
     commissionerOfficeChannelId?: string;
     streamsChannelId?: string;
