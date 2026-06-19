@@ -152,7 +152,7 @@ export async function handleByTeamNav(interaction: StringSelectMenuInteraction, 
   if (choice === "user_snapshots") return renderUserSnapshotPicker(interaction);
 }
 
-async function renderUserSnapshotPicker(interaction: StringSelectMenuInteraction) {
+export async function renderUserSnapshotPicker(interaction: ButtonInteraction | StringSelectMenuInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Snapshots").setDescription("This must be run inside a league server.")], components: buildRostersMenuRows() });
   const coachData = await recApi.getCoaches(interaction.guildId).catch(() => null);

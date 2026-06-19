@@ -18,6 +18,14 @@ import {
  */
 export const MENU_CUSTOM_IDS = {
   mainSelect: "rec:menu:main_select",
+  openTeams: "rec:menu:open_teams",
+  schedule: "rec:menu:schedule",
+  makePurchase: "rec:menu:make_purchase",
+  viewUserProfiles: "rec:menu:view_user_profiles",
+  uploadBoxScore: "rec:menu:upload_box_score",
+  uploadScoringSummary: "rec:menu:upload_scoring_summary",
+  helpRules: "rec:menu:help_rules",
+  leagueMgmt: "rec:menu:league_mgmt",
   adminSelect: "rec:admin:select",
   adminServerSetup: "rec:admin:server_setup",
   adminLeagueSetup: "rec:admin:league_setup",
@@ -246,6 +254,109 @@ export function buildMainMenuRows(isAdmin: boolean) {
   }
 
   return [buttonRow, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+}
+
+function formatLeagueStage(value?: string | null) {
+  const stage = String(value ?? "regular_season");
+  if (stage === "regular_season") return "Regular Season";
+  if (stage === "preseason_training_camp") return "Training Camp";
+  return stage
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function formatMenuSeasonWeek(input: { seasonNumber?: number | string | null; currentWeek?: number | string | null; seasonStage?: string | null }) {
+  const season = input.seasonNumber ?? "?";
+  const stage = String(input.seasonStage ?? "regular_season");
+  if (stage === "regular_season") return `Season ${season}, Week ${input.currentWeek ?? "?"}`;
+  return `Season ${season}, ${formatLeagueStage(stage)}`;
+}
+
+export function buildLeagueMenuEmbed(input: {
+  discordUsername?: string;
+  teamName?: string | null;
+  wallet?: number;
+  savings?: number;
+  projectedInterest?: number;
+  leagueName?: string;
+  seasonNumber?: number | string | null;
+  currentWeek?: number | string | null;
+  seasonStage?: string | null;
+  leagueSeasonRecordText?: string;
+  leagueSeasonPointDifferential?: number;
+  userStreakText?: string;
+  purchaseCapsActive?: boolean;
+  purchaseCaps?: Array<{ label: string; purchased?: number | null; allowed?: number | null }>;
+}) {
+  const userInfo = [
+    `User: ${input.discordUsername ?? "Unlinked User"}`,
+    `Wallet: $${input.wallet ?? 0}`,
+    `Savings: $${input.savings ?? 0}`,
+    `Proj. Interest: $${input.projectedInterest ?? 0}`
+  ].join("\n");
+
+  const leagueInfo = [
+    `Team: ${input.teamName ?? "None"}`,
+    `Szn/Wk: ${formatMenuSeasonWeek(input)}`,
+    `Record: ${input.leagueSeasonRecordText ?? "0-0-0"}`,
+    `Streak: ${input.userStreakText ?? "-"}`,
+    `PointDiff: ${input.leagueSeasonPointDifferential ?? 0}`
+  ].join("\n");
+
+  const purchaseCaps = input.purchaseCapsActive && input.purchaseCaps?.length
+    ? input.purchaseCaps.map((cap) => `${cap.label}: ${cap.purchased ?? 0}/${cap.allowed ?? 0}`).join("\n")
+    : null;
+
+  const menuText = [
+    "Please use the buttons below to navigate to your destination.",
+    "Open Teams - Displays open teams and allows a user to request a team.",
+    "Schedule - Displays the season schedule, by league week, for each team.",
+    "Manage My Wallet - Move funds to/from savings, send funds to/from users.",
+    "Make a Purchase - Make a variety of purchases, depending on league settings.",
+    "Place a Wager - Put your money where your mouth is against users or the house.",
+    "View User Profiles - View user profiles for actively linked users in this league.",
+    "Upload Box Score - Upload your box score screenshots here to log results and get paid.",
+    "Upload Scoring Summary - Upload your scoring summary screenshots here to log details, get paid and have a story generated about your game.",
+    "Help/Rules - Find a list of all league rules and various FAQ here.",
+    "League Mgmt - Admin Only. Use this menu to manage this league."
+  ].join("\n");
+
+  return new EmbedBuilder()
+    .setTitle(input.leagueName ? `${input.leagueName} Menu` : "REC League Menu")
+    .addFields(
+      { name: "USER INFO", value: userInfo.slice(0, 1024), inline: false },
+      { name: "LEAGUE INFO", value: leagueInfo.slice(0, 1024), inline: false },
+      ...(purchaseCaps ? [{ name: "PURCHASE CAPS", value: purchaseCaps.slice(0, 1024), inline: false }] : []),
+      { name: "MENU", value: menuText.slice(0, 1024), inline: false }
+    )
+    .setFooter({ text: "Powered by the REC Scout bot © 2026" });
+}
+
+export function buildLeagueMenuRows(isAdmin: boolean) {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Open Teams").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Schedule").setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("Manage My Wallet").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.makePurchase).setLabel("Make a Purchase").setStyle(ButtonStyle.Primary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Place a Wager").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("View User Profiles").setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadBoxScore).setLabel("Upload Box Score").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadScoringSummary).setLabel("Upload Scoring Summary").setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.helpRules).setLabel("Help/Rules").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt (Admin Only)").setStyle(isAdmin ? ButtonStyle.Primary : ButtonStyle.Secondary)
+    )
+  ];
 }
 
 export function buildAdminPanelEmbed() {
