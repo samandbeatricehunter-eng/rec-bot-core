@@ -37,29 +37,15 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft,
 } from "./ui/league-setup.js";
-import { handleImportButton, handleImportModal, handleImportSelect, importSessions, renderImportPanel, startImportMode } from "./flows/imports.js";
-import { buildCommissionerToolsEmbed, buildEosFunctionsEmbed, buildManageLeagueEmbed, buildServerLeagueSetupEmbed } from "./flows/commissioner-tools.js";
+import { buildCommissionerToolsEmbed, buildManageLeagueEmbed, buildServerLeagueSetupEmbed } from "./flows/commissioner-tools.js";
 import { handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import { renderScheduleMenu, renderSchedulePlaceholder } from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import { handleActivityRequirementsModal, handleCoachAbilitiesRestrictionModal, handleLeagueSetupSave, handleLeagueSetupSelect, handleSetupModal, leagueSetupSessions } from "./flows/league-setup.js";
-import { IMPORT_CUSTOM_IDS } from "./ui/imports.js";
-import { buildTroubleshootMenuPanel, ADVANCE_MENU_CUSTOM_IDS } from "./ui/advance-menu.js";
-import { ADVANCE_SCHEDULE_CUSTOM_IDS, ADVANCE_WIZARD_BACK_CUSTOM_ID, DEFAULT_SCHEDULE_TIMEZONE } from "./ui/advance-schedule.js";
-import { handleAdvanceScheduleConfirm, handleAdvanceScheduleSelect, startAdvanceScheduleSession } from "./flows/advance-schedule.js";
-import { handleAdvanceMenuSelect, handleTroubleshootMenuSelect } from "./flows/advance-menu.js";
-import { advanceWizardSessions, ADVANCE_WIZARD_CUSTOM_IDS, ADVANCE_WIZARD_GOTW_CUSTOM_ID, buildAdvanceWizardEntryPayload, buildAdvanceWizardFsFwModal, buildAdvanceWizardImportPayload, buildAdvanceWizardManualPayload, buildAdvanceWizardOutcomeReviewPayload, buildAdvanceWizardStep2Payload, handleAdvanceWizardFsFwModal, handleTeamConflictSelect, handleTeamConflictResolveModal, handleTeamConflictContinue, handleWizardGotwSelect, clearCatchUpTarget } from "./flows/advance-wizard.js";
-import { recordGameChannelMessage, recordHighlightMessage } from "./flows/game-channels.js";
-import { handleGotwSelect, handleGotwVote, renderGotwSelection } from "./flows/gotw.js";
-import { GOTW_CUSTOM_IDS } from "./ui/gotw.js";
 import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
 import { LEAGUE_WEEK_CUSTOM_IDS, buildLeagueWeekSetModal, buildLeagueWeekStageRow } from "./ui/league-week.js";
-import { ACTIVE_CHECK_CUSTOM_IDS } from "./ui/active-check.js";
-import { WEEKLY_CHALLENGE_CUSTOM_IDS } from "./ui/weekly-challenges.js";
 import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal, handleCustomTeamNoLink, renderLeagueMgmtTeams, handleLeagueTeamsAddRemove, handleLeagueTeamsEdit, handleLeagueTeamsConferenceSelect, handleLeagueTeamsTeamSelect, handleLeagueTeamsEditConferenceSelect, handleLeagueTeamsEditTeamSelect, handleLeagueTeamsResetDefaults, handleLeagueTeamsConfirmBack, handleLeagueTeamsConfirmUnlink } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
-import { buildRecAwardVotingEmbed, postEosPollsAndAwards } from "./flows/advance-wizard.js";
-import { handleActiveCheckResponse, handleStartActiveCheck, startActiveCheckCloseoutLoop } from "./handlers/active-check.js";
 import {
   handleManageWallet,
   handleWalletCustomTransferModal,
@@ -84,7 +70,6 @@ const serverSetupChannelSessions = new Map<string, string>();
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
-  advanceWizardSessions.cleanup();
 }, 60_000).unref();
 
 const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please reopen /menu to proceed.";
@@ -132,7 +117,6 @@ client.once("clientReady", async () => {
     console.error("REC Core API health check failed", error);
   }
   await registerCommandsForVisibleGuilds();
-  startActiveCheckCloseoutLoop(client);
 });
 
 client.on("error", (error) => {
@@ -170,44 +154,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    // GOTW vote buttons live on public announcement messages and must work for any league
-    // member, without an active /menu session.
-    if (interaction.isButton() && (interaction.customId.startsWith(GOTW_CUSTOM_IDS.voteAwayPrefix) || interaction.customId.startsWith(GOTW_CUSTOM_IDS.voteHomePrefix))) {
-      return handleGotwVote(interaction);
-    }
-
-    // Active Check "Active" buttons appear in public announcements — any league member clicks them.
-    if (interaction.isButton() && interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.activePrefix)) {
-      return handleActiveCheckResponse(interaction);
-    }
-
-    // Nomination, voting, payout-review, and award controls appear on channel messages outside of /menu.
-    if (interaction.isButton()) {
-      if (interaction.customId.startsWith("highlight_payout:")) return handleHighlightPayout(interaction);
-      if (interaction.customId.startsWith("rec:stream_review:")) return handleStreamReviewButton(interaction);
-      if (interaction.customId.startsWith("poty_nominate_own:")) return handlePotyNominateOwn(interaction);
-      if (interaction.customId.startsWith("goty_nominate_btn:")) return handleGotyNominateBtn(interaction);
-      if (interaction.customId === "rec_awards_close_voting") return handleRecAwardCloseVoting(interaction);
-      if (interaction.customId.startsWith("rec_award_approve:")) return handleRecAwardApprove(interaction);
-      // EOS payout buttons appear in user DMs and in commissioner channel — no /menu session required
-      if (interaction.customId.startsWith("eos_payout_approve:")) return handleEosPayoutApprove(interaction);
-      if (interaction.customId.startsWith("eos_payout_reject:")) return handleEosPayoutReject(interaction);
-    }
-    if (interaction.isStringSelectMenu()) {
-      if (interaction.customId.startsWith("rec_award_vote:")) return handleRecAwardVote(interaction);
-      if (interaction.customId.startsWith("eos_vote:")) return handleEosVote(interaction);
-      if (interaction.customId.startsWith("poty_nominate:")) return handlePotyNominateSelect(interaction);
-      if (interaction.customId.startsWith("poty_category_select:")) return handlePotyCategorySelect(interaction);
-      if (interaction.customId.startsWith("goty_nominate:")) return handleGotyNominateSelect(interaction);
-      if (interaction.customId.startsWith("eos_tiebreaker:cant_shut_up:")) return handleCantShutUpTiebreaker(interaction);
-    }
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("goty_nominate_modal:")) {
-      return handleGotyNominateModal(interaction);
-    }
-
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
-      importSessions.delete(interaction.user.id);
       await expireWindow(interaction);
       return;
     }
