@@ -295,9 +295,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.transferFunds) return handleTransferFunds(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Make a Purchase", "The purchase store is coming soon. It will only show purchase types enabled for this league.");
+      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "The purchase store is coming soon. It will only show purchase types enabled for this league.");
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.uploadBoxScore) return replyMenuPlaceholder(interaction, "Upload Box Score", "Box score screenshot uploads are coming soon. This will log results and trigger eligible payouts.");
+      if (interaction.customId === MENU_CUSTOM_IDS.stream) return replyMenuPlaceholder(interaction, "Stream", "Stream posting is coming soon. Users will be able to post a stream link or select Discord streaming options here.");
+      if (interaction.customId === MENU_CUSTOM_IDS.uploadBoxScore) return replyMenuPlaceholder(interaction, "Box Score & Scoring Summary", "Screenshot uploads are coming soon. This will log game results, scoring details, eligible payouts, and story generation.");
       if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Upload Scoring Summary", "Scoring summary screenshot uploads are coming soon. This will log game details, payouts, and story generation.");
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);

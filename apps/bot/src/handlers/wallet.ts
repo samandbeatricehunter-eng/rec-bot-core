@@ -112,7 +112,7 @@ export async function handleTransferFunds(interaction: ButtonInteraction) {
 
 export async function handlePlaceWager(interaction: ButtonInteraction) {
   return interaction.reply({
-    embeds: [new EmbedBuilder().setTitle("Place a Wager").setDescription("The wager workflow is coming soon. You'll be able to wager coins on upcoming matchups here.")],
+    embeds: [new EmbedBuilder().setTitle("Wager").setDescription("The wager workflow is coming soon. You'll be able to wager coins on upcoming matchups here.")],
     flags: MessageFlags.Ephemeral
   });
 }

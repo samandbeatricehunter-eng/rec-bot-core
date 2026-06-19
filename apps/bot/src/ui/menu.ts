@@ -22,6 +22,7 @@ export const MENU_CUSTOM_IDS = {
   schedule: "rec:menu:schedule",
   makePurchase: "rec:menu:make_purchase",
   viewUserProfiles: "rec:menu:view_user_profiles",
+  stream: "rec:menu:stream",
   uploadBoxScore: "rec:menu:upload_box_score",
   uploadScoringSummary: "rec:menu:upload_scoring_summary",
   helpRules: "rec:menu:help_rules",
@@ -311,15 +312,15 @@ export function buildLeagueMenuEmbed(input: {
 
   const menuText = [
     "Please use the buttons below to navigate to your destination.",
-    "**Open Teams** - Displays open teams and allows a user to request a team.",
+    "**Teams** - Displays open teams and allows a user to request a team.",
     "**Schedule** - Displays the season schedule, by league week, for each team.",
-    "**Manage My Wallet** - Move funds to/from savings, send funds to/from users.",
-    "**Make a Purchase** - Make a variety of purchases, depending on league settings.",
-    "**Place a Wager** - Put your money where your mouth is against users or the house.",
-    "**View User Profiles** - View user profiles for actively linked users in this league.",
-    "**Upload Box Score** - Upload your box score screenshots here to log results and get paid.",
-    "**Upload Scoring Summary** - Upload your scoring summary screenshots here to log details, get paid and have a story generated about your game.",
     "**Help/Rules** - Find a list of all league rules and various FAQ here.",
+    "**My Wallet** - Move funds to/from savings, send funds to/from users.",
+    "**Purchase** - Make a variety of purchases, depending on league settings.",
+    "**Wager** - Put your money where your mouth is against users or the house.",
+    "**Stream** - Post a stream link or select Discord streaming options.",
+    "**Box Score & Scoring Summary** - Upload game screenshots to log results, details, payouts, and story generation.",
+    "**View User Profiles** - View user profiles for actively linked users in this league.",
     "**League Mgmt** - Admin Only. Use this menu to manage this league."
   ].join("\n");
 
@@ -334,27 +335,25 @@ export function buildLeagueMenuEmbed(input: {
     .setFooter({ text: "Powered by the REC Scout bot © 2026" });
 }
 
-export function buildLeagueMenuRows(isAdmin: boolean) {
+export function buildLeagueMenuRows(_isAdmin: boolean) {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Open Teams").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Schedule").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Teams").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Schedule").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.helpRules).setLabel("Help/Rules").setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("Manage My Wallet").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.makePurchase).setLabel("Make a Purchase").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("My Wallet").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.makePurchase).setLabel("Purchase").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Wager").setStyle(ButtonStyle.Success)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Place a Wager").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("View User Profiles").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.stream).setLabel("Stream").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadBoxScore).setLabel("Box Score & Scoring Summary").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadBoxScore).setLabel("Upload Box Score").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadScoringSummary).setLabel("Upload Scoring Summary").setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.helpRules).setLabel("Help/Rules").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt (Admin Only)").setStyle(isAdmin ? ButtonStyle.Primary : ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("User Profiles").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)
     )
   ];
 }
