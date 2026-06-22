@@ -415,8 +415,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   let currentMatchup = "None";
   let currentGame: any = null;
   let gotwStatus = "No";
-  let offensiveChallenge: any = null;
-  let defensiveChallenge: any = null;
   let badges: any[] = [];
   let youAre = "BYE WEEK";
   let matchupType = "NONE";
@@ -499,20 +497,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
           gotwStatus = `Yes${gotw.data.strength_rating ? ` (${Number(gotw.data.strength_rating).toFixed(1)} rating)` : ""}`;
         } else if (isPostseason) {
           gotwStatus = "Yes - Playoff GOTW";
-        }
-
-        const challenges = await supabase
-          .from("rec_weekly_challenges")
-          .select("challenge_side,s_tier_goal,a_tier_goal,b_tier_goal,status,earned_tier,earned_amount")
-          .eq("league_id", league.id)
-          .eq("season_number", seasonNumber)
-          .eq("week_number", currentWeek)
-          .eq("user_id", userId)
-          .in("challenge_side", ["offense", "defense"]);
-
-        if (!challenges.error && Array.isArray(challenges.data)) {
-          offensiveChallenge = challenges.data.find((challenge: any) => challenge.challenge_side === "offense") ?? null;
-          defensiveChallenge = challenges.data.find((challenge: any) => challenge.challenge_side === "defense") ?? null;
         }
       } else if (isPostseason) {
         currentMatchup = "Season Concluded";
@@ -617,8 +601,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       currentMatchupText: currentMatchup,
       gotwStatus,
       gotwVotingRecordText: gotwVotingRecord ? `${gotwVotingRecord.correct}-${gotwVotingRecord.total - gotwVotingRecord.correct} (${gotwVotingRecord.accuracy}%)` : "No votes yet",
-      offensiveChallenge,
-      defensiveChallenge,
       globalRecordText: recordText(globalRecord),
       globalPlayoffText: playoffText(globalRecord),
       globalSuperbowlText: superbowlText(globalRecord),

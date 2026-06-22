@@ -440,8 +440,6 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
       seasonStage: display.seasonStage ?? profile?.league?.season_stage ?? profile?.league?.current_phase ?? "regular_season",
       hideLeagueInfo: !isLinkedToTeam,
       noticeText: isLinkedToTeam ? undefined : unregisteredNotice,
-      offensiveChallenge: display.offensiveChallenge,
-      defensiveChallenge: display.defensiveChallenge,
       canManageLeague: isAdmin
     });
 
@@ -646,16 +644,22 @@ async function handleAdvanceWeek(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can advance the league.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Advancing Week...").setDescription("Updating the league week/stage. No payouts or catch-up automation are issued by this button.")], components: [] });
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Advancing Week...").setDescription("Updating the league week/stage and applying 3.5% savings interest for linked users.")], components: [] });
   const current = await recApi.viewLeagueWeek(interaction.guildId);
   const currentWeek = Number(current?.league?.current_week ?? 1);
   const currentStage = String(current?.league?.season_stage ?? "regular_season");
   const next = nextLeagueStage(currentWeek, currentStage);
   const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, ...next });
+  const interest = result?.savingsInterest;
+  const interestLine = interest?.applied && interest.usersCredited > 0
+    ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
+    : interest?.reason === "interest_disabled"
+      ? "\n\nSavings interest was skipped because this league exceeded the 24-hour advance limit."
+      : "";
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
-      .setDescription(`League advanced from **${stageLabel(currentStage, currentWeek)}** to **${stageLabel(next.seasonStage, next.weekNumber)}**.${result?.highlightAwardsDue ? "\n\nPOTY Tallies are now available from this Advance menu." : ""}`)],
+      .setDescription(`League advanced from **${stageLabel(currentStage, currentWeek)}** to **${stageLabel(next.seasonStage, next.weekNumber)}**.${interestLine}${result?.highlightAwardsDue ? "\n\nPOTY Tallies are now available from this Advance menu." : ""}`)],
     components: buildAdvanceMgmtRows()
   });
 }
