@@ -9,6 +9,7 @@ import { serverConfigRoutes } from "./modules/server-config/server-config.routes
 import { setupRoutes } from "./modules/setup/setup.routes.js";
 import { streamRoutes } from "./modules/streams/streams.routes.js";
 import { teamOwnershipRoutes } from "./modules/team-ownership/team-ownership.routes.js";
+import { teamRequestRoutes } from "./modules/team-requests/team-requests.routes.js";
 import { userRoutes } from "./modules/users/user.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
@@ -17,6 +18,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await userRoutes(app);
   await setupRoutes(app);
   await teamOwnershipRoutes(app);
+  await teamRequestRoutes(app);
   await rosterRoutes(app);
   await scheduleRoutes(app);
   await gameChannelRoutes(app);

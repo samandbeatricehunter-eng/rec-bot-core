@@ -100,18 +100,28 @@ export async function renderScheduleMenu(interaction: ButtonInteraction) {
     });
   }
 
-  const schedule = await recApi.getUserSchedule(interaction.user.id, interaction.guildId);
-  return interaction.editReply({
-    embeds: [
-      buildScheduleEmbed({
-        leagueName: schedule?.league?.name ?? null,
-        teamName: schedule?.team?.name ?? null,
-        isLinked: Boolean(schedule?.isLinked),
-        games: schedule?.games ?? []
-      })
-    ],
-    components: buildScheduleRows()
-  });
+  try {
+    const schedule = await recApi.getUserSchedule(interaction.user.id, interaction.guildId);
+    return interaction.editReply({
+      embeds: [
+        buildScheduleEmbed({
+          leagueName: schedule?.league?.name ?? null,
+          teamName: schedule?.team?.name ?? null,
+          isLinked: Boolean(schedule?.isLinked),
+          games: schedule?.games ?? []
+        })
+      ],
+      components: buildScheduleRows()
+    });
+  } catch (error) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle("Schedule")
+        .setColor(0xe74c3c)
+        .setDescription(error instanceof Error ? error.message : String(error))],
+      components: buildScheduleRows()
+    });
+  }
 }
 
 export async function renderSchedulePlaceholder(interaction: ButtonInteraction, title: string, description: string) {

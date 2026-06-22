@@ -376,7 +376,7 @@ function teamNickname(name?: string | null) {
 
 function maddenTeamLine(team: RosterTeam) {
   const record = team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
-  const label = teamNickname(team.name);
+  const label = String(team.name ?? "Team").trim() || "Team";
   const teamText = team.linkedDiscordId ? `~~${label}~~` : label;
   const coach = team.linkedDiscordId ? ` (<@${team.linkedDiscordId}>)` : "";
   return `${teamText} (${record})${coach}`;
@@ -385,7 +385,7 @@ function maddenTeamLine(team: RosterTeam) {
 // Relocated/custom teams sometimes come back with a blank conference and a division like "NFC East".
 // Re-bucket every team into NFC/AFC (inferring from the division text when the conference is blank)
 // so the grid always renders exactly the two real conferences — no empty/duplicate groups.
-function normalizeRosterConferences(conferences: RosterConference[]): RosterConference[] {
+export function normalizeRosterConferences(conferences: RosterConference[]): RosterConference[] {
   const inferConf = (confName: string, divisionText: string) => {
     const c = String(confName ?? "").toUpperCase().trim();
     if (c === "NFC" || c === "AFC") return c;
@@ -473,6 +473,10 @@ export type TeamScheduleGame = {
   awayScore?: number | null;
   isCompleted?: boolean;
   isH2h?: boolean;
+  isBye?: boolean;
+  isHome?: boolean;
+  opponentLabel?: string | null;
+  line?: string | null;
 };
 
 function formatScheduleStage(phase?: string | null, weekNumber?: number | null) {
@@ -495,6 +499,8 @@ function formatScheduleTeam(name?: string | null, lost?: boolean) {
 }
 
 function formatScheduleLine(game: TeamScheduleGame) {
+  if (game.line) return game.line;
+  if (game.isBye) return `Week ${game.weekNumber ?? "?"}: BYE`;
   const completed = Boolean(game.isCompleted && game.homeScore != null && game.awayScore != null);
   const homeLost = completed && Number(game.homeScore) < Number(game.awayScore);
   const awayLost = completed && Number(game.awayScore) < Number(game.homeScore);
@@ -513,7 +519,11 @@ export function buildScheduleEmbed(input: {
   const embed = new EmbedBuilder().setTitle(input.teamName ? `${input.teamName} Schedule` : "Schedule");
 
   if (!input.isLinked) {
-    return embed.setDescription("You are not currently linked to a team. Team schedule selection is not active yet, so ask a commissioner to link you or use League Mgmt > Schedule to view the full league schedule.");
+    return embed.setDescription([
+      "You are not currently linked to a team in this league.",
+      "",
+      "Open **Teams** and use **Request Team** to ask a commissioner for an open team.",
+    ].join("\n"));
   }
 
   const games = input.games ?? [];
@@ -522,20 +532,14 @@ export function buildScheduleEmbed(input: {
     : "No schedule has been logged for your team yet.";
 
   return embed.setDescription([
+    input.leagueName ? `League: **${input.leagueName}**` : null,
     scheduleText,
-    "",
-    "Commissioners can view every team's schedule from League Mgmt > Schedule > View Schedule."
-  ].join("\n").slice(0, 4096));
+  ].filter(Boolean).join("\n\n").slice(0, 4096));
 }
 
 export function buildScheduleRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSelectTeam).setLabel("Select Team").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSos).setLabel("SOS").setStyle(ButtonStyle.Primary)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleHistory).setLabel("History").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
     )
   ];

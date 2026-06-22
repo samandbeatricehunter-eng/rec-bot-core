@@ -45,13 +45,26 @@ import {
   handlePostSetupScheduleViewPage,
   POST_SETUP_SCHEDULE_CUSTOM_IDS,
   renderScheduleMenu,
-  renderSchedulePlaceholder,
   SCHEDULE_MGMT_CUSTOM_IDS,
   startManualScheduleEntry,
   startPostSetupManualScheduleEntry,
   startPostSetupScheduleStep,
   startScheduleViewer
 } from "./flows/schedule.js";
+import {
+  ADVANCE_WIZARD_CUSTOM_IDS,
+  handleAdvanceWizardOutcome,
+  startAdvanceWeekWizard,
+} from "./flows/advance-wizard.js";
+import {
+  TEAM_REQUEST_CUSTOM_IDS,
+  handleTeamRequestApprove,
+  handleTeamRequestConference,
+  handleTeamRequestReject,
+  handleTeamRequestRole,
+  handleTeamRequestSelect,
+  startTeamRequestFlow,
+} from "./flows/team-request.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleActivityRequirementsModal,
@@ -258,6 +271,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsTeamSelect}:`)) return handleLeagueTeamsTeamSelect(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsEditConferenceSelect) return handleLeagueTeamsEditConferenceSelect(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditTeamSelect}:`)) return handleLeagueTeamsEditTeamSelect(interaction);
+      if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.teamSelectPrefix}:`)) return handleTeamRequestSelect(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminWeekSelect) return handleBoxScoreAdminWeekSelect(interaction);
@@ -330,7 +344,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleView) return startScheduleViewer(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvance) return handleLeagueMgmtAdvance(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek) return handleAdvanceWeek(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek) return startAdvanceWeekWizard(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtActiveCheck) return handleActiveCheck(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetGotw) return handleSetGotw(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtGameChannels) return handleGameChannels(interaction);
@@ -350,9 +364,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSelectTeam) return renderSchedulePlaceholder(interaction, "Select Team", "Team schedule selection is not active yet. Commissioners can view the full league schedule from League Mgmt > Schedule > View Schedule.");
-      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return renderSchedulePlaceholder(interaction, "SOS", "Strength of schedule is not active yet. This will be calculated from logged schedules once the SOS view is connected.");
-      if (interaction.customId === MENU_CUSTOM_IDS.scheduleHistory) return renderSchedulePlaceholder(interaction, "History", "Schedule history is not active yet. Current-season schedule pages are available from the main Schedule view and League Mgmt schedule viewer.");
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup) return handleManualScheduleNextMatchup(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek) return handleManualScheduleNextWeek(interaction);
@@ -381,7 +392,14 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return replyMenuPlaceholder(interaction, "Request Team", "Team request approvals are not active yet. Commissioners can assign teams from League Mgmt > Teams.");
+      if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return startTeamRequestFlow(interaction);
+      if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.conferenceSelect}:`)) return handleTeamRequestConference(interaction);
+      if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.approvePrefix}:`)) return handleTeamRequestApprove(interaction);
+      if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.rejectPrefix}:`)) return handleTeamRequestReject(interaction);
+      if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.rolePrefix}:`)) return handleTeamRequestRole(interaction);
+      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.homeWinPrefix}`)) return handleAdvanceWizardOutcome(interaction, "home", buildAdvanceMgmtRows);
+      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.awayWinPrefix}`)) return handleAdvanceWizardOutcome(interaction, "away", buildAdvanceMgmtRows);
+      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.tiePrefix}`)) return handleAdvanceWizardOutcome(interaction, "tie", buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.teamsBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transfer) return handleWalletTransferOpen(interaction);
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferAll}:`)) return handleWalletTransferAll(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
@@ -669,30 +687,6 @@ function stageLabel(stage: string, week: number) {
   if (stage === "conference_championship") return "Conference Championship";
   if (stage === "super_bowl") return "Super Bowl";
   return stage.replace(/_/g, " ");
-}
-
-async function handleAdvanceWeek(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can advance the league.", flags: MessageFlags.Ephemeral });
-  await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Advancing Week...").setDescription("Updating the league week/stage and applying 3.5% savings interest for linked users.")], components: [] });
-  const current = await recApi.viewLeagueWeek(interaction.guildId);
-  const currentWeek = Number(current?.league?.current_week ?? 1);
-  const currentStage = String(current?.league?.season_stage ?? "regular_season");
-  const next = nextLeagueStage(currentWeek, currentStage);
-  const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, ...next });
-  const interest = result?.savingsInterest;
-  const interestLine = interest?.applied && interest.usersCredited > 0
-    ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
-    : interest?.reason === "interest_disabled"
-      ? "\n\nSavings interest was skipped because this league exceeded the 24-hour advance limit."
-      : "";
-  return interaction.editReply({
-    embeds: [new EmbedBuilder()
-      .setTitle("Week Advanced")
-      .setDescription(`League advanced from **${stageLabel(currentStage, currentWeek)}** to **${stageLabel(next.seasonStage, next.weekNumber)}**.${interestLine}${result?.highlightAwardsDue ? "\n\nPOTY Tallies are now available from this Advance menu." : ""}`)],
-    components: buildAdvanceMgmtRows()
-  });
 }
 
 async function getRouteChannels(guildId: string) {

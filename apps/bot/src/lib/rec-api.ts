@@ -158,6 +158,58 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  getAdvanceWeekGames: (guildId: string) =>
+    recFetch<any>("/v1/league-week/advance-games", {
+      method: "POST",
+      body: JSON.stringify({ guildId }),
+    }),
+
+  completeAdvanceWeek: (input: {
+    guildId: string;
+    nextWeekNumber: number;
+    nextSeasonStage: string;
+    advancedByDiscordId: string;
+    results: Array<{ gameId: string; outcome: "home" | "away" | "tie" }>;
+  }) =>
+    recFetch<any>("/v1/league-week/advance-complete", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  createTeamLinkRequest: (input: { guildId: string; discordId: string; teamId: string }) =>
+    recFetch<any>("/v1/team-requests/create", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  approveTeamLinkRequest: (input: { requestId: string; reviewerDiscordId: string }) =>
+    recFetch<any>("/v1/team-requests/approve", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  rejectTeamLinkRequest: (input: { requestId: string; reviewerDiscordId: string }) =>
+    recFetch<any>("/v1/team-requests/reject", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  completeTeamLinkRequest: (input: {
+    requestId: string;
+    authority: "member" | "co_commissioner" | "commissioner";
+    reviewerDiscordId: string;
+  }) =>
+    recFetch<any>("/v1/team-requests/complete", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  attachTeamLinkRequestMessage: (input: { requestId: string; channelId: string; messageId: string }) =>
+    recFetch<any>("/v1/team-requests/attach-message", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   recordStreamPost: (input: {
     guildId: string;
     discordId: string;

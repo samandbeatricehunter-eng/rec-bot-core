@@ -1,0 +1,204 @@
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  type ButtonInteraction,
+} from "discord.js";
+import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { recApi } from "../lib/rec-api.js";
+
+export const ADVANCE_WIZARD_CUSTOM_IDS = {
+  homeWinPrefix: "rec:advance_wizard:home",
+  awayWinPrefix: "rec:advance_wizard:away",
+  tiePrefix: "rec:advance_wizard:tie",
+  skipAdvancePrefix: "rec:advance_wizard:skip",
+} as const;
+
+type WizardGame = {
+  gameId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  isH2h: boolean;
+  isCpuGame: boolean;
+};
+
+type AdvanceWizardSession = {
+  guildId: string;
+  userId: string;
+  seasonNumber: number;
+  currentWeek: number;
+  currentStage: string;
+  nextWeekNumber: number;
+  nextSeasonStage: string;
+  pendingGames: WizardGame[];
+  gameIndex: number;
+  results: Array<{ gameId: string; outcome: "home" | "away" | "tie" }>;
+};
+
+const sessions = new Map<string, AdvanceWizardSession>();
+const sessionKey = (guildId: string, userId: string) => `${guildId}:${userId}`;
+
+function nextLeagueStage(weekNumber: number, seasonStage: string) {
+  if (seasonStage === "preseason_training_camp" || seasonStage === "preseason") {
+    return { weekNumber: 1, seasonStage: "regular_season" };
+  }
+  if (seasonStage === "regular_season" && weekNumber < 18) return { weekNumber: weekNumber + 1, seasonStage: "regular_season" };
+  if (seasonStage === "regular_season" && weekNumber >= 18) return { weekNumber: 19, seasonStage: "wild_card" };
+  if (seasonStage === "wild_card") return { weekNumber: 20, seasonStage: "divisional" };
+  if (seasonStage === "divisional") return { weekNumber: 21, seasonStage: "conference_championship" };
+  if (seasonStage === "conference_championship") return { weekNumber: 22, seasonStage: "super_bowl" };
+  return { weekNumber: Math.max(1, weekNumber + 1), seasonStage };
+}
+
+function stageLabel(stage: string, week: number) {
+  if (stage === "preseason_training_camp") return "Preseason Training Camp";
+  if (stage === "preseason") return "Preseason";
+  if (stage === "regular_season") return `Week ${week}`;
+  if (stage === "wild_card") return "Wild Card";
+  if (stage === "divisional") return "Divisional";
+  if (stage === "conference_championship") return "Conference Championship";
+  if (stage === "super_bowl") return "Super Bowl";
+  return stage.replace(/_/g, " ");
+}
+
+function renderWizardStep(session: AdvanceWizardSession) {
+  const game = session.pendingGames[session.gameIndex];
+  if (!game) {
+    return {
+      embeds: [new EmbedBuilder().setTitle("Advance Week").setDescription("No games require commissioner input this week.")],
+      components: [],
+    };
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Advance Week — Game ${session.gameIndex + 1} of ${session.pendingGames.length}`)
+    .setDescription([
+      `Logging results for **${stageLabel(session.currentStage, session.currentWeek)}** before advancing to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.`,
+      "",
+      `**Away:** ${game.awayTeamName}`,
+      `**Home:** ${game.homeTeamName}`,
+      game.isH2h ? "User H2H" : "Includes CPU",
+      "",
+      "Select the winner. These results update **display records only** (power rankings / team embed W-L). Box scores still drive official stats and payouts.",
+    ].join("\n"));
+
+  const suffix = `:${session.guildId}:${session.userId}`;
+  return {
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.awayWinPrefix}${suffix}`).setLabel(`${game.awayTeamName} Win`).setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.homeWinPrefix}${suffix}`).setLabel(`${game.homeTeamName} Win`).setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.tiePrefix}${suffix}`).setLabel("Tie").setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  };
+}
+
+export async function startAdvanceWeekWizard(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can advance the league.", ephemeral: true });
+
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Preparing Advance Week...").setDescription("Loading this week's schedule and checking for missing box scores.")],
+    components: [],
+  });
+
+  const payload = await recApi.getAdvanceWeekGames(interaction.guildId);
+  const currentWeek = Number(payload.currentWeek ?? 1);
+  const currentStage = String(payload.currentStage ?? "regular_season");
+  const next = nextLeagueStage(currentWeek, currentStage);
+  const pendingGames: WizardGame[] = (payload.gamesNeedingInput ?? []).map((game: any) => ({
+    gameId: game.gameId,
+    homeTeamName: game.homeTeamName,
+    awayTeamName: game.awayTeamName,
+    isH2h: Boolean(game.isH2h),
+    isCpuGame: Boolean(game.isCpuGame),
+  }));
+
+  const session: AdvanceWizardSession = {
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    seasonNumber: Number(payload.seasonNumber ?? 1),
+    currentWeek,
+    currentStage,
+    nextWeekNumber: next.weekNumber,
+    nextSeasonStage: next.seasonStage,
+    pendingGames,
+    gameIndex: 0,
+    results: [],
+  };
+
+  sessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+
+  if (!pendingGames.length) {
+    sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
+    const result = await recApi.completeAdvanceWeek({
+      guildId: interaction.guildId,
+      nextWeekNumber: next.weekNumber,
+      nextSeasonStage: next.seasonStage,
+      advancedByDiscordId: interaction.user.id,
+      results: [],
+    });
+    const interest = result?.savingsInterest;
+    const interestLine = interest?.applied && interest.usersCredited > 0
+      ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
+      : "";
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle("Week Advanced")
+        .setDescription(`League advanced from **${stageLabel(currentStage, currentWeek)}** to **${stageLabel(next.seasonStage, next.weekNumber)}**.${interestLine}`)],
+      components: buildAdvanceRows(),
+    });
+  }
+
+  return interaction.editReply(renderWizardStep(session));
+}
+
+export async function handleAdvanceWizardOutcome(interaction: ButtonInteraction, outcome: "home" | "away" | "tie", buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+  if (!interaction.inCachedGuild()) return;
+  const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
+  if (!session) {
+    return interaction.reply({ content: "Advance session expired. Reopen League Mgmt > Advance.", ephemeral: true });
+  }
+
+  const game = session.pendingGames[session.gameIndex];
+  if (!game) return;
+
+  await interaction.deferUpdate();
+  session.results.push({ gameId: game.gameId, outcome });
+  session.gameIndex += 1;
+
+  if (session.gameIndex < session.pendingGames.length) {
+    sessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+    return interaction.editReply(renderWizardStep(session));
+  }
+
+  sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Advancing Week...").setDescription("Saving display results and advancing the league week.")],
+    components: [],
+  });
+
+  const result = await recApi.completeAdvanceWeek({
+    guildId: interaction.guildId,
+    nextWeekNumber: session.nextWeekNumber,
+    nextSeasonStage: session.nextSeasonStage,
+    advancedByDiscordId: interaction.user.id,
+    results: session.results,
+  });
+
+  const interest = result?.savingsInterest;
+  const interestLine = interest?.applied && interest.usersCredited > 0
+    ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
+    : "";
+
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("Week Advanced")
+      .setDescription(`League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}`)],
+    components: buildAdvanceRows(),
+  });
+}

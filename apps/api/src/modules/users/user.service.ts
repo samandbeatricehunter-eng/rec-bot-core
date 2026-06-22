@@ -333,7 +333,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
 
   const assignment = await supabase
     .from("rec_team_assignments")
-    .select("team_id,team:rec_teams(id,name,abbreviation)")
+    .select("team_id,team:rec_teams(id,name,abbreviation,display_city,display_nick,is_relocated)")
     .eq("league_id", league.id)
     .eq("user_id", account.data.user_id)
     .eq("assignment_status", "active")
@@ -347,84 +347,80 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
 
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const seasonId = await resolveSeasonId(league.id, seasonNumber);
-  const [gamesResult, resultsResult] = await Promise.all([
-    supabase
-      .from("rec_games")
-      .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation)")
-      .eq("league_id", league.id)
-      .eq("season_id", seasonId)
-      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`),
-    supabase
-      .from("rec_game_results")
-      .select("id,game_id,external_game_id,season_number,week_number,game_type,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,winning_team_id,losing_team_id,is_user_h2h,is_cpu_game,is_playoff,home_team:rec_teams!rec_game_results_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_game_results_away_team_id_fkey(id,name,abbreviation)")
-      .eq("league_id", league.id)
-      .eq("season_number", seasonNumber)
-      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-  ]);
+  const { data: scheduledGames, error: gamesError } = await supabase
+    .from("rec_games")
+    .select("id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
+    .eq("league_id", league.id)
+    .eq("season_id", seasonId)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .lte("week_number", 18);
+  if (gamesError) throw new ApiError(500, "Failed to load schedule", gamesError);
 
-  if (gamesResult.error) throw new ApiError(500, "Failed to load schedule", gamesResult.error);
-  if (resultsResult.error) throw new ApiError(500, "Failed to load schedule results", resultsResult.error);
+  const opponentUserIds = [...new Set((scheduledGames ?? []).flatMap((game: any) => {
+    const isHome = game.home_team_id === teamId;
+    const opponentUserId = isHome ? game.away_user_id : game.home_user_id;
+    return opponentUserId ? [opponentUserId] : [];
+  }))];
+  const opponentAccounts = opponentUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", opponentUserIds)
+    : { data: [], error: null };
+  if (opponentAccounts.error) throw new ApiError(500, "Failed to load opponent Discord accounts", opponentAccounts.error);
+  const discordByUserId = new Map((opponentAccounts.data ?? []).map((row) => [row.user_id, row.discord_id]));
 
-  const resultByGameId = new Map<string, any>();
-  const resultByExternalId = new Map<string, any>();
-  const resultByMatchup = new Map<string, any>();
-  for (const result of resultsResult.data ?? []) {
-    if (result.game_id) resultByGameId.set(String(result.game_id), result);
-    if (result.external_game_id) resultByExternalId.set(String(result.external_game_id), result);
-    resultByMatchup.set(matchupKey(result), result);
+  const gamesByWeek = new Map<number, any>();
+  for (const game of scheduledGames ?? []) {
+    const weekNumber = Number(game.week_number ?? 0);
+    if (weekNumber >= 1 && weekNumber <= 18) gamesByWeek.set(weekNumber, game);
   }
 
-  const rows = new Map<string, any>();
-  const consumedResultIds = new Set<string>();
-  for (const game of gamesResult.data ?? []) {
-    const key = `game:${game.id}`;
-    const result = resultByGameId.get(String(game.id))
-      ?? (game.external_game_id ? resultByExternalId.get(String(game.external_game_id)) : null)
-      ?? resultByMatchup.get(matchupKey(game));
-    if (result?.id) consumedResultIds.add(String(result.id));
-    rows.set(key, {
-      id: game.id,
-      weekNumber: game.week_number,
-      phase: result?.game_type ?? game.phase ?? "regular_season",
-      homeTeamId: game.home_team_id,
-      awayTeamId: game.away_team_id,
-      homeTeamName: teamName(result ?? game, "home"),
-      awayTeamName: teamName(result ?? game, "away"),
-      homeScore: result?.home_score ?? game.home_score ?? null,
-      awayScore: result?.away_score ?? game.away_score ?? null,
-      isCompleted: Boolean(result?.id) || String(game.status ?? "").toLowerCase() === "completed",
-      isH2h: result?.is_user_h2h ?? Boolean(game.home_user_id && game.away_user_id)
+  function opponentLabel(game: any, isHome: boolean) {
+    const opponentTeam = isHome ? game.away_team : game.home_team;
+    const opponentUserId = isHome ? game.away_user_id : game.home_user_id;
+    if (opponentUserId) {
+      const discordId = discordByUserId.get(opponentUserId);
+      if (discordId) return `<@${discordId}>`;
+    }
+    return formatTeamDisplayName(opponentTeam) ?? opponentTeam?.name ?? "CPU";
+  }
+
+  function teamNickFromName(name: string) {
+    const parts = name.trim().split(/\s+/);
+    return parts.length > 1 ? parts[parts.length - 1]! : name.trim();
+  }
+
+  const games = [];
+  for (let week = 1; week <= 18; week += 1) {
+    const game = gamesByWeek.get(week);
+    if (!game) {
+      games.push({
+        weekNumber: week,
+        phase: "regular_season",
+        isBye: true,
+        line: `Week ${week}: BYE`,
+      });
+      continue;
+    }
+
+    const isHome = game.home_team_id === teamId;
+    const label = opponentLabel(game, isHome);
+    const displayLabel = label.startsWith("<@") ? label : teamNickFromName(label);
+    const prefix = isHome ? `VS ${displayLabel}` : `@ ${displayLabel}`;
+    games.push({
+      weekNumber: week,
+      phase: game.phase ?? "regular_season",
+      isHome,
+      isH2h: Boolean(game.home_user_id && game.away_user_id),
+      opponentLabel: label,
+      line: `Week ${week}: ${prefix}`,
     });
   }
 
-  for (const result of resultsResult.data ?? []) {
-    if (consumedResultIds.has(String(result.id))) continue;
-    const key = result.game_id ? `game:${result.game_id}` : result.external_game_id ? `external:${result.external_game_id}` : matchupKey(result);
-    rows.set(key, {
-      id: result.game_id ?? result.id,
-      weekNumber: result.week_number,
-      phase: result.game_type ?? (result.is_playoff ? "postseason" : "regular_season"),
-      homeTeamId: result.home_team_id,
-      awayTeamId: result.away_team_id,
-      homeTeamName: teamName(result, "home"),
-      awayTeamName: teamName(result, "away"),
-      homeScore: result.home_score ?? null,
-      awayScore: result.away_score ?? null,
-      isCompleted: true,
-      isH2h: result.is_user_h2h ?? !result.is_cpu_game
-    });
-  }
-
-  const games = [...rows.values()].sort((a, b) =>
-    schedulePhaseOrder(a.phase) - schedulePhaseOrder(b.phase)
-    || Number(a.weekNumber ?? 0) - Number(b.weekNumber ?? 0)
-  );
-
+  const teamRow = (assignment.data as any)?.team ?? null;
   return {
     isLinked: true,
     league,
-    team: (assignment.data as any)?.team ?? null,
-    games
+    team: teamRow ? { ...teamRow, name: formatTeamDisplayName(teamRow) ?? teamRow.name } : null,
+    games,
   };
 }
 
