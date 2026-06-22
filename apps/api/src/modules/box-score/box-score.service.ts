@@ -3,7 +3,8 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js";
 
-const BOX_SCORE_PAYOUT_AMOUNT = 50;
+const BOX_SCORE_WIN_PAYOUT = 100;
+const BOX_SCORE_LOSS_PAYOUT = 50;
 
 // ─── Learned OCR label aliases (#2) ────────────────────────────────────────────
 // Garbled labels that an approved parse mapped to a canonical key, so future
@@ -154,6 +155,29 @@ async function getDiscordAccount(discordId: string) {
   return data;
 }
 
+// The team a user is actively assigned to in this league (for verifying a box
+// score submitter is reporting their own game).
+async function getActiveTeamId(leagueId: string, userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("rec_team_assignments")
+    .select("team_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load team assignment.", error);
+  return data?.team_id ?? null;
+}
+
+// Helpers for the per-team stats table.
+function toInt(value: string | null | undefined): number | null {
+  const digits = (value ?? "").replace(/[^0-9-]/g, "");
+  if (!digits) return null;
+  const n = parseInt(digits, 10);
+  return isNaN(n) ? null : n;
+}
+
 // ─── Shared game/team resolution from a parsed box score ───────────────────────
 
 type ResolvedGame = {
@@ -271,6 +295,8 @@ export type CreateSubmissionResult = {
   stats: Record<string, { team1: string; team2: string }>;
   quarterScores: { team1: number[]; team2: number[] } | null;
   submittedByDiscordId: string;
+  flagged: boolean;
+  flagReasons: string[];
 };
 
 export async function createBoxScoreSubmission(input: CreateSubmissionInput): Promise<CreateSubmissionResult> {
@@ -283,6 +309,23 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
 
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
   const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed);
+
+  // Verify the submitter is reporting their own current-week game:
+  //  1. They are linked to one of the two teams in the box score.
+  //  2. Those two teams are scheduled to play each other this week (resolved.gameId).
+  const submitterTeamId = await getActiveTeamId(leagueId, account.user_id);
+  const linkedToBoxScore = !!submitterTeamId && (submitterTeamId === resolved.team1Id || submitterTeamId === resolved.team2Id);
+  const opponentMatches = !!resolved.gameId;
+  const flagReasons: string[] = [];
+  if (!submitterTeamId) {
+    flagReasons.push("You aren't linked to a team in this league.");
+  } else if (!linkedToBoxScore) {
+    flagReasons.push("You aren't linked to either team shown in this box score.");
+  }
+  if (!opponentMatches) {
+    flagReasons.push(`These teams aren't scheduled to play each other in Week ${weekNumber}.`);
+  }
+  const flagged = flagReasons.length > 0;
 
   const comeback = parsed.score
     ? computeComebackStats(parsed.score.team1Quarters, parsed.score.team2Quarters, resolved.team1Id, resolved.team2Id)
@@ -307,6 +350,10 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       image_urls: input.imageUrls,
       team1_abbr: parsed.score?.team1Abbr ?? null,
       team2_abbr: parsed.score?.team2Abbr ?? null,
+      team1_id: resolved.team1Id,
+      team2_id: resolved.team2Id,
+      flagged,
+      flag_reasons: flagReasons,
       home_team_id: resolved.homeTeamId,
       away_team_id: resolved.awayTeamId,
       home_user_id: resolved.homeUserId,
@@ -373,6 +420,8 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     stats: parsed.stats,
     quarterScores,
     submittedByDiscordId: input.discordId,
+    flagged,
+    flagReasons,
   };
 }
 
@@ -420,14 +469,14 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // Approve: record game result + issue payouts
   const now = new Date().toISOString();
 
+  // Winner (null on a tie or an unscored game).
+  const winningUserId: string | null =
+    sub.home_score != null && sub.away_score != null && sub.home_score !== sub.away_score
+      ? (sub.home_score > sub.away_score ? sub.home_user_id : sub.away_user_id)
+      : null;
+
   // Write game result if we have matched teams and scores
   if (sub.home_team_id && sub.away_team_id && sub.home_score != null && sub.away_score != null) {
-    const winningUserId = sub.home_score > sub.away_score
-      ? sub.home_user_id
-      : sub.home_score < sub.away_score
-        ? sub.away_user_id
-        : null;
-
     await supabase.from("rec_game_results").upsert(
       {
         league_id: sub.league_id,
@@ -450,24 +499,35 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     );
   }
 
-  // Issue payouts to both players
-  const payoutUserIds: string[] = [];
-  if (sub.submitted_by_user_id) payoutUserIds.push(sub.submitted_by_user_id);
-  // Add opponent if matched and different
-  const opponentUserId = sub.home_user_id === sub.submitted_by_user_id ? sub.away_user_id : sub.home_user_id;
-  if (opponentUserId && opponentUserId !== sub.submitted_by_user_id) payoutUserIds.push(opponentUserId);
+  // Issue payouts: winner $100, loser $50. Matched games pay both participants
+  // by result; an unmatched (commissioner-approved) score pays just the submitter.
+  const payouts: { userId: string; amount: number }[] = [];
+  if (sub.home_team_id && sub.away_team_id && (sub.home_user_id || sub.away_user_id)) {
+    for (const uid of [sub.home_user_id, sub.away_user_id] as (string | null)[]) {
+      if (!uid) continue;
+      const amount = winningUserId == null ? BOX_SCORE_LOSS_PAYOUT : (uid === winningUserId ? BOX_SCORE_WIN_PAYOUT : BOX_SCORE_LOSS_PAYOUT);
+      payouts.push({ userId: uid, amount });
+    }
+  } else if (sub.submitted_by_user_id) {
+    payouts.push({ userId: sub.submitted_by_user_id, amount: BOX_SCORE_LOSS_PAYOUT });
+  }
 
-  for (const userId of payoutUserIds) {
+  let totalPaid = 0;
+  for (const p of payouts) {
     await supabase.rpc("add_to_wallet", {
-      p_user_id: userId,
-      p_amount: BOX_SCORE_PAYOUT_AMOUNT,
+      p_user_id: p.userId,
+      p_amount: p.amount,
       p_league_id: sub.league_id,
-      p_description: `Box score upload payout — Wk ${sub.week_number}`,
+      p_description: `Box score payout ($${p.amount}) — Wk ${sub.week_number}`,
       p_transaction_type: "box_score_payout",
       p_source: "box_score",
       p_source_reference: { submissionId: sub.id },
     }).throwOnError();
+    totalPaid += p.amount;
   }
+
+  // Record flat per-team-per-game stats (two rows, offense + generated/allowed).
+  await recordTeamGameStats(sub);
 
   await supabase
     .from("rec_box_score_submissions")
@@ -489,7 +549,95 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // Approval confirms the parse — promote any fuzzy-matched labels to aliases.
   await recordLabelAliases(sub.parse_label_samples as Record<string, string> | null);
 
-  return { ok: true, action: "approved" as const, payoutAmount: BOX_SCORE_PAYOUT_AMOUNT, playersPayd: payoutUserIds.length };
+  return { ok: true, action: "approved" as const, totalPaid, playersPayd: payouts.length };
+}
+
+// ─── Per-team game stats (flat, two rows per game) ─────────────────────────────
+
+const STAT_KEY_TO_COLUMN: Record<string, string> = {
+  off_yards_gained: "off_yards_gained",
+  off_rush_yards: "off_rush_yards",
+  off_pass_yards: "off_pass_yards",
+  off_first_down: "off_first_down",
+  punt_return_yards: "punt_return_yards",
+  kick_return_yards: "kick_return_yards",
+  total_yards_gained: "total_yards_gained",
+  turnovers: "turnovers_committed",
+  red_zone_off_percentage: "red_zone_off_percentage",
+};
+
+async function recordTeamGameStats(sub: any) {
+  if (!sub.team1_id && !sub.team2_id) return; // nothing resolved to attribute stats to
+  const stats = (sub.team_stats ?? {}) as Record<string, { team1: string; team2: string }>;
+  const quarters = (sub.quarter_scores ?? null) as { team1: number[]; team2: number[] } | null;
+
+  // Map OCR team1/team2 to home/away so scores and users line up.
+  const team1IsHome = sub.team1_id && sub.home_team_id === sub.team1_id;
+  const team1Score = team1IsHome ? sub.home_score : sub.away_score;
+  const team2Score = team1IsHome ? sub.away_score : sub.home_score;
+  const team1User = team1IsHome ? sub.home_user_id : sub.away_user_id;
+  const team2User = team1IsHome ? sub.away_user_id : sub.home_user_id;
+
+  const sideOf = (side: "team1" | "team2") => {
+    const isTeam1 = side === "team1";
+    const teamId = isTeam1 ? sub.team1_id : sub.team2_id;
+    const oppId = isTeam1 ? sub.team2_id : sub.team1_id;
+    const userId = isTeam1 ? team1User : team2User;
+    const oppUser = isTeam1 ? team2User : team1User;
+    const ptsFor = isTeam1 ? team1Score : team2Score;
+    const ptsAgainst = isTeam1 ? team2Score : team1Score;
+    const oppSide: "team1" | "team2" = isTeam1 ? "team2" : "team1";
+
+    const result = ptsFor == null || ptsAgainst == null ? null : ptsFor > ptsAgainst ? "win" : ptsFor < ptsAgainst ? "loss" : "tie";
+    const isComebackWinner = sub.comeback_winner_team_id && sub.comeback_winner_team_id === teamId;
+
+    const offensive: Record<string, string> = {};
+    const defensive: Record<string, string> = {};
+    for (const [key, val] of Object.entries(stats)) {
+      offensive[key] = val?.[side] ?? "";
+      defensive[key] = val?.[oppSide] ?? "";
+    }
+
+    const row: Record<string, any> = {
+      league_id: sub.league_id,
+      season_number: sub.season_number,
+      week_number: sub.week_number,
+      phase: sub.phase,
+      game_id: sub.game_id,
+      submission_id: sub.id,
+      team_id: teamId,
+      opponent_team_id: oppId,
+      user_id: userId,
+      opponent_user_id: oppUser,
+      is_home: isTeam1 ? !!team1IsHome : !team1IsHome,
+      result,
+      points_for: ptsFor ?? null,
+      points_against: ptsAgainst ?? null,
+      time_of_possession: stats["time_of_possession"]?.[side] || null,
+      // generated/allowed = opponent's offense mirrored.
+      generated_turnovers: toInt(stats["turnovers"]?.[oppSide]),
+      yards_allowed: toInt(stats["total_yards_gained"]?.[oppSide]),
+      rush_yards_allowed: toInt(stats["off_rush_yards"]?.[oppSide]),
+      pass_yards_allowed: toInt(stats["off_pass_yards"]?.[oppSide]),
+      first_downs_allowed: toInt(stats["off_first_down"]?.[oppSide]),
+      red_zone_def_percentage: toInt(stats["red_zone_def_percentage"]?.[side]),
+      comeback_deficit: isComebackWinner ? sub.comeback_deficit : null,
+      comeback_deficit_quarter: isComebackWinner ? sub.comeback_deficit_quarter : null,
+      comeback_rate: isComebackWinner ? sub.comeback_rate : null,
+      fourth_quarter_comeback: isComebackWinner ? sub.fourth_quarter_comeback : false,
+      quarter_scores: quarters ? quarters[side] : null,
+      offensive_stats: offensive,
+      defensive_stats: defensive,
+    };
+    for (const [key, column] of Object.entries(STAT_KEY_TO_COLUMN)) {
+      row[column] = toInt(stats[key]?.[side]);
+    }
+    return row;
+  };
+
+  const rows = [sub.team1_id ? sideOf("team1") : null, sub.team2_id ? sideOf("team2") : null].filter(Boolean);
+  if (!rows.length) return;
+  await supabase.from("rec_team_game_stats").upsert(rows, { onConflict: "submission_id,team_id" });
 }
 
 // ─── List pending submissions ─────────────────────────────────────────────────

@@ -285,16 +285,37 @@ export async function handleBoxScoreSubmitConfirm(interaction: ButtonInteraction
     }
   }
 
+  // Flagged submission (submitter/opponent mismatch): alert a commissioner on
+  // the box scores channel so it gets a closer look before approval.
+  const flagged: boolean = !!result.flagged;
+  if (flagged) {
+    const roleId: string | null = routes?.commissioner_role_id ?? null;
+    const reasons: string[] = result.flagReasons ?? [];
+    await ex.channel.send({
+      content: roleId ? `<@&${roleId}>` : undefined,
+      embeds: [new EmbedBuilder()
+        .setTitle("⚠️ Box score flagged for review")
+        .setColor(0xf1c40f)
+        .setDescription(
+          `<@${ex.userId}>'s box score couldn't be auto-verified:\n\n${reasons.map((r) => `• ${r}`).join("\n")}\n\n` +
+          "A commissioner should confirm this matchup before approving the payout."
+        )],
+      allowedMentions: roleId ? { roles: [roleId] } : { parse: [] },
+    }).catch(() => undefined);
+  }
+
   exchanges.delete(key);
 
   return interaction.editReply({
     content: "",
     embeds: [new EmbedBuilder()
       .setTitle("Submitted for approval ✅")
-      .setColor(0x2ecc71)
-      .setDescription(posted
-        ? "Sent to your commissioners for approval. You and your opponent will be paid once it's approved."
-        : "Submitted for review. No Pending Payouts channel is configured, so commissioners can review it from **League Mgmt → Box Score Inbox**.")],
+      .setColor(flagged ? 0xf1c40f : 0x2ecc71)
+      .setDescription(
+        (flagged ? "⚠️ Heads up: I couldn't auto-verify this matchup, so it's been flagged for a commissioner to confirm.\n\n" : "") +
+        (posted
+          ? "Sent to your commissioners for approval. Winners are paid $100 and the other player $50 once it's approved."
+          : "Submitted for review. No Pending Payouts channel is configured, so commissioners can review it from **League Mgmt → Box Score Inbox**."))],
     components: [],
   });
 }
@@ -319,7 +340,7 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
     const result = await recApi.reviewBoxScore({ submissionId, action: "approve", reviewedByDiscordId: interaction.user.id });
     const base = interaction.message.embeds[0];
     const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0x2ecc71);
-    embed.addFields({ name: "STATUS", value: `✅ Approved by <@${interaction.user.id}> — $${result.payoutAmount} paid to ${result.playersPayd} player(s).` });
+    embed.addFields({ name: "STATUS", value: `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPayd} player(s).` });
     return interaction.editReply({ embeds: [embed], components: [] });
   } catch (err) {
     return interaction.editReply({
@@ -489,7 +510,10 @@ function buildPayoutReviewEmbed(result: any): EmbedBuilder {
       { name: "DEFENSE  (T1 / T2)", value: defensiveSummary(result?.stats).slice(0, 1024), inline: false },
       { name: "SUBMITTED BY", value: `<@${result.submittedByDiscordId}>`, inline: true },
     );
-  if (!result?.gameMatched) {
+  if (result?.flagged && (result.flagReasons ?? []).length) {
+    embed.setColor(0xf1c40f);
+    embed.addFields({ name: "⚠️ FLAGGED", value: (result.flagReasons as string[]).map((r) => `• ${r}`).join("\n").slice(0, 1024), inline: false });
+  } else if (!result?.gameMatched) {
     embed.addFields({ name: "⚠️ NOTICE", value: "Could not auto-match to a scheduled game. You can still approve.", inline: false });
   }
   embed.setFooter({ text: `Submission ${result.submissionId}` });
