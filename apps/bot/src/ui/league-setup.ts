@@ -196,6 +196,7 @@ export type LeagueSetupDraft = {
   highlightsChannelId?: string | null;
   pendingPayoutsChannelId?: string | null;
   pendingPurchasesChannelId?: string | null;
+  boxScoresChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   // When true, changes are saved to DB immediately after each step and return to settings_picker.
   editMode: boolean;
@@ -317,6 +318,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     highlightsChannelId: null,
     pendingPayoutsChannelId: null,
     pendingPurchasesChannelId: null,
+    boxScoresChannelId: null,
     gameChannelsCategoryId: null,
     editMode: false
   };
@@ -616,6 +618,7 @@ export const LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS = {
   voting_polls: { label: "Voting Polls", field: "votingPollsChannelId" },
   streams: { label: "Streams", field: "streamsChannelId" },
   highlights: { label: "Highlights", field: "highlightsChannelId" },
+  box_scores: { label: "Box Scores", field: "boxScoresChannelId" },
   pending_payouts: { label: "Pending Payouts", field: "pendingPayoutsChannelId" },
   pending_purchases: { label: "Pending Purchases", field: "pendingPurchasesChannelId" },
   game_channels_category: { label: "Game Channels Category", field: "gameChannelsCategoryId" }

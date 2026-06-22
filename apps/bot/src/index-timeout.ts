@@ -772,6 +772,17 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   if (!category || category.type !== ChannelType.GuildCategory) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Game Channels").setDescription("No game channels category is configured.")], components: buildAdvanceMgmtRows() });
   }
+
+  await interaction.guild.channels.fetch();
+  const existingChannels = interaction.guild.channels.cache.filter(
+    (ch) => ch.parentId === category.id && ch.type === ChannelType.GuildText
+  );
+  let deletedCount = 0;
+  for (const channel of existingChannels.values()) {
+    const deleted = await channel.delete("Replacing game channels for the current week schedule.").then(() => true).catch(() => false);
+    if (deleted) deletedCount += 1;
+  }
+
   const { currentWeek, stage, games } = await currentSchedule(interaction);
   const h2h = games.filter((g: any) => g.away_discord_id && g.home_discord_id);
   if (!h2h.length) {
@@ -779,11 +790,12 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       embeds: [new EmbedBuilder()
         .setTitle("Game Channels")
         .setDescription([
+          deletedCount > 0 ? `Removed ${deletedCount} previous game channel${deletedCount === 1 ? "" : "s"}.` : null,
           `No H2H matchups are available for **${stageLabel(stage, currentWeek)}**.`,
           "",
           "Game channels are created only from the logged weekly schedule, and only when both scheduled teams have linked Discord users.",
           "If this is unexpected, check League Mgmt > Schedule and League Mgmt > Teams."
-        ].join("\n"))],
+        ].filter(Boolean).join("\n"))],
       components: buildAdvanceMgmtRows()
     });
   }
@@ -835,7 +847,13 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       allowedMentions: { parse: ["everyone"] }
     }).catch(() => undefined);
   }
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Game Channels").setDescription(created.length ? `Created:\n${created.join("\n")}` : "No H2H game channels were created.")], components: buildAdvanceMgmtRows() });
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Game Channels").setDescription([
+      deletedCount > 0 ? `Removed ${deletedCount} previous game channel${deletedCount === 1 ? "" : "s"}.` : "No previous game channels were found in the category.",
+      created.length ? `Created:\n${created.join("\n")}` : "No H2H game channels were created."
+    ].filter(Boolean).join("\n\n"))],
+    components: buildAdvanceMgmtRows()
+  });
 }
 
 function stageFromWeekNumber(weekNumber: number) {

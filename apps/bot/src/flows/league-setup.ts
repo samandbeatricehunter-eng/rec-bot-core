@@ -206,6 +206,7 @@ async function saveDraftEditIfNeeded(interaction: { guildId: string | null; user
       highlightsChannelId: draft.highlightsChannelId ?? undefined,
       pendingPayoutsChannelId: draft.pendingPayoutsChannelId ?? undefined,
       pendingPurchasesChannelId: draft.pendingPurchasesChannelId ?? undefined,
+      boxScoresChannelId: draft.boxScoresChannelId ?? undefined,
       gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
     });
   } catch (err) {
@@ -455,6 +456,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
         highlightsChannelId: draft.highlightsChannelId ?? undefined,
         pendingPayoutsChannelId: draft.pendingPayoutsChannelId ?? undefined,
         pendingPurchasesChannelId: draft.pendingPurchasesChannelId ?? undefined,
+        boxScoresChannelId: draft.boxScoresChannelId ?? undefined,
         gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
       });
     } catch (error) {

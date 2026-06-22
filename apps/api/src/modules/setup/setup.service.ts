@@ -458,6 +458,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     highlightsChannelId: r.highlights_channel_id ?? null,
     pendingPayoutsChannelId: r.pending_payouts_channel_id ?? null,
     pendingPurchasesChannelId: r.pending_purchases_channel_id ?? null,
+    boxScoresChannelId: r.box_scores_channel_id ?? null,
     gameChannelsCategoryId: r.game_channels_category_id ?? null,
     linkTeamsAfterSetup: false,
     editMode: true
