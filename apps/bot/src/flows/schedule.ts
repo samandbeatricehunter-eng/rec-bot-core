@@ -32,6 +32,7 @@ export const POST_SETUP_SCHEDULE_CUSTOM_IDS = {
   prev: "rec:post_setup_schedule:prev",
   next: "rec:post_setup_schedule:next",
   finish: "rec:post_setup_schedule:finish",
+  enterManual: "rec:post_setup_schedule:enter_manual",
   continueFromTeams: "rec:league_setup:continue_schedule_review",
 } as const;
 
@@ -59,6 +60,7 @@ type ManualScheduleSession = {
   games: any[];
   warnedIncomplete: boolean;
   notice?: string | null;
+  mode: "admin" | "post_setup";
 };
 
 const manualScheduleSessions = new Map<string, ManualScheduleSession>();
@@ -75,10 +77,10 @@ type ScheduleViewSession = {
 };
 
 const scheduleViewSessions = new Map<string, ScheduleViewSession>();
-const postSetupSessions = new Map<string, { guildId: string }>();
+const postSetupSessions = new Map<string, { guildId: string; franchiseYearOne: boolean }>();
 
-export function markPostSetupActive(userId: string, guildId: string) {
-  postSetupSessions.set(userId, { guildId });
+export function markPostSetupActive(userId: string, guildId: string, franchiseYearOne: boolean) {
+  postSetupSessions.set(userId, { guildId, franchiseYearOne });
 }
 
 export function clearPostSetupSession(userId: string) {
@@ -147,6 +149,7 @@ export async function startManualScheduleEntry(interaction: ButtonInteraction) {
       games: [],
       warnedIncomplete: false,
       notice: null,
+      mode: "admin",
     };
     manualScheduleSessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
     return interaction.editReply(renderManualWeekPicker(session));
@@ -216,7 +219,15 @@ export async function handleManualScheduleNextWeek(interaction: ButtonInteractio
     return interaction.editReply(renderManualEntry(session));
   }
 
-  session.weekNumber = Math.min(22, session.weekNumber + 1);
+  const maxWeek = session.mode === "post_setup" ? POST_SETUP_MAX_WEEK : 22;
+  if (session.weekNumber >= maxWeek) {
+    session.notice = session.mode === "post_setup"
+      ? `Week ${POST_SETUP_MAX_WEEK} is the last regular-season week for setup. Finish entering matchups, then press **Finish Setup**.`
+      : `Week ${maxWeek} is the last supported week in this flow.`;
+    return interaction.editReply(renderManualEntry(session));
+  }
+
+  session.weekNumber = Math.min(maxWeek, session.weekNumber + 1);
   session.selectedTeamIds = [];
   session.warnedIncomplete = false;
   session.notice = null;
@@ -237,6 +248,7 @@ export async function handleManualScheduleComplete(interaction: ButtonInteractio
     if (!saved) return interaction.editReply(renderManualEntry(session));
   }
   manualScheduleSessions.delete(sessionKey(session.guildId, session.userId));
+  if (session.mode === "post_setup") return handlePostSetupScheduleFinish(interaction);
   return interaction.editReply({
     embeds: [buildAdminPanelEmbed().setDescription("Manual schedule entry completed. Your saved matchups are logged in the league schedule.")],
     components: buildAdminPanelRows(),
@@ -244,6 +256,11 @@ export async function handleManualScheduleComplete(interaction: ButtonInteractio
 }
 
 export async function handleManualScheduleBack(interaction: ButtonInteraction) {
+  const session = getManualSession(interaction);
+  if (session?.mode === "post_setup") {
+    manualScheduleSessions.delete(sessionKey(session.guildId, session.userId));
+    return interaction.update(renderPostSetupScheduleInputChoice());
+  }
   if (interaction.inCachedGuild()) manualScheduleSessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   return interaction.update({
     embeds: [new EmbedBuilder()
@@ -309,26 +326,60 @@ export async function handleScheduleViewBack(interaction: ButtonInteraction) {
 }
 
 function filterPostSetupWeeks(weeks: ScheduleViewSession["weeks"]) {
-  const filtered = weeks.filter((week) => week.weekNumber >= 1 && week.weekNumber <= POST_SETUP_MAX_WEEK);
-  if (filtered.length > 0) return filtered;
-  return Array.from({ length: POST_SETUP_MAX_WEEK }, (_, idx) => ({
-    weekNumber: idx + 1,
-    phase: "regular_season",
-    games: [],
-  }));
+  const byWeek = new Map(
+    weeks
+      .filter((week) => week.weekNumber >= 1 && week.weekNumber <= POST_SETUP_MAX_WEEK)
+      .map((week) => [week.weekNumber, week] as const)
+  );
+  return Array.from({ length: POST_SETUP_MAX_WEEK }, (_, idx) => {
+    const weekNumber = idx + 1;
+    return byWeek.get(weekNumber) ?? { weekNumber, phase: "regular_season", games: [] };
+  });
 }
 
-export async function startPostSetupScheduleReview(interaction: ButtonInteraction) {
+function renderPostSetupScheduleInputChoice() {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("League Setup: Enter Schedule")
+        .setDescription([
+          "Your franchise is **not in Year 1**, so REC did not seed a default NFL schedule.",
+          "",
+          "Enter matchups manually for Weeks 1–18 now, or finish setup and add the schedule later from **League Mgmt → Schedule**.",
+        ].join("\n")),
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.enterManual)
+          .setLabel("Enter Schedule Manually")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish)
+          .setLabel("Finish Setup")
+          .setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  };
+}
+
+export async function startPostSetupScheduleStep(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
+  const postSetup = postSetupSessions.get(interaction.user.id);
+  if (postSetup?.franchiseYearOne) return loadPostSetupScheduleReview(interaction);
+  return interaction.editReply(renderPostSetupScheduleInputChoice());
+}
+
+async function loadPostSetupScheduleReview(interaction: ButtonInteraction) {
   await interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Loading Schedule...").setDescription(`Fetching Weeks 1–${POST_SETUP_MAX_WEEK} for review.`)],
     components: [],
   });
   try {
-    const result = await recApi.listScheduleSeason({ guildId: interaction.guildId });
+    const result = await recApi.listScheduleSeason({ guildId: interaction.guildId! });
     const session: ScheduleViewSession = {
-      guildId: interaction.guildId,
+      guildId: interaction.guildId!,
       userId: interaction.user.id,
       leagueName: result?.league?.name ?? null,
       seasonNumber: Number(result?.league?.seasonNumber ?? 1),
@@ -336,11 +387,60 @@ export async function startPostSetupScheduleReview(interaction: ButtonInteractio
       weeks: filterPostSetupWeeks(result?.weeks ?? []),
       mode: "post_setup",
     };
-    scheduleViewSessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+    scheduleViewSessions.set(sessionKey(interaction.guildId!, interaction.user.id), session);
     return interaction.editReply(renderPostSetupScheduleView(session));
   } catch (err) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Schedule Review").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish).setLabel("Finish Setup").setStyle(ButtonStyle.Success)
+        ),
+      ],
+    });
+  }
+}
+
+
+export async function startPostSetupManualScheduleEntry(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Loading Manual Schedule...").setDescription("Fetching league teams so you can enter weekly matchups.")],
+    components: [],
+  });
+  try {
+    const data = await recApi.listScheduleTeams(interaction.guildId);
+    const teams: ManualTeam[] = data?.teams ?? [];
+    if (teams.length < 2) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Enter Schedule").setDescription("No league teams are available yet.")],
+        components: [
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish).setLabel("Finish Setup").setStyle(ButtonStyle.Success)
+          ),
+        ],
+      });
+    }
+    const session: ManualScheduleSession = {
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      seasonNumber: Number(data?.league?.seasonNumber ?? 1),
+      currentWeek: Number(data?.league?.currentWeek ?? 1),
+      weekNumber: 1,
+      teams,
+      selectedTeamIds: [],
+      games: [],
+      warnedIncomplete: false,
+      notice: "Enter each matchup for Week 1. The first team selected is Away; the second is Home.",
+      mode: "post_setup",
+    };
+    manualScheduleSessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+    await refreshWeek(session);
+    return interaction.editReply(renderManualEntry(session));
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Enter Schedule").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
       components: [
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish).setLabel("Finish Setup").setStyle(ButtonStyle.Success)
@@ -457,7 +557,10 @@ function renderManualEntry(session: ManualScheduleSession) {
   ].filter(Boolean).join("\n");
 
   return {
-    embeds: [new EmbedBuilder().setTitle("Manual Schedule").setDescription(description.slice(0, 4096)).setColor(session.warnedIncomplete ? 0xf1c40f : 0x3498db)],
+    embeds: [new EmbedBuilder()
+      .setTitle(session.mode === "post_setup" ? `League Setup: Enter Schedule — Week ${session.weekNumber}` : "Manual Schedule")
+      .setDescription(description.slice(0, 4096))
+      .setColor(session.warnedIncomplete ? 0xf1c40f : 0x3498db)],
     components: [...teamSelectRows(session), actionRows(session)],
   };
 }
@@ -490,13 +593,15 @@ function teamSelectRows(session: ManualScheduleSession) {
 }
 
 function actionRows(session: ManualScheduleSession) {
+  const completeLabel = session.mode === "post_setup" ? "Finish Setup" : "Complete Schedule";
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup).setLabel("Next Matchup").setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(session.warnedIncomplete ? SCHEDULE_MGMT_CUSTOM_IDS.manualContinueNextWeek : SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek)
       .setLabel(session.warnedIncomplete ? "Continue Next Week" : "Next Week")
-      .setStyle(session.warnedIncomplete ? ButtonStyle.Danger : ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualComplete).setLabel("Complete Schedule").setStyle(ButtonStyle.Success),
+      .setStyle(session.warnedIncomplete ? ButtonStyle.Danger : ButtonStyle.Secondary)
+      .setDisabled(session.mode === "post_setup" && session.weekNumber >= POST_SETUP_MAX_WEEK),
+    new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualComplete).setLabel(completeLabel).setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualBack).setLabel("Back").setStyle(ButtonStyle.Secondary)
   );
 }
@@ -531,7 +636,22 @@ function formatViewWeekLabel(weekNumber: number) {
 function formatScheduleParticipant(team: any, discordId?: string | null) {
   if (discordId) return `<@${discordId}>`;
   if (team?.display_city || team?.display_nick) return `${team.display_city ?? ""} ${team.display_nick ?? team.name}`.trim();
-  return team?.display_abbr ?? team?.abbreviation ?? team?.name ?? "TBD";
+  return team?.display_abbr ?? team?.abbreviation ?? team?.name ?? "Unassigned";
+}
+
+function buildPostSetupWeekEmbed(session: ScheduleViewSession) {
+  const page = session.weeks[session.pageIndex] ?? { weekNumber: session.pageIndex + 1, games: [] };
+  const lines = page.games.length
+    ? page.games.map((game: any, idx: number) => {
+      const away = formatScheduleParticipant(game.away_team, game.away_discord_id);
+      const home = formatScheduleParticipant(game.home_team, game.home_discord_id);
+      return `${idx + 1}. ${away} vs ${home}`;
+    }).join("\n")
+    : "No matchups have been set for this week yet.";
+  return new EmbedBuilder()
+    .setTitle(`Week ${page.weekNumber}`)
+    .setDescription(lines.slice(0, 4096))
+    .setFooter({ text: `Page ${session.pageIndex + 1} of ${POST_SETUP_MAX_WEEK}` });
 }
 
 function buildScheduleWeekEmbed(session: ScheduleViewSession) {
@@ -565,27 +685,19 @@ function renderScheduleView(session: ScheduleViewSession) {
 }
 
 function renderPostSetupScheduleView(session: ScheduleViewSession) {
-  const last = Math.max(0, session.weeks.length - 1);
+  const last = POST_SETUP_MAX_WEEK - 1;
   const onLastPage = session.pageIndex >= last;
   return {
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("League Setup: Review Schedule")
-        .setDescription([
-          "Review each regular-season week before finishing setup. Use **Previous** / **Next** to walk Weeks 1–18.",
-          "",
-          buildScheduleWeekEmbed(session).data.description ?? "No games have been set for this week yet.",
-        ].join("\n").slice(0, 4096))
-        .setFooter({ text: `Season ${session.seasonNumber} — Week ${session.weeks[session.pageIndex]?.weekNumber ?? session.pageIndex + 1} of ${POST_SETUP_MAX_WEEK}` }),
-    ],
+    embeds: [buildPostSetupWeekEmbed(session)],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.prev).setLabel("Previous Week").setStyle(ButtonStyle.Secondary).setDisabled(session.pageIndex <= 0),
         new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.next).setLabel("Next Week").setStyle(ButtonStyle.Primary).setDisabled(onLastPage),
         new ButtonBuilder()
           .setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish)
-          .setLabel(onLastPage ? "Finish Setup" : "Skip to Finish")
-          .setStyle(ButtonStyle.Success),
+          .setLabel("Finish Setup")
+          .setStyle(ButtonStyle.Success)
+          .setDisabled(!onLastPage),
       ),
     ],
   };

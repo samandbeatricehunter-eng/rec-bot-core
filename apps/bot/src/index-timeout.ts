@@ -48,7 +48,8 @@ import {
   renderSchedulePlaceholder,
   SCHEDULE_MGMT_CUSTOM_IDS,
   startManualScheduleEntry,
-  startPostSetupScheduleReview,
+  startPostSetupManualScheduleEntry,
+  startPostSetupScheduleStep,
   startScheduleViewer
 } from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
@@ -311,8 +312,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         interaction.customId === "rec:league_setup:skip_team_linking"
         || interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.continueFromTeams
       ) {
-        return startPostSetupScheduleReview(interaction);
+        return startPostSetupScheduleStep(interaction);
       }
+      if (interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.enterManual) return startPostSetupManualScheduleEntry(interaction);
       if (interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.prev) return handlePostSetupScheduleViewPage(interaction, -1);
       if (interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.next) return handlePostSetupScheduleViewPage(interaction, 1);
       if (interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.finish) return handlePostSetupScheduleFinish(interaction);

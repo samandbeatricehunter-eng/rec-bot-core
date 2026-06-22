@@ -258,7 +258,13 @@ export function buildLeagueMgmtTeamsPanel() {
   };
 }
 
-export function buildPostSetupTeamLinkingPanel() {
+export function buildPostSetupTeamLinkingPanel(franchiseYearOne: boolean) {
+  const continueLabel = franchiseYearOne ? "Continue to Schedule Review" : "Continue to Schedule Setup";
+  const skipLabel = franchiseYearOne ? "Skip Linking — Review Schedule" : "Skip Linking — Set Up Schedule";
+  const footerNote = franchiseYearOne
+    ? "When you are ready, review each regular-season week (18 pages)."
+    : "When you are ready, enter the schedule manually or finish setup.";
+
   return {
     embeds: [
       new EmbedBuilder()
@@ -267,7 +273,7 @@ export function buildPostSetupTeamLinkingPanel() {
           "**Add/Remove User** - Link users to open teams or unlink assigned users from teams.",
           "**Edit Teams** - Add or edit custom/relocated teams.",
           "",
-          "When you are ready, continue to review the Week 1–18 schedule."
+          footerNote,
         ].join("\n"))
     ],
     components: [
@@ -279,11 +285,11 @@ export function buildPostSetupTeamLinkingPanel() {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId("rec:league_setup:continue_schedule_review")
-          .setLabel("Continue to Schedule Review")
+          .setLabel(continueLabel)
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId("rec:league_setup:skip_team_linking")
-          .setLabel("Skip Linking — Review Schedule")
+          .setLabel(skipLabel)
           .setStyle(ButtonStyle.Secondary),
       ),
     ],

@@ -24,7 +24,7 @@ import {
   type LeagueSetupSettingsCategory
 } from "../ui/league-setup.js";
 import { buildPostSetupTeamLinkingPanel } from "../ui/team-options.js";
-import { markPostSetupActive, startPostSetupScheduleReview } from "./schedule.js";
+import { markPostSetupActive, startPostSetupScheduleStep } from "./schedule.js";
 
 export const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 export async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
@@ -496,7 +496,9 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
 
     const wantsLinking = draft.linkTeamsAfterSetup;
     leagueSetupSessions.delete(interaction.user.id);
-    markPostSetupActive(interaction.user.id, interaction.guildId);
+    markPostSetupActive(interaction.user.id, interaction.guildId, draft.seedDefaultSchedule === true);
+    const franchiseYearOne = draft.seedDefaultSchedule === true;
+    const scheduleStepLabel = franchiseYearOne ? "review the Week 1–18 schedule" : "enter or skip the schedule setup";
 
     const savedDescription = [
       `League: **${result.league.name}**`,
@@ -521,7 +523,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
         embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)],
         components: [],
       });
-      return startPostSetupScheduleReview(interaction);
+      return startPostSetupScheduleStep(interaction);
     }
 
     await interaction.editReply({
@@ -531,11 +533,11 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
           .setDescription([
             savedDescription,
             "",
-            "Link users to teams below, or continue to the Week 1–18 schedule review when ready."
+            `Link users to teams below, or continue when ready to ${scheduleStepLabel}.`
           ].join("\n")),
-        ...buildPostSetupTeamLinkingPanel().embeds
+        ...buildPostSetupTeamLinkingPanel(franchiseYearOne).embeds
       ],
-      components: buildPostSetupTeamLinkingPanel().components
+      components: buildPostSetupTeamLinkingPanel(franchiseYearOne).components
     });
   } catch (error) {
     console.error("[ERROR] League setup save failed:", error);
