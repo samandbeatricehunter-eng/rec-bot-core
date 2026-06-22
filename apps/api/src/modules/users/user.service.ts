@@ -318,7 +318,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   const context = await findCurrentLeagueContext(guildId);
   const league: any = context?.rec_leagues ?? null;
   if (!context?.leagueId || !league?.id) {
-    return { isLinked: false, league: null, team: null, games: [] };
+    return { isLinked: false, hasLoggedSchedule: false, league: null, team: null, games: [] };
   }
 
   const account = await supabase
@@ -328,7 +328,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     .maybeSingle();
   if (account.error) throw new ApiError(500, "Failed to load Discord account", account.error);
   if (!account.data?.user_id) {
-    return { isLinked: false, league, team: null, games: [] };
+    return { isLinked: false, hasLoggedSchedule: false, league, team: null, games: [] };
   }
 
   const assignment = await supabase
@@ -342,7 +342,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   if (assignment.error) throw new ApiError(500, "Failed to load linked team", assignment.error);
   const teamId = (assignment.data as any)?.team_id;
   if (!teamId) {
-    return { isLinked: false, league, team: null, games: [] };
+    return { isLinked: false, hasLoggedSchedule: false, league, team: null, games: [] };
   }
 
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
@@ -355,6 +355,8 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
     .lte("week_number", 18);
   if (gamesError) throw new ApiError(500, "Failed to load schedule", gamesError);
+
+  const hasLoggedSchedule = (scheduledGames ?? []).length > 0;
 
   const opponentUserIds = [...new Set((scheduledGames ?? []).flatMap((game: any) => {
     const isHome = game.home_team_id === teamId;
@@ -418,6 +420,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   const teamRow = (assignment.data as any)?.team ?? null;
   return {
     isLinked: true,
+    hasLoggedSchedule,
     league,
     team: teamRow ? { ...teamRow, name: formatTeamDisplayName(teamRow) ?? teamRow.name } : null,
     games,

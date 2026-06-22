@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { applyAdvanceSavingsInterest } from "./advance-interest.service.js";
+import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -22,6 +23,7 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   const context = await getCurrentLeagueContext(input.guildId);
   const previousWeek = Number(context.rec_leagues.current_week ?? 1);
   const previousStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
+  const previousSeasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const highlightAwardsDue = previousWeek === 18 && previousStage === "regular_season" && input.weekNumber === 19 && input.seasonStage === "wild_card";
   const payload = {
     current_week: input.weekNumber,
@@ -38,6 +40,12 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     .single();
 
   if (result.error) throw new ApiError(500, "Failed to update league week.", result.error);
+
+  if (input.seasonNumber && input.seasonNumber !== previousSeasonNumber) {
+    await wipeCpuTeamSeasonStats(context.leagueId, previousSeasonNumber).catch((error) => {
+      console.error("[ERROR] Failed to wipe CPU team season stats on rollover:", error);
+    });
+  }
 
   const seasonNumber = Number(input.seasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);
   const savingsInterest = await applyAdvanceSavingsInterest({

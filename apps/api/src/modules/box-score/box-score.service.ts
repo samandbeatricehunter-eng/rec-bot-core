@@ -4,6 +4,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonContext, resolveSeasonId } from "../league-context/season.service.js";
 import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js";
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
+import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
@@ -567,6 +568,9 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
 
   // Record flat per-team-per-game stats (two rows, offense + generated/allowed).
   await recordTeamGameStats(sub);
+  await syncCpuTeamsAfterBoxScoreApproval(sub).catch((error) => {
+    console.error("[ERROR] Failed to sync CPU team season stats after box score approval:", error);
+  });
 
   if (sub.league_id && sub.season_number) {
     await rebuildSeasonDisplayRecords(sub.league_id, sub.season_number).catch((error) => {

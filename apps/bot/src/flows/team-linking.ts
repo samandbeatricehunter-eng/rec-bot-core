@@ -2,7 +2,7 @@ import { ButtonInteraction, EmbedBuilder, Interaction, ModalSubmitInteraction, S
 import type { RecTeamAuthority } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
-import { ensureRecBaseRoles, formatTeamDisplayName, syncMemberForTeam } from "../lib/role-sync.js";
+import { ensureRecBaseRoles, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildNavigationRow } from "../ui/navigation.js";
 import {
   buildAuthoritySelectRow,
@@ -37,6 +37,11 @@ export const simpleTeamLinkSessions = new Map<string, {
   teamName: string;
   conference?: "AFC" | "NFC";
   selectedUserId?: string;
+  team?: {
+    name?: string | null;
+    display_nick?: string | null;
+    is_relocated?: boolean | null;
+  };
 }>();
 
 type LeagueTeamsPendingUnlink = {
@@ -418,7 +423,8 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
     const syncResult = await syncMemberForTeam({
       member: guildMember,
       teamName: result.team.name,
-      authority: draft.authority
+      authority: draft.authority,
+      team: result.team,
     });
 
     teamLinkSessions.delete(interaction.user.id);
@@ -541,7 +547,12 @@ export async function handleLeagueTeamsTeamSelect(interaction: Extract<Interacti
     teamId: team.id,
     teamAbbr: team.abbreviation ?? team.name ?? "TEAM",
     teamName: team.name ?? team.abbreviation ?? "Team",
-    conference
+    conference,
+    team: {
+      name: team.name,
+      display_nick: team.display_nick,
+      is_relocated: team.is_relocated,
+    },
   });
   return interaction.editReply(buildUserSelectionPanel(team.name ?? team.abbreviation ?? "Team", users, 0));
 }
@@ -879,7 +890,7 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
     const guildMember = await interaction.guild.members.fetch(session.selectedUserId).catch(() => null);
 
     // Link the user to the team with the selected role
-    await recApi.linkUserToTeam({
+    const result = await recApi.linkUserToTeam({
       guildId: interaction.guildId,
       discordId: session.selectedUserId,
       teamId: session.teamId,
@@ -888,7 +899,12 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
     });
 
     const syncResult = guildMember
-      ? await syncMemberForTeam({ member: guildMember, teamName: session.teamName, authority: role })
+      ? await syncMemberForTeam({
+          member: guildMember,
+          teamName: result.team?.name ?? session.teamName,
+          authority: role,
+          team: result.team ?? session.team,
+        })
       : null;
     const nickname = syncResult?.nickname ?? session.teamName;
 
@@ -968,7 +984,6 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
     });
 
     const teamId = result.customTeam.id;
-    const teamDisplayName = formatTeamDisplayName(result.customTeam) ?? displayName;
     if (result.linkedUsers?.length) {
       await ensureRecBaseRoles(interaction.guild);
       for (const linked of result.linkedUsers) {
@@ -977,8 +992,9 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
         if (!member) continue;
         await syncMemberForTeam({
           member,
-          teamName: teamDisplayName,
+          teamName: result.customTeam.name,
           authority: linked.authority ?? "member",
+          team: result.customTeam,
         }).catch(() => undefined);
       }
     }
@@ -1005,7 +1021,12 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
       guildId: pending.guildId,
       teamId,
       teamAbbr: newAbbr,
-      teamName: newNick
+      teamName: newNick,
+      team: {
+        name: result.customTeam.name,
+        display_nick: result.customTeam.display_nick ?? newNick,
+        is_relocated: true,
+      },
     });
 
     await interaction.editReply(buildUserSelectionPanel(displayName, availableUsers, 0));

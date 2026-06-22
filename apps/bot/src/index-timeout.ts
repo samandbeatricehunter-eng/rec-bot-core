@@ -45,6 +45,7 @@ import {
   handlePostSetupScheduleViewPage,
   POST_SETUP_SCHEDULE_CUSTOM_IDS,
   renderScheduleMenu,
+  renderSchedulePlaceholder,
   SCHEDULE_MGMT_CUSTOM_IDS,
   startManualScheduleEntry,
   startPostSetupManualScheduleEntry,
@@ -364,6 +365,15 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.schedulePowerRankings) {
+        return renderSchedulePlaceholder(interaction, "Power Rankings", "Power rankings are coming soon. Box score stats for user and CPU teams are being collected to support this view.");
+      }
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) {
+        return renderSchedulePlaceholder(interaction, "Strength of Schedule", "Strength of schedule is coming soon. Logged schedules and box score stats will feed this view.");
+      }
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleStats) {
+        return renderSchedulePlaceholder(interaction, "Stats", "Season stats for your schedule view are coming soon.");
+      }
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup) return handleManualScheduleNextMatchup(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek) return handleManualScheduleNextWeek(interaction);

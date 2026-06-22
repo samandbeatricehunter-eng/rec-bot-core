@@ -20,7 +20,9 @@ export const MENU_CUSTOM_IDS = {
   openTeams: "rec:menu:open_teams",
   schedule: "rec:menu:schedule",
   scheduleSelectTeam: "rec:schedule:select_team",
+  schedulePowerRankings: "rec:schedule:power_rankings",
   scheduleSos: "rec:schedule:sos",
+  scheduleStats: "rec:schedule:stats",
   scheduleHistory: "rec:schedule:history",
   scheduleBack: "rec:schedule:back",
   makePurchase: "rec:menu:make_purchase",
@@ -353,6 +355,8 @@ export type RosterTeam = {
   name: string;
   abbreviation?: string | null;
   division?: string | null;
+  display_nick?: string | null;
+  is_relocated?: boolean | null;
   linkedDiscordId?: string | null;
   linkedName?: string | null;
   wins?: number | null;
@@ -514,6 +518,7 @@ export function buildScheduleEmbed(input: {
   leagueName?: string | null;
   teamName?: string | null;
   isLinked?: boolean;
+  hasLoggedSchedule?: boolean;
   games?: TeamScheduleGame[];
 }) {
   const embed = new EmbedBuilder().setTitle(input.teamName ? `${input.teamName} Schedule` : "Schedule");
@@ -526,10 +531,19 @@ export function buildScheduleEmbed(input: {
     ].join("\n"));
   }
 
+  if (!input.hasLoggedSchedule) {
+    return embed.setDescription([
+      input.leagueName ? `League: **${input.leagueName}**` : null,
+      `You are linked to **${input.teamName ?? "your team"}**, but no schedule has been logged for this season yet.`,
+      "",
+      "Ask a commissioner to enter the league schedule from **League Mgmt → Schedule**.",
+    ].filter(Boolean).join("\n"));
+  }
+
   const games = input.games ?? [];
   const scheduleText = games.length
     ? games.map(formatScheduleLine).join("\n")
-    : "No schedule has been logged for your team yet.";
+    : "No schedule entries found for your team.";
 
   return embed.setDescription([
     input.leagueName ? `League: **${input.leagueName}**` : null,
@@ -540,8 +554,13 @@ export function buildScheduleEmbed(input: {
 export function buildScheduleRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
-    )
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedulePowerRankings).setLabel("Power Rankings").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSos).setLabel("SOS").setStyle(ButtonStyle.Danger),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleStats).setLabel("Stats").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary),
+    ),
   ];
 }
 

@@ -254,14 +254,19 @@ export async function handleTeamRequestRole(interaction: ButtonInteraction) {
       reviewerDiscordId: interaction.user.id,
     });
     const request = result.request;
-    const team = (result.link as any)?.team ?? (request as any).team;
+    const team = result.link?.team;
     const teamDisplayName = formatTeamDisplayName(team) ?? team?.name ?? "Team";
 
     if (interaction.guild) {
       await ensureRecBaseRoles(interaction.guild);
       const member = await interaction.guild.members.fetch(request.requester_discord_id).catch(() => null);
       if (member) {
-        await syncMemberForTeam({ member, teamName: teamDisplayName, authority }).catch(() => undefined);
+        await syncMemberForTeam({
+          member,
+          teamName: team?.name ?? "Team",
+          authority,
+          team,
+        }).catch(() => undefined);
       }
     }
 

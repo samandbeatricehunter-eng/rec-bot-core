@@ -19,6 +19,18 @@ export function formatTeamDisplayName(team: {
   return team.name ?? team.display_nick ?? "Team";
 }
 
+/** Discord @nickname base: team nick only — never the city. */
+export function resolveTeamNick(team: {
+  name?: string | null;
+  display_nick?: string | null;
+  is_relocated?: boolean | null;
+}) {
+  if (team.is_relocated && team.display_nick?.trim()) {
+    return team.display_nick.trim();
+  }
+  return teamNickFromName(String(team.name ?? team.display_nick ?? "Team"));
+}
+
 // Nicknames use just the team name (e.g. "Cleveland Browns" -> "Browns"), not the city.
 // NFL nicknames are the last word of the full name; single-word inputs pass through unchanged.
 function teamNickFromName(teamName: string): string {
@@ -27,10 +39,24 @@ function teamNickFromName(teamName: string): string {
 }
 
 export function buildTeamNickname(teamName: string, authority: RecTeamAuthority) {
-  const nick = teamNickFromName(teamName);
+  return buildTeamNicknameFromNick(teamNickFromName(teamName), authority);
+}
+
+export function buildTeamNicknameFromNick(nick: string, authority: RecTeamAuthority) {
   if (authority === "commissioner") return `${nick} (Commissioner)`;
   if (authority === "co_commissioner") return `${nick} (Co-Commissioner)`;
   return nick;
+}
+
+export function buildTeamNicknameFromTeam(
+  team: {
+    name?: string | null;
+    display_nick?: string | null;
+    is_relocated?: boolean | null;
+  },
+  authority: RecTeamAuthority,
+) {
+  return buildTeamNicknameFromNick(resolveTeamNick(team), authority);
 }
 
 async function ensureRole(guild: Guild, input: { name: string; color: number }) {
@@ -96,6 +122,11 @@ export async function syncMemberForTeam(input: {
   member: GuildMember;
   teamName: string;
   authority: RecTeamAuthority;
+  team?: {
+    name?: string | null;
+    display_nick?: string | null;
+    is_relocated?: boolean | null;
+  } | null;
 }) {
   const roles = await ensureRecBaseRoles(input.member.guild);
   const rolesToAdd: Role[] = [roles.member];
@@ -115,7 +146,9 @@ export async function syncMemberForTeam(input: {
   }
   await input.member.roles.add(rolesToAdd, "REC team ownership link").catch(() => undefined);
 
-  const nickname = buildTeamNickname(input.teamName, input.authority);
+  const nickname = input.team
+    ? buildTeamNicknameFromTeam(input.team, input.authority)
+    : buildTeamNickname(input.teamName, input.authority);
   await input.member.setNickname(nickname, "REC team ownership link").catch(() => undefined);
 
   return {
