@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { listScheduleSeason, listScheduleTeams, listScheduleWeek, saveManualScheduleGame } from "./schedule.service.js";
+import { listScheduleSeason, listScheduleTeams, listScheduleWeek, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
 
 const GuildSchema = z.object({ guildId: z.string().min(1) });
 
@@ -60,6 +60,39 @@ export async function scheduleRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await saveManualScheduleGame(SaveManualGameSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/schedule/seed-default", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const input = z.object({
+        guildId: z.string().min(1),
+        requestedByDiscordId: z.string().optional().nullable(),
+        force: z.boolean().optional(),
+      }).parse(request.body);
+      return reply.send(await seedDefaultScheduleForGuild(input));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/schedule/replace-week", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const input = z.object({
+        guildId: z.string().min(1),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+        weekNumber: z.number().int().positive(),
+        games: z.array(z.object({
+          awayTeamId: z.string().uuid(),
+          homeTeamId: z.string().uuid(),
+        })).min(1),
+        requestedByDiscordId: z.string().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await replaceScheduleWeek(input));
     } catch (error) {
       return sendError(reply, error);
     }

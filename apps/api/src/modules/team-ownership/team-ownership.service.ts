@@ -3,6 +3,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 
 export async function getCurrentLeagueForGuild(guildId: string) {
@@ -32,7 +33,12 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     source: "manual_admin_entry"
   });
 
-  return { league, teams: result.data };
+  const seedResult = await trySeedDefaultScheduleAfterTeamsReady({
+    guildId: input.guildId,
+    requestedByDiscordId: input.requestedByDiscordId ?? null,
+  }).catch(() => null);
+
+  return { league, teams: result.data, defaultScheduleSeed: seedResult };
 }
 
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {

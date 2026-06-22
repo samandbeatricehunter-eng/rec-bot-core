@@ -9,6 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
+import { getDefaultNflSeasonLabelForGame, type MaddenLeagueGame } from "@rec/shared";
 import { buildNavigationRow, NAV_CUSTOM_IDS } from "./navigation.js";
 
 export const LEAGUE_SETUP_CUSTOM_IDS = {
@@ -55,6 +56,7 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   defensiveCooldownEnabled: "rec:league_setup:def_cooldown_enabled",
   defensiveCooldown: "rec:league_setup:def_cooldown",
   teamLinkingOptional: "rec:league_setup:team_linking_optional",
+  defaultScheduleConfirm: "rec:league_setup:default_schedule_confirm",
   save: "rec:league_setup:save",
   activityRequirementsOpen: "rec:league_setup:activity_requirements_open",
   activityRequirementsSkip: "rec:league_setup:activity_requirements_skip",
@@ -121,6 +123,7 @@ export type LeagueSetupStep =
   | "defensive_cooldown_enabled"
   | "defensive_cooldown"
   | "team_linking_optional"
+  | "default_schedule_confirm"
   | "activity_requirements"
   | "settings_picker"
   | "review";
@@ -187,6 +190,8 @@ export type LeagueSetupDraft = {
   defensivePlayCallCooldown?: number | null;
   // Whether to open the team-linking flow after the league is saved (chosen at the optional step).
   linkTeamsAfterSetup: boolean;
+  /** null until the commissioner answers the franchise Year 1 / default schedule question. */
+  seedDefaultSchedule: boolean | null;
   fairSimRequirements: string;
   forceWinRequirements: string;
   commissionerOfficeChannelId?: string | null;
@@ -244,6 +249,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "defensive_cooldown",
   "team_linking_optional",
   "activity_requirements",
+  "default_schedule_confirm",
   "review"
 ];
 
@@ -309,6 +315,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     defensivePlayCallCooldownEnabled: false,
     defensivePlayCallCooldown: null,
     linkTeamsAfterSetup: false,
+    seedDefaultSchedule: null,
     fairSimRequirements: "Request a Fair Sim after 48 hours of no response or failed scheduling effort, subject to commissioner review.",
     forceWinRequirements: "Request a Force Win after 72 hours of no response or missed agreed game time, subject to commissioner review.",
     commissionerOfficeChannelId: null,
@@ -1077,7 +1084,8 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Attribute Purchases", "attribute_purchases"),
       option("Player Trait Purchases", "player_trait_purchases"),
       option("Contract Purchases", "contract_purchases"),
-      option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements")
+      option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
+      option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")
     ],
     server: [
       option("Server Channel Assignments", "server_setup")
@@ -1144,6 +1152,39 @@ export function buildTeamLinkingOptionalWindow(draft: LeagueSetupDraft) {
   };
 }
 
+function defaultScheduleSeasonLabel(game: LeagueSetupDraft["game"]) {
+  if (game === "madden_26" || game === "madden_27") {
+    return getDefaultNflSeasonLabelForGame(game as MaddenLeagueGame);
+  }
+  return null;
+}
+
+export function buildDefaultScheduleConfirmWindow(draft: LeagueSetupDraft) {
+  const seasonLabel = defaultScheduleSeasonLabel(draft.game);
+  const description = seasonLabel
+    ? [
+        `REC can pre-load the real NFL **${seasonLabel} regular-season matchups** (Weeks 1–18) for a new franchise.`,
+        "",
+        "Only choose **Yes** if your Madden league is in **Franchise Year 1** and still using that NFL season in-game.",
+        "",
+        "If your franchise is already several seasons deep, choose **No** — the default schedule would be out of date. You can enter or import the current schedule later.",
+        "",
+        "This seeds **matchups only**, not scores or results. Playoffs are not seeded."
+      ].join("\n")
+    : "Default NFL schedule seeding is only available for Madden NFL leagues.";
+
+  return {
+    embeds: [baseEmbed("League Setup: Default NFL Schedule", draft).setDescription(description)],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.defaultScheduleConfirm, seasonLabel ? `Franchise Year 1 in the ${seasonLabel} NFL season?` : "Seed default NFL schedule?", [
+        option(`Yes — seed ${seasonLabel ?? "default"} regular-season matchups`, "yes"),
+        option("No — skip default schedule seeding", "no")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
 export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
   const embed = new EmbedBuilder()
     .setTitle("Review League Setup")
@@ -1151,7 +1192,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
     .addFields(
       {
         name: "Identity",
-        value: [`Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`, `Type: ${fmt(draft.leagueType)}`, "Starts: Season 1, Training Camp"].join("\n"),
+        value: [`Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`, `Type: ${fmt(draft.leagueType)}`, "Starts: Season 1, Training Camp", `Default Schedule: ${draft.seedDefaultSchedule == null ? "Not answered" : draft.seedDefaultSchedule ? `Seed ${defaultScheduleSeasonLabel(draft.game) ?? "NFL"} regular season` : "Skip seeding"}`].join("\n"),
         inline: true
       },
       {
@@ -1286,6 +1327,7 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "defensive_cooldown_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldownEnabled, "Defensive play call cooldown enabled?");
     case "defensive_cooldown": return buildPlayCallNumberWindow(draft, "Gameplay: Defensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown, "Select plays required before repeating", true);
     case "team_linking_optional": return buildTeamLinkingOptionalWindow(draft);
+    case "default_schedule_confirm": return buildDefaultScheduleConfirmWindow(draft);
     case "activity_requirements": return buildActivityRequirementsWindow(draft);
     case "settings_picker": return buildSettingsPickerWindow(draft);
     case "review": return buildLeagueSetupReviewWindow(draft);

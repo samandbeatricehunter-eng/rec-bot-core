@@ -1,5 +1,12 @@
+import {
+  DEFAULT_NFL_SEASON_BY_GAME,
+  getDefaultNflScheduleForGame,
+  type MaddenLeagueGame,
+  type NflScheduleGame,
+} from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 type SaveManualScheduleGameInput = {
@@ -180,4 +187,285 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
     game: result.data,
     week: await listScheduleWeek(input.guildId, input.weekNumber, seasonNumber),
   };
+}
+
+type ParsedScheduleMatchup = {
+  awayTeamId: string;
+  homeTeamId: string;
+  slotNumber: number;
+};
+
+function buildNflSlotTeamMap(teams: Array<{ id: string; abbreviation: string; original_abbreviation?: string | null }>) {
+  const map = new Map<string, string>();
+  for (const team of teams) {
+    map.set(team.abbreviation.toUpperCase(), team.id);
+    if (team.original_abbreviation) map.set(team.original_abbreviation.toUpperCase(), team.id);
+  }
+  return map;
+}
+
+async function loadLeagueTeamSlotMap(leagueId: string) {
+  const { data, error } = await supabase
+    .from("rec_teams")
+    .select("id,abbreviation,original_abbreviation")
+    .eq("league_id", leagueId);
+  if (error) throw new ApiError(500, "Failed to load league teams for schedule seeding.", error);
+  return buildNflSlotTeamMap(data ?? []);
+}
+
+async function loadUserIdsByTeam(leagueId: string, teamIds: string[]) {
+  if (!teamIds.length) return new Map<string, string>();
+  const assignments = await supabase
+    .from("rec_team_assignments")
+    .select("team_id,user_id")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .in("team_id", teamIds);
+  if (assignments.error) throw new ApiError(500, "Failed to load team assignments for schedule seeding.", assignments.error);
+  return new Map((assignments.data ?? []).map((row) => [row.team_id, row.user_id]));
+}
+
+function resolveTemplateGames(game: MaddenLeagueGame): NflScheduleGame[] {
+  return getDefaultNflScheduleForGame(game);
+}
+
+function defaultExternalGameId(leagueId: string, seasonNumber: number, weekNumber: number, slotNumber: number) {
+  return `default:${leagueId}:${seasonNumber}:${weekNumber}:${slotNumber}`;
+}
+
+function parsedExternalGameId(leagueId: string, seasonNumber: number, weekNumber: number, slotNumber: number) {
+  return `parsed:${leagueId}:${seasonNumber}:${weekNumber}:${slotNumber}`;
+}
+
+async function insertScheduleGames(input: {
+  leagueId: string;
+  guildId: string;
+  seasonNumber: number;
+  games: ParsedScheduleMatchup[];
+  weekNumber: number;
+  externalGameIdForSlot: (slotNumber: number) => string;
+  requestedByDiscordId?: string | null;
+  auditAction: string;
+}) {
+  const teamIds = [...new Set(input.games.flatMap((game) => [game.awayTeamId, game.homeTeamId]))];
+  const userByTeam = await loadUserIdsByTeam(input.leagueId, teamIds);
+  const now = new Date().toISOString();
+  const rows = input.games.map((game) => ({
+    league_id: input.leagueId,
+    season_number: input.seasonNumber,
+    week_number: input.weekNumber,
+    phase: phaseForWeek(input.weekNumber),
+    external_game_id: input.externalGameIdForSlot(game.slotNumber),
+    away_team_id: game.awayTeamId,
+    home_team_id: game.homeTeamId,
+    away_user_id: userByTeam.get(game.awayTeamId) ?? null,
+    home_user_id: userByTeam.get(game.homeTeamId) ?? null,
+    status: "scheduled",
+    created_at: now,
+    updated_at: now,
+  }));
+
+  const result = await supabase.from("rec_games").insert(rows).select("id");
+  if (result.error) throw new ApiError(500, "Failed to save schedule games.", result.error);
+
+  await writeAuditLog({
+    action: input.auditAction,
+    entityType: "rec_games",
+    newValue: {
+      guildId: input.guildId,
+      leagueId: input.leagueId,
+      seasonNumber: input.seasonNumber,
+      weekNumber: input.weekNumber,
+      gameCount: rows.length,
+      requestedByDiscordId: input.requestedByDiscordId ?? null,
+    },
+    reason: "Schedule games saved for league.",
+    source: "manual_admin_entry",
+  });
+
+  return rows.length;
+}
+
+export async function seedDefaultScheduleForGuild(input: {
+  guildId: string;
+  requestedByDiscordId?: string | null;
+  force?: boolean;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const game = context.rec_leagues.game as string | null;
+  if (game !== "madden_26" && game !== "madden_27") {
+    return { seeded: false as const, reason: "unsupported_game" as const, gameCount: 0 };
+  }
+
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  if (seasonNumber !== 1) {
+    return { seeded: false as const, reason: "not_league_year_one" as const, gameCount: 0 };
+  }
+
+  const configuration = await supabase
+    .from("rec_league_configuration")
+    .select("default_schedule_seed_requested,default_schedule_seeded_at")
+    .eq("league_id", leagueId)
+    .maybeSingle();
+  if (configuration.error) throw new ApiError(500, "Failed to load league configuration.", configuration.error);
+  if (!configuration.data?.default_schedule_seed_requested) {
+    return { seeded: false as const, reason: "not_requested" as const, gameCount: 0 };
+  }
+  if (configuration.data.default_schedule_seeded_at && !input.force) {
+    return {
+      seeded: false as const,
+      reason: "already_seeded" as const,
+      gameCount: 0,
+      seededAt: configuration.data.default_schedule_seeded_at,
+    };
+  }
+
+  const slotMap = await loadLeagueTeamSlotMap(leagueId);
+  const template = resolveTemplateGames(game as MaddenLeagueGame);
+  const nflSeason = DEFAULT_NFL_SEASON_BY_GAME[game as MaddenLeagueGame];
+  const missingAbbrs = new Set<string>();
+  for (const gameRow of template) {
+    if (!slotMap.has(gameRow.away.toUpperCase())) missingAbbrs.add(gameRow.away);
+    if (!slotMap.has(gameRow.home.toUpperCase())) missingAbbrs.add(gameRow.home);
+  }
+  if (missingAbbrs.size) {
+    throw new ApiError(
+      409,
+      `Cannot seed default schedule until default NFL teams exist. Missing slots: ${[...missingAbbrs].sort().join(", ")}.`
+    );
+  }
+
+  const existing = await supabase
+    .from("rec_games")
+    .select("id", { count: "exact", head: true })
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .lte("week_number", 18);
+  if (existing.error) throw new ApiError(500, "Failed to check existing schedule.", existing.error);
+  if ((existing.count ?? 0) > 0 && !input.force) {
+    return { seeded: false as const, reason: "schedule_exists" as const, gameCount: existing.count ?? 0 };
+  }
+
+  if ((existing.count ?? 0) > 0 && input.force) {
+    const removal = await supabase
+      .from("rec_games")
+      .delete()
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .lte("week_number", 18);
+    if (removal.error) throw new ApiError(500, "Failed to clear existing regular-season schedule.", removal.error);
+  }
+
+  const gamesByWeek = new Map<number, ParsedScheduleMatchup[]>();
+  for (const gameRow of template) {
+    const weekGames = gamesByWeek.get(gameRow.week) ?? [];
+    weekGames.push({
+      awayTeamId: slotMap.get(gameRow.away.toUpperCase())!,
+      homeTeamId: slotMap.get(gameRow.home.toUpperCase())!,
+      slotNumber: weekGames.length + 1,
+    });
+    gamesByWeek.set(gameRow.week, weekGames);
+  }
+
+  let gameCount = 0;
+  for (const weekNumber of [...gamesByWeek.keys()].sort((a, b) => a - b)) {
+    gameCount += await insertScheduleGames({
+      leagueId,
+      guildId: input.guildId,
+      seasonNumber,
+      weekNumber,
+      games: gamesByWeek.get(weekNumber)!,
+      externalGameIdForSlot: (slotNumber) => defaultExternalGameId(leagueId, seasonNumber, weekNumber, slotNumber),
+      requestedByDiscordId: input.requestedByDiscordId,
+      auditAction: "schedule.default_nfl_seeded",
+    });
+  }
+
+  const seededAt = new Date().toISOString();
+  const update = await supabase
+    .from("rec_league_configuration")
+    .update({ default_schedule_seeded_at: seededAt, updated_at: seededAt })
+    .eq("league_id", leagueId);
+  if (update.error) throw new ApiError(500, "Failed to mark default schedule as seeded.", update.error);
+
+  await writeAuditLog({
+    action: "schedule.default_nfl_seed_completed",
+    entityType: "rec_league_configuration",
+    entityId: leagueId,
+    newValue: {
+      guildId: input.guildId,
+      leagueId,
+      game,
+      nflSeason,
+      gameCount,
+      requestedByDiscordId: input.requestedByDiscordId ?? null,
+    },
+    reason: `Seeded default ${nflSeason} NFL regular-season schedule.`,
+    source: "manual_admin_entry",
+  });
+
+  return { seeded: true as const, reason: "seeded" as const, gameCount, seededAt, nflSeason };
+}
+
+export async function replaceScheduleWeek(input: {
+  guildId: string;
+  seasonNumber?: number | null;
+  weekNumber: number;
+  games: Array<{ awayTeamId: string; homeTeamId: string }>;
+  requestedByDiscordId?: string | null;
+}) {
+  assertWeekSlot({ weekNumber: input.weekNumber });
+  if (input.weekNumber > 18) throw new ApiError(400, "Screenshot schedule imports are limited to regular-season weeks 1–18.");
+
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = Number(input.seasonNumber ?? context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+
+  if (!input.games.length) throw new ApiError(400, "At least one parsed matchup is required.");
+
+  const teamIds = [...new Set(input.games.flatMap((game) => [game.awayTeamId, game.homeTeamId]))];
+  const teams = await supabase.from("rec_teams").select("id").eq("league_id", leagueId).in("id", teamIds);
+  if (teams.error) throw new ApiError(500, "Failed to validate parsed schedule teams.", teams.error);
+  if ((teams.data ?? []).length !== teamIds.length) throw new ApiError(400, "All parsed teams must belong to the current league.");
+
+  const removal = await supabase
+    .from("rec_games")
+    .delete()
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", input.weekNumber);
+  if (removal.error) throw new ApiError(500, "Failed to clear existing week schedule.", removal.error);
+
+  const parsedGames = input.games.map((game, index) => ({
+    awayTeamId: game.awayTeamId,
+    homeTeamId: game.homeTeamId,
+    slotNumber: index + 1,
+  }));
+
+  const gameCount = await insertScheduleGames({
+    leagueId,
+    guildId: input.guildId,
+    seasonNumber,
+    weekNumber: input.weekNumber,
+    games: parsedGames,
+    externalGameIdForSlot: (slotNumber) => parsedExternalGameId(leagueId, seasonNumber, input.weekNumber, slotNumber),
+    requestedByDiscordId: input.requestedByDiscordId,
+    auditAction: "schedule.week_replaced_from_parse",
+  });
+
+  return {
+    seasonNumber,
+    weekNumber: input.weekNumber,
+    gameCount,
+    week: await listScheduleWeek(input.guildId, input.weekNumber, seasonNumber),
+  };
+}
+
+export async function trySeedDefaultScheduleAfterTeamsReady(input: {
+  guildId: string;
+  requestedByDiscordId?: string | null;
+}) {
+  return seedDefaultScheduleForGuild(input);
 }

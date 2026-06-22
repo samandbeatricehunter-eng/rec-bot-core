@@ -67,7 +67,15 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   // Linking can only happen once the league exists, so it opens after Save (see handleLeagueSetupSave).
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.teamLinkingOptional) {
     draft.linkTeamsAfterSetup = value === "yes";
-    draft.step = "review";
+    draft.step = getNextLeagueSetupStep("team_linking_optional", draft);
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.defaultScheduleConfirm) {
+    draft.seedDefaultSchedule = value === "yes";
+    draft.step = getNextLeagueSetupStep("default_schedule_confirm", draft);
     applyLeagueSetupDependencies(draft);
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
@@ -409,11 +417,27 @@ function formatLeagueSetupSaveError(error: unknown) {
   return `Saving failed: ${message.slice(0, 900)}`;
 }
 
+function formatDefaultScheduleSeedResult(result: { seeded?: boolean; reason?: string; gameCount?: number } | null | undefined) {
+  if (!result) return null;
+  if (result.seeded) return `Default NFL schedule seeded (${result.gameCount ?? 0} regular-season matchups).`;
+  if (result.reason === "not_requested" || result.reason === "unsupported_game" || result.reason === "not_league_year_one") return null;
+  if (result.reason === "already_seeded") return "Default NFL schedule was already seeded for this league.";
+  if (result.reason === "schedule_exists") return "Schedule already has games saved — default seed skipped.";
+  return `Default schedule not seeded (${result.reason ?? "unknown reason"}).`;
+}
+
 export async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can save League Setup.", flags: MessageFlags.Ephemeral });
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
+
+  if ((draft.game === "madden_26" || draft.game === "madden_27") && draft.seedDefaultSchedule == null) {
+    return interaction.reply({
+      content: "Answer the Default NFL Schedule question before saving.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 
   await interaction.deferUpdate();
   await interaction.editReply({
@@ -421,13 +445,14 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
     components: []
   });
 
-  try {
-    const result = await recApi.createLeague({
-      ...applyLeagueSetupDependencies(draft),
-      guildId: interaction.guildId,
-      requestedByDiscordId: interaction.user.id,
-      serverName: interaction.guild?.name
-    });
+    try {
+      const result = await recApi.createLeague({
+        ...applyLeagueSetupDependencies(draft),
+        seedDefaultSchedule: draft.seedDefaultSchedule ?? false,
+        guildId: interaction.guildId,
+        requestedByDiscordId: interaction.user.id,
+        serverName: interaction.guild?.name
+      });
 
     const roleWarnings: string[] = [];
     try {
@@ -463,6 +488,21 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       console.error("[ERROR] Failed to save server setup routes:", error);
     }
 
+    let scheduleNote: string | null = null;
+    if (draft.seedDefaultSchedule && (draft.game === "madden_26" || draft.game === "madden_27")) {
+      try {
+        await recApi.createDefaultTeams(interaction.guildId);
+        const seedResult = await recApi.seedDefaultSchedule({
+          guildId: interaction.guildId,
+          requestedByDiscordId: interaction.user.id,
+        });
+        scheduleNote = formatDefaultScheduleSeedResult(seedResult);
+      } catch (error) {
+        console.error("[ERROR] Failed to seed default NFL schedule:", error);
+        scheduleNote = `Default schedule seed failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+
     const wantsLinking = draft.linkTeamsAfterSetup;
     leagueSetupSessions.delete(interaction.user.id);
 
@@ -478,6 +518,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       "",
       "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**",
       ...roleWarnings,
+      ...(scheduleNote ? ["", scheduleNote] : []),
       "",
       "Economy payouts activate for linked users when Economy is enabled."
     ].join("\n");

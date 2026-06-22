@@ -198,7 +198,8 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
 
     ...(input.fairSimRequirements != null ? { fair_sim_requirements: input.fairSimRequirements } : {}),
-    ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {})
+    ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {}),
+    default_schedule_seed_requested: input.seedDefaultSchedule ?? false,
   };
 
   const configuration = await supabase
@@ -369,7 +370,8 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     defensive_play_call_limit: input.defensivePlayCallLimit ?? null,
     defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
     ...(input.fairSimRequirements != null ? { fair_sim_requirements: input.fairSimRequirements } : {}),
-    ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {})
+    ...(input.forceWinRequirements != null ? { force_win_requirements: input.forceWinRequirements } : {}),
+    default_schedule_seed_requested: input.seedDefaultSchedule ?? false,
   };
 
   const { data, error } = await supabase
@@ -460,6 +462,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     pendingPurchasesChannelId: r.pending_purchases_channel_id ?? null,
     boxScoresChannelId: r.box_scores_channel_id ?? null,
     gameChannelsCategoryId: r.game_channels_category_id ?? null,
+    seedDefaultSchedule: c.default_schedule_seed_requested ?? false,
     linkTeamsAfterSetup: false,
     editMode: true
   };

@@ -62,10 +62,10 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
-  createDefaultTeams: (guildId: string) =>
+  createDefaultTeams: (guildId: string, requestedByDiscordId?: string) =>
     recFetch<any>(REC_API_ROUTES.createDefaultTeams, {
       method: "POST",
-      body: JSON.stringify({ guildId })
+      body: JSON.stringify({ guildId, requestedByDiscordId })
     }),
 
   resetDefaultTeams: (guildId: string, requestedByDiscordId?: string) =>
@@ -278,4 +278,41 @@ export const recApi = {
     requestedByDiscordId?: string | null;
   }) =>
     recFetch<any>("/v1/schedule/manual-game", { method: "POST", body: JSON.stringify(input) }),
+
+  seedDefaultSchedule: (input: { guildId: string; requestedByDiscordId?: string | null; force?: boolean }) =>
+    recFetch<any>(REC_API_ROUTES.scheduleSeedDefault, { method: "POST", body: JSON.stringify(input) }),
+
+  replaceScheduleWeek: (input: {
+    guildId: string;
+    seasonNumber?: number | null;
+    weekNumber: number;
+    games: Array<{ awayTeamId: string; homeTeamId: string }>;
+    requestedByDiscordId?: string | null;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.scheduleReplaceWeek, { method: "POST", body: JSON.stringify(input) }),
+
+  listTrackedGameChannels: (guildId: string) =>
+    recFetch<{ discordChannelIds: string[] }>(REC_API_ROUTES.gameChannelsTracked, {
+      method: "POST",
+      body: JSON.stringify({ guildId }),
+    }),
+
+  registerGameChannel: (input: {
+    guildId: string;
+    gameId?: string | null;
+    discordChannelId: string;
+    seasonNumber: number;
+    weekNumber: number;
+    awayTeamId?: string | null;
+    homeTeamId?: string | null;
+    awayUserId?: string | null;
+    homeUserId?: string | null;
+  }) =>
+    recFetch<any>(REC_API_ROUTES.gameChannelsRegister, { method: "POST", body: JSON.stringify(input) }),
+
+  markGameChannelsDeleted: (discordChannelIds: string[]) =>
+    recFetch<{ updated: number }>(REC_API_ROUTES.gameChannelsMarkDeleted, {
+      method: "POST",
+      body: JSON.stringify({ discordChannelIds }),
+    }),
 };

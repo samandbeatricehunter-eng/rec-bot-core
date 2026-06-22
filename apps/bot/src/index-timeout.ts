@@ -774,16 +774,25 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   }
 
   await interaction.guild.channels.fetch();
-  const existingChannels = interaction.guild.channels.cache.filter(
-    (ch) => ch.parentId === category.id && ch.type === ChannelType.GuildText
-  );
+  const tracked = await recApi.listTrackedGameChannels(interaction.guildId).catch(() => ({ discordChannelIds: [] as string[] }));
+  const trackedIds = new Set(tracked.discordChannelIds ?? []);
   let deletedCount = 0;
-  for (const channel of existingChannels.values()) {
-    const deleted = await channel.delete("Replacing game channels for the current week schedule.").then(() => true).catch(() => false);
-    if (deleted) deletedCount += 1;
+  const deletedDiscordIds: string[] = [];
+  for (const channelId of trackedIds) {
+    const channel = interaction.guild.channels.cache.get(channelId);
+    if (!channel || channel.type !== ChannelType.GuildText) continue;
+    if (channel.parentId !== category.id) continue;
+    const deleted = await channel.delete("Replacing tracked REC game channels for the current week schedule.").then(() => true).catch(() => false);
+    if (deleted) {
+      deletedCount += 1;
+      deletedDiscordIds.push(channelId);
+    }
+  }
+  if (deletedDiscordIds.length) {
+    await recApi.markGameChannelsDeleted(deletedDiscordIds).catch(() => undefined);
   }
 
-  const { currentWeek, stage, games } = await currentSchedule(interaction);
+  const { seasonNumber, currentWeek, stage, games } = await currentSchedule(interaction);
   const h2h = games.filter((g: any) => g.away_discord_id && g.home_discord_id);
   if (!h2h.length) {
     return interaction.editReply({
@@ -816,6 +825,17 @@ async function handleGameChannels(interaction: ButtonInteraction) {
     }).catch(() => null);
     if (!ch?.isTextBased()) continue;
     created.push(`<#${ch.id}>`);
+    await recApi.registerGameChannel({
+      guildId: interaction.guildId,
+      gameId: game.id ?? null,
+      discordChannelId: ch.id,
+      seasonNumber,
+      weekNumber: currentWeek,
+      awayTeamId: game.away_team_id ?? game.away_team?.id ?? null,
+      homeTeamId: game.home_team_id ?? game.home_team?.id ?? null,
+      awayUserId: game.away_user_id ?? null,
+      homeUserId: game.home_user_id ?? null,
+    }).catch(() => undefined);
     await ch.send({
       content: `${game.away_discord_id ? `<@${game.away_discord_id}>` : away} VS ${game.home_discord_id ? `<@${game.home_discord_id}>` : home}`,
       embeds: [

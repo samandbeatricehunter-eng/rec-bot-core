@@ -1,4 +1,5 @@
 export * from "./nfl-teams.js";
+export * from "./nfl-schedules.js";
 export * from "./stats/index.js";
 
 export const REC_API_ROUTES = {
@@ -32,7 +33,13 @@ export const REC_API_ROUTES = {
   setLeagueWeek: "/v1/league-week/set",
   recordStreamPost: "/v1/streams/post",
   reviewStreamPayout: "/v1/streams/review",
-  leagueConferences: "/v1/rosters/conferences"
+  leagueConferences: "/v1/rosters/conferences",
+
+  scheduleSeedDefault: "/v1/schedule/seed-default",
+  scheduleReplaceWeek: "/v1/schedule/replace-week",
+  gameChannelsTracked: "/v1/game-channels/tracked",
+  gameChannelsRegister: "/v1/game-channels/register",
+  gameChannelsMarkDeleted: "/v1/game-channels/mark-deleted",
 } as const;
 
 export type RecTeamAuthority = "member" | "commissioner" | "co_commissioner";
