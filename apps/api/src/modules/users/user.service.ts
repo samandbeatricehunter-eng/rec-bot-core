@@ -289,21 +289,8 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       superbowlText: superbowlText(globalRecord),
       activeStreak: careerStats?.activeStreak ?? "—",
     },
-    gameGlobalRecord: gameGlobalRecord
-      ? {
-          game: leagueGame,
-          wins: gameGlobalRecord.wins ?? 0,
-          losses: gameGlobalRecord.losses ?? 0,
-          ties: gameGlobalRecord.ties ?? 0,
-          pointDifferential: gameGlobalRecord.point_differential ?? 0,
-          playoffWins: gameGlobalRecord.playoff_wins ?? 0,
-          playoffLosses: gameGlobalRecord.playoff_losses ?? 0,
-          superbowlWins: gameGlobalRecord.superbowl_wins ?? 0,
-          superbowlLosses: gameGlobalRecord.superbowl_losses ?? 0,
-          text: recordText(gameGlobalRecord),
-          playoffText: playoffText(gameGlobalRecord),
-          superbowlText: superbowlText(gameGlobalRecord),
-        }
+    gameGlobalRecord: leagueId
+      ? buildGameGlobalRecordDisplay(gameGlobalRecord as Record<string, unknown> | null, leagueGame)
       : null,
     powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: rankRow.sos_score } : null,
     gotwGuessing: gotwTotal > 0 ? { correct: gotwCorrect, total: gotwTotal, accuracy: Math.round((gotwCorrect / gotwTotal) * 100) } : null,
@@ -484,6 +471,25 @@ export function formatLeagueGameLabel(game?: string | null) {
     case "cfb_27": return "College Football 27";
     default: return "Madden NFL 26";
   }
+}
+
+function buildGameGlobalRecordDisplay(row: Record<string, unknown> | null | undefined, leagueGame: string) {
+  const record = row ?? {};
+  return {
+    game: leagueGame,
+    label: formatLeagueGameLabel(leagueGame),
+    wins: Number(record.wins ?? 0),
+    losses: Number(record.losses ?? 0),
+    ties: Number(record.ties ?? 0),
+    pointDifferential: Number(record.point_differential ?? 0),
+    playoffWins: Number(record.playoff_wins ?? 0),
+    playoffLosses: Number(record.playoff_losses ?? 0),
+    superbowlWins: Number(record.superbowl_wins ?? 0),
+    superbowlLosses: Number(record.superbowl_losses ?? 0),
+    text: recordText(record),
+    playoffText: playoffText(record),
+    superbowlText: superbowlText(record),
+  };
 }
 
 function playoffText(record: any) {
@@ -749,11 +755,14 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       globalPlayoffText: playoffText(globalRecord),
       globalSuperbowlText: superbowlText(globalRecord),
       globalPointDifferential: globalRecord?.point_differential ?? 0,
-      gameGlobalRecordText: gameGlobalRecord ? recordText(gameGlobalRecord) : null,
-      gameGlobalPlayoffText: gameGlobalRecord ? playoffText(gameGlobalRecord) : null,
-      gameGlobalSuperbowlText: gameGlobalRecord ? superbowlText(gameGlobalRecord) : null,
+      gameGlobalRecord: league?.id
+        ? buildGameGlobalRecordDisplay(gameGlobalRecord as Record<string, unknown> | null, leagueGame)
+        : null,
+      gameGlobalRecordText: league?.id ? recordText(gameGlobalRecord ?? {}) : null,
+      gameGlobalPlayoffText: league?.id ? playoffText(gameGlobalRecord ?? {}) : null,
+      gameGlobalSuperbowlText: league?.id ? superbowlText(gameGlobalRecord ?? {}) : null,
       gameGlobalPointDifferential: gameGlobalRecord?.point_differential ?? 0,
-      gameGlobalLabel: formatLeagueGameLabel(leagueGame),
+      gameGlobalLabel: league?.id ? formatLeagueGameLabel(leagueGame) : null,
       projectedInterest,
       youAreText: youAre,
       matchupType,

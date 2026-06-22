@@ -137,6 +137,15 @@ export function buildLeagueMenuEmbed(input: {
   leagueSeasonRecordText?: string;
   leagueSeasonPointDifferential?: number;
   userStreakText?: string;
+  globalRecordText?: string;
+  globalPlayoffText?: string;
+  globalSuperbowlText?: string;
+  globalPointDifferential?: number;
+  gameGlobalLabel?: string | null;
+  gameGlobalRecordText?: string | null;
+  gameGlobalPlayoffText?: string | null;
+  gameGlobalSuperbowlText?: string | null;
+  gameGlobalPointDifferential?: number;
   purchaseCapsActive?: boolean;
   purchaseCaps?: Array<{ label: string; purchased?: number | null; allowed?: number | null }>;
   hideLeagueInfo?: boolean;
@@ -157,6 +166,17 @@ export function buildLeagueMenuEmbed(input: {
     `**Streak:** ${input.userStreakText ?? "-"}`,
     `**PointDiff:** ${input.leagueSeasonPointDifferential ?? 0}`
   ].join("\n");
+
+  const globalCareerInfo = [
+    `**Global (All Games):** ${input.globalRecordText ?? "0-0-0"} | PD: ${input.globalPointDifferential ?? 0}`,
+    `Playoffs: ${input.globalPlayoffText ?? "0-0"} | Super Bowls: ${input.globalSuperbowlText ?? "0-0"}`,
+    input.gameGlobalLabel
+      ? `**Global (${input.gameGlobalLabel}):** ${input.gameGlobalRecordText ?? "0-0-0"} | PD: ${input.gameGlobalPointDifferential ?? 0}`
+      : null,
+    input.gameGlobalLabel
+      ? `Playoffs: ${input.gameGlobalPlayoffText ?? "0-0"} | Super Bowls: ${input.gameGlobalSuperbowlText ?? "0-0"}`
+      : null,
+  ].filter(Boolean).join("\n");
 
   const purchaseCaps = input.purchaseCapsActive && input.purchaseCaps?.length
     ? input.purchaseCaps.map((cap) => `**${cap.label}:** ${cap.purchased ?? 0}/${cap.allowed ?? 0}`).join("\n")
@@ -181,6 +201,9 @@ export function buildLeagueMenuEmbed(input: {
     .addFields(
       { name: "USER INFO", value: userInfo.slice(0, 1024), inline: false },
       ...(input.hideLeagueInfo ? [] : [{ name: "LEAGUE INFO", value: leagueInfo.slice(0, 1024), inline: false }]),
+      ...((input.globalRecordText || input.gameGlobalLabel)
+        ? [{ name: "GLOBAL CAREER (Official)", value: globalCareerInfo.slice(0, 1024), inline: false }]
+        : []),
       ...(input.noticeText ? [{ name: "NOTICE", value: input.noticeText.slice(0, 1024), inline: false }] : []),
       ...(!input.hideLeagueInfo && purchaseCaps ? [{ name: "PURCHASE CAPS", value: purchaseCaps.slice(0, 1024), inline: false }] : []),
       { name: "MENU", value: menuText.slice(0, 1024), inline: false }
