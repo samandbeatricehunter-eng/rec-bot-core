@@ -104,8 +104,10 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   switch (interaction.customId) {
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming: draft.regularSeasonStreamingRequirement = value as LeagueSetupDraft["regularSeasonStreamingRequirement"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreamingSide: draft.regularSeasonStreamingSide = value as LeagueSetupDraft["regularSeasonStreamingSide"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming: draft.postseasonStreamingRequirement = value as LeagueSetupDraft["postseasonStreamingRequirement"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.streamingSide: draft.streamingSide = value as LeagueSetupDraft["streamingSide"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.postseasonStreamingSide: draft.postseasonStreamingSide = value as LeagueSetupDraft["postseasonStreamingSide"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.streamingSide: draft.regularSeasonStreamingSide = value as LeagueSetupDraft["streamingSide"]; draft.streamingSide = draft.regularSeasonStreamingSide; break;
     case LEAGUE_SETUP_CUSTOM_IDS.fourthDownRuleRegular: {
       draft.fourthDownRuleTypeRegular = value as LeagueSetupDraft["fourthDownRuleTypeRegular"];
       if (draft.fourthDownRuleTypeRegular === "custom") {

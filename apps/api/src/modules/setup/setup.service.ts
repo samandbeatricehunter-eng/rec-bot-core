@@ -104,6 +104,13 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     throw new ApiError(500, "Failed to look up existing primary league", existingPrimaryLink.error);
   }
 
+  if (existingPrimaryLink.data?.league_id) {
+    const deleted = await supabase.rpc("rec_delete_league", { p_league_id: existingPrimaryLink.data.league_id });
+    if (deleted.error) {
+      throw new ApiError(500, "Failed to clear existing league data before setup", deleted.error);
+    }
+  }
+
   const leagueFields = {
     name: input.name,
     game: input.game,
@@ -116,9 +123,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable"
   };
 
-  const league = existingPrimaryLink.data?.league_id
-    ? await supabase.from("rec_leagues").update(leagueFields).eq("id", existingPrimaryLink.data.league_id).select("*").single()
-    : await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
+  const league = await supabase.from("rec_leagues").insert(leagueFields).select("*").single();
 
   if (league.error) {
     throw new ApiError(500, "Failed to save REC league", league.error);
@@ -149,7 +154,9 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
     postseason_streaming_requirement: input.postseasonStreamingRequirement,
     streaming_scope: input.streamingScope,
-    streaming_side: input.streamingSide,
+    streaming_side: input.regularSeasonStreamingSide ?? input.streamingSide,
+    regular_season_streaming_side: input.regularSeasonStreamingSide ?? input.streamingSide,
+    postseason_streaming_side: input.postseasonStreamingSide ?? input.streamingSide,
 
     fourth_down_rule_type: input.fourthDownRuleTypeRegular ?? input.fourthDownRuleType,
     custom_fourth_down_rule: input.customFourthDownRuleRegular ?? input.customFourthDownRule ?? null,
@@ -206,23 +213,15 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     throw new ApiError(500, "Failed to save REC league configuration", configuration.error);
   }
 
-  const link = existingPrimaryLink.data?.league_id
-    ? await supabase
-        .from("rec_server_league_links")
-        .select("*")
-        .eq("server_id", serverResult.server.id)
-        .eq("league_id", league.data.id)
-        .limit(1)
-        .single()
-    : await supabase
-        .from("rec_server_league_links")
-        .insert({
-          server_id: serverResult.server.id,
-          league_id: league.data.id,
-          is_primary: true
-        })
-        .select("*")
-        .single();
+  const link = await supabase
+    .from("rec_server_league_links")
+    .insert({
+      server_id: serverResult.server.id,
+      league_id: league.data.id,
+      is_primary: true
+    })
+    .select("*")
+    .single();
 
   if (link.error) {
     throw new ApiError(500, "Failed to link league to server", link.error);
@@ -236,7 +235,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
       league: league.data,
       configuration: configuration.data,
       serverLeagueLink: link.data,
-      reused: Boolean(existingPrimaryLink.data?.league_id)
+      reused: false
     },
     reason: "League Setup Wizard completed through Discord Admin Panel.",
     source: "manual_admin_entry"
@@ -334,7 +333,9 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
     postseason_streaming_requirement: input.postseasonStreamingRequirement,
     streaming_scope: input.streamingScope,
-    streaming_side: input.streamingSide,
+    streaming_side: input.regularSeasonStreamingSide ?? input.streamingSide,
+    regular_season_streaming_side: input.regularSeasonStreamingSide ?? input.streamingSide,
+    postseason_streaming_side: input.postseasonStreamingSide ?? input.streamingSide,
     fourth_down_rule_type: input.fourthDownRuleTypeRegular ?? input.fourthDownRuleType,
     custom_fourth_down_rule: input.customFourthDownRuleRegular ?? input.customFourthDownRule ?? null,
     fourth_down_rule_type_regular: input.fourthDownRuleTypeRegular ?? input.fourthDownRuleType,
@@ -415,7 +416,9 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     regularSeasonStreamingRequirement: c.regular_season_streaming_requirement ?? "recommended",
     postseasonStreamingRequirement: c.postseason_streaming_requirement ?? "required",
     streamingScope: c.streaming_scope ?? "every_game",
-    streamingSide: c.streaming_side ?? "either",
+    streamingSide: c.regular_season_streaming_side ?? c.streaming_side ?? "either",
+    regularSeasonStreamingSide: c.regular_season_streaming_side ?? c.streaming_side ?? "either",
+    postseasonStreamingSide: c.postseason_streaming_side ?? c.streaming_side ?? "either",
     fourthDownRuleTypeRegular: c.fourth_down_rule_type_regular ?? c.fourth_down_rule_type ?? "standard_rec",
     fourthDownRuleTypePlayoff: c.fourth_down_rule_type_playoff ?? c.fourth_down_rule_type ?? "standard_rec",
     customFourthDownRuleRegular: c.custom_fourth_down_rule_regular ?? c.custom_fourth_down_rule ?? "",

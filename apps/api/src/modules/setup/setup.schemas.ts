@@ -70,6 +70,8 @@ export const CreateLeagueSchema = z.object({
   postseasonStreamingRequirement: streamingRequirement.default("required"),
   streamingScope: z.enum(["every_game", "playoffs_only"]).default("every_game"),
   streamingSide: z.enum(["home", "away", "either", "both"]).default("either"),
+  regularSeasonStreamingSide: z.enum(["home", "away", "either", "both"]).default("either"),
+  postseasonStreamingSide: z.enum(["home", "away", "either", "both"]).default("either"),
 
   fourthDownRuleType: z.enum(["none", "standard_rec", "custom"]).default("standard_rec"),
   fourthDownRuleTypeRegular: z.enum(["none", "standard_rec", "custom"]).default("standard_rec"),

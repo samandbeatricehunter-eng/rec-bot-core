@@ -22,7 +22,13 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     source: "manual_admin_entry"
   }));
 
-  const result = await supabase.from("rec_teams").upsert(rows, { onConflict: "league_id,name" }).select("*");
+  const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
+  if (clearedAssignments.error) throw new ApiError(500, "Failed to clear existing team links.", clearedAssignments.error);
+
+  const clearedTeams = await supabase.from("rec_teams").delete().eq("league_id", league.id);
+  if (clearedTeams.error) throw new ApiError(500, "Failed to clear existing league teams.", clearedTeams.error);
+
+  const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
 
   await writeAuditLog({

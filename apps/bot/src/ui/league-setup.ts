@@ -23,7 +23,9 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   serverSetupChannelModal: "rec:league_setup:server_channel_modal",
   serverSetupChannelInput: "rec:league_setup:server_channel_input",
   regularSeasonStreaming: "rec:league_setup:streaming_regular",
+  regularSeasonStreamingSide: "rec:league_setup:streaming_regular_side",
   postseasonStreaming: "rec:league_setup:streaming_postseason",
+  postseasonStreamingSide: "rec:league_setup:streaming_postseason_side",
   streamingSide: "rec:league_setup:streaming_side",
   fourthDownRuleRegular: "rec:league_setup:fourth_down_rule_regular",
   fourthDownRulePlayoff: "rec:league_setup:fourth_down_rule_playoff",
@@ -95,8 +97,9 @@ export type LeagueSetupStep =
   | "contract_purchases"
   | "server_setup"
   | "regular_season_streaming"
-  | "streaming_side"
+  | "regular_season_streaming_side"
   | "postseason_streaming"
+  | "postseason_streaming_side"
   | "fourth_down_regular"
   | "fourth_down_playoff"
   | "position_changes"
@@ -154,6 +157,8 @@ export type LeagueSetupDraft = {
   postseasonStreamingRequirement: "required" | "recommended" | "disabled";
   streamingScope: "every_game" | "playoffs_only";
   streamingSide: "home" | "away" | "either" | "both";
+  regularSeasonStreamingSide: "home" | "away" | "either" | "both";
+  postseasonStreamingSide: "home" | "away" | "either" | "both";
   fourthDownRuleTypeRegular: "none" | "standard_rec" | "custom";
   fourthDownRuleTypePlayoff: "none" | "standard_rec" | "custom";
   customFourthDownRuleRegular: string;
@@ -219,8 +224,9 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "contract_purchases",
   "server_setup",
   "regular_season_streaming",
+  "regular_season_streaming_side",
   "postseason_streaming",
-  "streaming_side",
+  "postseason_streaming_side",
   "fourth_down_regular",
   "fourth_down_playoff",
   "position_changes",
@@ -279,6 +285,8 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     postseasonStreamingRequirement: "required",
     streamingScope: "every_game",
     streamingSide: "either",
+    regularSeasonStreamingSide: "either",
+    postseasonStreamingSide: "either",
     fourthDownRuleTypeRegular: "standard_rec",
     fourthDownRuleTypePlayoff: "standard_rec",
     customFourthDownRuleRegular: "",
@@ -365,17 +373,19 @@ export function getPreviousLeagueSetupStep(step: LeagueSetupStep, draft: LeagueS
  * @param draft Current setup draft
  * @returns Next step to display
  */
+function streamingUserSettingApplies(requirement: LeagueSetupDraft["regularSeasonStreamingRequirement"]) {
+  return requirement === "required" || requirement === "recommended";
+}
+
 export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
   // Economy gates the consecutive purchase-feature section.
   if (step === "economy" && !draft.coinEconomyEnabled) return "server_setup";
 
-  if (step === "regular_season_streaming" && draft.regularSeasonStreamingRequirement === "disabled") return "postseason_streaming";
+  if (step === "regular_season_streaming" && !streamingUserSettingApplies(draft.regularSeasonStreamingRequirement)) {
+    return "postseason_streaming";
+  }
 
-  if (
-    step === "postseason_streaming"
-    && draft.regularSeasonStreamingRequirement !== "required"
-    && draft.postseasonStreamingRequirement !== "required"
-  ) {
+  if (step === "postseason_streaming" && !streamingUserSettingApplies(draft.postseasonStreamingRequirement)) {
     return "fourth_down_regular";
   }
 
@@ -724,11 +734,12 @@ export function buildPostseasonStreamingWindow(draft: LeagueSetupDraft) {
   };
 }
 
-export function buildStreamingSideWindow(draft: LeagueSetupDraft) {
+export function buildRegularSeasonStreamingSideWindow(draft: LeagueSetupDraft) {
   return {
-    embeds: [baseEmbed("League Setup: Required Streaming Side", draft)],
+    embeds: [baseEmbed("League Setup: Regular Season Streaming Side", draft)
+      .setDescription("When regular-season streaming is required or recommended, who must stream?")],
     components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.streamingSide, "Who must stream when streaming is required?", [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreamingSide, "Regular season streaming side", [
         option("Home Team", "home"),
         option("Away Team", "away"),
         option("Either Team", "either"),
@@ -737,6 +748,26 @@ export function buildStreamingSideWindow(draft: LeagueSetupDraft) {
       buildNavigationRow()
     ]
   };
+}
+
+export function buildPostseasonStreamingSideWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("League Setup: Postseason Streaming Side", draft)
+      .setDescription("When postseason streaming is required or recommended, who must stream?")],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.postseasonStreamingSide, "Postseason streaming side", [
+        option("Home Team", "home"),
+        option("Away Team", "away"),
+        option("Either Team", "either"),
+        option("Both Teams", "both")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildStreamingSideWindow(draft: LeagueSetupDraft) {
+  return buildRegularSeasonStreamingSideWindow(draft);
 }
 
 /**
@@ -1097,8 +1128,9 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
     ],
     rules: [
       option("Regular Season Streaming", "regular_season_streaming"),
+      option("Regular Season Streaming Side", "regular_season_streaming_side"),
       option("Postseason Streaming", "postseason_streaming"),
-      option("Streaming Side (Who Must Stream)", "streaming_side"),
+      option("Postseason Streaming Side", "postseason_streaming_side"),
       option("4th Down Rules (Regular Season)", "fourth_down_regular"),
       option("4th Down Rules (Playoff)", "fourth_down_playoff"),
       option("Custom Coaches Required?", "custom_coaches_required"),
@@ -1225,8 +1257,9 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
         name: "Rules",
         value: [
           `Regular Season Streaming: ${fmt(draft.regularSeasonStreamingRequirement)}`,
+          `Regular Season Streaming Side: ${fmt(draft.regularSeasonStreamingSide)}`,
           `Postseason Streaming: ${fmt(draft.postseasonStreamingRequirement)}`,
-          `Required Streaming Side: ${fmt(draft.streamingSide)}`,
+          `Postseason Streaming Side: ${fmt(draft.postseasonStreamingSide)}`,
           `4th Down (Regular Season): ${fmt(draft.fourthDownRuleTypeRegular)}${draft.fourthDownRuleTypeRegular === "custom" ? ` - ${draft.customFourthDownRuleRegular || "Custom text missing"}` : ""}`,
           `4th Down (Playoff): ${fmt(draft.fourthDownRuleTypePlayoff)}${draft.fourthDownRuleTypePlayoff === "custom" ? ` - ${draft.customFourthDownRulePlayoff || "Custom text missing"}` : ""}`,
           `Position Changes: ${fmt(draft.positionChangePolicy)}${draft.positionChangePolicy !== "open" ? ` - ${draft.positionChangePolicyDescription || "Restriction text missing"}` : ""}`,
@@ -1304,8 +1337,9 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "contract_purchases": return buildFeatureDecisionWindow(draft);
     case "server_setup": return buildLeagueSetupServerSetupWindow(draft);
     case "regular_season_streaming": return buildRegularSeasonStreamingWindow(draft);
+    case "regular_season_streaming_side": return buildRegularSeasonStreamingSideWindow(draft);
     case "postseason_streaming": return buildPostseasonStreamingWindow(draft);
-    case "streaming_side": return buildStreamingSideWindow(draft);
+    case "postseason_streaming_side": return buildPostseasonStreamingSideWindow(draft);
     case "fourth_down_regular": return buildFourthDownWindow(draft, "Regular Season");
     case "fourth_down_playoff": return buildFourthDownWindow(draft, "Playoff");
     case "position_changes": return buildPositionChangeWindow(draft);
@@ -1341,6 +1375,7 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
 
 export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
   draft.streamingRequirement = draft.regularSeasonStreamingRequirement;
+  draft.streamingSide = draft.regularSeasonStreamingSide;
   draft.streamingScope = draft.postseasonStreamingRequirement === "required" && draft.regularSeasonStreamingRequirement !== "required" ? "playoffs_only" : "every_game";
 
   if (!draft.coinEconomyEnabled) {
