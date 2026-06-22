@@ -7,6 +7,7 @@ import { buildAdminPanelEmbed, buildAdminPanelRows, buildSetupDangerModal, MENU_
 import {
   applyLeagueSetupDependencies,
   buildCoachAbilitiesRestrictionModal,
+  buildGameSelectWindow,
   buildCpuTradingRestrictionModal,
   buildDifficultyCustomModal,
   buildFourthDownCustomModal,
@@ -43,6 +44,19 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   const value = interaction.values[0];
+
+  // First step: pick the game. CFB 27 is a placeholder for now — it keeps the
+  // user on this step with a notice; Madden titles proceed into the wizard.
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.game) {
+    if (value === "cfb_27") {
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildGameSelectWindow(draft, "College Football 27 dynasty setup isn't available yet — it's coming soon. Choose a Madden title to continue for now."));
+    }
+    draft.game = value as LeagueSetupDraft["game"];
+    draft.step = getNextLeagueSetupStep("game", draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
 
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.serverSetupSelect) {
     leagueSetupSessions.set(interaction.user.id, draft);

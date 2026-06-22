@@ -110,6 +110,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
 
   const leagueFields = {
     name: input.name,
+    game: input.game,
     league_type: input.leagueType,
     current_phase: "preseason",
     season_stage: "preseason_training_camp",
@@ -383,7 +384,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
 export async function getLeagueConfigAsDraft(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const [league, config] = await Promise.all([
-    supabase.from("rec_leagues").select("name").eq("id", context.leagueId).single(),
+    supabase.from("rec_leagues").select("name,game").eq("id", context.leagueId).single(),
     supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle()
   ]);
   if (league.error) throw new ApiError(500, "Failed to load league", league.error);
@@ -391,6 +392,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
   const r = context.routes ?? {};
   const draft = {
     name: league.data.name ?? "League",
+    game: league.data.game ?? "madden_26",
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
     importMode: c.import_mode ?? "manual",

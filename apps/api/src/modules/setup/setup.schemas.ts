@@ -28,6 +28,7 @@ export const CreateLeagueSchema = z.object({
   name: z.string().min(1),
   leaguePassword: z.string().optional().nullable(),
 
+  game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
   importMode: z.enum(["manual", "ea_import", "companion_app_export"]).default("manual"),
 

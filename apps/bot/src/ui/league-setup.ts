@@ -12,6 +12,7 @@ import {
 import { buildNavigationRow, NAV_CUSTOM_IDS } from "./navigation.js";
 
 export const LEAGUE_SETUP_CUSTOM_IDS = {
+  game: "rec:league_setup:game",
   leagueType: "rec:league_setup:league_type",
   featureActivate: "rec:league_setup:feature_activate",
   featureDeactivate: "rec:league_setup:feature_deactivate",
@@ -71,7 +72,16 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
 
 export type LeagueSetupSettingsCategory = "features" | "server" | "rules" | "gameplay" | "play_call";
 
+export type LeagueGame = "madden_26" | "madden_27" | "cfb_27";
+
+export const LEAGUE_GAME_OPTIONS: Record<LeagueGame, string> = {
+  madden_26: "Madden NFL 26",
+  madden_27: "Madden NFL 27",
+  cfb_27: "College Football 27"
+};
+
 export type LeagueSetupStep =
+  | "game"
   | "league_type"
   | "economy"
   | "custom_players"
@@ -117,6 +127,7 @@ export type LeagueSetupStep =
 
 export type LeagueSetupDraft = {
   name: string;
+  game: LeagueGame;
   leaguePassword?: string | null;
   step: LeagueSetupStep;
   leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters";
@@ -191,6 +202,7 @@ export type LeagueSetupDraft = {
 };
 
 const STEP_ORDER: LeagueSetupStep[] = [
+  "game",
   "league_type",
   "economy",
   "custom_players",
@@ -237,8 +249,9 @@ const STEP_ORDER: LeagueSetupStep[] = [
 export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
   return {
     name,
+    game: "madden_26",
     leaguePassword: null,
-    step: "league_type",
+    step: "game",
     leagueType: "regular_rosters",
     importMode: "manual",
     seasonWeek: "training_camp",
@@ -310,7 +323,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
 }
 
 function isStepOnForwardPath(draft: LeagueSetupDraft, target: LeagueSetupStep): boolean {
-  let current: LeagueSetupStep = "league_type";
+  let current: LeagueSetupStep = "game";
   const seen = new Set<LeagueSetupStep>();
 
   while (!seen.has(current)) {
@@ -521,6 +534,32 @@ function yesNo(value: boolean) {
 
 function fmt(value: string) {
   return value.replaceAll("_", " ");
+}
+
+export function buildGameSelectWindow(draft: LeagueSetupDraft, notice?: string) {
+  const embed = new EmbedBuilder()
+    .setTitle("League Setup: Game")
+    .setDescription([
+      `League: **${draft.name}**`,
+      "",
+      "Which game is this league for? This determines the setup options and features available.",
+      "",
+      "• **Madden NFL 26** / **Madden NFL 27** — full franchise setup (Madden 27 uses the Madden 26 options for now).",
+      "• **College Football 27** — dynasty setup is coming soon; not yet available."
+    ].join("\n"));
+  if (notice) embed.addFields({ name: "Heads up", value: notice });
+
+  return {
+    embeds: [embed],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.game, "Select the game", [
+        option("Madden NFL 26", "madden_26"),
+        option("Madden NFL 27", "madden_27", "Uses the Madden 26 setup for now."),
+        option("College Football 27", "cfb_27", "Coming soon — placeholder.")
+      ]),
+      buildNavigationRow()
+    ]
+  };
 }
 
 export function buildLeagueTypeWindow(draft: LeagueSetupDraft) {
@@ -1109,7 +1148,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
     .addFields(
       {
         name: "Identity",
-        value: [`Type: ${fmt(draft.leagueType)}`, "Starts: Season 1, Training Camp"].join("\n"),
+        value: [`Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`, `Type: ${fmt(draft.leagueType)}`, "Starts: Season 1, Training Camp"].join("\n"),
         inline: true
       },
       {
@@ -1204,6 +1243,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
 
 export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
+    case "game": return buildGameSelectWindow(draft);
     case "league_type": return buildLeagueTypeWindow(draft);
     case "economy":
     case "custom_players":
