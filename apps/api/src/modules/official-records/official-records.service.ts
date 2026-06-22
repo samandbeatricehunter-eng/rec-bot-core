@@ -1,0 +1,307 @@
+import { supabase } from "../../lib/supabase.js";
+
+export const OFFICIAL_RESULT_SOURCES = ["box_score", "box_score_screenshot"] as const;
+export const DISPLAY_ADVANCE_SOURCE = "commissioner_advance";
+
+export type RecordTotals = {
+  wins: number;
+  losses: number;
+  ties: number;
+  playoffWins: number;
+  playoffLosses: number;
+  superbowlWins: number;
+  superbowlLosses: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  pointDifferential: number;
+  gamesPlayed: number;
+};
+
+export function emptyRecordTotals(): RecordTotals {
+  return {
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    playoffWins: 0,
+    playoffLosses: 0,
+    superbowlWins: 0,
+    superbowlLosses: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+    pointDifferential: 0,
+    gamesPlayed: 0,
+  };
+}
+
+export function baselineFromLegacyJson(raw: Record<string, unknown> | null | undefined): RecordTotals {
+  const base = emptyRecordTotals();
+  if (!raw) return base;
+  base.wins = Number(raw.wins) || 0;
+  base.losses = Number(raw.losses) || 0;
+  base.ties = Number(raw.ties) || 0;
+  base.playoffWins = Number(raw.playoff_wins) || 0;
+  base.playoffLosses = Number(raw.playoff_losses) || 0;
+  base.superbowlWins = Number(raw.superbowl_wins) || 0;
+  base.superbowlLosses = Number(raw.superbowl_losses) || 0;
+  base.pointsFor = Number(raw.points_for) || 0;
+  base.pointsAgainst = Number(raw.points_against) || 0;
+  base.pointDifferential = Number(raw.point_differential) || 0;
+  base.gamesPlayed = Number(raw.games_played) || base.wins + base.losses + base.ties;
+  return base;
+}
+
+export function mergeRecordTotals(base: RecordTotals, delta: RecordTotals): RecordTotals {
+  const gamesPlayed = base.gamesPlayed + delta.gamesPlayed;
+  const pointDifferential = base.pointDifferential + delta.pointDifferential;
+  return {
+    wins: base.wins + delta.wins,
+    losses: base.losses + delta.losses,
+    ties: base.ties + delta.ties,
+    playoffWins: base.playoffWins + delta.playoffWins,
+    playoffLosses: base.playoffLosses + delta.playoffLosses,
+    superbowlWins: base.superbowlWins + delta.superbowlWins,
+    superbowlLosses: base.superbowlLosses + delta.superbowlLosses,
+    pointsFor: base.pointsFor + delta.pointsFor,
+    pointsAgainst: base.pointsAgainst + delta.pointsAgainst,
+    pointDifferential,
+    gamesPlayed,
+  };
+}
+
+function isPlayoffWeek(weekNumber: number | null | undefined) {
+  return Number(weekNumber ?? 0) > 18;
+}
+
+function isSuperBowlWeek(weekNumber: number | null | undefined) {
+  return Number(weekNumber ?? 0) >= 22;
+}
+
+function applyGameResult(
+  totals: RecordTotals,
+  userId: string,
+  row: {
+    home_user_id?: string | null;
+    away_user_id?: string | null;
+    home_score?: number | null;
+    away_score?: number | null;
+    week_number?: number | null;
+    is_tie?: boolean | null;
+  },
+) {
+  const homeScore = Number(row.home_score ?? 0);
+  const awayScore = Number(row.away_score ?? 0);
+  const isHome = row.home_user_id === userId;
+  const isAway = row.away_user_id === userId;
+  if (!isHome && !isAway) return;
+
+  const pointsFor = isHome ? homeScore : awayScore;
+  const pointsAgainst = isHome ? awayScore : homeScore;
+  const isTie = row.is_tie === true || homeScore === awayScore;
+  const isWin = !isTie && pointsFor > pointsAgainst;
+  const isLoss = !isTie && pointsFor < pointsAgainst;
+  const playoff = isPlayoffWeek(row.week_number);
+  const superBowl = isSuperBowlWeek(row.week_number);
+
+  totals.gamesPlayed += 1;
+  totals.pointsFor += pointsFor;
+  totals.pointsAgainst += pointsAgainst;
+  totals.pointDifferential += pointsFor - pointsAgainst;
+
+  if (isTie) totals.ties += 1;
+  else if (isWin) totals.wins += 1;
+  else if (isLoss) totals.losses += 1;
+
+  if (playoff) {
+    if (isTie) { /* no playoff win/loss on ties */ }
+    else if (isWin) totals.playoffWins += 1;
+    else if (isLoss) totals.playoffLosses += 1;
+  }
+
+  if (superBowl) {
+    if (isTie) { /* no sb win/loss on ties */ }
+    else if (isWin) totals.superbowlWins += 1;
+    else if (isLoss) totals.superbowlLosses += 1;
+  }
+}
+
+function aggregateResultsForUser(
+  userId: string,
+  rows: Array<{
+    home_user_id?: string | null;
+    away_user_id?: string | null;
+    home_score?: number | null;
+    away_score?: number | null;
+    week_number?: number | null;
+    is_tie?: boolean | null;
+  }>,
+): RecordTotals {
+  const totals = emptyRecordTotals();
+  for (const row of rows) applyGameResult(totals, userId, row);
+  return totals;
+}
+
+function recordRowFromTotals(totals: RecordTotals, extra: Record<string, unknown> = {}) {
+  const avgPointDifferential = totals.gamesPlayed > 0
+    ? Math.round((totals.pointDifferential / totals.gamesPlayed) * 100) / 100
+    : 0;
+  return {
+    wins: totals.wins,
+    losses: totals.losses,
+    ties: totals.ties,
+    playoff_wins: totals.playoffWins,
+    playoff_losses: totals.playoffLosses,
+    superbowl_wins: totals.superbowlWins,
+    superbowl_losses: totals.superbowlLosses,
+    points_for: totals.pointsFor,
+    points_against: totals.pointsAgainst,
+    point_differential: totals.pointDifferential,
+    games_played: totals.gamesPlayed,
+    avg_point_differential: avgPointDifferential,
+    updated_at: new Date().toISOString(),
+    ...extra,
+  };
+}
+
+async function loadOfficialResultsForLeagueSeason(leagueId: string, seasonNumber: number) {
+  const { data, error } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,week_number,is_tie,source,records_apply_key")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .in("source", [...OFFICIAL_RESULT_SOURCES]);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadOfficialResultsForLeague(leagueId: string) {
+  const { data, error } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_score,away_score,week_number,is_tie,season_number,source")
+    .eq("league_id", leagueId)
+    .in("source", [...OFFICIAL_RESULT_SOURCES]);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadAllOfficialResults() {
+  const { data, error } = await supabase
+    .from("rec_game_results")
+    .select("home_user_id,away_user_id,home_score,away_score,week_number,is_tie,league_id,source")
+    .in("source", [...OFFICIAL_RESULT_SOURCES]);
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function loadLeagueGamesMap(leagueIds: string[]) {
+  if (!leagueIds.length) return new Map<string, string>();
+  const { data, error } = await supabase.from("rec_leagues").select("id,game").in("id", leagueIds);
+  if (error) throw error;
+  return new Map((data ?? []).map((row) => [row.id, String(row.game ?? "madden_26")]));
+}
+
+export async function rebuildSeasonOfficialRecords(leagueId: string, seasonNumber: number) {
+  const results = await loadOfficialResultsForLeagueSeason(leagueId, seasonNumber);
+  const userIds = new Set<string>();
+  for (const row of results) {
+    if (row.home_user_id) userIds.add(row.home_user_id);
+    if (row.away_user_id) userIds.add(row.away_user_id);
+  }
+
+  const now = new Date().toISOString();
+  for (const userId of userIds) {
+    const totals = aggregateResultsForUser(userId, results);
+    await supabase.from("rec_season_user_records").upsert(
+      recordRowFromTotals(totals, { league_id: leagueId, season_number: seasonNumber, user_id: userId }),
+      { onConflict: "league_id,season_number,user_id" },
+    );
+  }
+
+  return { usersUpdated: userIds.size, updatedAt: now };
+}
+
+export async function rebuildLeagueOfficialRecords(leagueId: string) {
+  const results = await loadOfficialResultsForLeague(leagueId);
+  const userIds = new Set<string>();
+  for (const row of results) {
+    if (row.home_user_id) userIds.add(row.home_user_id);
+    if (row.away_user_id) userIds.add(row.away_user_id);
+  }
+
+  for (const userId of userIds) {
+    const totals = aggregateResultsForUser(userId, results);
+    await supabase.from("rec_league_user_records").upsert(
+      recordRowFromTotals(totals, { league_id: leagueId, user_id: userId }),
+      { onConflict: "league_id,user_id" },
+    );
+  }
+
+  return { usersUpdated: userIds.size };
+}
+
+export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
+  const results = await loadAllOfficialResults();
+  const leagueIds = [...new Set(results.map((row) => row.league_id).filter(Boolean))];
+  const leagueGameById = await loadLeagueGamesMap(leagueIds);
+
+  const affectedUsers = new Set<string>(userIds ?? []);
+  if (!userIds?.length) {
+    for (const row of results) {
+      if (row.home_user_id) affectedUsers.add(row.home_user_id);
+      if (row.away_user_id) affectedUsers.add(row.away_user_id);
+    }
+  }
+
+  const legacyBaselines = affectedUsers.size
+    ? await supabase
+        .from("rec_legacy_user_baselines")
+        .select("user_id,global_record")
+        .in("user_id", [...affectedUsers])
+    : { data: [], error: null };
+  if (legacyBaselines.error) throw legacyBaselines.error;
+  const baselineByUser = new Map((legacyBaselines.data ?? []).map((row) => [row.user_id, row.global_record]));
+
+  for (const userId of affectedUsers) {
+    const userResults = results.filter((row) => row.home_user_id === userId || row.away_user_id === userId);
+    const boxScoreTotals = aggregateResultsForUser(userId, userResults);
+    const allGames = mergeRecordTotals(baselineFromLegacyJson(baselineByUser.get(userId) as Record<string, unknown>), boxScoreTotals);
+
+    await supabase.from("rec_global_user_records").upsert(
+      recordRowFromTotals(allGames, { user_id: userId }),
+      { onConflict: "user_id" },
+    );
+
+    const byGame = new Map<string, RecordTotals>();
+    for (const row of userResults) {
+      const game = leagueGameById.get(row.league_id) ?? "madden_26";
+      const current = byGame.get(game) ?? emptyRecordTotals();
+      applyGameResult(current, userId, row);
+      byGame.set(game, current);
+    }
+
+    for (const game of ["madden_26", "madden_27", "cfb_27"] as const) {
+      const totals = byGame.get(game);
+      if (!totals || totals.gamesPlayed === 0) {
+        await supabase.from("rec_global_user_game_records").delete().eq("user_id", userId).eq("game", game);
+        continue;
+      }
+      await supabase.from("rec_global_user_game_records").upsert(
+        recordRowFromTotals(totals, { user_id: userId, game }),
+        { onConflict: "user_id,game" },
+      );
+    }
+  }
+
+  return { usersUpdated: affectedUsers.size };
+}
+
+export async function rebuildOfficialRecordsAfterBoxScore(input: {
+  leagueId: string;
+  seasonNumber: number;
+  homeUserId?: string | null;
+  awayUserId?: string | null;
+}) {
+  await rebuildSeasonOfficialRecords(input.leagueId, input.seasonNumber);
+  await rebuildLeagueOfficialRecords(input.leagueId);
+  const userIds = [input.homeUserId, input.awayUserId].filter(Boolean) as string[];
+  await rebuildOfficialGlobalRecords(userIds.length ? userIds : undefined);
+}

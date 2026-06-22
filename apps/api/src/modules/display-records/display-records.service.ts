@@ -1,4 +1,5 @@
 import { supabase } from "../../lib/supabase.js";
+import { DISPLAY_ADVANCE_SOURCE, OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 
 type GameResultRow = {
   home_user_id?: string | null;
@@ -8,6 +9,9 @@ type GameResultRow = {
   home_score?: number | null;
   away_score?: number | null;
   winning_user_id?: string | null;
+  week_number?: number | null;
+  source?: string | null;
+  is_tie?: boolean | null;
 };
 
 function applyResult(
@@ -30,7 +34,7 @@ function applyResult(
 
 function ingestResultRow(
   aggregate: Map<string, { wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number; teamId: string | null }>,
-  row: GameResultRow & { is_tie?: boolean | null },
+  row: GameResultRow,
 ) {
   const homeScore = Number(row.home_score ?? 0);
   const awayScore = Number(row.away_score ?? 0);
@@ -48,18 +52,50 @@ function ingestResultRow(
   }
 }
 
+function matchupKey(row: GameResultRow) {
+  return `${row.week_number ?? 0}:${row.home_team_id ?? ""}:${row.away_team_id ?? ""}`;
+}
+
+function isOfficialSource(source?: string | null) {
+  return OFFICIAL_RESULT_SOURCES.includes(String(source ?? "") as typeof OFFICIAL_RESULT_SOURCES[number]);
+}
+
+/** Display W-L uses commissioner advance when no box score exists; box scores override when present. */
+function mergeDisplayResults(rows: GameResultRow[]) {
+  const byMatchup = new Map<string, GameResultRow>();
+
+  for (const row of rows) {
+    const source = String(row.source ?? "");
+    if (source !== DISPLAY_ADVANCE_SOURCE && !isOfficialSource(source)) continue;
+
+    const key = matchupKey(row);
+    const existing = byMatchup.get(key);
+    if (!existing) {
+      byMatchup.set(key, row);
+      continue;
+    }
+
+    const existingOfficial = isOfficialSource(existing.source);
+    const incomingOfficial = isOfficialSource(source);
+    if (incomingOfficial && !existingOfficial) byMatchup.set(key, row);
+  }
+
+  return [...byMatchup.values()];
+}
+
 export async function rebuildSeasonDisplayRecords(leagueId: string, seasonNumber: number) {
   const { data: results, error } = await supabase
     .from("rec_game_results")
-    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,winning_user_id,is_tie,source")
+    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,winning_user_id,is_tie,source,week_number")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
-    .in("source", ["box_score", "box_score_screenshot", "commissioner_advance"]);
+    .in("source", [...OFFICIAL_RESULT_SOURCES, DISPLAY_ADVANCE_SOURCE]);
 
   if (error) throw error;
 
+  const displayRows = mergeDisplayResults(results ?? []);
   const aggregate = new Map<string, { wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number; teamId: string | null }>();
-  for (const row of results ?? []) ingestResultRow(aggregate, row);
+  for (const row of displayRows) ingestResultRow(aggregate, row);
 
   const now = new Date().toISOString();
   for (const [userId, stats] of aggregate.entries()) {

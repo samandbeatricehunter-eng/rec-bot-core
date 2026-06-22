@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -140,10 +141,11 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const teamRow = (assignmentResult.data as any)?.rec_teams ?? null;
 
   const leagueInfoResult = leagueId
-    ? await supabase.from("rec_leagues").select("name,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle()
+    ? await supabase.from("rec_leagues").select("name,game,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle()
     : { data: null };
   const leagueInfo = leagueInfoResult.data;
   const seasonNumber = leagueInfo?.season_number ?? leagueInfo?.display_season_number ?? 1;
+  const leagueGame = String(leagueInfo?.game ?? "madden_26");
 
   const [
     seasonRecord,
@@ -157,6 +159,8 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     seasonStats,
     careerStats,
     financialSummary,
+    globalRecordRow,
+    gameGlobalRecordRow,
   ] = await Promise.all([
     leagueId
       ? supabase
@@ -216,10 +220,13 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     leagueId ? loadSeasonBoxScoreStats(userId, leagueId, seasonNumber) : Promise.resolve(null),
     loadCareerBoxScoreStats(userId),
     loadUserFinancialSummary(userId, leagueId),
+    supabase.from("rec_global_user_records").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("rec_global_user_game_records").select("*").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
   ]);
 
   const teamName = formatTeamDisplayName(teamRow);
-  const globalRecord = baseline.globalRecord ?? {};
+  const globalRecord = (globalRecordRow as any)?.data ?? baseline.globalRecord ?? {};
+  const gameGlobalRecord = (gameGlobalRecordRow as any)?.data ?? null;
 
   let gotwWins = 0;
   let gotwLosses = 0;
@@ -282,6 +289,22 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       superbowlText: superbowlText(globalRecord),
       activeStreak: careerStats?.activeStreak ?? "—",
     },
+    gameGlobalRecord: gameGlobalRecord
+      ? {
+          game: leagueGame,
+          wins: gameGlobalRecord.wins ?? 0,
+          losses: gameGlobalRecord.losses ?? 0,
+          ties: gameGlobalRecord.ties ?? 0,
+          pointDifferential: gameGlobalRecord.point_differential ?? 0,
+          playoffWins: gameGlobalRecord.playoff_wins ?? 0,
+          playoffLosses: gameGlobalRecord.playoff_losses ?? 0,
+          superbowlWins: gameGlobalRecord.superbowl_wins ?? 0,
+          superbowlLosses: gameGlobalRecord.superbowl_losses ?? 0,
+          text: recordText(gameGlobalRecord),
+          playoffText: playoffText(gameGlobalRecord),
+          superbowlText: superbowlText(gameGlobalRecord),
+        }
+      : null,
     powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: rankRow.sos_score } : null,
     gotwGuessing: gotwTotal > 0 ? { correct: gotwCorrect, total: gotwTotal, accuracy: Math.round((gotwCorrect / gotwTotal) * 100) } : null,
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
@@ -455,6 +478,14 @@ function recordText(record: any) {
   return `${record?.wins ?? 0}-${record?.losses ?? 0}-${record?.ties ?? 0}`;
 }
 
+export function formatLeagueGameLabel(game?: string | null) {
+  switch (String(game ?? "madden_26")) {
+    case "madden_27": return "Madden NFL 27";
+    case "cfb_27": return "College Football 27";
+    default: return "Madden NFL 26";
+  }
+}
+
 function playoffText(record: any) {
   return `${record?.playoff_wins ?? 0}-${record?.playoff_losses ?? 0}`;
 }
@@ -615,7 +646,13 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     }
   }
 
-  const globalRecord = baseline.globalRecord ?? {};
+  const leagueGame = String(league?.game ?? "madden_26");
+  const [globalRecordResult, gameGlobalRecordResult] = await Promise.all([
+    supabase.from("rec_global_user_records").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("rec_global_user_game_records").select("*").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
+  ]);
+  const globalRecord = globalRecordResult.data ?? baseline.globalRecord ?? {};
+  const gameGlobalRecord = gameGlobalRecordResult.data ?? null;
 
   // GOTW voting record — read from the settled aggregate table (populated by settleGotwVotes
   // during advance). The raw rec_game_of_week_votes table can have null user_id when the
@@ -648,16 +685,17 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const profileSeason = league.season_number ?? league.display_season_number ?? 1;
     const { data: userGames } = await supabase
       .from("rec_game_results")
-      .select("home_user_id,away_user_id,home_score,away_score,season_number,week_number")
+      .select("home_user_id,away_user_id,home_score,away_score,season_number,week_number,source")
       .eq("league_id", league.id)
       .eq("season_number", profileSeason)
+      .in("source", [...OFFICIAL_RESULT_SOURCES])
       .or(`home_user_id.eq.${userId},away_user_id.eq.${userId}`);
     userStreakText = streakFromGames(userGames ?? [], userId);
 
     if (opponentUserId) {
       const [oppRecordResult, oppGamesResult] = await Promise.all([
         supabase.from("rec_season_user_records").select("*").eq("league_id", league.id).eq("season_number", profileSeason).eq("user_id", opponentUserId).maybeSingle(),
-        supabase.from("rec_game_results").select("home_user_id,away_user_id,home_score,away_score,season_number,week_number").eq("league_id", league.id).eq("season_number", profileSeason).or(`home_user_id.eq.${opponentUserId},away_user_id.eq.${opponentUserId}`)
+        supabase.from("rec_game_results").select("home_user_id,away_user_id,home_score,away_score,season_number,week_number,source").eq("league_id", league.id).eq("season_number", profileSeason).in("source", [...OFFICIAL_RESULT_SOURCES]).or(`home_user_id.eq.${opponentUserId},away_user_id.eq.${opponentUserId}`)
       ]);
       opponentRecordText = recordText(oppRecordResult.data ?? {});
       opponentPointDifferential = oppRecordResult.data?.point_differential ?? 0;
@@ -689,6 +727,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     currentMatchup,
     currentGame,
     globalRecord,
+    gameGlobalRecord,
     badges,
     gotwVotingRecord,
     display: {
@@ -710,6 +749,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       globalPlayoffText: playoffText(globalRecord),
       globalSuperbowlText: superbowlText(globalRecord),
       globalPointDifferential: globalRecord?.point_differential ?? 0,
+      gameGlobalRecordText: gameGlobalRecord ? recordText(gameGlobalRecord) : null,
+      gameGlobalPlayoffText: gameGlobalRecord ? playoffText(gameGlobalRecord) : null,
+      gameGlobalSuperbowlText: gameGlobalRecord ? superbowlText(gameGlobalRecord) : null,
+      gameGlobalPointDifferential: gameGlobalRecord?.point_differential ?? 0,
+      gameGlobalLabel: formatLeagueGameLabel(leagueGame),
       projectedInterest,
       youAreText: youAre,
       matchupType,

@@ -165,6 +165,12 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
   const pages: EmbedBuilder[] = [];
   const sr = snapshot.seasonRecord ?? {};
   const gr = snapshot.globalRecord ?? {};
+  const ggr = snapshot.gameGlobalRecord ?? null;
+  const gameLabel = ggr?.game === "madden_27"
+    ? "Madden NFL 27"
+    : ggr?.game === "cfb_27"
+      ? "College Football 27"
+      : "Madden NFL 26";
   const pr = snapshot.powerRank;
   const gg = snapshot.gotwGuessing;
   const gc = snapshot.gotwCompetition;
@@ -182,10 +188,18 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
       `Box Scores Uploaded: **${sr.boxScoresUploaded ?? 0}**`,
       `Active Season Streak: **${sr.activeStreak ?? "—"}**`,
       "",
-      "**Global Record (All Leagues)**",
+      "**Global Record (All Games)**",
       `W-L-T: **${gr.text ?? "0-0-0"}** | PD: **${gr.pointDifferential ?? 0}**`,
       `Playoffs: ${gr.playoffText ?? "0-0"} | Super Bowls: ${gr.superbowlText ?? "0-0"}`,
       `Active Global Streak: **${gr.activeStreak ?? "—"}**`,
+      ggr
+        ? [
+            "",
+            `**Global Record (${gameLabel})**`,
+            `W-L-T: **${ggr.text ?? "0-0-0"}** | PD: **${ggr.pointDifferential ?? 0}**`,
+            `Playoffs: ${ggr.playoffText ?? "0-0"} | Super Bowls: ${ggr.superbowlText ?? "0-0"}`,
+          ].join("\n")
+        : "",
       "",
       "**Power Ranking**",
       pr ? `Rank: **#${pr.rank}** | Score: ${(pr.score ?? 0).toFixed(2)} | SOS: ${(pr.sosScore ?? 0).toFixed(2)}` : "Not yet ranked this season",

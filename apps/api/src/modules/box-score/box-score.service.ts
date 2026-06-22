@@ -6,6 +6,7 @@ import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js"
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
+import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -515,13 +516,20 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
 
   // Write game result if we have matched teams and scores
   if (sub.home_team_id && sub.away_team_id && sub.home_score != null && sub.away_score != null) {
+    const isTie = sub.home_score === sub.away_score;
+    const losingUserId = isTie
+      ? null
+      : (sub.home_score > sub.away_score ? sub.away_user_id : sub.home_user_id);
+    const recordsApplyKey = sub.game_id
+      ? `boxscore:game:${sub.game_id}`
+      : `boxscore:${sub.league_id}:${sub.season_number}:${sub.week_number}:${sub.home_team_id}:${sub.away_team_id}`;
+
     await supabase.from("rec_game_results").upsert(
       {
         league_id: sub.league_id,
-        game_id: sub.game_id,
         season_number: sub.season_number,
         week_number: sub.week_number,
-        phase: sub.phase,
+        game_type: sub.phase ?? "regular_season",
         home_team_id: sub.home_team_id,
         away_team_id: sub.away_team_id,
         home_user_id: sub.home_user_id,
@@ -529,11 +537,20 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
         home_score: sub.home_score,
         away_score: sub.away_score,
         winning_user_id: winningUserId,
-        result_source: "box_score_screenshot",
+        losing_user_id: losingUserId,
+        winning_team_id: isTie ? null : (sub.home_score > sub.away_score ? sub.home_team_id : sub.away_team_id),
+        losing_team_id: isTie ? null : (sub.home_score > sub.away_score ? sub.away_team_id : sub.home_team_id),
+        is_user_h2h: Boolean(sub.home_user_id && sub.away_user_id),
+        is_cpu_game: !(sub.home_user_id && sub.away_user_id),
+        is_tie: isTie,
+        is_playoff: Number(sub.week_number ?? 0) > 18,
+        is_super_bowl: Number(sub.week_number ?? 0) >= 22,
+        source: "box_score_screenshot",
+        records_apply_key: recordsApplyKey,
         created_at: now,
         updated_at: now,
       },
-      { onConflict: "game_id", ignoreDuplicates: false }
+      { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
   }
 
@@ -573,6 +590,14 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   });
 
   if (sub.league_id && sub.season_number) {
+    await rebuildOfficialRecordsAfterBoxScore({
+      leagueId: sub.league_id,
+      seasonNumber: sub.season_number,
+      homeUserId: sub.home_user_id,
+      awayUserId: sub.away_user_id,
+    }).catch((error) => {
+      console.error("[ERROR] Failed to rebuild official user records after box score approval:", error);
+    });
     await rebuildSeasonDisplayRecords(sub.league_id, sub.season_number).catch((error) => {
       console.error("[ERROR] Failed to rebuild display records after box score approval:", error);
     });
