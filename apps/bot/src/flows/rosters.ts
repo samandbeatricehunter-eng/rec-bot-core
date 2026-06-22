@@ -1,9 +1,10 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import {
   buildMaddenTeamsEmbed,
   buildMaddenTeamsRows,
+  buildOpenTeamsEmbeds,
   buildSnapshotConferenceSelectRows,
   buildSnapshotTeamSelectRows,
   ROSTERS_CUSTOM_IDS,
@@ -48,6 +49,24 @@ export async function handleTeamsPage(interaction: ButtonInteraction) {
     embeds: [buildMaddenTeamsEmbed(conferences, page as MaddenTeamsPage)],
     components: buildMaddenTeamsRows(page as MaddenTeamsPage)
   });
+}
+
+export async function handlePostOpenTeams(interaction: ButtonInteraction) {
+  if (!interaction.guildId) {
+    return interaction.reply({ content: "Must be run inside a league server.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.channel?.isTextBased() || !("send" in interaction.channel)) {
+    return interaction.reply({ content: "I can't post in this channel.", flags: MessageFlags.Ephemeral });
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
+  const conferences: any[] = confData?.conferences ?? [];
+  const embeds = buildOpenTeamsEmbeds(conferences);
+
+  await interaction.channel.send({ embeds });
+  return interaction.editReply({ content: "Posted open teams to this channel." });
 }
 
 export async function renderUserSnapshotPicker(interaction: ButtonInteraction | StringSelectMenuInteraction) {

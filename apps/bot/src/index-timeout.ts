@@ -30,7 +30,7 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft,
 } from "./ui/league-setup.js";
-import { handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { handlePostOpenTeams, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import {
   handleManualScheduleBack,
   handleManualScheduleComplete,
@@ -402,6 +402,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.teamsPostOpen) return handlePostOpenTeams(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return startTeamRequestFlow(interaction);
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.conferenceSelect}:`)) return handleTeamRequestConference(interaction);
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.approvePrefix}:`)) return handleTeamRequestApprove(interaction);

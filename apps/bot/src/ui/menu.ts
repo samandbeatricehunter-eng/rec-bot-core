@@ -34,6 +34,7 @@ export const MENU_CUSTOM_IDS = {
   helpRules: "rec:menu:help_rules",
   leagueMgmt: "rec:menu:league_mgmt",
   requestTeam: "rec:teams:request",
+  teamsPostOpen: "rec:teams:post_open",
   teamsBack: "rec:teams:back",
   teamsPage: "rec:teams:page",
   leagueMgmtTeams: "rec:league_mgmt:teams",
@@ -461,9 +462,41 @@ export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC") {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(nextPage === "AFC" ? ButtonStyle.Danger : ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsPostOpen).setLabel("Post Open Teams").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
     )
   ];
+}
+
+export function buildOpenTeamsEmbeds(conferences: RosterConference[]) {
+  const normalized = normalizeRosterConferences(conferences);
+  const embeds: EmbedBuilder[] = [];
+
+  for (const confName of ["NFC", "AFC"] as const) {
+    const conf = normalized.find((c) => c.conference === confName);
+    if (!conf) continue;
+
+    const fields: Array<{ name: string; value: string; inline: false }> = [];
+    for (const division of conf.divisions) {
+      const openTeams = division.teams.filter((team) => !team.linkedDiscordId);
+      if (!openTeams.length) continue;
+      fields.push({
+        name: division.label,
+        value: openTeams.map((team) => team.name).join("\n").slice(0, 1024),
+        inline: false,
+      });
+    }
+
+    if (fields.length) {
+      embeds.push(new EmbedBuilder().setTitle(`${confName} Open Teams`).addFields(fields));
+    }
+  }
+
+  if (!embeds.length) {
+    return [new EmbedBuilder().setTitle("Open Teams").setDescription("All teams are currently assigned.")];
+  }
+
+  return embeds;
 }
 
 export type TeamScheduleGame = {
