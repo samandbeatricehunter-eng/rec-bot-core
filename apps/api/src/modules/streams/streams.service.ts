@@ -117,7 +117,12 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     .select("*")
     .single();
 
-  if (review.error) throw new ApiError(500, "Failed to create stream payout review.", review.error);
+  if (review.error) {
+    if (review.error.code === "23505") {
+      return { recorded: true, alreadyPaid: true, streamLog: streamLog.data };
+    }
+    throw new ApiError(500, "Failed to create stream payout review.", review.error);
+  }
 
   return {
     recorded: true,

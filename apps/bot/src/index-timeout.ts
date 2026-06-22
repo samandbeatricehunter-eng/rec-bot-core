@@ -1,4 +1,4 @@
-import { ButtonInteraction, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalSubmitInteraction } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalSubmitInteraction } from "discord.js";
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
@@ -30,7 +30,22 @@ import {
   type LeagueSetupDraft,
 } from "./ui/league-setup.js";
 import { handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
-import { renderScheduleMenu, renderSchedulePlaceholder } from "./flows/schedule.js";
+import {
+  handleManualScheduleBack,
+  handleManualScheduleComplete,
+  handleManualScheduleNextMatchup,
+  handleManualScheduleNextWeek,
+  handleManualScheduleTeamSelect,
+  handleManualScheduleWeekSelect,
+  handleScheduleViewBack,
+  handleScheduleViewPage,
+  handleScheduleViewPostPublicly,
+  renderScheduleMenu,
+  renderSchedulePlaceholder,
+  SCHEDULE_MGMT_CUSTOM_IDS,
+  startManualScheduleEntry,
+  startScheduleViewer
+} from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleActivityRequirementsModal,
@@ -64,9 +79,14 @@ import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } fr
 import {
   BOX_SCORE_CUSTOM_IDS,
   handleBoxScoreApprove,
+  handleBoxScoreAdminCancel,
+  handleBoxScoreAdminGameSelect,
+  handleBoxScoreAdminWeekSelect,
   handleBoxScoreButton,
   handleBoxScoreCancel,
   handleBoxScoreChannelMessage,
+  handleBoxScoreSubmissions,
+  handleCommissionerBoxScoreSubmissionMessage,
   handleBoxScoreDenyModal,
   handleBoxScoreDenySubmit,
   handleBoxScoreInbox,
@@ -210,6 +230,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditTeamSelect}:`)) return handleLeagueTeamsEditTeamSelect(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminWeekSelect) return handleBoxScoreAdminWeekSelect(interaction);
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminGameSelect) return handleBoxScoreAdminGameSelect(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualWeekSelect) return handleManualScheduleWeekSelect(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect) return handleManualScheduleTeamSelect(interaction);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) return handleLeagueSetupSelect(interaction);
     }
 
@@ -261,6 +285,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTeams) return handleLeagueMgmtTeams(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtServerSetup) return handleLeagueMgmtServerSetup(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSchedule) return handleLeagueMgmtSchedule(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleWizard) return handleLeagueMgmtScheduleWizard(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek) return handleLeagueMgmtScheduleOneWeek(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleManual) return startManualScheduleEntry(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleView) return startScheduleViewer(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvance) return handleLeagueMgmtAdvance(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSettings) return handleLeagueMgmtSettings(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup) return handleLeagueMgmtFirstTimeSetup(interaction);
@@ -276,6 +305,15 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return renderSchedulePlaceholder(interaction, "SOS", "Strength of schedule is coming soon.");
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleHistory) return renderSchedulePlaceholder(interaction, "History", "Schedule history is coming soon.");
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleBack) return renderMainMenuFromComponent(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup) return handleManualScheduleNextMatchup(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek) return handleManualScheduleNextWeek(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualContinueNextWeek) return handleManualScheduleNextWeek(interaction, true);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualComplete) return handleManualScheduleComplete(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualBack) return handleManualScheduleBack(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewPrev) return handleScheduleViewPage(interaction, -1);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewNext) return handleScheduleViewPage(interaction, 1);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewPostPublicly) return handleScheduleViewPostPublicly(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "The purchase store is coming soon. It will only show purchase types enabled for this league.");
@@ -285,7 +323,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.uploadBoxScore) return handleBoxScoreButton(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Scoring Summary", "Scoring summary uploads are coming soon.");
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.cancel) return handleBoxScoreCancel(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxOpen) return handleBoxScoreInbox(interaction);
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submissionsOpen) return handleBoxScoreSubmissions(interaction);
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminCancel) return handleBoxScoreAdminCancel(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submitConfirm) return handleBoxScoreSubmitConfirm(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);
@@ -327,6 +366,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+  if (await handleCommissionerBoxScoreSubmissionMessage(message).catch(() => false)) return;
   await handleBoxScoreChannelMessage(message).catch(() => undefined);
 });
 
@@ -435,8 +475,44 @@ async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule")
-      .setDescription("Schedule management is temporarily unavailable while the import tooling is being rebuilt.")],
-    components: buildAdminPanelRows()
+      .setDescription("Choose how you want to upload league schedule screenshots. The wizard starts at Week 1 and advances through Week 18. Upload One Week lets you choose a specific regular-season or playoff week.")],
+    components: buildScheduleMgmtRows()
+  });
+}
+
+function buildScheduleMgmtRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleManual).setLabel("Set Manually").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleView).setLabel("View Schedule").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back").setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can manage league schedule imports.", flags: MessageFlags.Ephemeral });
+  }
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Schedule Wizard")
+      .setDescription("Wizard upload is ready for the schedule parser connection: it will collect two images per regular-season week, confirm the parsed games, then advance through Week 18.")],
+    components: buildScheduleMgmtRows()
+  });
+}
+
+async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only authorized admins can manage league schedule imports.", flags: MessageFlags.Ephemeral });
+  }
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Upload One Week")
+      .setDescription("One-week upload is ready for the schedule parser connection: it will let you choose any eligible season week, upload two schedule images, confirm the parsed games, and save only that week.")],
+    components: buildScheduleMgmtRows()
   });
 }
 
@@ -623,7 +699,7 @@ async function handleStreamReviewButton(interaction: any) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const result = await recApi.reviewStreamPayout({ reviewId, action, reviewedByDiscordId: interaction.user.id, deniedReason: action === "deny" ? "Denied by commissioner review." : null });
   await interaction.editReply(result.updated ? `Stream payout ${action === "approve" ? "approved and issued" : "denied"}.` : (result.reason ?? "No update made."));
-  if (action === "approve" && result.streamLog?.discord_channel_id && result.streamLog?.discord_message_id && interaction.inCachedGuild()) {
+  if (result.updated && action === "approve" && result.streamLog?.discord_channel_id && result.streamLog?.discord_message_id && interaction.inCachedGuild()) {
     const sourceChannel = await interaction.guild.channels.fetch(result.streamLog.discord_channel_id).catch(() => null);
     if (sourceChannel?.isTextBased()) {
       const sourceMessage = await sourceChannel.messages.fetch(result.streamLog.discord_message_id).catch(() => null);
@@ -631,12 +707,12 @@ async function handleStreamReviewButton(interaction: any) {
     }
   }
   // DM the streamer that their payout was issued.
-  if (action === "approve" && result.streamerDiscordId) {
+  if (result.updated && action === "approve" && result.streamerDiscordId) {
     const amount = result.amount ?? 50;
     const streamer = await interaction.client.users.fetch(result.streamerDiscordId).catch(() => null);
     await streamer?.send(`You've been paid **$${amount}** for streaming your game this week. Thanks for streaming! 📺`).catch(() => undefined);
   }
-  if (interaction.message?.editable) {
+  if (result.updated && interaction.message?.editable) {
     await appendReviewActionToMessage(interaction, action === "approve" ? "Applied" : "Denied");
   }
 }

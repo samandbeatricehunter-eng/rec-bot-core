@@ -5,11 +5,14 @@ import {
   EmbedBuilder,
   MessageFlags,
   ModalBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
   type Message,
   type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
@@ -21,6 +24,10 @@ export const BOX_SCORE_CUSTOM_IDS = {
   submitConfirm: "rec:box_score:submit_confirm",
   cancel: "rec:box_score:cancel",
   inboxOpen: "rec:league_mgmt:box_score_inbox",
+  submissionsOpen: "rec:league_mgmt:box_score_inbox",
+  adminWeekSelect: "rec:box_score_admin:week",
+  adminGameSelect: "rec:box_score_admin:game",
+  adminCancel: "rec:box_score_admin:cancel",
   approvePrefix: "rec:box_score:approve:",      // + submissionId
   denyModalPrefix: "rec:box_score:deny_modal:", // + submissionId
   denyReasonInput: "rec:box_score:deny_reason",
@@ -51,6 +58,18 @@ type Exchange = {
 
 const exchanges = new Map<string, Exchange>();
 const exKey = (guildId: string, userId: string) => `${guildId}:${userId}`;
+
+type CommissionerSubmissionSession = {
+  guildId: string;
+  channelId: string;
+  userId: string;
+  weekNumber: number;
+  seasonNumber?: number | null;
+  gameId: string;
+  gameLabel: string;
+};
+
+const commissionerSubmissionSessions = new Map<string, CommissionerSubmissionSession>();
 
 // ─── Server route cache (box scores + pending payouts channels) ───────────────
 
@@ -160,6 +179,93 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   } finally {
     ex.busy = false;
   }
+}
+
+export async function handleCommissionerBoxScoreSubmissionMessage(message: Message): Promise<boolean> {
+  if (!message.inGuild() || message.author.bot) return false;
+  const key = exKey(message.guildId, message.author.id);
+  const session = commissionerSubmissionSessions.get(key);
+  if (!session || session.channelId !== message.channelId) return false;
+  if (!message.channel.isTextBased() || message.channel.isDMBased()) return false;
+  const channel = message.channel as TextChannel;
+
+  const images = [...message.attachments.values()]
+    .filter((a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""))
+    .map((a) => a.url);
+  if (images.length === 0) return false;
+
+  await message.delete().catch(() => undefined);
+  commissionerSubmissionSessions.delete(key);
+
+  if (images.length !== 1) {
+    await channel.send({
+      content: `<@${message.author.id}>`,
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xe74c3c).setDescription("Upload exactly one box score image for commissioner submissions.")],
+    }).catch(() => undefined);
+    return true;
+  }
+
+  const working = await channel.send({
+    embeds: [new EmbedBuilder().setTitle("Reading box score...").setDescription(`Validating ${session.gameLabel} for Week ${session.weekNumber}.`)],
+  }).catch(() => null);
+
+  try {
+    const preview = await recApi.parseBoxScore({
+      guildId: session.guildId,
+      discordId: session.userId,
+      imageUrls: images,
+      seasonNumber: session.seasonNumber ?? null,
+      weekNumber: session.weekNumber,
+      commissionerSubmission: true,
+    });
+    const missing: string[] = preview.missingRequired ?? [];
+    if (missing.length > 0) {
+      await working?.edit({
+        embeds: [new EmbedBuilder()
+          .setTitle("Missing required fields")
+          .setColor(0xf1c40f)
+          .setDescription(`I couldn't read these required field(s):\n\n${missing.map((m) => `• **${m}**`).join("\n")}\n\nStart Box Score Submissions again and upload a clearer image.`)],
+      }).catch(() => undefined);
+      return true;
+    }
+
+    const result = await recApi.submitBoxScore({
+      guildId: session.guildId,
+      discordId: session.userId,
+      imageUrls: images,
+      discordChannelId: channel.id,
+      discordMessageId: message.id,
+      seasonNumber: session.seasonNumber ?? null,
+      weekNumber: session.weekNumber,
+      expectedGameId: session.gameId,
+      commissionerSubmission: true,
+    });
+
+    const routes = await getGuildRoutes(session.guildId);
+    const payoutsChannelId: string | null = routes?.pending_payouts_channel_id ?? null;
+    let posted = false;
+    if (payoutsChannelId) {
+      const ch = await channel.client.channels.fetch(payoutsChannelId).catch(() => null);
+      if (ch && ch.isTextBased() && !ch.isDMBased()) {
+        await (ch as TextChannel).send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
+        posted = true;
+      }
+    }
+
+    await working?.edit({
+      embeds: [new EmbedBuilder()
+        .setTitle("Box Score Submitted")
+        .setColor(0x2ecc71)
+        .setDescription(posted
+          ? `Parsed ${session.gameLabel} and sent it to Pending Payouts for commissioner approval.`
+          : `Parsed ${session.gameLabel}, but no Pending Payouts channel is configured.`)],
+    }).catch(() => undefined);
+  } catch (err) {
+    await working?.edit({
+      embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+    }).catch(() => undefined);
+  }
+  return true;
 }
 
 async function advanceExchange(ex: Exchange) {
@@ -338,6 +444,13 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   try {
     const result = await recApi.reviewBoxScore({ submissionId, action: "approve", reviewedByDiscordId: interaction.user.id });
+    if (result.sourceChannelId && result.sourceMessageId && interaction.inCachedGuild()) {
+      const sourceChannel = await interaction.guild.channels.fetch(result.sourceChannelId).catch(() => null);
+      if (sourceChannel?.isTextBased()) {
+        const sourceMessage = await sourceChannel.messages.fetch(result.sourceMessageId).catch(() => null);
+        await sourceMessage?.react("✅").catch(() => undefined);
+      }
+    }
     const base = interaction.message.embeds[0];
     const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0x2ecc71);
     embed.addFields({ name: "STATUS", value: `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPayd} player(s).` });
@@ -447,6 +560,89 @@ export async function handleBoxScoreInbox(interaction: ButtonInteraction) {
       components: [buildInboxBackRow()],
     });
   }
+}
+
+export async function handleBoxScoreSubmissions(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can submit prior box scores.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+
+  const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
+  const currentWeek = Math.max(1, Number(week?.league?.current_week ?? 1));
+  const seasonNumber = Number(week?.league?.season_number ?? week?.league?.display_season_number ?? 1);
+
+  commissionerSubmissionSessions.delete(exKey(interaction.guildId, interaction.user.id));
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Box Score Submissions")
+      .setDescription("Select the game week first, then choose the scheduled game. After that, upload one box score image in this channel. The bot deletes the image after parsing and sends the payout review to Pending Payouts.")],
+    components: buildAdminWeekRows(currentWeek, seasonNumber),
+  });
+}
+
+export async function handleBoxScoreAdminWeekSelect(interaction: StringSelectMenuInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can submit prior box scores.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  const weekNumber = Number(interaction.values[0] ?? 1);
+  await interaction.deferUpdate();
+  try {
+    const result = await recApi.listBoxScoreGames({ guildId: interaction.guildId, weekNumber });
+    const games = result?.games ?? [];
+    if (!games.length) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xf1c40f).setDescription(`No scheduled games are logged for Week ${weekNumber}. Upload the schedule first, then try again.`)],
+        components: [buildAdminCancelRow()],
+      });
+    }
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setDescription(`Select the scheduled game for Week ${weekNumber}.`)],
+      components: buildAdminGameRows(games, weekNumber, result?.league?.seasonNumber ?? null),
+    });
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: [buildAdminCancelRow()],
+    });
+  }
+}
+
+export async function handleBoxScoreAdminGameSelect(interaction: StringSelectMenuInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can submit prior box scores.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+
+  const [weekText, seasonText, gameId] = (interaction.values[0] ?? "").split(":");
+  const weekNumber = Number(weekText);
+  const seasonNumber = seasonText ? Number(seasonText) : null;
+  const gameLabel = `Week ${weekNumber} selected game`;
+  commissionerSubmissionSessions.set(exKey(interaction.guildId, interaction.user.id), {
+    guildId: interaction.guildId,
+    channelId: interaction.channelId,
+    userId: interaction.user.id,
+    weekNumber,
+    seasonNumber,
+    gameId,
+    gameLabel,
+  });
+
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Upload Box Score")
+      .setDescription(`Now upload exactly one box score image for **${gameLabel}** in this channel. The image will be deleted after parsing.`)],
+    components: [buildAdminCancelRow()],
+  });
+}
+
+export async function handleBoxScoreAdminCancel(interaction: ButtonInteraction) {
+  if (interaction.inCachedGuild()) commissionerSubmissionSessions.delete(exKey(interaction.guildId, interaction.user.id));
+  return interaction.update({
+    embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setDescription("Submission workflow cancelled.")],
+    components: [buildInboxBackRow()],
+  });
 }
 
 // ─── Embed builders ───────────────────────────────────────────────────────────
@@ -569,6 +765,53 @@ function buildInboxReviewRows(submissionId: string) {
 
 function buildInboxBackRow() {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary)
+  );
+}
+
+function buildAdminWeekRows(currentWeek: number, seasonNumber: number) {
+  const maxOptions = Math.min(Math.max(currentWeek, 1), 25);
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(BOX_SCORE_CUSTOM_IDS.adminWeekSelect)
+        .setPlaceholder("Select week")
+        .addOptions(Array.from({ length: maxOptions }, (_, idx) => {
+          const week = idx + 1;
+          return new StringSelectMenuOptionBuilder().setLabel(`Week ${week}`).setValue(String(week)).setDescription(`Season ${seasonNumber}, Week ${week}`);
+        }))
+    ),
+    buildAdminCancelRow(),
+  ];
+}
+
+function teamLabel(team: any) {
+  return team?.display_abbr ?? team?.abbreviation ?? team?.name ?? "TBD";
+}
+
+function buildAdminGameRows(games: any[], weekNumber: number, seasonNumber: number | null) {
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(BOX_SCORE_CUSTOM_IDS.adminGameSelect)
+        .setPlaceholder("Select scheduled game")
+        .addOptions(games.slice(0, 25).map((game: any) => {
+          const away = teamLabel(game.away_team);
+          const home = teamLabel(game.home_team);
+          const label = `${away} at ${home}`.slice(0, 100);
+          return new StringSelectMenuOptionBuilder()
+            .setLabel(label)
+            .setValue(`${weekNumber}:${seasonNumber ?? ""}:${game.id}`)
+            .setDescription(`Week ${weekNumber}`.slice(0, 100));
+        }))
+    ),
+    buildAdminCancelRow(),
+  ];
+}
+
+function buildAdminCancelRow() {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.adminCancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary)
   );
 }

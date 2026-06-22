@@ -37,6 +37,11 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtTeams: "rec:league_mgmt:teams",
   leagueMgmtServerSetup: "rec:league_mgmt:server_setup",
   leagueMgmtSchedule: "rec:league_mgmt:schedule",
+  leagueMgmtScheduleWizard: "rec:league_mgmt:schedule:wizard",
+  leagueMgmtScheduleOneWeek: "rec:league_mgmt:schedule:one_week",
+  leagueMgmtScheduleManual: "rec:league_mgmt:schedule:manual",
+  leagueMgmtScheduleView: "rec:league_mgmt:schedule:view",
+  leagueMgmtScheduleBack: "rec:league_mgmt:schedule:back",
   leagueMgmtAdvance: "rec:league_mgmt:advance",
   leagueMgmtSettings: "rec:league_mgmt:settings",
   leagueMgmtFirstTimeSetup: "rec:league_mgmt:first_time_setup",
@@ -198,8 +203,8 @@ export function buildAdminPanelEmbed() {
       "From this menu, you can manage your league in a variety of ways.",
       "",
       "**Teams** - Add/Remove users and teams (custom/relocated) from the league.",
-      "**Box Score Inbox** - Review and approve pending box score submissions.",
-      "**Schedule** - Temporarily unavailable while import tooling is rebuilt.",
+      "**Box Score Submissions** - Commissioner upload flow for missed or prior-week box scores.",
+      "**Schedule** - Upload league schedule screenshots by wizard or by selected week.",
       "**Advance** - Temporarily unavailable while the Advance Wizard is rebuilt.",
       "**Settings** - Change league and server setup settings from the League Setup wizard.",
       "**First-Time Setup** - Wizard for setting up your league for the first time. **WARNING** This will clear ALL league data if ran more than once.",
@@ -214,7 +219,7 @@ export function buildAdminPanelRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Score Inbox").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Score Submissions").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Primary),

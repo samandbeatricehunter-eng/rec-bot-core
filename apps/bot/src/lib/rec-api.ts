@@ -191,6 +191,9 @@ export const recApi = {
     guildId: string;
     discordId: string;
     imageUrls: string[];
+    seasonNumber?: number | null;
+    weekNumber?: number | null;
+    commissionerSubmission?: boolean | null;
   }) =>
     recFetch<any>("/v1/box-score/parse", { method: "POST", body: JSON.stringify(input) }),
 
@@ -200,6 +203,10 @@ export const recApi = {
     imageUrls: string[];
     discordChannelId?: string | null;
     discordMessageId?: string | null;
+    seasonNumber?: number | null;
+    weekNumber?: number | null;
+    expectedGameId?: string | null;
+    commissionerSubmission?: boolean | null;
   }) =>
     recFetch<any>("/v1/box-score/submit", { method: "POST", body: JSON.stringify(input) }),
 
@@ -213,4 +220,27 @@ export const recApi = {
 
   listPendingBoxScores: (guildId: string) =>
     recFetch<{ submissions: any[] }>("/v1/box-score/pending", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  listBoxScoreGames: (input: { guildId: string; weekNumber: number; seasonNumber?: number | null }) =>
+    recFetch<any>("/v1/box-score/games", { method: "POST", body: JSON.stringify(input) }),
+
+  listScheduleTeams: (guildId: string) =>
+    recFetch<any>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  listScheduleWeek: (input: { guildId: string; weekNumber: number; seasonNumber?: number | null }) =>
+    recFetch<any>("/v1/schedule/week", { method: "POST", body: JSON.stringify(input) }),
+
+  listScheduleSeason: (input: { guildId: string; seasonNumber?: number | null }) =>
+    recFetch<any>("/v1/schedule/season", { method: "POST", body: JSON.stringify(input) }),
+
+  saveManualScheduleGame: (input: {
+    guildId: string;
+    seasonNumber?: number | null;
+    weekNumber: number;
+    slotNumber: number;
+    awayTeamId: string;
+    homeTeamId: string;
+    requestedByDiscordId?: string | null;
+  }) =>
+    recFetch<any>("/v1/schedule/manual-game", { method: "POST", body: JSON.stringify(input) }),
 };

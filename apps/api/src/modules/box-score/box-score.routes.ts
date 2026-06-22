@@ -5,6 +5,7 @@ import { sendError } from "../../lib/errors.js";
 import {
   createBoxScoreSubmission,
   getBoxScoreSubmission,
+  listScheduledGamesForWeek,
   listPendingBoxScores,
   parseBoxScorePreview,
   reviewBoxScore,
@@ -14,6 +15,9 @@ const ParseSchema = z.object({
   guildId: z.string().min(1),
   discordId: z.string().min(1),
   imageUrls: z.array(z.string().url()).min(1),
+  seasonNumber: z.number().int().positive().optional().nullable(),
+  weekNumber: z.number().int().positive().optional().nullable(),
+  commissionerSubmission: z.boolean().optional().nullable(),
 });
 
 const SubmitSchema = z.object({
@@ -22,6 +26,10 @@ const SubmitSchema = z.object({
   imageUrls: z.array(z.string().url()).min(1),
   discordChannelId: z.string().optional().nullable(),
   discordMessageId: z.string().optional().nullable(),
+  seasonNumber: z.number().int().positive().optional().nullable(),
+  weekNumber: z.number().int().positive().optional().nullable(),
+  expectedGameId: z.string().uuid().optional().nullable(),
+  commissionerSubmission: z.boolean().optional().nullable(),
 });
 
 const ReviewSchema = z.object({
@@ -79,6 +87,20 @@ export async function boxScoreRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { submissionId } = z.object({ submissionId: z.string().uuid() }).parse(request.body);
       return reply.send(await getBoxScoreSubmission(submissionId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/box-score/games", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId, weekNumber, seasonNumber } = z.object({
+        guildId: z.string().min(1),
+        weekNumber: z.number().int().positive(),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await listScheduledGamesForWeek(guildId, weekNumber, seasonNumber));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -144,14 +144,17 @@ async function resolveGame(leagueId: string, team1Id: string, team2Id: string, s
 
 // ─── User lookup ──────────────────────────────────────────────────────────────
 
-async function getDiscordAccount(discordId: string) {
+async function getDiscordAccount(discordId: string, required = true) {
   const { data, error } = await supabase
     .from("rec_discord_accounts")
     .select("user_id")
     .eq("discord_id", discordId)
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to load Discord account.", error);
-  if (!data?.user_id) throw new ApiError(404, "Discord account is not linked to a REC user.");
+  if (!data?.user_id) {
+    if (!required) return null;
+    throw new ApiError(404, "Discord account is not linked to a REC user.");
+  }
   return data;
 }
 
@@ -193,6 +196,21 @@ type ResolvedGame = {
   homeScore: number | null;
   awayScore: number | null;
 };
+
+function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | null; weekNumber?: number | null }) {
+  const currentSeason = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  const seasonNumber = Number(requested?.seasonNumber ?? currentSeason);
+  const weekNumber = Number(requested?.weekNumber ?? currentWeek);
+
+  if (!Number.isInteger(seasonNumber) || seasonNumber < 1) throw new ApiError(400, "Invalid season number.");
+  if (!Number.isInteger(weekNumber) || weekNumber < 1) throw new ApiError(400, "Invalid week number.");
+  if (seasonNumber === currentSeason && weekNumber > currentWeek) {
+    throw new ApiError(400, `Week ${weekNumber} has not been reached yet.`);
+  }
+
+  return { seasonNumber, weekNumber };
+}
 
 async function resolveGameContext(
   leagueId: string,
@@ -240,7 +258,7 @@ async function resolveGameContext(
 
 // ─── Parse preview (stateless — no DB write) ───────────────────────────────────
 
-export type PreviewInput = { guildId: string; discordId: string; imageUrls: string[] };
+export type PreviewInput = { guildId: string; discordId: string; imageUrls: string[]; seasonNumber?: number | null; weekNumber?: number | null; commissionerSubmission?: boolean | null };
 export type PreviewResult = {
   parsed: ParsedBoxScore;
   missingRequired: string[];
@@ -252,9 +270,8 @@ export type PreviewResult = {
 
 export async function parseBoxScorePreview(input: PreviewInput): Promise<PreviewResult> {
   const context = await getCurrentLeagueContext(input.guildId);
-  await getDiscordAccount(input.discordId);
-  const seasonNumber = Number(context.rec_leagues.season_number ?? 1);
-  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  await getDiscordAccount(input.discordId, !input.commissionerSubmission);
+  const { seasonNumber, weekNumber } = selectedSeasonWeek(context, input);
 
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
   const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed);
@@ -277,6 +294,10 @@ export type CreateSubmissionInput = {
   imageUrls: string[];
   discordChannelId?: string | null;
   discordMessageId?: string | null;
+  seasonNumber?: number | null;
+  weekNumber?: number | null;
+  expectedGameId?: string | null;
+  commissionerSubmission?: boolean | null;
 };
 
 export type CreateSubmissionResult = {
@@ -301,26 +322,31 @@ export type CreateSubmissionResult = {
 
 export async function createBoxScoreSubmission(input: CreateSubmissionInput): Promise<CreateSubmissionResult> {
   const context = await getCurrentLeagueContext(input.guildId);
-  const account = await getDiscordAccount(input.discordId);
+  const account = await getDiscordAccount(input.discordId, !input.commissionerSubmission);
   const leagueId = context.leagueId;
-  const seasonNumber = Number(context.rec_leagues.season_number ?? 1);
-  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const { seasonNumber, weekNumber } = selectedSeasonWeek(context, input);
   const phase = context.rec_leagues.season_stage ?? null;
 
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
   const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed);
+  if (input.expectedGameId && resolved.gameId !== input.expectedGameId) {
+    throw new ApiError(400, "That screenshot does not match the selected scheduled game.");
+  }
+  if (resolved.gameId) await assertNoExistingBoxScorePayout(resolved.gameId, null);
 
   // Verify the submitter is reporting their own current-week game:
   //  1. They are linked to one of the two teams in the box score.
   //  2. Those two teams are scheduled to play each other this week (resolved.gameId).
-  const submitterTeamId = await getActiveTeamId(leagueId, account.user_id);
+  const submitterTeamId = input.commissionerSubmission ? null : await getActiveTeamId(leagueId, account!.user_id);
   const linkedToBoxScore = !!submitterTeamId && (submitterTeamId === resolved.team1Id || submitterTeamId === resolved.team2Id);
   const opponentMatches = !!resolved.gameId;
   const flagReasons: string[] = [];
-  if (!submitterTeamId) {
-    flagReasons.push("You aren't linked to a team in this league.");
-  } else if (!linkedToBoxScore) {
-    flagReasons.push("You aren't linked to either team shown in this box score.");
+  if (!input.commissionerSubmission) {
+    if (!submitterTeamId) {
+      flagReasons.push("You aren't linked to a team in this league.");
+    } else if (!linkedToBoxScore) {
+      flagReasons.push("You aren't linked to either team shown in this box score.");
+    }
   }
   if (!opponentMatches) {
     flagReasons.push(`These teams aren't scheduled to play each other in Week ${weekNumber}.`);
@@ -343,7 +369,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       week_number: weekNumber,
       phase,
       submitted_by_discord_id: input.discordId,
-      submitted_by_user_id: account.user_id,
+      submitted_by_user_id: account?.user_id ?? null,
       discord_guild_id: input.guildId,
       discord_channel_id: input.discordChannelId ?? null,
       discord_message_id: input.discordMessageId ?? null,
@@ -375,7 +401,12 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     .select("id")
     .single();
 
-  if (error || !submission) throw new ApiError(500, "Failed to save box score submission.", error);
+  if (error || !submission) {
+    if (error?.code === "23505") {
+      throw new ApiError(409, "A box score payout review is already pending or approved for this scheduled game.", error);
+    }
+    throw new ApiError(500, "Failed to save box score submission.", error);
+  }
 
   const matchSuffix = resolved.homeTeamId ? "" : " (unmatched)";
   const header = `Box Score: ${parsed.score?.team1Abbr ?? "?"} vs ${parsed.score?.team2Abbr ?? "?"} — Wk ${weekNumber}${matchSuffix}`;
@@ -392,7 +423,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     header,
     summary: `${resolved.homeScore ?? "?"} – ${resolved.awayScore ?? "?"} final score. Submitted by <@${input.discordId}>.`,
     requester_discord_id: input.discordId,
-    requester_user_id: account.user_id,
+    requester_user_id: account?.user_id ?? null,
     source_table: "rec_box_score_submissions",
     source_id: submission.id,
     payload: {
@@ -401,6 +432,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       team2Abbr: parsed.score?.team2Abbr ?? null,
       homeScore: resolved.homeScore,
       awayScore: resolved.awayScore,
+      commissionerSubmission: !!input.commissionerSubmission,
     },
   });
 
@@ -468,6 +500,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
 
   // Approve: record game result + issue payouts
   const now = new Date().toISOString();
+  if (sub.game_id) await assertNoExistingBoxScorePayout(sub.game_id, sub.id);
 
   // Winner (null on a tie or an unscored game).
   const winningUserId: string | null =
@@ -549,7 +582,33 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // Approval confirms the parse — promote any fuzzy-matched labels to aliases.
   await recordLabelAliases(sub.parse_label_samples as Record<string, string> | null);
 
-  return { ok: true, action: "approved" as const, totalPaid, playersPayd: payouts.length };
+  return {
+    ok: true,
+    action: "approved" as const,
+    totalPaid,
+    playersPayd: payouts.length,
+    sourceChannelId: sub.discord_channel_id ?? null,
+    sourceMessageId: sub.discord_message_id ?? null,
+  };
+}
+
+async function assertNoExistingBoxScorePayout(gameId: string, currentSubmissionId: string | null) {
+  let query = supabase
+    .from("rec_box_score_submissions")
+    .select("id,status,payout_issued")
+    .eq("game_id", gameId)
+    .in("status", ["pending", "approved"])
+    .limit(1);
+  if (currentSubmissionId) query = query.neq("id", currentSubmissionId);
+
+  const { data, error } = await query;
+  if (error) throw new ApiError(500, "Failed to check existing box score payouts.", error);
+  const existing = (data ?? [])[0];
+  if (!existing) return;
+  if (existing.status === "approved" || existing.payout_issued) {
+    throw new ApiError(409, "A payout has already been issued for this scheduled game.");
+  }
+  throw new ApiError(409, "A box score payout review is already pending for this scheduled game.");
 }
 
 // ─── Per-team game stats (flat, two rows per game) ─────────────────────────────
@@ -664,4 +723,26 @@ export async function getBoxScoreSubmission(submissionId: string) {
   if (error) throw new ApiError(500, "Failed to load submission.", error);
   if (!data) throw new ApiError(404, "Submission not found.");
   return data;
+}
+
+export async function listScheduledGamesForWeek(guildId: string, weekNumber: number, seasonNumber?: number | null) {
+  const context = await getCurrentLeagueContext(guildId);
+  const selected = selectedSeasonWeek(context, { seasonNumber, weekNumber });
+  const { data, error } = await supabase
+    .from("rec_games")
+    .select("id,season_number,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", selected.seasonNumber)
+    .eq("week_number", selected.weekNumber)
+    .order("created_at", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load scheduled games.", error);
+  return {
+    league: {
+      id: context.leagueId,
+      seasonNumber: selected.seasonNumber,
+      currentWeek: Number(context.rec_leagues.current_week ?? 1),
+      weekNumber: selected.weekNumber,
+    },
+    games: data ?? [],
+  };
 }
