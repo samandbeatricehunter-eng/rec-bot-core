@@ -56,8 +56,8 @@ async function postPendingReview(interaction: StringSelectMenuInteraction | Moda
       .setDescription([
         `## ${matchupLine}`,
         "",
-        `<@${interaction.user.id}> requested a stream payout for streaming live on Discord.`,
-        "Click approve to issue the payout IF the user DID stream on Discord. Otherwise, deny the request."
+        `<@${interaction.user.id}> requested a stream payout.`,
+        "Approve to issue the **$50** stream payout if they did stream their game. Otherwise, deny the request."
       ].join("\n"))],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`rec:stream_review:approve:${streamResult.review?.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
@@ -137,13 +137,11 @@ async function submitStream(interaction: StringSelectMenuInteraction | ModalSubm
 
   await postPendingReview(interaction, streamResult, matchup);
 
-  const status = streamResult?.payoutIssued
-    ? "Your stream was posted and the $25 stream payout was issued."
-    : streamResult?.alreadyPaid
-      ? "Your stream was posted. You have already received a stream payout for this game week."
-      : streamResult?.needsReview
-        ? "Your Discord Live stream payout request was posted for commissioner review."
-        : "Your stream was posted.";
+  const status = streamResult?.alreadyPaid
+    ? "Your stream was posted. You already have a stream payout pending or paid for this game week, so this one won't trigger another."
+    : streamResult?.needsReview
+      ? "Your stream was posted and sent to commissioners for a **$50** payout review. You'll be paid and notified once it's approved."
+      : "Your stream was posted.";
 
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Stream Submitted").setDescription(status)],

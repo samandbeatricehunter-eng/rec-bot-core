@@ -630,6 +630,12 @@ async function handleStreamReviewButton(interaction: any) {
       await sourceMessage?.react("✅").catch(() => undefined);
     }
   }
+  // DM the streamer that their payout was issued.
+  if (action === "approve" && result.streamerDiscordId) {
+    const amount = result.amount ?? 50;
+    const streamer = await interaction.client.users.fetch(result.streamerDiscordId).catch(() => null);
+    await streamer?.send(`You've been paid **$${amount}** for streaming your game this week. Thanks for streaming! 📺`).catch(() => undefined);
+  }
   if (interaction.message?.editable) {
     await appendReviewActionToMessage(interaction, action === "approve" ? "Applied" : "Denied");
   }

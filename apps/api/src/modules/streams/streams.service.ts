@@ -2,7 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
-const STREAM_PAYOUT_AMOUNT = 25;
+const STREAM_PAYOUT_AMOUNT = 50;
 
 type RecordStreamPostInput = {
   guildId: string;
@@ -55,6 +55,8 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
 
+  // One stream payout per user per game week: any existing review that's pending,
+  // approved, or issued blocks additional payout embeds for the same week.
   const alreadyPaid = await supabase
     .from("rec_stream_payout_reviews")
     .select("id")
@@ -62,7 +64,7 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     .eq("user_id", account.user_id)
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
-    .in("status", ["approved", "issued"])
+    .in("status", ["pending", "approved", "issued"])
     .limit(1);
 
   if (alreadyPaid.error) throw new ApiError(500, "Failed to check stream payout status.", alreadyPaid.error);
@@ -97,10 +99,7 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     return { recorded: true, alreadyPaid: true, streamLog: streamLog.data };
   }
 
-  if (input.submissionType !== "discord_live") {
-    return { recorded: true, streamLog: streamLog.data };
-  }
-
+  // Every stream (link or Discord Live) is eligible for one payout per week.
   const review = await supabase
     .from("rec_stream_payout_reviews")
     .insert({
@@ -219,5 +218,18 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
     .single();
 
   if (approved.error) throw new ApiError(500, "Failed to approve stream payout review.", approved.error);
-  return { updated: true, review: approved.data, streamLog: approved.data.streamLog };
+
+  const streamer = await supabase
+    .from("rec_discord_accounts")
+    .select("discord_id")
+    .eq("user_id", existing.data.user_id)
+    .maybeSingle();
+
+  return {
+    updated: true,
+    review: approved.data,
+    streamLog: approved.data.streamLog,
+    amount,
+    streamerDiscordId: streamer.data?.discord_id ?? null
+  };
 }
