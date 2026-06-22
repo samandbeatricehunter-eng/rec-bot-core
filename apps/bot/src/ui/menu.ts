@@ -208,7 +208,7 @@ export function buildLeagueMenuEmbed(input: {
     .setFooter({ text: "Powered by the REC Scout bot © 2026" });
 }
 
-export function buildLeagueMenuRows(_isAdmin: boolean, isLinkedToTeam = true) {
+export function buildLeagueMenuRows(canManageLeague: boolean, isLinkedToTeam = true) {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Teams").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Schedule").setStyle(ButtonStyle.Secondary),
@@ -225,7 +225,7 @@ export function buildLeagueMenuRows(_isAdmin: boolean, isLinkedToTeam = true) {
   );
   const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("User Profiles").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)
+    ...(canManageLeague ? [new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)] : [])
   );
   return isLinkedToTeam ? [row1, row2, row3, row4] : [row1, row4];
 }
