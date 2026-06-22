@@ -184,6 +184,41 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  recordHighlightPost: (input: {
+    guildId: string;
+    discordId: string;
+    discordChannelId: string;
+    discordMessageId: string;
+    messageUrl?: string | null;
+    content?: string | null;
+  }) =>
+    recFetch<any>("/v1/highlights/post", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  reviewHighlightPayout: (input: {
+    reviewId: string;
+    action: "approve" | "deny";
+    reviewedByDiscordId: string;
+    deniedReason?: string | null;
+  }) =>
+    recFetch<any>("/v1/highlights/review", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
+  listHighlightAwardCandidates: (guildId: string) =>
+    recFetch<any>("/v1/highlights/award-candidates", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  createHighlightAwardReview: (input: {
+    guildId: string;
+    category: string;
+    highlightPostId: string;
+    voteCount: number;
+  }) =>
+    recFetch<any>("/v1/highlights/award-review", { method: "POST", body: JSON.stringify(input) }),
+
   getLeagueConferences: (guildId: string) =>
     recFetch<any>("/v1/rosters/conferences", { method: "POST", body: JSON.stringify({ guildId }) }),
 

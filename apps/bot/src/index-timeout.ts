@@ -75,6 +75,7 @@ import {
   handleWalletMakePurchase,
   handleWalletPendingPurchases
 } from "./handlers/wallet.js";
+import { handleHighlightChannelMessage, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX } from "./handlers/highlights.js";
 import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import {
   BOX_SCORE_CUSTOM_IDS,
@@ -189,6 +190,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isButton() && interaction.customId.startsWith("rec:stream_review:")) {
       await handleStreamReviewButton(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith(HIGHLIGHT_REVIEW_PREFIX)) {
+      await handleHighlightReviewButton(interaction);
       return;
     }
 
@@ -366,6 +372,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+  if (await handleHighlightChannelMessage(message).catch(() => false)) return;
   if (await handleCommissionerBoxScoreSubmissionMessage(message).catch(() => false)) return;
   await handleBoxScoreChannelMessage(message).catch(() => undefined);
 });

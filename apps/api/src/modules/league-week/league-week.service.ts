@@ -19,6 +19,9 @@ export async function viewLeagueWeek(guildId: string) {
 
 export async function setLeagueWeek(input: SetLeagueWeekInput) {
   const context = await getCurrentLeagueContext(input.guildId);
+  const previousWeek = Number(context.rec_leagues.current_week ?? 1);
+  const previousStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
+  const highlightAwardsDue = previousWeek === 18 && previousStage === "regular_season" && input.weekNumber === 19 && input.seasonStage === "wild_card";
   const payload = {
     current_week: input.weekNumber,
     season_stage: input.seasonStage,
@@ -37,6 +40,7 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
 
   return {
     league: result.data,
+    highlightAwardsDue,
     warning: "Advance/import automation is currently being rebuilt; manual week changes do not run catch-up payouts or weekly automation."
   };
 }

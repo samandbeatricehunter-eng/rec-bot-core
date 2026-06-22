@@ -93,6 +93,12 @@ export const ROSTERS_CUSTOM_IDS = {
 
 export type SetupDangerAction = "server_setup" | "league_setup";
 
+const DEV_TIER_EMOJIS = {
+  S: "<:dev_xfactor:1494392253177663688>",
+  A: "<:dev_superstar:1494392251776897134>",
+  B: "<:dev_star:1494392249163972699>",
+} as const;
+
 function formatLeagueStage(value?: string | null) {
   const stage = String(value ?? "regular_season");
   if (stage === "regular_season") return "Regular Season";
@@ -128,6 +134,8 @@ export function buildLeagueMenuEmbed(input: {
   purchaseCaps?: Array<{ label: string; purchased?: number | null; allowed?: number | null }>;
   hideLeagueInfo?: boolean;
   noticeText?: string;
+  offensiveChallenge?: any;
+  defensiveChallenge?: any;
 }) {
   const userInfo = [
     `**User:** ${input.discordUsername ?? "Unlinked User"}`,
@@ -146,6 +154,21 @@ export function buildLeagueMenuEmbed(input: {
 
   const purchaseCaps = input.purchaseCapsActive && input.purchaseCaps?.length
     ? input.purchaseCaps.map((cap) => `**${cap.label}:** ${cap.purchased ?? 0}/${cap.allowed ?? 0}`).join("\n")
+    : null;
+
+  const challengeLine = (label: string, challenge: any) => {
+    if (!challenge) return `**${label}:** No active challenge`;
+    const goals = [
+      `${DEV_TIER_EMOJIS.S} ${challenge.s_tier_goal}`,
+      `${DEV_TIER_EMOJIS.A} ${challenge.a_tier_goal}`,
+      `${DEV_TIER_EMOJIS.B} ${challenge.b_tier_goal}`,
+    ];
+    const earned = challenge.earned_tier ? `\nEarned: ${DEV_TIER_EMOJIS[challenge.earned_tier as keyof typeof DEV_TIER_EMOJIS] ?? ""} ${challenge.earned_tier} ($${challenge.earned_amount ?? 0})` : "";
+    return `**${label}:**\n${goals.join("\n")}${earned}`;
+  };
+
+  const weeklyChallenges = input.offensiveChallenge || input.defensiveChallenge
+    ? [challengeLine("Offense", input.offensiveChallenge), challengeLine("Defense", input.defensiveChallenge)].join("\n\n")
     : null;
 
   const menuText = [
@@ -169,6 +192,7 @@ export function buildLeagueMenuEmbed(input: {
       ...(input.hideLeagueInfo ? [] : [{ name: "LEAGUE INFO", value: leagueInfo.slice(0, 1024), inline: false }]),
       ...(input.noticeText ? [{ name: "NOTICE", value: input.noticeText.slice(0, 1024), inline: false }] : []),
       ...(!input.hideLeagueInfo && purchaseCaps ? [{ name: "PURCHASE CAPS", value: purchaseCaps.slice(0, 1024), inline: false }] : []),
+      ...(!input.hideLeagueInfo && weeklyChallenges ? [{ name: "WEEKLY CHALLENGES", value: weeklyChallenges.slice(0, 1024), inline: false }] : []),
       { name: "MENU", value: menuText.slice(0, 1024), inline: false }
     )
     .setFooter({ text: "Powered by the REC Scout bot © 2026" });

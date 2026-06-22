@@ -1,0 +1,287 @@
+import { ApiError } from "../../lib/errors.js";
+import { supabase } from "../../lib/supabase.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+
+const HIGHLIGHT_PAYOUT_AMOUNT = 25;
+const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
+const HIGHLIGHT_AWARD_AMOUNT = 500;
+
+type RecordHighlightInput = {
+  guildId: string;
+  discordId: string;
+  discordChannelId: string;
+  discordMessageId: string;
+  messageUrl?: string | null;
+  content?: string | null;
+};
+
+type ReviewHighlightPayoutInput = {
+  reviewId: string;
+  action: "approve" | "deny";
+  reviewedByDiscordId: string;
+  deniedReason?: string | null;
+};
+
+type CreateHighlightAwardReviewInput = {
+  guildId: string;
+  category: string;
+  highlightPostId: string;
+  voteCount: number;
+};
+
+async function getDiscordAccount(discordId: string) {
+  const account = await supabase
+    .from("rec_discord_accounts")
+    .select("user_id,discord_id")
+    .eq("discord_id", discordId)
+    .maybeSingle();
+
+  if (account.error) throw new ApiError(500, "Failed to load Discord account.", account.error);
+  if (!account.data?.user_id) throw new ApiError(404, "Discord account is not linked to a REC user.");
+  return account.data;
+}
+
+async function getActiveAssignment(leagueId: string, userId: string) {
+  const assignment = await supabase
+    .from("rec_team_assignments")
+    .select("team_id")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .maybeSingle();
+
+  if (assignment.error) throw new ApiError(500, "Failed to load active team assignment.", assignment.error);
+  return assignment.data;
+}
+
+export async function recordHighlightPost(input: RecordHighlightInput) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await getDiscordAccount(input.discordId);
+  const assignment = await getActiveAssignment(context.leagueId, account.user_id);
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season";
+
+  const existingPaid = await supabase
+    .from("rec_highlight_payout_reviews")
+    .select("id")
+    .eq("league_id", context.leagueId)
+    .eq("user_id", account.user_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .in("status", ["pending", "approved", "issued"])
+    .limit(HIGHLIGHT_WEEKLY_PAID_LIMIT);
+  if (existingPaid.error) throw new ApiError(500, "Failed to check highlight payout status.", existingPaid.error);
+
+  const paidSlotAvailable = (existingPaid.data ?? []).length < HIGHLIGHT_WEEKLY_PAID_LIMIT;
+
+  const highlight = await supabase
+    .from("rec_highlight_posts")
+    .insert({
+      league_id: context.leagueId,
+      user_id: account.user_id,
+      team_id: assignment?.team_id ?? null,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      season_stage: seasonStage,
+      discord_channel_id: input.discordChannelId,
+      discord_message_id: input.discordMessageId,
+      message_url: input.messageUrl ?? null,
+      content: input.content ?? null,
+      is_first_this_week: (existingPaid.data ?? []).length === 0,
+    })
+    .select("*")
+    .single();
+  if (highlight.error) throw new ApiError(500, "Failed to record highlight.", highlight.error);
+
+  if (!paidSlotAvailable) {
+    return {
+      recorded: true,
+      paidSlotAvailable: false,
+      highlight: highlight.data,
+      pendingPayoutsChannelId: null,
+    };
+  }
+
+  const review = await supabase
+    .from("rec_highlight_payout_reviews")
+    .insert({
+      highlight_post_id: highlight.data.id,
+      league_id: context.leagueId,
+      user_id: account.user_id,
+      team_id: assignment?.team_id ?? null,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      payout_kind: "weekly_highlight",
+      status: "pending",
+      amount: HIGHLIGHT_PAYOUT_AMOUNT,
+      discord_channel_id: input.discordChannelId,
+      discord_message_id: input.discordMessageId,
+    })
+    .select("*")
+    .single();
+  if (review.error) throw new ApiError(500, "Failed to create highlight payout review.", review.error);
+
+  await supabase
+    .from("rec_highlight_posts")
+    .update({ payout_review_id: review.data.id, updated_at: new Date().toISOString() })
+    .eq("id", highlight.data.id);
+
+  return {
+    recorded: true,
+    paidSlotAvailable: true,
+    highlight: { ...highlight.data, payout_review_id: review.data.id },
+    review: review.data,
+    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
+    commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
+    compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
+  };
+}
+
+export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
+  const existing = await supabase
+    .from("rec_highlight_payout_reviews")
+    .select("*,highlight:rec_highlight_posts(*)")
+    .eq("id", input.reviewId)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load highlight payout review.", existing.error);
+  if (!existing.data) throw new ApiError(404, "Highlight payout review was not found.");
+  if (existing.data.status !== "pending") {
+    return { updated: false, reason: `Review is already ${existing.data.status}.`, review: existing.data, highlight: existing.data.highlight };
+  }
+
+  if (input.action === "deny") {
+    const denied = await supabase
+      .from("rec_highlight_payout_reviews")
+      .update({
+        status: "denied",
+        reviewed_by_discord_id: input.reviewedByDiscordId,
+        denied_reason: input.deniedReason ?? "Denied by commissioner review.",
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.reviewId)
+      .select("*,highlight:rec_highlight_posts(*)")
+      .single();
+    if (denied.error) throw new ApiError(500, "Failed to deny highlight payout review.", denied.error);
+    return { updated: true, review: denied.data, highlight: denied.data.highlight };
+  }
+
+  const amount = Number(existing.data.amount ?? HIGHLIGHT_PAYOUT_AMOUNT);
+  await supabase.rpc("add_to_wallet", {
+    p_user_id: existing.data.user_id,
+    p_amount: amount,
+    p_league_id: existing.data.league_id,
+    p_description: existing.data.payout_kind === "season_award"
+      ? `Play of the Year payout (${existing.data.award_category})`
+      : `Highlight payout - Wk ${existing.data.week_number}`,
+    p_transaction_type: existing.data.payout_kind === "season_award" ? "highlight_award_payout" : "highlight_payout",
+    p_source: "highlight",
+    p_source_reference: { reviewId: existing.data.id, highlightPostId: existing.data.highlight_post_id, awardCategory: existing.data.award_category ?? null },
+  }).throwOnError();
+
+  const approved = await supabase
+    .from("rec_highlight_payout_reviews")
+    .update({
+      status: "issued",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      reviewed_at: new Date().toISOString(),
+      issued_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.reviewId)
+    .select("*,highlight:rec_highlight_posts(*)")
+    .single();
+  if (approved.error) throw new ApiError(500, "Failed to approve highlight payout review.", approved.error);
+
+  await supabase
+    .from("rec_highlight_posts")
+    .update({ payout_issued: true, updated_at: new Date().toISOString() })
+    .eq("id", existing.data.highlight_post_id);
+
+  const account = await supabase
+    .from("rec_discord_accounts")
+    .select("discord_id")
+    .eq("user_id", existing.data.user_id)
+    .maybeSingle();
+
+  return {
+    updated: true,
+    review: approved.data,
+    highlight: approved.data.highlight,
+    amount,
+    streamerDiscordId: account.data?.discord_id ?? null,
+  };
+}
+
+export async function listHighlightAwardCandidates(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const { data, error } = await supabase
+    .from("rec_highlight_posts")
+    .select("*")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("season_stage", "regular_season")
+    .not("discord_channel_id", "is", null)
+    .not("discord_message_id", "is", null);
+  if (error) throw new ApiError(500, "Failed to load highlight award candidates.", error);
+  return {
+    league: { id: context.leagueId, seasonNumber, announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null, pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null },
+    highlights: data ?? [],
+  };
+}
+
+export async function createHighlightAwardReview(input: CreateHighlightAwardReviewInput) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const highlight = await supabase
+    .from("rec_highlight_posts")
+    .select("*")
+    .eq("id", input.highlightPostId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (highlight.error) throw new ApiError(500, "Failed to load award highlight.", highlight.error);
+  if (!highlight.data) throw new ApiError(404, "Highlight was not found.");
+
+  const existing = await supabase
+    .from("rec_highlight_payout_reviews")
+    .select("id")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("payout_kind", "season_award")
+    .eq("award_category", input.category)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load existing highlight award review.", existing.error);
+
+  const payload = {
+      highlight_post_id: highlight.data.id,
+      league_id: context.leagueId,
+      user_id: highlight.data.user_id,
+      team_id: highlight.data.team_id,
+      season_number: seasonNumber,
+      week_number: highlight.data.week_number,
+      payout_kind: "season_award",
+      award_category: input.category,
+      vote_count: input.voteCount,
+      status: "pending",
+      amount: HIGHLIGHT_AWARD_AMOUNT,
+      discord_channel_id: highlight.data.discord_channel_id,
+      discord_message_id: highlight.data.discord_message_id,
+      updated_at: new Date().toISOString(),
+    };
+
+  const review = existing.data?.id
+    ? await supabase.from("rec_highlight_payout_reviews").update(payload).eq("id", existing.data.id).select("*").single()
+    : await supabase.from("rec_highlight_payout_reviews").insert(payload).select("*").single();
+  if (review.error) throw new ApiError(500, "Failed to create highlight award review.", review.error);
+
+  return {
+    review: review.data,
+    highlight: highlight.data,
+    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
+    commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
+    compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
+  };
+}
