@@ -6,13 +6,14 @@ import {
   type ButtonInteraction,
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { nextLeagueStage, stageLabel } from "../lib/league-stage.js";
 import { recApi } from "../lib/rec-api.js";
 
 export const ADVANCE_WIZARD_CUSTOM_IDS = {
   homeWinPrefix: "rec:advance_wizard:home",
   awayWinPrefix: "rec:advance_wizard:away",
   tiePrefix: "rec:advance_wizard:tie",
-  skipAdvancePrefix: "rec:advance_wizard:skip",
+  cancelPrefix: "rec:advance_wizard:cancel",
 } as const;
 
 type WizardGame = {
@@ -38,29 +39,6 @@ type AdvanceWizardSession = {
 
 const sessions = new Map<string, AdvanceWizardSession>();
 const sessionKey = (guildId: string, userId: string) => `${guildId}:${userId}`;
-
-function nextLeagueStage(weekNumber: number, seasonStage: string) {
-  if (seasonStage === "preseason_training_camp" || seasonStage === "preseason") {
-    return { weekNumber: 1, seasonStage: "regular_season" };
-  }
-  if (seasonStage === "regular_season" && weekNumber < 18) return { weekNumber: weekNumber + 1, seasonStage: "regular_season" };
-  if (seasonStage === "regular_season" && weekNumber >= 18) return { weekNumber: 19, seasonStage: "wild_card" };
-  if (seasonStage === "wild_card") return { weekNumber: 20, seasonStage: "divisional" };
-  if (seasonStage === "divisional") return { weekNumber: 21, seasonStage: "conference_championship" };
-  if (seasonStage === "conference_championship") return { weekNumber: 22, seasonStage: "super_bowl" };
-  return { weekNumber: Math.max(1, weekNumber + 1), seasonStage };
-}
-
-function stageLabel(stage: string, week: number) {
-  if (stage === "preseason_training_camp") return "Preseason Training Camp";
-  if (stage === "preseason") return "Preseason";
-  if (stage === "regular_season") return `Week ${week}`;
-  if (stage === "wild_card") return "Wild Card";
-  if (stage === "divisional") return "Divisional";
-  if (stage === "conference_championship") return "Conference Championship";
-  if (stage === "super_bowl") return "Super Bowl";
-  return stage.replace(/_/g, " ");
-}
 
 function renderWizardStep(session: AdvanceWizardSession) {
   const game = session.pendingGames[session.gameIndex];
@@ -91,6 +69,9 @@ function renderWizardStep(session: AdvanceWizardSession) {
         new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.awayWinPrefix}${suffix}`).setLabel(`${game.awayTeamName} Win`).setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.homeWinPrefix}${suffix}`).setLabel(`${game.homeTeamName} Win`).setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.tiePrefix}${suffix}`).setLabel("Tie").setStyle(ButtonStyle.Secondary),
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.cancelPrefix}${suffix}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
       ),
     ],
   };
@@ -155,6 +136,16 @@ export async function startAdvanceWeekWizard(interaction: ButtonInteraction, bui
   }
 
   return interaction.editReply(renderWizardStep(session));
+}
+
+export async function handleAdvanceWizardCancel(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+  if (!interaction.inCachedGuild()) return;
+  sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
+  await interaction.deferUpdate();
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Advance Week").setDescription("Advance cancelled. No changes were saved.")],
+    components: buildAdvanceRows(),
+  });
 }
 
 export async function handleAdvanceWizardOutcome(interaction: ButtonInteraction, outcome: "home" | "away" | "tie", buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {

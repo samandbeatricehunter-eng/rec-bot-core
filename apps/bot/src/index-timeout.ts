@@ -54,9 +54,11 @@ import {
 } from "./flows/schedule.js";
 import {
   ADVANCE_WIZARD_CUSTOM_IDS,
+  handleAdvanceWizardCancel,
   handleAdvanceWizardOutcome,
   startAdvanceWeekWizard,
 } from "./flows/advance-wizard.js";
+import { stageLabel } from "./lib/league-stage.js";
 import {
   TEAM_REQUEST_CUSTOM_IDS,
   handleTeamRequestApprove,
@@ -411,6 +413,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.homeWinPrefix}`)) return handleAdvanceWizardOutcome(interaction, "home", buildAdvanceMgmtRows);
       if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.awayWinPrefix}`)) return handleAdvanceWizardOutcome(interaction, "away", buildAdvanceMgmtRows);
       if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.tiePrefix}`)) return handleAdvanceWizardOutcome(interaction, "tie", buildAdvanceMgmtRows);
+      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.cancelPrefix}`)) return handleAdvanceWizardCancel(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.teamsBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transfer) return handleWalletTransferOpen(interaction);
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferAll}:`)) return handleWalletTransferAll(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
@@ -675,29 +678,6 @@ function buildUnlinkedTeamNotice(profile: any) {
   }
 
   return "You are registered in REC but not linked to a team in this league yet. Open **Teams** below to select an open team. Once approved, you'll be added to this league's roster.";
-}
-
-function nextLeagueStage(weekNumber: number, seasonStage: string) {
-  if (seasonStage === "preseason_training_camp" || seasonStage === "preseason") {
-    return { weekNumber: 1, seasonStage: "regular_season" };
-  }
-  if (seasonStage === "regular_season" && weekNumber < 18) return { weekNumber: weekNumber + 1, seasonStage: "regular_season" };
-  if (seasonStage === "regular_season" && weekNumber >= 18) return { weekNumber: 19, seasonStage: "wild_card" };
-  if (seasonStage === "wild_card") return { weekNumber: 20, seasonStage: "divisional" };
-  if (seasonStage === "divisional") return { weekNumber: 21, seasonStage: "conference_championship" };
-  if (seasonStage === "conference_championship") return { weekNumber: 22, seasonStage: "super_bowl" };
-  return { weekNumber: Math.max(1, weekNumber + 1), seasonStage };
-}
-
-function stageLabel(stage: string, week: number) {
-  if (stage === "preseason_training_camp") return "Preseason Training Camp";
-  if (stage === "preseason") return "Preseason";
-  if (stage === "regular_season") return `Week ${week}`;
-  if (stage === "wild_card") return "Wild Card";
-  if (stage === "divisional") return "Divisional";
-  if (stage === "conference_championship") return "Conference Championship";
-  if (stage === "super_bowl") return "Super Bowl";
-  return stage.replace(/_/g, " ");
 }
 
 async function getRouteChannels(guildId: string) {

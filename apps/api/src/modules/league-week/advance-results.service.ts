@@ -5,6 +5,7 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
 
 type AdvanceGameResultInput = {
   gameId: string;
@@ -27,6 +28,18 @@ export async function getAdvanceWeekGames(guildId: string) {
   const seasonNumber = resolveSeasonNumber(context);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
+
+  if (!stageHasScheduledGames(currentStage)) {
+    return {
+      league: context.rec_leagues,
+      seasonNumber,
+      currentWeek,
+      currentStage,
+      games: [],
+      gamesNeedingInput: [],
+    };
+  }
+
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
 
   const { data: games, error } = await supabase
