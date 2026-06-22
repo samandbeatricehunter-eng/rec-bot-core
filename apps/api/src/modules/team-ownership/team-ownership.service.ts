@@ -49,52 +49,38 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
 
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
-  const defaults = [...AFC_TEAMS, ...NFC_TEAMS];
-  const restored: any[] = [];
+  const rows = [...AFC_TEAMS, ...NFC_TEAMS].map((team) => ({
+    league_id: league.id,
+    name: team.name,
+    abbreviation: team.abbreviation,
+    conference: team.conference,
+    division: team.division,
+    display_city: null,
+    display_nick: null,
+    display_abbr: null,
+    is_relocated: false,
+    original_abbreviation: null,
+    source: "manual_admin_entry" as const,
+  }));
 
-  for (const team of defaults) {
-    const existing = await supabase
-      .from("rec_teams")
-      .select("id")
-      .eq("league_id", league.id)
-      .or(`abbreviation.eq.${team.abbreviation},original_abbreviation.eq.${team.abbreviation}`)
-      .limit(1);
-    if (existing.error) throw new ApiError(500, "Failed to look up default team slot.", existing.error);
+  const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
+  if (clearedAssignments.error) throw new ApiError(500, "Failed to clear existing team links.", clearedAssignments.error);
 
-    const payload = {
-      name: team.name,
-      abbreviation: team.abbreviation,
-      conference: team.conference,
-      division: team.division,
-      display_city: null,
-      display_nick: null,
-      display_abbr: null,
-      is_relocated: false,
-      original_abbreviation: null,
-      source: "manual_admin_entry" as any,
-      updated_at: new Date().toISOString()
-    };
+  const clearedTeams = await supabase.from("rec_teams").delete().eq("league_id", league.id);
+  if (clearedTeams.error) throw new ApiError(500, "Failed to clear existing league teams.", clearedTeams.error);
 
-    if (existing.data?.[0]?.id) {
-      const result = await supabase.from("rec_teams").update(payload).eq("id", existing.data[0].id).select("*").single();
-      if (result.error) throw new ApiError(500, "Failed to reset default team.", result.error);
-      restored.push(result.data);
-    } else {
-      const result = await supabase.from("rec_teams").insert({ league_id: league.id, ...payload }).select("*").single();
-      if (result.error) throw new ApiError(500, "Failed to recreate default team.", result.error);
-      restored.push(result.data);
-    }
-  }
+  const result = await supabase.from("rec_teams").insert(rows).select("*");
+  if (result.error) throw new ApiError(500, "Failed to reset default league teams.", result.error);
 
   await writeAuditLog({
     action: "teams.default_nfl.reset",
     entityType: "rec_teams",
-    newValue: { guildId: input.guildId, leagueId: league.id, teamCount: restored.length },
+    newValue: { guildId: input.guildId, leagueId: league.id, teamCount: result.data?.length ?? 0 },
     reason: "Default teams reset through Team Management.",
     source: "manual_admin_entry"
   });
 
-  return { league, teams: restored };
+  return { league, teams: result.data ?? [] };
 }
 
 export async function createCustomTeamReplacement(input: CustomTeamReplacementInput) {
