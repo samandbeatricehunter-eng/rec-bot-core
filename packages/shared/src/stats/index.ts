@@ -3,7 +3,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export * from "./stat-definitions.js";
-export * from "./stat-normalizer.js";
 
 import {
   STAT_DEFINITIONS,
@@ -11,7 +10,10 @@ import {
   type StatUsage,
   type StatValueType
 } from "./stat-definitions.js";
-import { DEF_BY_KEY } from "./stat-normalizer.js";
+
+export const DEF_BY_KEY = new Map<string, StatDefinition>(
+  STAT_DEFINITIONS.map((def) => [def.canonicalKey, def])
+);
 
 // ── Lookup helpers ────────────────────────────────────────────────────────────
 

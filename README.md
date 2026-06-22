@@ -44,8 +44,6 @@ Two separate Railway services, one per app.
 | `REC_INTERNAL_API_KEY` | recommended | Shared secret between API and bot |
 | `API_PORT` | no | Defaults to `3000`; Railway sets `PORT` — set `API_PORT=${{PORT}}` |
 | `API_HOST` | no | Defaults to `0.0.0.0` |
-| `EA_MCA_CLIENT_SECRET` | yes (EA import) | EA/Blaze client secret |
-| `EA_MCA_DEFAULT_CONSOLE` | no | Defaults to `pc` |
 
 ### Bot service
 

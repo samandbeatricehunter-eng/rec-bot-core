@@ -1,6 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { resolveSeasonContext, resolveSeasonId } from "../league-context/season.service.js";
 import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
@@ -126,12 +127,12 @@ async function resolveTeams(leagueId: string, abbr1: string, abbr2: string) {
   return { team1: match(abbr1) ?? null, team2: match(abbr2) ?? null };
 }
 
-async function resolveGame(leagueId: string, team1Id: string, team2Id: string, seasonNumber: number, weekNumber: number) {
+async function resolveGame(leagueId: string, team1Id: string, team2Id: string, seasonId: string, weekNumber: number) {
   const { data, error } = await supabase
     .from("rec_games")
     .select("id,home_team_id,away_team_id,home_user_id,away_user_id")
     .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
+    .eq("season_id", seasonId)
     .eq("week_number", weekNumber)
     .or(
       `and(home_team_id.eq.${team1Id},away_team_id.eq.${team2Id}),` +
@@ -234,7 +235,8 @@ async function resolveGameContext(
   };
   if (!team1 || !team2) return out;
 
-  const game = await resolveGame(leagueId, team1.id, team2.id, seasonNumber, weekNumber);
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
+  const game = await resolveGame(leagueId, team1.id, team2.id, seasonId, weekNumber);
   if (!game) return out;
 
   out.gameId = game.id;
@@ -726,13 +728,13 @@ export async function getBoxScoreSubmission(submissionId: string) {
 }
 
 export async function listScheduledGamesForWeek(guildId: string, weekNumber: number, seasonNumber?: number | null) {
-  const context = await getCurrentLeagueContext(guildId);
-  const selected = selectedSeasonWeek(context, { seasonNumber, weekNumber });
+  const { context, selectedSeason, seasonId } = await resolveSeasonContext(guildId, seasonNumber);
+  const selected = selectedSeasonWeek(context, { seasonNumber: selectedSeason, weekNumber });
   const { data, error } = await supabase
     .from("rec_games")
-    .select("id,season_number,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
+    .select("id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
     .eq("league_id", context.leagueId)
-    .eq("season_number", selected.seasonNumber)
+    .eq("season_id", seasonId)
     .eq("week_number", selected.weekNumber)
     .order("created_at", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load scheduled games.", error);

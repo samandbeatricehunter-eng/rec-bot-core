@@ -81,11 +81,6 @@ export async function registerServer(input: RegisterServerInput) {
   return { server: created.data, created: true };
 }
 
-function mapImportModeToTrustMode(importMode: CreateLeagueInput["importMode"]) {
-  if (importMode === "manual") return "manual";
-  return "imported";
-}
-
 export async function createLeagueForServer(input: CreateLeagueInput) {
   const serverResult = await registerServer({
     guildId: input.guildId,
@@ -116,8 +111,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     season_stage: "preseason_training_camp",
     season_number: input.seasonNumber ?? 1,
     current_week: 1,
-    trust_mode: mapImportModeToTrustMode(input.importMode),
-    import_enabled: input.importMode !== "manual",
+    trust_mode: "manual",
     fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable"
   };
 
@@ -133,7 +127,6 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     league_id: league.data.id,
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
-    import_mode: input.importMode,
 
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
@@ -273,7 +266,6 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
   const payload = {
     server_id: server.data.id,
     general_chat_channel_id: input.generalChatChannelId ?? null,
-    admin_import_log_channel_id: input.adminImportLogChannelId ?? null,
     scheduling_channel_id: input.schedulingChannelId ?? null,
     media_channel_id: input.mediaChannelId ?? null,
     rules_channel_id: input.rulesChannelId ?? null,
@@ -316,7 +308,6 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     league_id: context.leagueId,
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
-    import_mode: input.importMode,
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
@@ -397,7 +388,6 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     game: league.data.game ?? "madden_26",
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
-    importMode: c.import_mode ?? "manual",
     seasonWeek: "week_1",
     coinEconomyEnabled: c.coin_economy_enabled ?? false,
     customPlayersEnabled: c.custom_players_enabled ?? false,

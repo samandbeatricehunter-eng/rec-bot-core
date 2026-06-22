@@ -35,7 +35,6 @@ function toLeague(row: any): RecLeague {
     currentWeek: row.current_week,
     fantasyDraftStatus: row.fantasy_draft_status,
     trustMode: row.trust_mode,
-    importEnabled: row.import_enabled,
     appAccountRequired: row.app_account_required,
     seasonNumber: row.season_number,
     seasonStage: row.season_stage,

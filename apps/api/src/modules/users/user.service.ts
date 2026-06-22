@@ -1,6 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
 
 export async function getUserBaselineByDiscordId(discordId: string) {
   const account = await supabase
@@ -265,12 +266,13 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   }
 
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
+  const seasonId = await resolveSeasonId(league.id, seasonNumber);
   const [gamesResult, resultsResult] = await Promise.all([
     supabase
       .from("rec_games")
-      .select("id,external_game_id,season_number,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation)")
+      .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation)")
       .eq("league_id", league.id)
-      .eq("season_number", seasonNumber)
+      .eq("season_id", seasonId)
       .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`),
     supabase
       .from("rec_game_results")

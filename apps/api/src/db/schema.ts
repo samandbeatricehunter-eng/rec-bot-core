@@ -22,7 +22,6 @@ export const recLeagues = pgTable("rec_leagues", {
   currentWeek: integer("current_week"),
   fantasyDraftStatus: text("fantasy_draft_status"),
   trustMode: text("trust_mode"),
-  importEnabled: boolean("import_enabled"),
   appAccountRequired: boolean("app_account_required"),
   seasonNumber: integer("season_number"),
   seasonStage: text("season_stage"),
@@ -40,48 +39,6 @@ export const recServerLeagueLinks = pgTable("rec_server_league_links", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
 });
-
-export const recImportJobs = pgTable("rec_import_jobs", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull(),
-  serverId: uuid("server_id").notNull(),
-  requestedByDiscordId: text("requested_by_discord_id"),
-  importMode: text("import_mode").notNull(),
-  importProfile: text("import_profile"),
-  importScope: text("import_scope"),
-  importLabel: text("import_label"),
-  status: text("status").notNull(),
-  weekFrom: integer("week_from"),
-  weekTo: integer("week_to"),
-  selectedWeeks: jsonb("selected_weeks").$type<number[] | null>(),
-  selectedEndpointKeys: jsonb("selected_endpoint_keys").$type<string[] | null>(),
-  eaExternalLeagueId: text("ea_external_league_id"),
-  eaExternalLeagueName: text("ea_external_league_name"),
-  previewSummary: jsonb("preview_summary").$type<Record<string, unknown> | null>(),
-  payload: jsonb("payload").$type<Record<string, unknown> | null>(),
-  validationWarnings: jsonb("validation_warnings").$type<unknown[] | null>(),
-  validationErrors: jsonb("validation_errors").$type<unknown[] | null>(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }),
-  completedAt: timestamp("completed_at", { withTimezone: true, mode: "string" })
-});
-
-export const recSeasonSyncState = pgTable("rec_season_sync_state", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull(),
-  seasonNumber: integer("season_number").notNull(),
-  fullScheduleImportedAt: timestamp("full_schedule_imported_at", { withTimezone: true, mode: "string" }),
-  fullScheduleImportJobId: uuid("full_schedule_import_job_id"),
-  lastRosterSyncAt: timestamp("last_roster_sync_at", { withTimezone: true, mode: "string" }),
-  lastRosterSyncImportJobId: uuid("last_roster_sync_import_job_id"),
-  lastWeeklyImportWeek: integer("last_weekly_import_week"),
-  lastWeeklyImportAt: timestamp("last_weekly_import_at", { withTimezone: true, mode: "string" }),
-  lastWeeklyImportJobId: uuid("last_weekly_import_job_id"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
-}, (table) => [
-  uniqueIndex("rec_season_sync_state_league_season_key").on(table.leagueId, table.seasonNumber)
-]);
 
 export const recTeams = pgTable("rec_teams", {
   id: uuid("id").primaryKey(),
@@ -104,7 +61,7 @@ export const recTeams = pgTable("rec_teams", {
 export const recGames = pgTable("rec_games", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull(),
-  seasonNumber: integer("season_number"),
+  seasonId: uuid("season_id"),
   weekNumber: integer("week_number"),
   phase: text("phase"),
   externalGameId: text("external_game_id"),
@@ -176,7 +133,6 @@ export const recServerRelations = relations(recDiscordServers, ({ many }) => ({
 
 export const recLeagueRelations = relations(recLeagues, ({ many }) => ({
   serverLinks: many(recServerLeagueLinks),
-  importJobs: many(recImportJobs),
   teams: many(recTeams),
   games: many(recGames),
   gameResults: many(recGameResults)
@@ -190,5 +146,3 @@ export const recServerLeagueLinkRelations = relations(recServerLeagueLinks, ({ o
 export type RecDiscordServer = typeof recDiscordServers.$inferSelect;
 export type RecLeague = typeof recLeagues.$inferSelect;
 export type RecServerLeagueLink = typeof recServerLeagueLinks.$inferSelect;
-export type RecImportJob = typeof recImportJobs.$inferSelect;
-export type RecSeasonSyncState = typeof recSeasonSyncState.$inferSelect;

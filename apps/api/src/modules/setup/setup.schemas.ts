@@ -30,7 +30,6 @@ export const CreateLeagueSchema = z.object({
 
   game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
-  importMode: z.enum(["manual", "ea_import", "companion_app_export"]).default("manual"),
 
   seasonNumber: z.number().int().min(1).default(1),
   seasonStage: SeasonStageSchema.default("preseason_training_camp"),
@@ -131,7 +130,6 @@ export const CreateLeagueSchema = z.object({
 export const UpdateServerRoutesSchema = z.object({
   guildId: z.string().min(1),
   generalChatChannelId: z.string().optional().nullable(),
-  adminImportLogChannelId: z.string().optional().nullable(),
   schedulingChannelId: z.string().optional().nullable(),
   mediaChannelId: z.string().optional().nullable(),
   rulesChannelId: z.string().optional().nullable(),

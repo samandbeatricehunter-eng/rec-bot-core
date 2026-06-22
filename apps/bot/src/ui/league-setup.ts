@@ -134,7 +134,6 @@ export type LeagueSetupDraft = {
   leaguePassword?: string | null;
   step: LeagueSetupStep;
   leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters";
-  importMode: "manual" | "ea_import" | "companion_app_export";
   seasonWeek: string;
   coinEconomyEnabled: boolean;
   customPlayersEnabled: boolean;
@@ -260,7 +259,6 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     leaguePassword: null,
     step: "game",
     leagueType: "regular_rosters",
-    importMode: "manual",
     seasonWeek: "training_camp",
     coinEconomyEnabled: false,
     customPlayersEnabled: false,
