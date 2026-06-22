@@ -7,6 +7,7 @@ import {
   loadCareerBoxScoreStats,
   loadSeasonBoxScoreStats,
   loadUserFinancialSummary,
+  resolveTeamNick,
 } from "./user-profile-stats.service.js";
 
 export async function getUserBaselineByDiscordId(discordId: string) {
@@ -358,13 +359,32 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
 
   const hasLoggedSchedule = (scheduledGames ?? []).length > 0;
 
+  const scheduledTeamIds = [...new Set((scheduledGames ?? []).flatMap((game: any) => [game.home_team_id, game.away_team_id]).filter(Boolean))];
+  const teamAssignments = scheduledTeamIds.length
+    ? await supabase
+        .from("rec_team_assignments")
+        .select("team_id,user_id")
+        .eq("league_id", league.id)
+        .eq("assignment_status", "active")
+        .is("ended_at", null)
+        .in("team_id", scheduledTeamIds)
+    : { data: [], error: null };
+  if (teamAssignments.error) throw new ApiError(500, "Failed to load team assignments for schedule", teamAssignments.error);
+  const userByTeamId = new Map((teamAssignments.data ?? []).map((row) => [row.team_id, row.user_id]));
+
   const opponentUserIds = [...new Set((scheduledGames ?? []).flatMap((game: any) => {
     const isHome = game.home_team_id === teamId;
-    const opponentUserId = isHome ? game.away_user_id : game.home_user_id;
+    const opponentTeamId = isHome ? game.away_team_id : game.home_team_id;
+    const opponentUserId = (isHome ? game.away_user_id : game.home_user_id) ?? userByTeamId.get(opponentTeamId);
     return opponentUserId ? [opponentUserId] : [];
   }))];
-  const opponentAccounts = opponentUserIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", opponentUserIds)
+  // Include linked users for every scheduled team so H2H mentions resolve even when rec_games user ids are stale.
+  for (const userId of userByTeamId.values()) {
+    if (userId) opponentUserIds.push(userId);
+  }
+  const uniqueUserIds = [...new Set(opponentUserIds)];
+  const opponentAccounts = uniqueUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", uniqueUserIds)
     : { data: [], error: null };
   if (opponentAccounts.error) throw new ApiError(500, "Failed to load opponent Discord accounts", opponentAccounts.error);
   const discordByUserId = new Map((opponentAccounts.data ?? []).map((row) => [row.user_id, row.discord_id]));
@@ -375,19 +395,22 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     if (weekNumber >= 1 && weekNumber <= 18) gamesByWeek.set(weekNumber, game);
   }
 
+  function resolveGameUserId(game: any, side: "home" | "away") {
+    const teamKey = side === "home" ? "home_team_id" : "away_team_id";
+    const userKey = side === "home" ? "home_user_id" : "away_user_id";
+    return game[userKey] ?? userByTeamId.get(game[teamKey]) ?? null;
+  }
+
   function opponentLabel(game: any, isHome: boolean) {
     const opponentTeam = isHome ? game.away_team : game.home_team;
-    const opponentUserId = isHome ? game.away_user_id : game.home_user_id;
+    const opponentUserId = isHome
+      ? resolveGameUserId(game, "away")
+      : resolveGameUserId(game, "home");
     if (opponentUserId) {
       const discordId = discordByUserId.get(opponentUserId);
       if (discordId) return `<@${discordId}>`;
     }
-    return formatTeamDisplayName(opponentTeam) ?? opponentTeam?.name ?? "CPU";
-  }
-
-  function teamNickFromName(name: string) {
-    const parts = name.trim().split(/\s+/);
-    return parts.length > 1 ? parts[parts.length - 1]! : name.trim();
+    return resolveTeamNick(opponentTeam);
   }
 
   const games = [];
@@ -404,15 +427,16 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     }
 
     const isHome = game.home_team_id === teamId;
-    const label = opponentLabel(game, isHome);
-    const displayLabel = label.startsWith("<@") ? label : teamNickFromName(label);
+    const displayLabel = opponentLabel(game, isHome);
     const prefix = isHome ? `VS ${displayLabel}` : `@ ${displayLabel}`;
+    const homeUserId = resolveGameUserId(game, "home");
+    const awayUserId = resolveGameUserId(game, "away");
     games.push({
       weekNumber: week,
       phase: game.phase ?? "regular_season",
       isHome,
-      isH2h: Boolean(game.home_user_id && game.away_user_id),
-      opponentLabel: label,
+      isH2h: Boolean(homeUserId && awayUserId),
+      opponentLabel: displayLabel,
       line: `Week ${week}: ${prefix}`,
     });
   }

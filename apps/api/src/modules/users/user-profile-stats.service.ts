@@ -306,3 +306,18 @@ export function formatTeamDisplayName(team: {
   }
   return team.name ?? team.display_nick ?? null;
 }
+
+/** Schedule/nickname label: team nick only — never the city. */
+export function resolveTeamNick(team: {
+  name?: string | null;
+  display_nick?: string | null;
+  is_relocated?: boolean | null;
+} | null | undefined) {
+  if (!team) return "CPU";
+  if (team.is_relocated && team.display_nick?.trim()) {
+    return team.display_nick.trim();
+  }
+  const name = String(team.name ?? team.display_nick ?? "CPU").trim();
+  const parts = name.split(/\s+/);
+  return parts.length > 1 ? parts[parts.length - 1]! : name;
+}
