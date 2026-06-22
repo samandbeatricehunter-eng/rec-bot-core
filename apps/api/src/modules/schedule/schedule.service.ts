@@ -37,6 +37,36 @@ function assertWeekSlot(input: { weekNumber: number; slotNumber?: number }) {
   }
 }
 
+function resolveSeasonNumber(context: Awaited<ReturnType<typeof getCurrentLeagueContext>>, seasonNumber?: number | null) {
+  return Number(seasonNumber ?? context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+}
+
+async function resolveSeasonId(leagueId: string, seasonNumber: number) {
+  const existing = await supabase
+    .from("rec_seasons")
+    .select("id")
+    .eq("league_id", leagueId)
+    .eq("display_season_number", seasonNumber)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to resolve league season.", existing.error);
+  if (existing.data?.id) return existing.data.id;
+
+  const now = new Date().toISOString();
+  const created = await supabase
+    .from("rec_seasons")
+    .insert({
+      league_id: leagueId,
+      display_season_number: seasonNumber,
+      phase: "regular_season",
+      created_at: now,
+      updated_at: now,
+    })
+    .select("id")
+    .single();
+  if (created.error) throw new ApiError(500, "Failed to create league season.", created.error);
+  return created.data.id;
+}
+
 export async function listScheduleTeams(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
@@ -60,12 +90,13 @@ export async function listScheduleTeams(guildId: string) {
 export async function listScheduleWeek(guildId: string, weekNumber: number, seasonNumber?: number | null) {
   assertWeekSlot({ weekNumber });
   const context = await getCurrentLeagueContext(guildId);
-  const selectedSeason = Number(seasonNumber ?? context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const selectedSeason = resolveSeasonNumber(context, seasonNumber);
+  const seasonId = await resolveSeasonId(context.leagueId, selectedSeason);
   const { data, error } = await supabase
     .from("rec_games")
-    .select("id,external_game_id,season_number,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
+    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
     .eq("league_id", context.leagueId)
-    .eq("season_number", selectedSeason)
+    .eq("season_id", seasonId)
     .eq("week_number", weekNumber)
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load schedule week.", error);
@@ -74,12 +105,13 @@ export async function listScheduleWeek(guildId: string, weekNumber: number, seas
 
 export async function listScheduleSeason(guildId: string, seasonNumber?: number | null) {
   const context = await getCurrentLeagueContext(guildId);
-  const selectedSeason = Number(seasonNumber ?? context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const selectedSeason = resolveSeasonNumber(context, seasonNumber);
+  const seasonId = await resolveSeasonId(context.leagueId, selectedSeason);
   const { data, error } = await supabase
     .from("rec_games")
-    .select("id,external_game_id,season_number,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick)")
+    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick)")
     .eq("league_id", context.leagueId)
-    .eq("season_number", selectedSeason)
+    .eq("season_id", seasonId)
     .order("week_number", { ascending: true })
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load season schedule.", error);
@@ -121,7 +153,8 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
 
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
-  const seasonNumber = Number(input.seasonNumber ?? context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
   const externalGameId = `manual:${leagueId}:${seasonNumber}:${input.weekNumber}:${input.slotNumber}`;
 
   const teams = await supabase
@@ -136,7 +169,7 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
     .from("rec_games")
     .select("id,external_game_id,home_team_id,away_team_id")
     .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
+    .eq("season_id", seasonId)
     .eq("week_number", input.weekNumber)
     .or(`home_team_id.in.(${input.awayTeamId},${input.homeTeamId}),away_team_id.in.(${input.awayTeamId},${input.homeTeamId})`);
   if (duplicates.error) throw new ApiError(500, "Failed to check existing schedule matchups.", duplicates.error);
@@ -155,7 +188,7 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
 
   const payload = {
     league_id: leagueId,
-    season_number: seasonNumber,
+    season_id: seasonId,
     week_number: input.weekNumber,
     phase: phaseForWeek(input.weekNumber),
     external_game_id: externalGameId,
@@ -241,6 +274,7 @@ function parsedExternalGameId(leagueId: string, seasonNumber: number, weekNumber
 async function insertScheduleGames(input: {
   leagueId: string;
   guildId: string;
+  seasonId: string;
   seasonNumber: number;
   games: ParsedScheduleMatchup[];
   weekNumber: number;
@@ -253,7 +287,7 @@ async function insertScheduleGames(input: {
   const now = new Date().toISOString();
   const rows = input.games.map((game) => ({
     league_id: input.leagueId,
-    season_number: input.seasonNumber,
+    season_id: input.seasonId,
     week_number: input.weekNumber,
     phase: phaseForWeek(input.weekNumber),
     external_game_id: input.externalGameIdForSlot(game.slotNumber),
@@ -299,10 +333,12 @@ export async function seedDefaultScheduleForGuild(input: {
     return { seeded: false as const, reason: "unsupported_game" as const, gameCount: 0 };
   }
 
-  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const seasonNumber = resolveSeasonNumber(context, null);
   if (seasonNumber !== 1) {
     return { seeded: false as const, reason: "not_league_year_one" as const, gameCount: 0 };
   }
+
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   const configuration = await supabase
     .from("rec_league_configuration")
@@ -341,7 +377,7 @@ export async function seedDefaultScheduleForGuild(input: {
     .from("rec_games")
     .select("id", { count: "exact", head: true })
     .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
+    .eq("season_id", seasonId)
     .lte("week_number", 18);
   if (existing.error) throw new ApiError(500, "Failed to check existing schedule.", existing.error);
   if ((existing.count ?? 0) > 0 && !input.force) {
@@ -353,7 +389,7 @@ export async function seedDefaultScheduleForGuild(input: {
       .from("rec_games")
       .delete()
       .eq("league_id", leagueId)
-      .eq("season_number", seasonNumber)
+      .eq("season_id", seasonId)
       .lte("week_number", 18);
     if (removal.error) throw new ApiError(500, "Failed to clear existing regular-season schedule.", removal.error);
   }
@@ -374,6 +410,7 @@ export async function seedDefaultScheduleForGuild(input: {
     gameCount += await insertScheduleGames({
       leagueId,
       guildId: input.guildId,
+      seasonId,
       seasonNumber,
       weekNumber,
       games: gamesByWeek.get(weekNumber)!,
@@ -421,7 +458,8 @@ export async function replaceScheduleWeek(input: {
 
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
-  const seasonNumber = Number(input.seasonNumber ?? context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   if (!input.games.length) throw new ApiError(400, "At least one parsed matchup is required.");
 
@@ -434,7 +472,7 @@ export async function replaceScheduleWeek(input: {
     .from("rec_games")
     .delete()
     .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
+    .eq("season_id", seasonId)
     .eq("week_number", input.weekNumber);
   if (removal.error) throw new ApiError(500, "Failed to clear existing week schedule.", removal.error);
 
@@ -447,6 +485,7 @@ export async function replaceScheduleWeek(input: {
   const gameCount = await insertScheduleGames({
     leagueId,
     guildId: input.guildId,
+    seasonId,
     seasonNumber,
     weekNumber: input.weekNumber,
     games: parsedGames,

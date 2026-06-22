@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isDiscordAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
+import { getAnnouncementsChannel, getVotingPollsChannel } from "./lib/route-channels.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import {
   buildAdminPanelEmbed,
@@ -588,7 +589,7 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
         "",
         "**Advance Week** changes only the league week/stage.",
         "**Active Check** posts the 24-hour activity prompt.",
-        "**Set GOTW** posts the current week's GOTW poll.",
+        "**Set GOTW** posts the current week's GOTW poll to the voting polls channel.",
         "**Game Channels** creates private channels for scheduled H2H games with two linked users.",
         "**Set Week / Set Season** manually correct the league clock.",
         "**EOS Payouts / POTY Tallies** are postseason-only payout tools."
@@ -675,9 +676,8 @@ async function handleActiveCheck(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting Active Check...").setDescription("Finding the announcements channel and preparing the active-check prompt.")], components: [] });
   const routes = await getRouteChannels(interaction.guildId);
-  const channelId = routes?.announcements_channel_id;
-  const channel = channelId ? await interaction.guild.channels.fetch(channelId).catch(() => null) : null;
-  if (!channel?.isTextBased() || !("send" in channel)) {
+  const channel = await getAnnouncementsChannel(interaction.guild, routes);
+  if (!channel) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check").setDescription("No announcements channel is configured.")], components: buildAdvanceMgmtRows() });
   }
   await channel.send({
@@ -746,10 +746,9 @@ async function handleGotwSelect(interaction: any) {
   const { currentWeek, stage, games } = await currentSchedule(interaction as any);
   const game = games.find((g: any) => g.id === selectedGameId);
   const routes = await getRouteChannels(interaction.guildId);
-  const channelId = routes?.announcements_channel_id;
-  const channel = channelId ? await interaction.guild.channels.fetch(channelId).catch(() => null) : null;
-  if (!game || !channel?.isTextBased() || !("send" in channel)) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and announcements channel.")], components: buildAdvanceMgmtRows() });
+  const channel = await getVotingPollsChannel(interaction.guild, routes);
+  if (!game || !channel) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceMgmtRows() });
   }
   await channel.send({
     content: "@everyone",
@@ -762,7 +761,7 @@ async function handleGotwSelect(interaction: any) {
     )],
     allowedMentions: { parse: ["everyone"] }
   });
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Posted").setDescription(`Posted GOTW poll for ${stageLabel(stage, currentWeek)}.`)], components: buildAdvanceMgmtRows() });
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Posted").setDescription(`Posted GOTW poll to the voting polls channel for ${stageLabel(stage, currentWeek)}.`)], components: buildAdvanceMgmtRows() });
 }
 
 async function handleGameChannels(interaction: ButtonInteraction) {
@@ -855,8 +854,7 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       ]
     }).catch(() => undefined);
   }
-  const announcementsId = routes?.announcements_channel_id;
-  const announcements = announcementsId ? await interaction.guild.channels.fetch(announcementsId).catch(() => null) : null;
+  const announcements = await getAnnouncementsChannel(interaction.guild, routes);
   if (announcements?.isTextBased() && "send" in announcements) {
     const boxScores = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the Box Scores channel";
     await announcements.send({

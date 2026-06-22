@@ -220,8 +220,8 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "contract_purchases",
   "server_setup",
   "regular_season_streaming",
-  "streaming_side",
   "postseason_streaming",
+  "streaming_side",
   "fourth_down_regular",
   "fourth_down_playoff",
   "position_changes",
@@ -316,8 +316,8 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     defensivePlayCallCooldown: null,
     linkTeamsAfterSetup: false,
     seedDefaultSchedule: null,
-    fairSimRequirements: "Request a Fair Sim after 48 hours of no response or failed scheduling effort, subject to commissioner review.",
-    forceWinRequirements: "Request a Force Win after 72 hours of no response or missed agreed game time, subject to commissioner review.",
+    fairSimRequirements: "Fair Sims are the default for any game where users fail to schedule their game prior to advance time.",
+    forceWinRequirements: "Force Wins can be requested if users agree to a scheduled time and one fails to appear within 1 hour of the elapsed game time.",
     commissionerOfficeChannelId: null,
     announcementsChannelId: null,
     votingPollsChannelId: null,
@@ -371,8 +371,15 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   // Economy gates the consecutive purchase-feature section.
   if (step === "economy" && !draft.coinEconomyEnabled) return "server_setup";
 
-  // Skip streaming_side if regular season streaming is disabled (no side to configure)
   if (step === "regular_season_streaming" && draft.regularSeasonStreamingRequirement === "disabled") return "postseason_streaming";
+
+  if (
+    step === "postseason_streaming"
+    && draft.regularSeasonStreamingRequirement !== "required"
+    && draft.postseasonStreamingRequirement !== "required"
+  ) {
+    return "fourth_down_regular";
+  }
 
   // Skip accelerated clock seconds question if accelerated clock is disabled
   if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return "salary_cap";
@@ -1028,7 +1035,7 @@ export function buildActivityRequirementsModal(draft: LeagueSetupDraft) {
           .setStyle(TextInputStyle.Paragraph)
           .setRequired(false)
           .setValue(draft.fairSimRequirements ?? "")
-          .setPlaceholder("e.g., Request a Fair Sim after 48 hours of no response.")
+          .setPlaceholder("Fair Sims are the default when users fail to schedule before advance.")
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
@@ -1037,7 +1044,7 @@ export function buildActivityRequirementsModal(draft: LeagueSetupDraft) {
           .setStyle(TextInputStyle.Paragraph)
           .setRequired(false)
           .setValue(draft.forceWinRequirements ?? "")
-          .setPlaceholder("e.g., Request a Force Win after 72 hours of no response.")
+          .setPlaceholder("Force Wins when one user misses an agreed game time by 1 hour.")
       )
     );
 }
@@ -1092,8 +1099,8 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
     ],
     rules: [
       option("Regular Season Streaming", "regular_season_streaming"),
-      option("Streaming Side (Who Must Stream)", "streaming_side"),
       option("Postseason Streaming", "postseason_streaming"),
+      option("Streaming Side (Who Must Stream)", "streaming_side"),
       option("4th Down Rules (Regular Season)", "fourth_down_regular"),
       option("4th Down Rules (Playoff)", "fourth_down_playoff"),
       option("Custom Coaches Required?", "custom_coaches_required"),
