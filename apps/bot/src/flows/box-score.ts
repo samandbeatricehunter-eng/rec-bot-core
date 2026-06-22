@@ -10,6 +10,7 @@ import {
   type ButtonInteraction,
   type Message,
   type ModalSubmitInteraction,
+  type TextChannel,
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
@@ -17,192 +18,316 @@ import { recApi } from "../lib/rec-api.js";
 // ─── Custom IDs ───────────────────────────────────────────────────────────────
 
 export const BOX_SCORE_CUSTOM_IDS = {
-  submitConfirmPrefix: "rec:box_score:submit_confirm:",  // + submissionId
+  submitConfirm: "rec:box_score:submit_confirm",
   cancel: "rec:box_score:cancel",
   inboxOpen: "rec:league_mgmt:box_score_inbox",
-  approvePrefix: "rec:box_score:approve:",              // + submissionId
-  denyModalPrefix: "rec:box_score:deny_modal:",         // + submissionId
+  approvePrefix: "rec:box_score:approve:",      // + submissionId
+  denyModalPrefix: "rec:box_score:deny_modal:", // + submissionId
   denyReasonInput: "rec:box_score:deny_reason",
   inboxBack: "rec:box_score:inbox_back",
 } as const;
 
-// ─── Pending upload store ─────────────────────────────────────────────────────
-// Keyed by `${userId}:${channelId}` — allows one pending upload per user per channel.
+// ─── Timing windows ────────────────────────────────────────────────────────────
 
-type PendingUpload = { guildId: string; channelId: string; userId: string; expiresAt: number };
-const pendingUploads = new Map<string, PendingUpload>();
+const SECOND_IMAGE_MS = 2 * 60 * 1000;   // wait for the 2nd screenshot
+const MISSING_FIELDS_MS = 5 * 60 * 1000; // wait for a re-upload with missing fields
+const REVIEW_MS = 5 * 60 * 1000;         // wait for the submitter to confirm
 
-export function registerPendingUpload(userId: string, channelId: string, guildId: string) {
-  const key = `${userId}:${channelId}`;
-  pendingUploads.set(key, { guildId, channelId, userId, expiresAt: Date.now() + 5 * 60 * 1000 });
-}
+// ─── Per-user exchange state (one active upload per user per guild) ────────────
 
-export function popPendingUpload(userId: string, channelId: string): PendingUpload | null {
-  const key = `${userId}:${channelId}`;
-  const pending = pendingUploads.get(key);
-  if (!pending) return null;
-  if (Date.now() > pending.expiresAt) { pendingUploads.delete(key); return null; }
-  pendingUploads.delete(key);
-  return pending;
-}
+type ExchangePhase = "awaiting_second" | "awaiting_missing" | "review";
 
-export function cleanupExpiredUploads() {
-  const now = Date.now();
-  for (const [key, val] of pendingUploads) {
-    if (now > val.expiresAt) pendingUploads.delete(key);
+type Exchange = {
+  guildId: string;
+  channel: TextChannel;
+  userId: string;
+  imageUrls: string[];
+  userMessageIds: string[];
+  botMessageIds: string[];
+  phase: ExchangePhase;
+  timer: NodeJS.Timeout | null;
+  expiresAt: number;
+  busy: boolean;
+};
+
+const exchanges = new Map<string, Exchange>();
+const exKey = (guildId: string, userId: string) => `${guildId}:${userId}`;
+
+// ─── Server route cache (box scores + pending payouts channels) ───────────────
+
+const routesCache = new Map<string, { routes: any; at: number }>();
+const ROUTES_TTL = 60_000;
+
+async function getGuildRoutes(guildId: string): Promise<any | null> {
+  const cached = routesCache.get(guildId);
+  if (cached && Date.now() - cached.at < ROUTES_TTL) return cached.routes;
+  try {
+    const cfg = await recApi.getEconomyConfig(guildId);
+    const routes = cfg?.routes ?? null;
+    routesCache.set(guildId, { routes, at: Date.now() });
+    return routes;
+  } catch {
+    routesCache.set(guildId, { routes: null, at: Date.now() });
+    return null;
   }
 }
 
-// ─── Box score button handler ─────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 
-export async function handleBoxScoreButton(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) {
-    return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
+function prettifyKey(k: string): string {
+  return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+async function deleteMessages(channel: TextChannel, ids: string[]) {
+  for (const id of ids) {
+    await channel.messages.delete(id).catch(() => undefined);
   }
-  registerPendingUpload(interaction.user.id, interaction.channelId, interaction.guildId);
-  return interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("Box Score Upload")
+}
+
+async function clearExchange(ex: Exchange, opts: { deleteUserImages: boolean }) {
+  if (ex.timer) clearTimeout(ex.timer);
+  exchanges.delete(exKey(ex.guildId, ex.userId));
+  await deleteMessages(ex.channel, ex.botMessageIds);
+  if (opts.deleteUserImages) await deleteMessages(ex.channel, ex.userMessageIds);
+}
+
+function scheduleTimeout(ex: Exchange, ms: number, onExpire: () => void) {
+  if (ex.timer) clearTimeout(ex.timer);
+  ex.expiresAt = Date.now() + ms;
+  ex.timer = setTimeout(onExpire, ms);
+  if (typeof ex.timer.unref === "function") ex.timer.unref();
+}
+
+async function dmUser(ex: Exchange, content: string) {
+  try {
+    const user = await ex.channel.client.users.fetch(ex.userId);
+    await user.send(content);
+  } catch {
+    /* DMs closed — nothing we can do */
+  }
+}
+
+async function onExchangeTimeout(ex: Exchange, dmReason: string) {
+  // Only act if this is still the active exchange for the user.
+  if (exchanges.get(exKey(ex.guildId, ex.userId)) !== ex) return;
+  await clearExchange(ex, { deleteUserImages: true });
+  await dmUser(ex, dmReason);
+}
+
+// ─── Channel listener (called from messageCreate) ─────────────────────────────
+
+export async function handleBoxScoreChannelMessage(message: Message): Promise<void> {
+  if (!message.inGuild() || message.author.bot) return;
+
+  const routes = await getGuildRoutes(message.guildId);
+  const boxChannelId: string | null = routes?.box_scores_channel_id ?? null;
+  if (!boxChannelId || message.channelId !== boxChannelId) return;
+  if (!message.channel.isTextBased() || message.channel.isDMBased()) return;
+  const channel = message.channel as TextChannel;
+
+  const images = [...message.attachments.values()]
+    .filter((a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""))
+    .map((a) => a.url);
+
+  // Ignore plain chatter — we only act on image uploads.
+  if (images.length === 0) return;
+
+  const key = exKey(message.guildId, message.author.id);
+  let ex = exchanges.get(key);
+  if (!ex) {
+    ex = {
+      guildId: message.guildId,
+      channel,
+      userId: message.author.id,
+      imageUrls: [],
+      userMessageIds: [],
+      botMessageIds: [],
+      phase: "awaiting_second",
+      timer: null,
+      expiresAt: 0,
+      busy: false,
+    };
+    exchanges.set(key, ex);
+  }
+
+  ex.channel = channel;
+  ex.imageUrls.push(...images);
+  ex.userMessageIds.push(message.id);
+
+  if (ex.busy) return; // a parse is already in flight; the new images are captured for next pass
+  ex.busy = true;
+  try {
+    await advanceExchange(ex);
+  } finally {
+    ex.busy = false;
+  }
+}
+
+async function advanceExchange(ex: Exchange) {
+  // Drop any prior bot prompt so only the latest guidance is visible.
+  if (ex.botMessageIds.length) {
+    await deleteMessages(ex.channel, ex.botMessageIds);
+    ex.botMessageIds = [];
+  }
+  if (ex.timer) { clearTimeout(ex.timer); ex.timer = null; }
+
+  // Need at least two screenshots.
+  if (ex.imageUrls.length < 2) {
+    ex.phase = "awaiting_second";
+    const msg = await ex.channel.send({
+      content: `<@${ex.userId}>`,
+      embeds: [new EmbedBuilder()
+        .setTitle("One more screenshot needed")
+        .setColor(0xf1c40f)
         .setDescription(
-          "Upload **both box score screenshots** in this channel now.\n\n" +
-          "• Take the first screenshot on the default **Box Score** tab\n" +
-          "• Scroll down and take the second screenshot to capture the remaining stats\n" +
-          "• Attach both images in a **single message**\n\n" +
-          "You have **5 minutes**. Type anything else or wait and the request will expire."
-        )
-        .setFooter({ text: "Only your next message with 2 images will be processed." }),
-    ],
-    flags: MessageFlags.Ephemeral,
+          "A box score needs **at least 2 screenshots** (the default **Box Score** tab + the scroll-down page with the remaining stats).\n\n" +
+          "Post the **second image** within **2 minutes** or this submission will be discarded."
+        )],
+    }).catch(() => null);
+    if (msg) ex.botMessageIds.push(msg.id);
+    scheduleTimeout(ex, SECOND_IMAGE_MS, () => {
+      void onExchangeTimeout(ex, "Your box score was discarded — a second screenshot wasn't posted within 2 minutes. Feel free to start over in the box scores channel.");
+    });
+    return;
+  }
+
+  // Parse (stateless — no DB write yet).
+  const working = await ex.channel.send({
+    embeds: [new EmbedBuilder().setTitle("Reading box score…").setDescription("Running OCR on your screenshots. This can take 15–30 seconds.")],
+  }).catch(() => null);
+  if (working) ex.botMessageIds.push(working.id);
+
+  let preview: any;
+  try {
+    preview = await recApi.parseBoxScore({ guildId: ex.guildId, discordId: ex.userId, imageUrls: ex.imageUrls });
+  } catch (err) {
+    await deleteMessages(ex.channel, ex.botMessageIds);
+    ex.botMessageIds = [];
+    await clearExchange(ex, { deleteUserImages: true });
+    await dmUser(ex, `Your box score couldn't be processed: ${err instanceof Error ? err.message : String(err)}. Please try again in the box scores channel.`);
+    return;
+  }
+
+  // Remove the "reading…" placeholder.
+  await deleteMessages(ex.channel, ex.botMessageIds);
+  ex.botMessageIds = [];
+
+  const missing: string[] = preview.missingRequired ?? [];
+  if (missing.length > 0) {
+    ex.phase = "awaiting_missing";
+    const msg = await ex.channel.send({
+      content: `<@${ex.userId}>`,
+      embeds: [new EmbedBuilder()
+        .setTitle("Missing required fields")
+        .setColor(0xf1c40f)
+        .setDescription(
+          `I couldn't read these required field(s):\n\n${missing.map((m) => `• **${m}**`).join("\n")}\n\n` +
+          "Post another screenshot that clearly shows them within **5 minutes**, or this submission will be discarded."
+        )],
+    }).catch(() => null);
+    if (msg) ex.botMessageIds.push(msg.id);
+    scheduleTimeout(ex, MISSING_FIELDS_MS, () => {
+      void onExchangeTimeout(ex, "Your box score was discarded — the missing fields weren't supplied within 5 minutes. Feel free to start over in the box scores channel.");
+    });
+    return;
+  }
+
+  // Complete — ask the submitter to confirm.
+  ex.phase = "review";
+  const confirmMsg = await ex.channel.send({
+    content: `<@${ex.userId}> here's what I read — confirm to send it to your commissioners for approval.`,
+    embeds: [buildPreviewEmbed(preview)],
+    components: buildConfirmRows(),
+  }).catch(() => null);
+  if (confirmMsg) ex.botMessageIds.push(confirmMsg.id);
+  scheduleTimeout(ex, REVIEW_MS, () => {
+    void onExchangeTimeout(ex, "Your box score confirmation timed out, so it was discarded. Feel free to start over in the box scores channel.");
   });
 }
 
-// ─── Message handler (called from messageCreate in index-timeout.ts) ──────────
-
-export async function handleBoxScoreMessage(message: Message) {
-  if (!message.inGuild()) return false;
-
-  const pending = popPendingUpload(message.author.id, message.channelId);
-  if (!pending) return false;
-
-  const images = message.attachments
-    .filter((a) => a.contentType?.startsWith("image/") ?? false)
-    .map((a) => a.url);
-
-  if (images.length < 2) {
-    await message.reply({
-      content: "I need **2 screenshots** (Box Score page 1 + page 2). Please click 'Box Score & Scoring Summary' again and attach both images at once.",
-    }).catch(() => undefined);
-    return true;
-  }
-
-  // Send a "processing" reply first
-  const processingMsg = await message.reply({
-    embeds: [new EmbedBuilder().setTitle("Parsing Box Score...").setDescription("Running OCR on your screenshots. This may take 15–30 seconds.")],
-  }).catch(() => null);
-
-  try {
-    const result = await recApi.parseBoxScore({
-      guildId: pending.guildId,
-      discordId: message.author.id,
-      imageUrl1: images[0],
-      imageUrl2: images[1],
-      discordChannelId: message.channelId,
-      discordMessageId: message.id,
-    });
-
-    const embed = buildParsedResultEmbed(result);
-    const rows = buildConfirmRows(result.submissionId);
-
-    if (processingMsg) {
-      await processingMsg.edit({ embeds: [embed], components: rows });
-    } else {
-      await message.reply({ embeds: [embed], components: rows });
-    }
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    const failEmbed = new EmbedBuilder()
-      .setTitle("Parse Failed")
-      .setColor(0xe74c3c)
-      .setDescription(`Could not parse your box score screenshots.\n\n\`${errMsg}\`\n\nPlease try again or contact your commissioner.`);
-    if (processingMsg) {
-      await processingMsg.edit({ embeds: [failEmbed], components: [] });
-    } else {
-      await message.reply({ embeds: [failEmbed] });
+// Safety-net sweep for exchanges whose timer was lost (called on an interval).
+export function sweepBoxScoreExchanges() {
+  const now = Date.now();
+  for (const ex of [...exchanges.values()]) {
+    if (ex.expiresAt && now > ex.expiresAt + 10_000) {
+      void clearExchange(ex, { deleteUserImages: true });
     }
   }
-
-  return true;
 }
 
-// ─── Confirm / cancel buttons ─────────────────────────────────────────────────
+// ─── Confirm / cancel (in the box scores channel) ─────────────────────────────
 
 export async function handleBoxScoreSubmitConfirm(interaction: ButtonInteraction) {
-  const submissionId = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.submitConfirmPrefix.length);
+  if (!interaction.inCachedGuild()) {
+    return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  }
+  const key = exKey(interaction.guildId, interaction.user.id);
+  const ex = exchanges.get(key);
+  if (!ex || ex.phase !== "review") {
+    return interaction.reply({
+      content: "This box score submission is no longer active. Please re-post your screenshots in the box scores channel.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
 
   await interaction.deferUpdate();
+  if (ex.timer) { clearTimeout(ex.timer); ex.timer = null; }
+
+  let result: any;
   try {
-    await recApi.submitBoxScore({ submissionId, discordId: interaction.user.id });
-    return interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Box Score Submitted")
-          .setColor(0x2ecc71)
-          .setDescription("Your box score has been submitted for commissioner review. You and your opponent will be paid once it's approved."),
-      ],
-      components: [],
+    result = await recApi.submitBoxScore({
+      guildId: ex.guildId,
+      discordId: ex.userId,
+      imageUrls: ex.imageUrls,
+      discordChannelId: ex.channel.id,
+      discordMessageId: ex.userMessageIds[0] ?? null,
     });
   } catch (err) {
     return interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Submission Failed")
-          .setColor(0xe74c3c)
-          .setDescription(`Could not submit: ${err instanceof Error ? err.message : String(err)}`),
-      ],
+      content: "",
+      embeds: [new EmbedBuilder().setTitle("Submission failed").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
       components: [],
     });
   }
-}
 
-export async function handleBoxScoreCancel(interaction: ButtonInteraction) {
-  return interaction.update({
-    embeds: [new EmbedBuilder().setTitle("Cancelled").setDescription("Box score submission cancelled.")],
+  // Post the approve/deny embed into the Pending Payouts channel.
+  const routes = await getGuildRoutes(ex.guildId);
+  const payoutsChannelId: string | null = routes?.pending_payouts_channel_id ?? null;
+  let posted = false;
+  if (payoutsChannelId) {
+    try {
+      const ch = await interaction.client.channels.fetch(payoutsChannelId);
+      if (ch && ch.isTextBased() && !ch.isDMBased()) {
+        await (ch as TextChannel).send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
+        posted = true;
+      }
+    } catch {
+      /* couldn't post to payouts channel — fall through to inbox-only note */
+    }
+  }
+
+  exchanges.delete(key);
+
+  return interaction.editReply({
+    content: "",
+    embeds: [new EmbedBuilder()
+      .setTitle("Submitted for approval ✅")
+      .setColor(0x2ecc71)
+      .setDescription(posted
+        ? "Sent to your commissioners for approval. You and your opponent will be paid once it's approved."
+        : "Submitted for review. No Pending Payouts channel is configured, so commissioners can review it from **League Mgmt → Box Score Inbox**.")],
     components: [],
   });
 }
 
-// ─── Commissioner inbox ───────────────────────────────────────────────────────
-
-export async function handleBoxScoreInbox(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only commissioners can access the box score inbox.", flags: MessageFlags.Ephemeral });
-  }
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-
-  await interaction.deferUpdate();
-  try {
-    const { submissions } = await recApi.listPendingBoxScores(interaction.guildId);
-
-    if (submissions.length === 0) {
-      return interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Box Score Inbox").setDescription("No pending box score submissions.")],
-        components: [buildInboxBackRow()],
-      });
-    }
-
-    const first = submissions[0];
-    const embed = buildInboxItemEmbed(first, submissions.length);
-    const rows = buildReviewRows(first.id, submissions.length > 1);
-
-    return interaction.editReply({ embeds: [embed], components: rows });
-  } catch (err) {
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Error").setDescription(err instanceof Error ? err.message : String(err))],
-      components: [buildInboxBackRow()],
-    });
-  }
+export async function handleBoxScoreCancel(interaction: ButtonInteraction) {
+  await interaction.deferUpdate().catch(() => undefined);
+  if (!interaction.inCachedGuild()) return;
+  const ex = exchanges.get(exKey(interaction.guildId, interaction.user.id));
+  if (ex) await clearExchange(ex, { deleteUserImages: true });
 }
+
+// ─── Commissioner review (on the Pending Payouts embed or the pull inbox) ──────
 
 export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
@@ -213,19 +338,14 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   try {
     const result = await recApi.reviewBoxScore({ submissionId, action: "approve", reviewedByDiscordId: interaction.user.id });
-    return interaction.editReply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Box Score Approved")
-          .setColor(0x2ecc71)
-          .setDescription(`Game result recorded. $${result.payoutAmount} paid to ${result.playersPayd} player(s).`),
-      ],
-      components: [buildInboxBackRow()],
-    });
+    const base = interaction.message.embeds[0];
+    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0x2ecc71);
+    embed.addFields({ name: "STATUS", value: `✅ Approved by <@${interaction.user.id}> — $${result.payoutAmount} paid to ${result.playersPayd} player(s).` });
+    return interaction.editReply({ embeds: [embed], components: [] });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Error").setDescription(err instanceof Error ? err.message : String(err))],
-      components: [buildInboxBackRow()],
+      embeds: [new EmbedBuilder().setTitle("Error").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: [],
     });
   }
 }
@@ -260,9 +380,66 @@ export async function handleBoxScoreDenySubmit(interaction: ModalSubmitInteracti
   await interaction.deferUpdate();
   try {
     await recApi.reviewBoxScore({ submissionId, action: "deny", reviewedByDiscordId: interaction.user.id, deniedReason: reason });
+    const base = interaction.message?.embeds?.[0];
+    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0xe74c3c);
+    embed.addFields({ name: "STATUS", value: `⛔ Denied by <@${interaction.user.id}>${reason ? ` — ${reason}` : ""}.` });
+    return interaction.editReply({ embeds: [embed], components: [] });
+  } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Box Score Denied").setColor(0xe74c3c).setDescription("Submission has been denied.")],
-      components: [buildInboxBackRow()],
+      embeds: [new EmbedBuilder().setTitle("Error").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: [],
+    });
+  }
+}
+
+// ─── /menu button → point the user at the box scores channel ──────────────────
+
+export async function handleBoxScoreButton(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) {
+    return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
+  }
+  const routes = await getGuildRoutes(interaction.guildId);
+  const boxChannelId: string | null = routes?.box_scores_channel_id ?? null;
+  const where = boxChannelId ? `<#${boxChannelId}>` : "the designated **Box Scores** channel";
+
+  return interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setTitle("Upload Box Score")
+      .setColor(0x3498db)
+      .setDescription(
+        `Post your **two box score screenshots** in ${where}.\n\n` +
+        "• Screenshot 1 — the default **Box Score** tab\n" +
+        "• Screenshot 2 — scroll down to capture the remaining stats\n\n" +
+        "The bot reads them automatically and walks you through confirming before it goes to your commissioners." +
+        (boxChannelId ? "" : "\n\n*No Box Scores channel is configured yet — an admin can set one in Server Setup.*")
+      )],
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+// ─── Commissioner pull inbox (League Mgmt → Box Score Inbox) ──────────────────
+
+export async function handleBoxScoreInbox(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can access the box score inbox.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+
+  await interaction.deferUpdate();
+  try {
+    const { submissions } = await recApi.listPendingBoxScores(interaction.guildId);
+
+    if (submissions.length === 0) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Box Score Inbox").setDescription("No pending box score submissions.")],
+        components: [buildInboxBackRow()],
+      });
+    }
+
+    const first = submissions[0];
+    return interaction.editReply({
+      embeds: [buildInboxItemEmbed(first, submissions.length)],
+      components: buildInboxReviewRows(first.id),
     });
   } catch (err) {
     return interaction.editReply({
@@ -274,62 +451,59 @@ export async function handleBoxScoreDenySubmit(interaction: ModalSubmitInteracti
 
 // ─── Embed builders ───────────────────────────────────────────────────────────
 
-function buildParsedResultEmbed(result: Awaited<ReturnType<typeof recApi.parseBoxScore>>) {
-  const { parsed, team1Name, team2Name, gameMatched } = result;
-  const score = parsed.score;
+function statLines(stats: Record<string, { team1: string; team2: string } | null> | null | undefined, limit: number): string {
+  if (!stats) return "*No stats parsed*";
+  const lines = Object.entries(stats)
+    .filter(([, v]) => v && ((v.team1 ?? "").trim() || (v.team2 ?? "").trim()))
+    .slice(0, limit)
+    .map(([k, v]) => `${prettifyKey(k)}: **${v?.team1 || "?"}** / **${v?.team2 || "?"}**`);
+  return lines.length ? lines.join("\n") : "*No stats parsed*";
+}
 
+function buildPreviewEmbed(preview: any): EmbedBuilder {
+  const score = preview?.parsed?.score;
   const scoreText = score
-    ? [
-        `**${score.team1Abbr}** (${team1Name ?? "Unknown"})  **${score.team1Score}**`,
-        `**${score.team2Abbr}** (${team2Name ?? "Unknown"})  **${score.team2Score}**`,
-        score.team1Quarters.length > 0
-          ? `Qtrs: ${score.team1Quarters.join(" | ")} — ${score.team2Quarters.join(" | ")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n")
-    : "*Score could not be parsed*";
-
-  const statEntries = Object.entries(parsed.stats as Record<string, { team1: string; team2: string }>);
-  const statsText = statEntries.length > 0
-    ? statEntries
-        .map(([key, vals]) => {
-          const label = key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          return `${label}: **${vals?.team1 || "?"}** / **${vals?.team2 || "?"}**`;
-        })
-        .join("\n")
-    : "*No stats parsed*";
-
-  const warnings = parsed.warnings.length > 0
-    ? `⚠️ ${parsed.warnings.slice(0, 3).join("\n⚠️ ")}`
-    : null;
+    ? `**${score.team1Abbr}** ${score.team1Score} – ${score.team2Score} **${score.team2Abbr}**` +
+      (score.team1Quarters?.length ? `\nQtrs: ${score.team1Quarters.join(" | ")} — ${score.team2Quarters.join(" | ")}` : "")
+    : "*Score not parsed*";
 
   const embed = new EmbedBuilder()
-    .setTitle("Box Score Parsed — Review & Submit")
+    .setTitle("Box Score Parsed — Confirm to Submit")
+    .setColor(0x3498db)
     .addFields(
       { name: "SCORE", value: scoreText.slice(0, 1024), inline: false },
-      { name: "TEAM STATS  (Team 1 / Team 2)", value: statsText.slice(0, 1024), inline: false }
+      { name: `TEAM STATS  (${preview?.team1Name ?? "Team 1"} / ${preview?.team2Name ?? "Team 2"})`, value: statLines(preview?.parsed?.stats, 14).slice(0, 1024), inline: false },
     );
-
-  if (!gameMatched) embed.addFields({ name: "⚠️ NOTICE", value: "Game could not be auto-matched to the current week's schedule. The commissioner can still approve.", inline: false });
-  if (warnings) embed.addFields({ name: "PARSE WARNINGS", value: warnings.slice(0, 1024), inline: false });
-  embed.setFooter({ text: "Review the data above. If it looks correct, click Submit for Review." });
-
+  if (!preview?.gameMatched) {
+    embed.addFields({ name: "⚠️ NOTICE", value: "Couldn't auto-match this to a scheduled game — a commissioner can still approve it.", inline: false });
+  }
+  embed.setFooter({ text: "If this looks right, click Confirm & Submit. Otherwise Cancel and re-post clearer screenshots." });
   return embed;
 }
 
-function buildInboxItemEmbed(sub: any, totalPending: number) {
-  const stats = sub.team_stats as Record<string, { team1: string; team2: string } | null> | null;
-  const statText = stats
-    ? Object.entries(stats)
-        .slice(0, 10)
-        .map(([k, v]) => {
-          const label = k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-          return `${label}: **${v?.team1 || "?"}** / **${v?.team2 || "?"}**`;
-        })
-        .join("\n")
-    : "*No stat data*";
+function buildPayoutReviewEmbed(result: any): EmbedBuilder {
+  const q = result?.quarterScores;
+  const qText = q
+    ? `${result.team1Abbr ?? "T1"}: ${(q.team1 ?? []).join(" | ")}\n${result.team2Abbr ?? "T2"}: ${(q.team2 ?? []).join(" | ")}`
+    : "*Not available*";
 
+  const embed = new EmbedBuilder()
+    .setTitle("Box Score — Pending Approval")
+    .setColor(0x3498db)
+    .addFields(
+      { name: "GAME", value: `**${result.team1Abbr ?? "?"}** ${result.team1Score ?? "?"} – ${result.team2Score ?? "?"} **${result.team2Abbr ?? "?"}** — Week ${result.weekNumber ?? "?"}`, inline: false },
+      { name: "QUARTER SCORES", value: qText.slice(0, 512), inline: false },
+      { name: "TEAM STATS  (T1 / T2)", value: statLines(result?.stats, 12).slice(0, 1024), inline: false },
+      { name: "SUBMITTED BY", value: `<@${result.submittedByDiscordId}>`, inline: true },
+    );
+  if (!result?.gameMatched) {
+    embed.addFields({ name: "⚠️ NOTICE", value: "Could not auto-match to a scheduled game. You can still approve.", inline: false });
+  }
+  embed.setFooter({ text: `Submission ${result.submissionId}` });
+  return embed;
+}
+
+function buildInboxItemEmbed(sub: any, totalPending: number): EmbedBuilder {
   const quarterScores = sub.quarter_scores as { team1: number[]; team2: number[] } | null;
   const quarterText = quarterScores
     ? `${sub.team1_abbr ?? "T1"}: ${quarterScores.team1.join(" | ")}\n${sub.team2_abbr ?? "T2"}: ${quarterScores.team2.join(" | ")}`
@@ -340,7 +514,7 @@ function buildInboxItemEmbed(sub: any, totalPending: number) {
     .addFields(
       { name: "GAME", value: `**${sub.team1_abbr ?? "?"}** ${sub.home_score ?? "?"} – ${sub.away_score ?? "?"} **${sub.team2_abbr ?? "?"}** — Week ${sub.week_number ?? "?"}`, inline: false },
       { name: "QUARTER SCORES", value: quarterText.slice(0, 512), inline: false },
-      { name: "KEY STATS  (T1 / T2)", value: statText.slice(0, 1024), inline: false },
+      { name: "KEY STATS  (T1 / T2)", value: statLines(sub.team_stats, 10).slice(0, 1024), inline: false },
       { name: "SUBMITTED BY", value: `<@${sub.submitted_by_discord_id}>`, inline: true },
     )
     .setFooter({ text: `ID: ${sub.id}` });
@@ -348,44 +522,36 @@ function buildInboxItemEmbed(sub: any, totalPending: number) {
 
 // ─── Component builders ───────────────────────────────────────────────────────
 
-function buildConfirmRows(submissionId: string) {
+function buildConfirmRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`${BOX_SCORE_CUSTOM_IDS.submitConfirmPrefix}${submissionId}`)
-        .setLabel("Submit for Review")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(BOX_SCORE_CUSTOM_IDS.cancel)
-        .setLabel("Cancel")
-        .setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.submitConfirm).setLabel("Confirm & Submit").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.cancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
     ),
   ];
 }
 
-function buildReviewRows(submissionId: string, hasMore: boolean) {
-  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${BOX_SCORE_CUSTOM_IDS.approvePrefix}${submissionId}`)
-      .setLabel("Approve")
-      .setStyle(ButtonStyle.Success),
-    new ButtonBuilder()
-      .setCustomId(`${BOX_SCORE_CUSTOM_IDS.denyModalPrefix}${submissionId}`)
-      .setLabel("Deny")
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack)
-      .setLabel("Back to League Mgmt")
-      .setStyle(ButtonStyle.Secondary)
-  );
-  return [row];
+function buildPayoutReviewRows(submissionId: string) {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.approvePrefix}${submissionId}`).setLabel("Approve").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.denyModalPrefix}${submissionId}`).setLabel("Deny").setStyle(ButtonStyle.Danger),
+    ),
+  ];
+}
+
+function buildInboxReviewRows(submissionId: string) {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.approvePrefix}${submissionId}`).setLabel("Approve").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.denyModalPrefix}${submissionId}`).setLabel("Deny").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary),
+    ),
+  ];
 }
 
 function buildInboxBackRow() {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack)
-      .setLabel("Back to League Mgmt")
-      .setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary)
   );
 }

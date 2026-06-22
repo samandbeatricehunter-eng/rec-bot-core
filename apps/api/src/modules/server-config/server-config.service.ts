@@ -7,6 +7,7 @@ type SetServerConfigInput = {
   pendingEconomyChannelId?: string | null;
   pendingPayoutsChannelId?: string | null;
   pendingPurchasesChannelId?: string | null;
+  boxScoresChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   commissionerOfficeChannelId?: string | null;
   streamsChannelId?: string | null;
@@ -37,6 +38,7 @@ export async function setServerConfig(input: SetServerConfigInput) {
     pending_economy_channel_id: input.pendingEconomyChannelId,
     pending_payouts_channel_id: input.pendingPayoutsChannelId,
     pending_purchases_channel_id: input.pendingPurchasesChannelId,
+    box_scores_channel_id: input.boxScoresChannelId,
     game_channels_category_id: input.gameChannelsCategoryId,
     commissioner_office_channel_id: input.commissionerOfficeChannelId,
     streams_channel_id: input.streamsChannelId,

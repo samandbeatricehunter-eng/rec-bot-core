@@ -120,6 +120,7 @@ export const recApi = {
     pendingEconomyChannelId?: string;
     pendingPayoutsChannelId?: string;
     pendingPurchasesChannelId?: string;
+    boxScoresChannelId?: string;
     gameChannelsCategoryId?: string;
     commissionerOfficeChannelId?: string;
     streamsChannelId?: string;
@@ -189,14 +190,17 @@ export const recApi = {
   parseBoxScore: (input: {
     guildId: string;
     discordId: string;
-    imageUrl1: string;
-    imageUrl2: string;
-    discordChannelId?: string | null;
-    discordMessageId?: string | null;
+    imageUrls: string[];
   }) =>
     recFetch<any>("/v1/box-score/parse", { method: "POST", body: JSON.stringify(input) }),
 
-  submitBoxScore: (input: { submissionId: string; discordId: string }) =>
+  submitBoxScore: (input: {
+    guildId: string;
+    discordId: string;
+    imageUrls: string[];
+    discordChannelId?: string | null;
+    discordMessageId?: string | null;
+  }) =>
     recFetch<any>("/v1/box-score/submit", { method: "POST", body: JSON.stringify(input) }),
 
   reviewBoxScore: (input: {

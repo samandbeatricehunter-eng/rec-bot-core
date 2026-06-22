@@ -126,26 +126,126 @@ async function getDiscordAccount(discordId: string) {
   return data;
 }
 
-// ─── Parse + draft ───────────────────────────────────────────────────────────
+// ─── Shared game/team resolution from a parsed box score ───────────────────────
 
-export type ParseAndDraftInput = {
-  guildId: string;
-  discordId: string;
-  discordChannelId?: string | null;
-  discordMessageId?: string | null;
-  imageUrl1: string;
-  imageUrl2: string;
+type ResolvedGame = {
+  team1Name: string | null;
+  team2Name: string | null;
+  team1Id: string | null;
+  team2Id: string | null;
+  gameId: string | null;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  homeUserId: string | null;
+  awayUserId: string | null;
+  homeScore: number | null;
+  awayScore: number | null;
 };
 
-export type ParseAndDraftResult = {
-  submissionId: string;
+async function resolveGameContext(
+  leagueId: string,
+  seasonNumber: number,
+  weekNumber: number,
+  parsed: ParsedBoxScore,
+): Promise<ResolvedGame> {
+  const empty: ResolvedGame = {
+    team1Name: null, team2Name: null, team1Id: null, team2Id: null, gameId: null,
+    homeTeamId: null, awayTeamId: null, homeUserId: null, awayUserId: null, homeScore: null, awayScore: null,
+  };
+  if (!parsed.score) return empty;
+
+  const { team1, team2 } = await resolveTeams(leagueId, parsed.score.team1Abbr, parsed.score.team2Abbr);
+  const out: ResolvedGame = {
+    ...empty,
+    team1Name: team1?.name ?? null,
+    team2Name: team2?.name ?? null,
+    team1Id: team1?.id ?? null,
+    team2Id: team2?.id ?? null,
+  };
+  if (!team1 || !team2) return out;
+
+  const game = await resolveGame(leagueId, team1.id, team2.id, seasonNumber, weekNumber);
+  if (!game) return out;
+
+  out.gameId = game.id;
+  if (game.home_team_id === team1.id) {
+    out.homeTeamId = team1.id;
+    out.awayTeamId = team2.id;
+    out.homeUserId = game.home_user_id ?? null;
+    out.awayUserId = game.away_user_id ?? null;
+    out.homeScore = parsed.score.team1Score;
+    out.awayScore = parsed.score.team2Score;
+  } else {
+    out.homeTeamId = team2.id;
+    out.awayTeamId = team1.id;
+    out.homeUserId = game.home_user_id ?? null;
+    out.awayUserId = game.away_user_id ?? null;
+    out.homeScore = parsed.score.team2Score;
+    out.awayScore = parsed.score.team1Score;
+  }
+  return out;
+}
+
+// ─── Parse preview (stateless — no DB write) ───────────────────────────────────
+
+export type PreviewInput = { guildId: string; discordId: string; imageUrls: string[] };
+export type PreviewResult = {
   parsed: ParsedBoxScore;
+  missingRequired: string[];
+  complete: boolean;
   team1Name: string | null;
   team2Name: string | null;
   gameMatched: boolean;
 };
 
-export async function parseAndDraftSubmission(input: ParseAndDraftInput): Promise<ParseAndDraftResult> {
+export async function parseBoxScorePreview(input: PreviewInput): Promise<PreviewResult> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  await getDiscordAccount(input.discordId);
+  const seasonNumber = Number(context.rec_leagues.season_number ?? 1);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+
+  const parsed = await parseBoxScoreImages(input.imageUrls);
+  const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed);
+
+  return {
+    parsed,
+    missingRequired: parsed.missingRequired,
+    complete: parsed.missingRequired.length === 0,
+    team1Name: resolved.team1Name,
+    team2Name: resolved.team2Name,
+    gameMatched: !!resolved.gameId,
+  };
+}
+
+// ─── Create submission (persists as pending + commissioner inbox) ──────────────
+
+export type CreateSubmissionInput = {
+  guildId: string;
+  discordId: string;
+  imageUrls: string[];
+  discordChannelId?: string | null;
+  discordMessageId?: string | null;
+};
+
+export type CreateSubmissionResult = {
+  submissionId: string;
+  team1Abbr: string | null;
+  team2Abbr: string | null;
+  team1Name: string | null;
+  team2Name: string | null;
+  team1Score: number | null;
+  team2Score: number | null;
+  homeScore: number | null;
+  awayScore: number | null;
+  weekNumber: number;
+  gameMatched: boolean;
+  warnings: string[];
+  stats: Record<string, { team1: string; team2: string }>;
+  quarterScores: { team1: number[]; team2: number[] } | null;
+  submittedByDiscordId: string;
+};
+
+export async function createBoxScoreSubmission(input: CreateSubmissionInput): Promise<CreateSubmissionResult> {
   const context = await getCurrentLeagueContext(input.guildId);
   const account = await getDiscordAccount(input.discordId);
   const leagueId = context.leagueId;
@@ -153,61 +253,16 @@ export async function parseAndDraftSubmission(input: ParseAndDraftInput): Promis
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const phase = context.rec_leagues.season_stage ?? null;
 
-  // Run OCR parsing
-  const parsed = await parseBoxScoreImages(input.imageUrl1, input.imageUrl2);
+  const parsed = await parseBoxScoreImages(input.imageUrls);
+  const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed);
 
-  // Try to resolve teams and game
-  let homeTeamId: string | null = null;
-  let awayTeamId: string | null = null;
-  let homeUserId: string | null = null;
-  let awayUserId: string | null = null;
-  let gameId: string | null = null;
-  let team1Name: string | null = null;
-  let team2Name: string | null = null;
-  let team1Id: string | null = null;
-  let team2Id: string | null = null;
-  let homeScore: number | null = null;
-  let awayScore: number | null = null;
-
-  if (parsed.score) {
-    const { team1, team2 } = await resolveTeams(leagueId, parsed.score.team1Abbr, parsed.score.team2Abbr);
-    team1Name = team1?.name ?? null;
-    team2Name = team2?.name ?? null;
-    team1Id = team1?.id ?? null;
-    team2Id = team2?.id ?? null;
-
-    if (team1 && team2) {
-      const game = await resolveGame(leagueId, team1.id, team2.id, seasonNumber, weekNumber);
-      if (game) {
-        gameId = game.id;
-        if (game.home_team_id === team1.id) {
-          homeTeamId = team1.id;
-          awayTeamId = team2.id;
-          homeUserId = game.home_user_id ?? null;
-          awayUserId = game.away_user_id ?? null;
-          homeScore = parsed.score.team1Score;
-          awayScore = parsed.score.team2Score;
-        } else {
-          homeTeamId = team2.id;
-          awayTeamId = team1.id;
-          homeUserId = game.home_user_id ?? null;
-          awayUserId = game.away_user_id ?? null;
-          homeScore = parsed.score.team2Score;
-          awayScore = parsed.score.team1Score;
-        }
-      }
-    }
-  }
-
-  // Compute comeback stats from quarter scores (uses team1/team2 orientation from OCR)
   const comeback = parsed.score
-    ? computeComebackStats(
-        parsed.score.team1Quarters,
-        parsed.score.team2Quarters,
-        team1Id,
-        team2Id,
-      )
+    ? computeComebackStats(parsed.score.team1Quarters, parsed.score.team2Quarters, resolved.team1Id, resolved.team2Id)
     : { comebackDeficit: null, comebackDeficitQuarter: null, comebackRate: null, comebackWinnerTeamId: null, fourthQuarterComeback: false };
+
+  const quarterScores = parsed.score
+    ? { team1: parsed.score.team1Quarters, team2: parsed.score.team2Quarters }
+    : null;
 
   const { data: submission, error } = await supabase
     .from("rec_box_score_submissions")
@@ -221,93 +276,75 @@ export async function parseAndDraftSubmission(input: ParseAndDraftInput): Promis
       discord_guild_id: input.guildId,
       discord_channel_id: input.discordChannelId ?? null,
       discord_message_id: input.discordMessageId ?? null,
-      image_urls: [input.imageUrl1, input.imageUrl2],
+      image_urls: input.imageUrls,
       team1_abbr: parsed.score?.team1Abbr ?? null,
       team2_abbr: parsed.score?.team2Abbr ?? null,
-      home_team_id: homeTeamId,
-      away_team_id: awayTeamId,
-      home_user_id: homeUserId,
-      away_user_id: awayUserId,
-      home_score: homeScore,
-      away_score: awayScore,
-      quarter_scores: parsed.score
-        ? { team1: parsed.score.team1Quarters, team2: parsed.score.team2Quarters }
-        : null,
+      home_team_id: resolved.homeTeamId,
+      away_team_id: resolved.awayTeamId,
+      home_user_id: resolved.homeUserId,
+      away_user_id: resolved.awayUserId,
+      home_score: resolved.homeScore,
+      away_score: resolved.awayScore,
+      quarter_scores: quarterScores,
       team_stats: parsed.stats,
-      game_id: gameId,
+      game_id: resolved.gameId,
       parse_warnings: parsed.warnings,
       comeback_deficit: comeback.comebackDeficit,
       comeback_deficit_quarter: comeback.comebackDeficitQuarter,
       comeback_rate: comeback.comebackRate,
       comeback_winner_team_id: comeback.comebackWinnerTeamId,
       fourth_quarter_comeback: comeback.fourthQuarterComeback,
-      status: "draft",
+      status: "pending",
     })
     .select("id")
     .single();
 
-  if (error || !submission) throw new ApiError(500, "Failed to save draft submission.", error);
+  if (error || !submission) throw new ApiError(500, "Failed to save box score submission.", error);
 
-  return {
-    submissionId: submission.id,
-    parsed,
-    team1Name,
-    team2Name,
-    gameMatched: !!gameId,
-  };
-}
-
-// ─── Submit for review ────────────────────────────────────────────────────────
-
-export async function submitBoxScoreForReview(input: { submissionId: string; discordId: string }) {
-  const { data: sub, error: fetchErr } = await supabase
-    .from("rec_box_score_submissions")
-    .select("*")
-    .eq("id", input.submissionId)
-    .eq("submitted_by_discord_id", input.discordId)
-    .eq("status", "draft")
-    .maybeSingle();
-
-  if (fetchErr) throw new ApiError(500, "Failed to load submission.", fetchErr);
-  if (!sub) throw new ApiError(404, "Draft submission not found or already submitted.");
-
-  // Move to pending
-  const { error: updateErr } = await supabase
-    .from("rec_box_score_submissions")
-    .update({ status: "pending", updated_at: new Date().toISOString() })
-    .eq("id", input.submissionId);
-  if (updateErr) throw new ApiError(500, "Failed to submit for review.", updateErr);
-
-  // Create commissioners inbox entry
-  const header = sub.home_team_id
-    ? `Box Score: ${sub.team1_abbr ?? "?"} vs ${sub.team2_abbr ?? "?"} — Wk ${sub.week_number}`
-    : `Box Score: ${sub.team1_abbr ?? "?"} vs ${sub.team2_abbr ?? "?"} — Wk ${sub.week_number} (unmatched)`;
+  const matchSuffix = resolved.homeTeamId ? "" : " (unmatched)";
+  const header = `Box Score: ${parsed.score?.team1Abbr ?? "?"} vs ${parsed.score?.team2Abbr ?? "?"} — Wk ${weekNumber}${matchSuffix}`;
 
   await supabase.from("rec_commissioners_inbox").insert({
-    guild_id: sub.discord_guild_id,
+    guild_id: input.guildId,
     server_id: null,
-    league_id: sub.league_id,
-    season_number: sub.season_number,
-    week_number: sub.week_number,
+    league_id: leagueId,
+    season_number: seasonNumber,
+    week_number: weekNumber,
     queue_type: "box_score",
     status: "pending",
     priority: 0,
     header,
-    summary: `${sub.home_score ?? "?"} – ${sub.away_score ?? "?"} final score. Submitted by <@${sub.submitted_by_discord_id}>.`,
-    requester_discord_id: sub.submitted_by_discord_id,
-    requester_user_id: sub.submitted_by_user_id,
+    summary: `${resolved.homeScore ?? "?"} – ${resolved.awayScore ?? "?"} final score. Submitted by <@${input.discordId}>.`,
+    requester_discord_id: input.discordId,
+    requester_user_id: account.user_id,
     source_table: "rec_box_score_submissions",
-    source_id: sub.id,
+    source_id: submission.id,
     payload: {
-      submissionId: sub.id,
-      team1Abbr: sub.team1_abbr,
-      team2Abbr: sub.team2_abbr,
-      homeScore: sub.home_score,
-      awayScore: sub.away_score,
+      submissionId: submission.id,
+      team1Abbr: parsed.score?.team1Abbr ?? null,
+      team2Abbr: parsed.score?.team2Abbr ?? null,
+      homeScore: resolved.homeScore,
+      awayScore: resolved.awayScore,
     },
   });
 
-  return { ok: true };
+  return {
+    submissionId: submission.id,
+    team1Abbr: parsed.score?.team1Abbr ?? null,
+    team2Abbr: parsed.score?.team2Abbr ?? null,
+    team1Name: resolved.team1Name,
+    team2Name: resolved.team2Name,
+    team1Score: parsed.score?.team1Score ?? null,
+    team2Score: parsed.score?.team2Score ?? null,
+    homeScore: resolved.homeScore,
+    awayScore: resolved.awayScore,
+    weekNumber,
+    gameMatched: !!resolved.gameId,
+    warnings: parsed.warnings,
+    stats: parsed.stats,
+    quarterScores,
+    submittedByDiscordId: input.discordId,
+  };
 }
 
 // ─── Commissioner review ──────────────────────────────────────────────────────

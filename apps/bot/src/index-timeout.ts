@@ -63,15 +63,15 @@ import {
 import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import {
   BOX_SCORE_CUSTOM_IDS,
-  cleanupExpiredUploads,
   handleBoxScoreApprove,
   handleBoxScoreButton,
   handleBoxScoreCancel,
+  handleBoxScoreChannelMessage,
   handleBoxScoreDenyModal,
   handleBoxScoreDenySubmit,
   handleBoxScoreInbox,
-  handleBoxScoreMessage,
   handleBoxScoreSubmitConfirm,
+  sweepBoxScoreExchanges,
 } from "./flows/box-score.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
@@ -82,7 +82,7 @@ const serverSetupChannelSessions = new Map<string, string>();
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
-  cleanupExpiredUploads();
+  sweepBoxScoreExchanges();
 }, 60_000).unref();
 
 const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please reopen /menu to proceed.";
@@ -287,7 +287,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.cancel) return handleBoxScoreCancel(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxOpen) return handleBoxScoreInbox(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return renderAdminPanelFromComponent(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.submitConfirmPrefix)) return handleBoxScoreSubmitConfirm(interaction);
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submitConfirm) return handleBoxScoreSubmitConfirm(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
@@ -327,7 +327,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-  await handleBoxScoreMessage(message).catch(() => undefined);
+  await handleBoxScoreChannelMessage(message).catch(() => undefined);
 });
 
 async function buildMainMenuPayload(userId: string, guildId: string | null, isAdmin: boolean) {
@@ -567,6 +567,7 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
       highlights: "highlightsChannelId",
       pending_payouts: "pendingPayoutsChannelId",
       pending_purchases: "pendingPurchasesChannelId",
+      box_scores: "boxScoresChannelId",
       game_channels_category: "gameChannelsCategoryId"
     };
 

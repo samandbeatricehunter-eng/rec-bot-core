@@ -182,7 +182,7 @@ export function buildLeagueMenuRows(_isAdmin: boolean, isLinkedToTeam = true) {
   );
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.stream).setLabel("Stream").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadBoxScore).setLabel("Box Score & Scoring Summary").setStyle(ButtonStyle.Primary)
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.uploadBoxScore).setLabel("Upload Box Score").setStyle(ButtonStyle.Primary)
   );
   const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("User Profiles").setStyle(ButtonStyle.Danger),

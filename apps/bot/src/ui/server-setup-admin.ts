@@ -14,6 +14,7 @@ export const CHANNEL_TYPE_OPTIONS = {
   highlights: "Highlights",
   pending_payouts: "Pending Payouts",
   pending_purchases: "Pending Purchases",
+  box_scores: "Box Scores",
   game_channels_category: "Game Channels Category"
 } as const;
 
@@ -29,6 +30,7 @@ export function buildServerSetupPanel() {
       new StringSelectMenuOptionBuilder().setLabel("Highlights").setValue("highlights"),
       new StringSelectMenuOptionBuilder().setLabel("Pending Payouts").setValue("pending_payouts"),
       new StringSelectMenuOptionBuilder().setLabel("Pending Purchases").setValue("pending_purchases"),
+      new StringSelectMenuOptionBuilder().setLabel("Box Scores").setValue("box_scores"),
       new StringSelectMenuOptionBuilder().setLabel("Game Channels Category").setValue("game_channels_category")
     );
 

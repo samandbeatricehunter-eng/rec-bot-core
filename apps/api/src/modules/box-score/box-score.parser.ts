@@ -55,6 +55,8 @@ export type ParsedBoxScore = {
   score: ParsedScore | null;
   stats: Record<string, { team1: string; team2: string }>;
   warnings: string[];
+  // Human-readable names of required fields that could not be read. Empty = complete.
+  missingRequired: string[];
 };
 
 // ─── Known stat labels (lowercase key → canonical key) ──────────────────────
@@ -79,6 +81,48 @@ const STAT_LABEL_MAP: Record<string, string> = {
 };
 
 const ALL_STAT_KEYS = new Set(Object.values(STAT_LABEL_MAP));
+
+// ─── Required fields for an accepted submission ────────────────────────────────
+// Decision: score + quarter scores + a key-stats subset. Anything outside this set
+// is captured best-effort and never blocks the submitter.
+
+export const REQUIRED_STAT_KEYS = [
+  "total_yards_gained",
+  "turnovers",
+  "time_of_possession",
+  "third_down_conversions",
+  "fourth_down_conversions",
+  "red_zone_off_percentage",
+] as const;
+
+const FIELD_DISPLAY_NAMES: Record<string, string> = {
+  total_yards_gained: "Total Yards Gained",
+  turnovers: "Turnovers",
+  time_of_possession: "Time of Possession",
+  third_down_conversions: "Third Down Conversions",
+  fourth_down_conversions: "Fourth Down Conversions",
+  red_zone_off_percentage: "Red Zone Off %",
+};
+
+function hasValue(v: { team1: string; team2: string } | undefined): boolean {
+  return !!v && (v.team1?.trim().length > 0 || v.team2?.trim().length > 0);
+}
+
+function computeMissingRequired(
+  score: ParsedScore | null,
+  statsMap: Record<string, { team1: string; team2: string }>,
+): string[] {
+  const missing: string[] = [];
+  if (!score) {
+    missing.push("Final score / scoreboard");
+  } else if (score.team1Quarters.length === 0 && score.team2Quarters.length === 0) {
+    missing.push("Quarter-by-quarter scores");
+  }
+  for (const key of REQUIRED_STAT_KEYS) {
+    if (!hasValue(statsMap[key])) missing.push(FIELD_DISPLAY_NAMES[key] ?? key);
+  }
+  return missing;
+}
 
 // ─── Image preprocessing ─────────────────────────────────────────────────────
 
@@ -302,21 +346,27 @@ async function parseImage(buffer: Buffer): Promise<{ score: ParsedScore | null; 
   return { score, stats, warnings };
 }
 
-export async function parseBoxScoreImages(imageUrl1: string, imageUrl2: string): Promise<ParsedBoxScore> {
-  const [buf1, buf2] = await Promise.all([fetchImageBuffer(imageUrl1), fetchImageBuffer(imageUrl2)]);
-  const [r1, r2] = await Promise.all([parseImage(buf1), parseImage(buf2)]);
+// Accepts any number of screenshots (2+ in normal use; more when a submitter
+// re-uploads to fill in a field the OCR missed). Stats are merged across all
+// images, preferring the first non-empty value found for each key.
+export async function parseBoxScoreImages(imageUrls: string[]): Promise<ParsedBoxScore> {
+  const buffers = await Promise.all(imageUrls.map(fetchImageBuffer));
+  const results = await Promise.all(buffers.map(parseImage));
 
-  // Score from image 1 (both have it; image 1 is the primary screenshot).
-  const score = r1.score ?? r2.score;
-  if (!score) {
-    // Try harder: if image 1 score failed but image 2 worked, report that
-  }
+  // Score: first image that yields one wins (page 1 is primary, but accept any).
+  const score = results.map((r) => r.score).find((s): s is ParsedScore => s != null) ?? null;
 
-  // Merge stats: first occurrence per key wins (image 1 stats come first).
+  // Merge stats across all images. A later image can fill in a key that an
+  // earlier image either missed entirely or read with an empty value.
   const statsMap: Record<string, { team1: string; team2: string }> = {};
-  for (const stat of [...r1.stats, ...r2.stats]) {
-    if (!(stat.key in statsMap)) {
-      statsMap[stat.key] = { team1: stat.team1, team2: stat.team2 };
+  for (const r of results) {
+    for (const stat of r.stats) {
+      const candidate = { team1: stat.team1, team2: stat.team2 };
+      if (!hasValue(statsMap[stat.key]) && hasValue(candidate)) {
+        statsMap[stat.key] = candidate;
+      } else if (!(stat.key in statsMap)) {
+        statsMap[stat.key] = candidate; // keep an (empty) placeholder so the key is known
+      }
     }
   }
 
@@ -333,10 +383,10 @@ export async function parseBoxScoreImages(imageUrl1: string, imageUrl2: string):
   }
 
   // Warn about any expected stats that couldn't be parsed.
-  const warnings = [...r1.warnings, ...r2.warnings];
+  const warnings = results.flatMap((r) => r.warnings);
   for (const key of ALL_STAT_KEYS) {
-    if (!(key in statsMap)) warnings.push(`Stat not found: ${key}`);
+    if (!hasValue(statsMap[key])) warnings.push(`Stat not found: ${key}`);
   }
 
-  return { score, stats: statsMap, warnings };
+  return { score, stats: statsMap, warnings, missingRequired: computeMissingRequired(score, statsMap) };
 }
