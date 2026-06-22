@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { boxScoreRoutes } from "./modules/box-score/box-score.routes.js";
 import { leagueWeekRoutes } from "./modules/league-week/league-week.routes.js";
 import { rosterRoutes } from "./modules/rosters/rosters.routes.js";
 import { serverConfigRoutes } from "./modules/server-config/server-config.routes.js";
@@ -17,4 +18,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await serverConfigRoutes(app);
   await leagueWeekRoutes(app);
   await streamRoutes(app);
+  await boxScoreRoutes(app);
 }

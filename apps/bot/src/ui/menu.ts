@@ -198,6 +198,7 @@ export function buildAdminPanelEmbed() {
       "From this menu, you can manage your league in a variety of ways.",
       "",
       "**Teams** - Add/Remove users and teams (custom/relocated) from the league.",
+      "**Box Score Inbox** - Review and approve pending box score submissions.",
       "**Schedule** - Temporarily unavailable while import tooling is rebuilt.",
       "**Advance** - Temporarily unavailable while the Advance Wizard is rebuilt.",
       "**Settings** - Change league and server setup settings from the League Setup wizard.",
@@ -207,13 +208,16 @@ export function buildAdminPanelEmbed() {
     ].join("\n"));
 }
 
+export const LEAGUE_MGMT_BOX_SCORE_INBOX_ID = "rec:league_mgmt:box_score_inbox";
+
 export function buildAdminPanelRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Score Inbox").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSettings).setLabel("Settings").setStyle(ButtonStyle.Success)
     ),

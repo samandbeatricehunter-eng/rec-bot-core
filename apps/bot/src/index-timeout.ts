@@ -61,6 +61,18 @@ import {
   handleWalletPendingPurchases
 } from "./handlers/wallet.js";
 import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
+import {
+  BOX_SCORE_CUSTOM_IDS,
+  cleanupExpiredUploads,
+  handleBoxScoreApprove,
+  handleBoxScoreButton,
+  handleBoxScoreCancel,
+  handleBoxScoreDenyModal,
+  handleBoxScoreDenySubmit,
+  handleBoxScoreInbox,
+  handleBoxScoreMessage,
+  handleBoxScoreSubmitConfirm,
+} from "./flows/box-score.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
 client.setMaxListeners(50);
@@ -70,6 +82,7 @@ const serverSetupChannelSessions = new Map<string, string>();
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
+  cleanupExpiredUploads();
 }, 60_000).unref();
 
 const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please reopen /menu to proceed.";
@@ -269,8 +282,14 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.uploadBoxScore) return replyMenuPlaceholder(interaction, "Box Score & Scoring Summary", "Screenshot uploads are coming soon. This will log game results, scoring details, eligible payouts, and story generation.");
-      if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Upload Scoring Summary", "Scoring summary screenshot uploads are coming soon. This will log game details, payouts, and story generation.");
+      if (interaction.customId === MENU_CUSTOM_IDS.uploadBoxScore) return handleBoxScoreButton(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Scoring Summary", "Scoring summary uploads are coming soon.");
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.cancel) return handleBoxScoreCancel(interaction);
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxOpen) return handleBoxScoreInbox(interaction);
+      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return renderAdminPanelFromComponent(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.submitConfirmPrefix)) return handleBoxScoreSubmitConfirm(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
@@ -299,10 +318,16 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
     }
   } catch (error) {
     await safeInteractionError(interaction, error);
   }
+});
+
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+  await handleBoxScoreMessage(message).catch(() => undefined);
 });
 
 async function buildMainMenuPayload(userId: string, guildId: string | null, isAdmin: boolean) {

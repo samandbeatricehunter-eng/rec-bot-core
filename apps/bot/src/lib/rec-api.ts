@@ -184,5 +184,29 @@ export const recApi = {
     }),
 
   getLeagueConferences: (guildId: string) =>
-    recFetch<any>("/v1/rosters/conferences", { method: "POST", body: JSON.stringify({ guildId }) })
+    recFetch<any>("/v1/rosters/conferences", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  parseBoxScore: (input: {
+    guildId: string;
+    discordId: string;
+    imageUrl1: string;
+    imageUrl2: string;
+    discordChannelId?: string | null;
+    discordMessageId?: string | null;
+  }) =>
+    recFetch<any>("/v1/box-score/parse", { method: "POST", body: JSON.stringify(input) }),
+
+  submitBoxScore: (input: { submissionId: string; discordId: string }) =>
+    recFetch<any>("/v1/box-score/submit", { method: "POST", body: JSON.stringify(input) }),
+
+  reviewBoxScore: (input: {
+    submissionId: string;
+    action: "approve" | "deny";
+    reviewedByDiscordId: string;
+    deniedReason?: string | null;
+  }) =>
+    recFetch<any>("/v1/box-score/review", { method: "POST", body: JSON.stringify(input) }),
+
+  listPendingBoxScores: (guildId: string) =>
+    recFetch<{ submissions: any[] }>("/v1/box-score/pending", { method: "POST", body: JSON.stringify({ guildId }) }),
 };
