@@ -143,7 +143,34 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     source: "manual_admin_entry"
   });
 
-  return { league, replacedTeam: replaced, customTeam: result.data };
+  const linkedResult = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,notes")
+    .eq("league_id", league.id)
+    .eq("team_id", result.data.id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+
+  if (linkedResult.error) throw new ApiError(500, "Failed to load linked users for custom team.", linkedResult.error);
+
+  const linkedUserIds = [...new Set((linkedResult.data ?? []).map((row) => row.user_id).filter(Boolean))];
+  const accounts = linkedUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", linkedUserIds)
+    : { data: [], error: null };
+
+  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts for custom team.", accounts.error);
+
+  const discordByUserId = new Map((accounts.data ?? []).map((account) => [account.user_id, account.discord_id]));
+  const linkedUsers = (linkedResult.data ?? []).map((row) => {
+    const authority = String(row.notes ?? "Authority: member").replace("Authority: ", "") as "member" | "co_commissioner" | "commissioner";
+    return {
+      userId: row.user_id,
+      discordId: discordByUserId.get(row.user_id) ?? null,
+      authority,
+    };
+  });
+
+  return { league, replacedTeam: replaced, customTeam: result.data, linkedUsers };
 }
 
 // Flags relocated/custom teams whose admin-entered display data may need review.

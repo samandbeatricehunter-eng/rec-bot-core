@@ -424,7 +424,7 @@ client.on("messageCreate", async (message) => {
 async function buildMainMenuPayload(userId: string, guildId: string | null, isAdmin: boolean) {
   let menuEmbed = buildLeagueMenuEmbed({ discordUsername: "Loading REC profile..." });
   let isLinkedToTeamForRows = false;
-  const unregisteredNotice = "You are not currently registered in the REC League's database, so you have not participated in a REC League before. You must select an open team using Teams below and, once a Commissioner/League Manager approves your request, you'll be added to the database.";
+  const unregisteredNotice = "You are not currently registered in the REC League's database. Open **Teams** below to select an open team. Once a Commissioner/League Manager approves your request, you'll be added to the database.";
 
   if (!guildId) {
     return {
@@ -451,7 +451,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
       currentWeek: display.currentWeek ?? profile?.league?.current_week ?? null,
       seasonStage: display.seasonStage ?? profile?.league?.season_stage ?? profile?.league?.current_phase ?? "regular_season",
       hideLeagueInfo: !isLinkedToTeam,
-      noticeText: isLinkedToTeam ? undefined : unregisteredNotice,
+      noticeText: isLinkedToTeam ? undefined : buildUnlinkedTeamNotice(profile),
       canManageLeague: isAdmin
     });
 
@@ -634,7 +634,24 @@ function buildAdvanceMgmtRows() {
   ];
 }
 
+function buildUnlinkedTeamNotice(profile: any) {
+  const wallet = Number(profile?.wallet?.wallet_balance ?? profile?.display?.wallet ?? 0);
+  const savings = Number(profile?.wallet?.savings_balance ?? profile?.display?.savings ?? 0);
+  const globalWins = Number(profile?.globalRecord?.wins ?? 0);
+  const globalLosses = Number(profile?.globalRecord?.losses ?? 0);
+  const hasRecHistory = wallet > 0 || savings > 0 || globalWins + globalLosses > 0;
+
+  if (hasRecHistory) {
+    return "You have a REC account but are not linked to a team in this league. Open **Teams** below to request an open team. Once a Commissioner/League Manager approves your link, you'll appear on this league's roster.";
+  }
+
+  return "You are registered in REC but not linked to a team in this league yet. Open **Teams** below to select an open team. Once approved, you'll be added to this league's roster.";
+}
+
 function nextLeagueStage(weekNumber: number, seasonStage: string) {
+  if (seasonStage === "preseason_training_camp" || seasonStage === "preseason") {
+    return { weekNumber: 1, seasonStage: "regular_season" };
+  }
   if (seasonStage === "regular_season" && weekNumber < 18) return { weekNumber: weekNumber + 1, seasonStage: "regular_season" };
   if (seasonStage === "regular_season" && weekNumber >= 18) return { weekNumber: 19, seasonStage: "wild_card" };
   if (seasonStage === "wild_card") return { weekNumber: 20, seasonStage: "divisional" };
@@ -644,6 +661,8 @@ function nextLeagueStage(weekNumber: number, seasonStage: string) {
 }
 
 function stageLabel(stage: string, week: number) {
+  if (stage === "preseason_training_camp") return "Preseason Training Camp";
+  if (stage === "preseason") return "Preseason";
   if (stage === "regular_season") return `Week ${week}`;
   if (stage === "wild_card") return "Wild Card";
   if (stage === "divisional") return "Divisional";

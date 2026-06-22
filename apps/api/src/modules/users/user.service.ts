@@ -2,6 +2,12 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import {
+  formatTeamDisplayName,
+  loadCareerBoxScoreStats,
+  loadSeasonBoxScoreStats,
+  loadUserFinancialSummary,
+} from "./user-profile-stats.service.js";
 
 export async function getUserBaselineByDiscordId(discordId: string) {
   const account = await supabase
@@ -119,37 +125,101 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const context = await findCurrentLeagueContext(guildId);
   const leagueId = context?.leagueId ?? null;
 
-  // Step 1: get assignment first so we can use teamId for the power ranking lookup.
   const assignmentResult = leagueId
-    ? await supabase.from("rec_team_assignments").select("team_id,rec_teams(name,abbreviation)").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle()
+    ? await supabase
+        .from("rec_team_assignments")
+        .select("team_id,rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+        .eq("league_id", leagueId)
+        .eq("user_id", userId)
+        .eq("assignment_status", "active")
+        .is("ended_at", null)
+        .maybeSingle()
     : { data: null };
   const teamId = (assignmentResult.data as any)?.team_id ?? null;
+  const teamRow = (assignmentResult.data as any)?.rec_teams ?? null;
 
-  // Step 2: run remaining fetches in parallel.
-  const [league, seasonRecord, badges, gotwGuessRecord, powerRankingRow, gotwCompetition, awardsWon] = await Promise.all([
-    // League info
-    leagueId ? supabase.from("rec_leagues").select("name,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle() : Promise.resolve({ data: null }),
-    // Season record
-    leagueId ? supabase.from("rec_user_season_records").select("wins,losses,ties,games_played,point_differential,points_for,points_against").eq("league_id", leagueId).eq("user_id", userId).maybeSingle() : Promise.resolve({ data: null }),
-    // Badges earned in this league
-    leagueId ? supabase.from("rec_user_badges").select("badge_name,badge_label,tier,earned_at").eq("league_id", leagueId).eq("user_id", userId).order("earned_at", { ascending: false }) : supabase.from("rec_user_badges").select("badge_name,badge_label,tier,earned_at").eq("user_id", userId).order("earned_at", { ascending: false }),
-    // GOTW guessing record (global)
+  const leagueInfoResult = leagueId
+    ? await supabase.from("rec_leagues").select("name,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle()
+    : { data: null };
+  const leagueInfo = leagueInfoResult.data;
+  const seasonNumber = leagueInfo?.season_number ?? leagueInfo?.display_season_number ?? 1;
+
+  const [
+    seasonRecord,
+    seasonBadges,
+    globalBadges,
+    gotwGuessRecord,
+    powerRankingRow,
+    gotwCompetition,
+    globalAwardWinners,
+    eosPollWins,
+    seasonStats,
+    careerStats,
+    financialSummary,
+  ] = await Promise.all([
+    leagueId
+      ? supabase
+          .from("rec_season_user_records")
+          .select("wins,losses,ties,games_played,point_differential,points_for,points_against")
+          .eq("league_id", leagueId)
+          .eq("season_number", seasonNumber)
+          .eq("user_id", userId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    leagueId
+      ? supabase
+          .from("rec_user_badges")
+          .select("badge_name,badge_label,tier,earned_at")
+          .eq("league_id", leagueId)
+          .eq("season_number", seasonNumber)
+          .eq("user_id", userId)
+          .order("earned_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from("rec_user_badges")
+      .select("badge_name,badge_label,tier,earned_at,league_id,season_number")
+      .eq("user_id", userId)
+      .is("league_id", null)
+      .order("earned_at", { ascending: false }),
     supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
-    // Power ranking (latest week for this season, looked up by teamId)
-    (leagueId && teamId) ? (async () => {
-      const leagueRow = await supabase.from("rec_leagues").select("season_number").eq("id", leagueId).maybeSingle();
-      return supabase.from("rec_power_rankings").select("rank,score,sos_score").eq("league_id", leagueId).eq("team_id", teamId).eq("season_number", leagueRow.data?.season_number ?? 1).order("week_number", { ascending: false }).limit(1).maybeSingle();
-    })() : Promise.resolve({ data: null }),
-    // GOTW competition history (when their game was GOTW)
-    leagueId ? supabase.from("rec_game_of_week_polls").select("home_team_id,away_team_id,winning_team_id,status,week_number").eq("league_id", leagueId).not("status", "eq", "open").order("week_number", { ascending: false }).limit(20) : Promise.resolve({ data: [] }),
-    // Awards won in this guild's league
-    leagueId ? supabase.from("rec_awards").select("award_key,award_name,season_number,status").eq("league_id", leagueId).eq("winner_user_id", userId).order("season_number", { ascending: false }) : Promise.resolve({ data: [] })
+    leagueId && teamId
+      ? supabase
+          .from("rec_power_rankings")
+          .select("rank,score,sos_score")
+          .eq("league_id", leagueId)
+          .eq("team_id", teamId)
+          .eq("season_number", seasonNumber)
+          .order("week_number", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    leagueId
+      ? supabase
+          .from("rec_game_of_week_polls")
+          .select("home_team_id,away_team_id,winning_team_id,status,week_number")
+          .eq("league_id", leagueId)
+          .not("status", "eq", "open")
+          .order("week_number", { ascending: false })
+          .limit(20)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from("rec_award_winners")
+      .select("award_key,award_name,season_number,league_id")
+      .eq("winner_user_id", userId)
+      .order("season_number", { ascending: false }),
+    supabase
+      .from("rec_eos_award_polls")
+      .select("category_key,category_label,season_number,league_id")
+      .eq("winner_user_id", userId)
+      .not("winner_user_id", "is", null),
+    leagueId ? loadSeasonBoxScoreStats(userId, leagueId, seasonNumber) : Promise.resolve(null),
+    loadCareerBoxScoreStats(userId),
+    loadUserFinancialSummary(userId, leagueId),
   ]);
 
-  const teamName = (assignmentResult.data as any)?.rec_teams?.name ?? null;
+  const teamName = formatTeamDisplayName(teamRow);
   const globalRecord = baseline.globalRecord ?? {};
 
-  // Compute GOTW competition record (games where their team was home or away in a settled poll)
   let gotwWins = 0;
   let gotwLosses = 0;
   const gotwPolls = (gotwCompetition as any)?.data ?? [];
@@ -167,8 +237,16 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const gotwWrong = gotwGuess?.wrong_guesses ?? 0;
   const gotwTotal = gotwCorrect + gotwWrong;
   const rankRow = (powerRankingRow as any)?.data;
-  const leagueInfo = (league as any)?.data;
-  const seasonNumber = leagueInfo?.season_number ?? leagueInfo?.display_season_number ?? null;
+
+  const globalAwardCounts = new Map<string, number>();
+  for (const award of (globalAwardWinners as any)?.data ?? []) {
+    const label = award.award_name ?? award.award_key ?? "Award";
+    globalAwardCounts.set(label, (globalAwardCounts.get(label) ?? 0) + 1);
+  }
+  for (const poll of (eosPollWins as any)?.data ?? []) {
+    const label = poll.category_label ?? poll.category_key ?? "EOS Poll";
+    globalAwardCounts.set(label, (globalAwardCounts.get(label) ?? 0) + 1);
+  }
 
   return {
     user: baseline.user,
@@ -178,7 +256,6 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     seasonNumber,
     currentWeek: leagueInfo?.current_week ?? null,
     seasonStage: leagueInfo?.season_stage ?? null,
-    // Records
     seasonRecord: {
       wins: seasonRecordData.wins ?? 0,
       losses: seasonRecordData.losses ?? 0,
@@ -186,7 +263,9 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       pointDifferential: seasonRecordData.point_differential ?? 0,
       pointsFor: seasonRecordData.points_for ?? 0,
       pointsAgainst: seasonRecordData.points_against ?? 0,
-      text: recordText(seasonRecordData)
+      text: recordText(seasonRecordData),
+      boxScoresUploaded: seasonStats?.boxScoresUploaded ?? 0,
+      activeStreak: seasonStats?.activeStreak ?? "—",
     },
     globalRecord: {
       wins: globalRecord.wins ?? 0,
@@ -199,17 +278,18 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       superbowlLosses: globalRecord.superbowl_losses ?? 0,
       text: recordText(globalRecord),
       playoffText: playoffText(globalRecord),
-      superbowlText: superbowlText(globalRecord)
+      superbowlText: superbowlText(globalRecord),
+      activeStreak: careerStats?.activeStreak ?? "—",
     },
-    // Power ranking
     powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: rankRow.sos_score } : null,
-    // GOTW records
     gotwGuessing: gotwTotal > 0 ? { correct: gotwCorrect, total: gotwTotal, accuracy: Math.round((gotwCorrect / gotwTotal) * 100) } : null,
-    gotwCompetition: (gotwWins + gotwLosses) > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
-    // Badges
-    badges: (badges as any)?.data ?? [],
-    // Awards won in this guild's league
-    awardsWon: (awardsWon as any)?.data ?? []
+    gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
+    seasonStats,
+    careerStats,
+    seasonBadges: (seasonBadges as any)?.data ?? [],
+    globalBadges: (globalBadges as any)?.data ?? [],
+    globalAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
+    financialSummary,
   };
 }
 

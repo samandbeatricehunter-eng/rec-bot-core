@@ -2,7 +2,7 @@ import { ButtonInteraction, EmbedBuilder, Interaction, ModalSubmitInteraction, S
 import type { RecTeamAuthority } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
-import { ensureRecBaseRoles, syncMemberForTeam } from "../lib/role-sync.js";
+import { ensureRecBaseRoles, formatTeamDisplayName, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildNavigationRow } from "../ui/navigation.js";
 import {
   buildAuthoritySelectRow,
@@ -968,6 +968,21 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
     });
 
     const teamId = result.customTeam.id;
+    const teamDisplayName = formatTeamDisplayName(result.customTeam) ?? displayName;
+    if (result.linkedUsers?.length) {
+      await ensureRecBaseRoles(interaction.guild);
+      for (const linked of result.linkedUsers) {
+        if (!linked.discordId) continue;
+        const member = await interaction.guild.members.fetch(linked.discordId).catch(() => null);
+        if (!member) continue;
+        await syncMemberForTeam({
+          member,
+          teamName: teamDisplayName,
+          authority: linked.authority ?? "member",
+        }).catch(() => undefined);
+      }
+    }
+
     customTeamPendingSessions.delete(interaction.user.id);
 
     // No-link mode: just confirm the relocation so imports map; skip user selection.

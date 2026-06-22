@@ -7,6 +7,18 @@ export const REC_MANAGED_ROLES = {
   commissioner: { name: "REC League Commissioner", color: 0xd4af37 }
 } as const;
 
+export function formatTeamDisplayName(team: {
+  name?: string | null;
+  display_city?: string | null;
+  display_nick?: string | null;
+  is_relocated?: boolean | null;
+}) {
+  if (team.is_relocated && team.display_city && team.display_nick) {
+    return `${team.display_city} ${team.display_nick}`;
+  }
+  return team.name ?? team.display_nick ?? "Team";
+}
+
 // Nicknames use just the team name (e.g. "Cleveland Browns" -> "Browns"), not the city.
 // NFL nicknames are the last word of the full name; single-word inputs pass through unchanged.
 function teamNickFromName(teamName: string): string {

@@ -96,6 +96,52 @@ function buildSnapshotNavRows(currentPage: number, totalPages: number) {
   return [row];
 }
 
+function formatBadgeLines(badges: any[]) {
+  if (!badges.length) return "No badges earned yet.";
+  return badges.map((badge) => {
+    const name = badge.badge_label ?? badge.badge_name ?? "Badge";
+    const tier = badge.tier ? ` (${badge.tier})` : "";
+    const earned = badge.earned_at ? ` - ${new Date(badge.earned_at).toLocaleDateString("en-US")}` : "";
+    return `- ${name}${tier}${earned}`;
+  }).join("\n");
+}
+
+function formatStatBlock(stats: any, prefix: "Season" | "Career") {
+  if (!stats || stats.gamesLogged === 0) {
+    return "No box score stats logged yet.";
+  }
+
+  const label = prefix === "Career" ? "Career" : "Season";
+  return [
+    `Games Logged: **${stats.gamesLogged}**`,
+    "",
+    `**${label} Total Yards:** ${stats.totalYards.toLocaleString()} | **${label} Total YPG:** ${stats.totalYardsAvg}`,
+    `**${label} Passing Yards:** ${stats.passingYards.toLocaleString()} | **${label} Passing YPG:** ${stats.passingYardsAvg}`,
+    `**${label} Rushing Yards:** ${stats.rushingYards.toLocaleString()} | **${label} Rushing YPG:** ${stats.rushingYardsAvg}`,
+    `**${label} First Downs:** ${stats.firstDowns.toLocaleString()} | **${label} First Downs/G:** ${stats.firstDownsAvg}`,
+    `**${label} Turnovers Generated:** ${stats.turnoversGenerated.toLocaleString()} | **${label} TO Generated/G:** ${stats.turnoversGeneratedAvg}`,
+    `**${label} Turnovers Committed:** ${stats.turnoversCommitted.toLocaleString()} | **${label} TO Committed/G:** ${stats.turnoversCommittedAvg}`,
+    `**${label} Turnover Differential:** ${stats.turnoverDifferential.toLocaleString()} | **${label} TO Diff/G:** ${stats.turnoverDifferentialAvg}`,
+    `**${label} Red Zone % (Off):** ${stats.redZoneOffPct}% | **${label} Red Zone % (Def):** ${stats.redZoneDefPct}%`,
+  ].join("\n");
+}
+
+function formatFinancialBlock(scopeLabel: string, summary: any) {
+  if (!summary) return "No financial activity recorded yet.";
+  const purchases = summary.purchases ?? {};
+  return [
+    `**Total Cash Earned (${scopeLabel}):** $${summary.totalEarned.toLocaleString()}`,
+    `**Total Cash Spent (${scopeLabel}):** $${summary.totalSpent.toLocaleString()}`,
+    `**Total Profit/Deficit (${scopeLabel}):** $${summary.profitDeficit.toLocaleString()}`,
+    `**Avg Cash Earned / Week (${scopeLabel}):** $${summary.avgEarnedPerWeek.toLocaleString()}`,
+    `**Avg Cash Spent / Week (${scopeLabel}):** $${summary.avgSpentPerWeek.toLocaleString()}`,
+    "",
+    `Legends / Custom Players (${scopeLabel}): **${purchases.legends ?? 0}** / **${purchases.customPlayers ?? 0}**`,
+    `Attributes — Core / Non-Core (${scopeLabel}): **${purchases.coreAttributes ?? 0}** / **${purchases.nonCoreAttributes ?? 0}**`,
+    `Age Resets / Dev Ups / Contracts (${scopeLabel}): **${purchases.ageResets ?? 0}** / **${purchases.devUps ?? 0}** / **${purchases.contracts ?? 0}**`,
+  ].join("\n");
+}
+
 function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedBuilder; totalPages: number } {
   const pages: EmbedBuilder[] = [];
   const sr = snapshot.seasonRecord ?? {};
@@ -103,8 +149,10 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
   const pr = snapshot.powerRank;
   const gg = snapshot.gotwGuessing;
   const gc = snapshot.gotwCompetition;
+  const coachName = snapshot.discord?.global_name ?? snapshot.user?.display_name ?? "Coach";
+
   pages.push(new EmbedBuilder()
-    .setTitle(`${snapshot.discord?.global_name ?? snapshot.user?.display_name ?? "Coach"} - Snapshot`)
+    .setTitle(`${coachName} - Snapshot`)
     .setDescription([
       `Team: **${snapshot.teamName ?? "Unassigned"}**`,
       `League: ${snapshot.leagueName ?? "Unknown"} - Season ${snapshot.seasonNumber ?? "?"}, Week ${snapshot.currentWeek ?? "?"}`,
@@ -112,10 +160,13 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
       "**Season Record (This Guild)**",
       `W-L-T: **${sr.text ?? "0-0-0"}** | PD: **${sr.pointDifferential ?? 0}**`,
       `Points For: ${sr.pointsFor ?? 0} | Points Against: ${sr.pointsAgainst ?? 0}`,
+      `Box Scores Uploaded: **${sr.boxScoresUploaded ?? 0}**`,
+      `Active Season Streak: **${sr.activeStreak ?? "—"}**`,
       "",
       "**Global Record (All Leagues)**",
       `W-L-T: **${gr.text ?? "0-0-0"}** | PD: **${gr.pointDifferential ?? 0}**`,
       `Playoffs: ${gr.playoffText ?? "0-0"} | Super Bowls: ${gr.superbowlText ?? "0-0"}`,
+      `Active Global Streak: **${gr.activeStreak ?? "—"}**`,
       "",
       "**Power Ranking**",
       pr ? `Rank: **#${pr.rank}** | Score: ${(pr.score ?? 0).toFixed(2)} | SOS: ${(pr.sosScore ?? 0).toFixed(2)}` : "Not yet ranked this season",
@@ -124,38 +175,48 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
       gg ? `${gg.correct}/${gg.total} correct (${gg.accuracy}%)` : "No votes recorded yet",
       "",
       "**GOTW Competitor Record (This Guild)**",
-      gc ? `${gc.wins}W-${gc.losses}L as a GOTW participant` : "No GOTW games played yet"
+      gc ? `${gc.wins}W-${gc.losses}L as a GOTW participant` : "No GOTW games played yet",
     ].join("\n").slice(0, 4096)));
 
-  const badges: any[] = snapshot.badges ?? [];
-  if (badges.length === 0) {
-    pages.push(new EmbedBuilder().setTitle("Badges").setDescription("No badges earned yet."));
-  } else {
-    const BADGES_PER_PAGE = 15;
-    for (let i = 0; i < badges.length; i += BADGES_PER_PAGE) {
-      const slice = badges.slice(i, i + BADGES_PER_PAGE);
-      const lines = slice.map((b: any) => {
-        const name = b.badge_label ?? b.badge_name ?? "Badge";
-        const tier = b.tier ? ` (${b.tier})` : "";
-        const earned = b.earned_at ? ` - ${new Date(b.earned_at).toLocaleDateString("en-US")}` : "";
-        return `- ${name}${tier}${earned}`;
-      });
-      pages.push(new EmbedBuilder().setTitle(`Badges (${i + 1}-${Math.min(i + BADGES_PER_PAGE, badges.length)} of ${badges.length})`).setDescription(lines.join("\n")));
-    }
-  }
+  pages.push(new EmbedBuilder()
+    .setTitle(`${coachName} - Season Stats`)
+    .setDescription(formatStatBlock(snapshot.seasonStats, "Season").slice(0, 4096)));
 
-  const awards: any[] = snapshot.awardsWon ?? [];
-  if (awards.length === 0) {
-    pages.push(new EmbedBuilder().setTitle("Awards Won (This Guild)").setDescription("No awards won in this league yet."));
-  } else {
-    const lines = awards.map((a: any) => `- **${a.award_name}** - Season ${a.season_number}`);
-    pages.push(new EmbedBuilder().setTitle(`Awards Won (This Guild) - ${awards.length} total`).setDescription(lines.join("\n")));
-  }
+  pages.push(new EmbedBuilder()
+    .setTitle(`${coachName} - Season Badges`)
+    .setDescription(formatBadgeLines(snapshot.seasonBadges ?? []).slice(0, 4096)));
 
-  const safeIndex = Math.max(0, Math.min(currentPage, pages.length - 1));
+  pages.push(new EmbedBuilder()
+    .setTitle(`${coachName} - Career Stats`)
+    .setDescription(formatStatBlock(snapshot.careerStats, "Career").slice(0, 4096)));
+
+  pages.push(new EmbedBuilder()
+    .setTitle(`${coachName} - Global Badges`)
+    .setDescription(formatBadgeLines(snapshot.globalBadges ?? []).slice(0, 4096)));
+
+  const awards: any[] = snapshot.globalAwards ?? [];
+  pages.push(new EmbedBuilder()
+    .setTitle(`${coachName} - Global Awards`)
+    .setDescription(
+      awards.length
+        ? awards.map((award) => `- **${award.awardName}** — ${award.count}`).join("\n").slice(0, 4096)
+        : "No global awards won yet."
+    ));
+
+  const financial = snapshot.financialSummary ?? {};
+  pages.push(new EmbedBuilder()
+    .setTitle(`${coachName} - Financial Stats`)
+    .setDescription([
+      formatFinancialBlock("This League", financial.league),
+      "",
+      formatFinancialBlock("Global", financial.global),
+    ].join("\n").slice(0, 4096)));
+
+  const totalPages = pages.length;
+  const safeIndex = Math.max(0, Math.min(currentPage, totalPages - 1));
   const embed = pages[safeIndex];
-  embed.setFooter({ text: `Page ${safeIndex + 1} of ${pages.length}` });
-  return { embed, totalPages: pages.length };
+  embed.setFooter({ text: `Page ${safeIndex + 1} of ${totalPages}` });
+  return { embed, totalPages };
 }
 
 export async function handleSnapshotUserSelect(interaction: StringSelectMenuInteraction) {

@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonContext, resolveSeasonId } from "../league-context/season.service.js";
 import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js";
+import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -560,6 +561,8 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     }).throwOnError();
     totalPaid += p.amount;
   }
+
+  await syncUsersAfterBoxScoreApproval(sub);
 
   // Record flat per-team-per-game stats (two rows, offense + generated/allowed).
   await recordTeamGameStats(sub);
