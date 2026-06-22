@@ -32,7 +32,7 @@ function formatTransactionLine(transaction: any) {
 
 export async function handlePlaceWager(interaction: ButtonInteraction) {
   return interaction.reply({
-    embeds: [new EmbedBuilder().setTitle("Wager").setDescription("The wager workflow is coming soon. You'll be able to wager coins on upcoming matchups here.")],
+    embeds: [new EmbedBuilder().setTitle("Wager").setDescription("Wager tools are not active yet. When enabled, this menu will let you place approved league wagers on upcoming matchups.")],
     flags: MessageFlags.Ephemeral
   });
 }
@@ -52,13 +52,16 @@ async function buildManageWalletPayload(userId: string, guildId: string | undefi
       `**Proj. Interest:** $${projectedInterest}`,
       "",
       "**Transfer** - Move funds between your wallet and savings.",
-      "**Transactions** - View your last 10 global transactions and your last 10 league transactions."
+      "**Transactions** - View your last 10 global transactions and your last 10 league transactions.",
+      "",
+      "Transfers update immediately after confirmation."
     ].join("\n").slice(0, 4096));
   return { embeds: [embed], components: buildManageWalletRows() };
 }
 
 export async function handleManageWallet(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Wallet...").setDescription("Fetching your wallet, savings, and recent balance data.")], components: [] });
   await interaction.editReply(await buildManageWalletPayload(interaction.user.id, interaction.guild?.id ?? undefined) as any);
 }
 
@@ -97,6 +100,7 @@ export async function handleWalletTransferDirection(interaction: StringSelectMen
 
 export async function handleWalletTransferAll(interaction: ButtonInteraction, direction: "to_savings" | "from_savings") {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Transferring Funds...").setDescription("Checking your available balance and applying the transfer.")], components: [] });
   const walletPayload = await recApi.getWallet(interaction.user.id, interaction.guild?.id ?? undefined).catch(() => null);
   const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
   const amount = direction === "to_savings" ? Number(wallet.wallet_balance ?? 0) : Number(wallet.savings_balance ?? 0);
@@ -111,6 +115,7 @@ export async function handleWalletTransferAll(interaction: ButtonInteraction, di
 
 export async function handleWalletCustomTransferModal(interaction: ModalSubmitInteraction, direction: "to_savings" | "from_savings") {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Transferring Funds...").setDescription("Validating the amount and applying the transfer.")], components: [] });
   const raw = interaction.fields.getTextInputValue(MANAGE_WALLET_CUSTOM_IDS.transferCustomAmountInput);
   const amount = parseFloat(raw.replace(/[^0-9.]/g, ""));
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -146,6 +151,7 @@ async function completeSavingsTransfer(interaction: ButtonInteraction | ModalSub
 
 export async function handleWalletTransactions(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Transactions...").setDescription("Fetching your global and league transaction history.")], components: [] });
   const [globalPayload, leaguePayload] = await Promise.all([
     recApi.getWallet(interaction.user.id).catch(() => null),
     recApi.getWallet(interaction.user.id, interaction.guild?.id ?? undefined).catch(() => null)
@@ -175,7 +181,7 @@ export async function handleWalletPendingPurchases(interaction: ButtonInteractio
 export async function handleWalletMakePurchase(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Make a Purchase").setDescription("The store will live in **Manage My Franchise** (coming soon). You'll be able to buy upgrades and management tools there.")],
+    embeds: [new EmbedBuilder().setTitle("Make a Purchase").setDescription("Store tools are not active yet. When enabled, available purchases will appear here based on this league's settings.")],
     components: buildManageWalletRows()
   });
 }

@@ -146,6 +146,7 @@ export function buildLeagueMenuEmbed(input: {
   noticeText?: string;
   offensiveChallenge?: any;
   defensiveChallenge?: any;
+  canManageLeague?: boolean;
 }) {
   const userInfo = [
     `**User:** ${input.discordUsername ?? "Unlinked User"}`,
@@ -182,17 +183,17 @@ export function buildLeagueMenuEmbed(input: {
     : null;
 
   const menuText = [
-    "Please use the buttons below to navigate to your destination.",
-    "**Teams** - Displays open teams and allows a user to request a team.",
-    "**Schedule** - Displays the season schedule, by league week, for each team.",
-    "**Help/Rules** - Find a list of all league rules and various FAQ here.",
-    "**My Wallet** - Move funds to/from savings, send funds to/from users.",
-    "**Purchase** - Make a variety of purchases, depending on league settings.",
-    "**Wager** - Put your money where your mouth is against users or the house.",
-    "**Stream** - Post a stream link or select Discord streaming options.",
-    "**Box Score & Scoring Summary** - Upload game screenshots to log results, details, payouts, and story generation.",
-    "**View User Profiles** - View user profiles for actively linked users in this league.",
-    "**League Mgmt** - Admin Only. Use this menu to manage this league."
+    "Use the buttons below to open a REC workflow. Most actions happen in this private menu unless the button says it will post to a league channel.",
+    "**Teams** - View open and linked teams.",
+    "**Schedule** - View your logged league schedule.",
+    "**Help/Rules** - Read current league rules and FAQ sections.",
+    "**My Wallet** - Review balances, transfer to/from savings, and view transactions.",
+    "**Purchase** - Store tools are not active yet.",
+    "**Wager** - Wager tools are not active yet.",
+    "**Stream** - Submit a stream for commissioner payout review.",
+    "**Upload Box Score** - Submit one box score image for stats and payout review.",
+    "**User Profiles** - View linked users and team snapshots.",
+    ...(input.canManageLeague ? ["**League Mgmt** - Commissioner-only league operations."] : [])
   ].join("\n");
 
   return new EmbedBuilder()
@@ -205,7 +206,7 @@ export function buildLeagueMenuEmbed(input: {
       ...(!input.hideLeagueInfo && weeklyChallenges ? [{ name: "WEEKLY CHALLENGES", value: weeklyChallenges.slice(0, 1024), inline: false }] : []),
       { name: "MENU", value: menuText.slice(0, 1024), inline: false }
     )
-    .setFooter({ text: "Powered by the REC Scout bot © 2026" });
+    .setFooter({ text: "Powered by the REC Scout bot (c) 2026" });
 }
 
 export function buildLeagueMenuRows(canManageLeague: boolean, isLinkedToTeam = true) {
@@ -236,14 +237,14 @@ export function buildAdminPanelEmbed() {
     .setDescription([
       "From this menu, you can manage your league in a variety of ways.",
       "",
-      "**Teams** - Add/Remove users and teams (custom/relocated) from the league.",
-      "**Box Scores** - Commissioner upload flow for missed or prior-week box scores.",
-      "**Schedule** - Upload league schedule screenshots by wizard or by selected week.",
-      "**Advance** - Manage weekly advance tools, active checks, GOTW, game channels, EOS payouts, and POTY tallies.",
-      "**Settings** - Change league and server setup settings from the League Setup wizard.",
-      "**First-Time Setup** - Wizard for setting up your league for the first time. **WARNING** This will clear ALL league data if ran more than once.",
-      "**Delete League** - This will delete all league data for this server. Use this when your league is done and/or you're starting a new league in the same server.",
-      "**Roles** - Change users assigned roles to one of the three designated server roles."
+      "**Teams** - Link users to teams, unlink users, reset default teams, and edit relocated/custom team names.",
+      "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
+      "**Schedule** - Enter, review, and publicly post the league schedule.",
+      "**Advance** - Run weekly operations: advance week, active check, GOTW, game channels, EOS payouts, and POTY tallies.",
+      "**Settings** - Edit saved league/server setup values.",
+      "**First-Time Setup** - Create or rebuild a league setup. This can clear league data when rerun.",
+      "**Delete League** - Permanently delete this server's current league data.",
+      "**Roles** - Role management placeholder."
     ].join("\n"));
 }
 
@@ -277,13 +278,13 @@ export function buildDeleteLeagueWarningPayload(leagueName: string) {
   return {
     embeds: [
       new EmbedBuilder()
-        .setTitle("⚠️ Delete League Data — Permanent")
+        .setTitle("WARNING: Delete League Data - Permanent")
         .setColor(0xe74c3c)
         .setDescription([
           `This will **permanently erase** the league **${leagueName}** from REC. This cannot be undone.`,
           "",
           "**Deleted:** all teams, rosters, records, standings, payouts/economy ledger for this league, badges, awards, GOTW polls, game channels data, imports, settings/rules, and every user-to-team link in this league.",
-          "**Kept:** each member's Discord account, global career record, wallet balance, and legacy history — and the Discord server itself.",
+          "**Kept:** each member's Discord account, global career record, wallet balance, legacy history, and the Discord server itself.",
           "",
           "Use this to wipe a league that needs to start over before it goes inactive. After deletion you can run the League Setup Wizard to set up a new league.",
           "",
@@ -536,7 +537,7 @@ export function buildScheduleEmbed(input: {
   const embed = new EmbedBuilder().setTitle(input.teamName ? `${input.teamName} Schedule` : "Schedule");
 
   if (!input.isLinked) {
-    return embed.setDescription("You are not currently linked to a team. Please use the Select Team button below to view a teams schedule.");
+    return embed.setDescription("You are not currently linked to a team. Team schedule selection is not active yet, so ask a commissioner to link you or use League Mgmt > Schedule to view the full league schedule.");
   }
 
   const games = input.games ?? [];
@@ -547,7 +548,7 @@ export function buildScheduleEmbed(input: {
   return embed.setDescription([
     scheduleText,
     "",
-    "To view another teams schedule, please use the Select Team button below."
+    "Commissioners can view every team's schedule from League Mgmt > Schedule > View Schedule."
   ].join("\n").slice(0, 4096));
 }
 

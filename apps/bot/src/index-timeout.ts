@@ -151,7 +151,7 @@ async function safeInteractionError(interaction: Interaction, error: unknown) {
 client.once("clientReady", async () => {
   // Log the deployed commit so it's easy to confirm Railway is running the latest build.
   const deployedCommit = process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? "unknown";
-  console.log(`REC Bot logged in as ${client.user?.tag ?? "unknown"} — build ${deployedCommit.slice(0, 12)}`);
+  console.log(`REC Bot logged in as ${client.user?.tag ?? "unknown"} - build ${deployedCommit.slice(0, 12)}`);
   try {
     const health = await recApi.health();
     console.log(`Connected to ${health.service}`);
@@ -338,9 +338,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSelectTeam) return renderSchedulePlaceholder(interaction, "Select Team", "Team schedule selection is coming soon. This will let you view any team's schedule.");
-      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return renderSchedulePlaceholder(interaction, "SOS", "Strength of schedule is coming soon.");
-      if (interaction.customId === MENU_CUSTOM_IDS.scheduleHistory) return renderSchedulePlaceholder(interaction, "History", "Schedule history is coming soon.");
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSelectTeam) return renderSchedulePlaceholder(interaction, "Select Team", "Team schedule selection is not active yet. Commissioners can view the full league schedule from League Mgmt > Schedule > View Schedule.");
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return renderSchedulePlaceholder(interaction, "SOS", "Strength of schedule is not active yet. This will be calculated from logged schedules once the SOS view is connected.");
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleHistory) return renderSchedulePlaceholder(interaction, "History", "Schedule history is not active yet. Current-season schedule pages are available from the main Schedule view and League Mgmt schedule viewer.");
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup) return handleManualScheduleNextMatchup(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek) return handleManualScheduleNextWeek(interaction);
@@ -353,12 +353,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "The purchase store is coming soon. It will only show purchase types enabled for this league.");
+      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "Store tools are not active yet. When enabled, this menu will show only purchase types allowed by this league's settings.");
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.uploadBoxScore) return handleBoxScoreButton(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Scoring Summary", "Scoring summary uploads are coming soon.");
+      if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Scoring Summary", "Scoring summary uploads are not active yet. Box score uploads are currently used for game results, stats, and payout review.");
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.cancel) return handleBoxScoreCancel(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submissionsOpen) return handleBoxScoreSubmissions(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminCancel) return handleBoxScoreAdminCancel(interaction);
@@ -369,7 +369,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return replyMenuPlaceholder(interaction, "Request Team", "Team requests are coming soon. This will let users request an available team from this league.");
+      if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return replyMenuPlaceholder(interaction, "Request Team", "Team request approvals are not active yet. Commissioners can assign teams from League Mgmt > Teams.");
       if (interaction.customId === MENU_CUSTOM_IDS.teamsBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transfer) return handleWalletTransferOpen(interaction);
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferAll}:`)) return handleWalletTransferAll(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
@@ -416,7 +416,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
 
   if (!guildId) {
     return {
-      embeds: [buildLeagueMenuEmbed({ discordUsername: "Open /menu inside a REC Discord server" })],
+      embeds: [buildLeagueMenuEmbed({ discordUsername: "Open /menu inside a REC Discord server", canManageLeague: isAdmin })],
       components: buildLeagueMenuRows(isAdmin, false)
     };
   }
@@ -441,7 +441,8 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
       hideLeagueInfo: !isLinkedToTeam,
       noticeText: isLinkedToTeam ? undefined : unregisteredNotice,
       offensiveChallenge: display.offensiveChallenge,
-      defensiveChallenge: display.defensiveChallenge
+      defensiveChallenge: display.defensiveChallenge,
+      canManageLeague: isAdmin
     });
 
     if (!hasResolvedProfile) {
@@ -460,7 +461,8 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
       leagueName: isMissingRecUser ? "REC League" : "Profile endpoint error",
       seasonStage: "regular_season",
       hideLeagueInfo: isMissingRecUser,
-      noticeText: isMissingRecUser ? unregisteredNotice : undefined
+      noticeText: isMissingRecUser ? unregisteredNotice : undefined,
+      canManageLeague: isAdmin
     });
   }
 
@@ -516,7 +518,14 @@ async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule")
-      .setDescription("Choose how you want to upload league schedule screenshots. The wizard starts at Week 1 and advances through Week 18. Upload One Week lets you choose a specific regular-season or playoff week.")],
+      .setDescription([
+        "Build, review, or publish the league schedule.",
+        "",
+        "**Schedule Wizard** - upload schedule screenshots in order, starting at Week 1.",
+        "**Upload One Week** - upload screenshots for one selected week.",
+        "**Set Manually** - choose teams from league-loaded AFC/NFC dropdowns and save matchups.",
+        "**View Schedule** - page through every week and optionally post a week publicly."
+      ].join("\n"))],
     components: buildScheduleMgmtRows()
   });
 }
@@ -540,7 +549,13 @@ async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule Wizard")
-      .setDescription("Wizard upload is ready for the schedule parser connection: it will collect two images per regular-season week, confirm the parsed games, then advance through Week 18.")],
+      .setDescription([
+        "Schedule screenshot parsing is not connected yet.",
+        "",
+        "When enabled, this flow will collect two screenshots per regular-season week, ask you to confirm the parsed games, and then advance through Week 18.",
+        "",
+        "Use **Set Manually** today if you need to enter matchups now."
+      ].join("\n"))],
     components: buildScheduleMgmtRows()
   });
 }
@@ -552,7 +567,13 @@ async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Upload One Week")
-      .setDescription("One-week upload is ready for the schedule parser connection: it will let you choose any eligible season week, upload two schedule images, confirm the parsed games, and save only that week.")],
+      .setDescription([
+        "One-week screenshot parsing is not connected yet.",
+        "",
+        "When enabled, this flow will let you choose one eligible week, upload its schedule screenshots, confirm the parsed games, and save only that week.",
+        "",
+        "Use **Set Manually** today if you need to enter matchups now."
+      ].join("\n"))],
     components: buildScheduleMgmtRows()
   });
 }
@@ -564,7 +585,16 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Advance")
-      .setDescription("Manage weekly advance tasks, checks, channels, GOTW, EOS payouts, awards, and Play of the Year tallies.")],
+      .setDescription([
+        "Run weekly league operations from one place.",
+        "",
+        "**Advance Week** changes only the league week/stage.",
+        "**Active Check** posts the 24-hour activity prompt.",
+        "**Set GOTW** posts the current week's GOTW poll.",
+        "**Game Channels** creates private channels for scheduled H2H games with two linked users.",
+        "**Set Week / Set Season** manually correct the league clock.",
+        "**EOS Payouts / POTY Tallies** are postseason-only payout tools."
+      ].join("\n"))],
     components: buildAdvanceMgmtRows()
   });
 }
@@ -616,6 +646,7 @@ async function handleAdvanceWeek(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can advance the league.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Advancing Week...").setDescription("Updating the league week/stage. No payouts or catch-up automation are issued by this button.")], components: [] });
   const current = await recApi.viewLeagueWeek(interaction.guildId);
   const currentWeek = Number(current?.league?.current_week ?? 1);
   const currentStage = String(current?.league?.season_stage ?? "regular_season");
@@ -638,6 +669,7 @@ async function handleActiveCheck(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can run active checks.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting Active Check...").setDescription("Finding the announcements channel and preparing the active-check prompt.")], components: [] });
   const routes = await getRouteChannels(interaction.guildId);
   const channelId = routes?.announcements_channel_id;
   const channel = channelId ? await interaction.guild.channels.fetch(channelId).catch(() => null) : null;
@@ -652,7 +684,7 @@ async function handleActiveCheck(interaction: ButtonInteraction) {
     )],
     allowedMentions: { parse: ["everyone"] }
   });
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check").setDescription("Posted the 24-hour active check to announcements. Response persistence and closeout reporting will be completed with the Active Check backend worker.")], components: buildAdvanceMgmtRows() });
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check Posted").setDescription("The active-check prompt has been posted in announcements. Members can click **Yes, I'm Active** for the next 24 hours.")], components: buildAdvanceMgmtRows() });
 }
 
 function teamDisplay(team: any) {
@@ -676,8 +708,9 @@ async function handleSetGotw(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can set GOTW.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading GOTW Matchups...").setDescription("Checking the active week's logged schedule for games where both teams have linked users.")], components: [] });
   const { currentWeek, stage, games } = await currentSchedule(interaction);
-  const h2h = games.filter((g: any) => g.away_user_id && g.home_user_id);
+  const h2h = games.filter((g: any) => g.away_discord_id && g.home_discord_id);
   if (!h2h.length) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription(`No H2H matchups are scheduled for ${stageLabel(stage, currentWeek)}.`)],
@@ -732,6 +765,7 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can create game channels.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Creating Game Channels...").setDescription("Checking the active week's logged schedule for H2H matchups where both teams have linked Discord users.")], components: [] });
   const routes = await getRouteChannels(interaction.guildId);
   const categoryId = routes?.game_channels_category_id;
   const category = categoryId ? await interaction.guild.channels.fetch(categoryId).catch(() => null) : null;
@@ -739,7 +773,20 @@ async function handleGameChannels(interaction: ButtonInteraction) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Game Channels").setDescription("No game channels category is configured.")], components: buildAdvanceMgmtRows() });
   }
   const { currentWeek, stage, games } = await currentSchedule(interaction);
-  const h2h = games.filter((g: any) => g.away_user_id && g.home_user_id);
+  const h2h = games.filter((g: any) => g.away_discord_id && g.home_discord_id);
+  if (!h2h.length) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle("Game Channels")
+        .setDescription([
+          `No H2H matchups are available for **${stageLabel(stage, currentWeek)}**.`,
+          "",
+          "Game channels are created only from the logged weekly schedule, and only when both scheduled teams have linked Discord users.",
+          "If this is unexpected, check League Mgmt > Schedule and League Mgmt > Teams."
+        ].join("\n"))],
+      components: buildAdvanceMgmtRows()
+    });
+  }
   const created: string[] = [];
   for (const game of h2h) {
     const away = teamDisplay(game.away_team);
@@ -983,6 +1030,7 @@ async function handlePotyTallies(interaction: ButtonInteraction) {
     return interaction.reply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription("POTY Tallies are available from Wild Card through Super Bowl week.")], flags: MessageFlags.Ephemeral });
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Running POTY Tallies...").setDescription("Fetching eligible highlights, counting category reactions, and preparing payout reviews for any unpaid winners.")] });
   const result = await settleHighlightAwardsForGuild(interaction.guildId, interaction.client as any);
   return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription(`Tallied Play of the Year reactions and prepared ${result.winners.length} category review(s).`)] });
 }
@@ -1017,7 +1065,7 @@ async function handleLeagueMgmtRoles(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only authorized admins can manage league roles.", flags: MessageFlags.Ephemeral });
   }
-  return replyMenuPlaceholder(interaction, "Roles", "Role management is coming soon. This will let admins change users between the designated REC league roles.");
+  return replyMenuPlaceholder(interaction, "Roles", "Role management is not active yet. For now, assign Commissioner, Co Commissioner, and member roles directly in Discord or through League Mgmt > Teams where team links are managed.");
 }
 
 async function handleLeagueMgmtDeleteLeague(interaction: ButtonInteraction) {

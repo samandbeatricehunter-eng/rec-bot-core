@@ -17,6 +17,7 @@ const snapshotSessions = new Map<string, SnapshotSession>();
 
 export async function renderTeamsMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Teams...").setDescription("Fetching league teams, linked users, and open team slots.")], components: [] });
   if (!interaction.guildId) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildMaddenTeamsRows() });
   }
@@ -36,6 +37,7 @@ export async function renderTeamsMenu(interaction: ButtonInteraction) {
 
 export async function handleTeamsPage(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Teams...").setDescription("Switching conferences and refreshing linked/open teams.")], components: [] });
   if (!interaction.guildId) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildMaddenTeamsRows("NFC") });
   }
@@ -50,6 +52,7 @@ export async function handleTeamsPage(interaction: ButtonInteraction) {
 
 export async function renderUserSnapshotPicker(interaction: ButtonInteraction | StringSelectMenuInteraction) {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading User Profiles...").setDescription("Fetching linked teams so you can choose a coach profile.")], components: [] });
   if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("User Profiles").setDescription("This must be run inside a league server.")], components: [] });
   const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
   const conferences: any[] = confData?.conferences ?? [];
@@ -157,6 +160,7 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
 
 export async function handleSnapshotUserSelect(interaction: StringSelectMenuInteraction) {
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Profile...").setDescription("Fetching this coach's record, wallet context, badges, awards, and matchup history.")], components: [] });
   if (!interaction.guildId) return;
   const targetDiscordId = interaction.values[0];
   const snapshot = await recApi.getUserSnapshot(targetDiscordId, interaction.guildId).catch(() => null);

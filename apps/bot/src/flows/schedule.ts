@@ -103,6 +103,7 @@ export async function startManualScheduleEntry(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
 
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Manual Schedule...").setDescription("Fetching league teams so you can choose weekly matchups.")], components: [] });
   try {
     const data = await recApi.listScheduleTeams(interaction.guildId);
     const teams: ManualTeam[] = data?.teams ?? [];
@@ -142,6 +143,7 @@ export async function handleManualScheduleWeekSelect(interaction: StringSelectMe
   session.warnedIncomplete = false;
   session.notice = null;
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Week...").setDescription("Fetching the saved matchups for the selected week.")], components: [] });
   await refreshWeek(session);
   return interaction.editReply(renderManualEntry(session));
 }
@@ -165,6 +167,7 @@ export async function handleManualScheduleNextMatchup(interaction: ButtonInterac
   const session = getManualSession(interaction);
   if (!session) return interaction.reply({ content: "Manual schedule session expired. Reopen League Mgmt > Schedule.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Saving Matchup...").setDescription("Saving the selected Away/Home matchup to the weekly schedule.")], components: [] });
   const saved = await saveSelectedMatchup(session, interaction.user.id).catch((err) => {
     session.notice = err instanceof Error ? err.message : String(err);
     return false;
@@ -181,6 +184,7 @@ export async function handleManualScheduleNextWeek(interaction: ButtonInteractio
   const session = getManualSession(interaction);
   if (!session) return interaction.reply({ content: "Manual schedule session expired. Reopen League Mgmt > Schedule.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Next Week...").setDescription("Checking whether this week is complete, then loading the next schedule page.")], components: [] });
 
   const expected = expectedGamesForWeek(session);
   if (!force && session.games.length < expected) {
@@ -201,6 +205,7 @@ export async function handleManualScheduleComplete(interaction: ButtonInteractio
   const session = getManualSession(interaction);
   if (!session) return interaction.reply({ content: "Manual schedule session expired. Reopen League Mgmt > Schedule.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Completing Schedule Entry...").setDescription("Saving any selected matchup and returning to League Mgmt.")], components: [] });
   if (session.selectedTeamIds.length === 2) {
     const saved = await saveSelectedMatchup(session, interaction.user.id).catch((err) => {
       session.notice = err instanceof Error ? err.message : String(err);
@@ -220,7 +225,7 @@ export async function handleManualScheduleBack(interaction: ButtonInteraction) {
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule")
-      .setDescription("Choose how you want to upload or enter league schedule data.")],
+      .setDescription("Choose how you want to upload, enter, or view league schedule data.")],
     components: scheduleManagementRows(),
   });
 }
@@ -231,6 +236,7 @@ export async function startScheduleViewer(interaction: ButtonInteraction) {
   }
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Schedule...").setDescription("Fetching all regular-season, postseason, and Super Bowl week pages.")], components: [] });
   try {
     const result = await recApi.listScheduleSeason({ guildId: interaction.guildId });
     const session: ScheduleViewSession = {
@@ -457,7 +463,7 @@ function buildScheduleWeekEmbed(session: ScheduleViewSession) {
   return new EmbedBuilder()
     .setTitle(`${session.leagueName ?? "League"} Schedule - ${formatViewWeekLabel(page.weekNumber)}`)
     .setDescription(lines.slice(0, 4096))
-    .setFooter({ text: `Season ${session.seasonNumber} • Page ${session.pageIndex + 1}/${session.weeks.length || 22}` });
+    .setFooter({ text: `Season ${session.seasonNumber} - Page ${session.pageIndex + 1}/${session.weeks.length || 22}` });
 }
 
 function renderScheduleView(session: ScheduleViewSession) {

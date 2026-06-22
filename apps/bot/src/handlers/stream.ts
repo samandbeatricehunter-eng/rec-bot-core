@@ -70,7 +70,13 @@ async function postPendingReview(interaction: StringSelectMenuInteraction | Moda
 export async function handleStreamMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Stream").setDescription("Select your streaming service below.")],
+    embeds: [new EmbedBuilder().setTitle("Stream").setDescription([
+      "Submit a stream for the current league week.",
+      "",
+      "A posted stream creates a commissioner payout review for **$50**. Only one stream payout can be pending, approved, or issued for you per game week.",
+      "",
+      "Choose **Discord Live Stream** if you are going live in Discord, or choose a service to paste a stream link."
+    ].join("\n"))],
     components: buildStreamRows()
   });
 }
@@ -96,6 +102,10 @@ export async function handleStreamLinkModal(interaction: ModalSubmitInteraction)
 }
 
 async function submitStream(interaction: StringSelectMenuInteraction | ModalSubmitInteraction, service: string, link: string | null) {
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Submitting Stream...").setDescription("Posting your stream and checking weekly payout eligibility.")],
+    components: []
+  }).catch(() => undefined);
   if (!interaction.guildId) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Stream").setDescription("This must be used inside a league server.")], components: buildStreamRows() });
   }
