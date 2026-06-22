@@ -5,6 +5,34 @@ import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js"
 
 const BOX_SCORE_PAYOUT_AMOUNT = 50;
 
+// ─── Learned OCR label aliases (#2) ────────────────────────────────────────────
+// Garbled labels that an approved parse mapped to a canonical key, so future
+// parses hit them exactly instead of relying on fuzzy matching.
+
+let aliasCache: { aliases: Record<string, string>; at: number } | null = null;
+const ALIAS_TTL = 5 * 60 * 1000;
+
+async function loadLabelAliases(): Promise<Record<string, string>> {
+  if (aliasCache && Date.now() - aliasCache.at < ALIAS_TTL) return aliasCache.aliases;
+  const { data, error } = await supabase.from("rec_ocr_label_aliases").select("raw_label,canonical_key");
+  if (error) return aliasCache?.aliases ?? {};
+  const aliases: Record<string, string> = {};
+  for (const row of data ?? []) aliases[row.raw_label] = row.canonical_key;
+  aliasCache = { aliases, at: Date.now() };
+  return aliases;
+}
+
+// Promote a confirmed parse's fuzzy-matched labels into the alias table.
+async function recordLabelAliases(samples: Record<string, string> | null | undefined) {
+  if (!samples) return;
+  const rows = Object.entries(samples)
+    .filter(([, raw]) => typeof raw === "string" && raw.trim().length > 0)
+    .map(([key, raw]) => ({ raw_label: raw, canonical_key: key }));
+  if (!rows.length) return;
+  await supabase.from("rec_ocr_label_aliases").upsert(rows, { onConflict: "raw_label" });
+  aliasCache = null; // invalidate so the new aliases load on the next parse
+}
+
 // ─── Comeback computation ─────────────────────────────────────────────────────
 
 type ComebackStats = {
@@ -204,7 +232,7 @@ export async function parseBoxScorePreview(input: PreviewInput): Promise<Preview
   const seasonNumber = Number(context.rec_leagues.season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
 
-  const parsed = await parseBoxScoreImages(input.imageUrls);
+  const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
   const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed);
 
   return {
@@ -253,7 +281,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const phase = context.rec_leagues.season_stage ?? null;
 
-  const parsed = await parseBoxScoreImages(input.imageUrls);
+  const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
   const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed);
 
   const comeback = parsed.score
@@ -289,6 +317,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       team_stats: parsed.stats,
       game_id: resolved.gameId,
       parse_warnings: parsed.warnings,
+      parse_label_samples: parsed.labelSamples,
       comeback_deficit: comeback.comebackDeficit,
       comeback_deficit_quarter: comeback.comebackDeficitQuarter,
       comeback_rate: comeback.comebackRate,
@@ -456,6 +485,9 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
     .eq("source_table", "rec_box_score_submissions")
     .eq("source_id", input.submissionId);
+
+  // Approval confirms the parse — promote any fuzzy-matched labels to aliases.
+  await recordLabelAliases(sub.parse_label_samples as Record<string, string> | null);
 
   return { ok: true, action: "approved" as const, payoutAmount: BOX_SCORE_PAYOUT_AMOUNT, playersPayd: payoutUserIds.length };
 }

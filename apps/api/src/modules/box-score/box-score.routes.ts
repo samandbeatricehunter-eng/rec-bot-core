@@ -19,7 +19,7 @@ const ParseSchema = z.object({
 const SubmitSchema = z.object({
   guildId: z.string().min(1),
   discordId: z.string().min(1),
-  imageUrls: z.array(z.string().url()).min(2),
+  imageUrls: z.array(z.string().url()).min(1),
   discordChannelId: z.string().optional().nullable(),
   discordMessageId: z.string().optional().nullable(),
 });

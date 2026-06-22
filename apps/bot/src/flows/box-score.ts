@@ -29,13 +29,12 @@ export const BOX_SCORE_CUSTOM_IDS = {
 
 // ─── Timing windows ────────────────────────────────────────────────────────────
 
-const SECOND_IMAGE_MS = 2 * 60 * 1000;   // wait for the 2nd screenshot
 const MISSING_FIELDS_MS = 5 * 60 * 1000; // wait for a re-upload with missing fields
 const REVIEW_MS = 5 * 60 * 1000;         // wait for the submitter to confirm
 
 // ─── Per-user exchange state (one active upload per user per guild) ────────────
 
-type ExchangePhase = "awaiting_second" | "awaiting_missing" | "review";
+type ExchangePhase = "awaiting_missing" | "review";
 
 type Exchange = {
   guildId: string;
@@ -142,7 +141,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
       imageUrls: [],
       userMessageIds: [],
       botMessageIds: [],
-      phase: "awaiting_second",
+      phase: "review",
       timer: null,
       expiresAt: 0,
       busy: false,
@@ -170,26 +169,6 @@ async function advanceExchange(ex: Exchange) {
     ex.botMessageIds = [];
   }
   if (ex.timer) { clearTimeout(ex.timer); ex.timer = null; }
-
-  // Need at least two screenshots.
-  if (ex.imageUrls.length < 2) {
-    ex.phase = "awaiting_second";
-    const msg = await ex.channel.send({
-      content: `<@${ex.userId}>`,
-      embeds: [new EmbedBuilder()
-        .setTitle("One more screenshot needed")
-        .setColor(0xf1c40f)
-        .setDescription(
-          "A box score needs **at least 2 screenshots** (the default **Box Score** tab + the scroll-down page with the remaining stats).\n\n" +
-          "Post the **second image** within **2 minutes** or this submission will be discarded."
-        )],
-    }).catch(() => null);
-    if (msg) ex.botMessageIds.push(msg.id);
-    scheduleTimeout(ex, SECOND_IMAGE_MS, () => {
-      void onExchangeTimeout(ex, "Your box score was discarded — a second screenshot wasn't posted within 2 minutes. Feel free to start over in the box scores channel.");
-    });
-    return;
-  }
 
   // Parse (stateless — no DB write yet).
   const working = await ex.channel.send({
@@ -407,10 +386,10 @@ export async function handleBoxScoreButton(interaction: ButtonInteraction) {
       .setTitle("Upload Box Score")
       .setColor(0x3498db)
       .setDescription(
-        `Post your **two box score screenshots** in ${where}.\n\n` +
-        "• Screenshot 1 — the default **Box Score** tab\n" +
-        "• Screenshot 2 — scroll down to capture the remaining stats\n\n" +
-        "The bot reads them automatically and walks you through confirming before it goes to your commissioners." +
+        `Post your **box score screenshot** in ${where}.\n\n` +
+        "• Just the default **Box Score** tab — no need to scroll\n\n" +
+        "The bot reads it automatically and walks you through confirming before it goes to your commissioners. " +
+        "If it can't read a required stat, it'll tell you exactly what to re-screenshot." +
         (boxChannelId ? "" : "\n\n*No Box Scores channel is configured yet — an admin can set one in Server Setup.*")
       )],
     flags: MessageFlags.Ephemeral,
@@ -460,6 +439,18 @@ function statLines(stats: Record<string, { team1: string; team2: string } | null
   return lines.length ? lines.join("\n") : "*No stats parsed*";
 }
 
+// Each team's defensive view is the mirror of the opponent's offense: turnovers
+// a team committed are "generated turnovers" for the other side, and the
+// opponent's yardage is what this team allowed.
+function defensiveSummary(stats: Record<string, { team1: string; team2: string } | null> | null | undefined): string {
+  if (!stats) return "*n/a*";
+  const to = stats["turnovers"];
+  const yds = stats["total_yards_gained"] ?? stats["off_yards_gained"];
+  const g1 = to?.team2 || "?", g2 = to?.team1 || "?";
+  const a1 = yds?.team2 || "?", a2 = yds?.team1 || "?";
+  return `Generated TO: **${g1}** / **${g2}**\nYards Allowed: **${a1}** / **${a2}**`;
+}
+
 function buildPreviewEmbed(preview: any): EmbedBuilder {
   const score = preview?.parsed?.score;
   const scoreText = score
@@ -473,6 +464,7 @@ function buildPreviewEmbed(preview: any): EmbedBuilder {
     .addFields(
       { name: "SCORE", value: scoreText.slice(0, 1024), inline: false },
       { name: `TEAM STATS  (${preview?.team1Name ?? "Team 1"} / ${preview?.team2Name ?? "Team 2"})`, value: statLines(preview?.parsed?.stats, 14).slice(0, 1024), inline: false },
+      { name: "DEFENSE  (T1 / T2)", value: defensiveSummary(preview?.parsed?.stats).slice(0, 1024), inline: false },
     );
   if (!preview?.gameMatched) {
     embed.addFields({ name: "⚠️ NOTICE", value: "Couldn't auto-match this to a scheduled game — a commissioner can still approve it.", inline: false });
@@ -494,6 +486,7 @@ function buildPayoutReviewEmbed(result: any): EmbedBuilder {
       { name: "GAME", value: `**${result.team1Abbr ?? "?"}** ${result.team1Score ?? "?"} – ${result.team2Score ?? "?"} **${result.team2Abbr ?? "?"}** — Week ${result.weekNumber ?? "?"}`, inline: false },
       { name: "QUARTER SCORES", value: qText.slice(0, 512), inline: false },
       { name: "TEAM STATS  (T1 / T2)", value: statLines(result?.stats, 12).slice(0, 1024), inline: false },
+      { name: "DEFENSE  (T1 / T2)", value: defensiveSummary(result?.stats).slice(0, 1024), inline: false },
       { name: "SUBMITTED BY", value: `<@${result.submittedByDiscordId}>`, inline: true },
     );
   if (!result?.gameMatched) {

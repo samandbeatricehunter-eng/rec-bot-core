@@ -45,11 +45,18 @@ export type ParsedScore = {
   team2Quarters: number[];
 };
 
+export type MatchVia = "exact" | "alias" | "fuzzy";
+
 export type ParsedStat = {
   key: string;
   team1: string;
   team2: string;
+  rawLabel: string;
+  matchedVia: MatchVia;
 };
+
+// raw_label (normalized) → canonical stat key, learned from approved parses.
+export type LabelAliases = Record<string, string>;
 
 export type ParsedBoxScore = {
   score: ParsedScore | null;
@@ -57,6 +64,8 @@ export type ParsedBoxScore = {
   warnings: string[];
   // Human-readable names of required fields that could not be read. Empty = complete.
   missingRequired: string[];
+  // canonical key → normalized raw label, for fuzzy matches only (learning corpus).
+  labelSamples: Record<string, string>;
 };
 
 // ─── Known stat labels (lowercase key → canonical key) ──────────────────────
@@ -87,21 +96,33 @@ const ALL_STAT_KEYS = new Set(Object.values(STAT_LABEL_MAP));
 // is captured best-effort and never blocks the submitter.
 
 export const REQUIRED_STAT_KEYS = [
-  "total_yards_gained",
+  "off_yards_gained",
+  "off_rush_yards",
+  "off_pass_yards",
+  "off_first_down",
+  "punt_return_yards",
+  "kick_return_yards",
   "turnovers",
-  "time_of_possession",
-  "third_down_conversions",
-  "fourth_down_conversions",
   "red_zone_off_percentage",
 ] as const;
 
 const FIELD_DISPLAY_NAMES: Record<string, string> = {
-  total_yards_gained: "Total Yards Gained",
+  off_yards_gained: "Off Yards Gained",
+  off_rush_yards: "Off Rush Yards",
+  off_pass_yards: "Off Pass Yards",
+  off_first_down: "Off First Downs",
+  punt_return_yards: "Punt Return Yards",
+  kick_return_yards: "Kick Return Yards",
   turnovers: "Turnovers",
+  red_zone_off_percentage: "Red Zone Off %",
+  total_yards_gained: "Total Yards Gained",
   time_of_possession: "Time of Possession",
   third_down_conversions: "Third Down Conversions",
   fourth_down_conversions: "Fourth Down Conversions",
-  red_zone_off_percentage: "Red Zone Off %",
+  two_point_conversions: "Two Point Conversions",
+  red_zone_off_td: "Red Zone Off TD",
+  red_zone_off_fg: "Red Zone Off FG",
+  penalty_yards: "Penalty Yards",
 };
 
 function hasValue(v: { team1: string; team2: string } | undefined): boolean {
@@ -268,15 +289,18 @@ function normalizeLabel(text: string): string {
   return text.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function matchStatLabel(normalized: string): string | null {
-  if (STAT_LABEL_MAP[normalized]) return STAT_LABEL_MAP[normalized];
+function matchStatLabel(normalized: string, aliases: LabelAliases): { key: string; via: MatchVia } | null {
+  if (STAT_LABEL_MAP[normalized]) return { key: STAT_LABEL_MAP[normalized], via: "exact" };
+
+  // Learned alias from a previously-approved parse — treat as an exact hit.
+  if (aliases[normalized]) return { key: aliases[normalized], via: "alias" };
 
   // Partial match: known label contained in OCR output, or OCR output contained in known label.
   for (const [label, key] of Object.entries(STAT_LABEL_MAP)) {
-    if (normalized.length >= 6 && label.includes(normalized)) return key;
-    if (label.length >= 6 && normalized.includes(label)) return key;
+    if (normalized.length >= 6 && label.includes(normalized)) return { key, via: "fuzzy" };
+    if (label.length >= 6 && normalized.includes(label)) return { key, via: "fuzzy" };
     // First-word match for single-word labels (e.g. "Turnovers")
-    if (label.split(" ").length === 1 && normalized.startsWith(label)) return key;
+    if (label.split(" ").length === 1 && normalized.startsWith(label)) return { key, via: "fuzzy" };
   }
   return null;
 }
@@ -288,7 +312,7 @@ function findValueNearY(candidates: NormalizedWord[], targetY: number): string {
   return cleanStatValue(nearby.map((w) => w.text).join(" "));
 }
 
-function parseStatRows(words: NormalizedWord[]): ParsedStat[] {
+function parseStatRows(words: NormalizedWord[], aliases: LabelAliases): ParsedStat[] {
   const statZone = words.filter((w) => w.y >= STATS_Y_MIN);
 
   const leftVals  = statZone.filter((w) => w.x < LEFT_VAL_X_MAX);
@@ -303,17 +327,17 @@ function parseStatRows(words: NormalizedWord[]): ParsedStat[] {
 
   for (const row of centerRows) {
     const sortedRow = [...row].sort((a, b) => a.x - b.x);
-    const labelText = sortedRow.map((w) => w.text).join(" ");
+    const normalized = normalizeLabel(sortedRow.map((w) => w.text).join(" "));
     const rowY = sortedRow.reduce((s, w) => s + w.y, 0) / sortedRow.length;
-    const key = matchStatLabel(normalizeLabel(labelText));
+    const match = matchStatLabel(normalized, aliases);
 
-    if (!key || seenKeys.has(key)) continue;
-    seenKeys.add(key);
+    if (!match || seenKeys.has(match.key)) continue;
+    seenKeys.add(match.key);
 
     const team1Val = findValueNearY(leftVals, rowY);
     const team2Val = findValueNearY(rightVals, rowY);
 
-    stats.push({ key, team1: team1Val, team2: team2Val });
+    stats.push({ key: match.key, team1: team1Val, team2: team2Val, rawLabel: normalized, matchedVia: match.via });
   }
 
   return stats;
@@ -329,7 +353,7 @@ async function fetchImageBuffer(url: string): Promise<Buffer> {
 
 // ─── Main parse entry point ───────────────────────────────────────────────────
 
-async function parseImage(buffer: Buffer): Promise<{ score: ParsedScore | null; stats: ParsedStat[]; warnings: string[] }> {
+async function parseImage(buffer: Buffer, aliases: LabelAliases): Promise<{ score: ParsedScore | null; stats: ParsedStat[]; warnings: string[] }> {
   const warnings: string[] = [];
   let score: ParsedScore | null = null;
   let stats: ParsedStat[] = [];
@@ -338,7 +362,7 @@ async function parseImage(buffer: Buffer): Promise<{ score: ParsedScore | null; 
     const { words } = await extractNormalizedWords(buffer);
     score = parseScoreHeader(words);
     if (!score) warnings.push("Could not parse score header from this image.");
-    stats = parseStatRows(words);
+    stats = parseStatRows(words, aliases);
   } catch (err) {
     warnings.push(`OCR error: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -346,15 +370,25 @@ async function parseImage(buffer: Buffer): Promise<{ score: ParsedScore | null; 
   return { score, stats, warnings };
 }
 
-// Accepts any number of screenshots (2+ in normal use; more when a submitter
-// re-uploads to fill in a field the OCR missed). Stats are merged across all
-// images, preferring the first non-empty value found for each key.
-export async function parseBoxScoreImages(imageUrls: string[]): Promise<ParsedBoxScore> {
+// The single default Box Score screenshot carries every required field. Still
+// accepts more than one image — a submitter can re-post when the OCR misses a
+// field — and merges them, preferring the first non-empty value found per key.
+export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAliases = {}): Promise<ParsedBoxScore> {
   const buffers = await Promise.all(imageUrls.map(fetchImageBuffer));
-  const results = await Promise.all(buffers.map(parseImage));
+  const results = await Promise.all(buffers.map((b) => parseImage(b, aliases)));
 
   // Score: first image that yields one wins (page 1 is primary, but accept any).
   const score = results.map((r) => r.score).find((s): s is ParsedScore => s != null) ?? null;
+
+  // Capture fuzzy-matched raw labels so an approval can promote them to aliases.
+  const labelSamples: Record<string, string> = {};
+  for (const r of results) {
+    for (const stat of r.stats) {
+      if (stat.matchedVia === "fuzzy" && stat.rawLabel && !(stat.key in labelSamples)) {
+        labelSamples[stat.key] = stat.rawLabel;
+      }
+    }
+  }
 
   // Merge stats across all images. A later image can fill in a key that an
   // earlier image either missed entirely or read with an empty value.
@@ -367,6 +401,25 @@ export async function parseBoxScoreImages(imageUrls: string[]): Promise<ParsedBo
       } else if (!(stat.key in statsMap)) {
         statsMap[stat.key] = candidate; // keep an (empty) placeholder so the key is known
       }
+    }
+  }
+
+  // Derive Total Yards Gained = Off Yards + Punt Return + Kick Return when it
+  // wasn't read directly (it lives on the second screenshot we no longer require).
+  if (!hasValue(statsMap["total_yards_gained"])) {
+    const off = statsMap["off_yards_gained"];
+    const pr = statsMap["punt_return_yards"];
+    const kr = statsMap["kick_return_yards"];
+    const sum = (a?: string, b?: string, c?: string): string => {
+      const nums = [a, b, c].map((v) => parseInt(v ?? "", 10));
+      if (nums.some((n) => isNaN(n))) return "";
+      return String(nums.reduce((s, n) => s + n, 0));
+    };
+    if (hasValue(off) && hasValue(pr) && hasValue(kr)) {
+      statsMap["total_yards_gained"] = {
+        team1: sum(off.team1, pr.team1, kr.team1),
+        team2: sum(off.team2, pr.team2, kr.team2),
+      };
     }
   }
 
@@ -388,5 +441,5 @@ export async function parseBoxScoreImages(imageUrls: string[]): Promise<ParsedBo
     if (!hasValue(statsMap[key])) warnings.push(`Stat not found: ${key}`);
   }
 
-  return { score, stats: statsMap, warnings, missingRequired: computeMissingRequired(score, statsMap) };
+  return { score, stats: statsMap, warnings, missingRequired: computeMissingRequired(score, statsMap), labelSamples };
 }
