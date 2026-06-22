@@ -234,32 +234,6 @@ export async function renderTeamLinkPanel(interaction: Extract<Interaction, { is
   await interaction.update(buildTeamLinkPanelPayload());
 }
 
-export async function handleCreateDefaultTeams(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
-
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can create league teams.", ephemeral: true });
-    return;
-  }
-
-  await interaction.deferUpdate();
-  const result = await recApi.createDefaultTeams(interaction.guildId);
-
-  await interaction.editReply({
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("NFL Teams Refreshed")
-        .setDescription([
-          `League: **${result.league.name}**`,
-          `Teams available: **${result.teams.length}**`,
-          "",
-          "You can now link Discord users to teams."
-        ].join("\n"))
-    ],
-    components: buildTeamLinkHomeRows()
-  });
-}
-
 export async function handleViewLinkedUsersTeams(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
 

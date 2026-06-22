@@ -41,10 +41,14 @@ import {
   handleScheduleViewBack,
   handleScheduleViewPage,
   handleScheduleViewPostPublicly,
+  handlePostSetupScheduleFinish,
+  handlePostSetupScheduleViewPage,
+  POST_SETUP_SCHEDULE_CUSTOM_IDS,
   renderScheduleMenu,
   renderSchedulePlaceholder,
   SCHEDULE_MGMT_CUSTOM_IDS,
   startManualScheduleEntry,
+  startPostSetupScheduleReview,
   startScheduleViewer
 } from "./flows/schedule.js";
 import { handleRulesSelect } from "./flows/rules.js";
@@ -303,10 +307,15 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         leagueSetupSessions.set(interaction.user.id, draft);
         return interaction.update(buildLeagueSetupWindow(draft));
       }
-      if (interaction.customId === "rec:league_setup:skip_team_linking") {
-        // League is already saved by this point; this button just closes the linking step.
-        return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+      if (
+        interaction.customId === "rec:league_setup:skip_team_linking"
+        || interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.continueFromTeams
+      ) {
+        return startPostSetupScheduleReview(interaction);
       }
+      if (interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.prev) return handlePostSetupScheduleViewPage(interaction, -1);
+      if (interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.next) return handlePostSetupScheduleViewPage(interaction, 1);
+      if (interaction.customId === POST_SETUP_SCHEDULE_CUSTOM_IDS.finish) return handlePostSetupScheduleFinish(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);

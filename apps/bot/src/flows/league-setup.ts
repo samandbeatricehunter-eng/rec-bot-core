@@ -23,7 +23,8 @@ import {
   type LeagueSetupDraft,
   type LeagueSetupSettingsCategory
 } from "../ui/league-setup.js";
-import { buildLeagueMgmtTeamsPanel } from "../ui/team-options.js";
+import { buildPostSetupTeamLinkingPanel } from "../ui/team-options.js";
+import { markPostSetupActive, startPostSetupScheduleReview } from "./schedule.js";
 
 export const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 export async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
@@ -488,23 +489,14 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       console.error("[ERROR] Failed to save server setup routes:", error);
     }
 
-    let scheduleNote: string | null = null;
-    if (draft.seedDefaultSchedule && (draft.game === "madden_26" || draft.game === "madden_27")) {
-      try {
-        await recApi.createDefaultTeams(interaction.guildId);
-        const seedResult = await recApi.seedDefaultSchedule({
-          guildId: interaction.guildId,
-          requestedByDiscordId: interaction.user.id,
-        });
-        scheduleNote = formatDefaultScheduleSeedResult(seedResult);
-      } catch (error) {
-        console.error("[ERROR] Failed to seed default NFL schedule:", error);
-        scheduleNote = `Default schedule seed failed: ${error instanceof Error ? error.message : String(error)}`;
-      }
+    let scheduleNote: string | null = formatDefaultScheduleSeedResult(result.defaultScheduleSeed);
+    if (!scheduleNote && Array.isArray(result.defaultTeams) && result.defaultTeams.length > 0) {
+      scheduleNote = `Default NFL teams created (${result.defaultTeams.length} teams).`;
     }
 
     const wantsLinking = draft.linkTeamsAfterSetup;
     leagueSetupSessions.delete(interaction.user.id);
+    markPostSetupActive(interaction.user.id, interaction.guildId);
 
     const savedDescription = [
       `League: **${result.league.name}**`,
@@ -517,6 +509,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       `Injuries: ${result.configuration.injury_policy}`,
       "",
       "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**",
+      "NFL Teams: **32 default teams** seeded automatically",
       ...roleWarnings,
       ...(scheduleNote ? ["", scheduleNote] : []),
       "",
@@ -526,33 +519,23 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
     if (!wantsLinking) {
       await interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("League Setup Saved").setDescription(savedDescription)],
-        components: buildAdminPanelRows()
+        components: [],
       });
-      return;
-    }
-
-    // League now exists — ensure default teams are present, then open the linking selector.
-    try {
-      const openTeams = await recApi.getOpenTeams(interaction.guildId);
-      if (!openTeams?.openTeams || openTeams.openTeams.length === 0) {
-        await recApi.createDefaultTeams(interaction.guildId);
-      }
-    } catch (error) {
-      console.error("[ERROR] Failed to ensure default teams before linking:", error);
+      return startPostSetupScheduleReview(interaction);
     }
 
     await interaction.editReply({
       embeds: [
         new EmbedBuilder()
-          .setTitle("League Setup Saved — Teams")
+          .setTitle("League Setup Saved — Link Teams")
           .setDescription([
             savedDescription,
             "",
-            "Default NFL teams are available. Use the Teams workflow below to link multiple users, edit custom/relocated teams, or leave team linking for later."
+            "Link users to teams below, or continue to the Week 1–18 schedule review when ready."
           ].join("\n")),
-        ...buildLeagueMgmtTeamsPanel().embeds
+        ...buildPostSetupTeamLinkingPanel().embeds
       ],
-      components: buildLeagueMgmtTeamsPanel().components
+      components: buildPostSetupTeamLinkingPanel().components
     });
   } catch (error) {
     console.error("[ERROR] League setup save failed:", error);

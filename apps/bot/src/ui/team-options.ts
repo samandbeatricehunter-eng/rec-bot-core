@@ -21,7 +21,6 @@ export const TEAM_LINK_CUSTOM_IDS = {
   conferenceSelect: "rec:teamlink:conference",
   afcTeamSelect: "rec:teamlink:team:afc",
   nfcTeamSelect: "rec:teamlink:team:nfc",
-  createDefaultTeams: "rec:teamlink:create_default_teams",
   viewLinked: "rec:teamlink:view_linked",
   viewOpen: "rec:teamlink:view_open",
   simpleConferenceSelect: "rec:teamlink:simple_conference",
@@ -81,10 +80,6 @@ export function getTeamLinkUserPageInfo(totalUsers: number, requestedPage = 0) {
 export function buildTeamLinkHomeRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(TEAM_LINK_CUSTOM_IDS.createDefaultTeams)
-        .setLabel("Create/Refresh NFL Teams")
-        .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
         .setCustomId(TEAM_LINK_CUSTOM_IDS.viewLinked)
         .setLabel("Linked Users/Teams")
@@ -260,6 +255,38 @@ export function buildLeagueMgmtTeamsPanel() {
         new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
       )
     ]
+  };
+}
+
+export function buildPostSetupTeamLinkingPanel() {
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("Teams")
+        .setDescription([
+          "**Add/Remove User** - Link users to open teams or unlink assigned users from teams.",
+          "**Edit Teams** - Add or edit custom/relocated teams.",
+          "",
+          "When you are ready, continue to review the Week 1–18 schedule."
+        ].join("\n"))
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsAddRemove).setLabel("Add/Remove User").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEdit).setLabel("Edit Teams").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.clearAllLinks).setLabel("Clear All Links").setStyle(ButtonStyle.Danger),
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId("rec:league_setup:continue_schedule_review")
+          .setLabel("Continue to Schedule Review")
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId("rec:league_setup:skip_team_linking")
+          .setLabel("Skip Linking — Review Schedule")
+          .setStyle(ButtonStyle.Secondary),
+      ),
+    ],
   };
 }
 

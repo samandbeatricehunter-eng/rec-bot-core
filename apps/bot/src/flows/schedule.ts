@@ -28,6 +28,15 @@ export const SCHEDULE_MGMT_CUSTOM_IDS = {
   viewBack: "rec:schedule_view:back",
 } as const;
 
+export const POST_SETUP_SCHEDULE_CUSTOM_IDS = {
+  prev: "rec:post_setup_schedule:prev",
+  next: "rec:post_setup_schedule:next",
+  finish: "rec:post_setup_schedule:finish",
+  continueFromTeams: "rec:league_setup:continue_schedule_review",
+} as const;
+
+const POST_SETUP_MAX_WEEK = 18;
+
 type ManualTeam = {
   id: string;
   name: string;
@@ -62,9 +71,23 @@ type ScheduleViewSession = {
   seasonNumber: number;
   pageIndex: number;
   weeks: Array<{ weekNumber: number; phase?: string | null; games: any[] }>;
+  mode: "admin" | "post_setup";
 };
 
 const scheduleViewSessions = new Map<string, ScheduleViewSession>();
+const postSetupSessions = new Map<string, { guildId: string }>();
+
+export function markPostSetupActive(userId: string, guildId: string) {
+  postSetupSessions.set(userId, { guildId });
+}
+
+export function clearPostSetupSession(userId: string) {
+  postSetupSessions.delete(userId);
+}
+
+export function isPostSetupActive(userId: string) {
+  return postSetupSessions.has(userId);
+}
 
 export async function renderScheduleMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
@@ -246,6 +269,7 @@ export async function startScheduleViewer(interaction: ButtonInteraction) {
       seasonNumber: Number(result?.league?.seasonNumber ?? 1),
       pageIndex: 0,
       weeks: result?.weeks ?? [],
+      mode: "admin",
     };
     scheduleViewSessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
     return interaction.editReply(renderScheduleView(session));
@@ -273,6 +297,8 @@ export async function handleScheduleViewPostPublicly(interaction: ButtonInteract
 }
 
 export async function handleScheduleViewBack(interaction: ButtonInteraction) {
+  const session = getScheduleViewSession(interaction);
+  if (session?.mode === "post_setup") return handlePostSetupScheduleFinish(interaction);
   if (interaction.inCachedGuild()) scheduleViewSessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   return interaction.update({
     embeds: [new EmbedBuilder()
@@ -280,6 +306,63 @@ export async function handleScheduleViewBack(interaction: ButtonInteraction) {
       .setDescription("Choose how you want to upload, enter, or view league schedule data.")],
     components: scheduleManagementRows(),
   });
+}
+
+function filterPostSetupWeeks(weeks: ScheduleViewSession["weeks"]) {
+  const filtered = weeks.filter((week) => week.weekNumber >= 1 && week.weekNumber <= POST_SETUP_MAX_WEEK);
+  if (filtered.length > 0) return filtered;
+  return Array.from({ length: POST_SETUP_MAX_WEEK }, (_, idx) => ({
+    weekNumber: idx + 1,
+    phase: "regular_season",
+    games: [],
+  }));
+}
+
+export async function startPostSetupScheduleReview(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Loading Schedule...").setDescription(`Fetching Weeks 1–${POST_SETUP_MAX_WEEK} for review.`)],
+    components: [],
+  });
+  try {
+    const result = await recApi.listScheduleSeason({ guildId: interaction.guildId });
+    const session: ScheduleViewSession = {
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      leagueName: result?.league?.name ?? null,
+      seasonNumber: Number(result?.league?.seasonNumber ?? 1),
+      pageIndex: 0,
+      weeks: filterPostSetupWeeks(result?.weeks ?? []),
+      mode: "post_setup",
+    };
+    scheduleViewSessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+    return interaction.editReply(renderPostSetupScheduleView(session));
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Schedule Review").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish).setLabel("Finish Setup").setStyle(ButtonStyle.Success)
+        ),
+      ],
+    });
+  }
+}
+
+export async function handlePostSetupScheduleViewPage(interaction: ButtonInteraction, delta: number) {
+  const session = getScheduleViewSession(interaction);
+  if (!session || session.mode !== "post_setup") {
+    return interaction.reply({ content: "Schedule review expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
+  }
+  session.pageIndex = Math.max(0, Math.min(session.weeks.length - 1, session.pageIndex + delta));
+  return interaction.update(renderPostSetupScheduleView(session));
+}
+
+export async function handlePostSetupScheduleFinish(interaction: ButtonInteraction) {
+  if (interaction.inCachedGuild()) scheduleViewSessions.delete(sessionKey(interaction.guildId, interaction.user.id));
+  clearPostSetupSession(interaction.user.id);
+  return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
 }
 
 function getScheduleViewSession(interaction: ButtonInteraction) {
@@ -477,6 +560,33 @@ function renderScheduleView(session: ScheduleViewSession) {
         new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.viewPostPublicly).setLabel("Post Publicly").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.viewBack).setLabel("Back").setStyle(ButtonStyle.Secondary)
       )
+    ],
+  };
+}
+
+function renderPostSetupScheduleView(session: ScheduleViewSession) {
+  const last = Math.max(0, session.weeks.length - 1);
+  const onLastPage = session.pageIndex >= last;
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("League Setup: Review Schedule")
+        .setDescription([
+          "Review each regular-season week before finishing setup. Use **Previous** / **Next** to walk Weeks 1–18.",
+          "",
+          buildScheduleWeekEmbed(session).data.description ?? "No games have been set for this week yet.",
+        ].join("\n").slice(0, 4096))
+        .setFooter({ text: `Season ${session.seasonNumber} — Week ${session.weeks[session.pageIndex]?.weekNumber ?? session.pageIndex + 1} of ${POST_SETUP_MAX_WEEK}` }),
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.prev).setLabel("Previous Week").setStyle(ButtonStyle.Secondary).setDisabled(session.pageIndex <= 0),
+        new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.next).setLabel("Next Week").setStyle(ButtonStyle.Primary).setDisabled(onLastPage),
+        new ButtonBuilder()
+          .setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish)
+          .setLabel(onLastPage ? "Finish Setup" : "Skip to Finish")
+          .setStyle(ButtonStyle.Success),
+      ),
     ],
   };
 }

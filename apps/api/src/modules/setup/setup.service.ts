@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.service.js";
 import type {
   CreateLeagueInput,
   RegisterServerInput,
@@ -241,11 +242,18 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     source: "manual_admin_entry"
   });
 
+  const defaultTeams = await createDefaultTeamsForGuild({
+    guildId: input.guildId,
+    requestedByDiscordId: input.requestedByDiscordId ?? null,
+  });
+
   return {
     server: serverResult.server,
     league: league.data,
     configuration: configuration.data,
-    serverLeagueLink: link.data
+    serverLeagueLink: link.data,
+    defaultTeams: defaultTeams.teams,
+    defaultScheduleSeed: defaultTeams.defaultScheduleSeed,
   };
 }
 
