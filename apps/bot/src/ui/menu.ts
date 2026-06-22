@@ -43,6 +43,16 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtScheduleView: "rec:league_mgmt:schedule:view",
   leagueMgmtScheduleBack: "rec:league_mgmt:schedule:back",
   leagueMgmtAdvance: "rec:league_mgmt:advance",
+  leagueMgmtAdvanceWeek: "rec:league_mgmt:advance:week",
+  leagueMgmtActiveCheck: "rec:league_mgmt:advance:active_check",
+  leagueMgmtSetGotw: "rec:league_mgmt:advance:set_gotw",
+  leagueMgmtGameChannels: "rec:league_mgmt:advance:game_channels",
+  leagueMgmtSetWeek: "rec:league_mgmt:advance:set_week",
+  leagueMgmtSetSeason: "rec:league_mgmt:advance:set_season",
+  leagueMgmtEosPayouts: "rec:league_mgmt:advance:eos_payouts",
+  leagueMgmtEosAwards: "rec:league_mgmt:advance:eos_awards",
+  leagueMgmtPotyTallies: "rec:league_mgmt:advance:poty_tallies",
+  leagueMgmtAdvanceBack: "rec:league_mgmt:advance:back",
   leagueMgmtSettings: "rec:league_mgmt:settings",
   leagueMgmtFirstTimeSetup: "rec:league_mgmt:first_time_setup",
   leagueMgmtDeleteLeague: "rec:league_mgmt:delete_league",
@@ -227,9 +237,9 @@ export function buildAdminPanelEmbed() {
       "From this menu, you can manage your league in a variety of ways.",
       "",
       "**Teams** - Add/Remove users and teams (custom/relocated) from the league.",
-      "**Box Score Submissions** - Commissioner upload flow for missed or prior-week box scores.",
+      "**Box Scores** - Commissioner upload flow for missed or prior-week box scores.",
       "**Schedule** - Upload league schedule screenshots by wizard or by selected week.",
-      "**Advance** - Temporarily unavailable while the Advance Wizard is rebuilt.",
+      "**Advance** - Manage weekly advance tools, active checks, GOTW, game channels, EOS payouts, and POTY tallies.",
       "**Settings** - Change league and server setup settings from the League Setup wizard.",
       "**First-Time Setup** - Wizard for setting up your league for the first time. **WARNING** This will clear ALL league data if ran more than once.",
       "**Delete League** - This will delete all league data for this server. Use this when your league is done and/or you're starting a new league in the same server.",
@@ -243,10 +253,10 @@ export function buildAdminPanelRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Score Submissions").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Scores").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSettings).setLabel("Settings").setStyle(ButtonStyle.Success)
     ),
