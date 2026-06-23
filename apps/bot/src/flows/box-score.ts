@@ -194,10 +194,12 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
     .map((a) => a.url);
   if (images.length === 0) return false;
 
-  await message.delete().catch(() => undefined);
+  // Don't delete the message yet — the Discord CDN URL expires once the message is
+  // deleted, and Tesseract OCR can take 15-30s. We delete after submission completes.
   commissionerSubmissionSessions.delete(key);
 
   if (images.length !== 1) {
+    await message.delete().catch(() => undefined);
     await channel.send({
       content: `<@${message.author.id}>`,
       embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xe74c3c).setDescription("Upload exactly one box score image for commissioner submissions.")],
@@ -220,6 +222,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
     });
     const missing: string[] = preview.missingRequired ?? [];
     if (missing.length > 0) {
+      await message.delete().catch(() => undefined);
       await working?.edit({
         embeds: [new EmbedBuilder()
           .setTitle("Missing required fields")
@@ -241,6 +244,9 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
       commissionerSubmission: true,
     });
 
+    // Image is no longer needed — delete the message now that submission is saved.
+    await message.delete().catch(() => undefined);
+
     const routes = await getGuildRoutes(session.guildId);
     const payoutsChannelId: string | null = routes?.pending_payouts_channel_id ?? null;
     let posted = false;
@@ -261,6 +267,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
           : `Parsed ${session.gameLabel}, but no Pending Payouts channel is configured.`)],
     }).catch(() => undefined);
   } catch (err) {
+    await message.delete().catch(() => undefined);
     await working?.edit({
       embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
     }).catch(() => undefined);
