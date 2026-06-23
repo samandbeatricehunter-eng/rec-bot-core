@@ -1,0 +1,362 @@
+[
+  {
+    "file": "image-1f8ae807-397a-454b-8094-3ecf01e41417.png",
+    "ok": false,
+    "score": "NYG 10–30 LAR",
+    "missingRequired": [
+      "Off Yards Gained",
+      "Off First Downs"
+    ],
+    "incompleteRequired": [
+      "off_yards_gained",
+      "off_first_down"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "? / ?",
+    "thirdDown": "5/5 / ?"
+  },
+  {
+    "file": "image-66b5cb16-b101-4c38-8866-a5de580f0182.png",
+    "ok": false,
+    "score": "CLE 23–17 BAL",
+    "missingRequired": [
+      "Off Rush Yards",
+      "Off First Downs"
+    ],
+    "incompleteRequired": [
+      "off_rush_yards",
+      "off_first_down"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "1/1 / ?",
+    "thirdDown": "? / ?"
+  },
+  {
+    "file": "image-10dbf377-58a2-4bd5-b2d9-d8c88df10756.png",
+    "ok": false,
+    "score": "SF 21–15 NO",
+    "missingRequired": [
+      "Off First Downs"
+    ],
+    "incompleteRequired": [
+      "off_first_down"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "0/0 / ?",
+    "thirdDown": "6/6 / ?"
+  },
+  {
+    "file": "image-5107b935-6b9e-4b3b-afc3-033c95943352.png",
+    "ok": false,
+    "score": "LAC 16–20 SDG",
+    "missingRequired": [
+      "Off Yards Gained",
+      "Off Rush Yards",
+      "Off Pass Yards",
+      "Off First Downs",
+      "Punt Return Yards",
+      "Kick Return Yards"
+    ],
+    "incompleteRequired": [
+      "off_yards_gained",
+      "off_rush_yards",
+      "off_pass_yards",
+      "off_first_down",
+      "punt_return_yards",
+      "kick_return_yards"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "total_yards_gained",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "? / ?",
+    "thirdDown": "? / ?"
+  },
+  {
+    "file": "image-45052da6-497c-43b7-ae08-73bfec230336.png",
+    "ok": false,
+    "score": "RTT 0–42 DAL",
+    "missingRequired": [
+      "Off First Downs"
+    ],
+    "incompleteRequired": [
+      "off_first_down"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "0/0 / ?",
+    "thirdDown": "? / ?"
+  },
+  {
+    "file": "image-ffec1dce-ffce-44f4-a637-dac9a9285788.png",
+    "ok": false,
+    "score": "AK 21–13 AZ",
+    "missingRequired": [
+      "Off Rush Yards",
+      "Off Pass Yards",
+      "Off First Downs",
+      "Turnovers",
+      "Red Zone Off %"
+    ],
+    "incompleteRequired": [
+      "off_rush_yards",
+      "off_pass_yards",
+      "off_first_down",
+      "turnovers",
+      "red_zone_off_percentage"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "? / ?",
+    "thirdDown": "? / ?"
+  },
+  {
+    "file": "image-6f53f791-00e6-4165-88ce-2a1e729ed446.png",
+    "ok": false,
+    "score": "SEA 7–41 PIT",
+    "missingRequired": [
+      "Off Yards Gained",
+      "Off Rush Yards",
+      "Off Pass Yards",
+      "Off First Downs",
+      "Punt Return Yards",
+      "Turnovers"
+    ],
+    "incompleteRequired": [
+      "off_yards_gained",
+      "off_rush_yards",
+      "off_pass_yards",
+      "off_first_down",
+      "punt_return_yards",
+      "turnovers"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "total_yards_gained",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "? / ?",
+    "thirdDown": "? / ?"
+  },
+  {
+    "file": "image-e6654195-a003-4e60-89c6-751e28642795.png",
+    "ok": false,
+    "score": "AZ 10–16 NO",
+    "missingRequired": [
+      "Off Yards Gained",
+      "Punt Return Yards"
+    ],
+    "incompleteRequired": [
+      "off_yards_gained",
+      "punt_return_yards"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "0/0 / ?",
+    "thirdDown": "2/2 / ?"
+  },
+  {
+    "file": "image-0f6e9b47-60b3-4c29-9c29-320f668f7e4d.png",
+    "ok": false,
+    "score": "AK 35–39 VAX",
+    "missingRequired": [
+      "Off Pass Yards"
+    ],
+    "incompleteRequired": [
+      "off_pass_yards"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "? / ?",
+    "thirdDown": "? / ?"
+  },
+  {
+    "file": "image-3401d20a-ec4b-4d93-935a-e338f5067154.png",
+    "ok": false,
+    "score": "DAL 49–0 AM",
+    "missingRequired": [
+      "Off Yards Gained",
+      "Off Rush Yards",
+      "Off First Downs"
+    ],
+    "incompleteRequired": [
+      "off_yards_gained",
+      "off_rush_yards",
+      "off_first_down"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "2/2 / ?",
+    "thirdDown": "6/6 / ?"
+  },
+  {
+    "file": "image-5215508b-940a-4767-86eb-403ebc123637.png",
+    "ok": false,
+    "score": "TREE 0–28 SDG",
+    "missingRequired": [
+      "Red Zone Off %"
+    ],
+    "incompleteRequired": [
+      "red_zone_off_percentage"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "total_yards_gained",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "0/0 / ?",
+    "thirdDown": "157/7 / ?"
+  },
+  {
+    "file": "image-787604ee-f390-4489-aca4-96741d0bd406.png",
+    "ok": false,
+    "score": "PIT 35–27 NYJ",
+    "missingRequired": [
+      "Off First Downs"
+    ],
+    "incompleteRequired": [
+      "off_first_down"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "0/0 / ?",
+    "thirdDown": "3/3 / ?"
+  },
+  {
+    "file": "image-516b2c29-d368-4bb5-ba5e-7bdb32e92311.png",
+    "ok": false,
+    "score": "CIN 17–20 CLE",
+    "missingRequired": [
+      "Off Yards Gained",
+      "Off Rush Yards",
+      "Kick Return Yards"
+    ],
+    "incompleteRequired": [
+      "off_yards_gained",
+      "off_rush_yards",
+      "kick_return_yards"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "? / ?",
+    "thirdDown": "? / ?"
+  },
+  {
+    "file": "image-7ae64fed-4a2e-4981-9fcb-53c2e045fb60.png",
+    "ok": false,
+    "score": "LV 18–13 PHI",
+    "missingRequired": [
+      "Off Pass Yards"
+    ],
+    "incompleteRequired": [
+      "off_pass_yards"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "penalty_yards",
+      "time_of_possession"
+    ],
+    "fourthDown": "0/0 / ?",
+    "thirdDown": "55/5 / ?"
+  },
+  {
+    "file": "image-fd0c3a01-d48a-43c9-bfa2-b714a46adf19.png",
+    "ok": false,
+    "score": "NO 0–0 AK",
+    "missingRequired": [
+      "Off Yards Gained",
+      "Off Rush Yards",
+      "Off Pass Yards",
+      "Turnovers"
+    ],
+    "incompleteRequired": [
+      "off_yards_gained",
+      "off_rush_yards",
+      "off_pass_yards",
+      "turnovers"
+    ],
+    "optionalGaps": [
+      "third_down_conversions",
+      "fourth_down_conversions",
+      "two_point_conversions",
+      "red_zone_off_td",
+      "total_yards_gained",
+      "time_of_possession"
+    ],
+    "fourthDown": "? / ?",
+    "thirdDown": "5/5 / ?"
+  }
+]

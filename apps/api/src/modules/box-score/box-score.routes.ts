@@ -5,10 +5,12 @@ import { sendError } from "../../lib/errors.js";
 import {
   createBoxScoreSubmission,
   getBoxScoreSubmission,
+  getBoxScoreUploadEligibility,
   listScheduledGamesForWeek,
   listPendingBoxScores,
   parseBoxScorePreview,
   reviewBoxScore,
+  updateBoxScoreLedgerMessage,
 } from "./box-score.service.js";
 
 const ParseSchema = z.object({
@@ -26,6 +28,7 @@ const SubmitSchema = z.object({
   imageUrls: z.array(z.string().url()).min(1),
   discordChannelId: z.string().optional().nullable(),
   discordMessageId: z.string().optional().nullable(),
+  ledgerDiscordMessageId: z.string().optional().nullable(),
   seasonNumber: z.number().int().positive().optional().nullable(),
   weekNumber: z.number().int().positive().optional().nullable(),
   expectedGameId: z.string().uuid().optional().nullable(),
@@ -101,6 +104,32 @@ export async function boxScoreRoutes(app: FastifyInstance) {
         seasonNumber: z.number().int().positive().optional().nullable(),
       }).parse(request.body);
       return reply.send(await listScheduledGamesForWeek(guildId, weekNumber, seasonNumber));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/box-score/upload-eligibility", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId, discordId } = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1),
+      }).parse(request.body);
+      return reply.send(await getBoxScoreUploadEligibility({ guildId, discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/box-score/ledger-message", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { submissionId, ledgerDiscordMessageId } = z.object({
+        submissionId: z.string().uuid(),
+        ledgerDiscordMessageId: z.string().min(1),
+      }).parse(request.body);
+      return reply.send(await updateBoxScoreLedgerMessage(submissionId, ledgerDiscordMessageId));
     } catch (error) {
       return sendError(reply, error);
     }

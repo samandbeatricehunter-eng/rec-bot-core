@@ -37,11 +37,10 @@ export const BOX_SCORE_CUSTOM_IDS = {
 // ─── Timing windows ────────────────────────────────────────────────────────────
 
 const MISSING_FIELDS_MS = 5 * 60 * 1000; // wait for a re-upload with missing fields
-const REVIEW_MS = 5 * 60 * 1000;         // wait for the submitter to confirm
 
 // ─── Per-user exchange state (one active upload per user per guild) ────────────
 
-type ExchangePhase = "awaiting_missing" | "review";
+type ExchangePhase = "awaiting_missing";
 
 type Exchange = {
   guildId: string;
@@ -126,9 +125,8 @@ async function dmUser(ex: Exchange, content: string) {
 }
 
 async function onExchangeTimeout(ex: Exchange, dmReason: string) {
-  // Only act if this is still the active exchange for the user.
   if (exchanges.get(exKey(ex.guildId, ex.userId)) !== ex) return;
-  await clearExchange(ex, { deleteUserImages: true });
+  await clearExchange(ex, { deleteUserImages: false });
   await dmUser(ex, dmReason);
 }
 
@@ -151,7 +149,46 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   if (images.length === 0) return;
 
   const key = exKey(message.guildId, message.author.id);
-  let ex = exchanges.get(key);
+  const existing = exchanges.get(key);
+
+  // First image in a new upload pass — gate before OCR.
+  if (!existing) {
+    try {
+      const eligibility = await recApi.getBoxScoreUploadEligibility({ guildId: message.guildId, discordId: message.author.id });
+      if (eligibility.hasApprovedForWeek) return;
+      if (!eligibility.teamId) {
+        await channel.send({
+          content: `<@${message.author.id}>`,
+          embeds: [new EmbedBuilder()
+            .setTitle("Box Score Not Accepted")
+            .setColor(0xe74c3c)
+            .setDescription("You aren't linked to a team in this league. Open **/menu → Teams → Request Team** first.")],
+        }).catch(() => undefined);
+        return;
+      }
+      if (!eligibility.hasScheduledGame) {
+        await channel.send({
+          content: `<@${message.author.id}>`,
+          embeds: [new EmbedBuilder()
+            .setTitle("Box Score Not Accepted")
+            .setColor(0xe74c3c)
+            .setDescription(`You don't have a scheduled game in Week ${eligibility.weekNumber}. Box scores are only accepted when your team has an H2H or CPU matchup this week.`)],
+        }).catch(() => undefined);
+        return;
+      }
+    } catch (err) {
+      await channel.send({
+        content: `<@${message.author.id}>`,
+        embeds: [new EmbedBuilder()
+          .setTitle("Box Score Check Failed")
+          .setColor(0xe74c3c)
+          .setDescription(err instanceof Error ? err.message : String(err))],
+      }).catch(() => undefined);
+      return;
+    }
+  }
+
+  let ex = existing;
   if (!ex) {
     ex = {
       guildId: message.guildId,
@@ -160,7 +197,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
       imageUrls: [],
       userMessageIds: [],
       botMessageIds: [],
-      phase: "review",
+      phase: "awaiting_missing",
       timer: null,
       expiresAt: 0,
       busy: false,
@@ -285,7 +322,7 @@ async function advanceExchange(ex: Exchange) {
 
   // Parse (stateless — no DB write yet).
   const working = await ex.channel.send({
-    embeds: [new EmbedBuilder().setTitle("Reading box score…").setDescription("Running OCR on your screenshots. This can take 15–30 seconds.")],
+    embeds: [new EmbedBuilder().setTitle("Reading box score…").setDescription("Running OCR on your screenshot. This can take 15–30 seconds.")],
   }).catch(() => null);
   if (working) ex.botMessageIds.push(working.id);
 
@@ -295,18 +332,22 @@ async function advanceExchange(ex: Exchange) {
   } catch (err) {
     await deleteMessages(ex.channel, ex.botMessageIds);
     ex.botMessageIds = [];
-    await clearExchange(ex, { deleteUserImages: true });
-    await dmUser(ex, `Your box score couldn't be processed: ${err instanceof Error ? err.message : String(err)}. Please try again in the box scores channel.`);
+    await clearExchange(ex, { deleteUserImages: false });
+    await ex.channel.send({
+      content: `<@${ex.userId}>`,
+      embeds: [new EmbedBuilder()
+        .setTitle("Box Score Failed")
+        .setColor(0xe74c3c)
+        .setDescription(err instanceof Error ? err.message : String(err))],
+    }).catch(() => undefined);
     return;
   }
-
-  // Remove the "reading…" placeholder.
-  await deleteMessages(ex.channel, ex.botMessageIds);
-  ex.botMessageIds = [];
 
   const missing: string[] = preview.missingRequired ?? [];
   if (missing.length > 0) {
     ex.phase = "awaiting_missing";
+    await deleteMessages(ex.channel, ex.botMessageIds);
+    ex.botMessageIds = [];
     const msg = await ex.channel.send({
       content: `<@${ex.userId}>`,
       embeds: [new EmbedBuilder()
@@ -319,52 +360,12 @@ async function advanceExchange(ex: Exchange) {
     }).catch(() => null);
     if (msg) ex.botMessageIds.push(msg.id);
     scheduleTimeout(ex, MISSING_FIELDS_MS, () => {
-      void onExchangeTimeout(ex, "Your box score was discarded — the missing fields weren't supplied within 5 minutes. Feel free to start over in the box scores channel.");
+      void onExchangeTimeout(ex, "Your box score was discarded — the missing fields weren't supplied within 5 minutes. Feel free to post again in the box scores channel.");
     });
     return;
   }
 
-  // Complete — ask the submitter to confirm.
-  ex.phase = "review";
-  const confirmMsg = await ex.channel.send({
-    content: `<@${ex.userId}> here's what I read — confirm to send it to your commissioners for approval.`,
-    embeds: [buildPreviewEmbed(preview)],
-    components: buildConfirmRows(),
-  }).catch(() => null);
-  if (confirmMsg) ex.botMessageIds.push(confirmMsg.id);
-  scheduleTimeout(ex, REVIEW_MS, () => {
-    void onExchangeTimeout(ex, "Your box score confirmation timed out, so it was discarded. Feel free to start over in the box scores channel.");
-  });
-}
-
-// Safety-net sweep for exchanges whose timer was lost (called on an interval).
-export function sweepBoxScoreExchanges() {
-  const now = Date.now();
-  for (const ex of [...exchanges.values()]) {
-    if (ex.expiresAt && now > ex.expiresAt + 10_000) {
-      void clearExchange(ex, { deleteUserImages: true });
-    }
-  }
-}
-
-// ─── Confirm / cancel (in the box scores channel) ─────────────────────────────
-
-export async function handleBoxScoreSubmitConfirm(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) {
-    return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  }
-  const key = exKey(interaction.guildId, interaction.user.id);
-  const ex = exchanges.get(key);
-  if (!ex || ex.phase !== "review") {
-    return interaction.reply({
-      content: "This box score submission is no longer active. Please re-post your screenshots in the box scores channel.",
-      flags: MessageFlags.Ephemeral,
-    });
-  }
-
-  await interaction.deferUpdate();
-  if (ex.timer) { clearTimeout(ex.timer); ex.timer = null; }
-
+  // Complete — submit automatically and post the payout ledger.
   let result: any;
   try {
     result = await recApi.submitBoxScore({
@@ -375,31 +376,50 @@ export async function handleBoxScoreSubmitConfirm(interaction: ButtonInteraction
       discordMessageId: ex.userMessageIds[0] ?? null,
     });
   } catch (err) {
-    return interaction.editReply({
-      content: "",
-      embeds: [new EmbedBuilder().setTitle("Submission failed").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
-      components: [],
-    });
+    await deleteMessages(ex.channel, ex.botMessageIds);
+    ex.botMessageIds = [];
+    await clearExchange(ex, { deleteUserImages: false });
+    await ex.channel.send({
+      content: `<@${ex.userId}>`,
+      embeds: [new EmbedBuilder()
+        .setTitle("Box Score Submission Failed")
+        .setColor(0xe74c3c)
+        .setDescription(err instanceof Error ? err.message : String(err))],
+    }).catch(() => undefined);
+    return;
   }
 
-  // Post the approve/deny embed into the Pending Payouts channel.
+  await deleteMessages(ex.channel, ex.botMessageIds);
+  ex.botMessageIds = [];
+  ex.userMessageIds = [];
+  exchanges.delete(exKey(ex.guildId, ex.userId));
+
   const routes = await getGuildRoutes(ex.guildId);
   const payoutsChannelId: string | null = routes?.pending_payouts_channel_id ?? null;
-  let posted = false;
+
+  const ledgerMsg = await ex.channel.send({
+    content: `<@${ex.userId}>`,
+    embeds: [buildPayoutReviewEmbed(result)],
+  }).catch(() => null);
+
+  if (ledgerMsg?.id) {
+    await recApi.updateBoxScoreLedgerMessage({
+      submissionId: result.submissionId,
+      ledgerDiscordMessageId: ledgerMsg.id,
+    }).catch(() => undefined);
+  }
+
   if (payoutsChannelId) {
     try {
-      const ch = await interaction.client.channels.fetch(payoutsChannelId);
+      const ch = await ex.channel.client.channels.fetch(payoutsChannelId);
       if (ch && ch.isTextBased() && !ch.isDMBased()) {
         await (ch as TextChannel).send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
-        posted = true;
       }
     } catch {
-      /* couldn't post to payouts channel — fall through to inbox-only note */
+      /* pending payouts channel unavailable */
     }
   }
 
-  // Flagged submission (submitter/opponent mismatch): alert a commissioner on
-  // the box scores channel so it gets a closer look before approval.
   const flagged: boolean = !!result.flagged;
   if (flagged) {
     const roleId: string | null = routes?.commissioner_role_id ?? null;
@@ -416,20 +436,24 @@ export async function handleBoxScoreSubmitConfirm(interaction: ButtonInteraction
       allowedMentions: roleId ? { roles: [roleId] } : { parse: [] },
     }).catch(() => undefined);
   }
+}
 
-  exchanges.delete(key);
+// Safety-net sweep for exchanges whose timer was lost (called on an interval).
+export function sweepBoxScoreExchanges() {
+  const now = Date.now();
+  for (const ex of [...exchanges.values()]) {
+    if (ex.expiresAt && now > ex.expiresAt + 10_000) {
+      void clearExchange(ex, { deleteUserImages: false });
+    }
+  }
+}
 
-  return interaction.editReply({
-    content: "",
-    embeds: [new EmbedBuilder()
-      .setTitle("Submitted for approval ✅")
-      .setColor(flagged ? 0xf1c40f : 0x2ecc71)
-      .setDescription(
-        (flagged ? "⚠️ Heads up: I couldn't auto-verify this matchup, so it's been flagged for a commissioner to confirm.\n\n" : "") +
-        (posted
-          ? "Sent to your commissioners for approval. Winners are paid $100 and the other player $50 once it's approved."
-          : "Submitted for review. No Pending Payouts channel is configured, so commissioners can review it from **League Mgmt → Box Score Inbox**."))],
-    components: [],
+// ─── Confirm / cancel (in the box scores channel) ─────────────────────────────
+
+export async function handleBoxScoreSubmitConfirm(interaction: ButtonInteraction) {
+  return interaction.reply({
+    content: "This confirmation step is no longer used. Post your box score screenshot directly in the box scores channel.",
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -437,7 +461,7 @@ export async function handleBoxScoreCancel(interaction: ButtonInteraction) {
   await interaction.deferUpdate().catch(() => undefined);
   if (!interaction.inCachedGuild()) return;
   const ex = exchanges.get(exKey(interaction.guildId, interaction.user.id));
-  if (ex) await clearExchange(ex, { deleteUserImages: true });
+  if (ex) await clearExchange(ex, { deleteUserImages: false });
 }
 
 // ─── Commissioner review (on the Pending Payouts embed or the pull inbox) ──────
@@ -451,6 +475,21 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   try {
     const result = await recApi.reviewBoxScore({ submissionId, action: "approve", reviewedByDiscordId: interaction.user.id });
+    const paidPlayerList = formatPaidPlayers(result);
+    const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}.`;
+
+    if (result.ledgerChannelId && result.ledgerMessageId && interaction.inCachedGuild()) {
+      const ledgerChannel = await interaction.guild.channels.fetch(result.ledgerChannelId).catch(() => null);
+      if (ledgerChannel?.isTextBased()) {
+        const ledgerMessage = await ledgerChannel.messages.fetch(result.ledgerMessageId).catch(() => null);
+        if (ledgerMessage?.embeds[0]) {
+          const ledgerEmbed = EmbedBuilder.from(ledgerMessage.embeds[0]).setColor(0x2ecc71);
+          ledgerEmbed.addFields({ name: "STATUS", value: statusValue });
+          await ledgerMessage?.edit({ embeds: [ledgerEmbed], components: [] }).catch(() => undefined);
+        }
+      }
+    }
+
     if (result.sourceChannelId && result.sourceMessageId && interaction.inCachedGuild()) {
       const sourceChannel = await interaction.guild.channels.fetch(result.sourceChannelId).catch(() => null);
       if (sourceChannel?.isTextBased()) {
@@ -458,10 +497,10 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
         await sourceMessage?.react("✅").catch(() => undefined);
       }
     }
+
     const base = interaction.message.embeds[0];
     const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0x2ecc71);
-    const paidPlayerList = formatPaidPlayers(result);
-    embed.addFields({ name: "STATUS", value: `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}.` });
+    embed.addFields({ name: "STATUS", value: statusValue });
     return interaction.editReply({ embeds: [embed], components: [] });
   } catch (err) {
     return interaction.editReply({
@@ -521,32 +560,7 @@ export async function handleBoxScoreDenySubmit(interaction: ModalSubmitInteracti
   }
 }
 
-// ─── /menu button → point the user at the box scores channel ──────────────────
-
-export async function handleBoxScoreButton(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) {
-    return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
-  }
-  const routes = await getGuildRoutes(interaction.guildId);
-  const boxChannelId: string | null = routes?.box_scores_channel_id ?? null;
-  const where = boxChannelId ? `<#${boxChannelId}>` : "the designated **Box Scores** channel";
-
-  return interaction.reply({
-    embeds: [new EmbedBuilder()
-      .setTitle("Upload Box Score")
-      .setColor(0x3498db)
-      .setDescription(
-        `Post your **box score screenshot** in ${where}.\n\n` +
-        "• Just the default **Box Score** tab — no need to scroll\n\n" +
-        "The bot reads it automatically and walks you through confirming before it goes to your commissioners. " +
-        "If it can't read a required stat, it'll tell you exactly what to re-screenshot." +
-        (boxChannelId ? "" : "\n\n*No Box Scores channel is configured yet — an admin can set one in Server Setup.*")
-      )],
-    flags: MessageFlags.Ephemeral,
-  });
-}
-
-// ─── Commissioner pull inbox (League Mgmt → Box Score Inbox) ──────────────────
+// ─── Commissioner review (on the Pending Payouts embed or the pull inbox) ──────
 
 export async function handleBoxScoreInbox(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
@@ -667,10 +681,40 @@ export async function handleBoxScoreAdminCancel(interaction: ButtonInteraction) 
 
 function statLines(stats: Record<string, { team1: string; team2: string } | null> | null | undefined, limit: number): string {
   if (!stats) return "*No stats parsed*";
-  const lines = Object.entries(stats)
-    .filter(([, v]) => v && ((v.team1 ?? "").trim() || (v.team2 ?? "").trim()))
+  const preferredOrder = [
+    "off_yards_gained",
+    "off_rush_yards",
+    "off_pass_yards",
+    "off_first_down",
+    "punt_return_yards",
+    "kick_return_yards",
+    "total_yards_gained",
+    "turnovers",
+    "third_down_conversions",
+    "fourth_down_conversions",
+    "two_point_conversions",
+    "red_zone_off_percentage",
+    "red_zone_off_td",
+    "red_zone_off_fg",
+    "penalty_yards",
+    "time_of_possession",
+  ];
+  const keys = [
+    ...preferredOrder.filter((key) => stats[key]),
+    ...Object.keys(stats).filter((key) => !preferredOrder.includes(key)),
+  ];
+  const lines = keys
+    .filter((key) => {
+      const v = stats[key];
+      return v && ((v.team1 ?? "").trim().length > 0 || (v.team2 ?? "").trim().length > 0);
+    })
     .slice(0, limit)
-    .map(([k, v]) => `${prettifyKey(k)}: **${v?.team1 || "?"}** / **${v?.team2 || "?"}**`);
+    .map((key) => {
+      const v = stats[key];
+      const t1 = (v?.team1 ?? "").trim();
+      const t2 = (v?.team2 ?? "").trim();
+      return `${prettifyKey(key)}: **${t1 || "?"}** / **${t2 || "?"}**`;
+    });
   return lines.length ? lines.join("\n") : "*No stats parsed*";
 }
 
@@ -688,28 +732,6 @@ function defensiveSummary(stats: Record<string, { team1: string; team2: string }
   return `Generated TO: **${g1}** / **${g2}**\nYards Allowed: **${a1}** / **${a2}**\nRed Zone Def %: **${rz1}** / **${rz2}**`;
 }
 
-function buildPreviewEmbed(preview: any): EmbedBuilder {
-  const score = preview?.parsed?.score;
-  const scoreText = score
-    ? `**${score.team1Abbr}** ${score.team1Score} – ${score.team2Score} **${score.team2Abbr}**` +
-      (score.team1Quarters?.length ? `\nQtrs: ${score.team1Quarters.join(" | ")} — ${score.team2Quarters.join(" | ")}` : "")
-    : "*Score not parsed*";
-
-  const embed = new EmbedBuilder()
-    .setTitle("Box Score Parsed — Confirm to Submit")
-    .setColor(0x3498db)
-    .addFields(
-      { name: "SCORE", value: scoreText.slice(0, 1024), inline: false },
-      { name: `TEAM STATS  (${preview?.team1Name ?? "Team 1"} / ${preview?.team2Name ?? "Team 2"})`, value: statLines(preview?.parsed?.stats, 14).slice(0, 1024), inline: false },
-      { name: "DEFENSE  (T1 / T2)", value: defensiveSummary(preview?.parsed?.stats).slice(0, 1024), inline: false },
-    );
-  if (!preview?.gameMatched) {
-    embed.addFields({ name: "⚠️ NOTICE", value: "Couldn't auto-match this to a scheduled game — a commissioner can still approve it.", inline: false });
-  }
-  embed.setFooter({ text: "If this looks right, click Confirm & Submit. Otherwise Cancel and re-post clearer screenshots." });
-  return embed;
-}
-
 function buildPayoutReviewEmbed(result: any): EmbedBuilder {
   const q = result?.quarterScores;
   const qText = q
@@ -722,7 +744,7 @@ function buildPayoutReviewEmbed(result: any): EmbedBuilder {
     .addFields(
       { name: "GAME", value: `**${result.team1Abbr ?? "?"}** ${result.team1Score ?? "?"} – ${result.team2Score ?? "?"} **${result.team2Abbr ?? "?"}** — Week ${result.weekNumber ?? "?"}`, inline: false },
       { name: "QUARTER SCORES", value: qText.slice(0, 512), inline: false },
-      { name: "TEAM STATS  (T1 / T2)", value: statLines(result?.stats, 12).slice(0, 1024), inline: false },
+      { name: "TEAM STATS  (T1 / T2)", value: statLines(result?.stats, 16).slice(0, 1024), inline: false },
       { name: "DEFENSE  (T1 / T2)", value: defensiveSummary(result?.stats).slice(0, 1024), inline: false },
       { name: "SUBMITTED BY", value: `<@${result.submittedByDiscordId}>`, inline: true },
     );
@@ -754,15 +776,6 @@ function buildInboxItemEmbed(sub: any, totalPending: number): EmbedBuilder {
 }
 
 // ─── Component builders ───────────────────────────────────────────────────────
-
-function buildConfirmRows() {
-  return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.submitConfirm).setLabel("Confirm & Submit").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.cancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
-    ),
-  ];
-}
 
 function buildPayoutReviewRows(submissionId: string) {
   return [

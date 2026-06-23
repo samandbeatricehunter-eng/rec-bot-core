@@ -4,6 +4,13 @@ import Tesseract, { type Page as TesseractPage } from "tesseract.js";
 // Singleton worker — initialized once, reused across requests.
 let _worker: Tesseract.Worker | null = null;
 let _workerInitializing: Promise<Tesseract.Worker> | null = null;
+let _ocrChain: Promise<unknown> = Promise.resolve();
+
+function withOcrLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = _ocrChain.then(fn, fn);
+  _ocrChain = run.then(() => undefined, () => undefined);
+  return run;
+}
 
 async function getWorker(): Promise<Tesseract.Worker> {
   if (_worker) return _worker;
@@ -53,6 +60,7 @@ export type ParsedStat = {
   team2: string;
   rawLabel: string;
   matchedVia: MatchVia;
+  rowY?: number;
 };
 
 // raw_label (normalized) → canonical stat key, learned from approved parses.
@@ -129,6 +137,10 @@ function hasValue(v: { team1: string; team2: string } | undefined): boolean {
   return !!v && (v.team1?.trim().length > 0 || v.team2?.trim().length > 0);
 }
 
+function hasBothSides(v: { team1: string; team2: string } | undefined): boolean {
+  return !!v?.team1?.trim() && !!v?.team2?.trim();
+}
+
 // Every box-score cell always holds a value (negative, 0, or positive), so an
 // empty side of a required stat is always an OCR miss worth a second read.
 function hasIncompleteRequiredCell(statsMap: Record<string, { team1: string; team2: string }>): boolean {
@@ -149,42 +161,41 @@ function computeMissingRequired(
     missing.push("Quarter-by-quarter scores");
   }
   for (const key of REQUIRED_STAT_KEYS) {
-    if (!hasValue(statsMap[key])) missing.push(FIELD_DISPLAY_NAMES[key] ?? key);
+    if (!hasBothSides(statsMap[key])) missing.push(FIELD_DISPLAY_NAMES[key] ?? key);
   }
   return missing;
 }
 
 // ─── Image preprocessing ─────────────────────────────────────────────────────
 
-// "default": global threshold — fast, proven for the dark-panel upper rows.
-// "robust":  local-contrast (CLAHE) pass that recovers dim text sitting over the
-//            bright field background at the bottom of the screenshot, where a
-//            global threshold merges light text into a light background.
-export type PreprocessVariant = "default" | "robust";
+// "default": global threshold — fast, proven for the dark-panel scoreboard.
+// "stats":   CLAHE on the full frame — recovers stat-table digits without crushing the left column.
+// "robust":  stronger CLAHE for dim rows over the bright field background.
+export type PreprocessVariant = "default" | "stats" | "robust";
 
 async function preprocessImage(
   buffer: Buffer,
   variant: PreprocessVariant = "default",
 ): Promise<{ processed: Buffer; width: number; height: number }> {
-  // Resize to max 1920px wide so coordinates are consistent regardless of capture resolution.
   const meta = await sharp(buffer).metadata();
   const originalWidth = meta.width ?? 1920;
-  const targetWidth = Math.min(originalWidth, 1920);
+  // Upscale small captures (e.g. 817px wide) — without this, Tesseract often returns nothing.
+  const MIN_OCR_WIDTH = 1024;
+  const targetWidth = Math.min(Math.max(originalWidth, MIN_OCR_WIDTH), 1920);
 
   let pipeline = sharp(buffer)
-    .resize(targetWidth, undefined, { fit: "inside", withoutEnlargement: true })
+    .resize(targetWidth, undefined, { fit: "inside", withoutEnlargement: false })
     .grayscale();
 
   if (variant === "robust") {
-    // CLAHE equalizes contrast in local tiles, so dim rows over the bright field
-    // get boosted relative to their own background. Negate to black-text-on-white
-    // and let Tesseract binarize adaptively rather than a global threshold.
     pipeline = pipeline.clahe({ width: 128, height: 128, maxSlope: 3 }).negate();
+  } else if (variant === "stats") {
+    pipeline = pipeline.clahe({ width: 64, height: 64, maxSlope: 2 }).normalise().negate();
   } else {
     pipeline = pipeline
-      .normalise()            // auto-stretch contrast
-      .threshold(100)         // >100 stays white (text), rest becomes black
-      .negate();              // flip to black-text-on-white for Tesseract
+      .normalise()
+      .threshold(100)
+      .negate();
   }
 
   const processed = await pipeline.png().toBuffer();
@@ -193,6 +204,10 @@ async function preprocessImage(
 }
 
 // ─── Word extraction ─────────────────────────────────────────────────────────
+
+// Stat value column thresholds (also used when filtering low-confidence digits).
+const LEFT_VAL_X_MAX = 0.20;
+const RIGHT_VAL_X_MIN = 0.80;
 
 function flattenPageWords(page: TesseractPage): Tesseract.Word[] {
   const out: Tesseract.Word[] = [];
@@ -209,13 +224,19 @@ function flattenPageWords(page: TesseractPage): Tesseract.Word[] {
 async function extractNormalizedWords(buffer: Buffer, variant: PreprocessVariant = "default"): Promise<{ words: NormalizedWord[]; width: number; height: number }> {
   const { processed, width, height } = await preprocessImage(buffer, variant);
   const worker = await getWorker();
-  // blocks: true is required in v7 to populate the nested block/paragraph/line/word structure
-  const result = await worker.recognize(processed, undefined, { blocks: true });
+  const result = await withOcrLock(() => worker.recognize(processed, undefined, { blocks: true }));
 
   const rawWords = flattenPageWords(result.data);
 
   const words: NormalizedWord[] = rawWords
-    .filter((w) => w.confidence > 25 && w.text.trim().length > 0)
+    .filter((w) => {
+      if (w.text.trim().length === 0) return false;
+      if (w.confidence > 25) return true;
+      const cx = ((w.bbox.x0 + w.bbox.x1) / 2) / width;
+      // Keep low-confidence lone digits in the stat value columns — arrow rows
+      // often lose one side (e.g. fourth-down 0/3) at the default threshold.
+      return (cx < LEFT_VAL_X_MAX || cx > RIGHT_VAL_X_MIN) && /^[0-9Oo°©¢]+$/.test(w.text.trim()) && w.confidence > 12;
+    })
     .map((w) => ({
       text: w.text.trim(),
       confidence: w.confidence,
@@ -230,7 +251,218 @@ async function extractNormalizedWords(buffer: Buffer, variant: PreprocessVariant
   return { words, width, height };
 }
 
-// ─── Row grouping ─────────────────────────────────────────────────────────────
+// Left column digits sit on a dark panel; a global threshold often destroys them.
+const LEFT_COL_CROP_FRAC = 0.32;
+
+type LeftColPreprocess = "threshold" | "clahe" | "soft";
+
+async function preprocessColumnCrop(
+  cropBuffer: Buffer,
+  cropWidth: number,
+  height: number,
+  variant: LeftColPreprocess,
+): Promise<Buffer> {
+  let pipeline = sharp(cropBuffer)
+    .grayscale();
+
+  if (variant === "threshold") {
+    pipeline = pipeline.normalise().threshold(80).negate();
+  } else if (variant === "clahe") {
+    pipeline = pipeline.clahe({ width: 48, height: 48, maxSlope: 3 }).normalise().negate();
+  } else {
+    pipeline = pipeline.normalise().linear(1.6, -35).sharpen().negate();
+  }
+
+  return pipeline
+    .resize(cropWidth * 2, height * 2, { fit: "fill" })
+    .png()
+    .toBuffer();
+}
+
+async function preprocessLeftCrop(
+  resized: Buffer,
+  cropWidth: number,
+  height: number,
+  variant: LeftColPreprocess,
+): Promise<Buffer> {
+  const crop = await sharp(resized)
+    .extract({ left: 0, top: 0, width: cropWidth, height })
+    .toBuffer();
+  return preprocessColumnCrop(crop, cropWidth, height, variant);
+}
+
+function mapLeftCropWords(rawWords: Tesseract.Word[], ocrWidth: number, ocrHeight: number): NormalizedWord[] {
+  return rawWords
+    .filter((w) => {
+      if (w.text.trim().length === 0) return false;
+      if (w.confidence > 18) return true;
+      return /^[0-9/:>\-]+$/.test(w.text.trim()) && w.confidence > 8;
+    })
+    .map((w) => {
+      const cx = (w.bbox.x0 + w.bbox.x1) / 2 / ocrWidth;
+      const mappedX = cx * LEFT_COL_CROP_FRAC;
+      return {
+        text: w.text.trim(),
+        confidence: w.confidence,
+        x: mappedX,
+        y: (w.bbox.y0 + w.bbox.y1) / 2 / ocrHeight,
+        x0: (w.bbox.x0 / ocrWidth) * LEFT_COL_CROP_FRAC,
+        x1: (w.bbox.x1 / ocrWidth) * LEFT_COL_CROP_FRAC,
+        y0: w.bbox.y0 / ocrHeight,
+        y1: w.bbox.y1 / ocrHeight,
+      };
+    });
+}
+
+/** Pull numeric tokens out of noisy left-column OCR (e.g. ">143" -> "143"). */
+function salvageDigitWords(words: NormalizedWord[]): NormalizedWord[] {
+  const out: NormalizedWord[] = [];
+  for (const w of words) {
+    const text = w.text.replace(/[Oo]/g, "0");
+    const ratio = text.match(/(\d+)\s*[\/:]\s*(\d+)/);
+    if (ratio) {
+      out.push({ ...w, text: `${ratio[1]}/${ratio[2]}`, confidence: w.confidence * 0.92 });
+      continue;
+    }
+    const digits = text.match(/\d+/);
+    if (!digits || digits[0].length > 4) continue;
+    out.push({ ...w, text: digits[0], confidence: w.confidence * 0.88 });
+  }
+  return out;
+}
+
+const RIGHT_COL_CROP_FRAC = 0.32;
+
+function mapRightCropWords(rawWords: Tesseract.Word[], ocrWidth: number, ocrHeight: number): NormalizedWord[] {
+  const xOffset = 1 - RIGHT_COL_CROP_FRAC;
+  return rawWords
+    .filter((w) => {
+      if (w.text.trim().length === 0) return false;
+      if (w.confidence > 18) return true;
+      return /^[0-9/:>\-]+$/.test(w.text.trim()) && w.confidence > 8;
+    })
+    .map((w) => {
+      const cx = (w.bbox.x0 + w.bbox.x1) / 2 / ocrWidth;
+      const mappedX = xOffset + cx * RIGHT_COL_CROP_FRAC;
+      return {
+        text: w.text.trim(),
+        confidence: w.confidence,
+        x: mappedX,
+        y: (w.bbox.y0 + w.bbox.y1) / 2 / ocrHeight,
+        x0: xOffset + (w.bbox.x0 / ocrWidth) * RIGHT_COL_CROP_FRAC,
+        x1: xOffset + (w.bbox.x1 / ocrWidth) * RIGHT_COL_CROP_FRAC,
+        y0: w.bbox.y0 / ocrHeight,
+        y1: w.bbox.y1 / ocrHeight,
+      };
+    });
+}
+
+async function extractRightColumnWords(buffer: Buffer): Promise<NormalizedWord[]> {
+  const meta = await sharp(buffer).metadata();
+  const originalWidth = meta.width ?? 1920;
+  const targetWidth = Math.min(Math.max(originalWidth, 1024), 1920);
+  const resized = await sharp(buffer)
+    .resize(targetWidth, undefined, { fit: "inside", withoutEnlargement: false })
+    .toBuffer();
+  const resizedMeta = await sharp(resized).metadata();
+  const actualWidth = resizedMeta.width ?? 1920;
+  const actualHeight = resizedMeta.height ?? 1080;
+  const cropWidth = Math.max(1, Math.round(actualWidth * RIGHT_COL_CROP_FRAC));
+  const cropLeft = actualWidth - cropWidth;
+
+  const worker = await getWorker();
+  const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft"];
+  const allWords: NormalizedWord[] = [];
+
+  for (const variant of variants) {
+    const crop = await sharp(resized)
+      .extract({ left: cropLeft, top: 0, width: cropWidth, height: actualHeight })
+      .toBuffer();
+    const processed = await preprocessColumnCrop(crop, cropWidth, actualHeight, variant);
+    const result = await withOcrLock(() => worker.recognize(processed, undefined, { blocks: true }));
+    allWords.push(...mapRightCropWords(flattenPageWords(result.data), cropWidth * 2, actualHeight * 2));
+  }
+
+  return dedupeWords(allWords);
+}
+
+async function extractLeftColumnWords(buffer: Buffer): Promise<NormalizedWord[]> {
+  const meta = await sharp(buffer).metadata();
+  const originalWidth = meta.width ?? 1920;
+  const targetWidth = Math.min(Math.max(originalWidth, 1024), 1920);
+  const resized = await sharp(buffer)
+    .resize(targetWidth, undefined, { fit: "inside", withoutEnlargement: false })
+    .toBuffer();
+  const resizedMeta = await sharp(resized).metadata();
+  const actualWidth = resizedMeta.width ?? 1920;
+  const actualHeight = resizedMeta.height ?? 1080;
+  const cropWidth = Math.max(1, Math.round(actualWidth * LEFT_COL_CROP_FRAC));
+
+  const worker = await getWorker();
+  const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft"];
+  const allWords: NormalizedWord[] = [];
+
+  for (const variant of variants) {
+    const processed = await preprocessLeftCrop(resized, cropWidth, actualHeight, variant);
+    const result = await withOcrLock(() => worker.recognize(processed, undefined, { blocks: true }));
+    allWords.push(...mapLeftCropWords(flattenPageWords(result.data), cropWidth * 2, actualHeight * 2));
+  }
+
+  return dedupeWords(allWords);
+}
+
+function dedupeWords(words: NormalizedWord[]): NormalizedWord[] {
+  const out: NormalizedWord[] = [];
+  for (const w of words) {
+    const existing = out.find(
+      (e) => Math.abs(e.x - w.x) < 0.02 && Math.abs(e.y - w.y) < 0.015,
+    );
+    if (!existing) {
+      out.push(w);
+      continue;
+    }
+    if (w.confidence > existing.confidence) {
+      out[out.indexOf(existing)] = w;
+    }
+  }
+  return out;
+}
+
+function mergeStatWords(
+  leftWords: NormalizedWord[],
+  rightWords: NormalizedWord[],
+  bodyWords: NormalizedWord[],
+  defaultWords: NormalizedWord[],
+  statsTopY: number,
+): NormalizedWord[] {
+  const zoneMinY = statZoneMinY(statsTopY);
+  const inZone = (w: NormalizedWord) => w.y >= zoneMinY;
+  const left = dedupeWords([
+    ...leftWords.filter((w) => inZone(w) && w.x < LEFT_VAL_X_MAX),
+    ...bodyWords.filter((w) => inZone(w) && w.x < LEFT_VAL_X_MAX),
+    ...salvageDigitWords(defaultWords.filter((w) => inZone(w) && w.x < LEFT_VAL_X_MAX)),
+  ]);
+  const right = dedupeWords([
+    ...rightWords.filter((w) => inZone(w) && w.x > RIGHT_VAL_X_MIN),
+    ...bodyWords.filter((w) => inZone(w) && w.x > RIGHT_VAL_X_MIN),
+    ...salvageDigitWords(defaultWords.filter((w) => inZone(w) && w.x > RIGHT_VAL_X_MIN)),
+  ]);
+  const body = dedupeWords(bodyWords.filter(inZone));
+  const defaultFill = dedupeWords(defaultWords.filter((w) => inZone(w) && w.x >= LEFT_VAL_X_MAX && w.x <= RIGHT_VAL_X_MIN));
+
+  const merged = [...left, ...right, ...body];
+  for (const w of defaultFill) {
+    const overlap = merged.some((m) => Math.abs(m.x - w.x) < 0.02 && Math.abs(m.y - w.y) < 0.015);
+    if (!overlap) merged.push(w);
+  }
+  return merged;
+}
+
+function mergeWordLists(...lists: NormalizedWord[][]): NormalizedWord[] {
+  const out: NormalizedWord[] = [];
+  for (const list of lists) out.push(...list);
+  return out;
+}
 
 function groupIntoRows(words: NormalizedWord[], yTolerance = 0.04): NormalizedWord[][] {
   if (words.length === 0) return [];
@@ -259,6 +491,32 @@ const SCORE_ABBR_X_MAX = 0.42;
 const SCORE_CELL_X_TOLERANCE = 0.022;
 const SCORE_QUARTER_COLUMNS = [0.432, 0.473, 0.516, 0.558, 0.601] as const;
 const SCORE_TOTAL_X = 0.641;
+
+// Common Madden scoreboard OCR misreads (only unambiguous NFL typos — custom league abbrs like SDG stay as-is).
+// Madden scoreboard OCR misreads — explicit map only (custom league abbrs like SDG, AK stay as-is).
+const ABBR_OCR_TYPOS: Record<string, string> = {
+  NYJD: "NYJ",
+  LEV: "LV",
+  LCV: "LAR",
+  SFN: "SF",
+  N0: "NO",
+  AR1: "ARI",
+  CLF: "CLE",
+  RTT: "HOU",
+  VAX: "JAX",
+  TREE: "SDG",
+  AM: "ATL",
+  ATI: "ATL",
+  JAK: "JAX",
+  HO0: "HOU",
+};
+
+function correctTeamAbbr(raw: string): string {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!cleaned) return "???";
+  if (ABBR_OCR_TYPOS[cleaned]) return ABBR_OCR_TYPOS[cleaned];
+  return cleaned;
+}
 
 function parseScoreToken(text: string): number | null {
   const normalized = text
@@ -355,6 +613,9 @@ function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsT
     const sum = quarters.reduce((s, n) => s + n, 0);
     let total = totalCell?.value ?? sum;
 
+    // Total column sometimes reads 0 when quarter cells parsed correctly.
+    if (sum > 0 && total === 0) total = sum;
+
     // A scoreboard zero is sometimes OCR'd as 6. If the displayed total proves
     // exactly one quarter must be zero, zero the least-confident matching cell.
     if (total < sum) {
@@ -368,17 +629,27 @@ function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsT
       total = quarters.reduce((s, n) => s + n, 0);
     }
 
-    return { abbr, total, quarters };
+    return { abbr: correctTeamAbbr(abbr), total, quarters };
   };
 
   const t1 = parseRow(teamRows[0]);
   const t2 = parseRow(teamRows[1]);
 
+  // Duplicate abbr on both rows (e.g. SDG misread twice while NE is present elsewhere).
+  if (t1.abbr === t2.abbr) {
+    const headerAbbrs = headerWords
+      .filter((w) => /^[A-Z]{2,4}$/.test(w.text) && w.confidence > 35 && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX)
+      .map((w) => correctTeamAbbr(w.text));
+    const alt = headerAbbrs.find((a) => a !== t1.abbr && a !== "???");
+    if (alt) t2.abbr = alt;
+  }
+
   // The stats table starts just below the lowest scoreboard row. Deriving the
   // boundary from the actual scoreboard (rather than a fixed cutoff) keeps the
   // top stat rows — Off Yards Gained / Off Rush Yards — from being clipped.
   const teamRowMaxY = Math.max(...teamRows[0].map((w) => w.y), ...teamRows[1].map((w) => w.y));
-  const statsTopY = teamRowMaxY + ROW_Y_TOLERANCE;
+  const rawStatsTopY = teamRowMaxY + 0.012;
+  const statsTopY = Math.min(Math.max(rawStatsTopY, STATS_Y_MIN), 0.33);
 
   return {
     score: {
@@ -399,12 +670,18 @@ function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsT
 // located. Normally the boundary is derived dynamically from the scoreboard's
 // lowest row (see parseScoreHeader) so the top stat rows aren't clipped.
 const STATS_Y_MIN = 0.28;
-// Column thresholds (relative to image width).
-const LEFT_VAL_X_MAX = 0.18;
-const RIGHT_VAL_X_MIN = 0.82;
+// Rows above the scoreboard-derived boundary (Off Yards / Rush / Pass sit ~3 rows up).
+const STAT_ZONE_ABOVE_SLACK = 0.15;
+
+function statZoneMinY(statsTopY: number): number {
+  return Math.max(STATS_Y_MIN - 0.02, statsTopY - STAT_ZONE_ABOVE_SLACK);
+}
+// Column thresholds (relative to image width). LEFT/RIGHT bounds defined above.
 const CENTER_X_MIN = 0.18;
 const CENTER_X_MAX = 0.82;
 const ROW_Y_TOLERANCE = 0.04;
+const LABEL_ROW_Y_TOLERANCE = 0.025;
+const ARROW_STAT_ROW_Y_TOLERANCE = 0.045;
 
 const SMALL_ARROW_STAT_KEYS = new Set([
   "turnovers",
@@ -415,23 +692,145 @@ const SMALL_ARROW_STAT_KEYS = new Set([
   "red_zone_off_fg",
 ]);
 
+function validateStatValue(key: string, value: string): string {
+  const v = value.trim();
+  if (!v) return "";
+
+  if (key.includes("conversion")) {
+    return /^\d+[/:]\d+$/.test(v.replace(":", "/")) ? v.replace(":", "/") : "";
+  }
+  if (key.includes("percentage")) {
+    const n = parseInt(v, 10);
+    return !isNaN(n) && n >= 0 && n <= 100 ? String(n) : "";
+  }
+  if (key === "time_of_possession") {
+    return /^\d{1,2}:\d{2}$/.test(v) ? v : "";
+  }
+  return /^\d+$/.test(v) ? v : "";
+}
+
 function cleanStatValue(raw: string, opts: { side: "left" | "right"; key: string }): string {
-  const cleaned = raw
-    .replace(/[Oo]/g, "0")     // a lone 0 is frequently OCR'd as the letter O
-    .replace(/^[^0-9:]+/, "")  // strip leading non-digit/colon (▶ arrows, spaces)
-    .replace(/[^0-9:]+$/, "")  // strip trailing non-digit/colon (◄ arrows)
+  const stripped = raw
+    .replace(/[Oo]/g, "0")
+    .replace(/[>▶◀◁▷◄]/g, "");
+
+  const ratio = stripped.match(/(\d+)\s*[\/:]\s*(\d+)/);
+  if (ratio && opts.key.includes("conversion")) {
+    return `${ratio[1]}/${ratio[2]}`;
+  }
+
+  const cleaned = stripped
+    .replace(/^[^0-9:]+/, "")
+    .replace(/[^0-9:]+$/, "")
     .trim();
 
-  // Right-side "better stat" arrows are occasionally fused into a single token
-  // as a trailing 4: 0◄ -> 04, 1◄ -> 14, 2◄ -> 24.
-  if (opts.side === "right" && SMALL_ARROW_STAT_KEYS.has(opts.key) && /^\d4$/.test(cleaned)) {
+  // Fused expander/better-stat arrows read as a trailing 4: 0◄ -> 04, 3◄ -> 34.
+  if (SMALL_ARROW_STAT_KEYS.has(opts.key) && /^\d4$/.test(cleaned)) {
     return cleaned.slice(0, -1);
   }
-  return cleaned;
+
+  if (cleaned) return cleaned;
+
+  const digitRun = stripped.match(/\d+/);
+  if (digitRun) {
+    const v = digitRun[0];
+    if (SMALL_ARROW_STAT_KEYS.has(opts.key) && v.length === 2 && v.endsWith("4")) {
+      return v.slice(0, -1);
+    }
+    return v;
+  }
+
+  return "";
+}
+
+const LABEL_OCR_ALIASES: Record<string, string> = {
+  "of pass yards": "off pass yards",
+  "of first down": "off first down",
+  "off fist down": "off first down",
+  "off first downs": "off first down",
+  "off irat down": "off first down",
+  "off yards galned": "off yards gained",
+  "off yards gai ned": "off yards gained",
+  "off rush vards": "off rush yards",
+  "tota yards gained": "total yards gained",
+  "total vards gained": "total yards gained",
+  "pint conversions": "two point conversions",
+  "two pint conversions": "two point conversions",
+  "red zone of percentage": "red zone off percentage",
+  "red zone off uw": "red zone off percentage",
+  "red zone td": "red zone off td",
+  "red zone off td": "red zone off td",
+  "red zone ol td": "red zone off td",
+  "penalty vards": "penalty yards",
+  "time of possesion": "time of possession",
+  "ot yards gained": "off yards gained",
+  "oft rush vars": "off rush yards",
+  "oftpass yards": "off pass yards",
+  "tota yor gined": "total yards gained",
+  "punt retur yards": "punt return yards",
+  "kick retur yards": "kick return yards",
+  "fourth down comrsions": "fourth down conversions",
+  "tie down conversions": "third down conversions",
+  "off pass yard": "off pass yards",
+  "of fst down": "off first down",
+  taos: "turnovers",
+  tumovers: "turnovers",
+  down: "off first down",
+};
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, (_, i) =>
+    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function fixLabelOcr(text: string): string {
+  return text
+    .replace(/\bfist\b/g, "first")
+    .replace(/\bof\b(?=\s+(?:yards|rush|pass|first))/g, "off")
+    .replace(/^ot\s/, "off ")
+    .replace(/^oft\s*/, "off ")
+    .replace(/^oftpass/, "off pass")
+    .replace(/\bgalned\b/g, "gained")
+    .replace(/\bgined\b/g, "gained")
+    .replace(/\byor\b/g, "yards")
+    .replace(/\bvars\b/g, "yards")
+    .replace(/\bvards\b/g, "yards")
+    .replace(/\bretur\b/g, "return")
+    .replace(/\bcomrsions\b/g, "conversions")
+    .replace(/\bbown\b/g, "down")
+    .replace(/\bpint\b/g, "point")
+    .replace(/\bpossesion\b/g, "possession")
+    .replace(/\bfst\b/g, "first")
+    .replace(/\byerds\b/g, "yards")
+    .replace(/\byords\b/g, "yards")
+    .replace(/\bbows\b/g, "down")
+    .replace(/\btumovers\b/g, "turnovers")
+    .replace(/\bta\s*os\b/g, "turnovers")
+    .replace(/\btwa\b/g, "two")
+    .replace(/\bcanversions\b/g, "conversions")
+    .replace(/\bcarve ach\b/g, "conversions")
+    .replace(/\bredzone\b/g, "red zone")
+    .replace(/\btime ot\b/g, "time of")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeLabel(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, " ").trim();
+  const normalized = fixLabelOcr(text.toLowerCase().replace(/\s+/g, " ").trim());
+  return LABEL_OCR_ALIASES[normalized] ?? normalized;
 }
 
 function matchStatLabel(normalized: string, aliases: LabelAliases): { key: string; via: MatchVia } | null {
@@ -447,6 +846,16 @@ function matchStatLabel(normalized: string, aliases: LabelAliases): { key: strin
     // First-word match for single-word labels (e.g. "Turnovers")
     if (label.split(" ").length === 1 && normalized.startsWith(label)) return { key, via: "fuzzy" };
   }
+
+  // OCR typo tolerance (e.g. "off fist down" → "off first down").
+  for (const [label, key] of Object.entries(STAT_LABEL_MAP)) {
+    if (normalized.length >= 8 && levenshtein(normalized, label) <= 2) {
+      return { key, via: "fuzzy" };
+    }
+    if (label.length >= 8 && normalized.length >= 4 && levenshtein(normalized, label) <= 4) {
+      return { key, via: "fuzzy" };
+    }
+  }
   return null;
 }
 
@@ -455,35 +864,195 @@ function matchStatLabel(normalized: string, aliases: LabelAliases): { key: strin
 // the right token within the row: the value sits to the RIGHT of the ▶ expander
 // in the left column, and to the LEFT of the ◄ "better stat" arrow in the right
 // column — those arrows otherwise get misread as digits.
+function findConversionValue(
+  candidates: NormalizedWord[],
+  targetY: number,
+  side: "left" | "right",
+  key: string,
+): string {
+  const sideWords = candidates
+    .filter((w) => (side === "left" ? w.x < LEFT_VAL_X_MAX : w.x > RIGHT_VAL_X_MIN))
+    .map((w) => ({ w, dy: Math.abs(w.y - targetY) }))
+    .sort((a, b) => a.dy - b.dy || (side === "left" ? b.w.x - a.w.x : a.w.x - b.w.x));
+
+  const closest = sideWords[0];
+  if (!closest || closest.dy > 0.032) return "";
+
+  const rowY = closest.w.y;
+  const sameRow = candidates.filter(
+    (w) =>
+      Math.abs(w.y - rowY) <= 0.012 &&
+      (side === "left" ? w.x < LEFT_VAL_X_MAX : w.x > RIGHT_VAL_X_MIN),
+  );
+
+  const joined = [...sameRow]
+    .sort((a, b) => a.x - b.x)
+    .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[>▶◀◁▷◄]/g, ""))
+    .join("");
+  const ratio = joined.match(/(\d+)\s*[\/:]\s*(\d+)/);
+  if (ratio) return validateStatValue(key, `${ratio[1]}/${ratio[2]}`);
+
+  for (const w of sameRow.sort((a, b) => (side === "left" ? b.x - a.x : a.x - b.x))) {
+    const v = validateStatValue(key, cleanStatValue(w.text, { side, key }));
+    if (v) return v;
+  }
+
+  // Lone made-count with attempts on a adjacent token (▶1 /4 split across tokens).
+  const parts = sameRow
+    .sort((a, b) => a.x - b.x)
+    .map((w) => cleanStatValue(w.text, { side, key }))
+    .filter(Boolean);
+  if (parts.length >= 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
+    return validateStatValue(key, `${parts[0]}/${parts[1]}`);
+  }
+
+  return parts[0] ? validateStatValue(key, parts[0]) : "";
+}
+
 function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "left" | "right", key: string): string {
-  const nearby = candidates.filter((w) => Math.abs(w.y - targetY) < ROW_Y_TOLERANCE);
+  if (key === "turnovers") {
+    const leftMax = 0.24;
+    const rightMin = 0.76;
+    const rowWords = candidates.filter(
+      (w) =>
+        Math.abs(w.y - targetY) < 0.05 &&
+        (side === "left" ? w.x < leftMax : w.x > rightMin),
+    );
+    const joined = rowWords
+      .sort((a, b) => a.x - b.x)
+      .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[>▶◀◁▷◄]/g, ""))
+      .join("");
+    const digit = joined.match(/\d{1,2}/);
+    if (digit) {
+      const n = parseInt(digit[0], 10);
+      if (n >= 0 && n <= 10) return String(n);
+    }
+  }
+
+  if (key.includes("conversion")) {
+    return findConversionValue(candidates, targetY, side, key);
+  }
+
+  const yTolerance = SMALL_ARROW_STAT_KEYS.has(key)
+    ? ARROW_STAT_ROW_Y_TOLERANCE
+    : ROW_Y_TOLERANCE;
+
+  const nearby = candidates.filter((w) => Math.abs(w.y - targetY) < yTolerance);
   if (nearby.length === 0) return "";
 
   // Keep only the row physically closest to the label; drop adjacent rows that
-  // crept into the band.
+  // crept into the band. Arrow-adjacent stats need a tighter band so Q3/Q4 values
+  // don't bleed into each other (e.g. fourth-down 3 vs two-point 0).
+  const rowSlack = SMALL_ARROW_STAT_KEYS.has(key) ? 0.006 : 0.012;
   const minDy = Math.min(...nearby.map((w) => Math.abs(w.y - targetY)));
-  const sameRow = nearby.filter((w) => Math.abs(w.y - targetY) <= minDy + 0.012);
+  const sameRow = nearby.filter((w) => Math.abs(w.y - targetY) <= minDy + rowSlack);
+
+  if (key.includes("percentage")) {
+    const pctRow = sameRow
+      .filter((w) => (side === "left" ? w.x < LEFT_VAL_X_MAX : w.x > RIGHT_VAL_X_MIN))
+      .sort((a, b) => a.x - b.x);
+    const joinedDigits = pctRow.map((w) => w.text.replace(/\D/g, "")).join("");
+    if (joinedDigits.length <= 3) {
+      const pct = validateStatValue(key, joinedDigits);
+      if (pct) return pct;
+    }
+    const orphanPct = candidates
+      .filter((w) => (side === "left" ? w.x < LEFT_VAL_X_MAX : w.x > RIGHT_VAL_X_MIN))
+      .map((w) => ({
+        w,
+        dy: Math.abs(w.y - targetY),
+        v: validateStatValue(key, w.text.replace(/\D/g, "")),
+      }))
+      .filter((c) => c.v && c.dy < 0.04)
+      .sort((a, b) => a.dy - b.dy);
+    if (orphanPct[0]) return orphanPct[0].v;
+  }
 
   // Left column: value is the rightmost token (▶ is to its left).
   // Right column: value is the leftmost token (◄ is to its right).
   sameRow.sort((a, b) => (side === "left" ? b.x - a.x : a.x - b.x));
 
+  const ranked = sameRow
+    .map((w) => {
+      const v = validateStatValue(key, cleanStatValue(w.text, { side, key }));
+      return { w, v, q: cellQuality(key, v), conf: w.confidence };
+    })
+    .filter((c) => c.v)
+    .sort((a, b) => b.q - a.q || b.conf - a.conf || (side === "left" ? b.w.x - a.w.x : a.w.x - b.w.x));
+
+  if (ranked[0]) return ranked[0].v;
+
+  // Turnovers / arrow stats: lone digits beside ▶ often fail generic cleaning.
+  if (key === "turnovers" || SMALL_ARROW_STAT_KEYS.has(key)) {
+    const rowScan = candidates
+      .filter(
+        (w) =>
+          Math.abs(w.y - targetY) < 0.04 &&
+          (side === "left" ? w.x < LEFT_VAL_X_MAX : w.x > RIGHT_VAL_X_MIN),
+      )
+      .sort((a, b) => Math.abs(a.y - targetY) - Math.abs(b.y - targetY) || (side === "left" ? b.x - a.x : a.x - b.x));
+    for (const w of rowScan) {
+      const digit = w.text.replace(/[Oo]/g, "0").replace(/\D/g, "");
+      if (/^\d{1,2}$/.test(digit)) {
+        const n = parseInt(digit, 10);
+        if (n >= 0 && n <= 10) return String(n);
+      }
+    }
+  }
+
+  const orphan = candidates
+    .filter((w) => (side === "left" ? w.x < LEFT_VAL_X_MAX : w.x > RIGHT_VAL_X_MIN))
+    .map((w) => ({
+      w,
+      dy: Math.abs(w.y - targetY),
+      v: validateStatValue(key, cleanStatValue(w.text, { side, key })),
+      q: cellQuality(key, validateStatValue(key, cleanStatValue(w.text, { side, key }))),
+    }))
+    .filter((c) => c.v && c.dy < 0.035)
+    .sort((a, b) => a.dy - b.dy || b.q - a.q || (side === "left" ? b.w.x - a.w.x : a.w.x - b.w.x));
+  if (orphan[0]) return orphan[0].v;
+
   for (const w of sameRow) {
     const v = cleanStatValue(w.text, { side, key });
     if (v) return v;
   }
+
+  // Conversion rows sometimes split "1/4" across two OCR tokens on the same row.
+  if (key.includes("conversion") && sameRow.length >= 2) {
+    const joined = [...sameRow]
+      .sort((a, b) => a.x - b.x)
+      .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[>▶◀◁▷◄]/g, ""))
+      .join("");
+    const split = joined.match(/(\d+)\s*[\/:]\s*(\d+)/);
+    if (split) return `${split[1]}/${split[2]}`;
+  }
+
+  // Last resort for arrow stats: a lone digit sometimes lands on the adjacent
+  // OCR row when Madden fuses the value with the ◄ marker (e.g. 3◄ -> 34).
+  if (SMALL_ARROW_STAT_KEYS.has(key)) {
+    const orphan = candidates
+      .filter((w) => Math.abs(w.y - targetY) < yTolerance + 0.025)
+      .map((w) => ({ word: w, v: cleanStatValue(w.text, { side, key }) }))
+      .filter((c) => c.v !== "" || /^[oO0°©¢]$/.test(c.word.text.trim()))
+      .map((c) => (c.v === "" && /^[oO0°©¢]$/.test(c.word.text.trim()) ? { ...c, v: "0" } : c))
+      .filter((c) => c.v)
+      .sort((a, b) => Math.abs(a.word.y - targetY) - Math.abs(b.word.y - targetY) || (side === "left" ? b.word.x - a.word.x : a.word.x - b.word.x))[0];
+    if (orphan) return orphan.v;
+  }
+
   return "";
 }
 
 function parseStatRows(words: NormalizedWord[], aliases: LabelAliases, statsTopY: number = STATS_Y_MIN): ParsedStat[] {
-  const statZone = words.filter((w) => w.y >= statsTopY);
+  const zoneMinY = statZoneMinY(statsTopY);
+  const statZone = words.filter((w) => w.y >= zoneMinY);
 
   const leftVals  = statZone.filter((w) => w.x < LEFT_VAL_X_MAX);
   const rightVals = statZone.filter((w) => w.x > RIGHT_VAL_X_MIN);
   const center    = statZone.filter((w) => w.x >= CENTER_X_MIN && w.x <= CENTER_X_MAX);
 
   // Group center words into label rows
-  const centerRows = groupIntoRows(center, ROW_Y_TOLERANCE);
+  const centerRows = groupIntoRows(center, LABEL_ROW_Y_TOLERANCE);
 
   const stats: ParsedStat[] = [];
   const seenKeys = new Set<string>();
@@ -500,10 +1069,197 @@ function parseStatRows(words: NormalizedWord[], aliases: LabelAliases, statsTopY
     const team1Val = findValueNearY(leftVals, rowY, "left", match.key);
     const team2Val = findValueNearY(rightVals, rowY, "right", match.key);
 
-    stats.push({ key: match.key, team1: team1Val, team2: team2Val, rawLabel: normalized, matchedVia: match.via });
+    stats.push({
+      key: match.key,
+      team1: team1Val,
+      team2: team2Val,
+      rawLabel: normalized,
+      matchedVia: match.via,
+      rowY,
+    });
   }
 
-  return stats;
+  return fillPositionalTurnovers(stats, centerRows, leftVals, rightVals);
+}
+
+function avgRowY(row: NormalizedWord[]): number {
+  return row.reduce((s, w) => s + w.y, 0) / row.length;
+}
+
+/** Turnovers label often OCRs to garbage ("te", "taos"); it always sits between Total Yards and Third Down. */
+function fillPositionalTurnovers(
+  stats: ParsedStat[],
+  centerRows: NormalizedWord[][],
+  leftVals: NormalizedWord[],
+  rightVals: NormalizedWord[],
+): ParsedStat[] {
+  const existing = stats.find((s) => s.key === "turnovers");
+  if (existing?.team1?.trim() && existing?.team2?.trim()) return stats;
+
+  const total = stats.find((s) => s.key === "total_yards_gained");
+  const third = stats.find((s) => s.key === "third_down_conversions");
+  if (!total?.rowY || !third?.rowY) return stats;
+
+  const between = centerRows
+    .map((row) => ({ row, y: avgRowY(row) }))
+    .filter(({ y }) => y > total.rowY! && y < third.rowY!)
+    .sort((a, b) => a.y - b.y);
+  const turnoverRow = between[0];
+  if (!turnoverRow) return stats;
+
+  const rowY = turnoverRow.y;
+  const team1 = findValueNearY(leftVals, rowY, "left", "turnovers") || existing?.team1 || "";
+  const team2 = findValueNearY(rightVals, rowY, "right", "turnovers") || existing?.team2 || "";
+  if (!team1 && !team2) return stats;
+
+  const out = stats.filter((s) => s.key !== "turnovers");
+  out.push({
+    key: "turnovers",
+    team1,
+    team2,
+    rawLabel: turnoverRow.row.map((w) => w.text).join(" ") || "(positional turnovers)",
+    matchedVia: "fuzzy",
+    rowY,
+  });
+  return out;
+}
+
+const OFFENSE_ROW_STEP = 0.0385;
+
+/** When top offensive labels are clipped, infer values from fixed row spacing below them. */
+function fillInferredTopOffense(
+  words: NormalizedWord[],
+  stats: ParsedStat[],
+  aliases: LabelAliases,
+  statsTopY: number,
+): ParsedStat[] {
+  const keys = new Set(stats.map((s) => s.key));
+  if (
+    keys.has("off_yards_gained") &&
+    keys.has("off_rush_yards") &&
+    keys.has("off_pass_yards")
+  ) {
+    return stats;
+  }
+
+  const zoneMinY = statZoneMinY(statsTopY);
+  const valueMinY = Math.max(STATS_Y_MIN - 0.04, statsTopY - 0.16);
+  const statZone = words.filter((w) => w.y >= zoneMinY);
+  const valueZone = words.filter((w) => w.y >= valueMinY);
+  const center = statZone.filter((w) => w.x >= CENTER_X_MIN && w.x <= CENTER_X_MAX);
+  const leftVals = valueZone.filter((w) => w.x < LEFT_VAL_X_MAX);
+  const rightVals = valueZone.filter((w) => w.x > RIGHT_VAL_X_MIN);
+
+  let anchorY: number | null = null;
+  for (const row of groupIntoRows(center, LABEL_ROW_Y_TOLERANCE)) {
+    const label = normalizeLabel([...row].sort((a, b) => a.x - b.x).map((w) => w.text).join(" "));
+    const match = matchStatLabel(label, aliases);
+    if (match?.key === "off_first_down") {
+      anchorY = row.reduce((s, w) => s + w.y, 0) / row.length;
+      break;
+    }
+  }
+  if (anchorY == null) return stats;
+
+  const out = [...stats];
+  const seen = new Set(out.map((s) => s.key));
+  for (const { key, offset } of [
+    { key: "off_pass_yards", offset: 1 },
+    { key: "off_rush_yards", offset: 2 },
+    { key: "off_yards_gained", offset: 3 },
+  ] as const) {
+    if (seen.has(key)) continue;
+    const targetY = anchorY - offset * OFFENSE_ROW_STEP;
+    const team1 = findValueNearY(leftVals, targetY, "left", key);
+    const team2 = findValueNearY(rightVals, targetY, "right", key);
+    if (team1 || team2) {
+      out.push({ key, team1, team2, rawLabel: `(inferred ${key})`, matchedVia: "fuzzy" });
+      seen.add(key);
+    }
+  }
+  return out;
+}
+
+function scoreQuality(score: ParsedScore | null): number {
+  if (!score) return 0;
+  let q = 0;
+  if (/^[A-Z]{2,4}$/.test(score.team1Abbr)) q += 10;
+  if (/^[A-Z]{2,4}$/.test(score.team2Abbr)) q += 10;
+  const sum1 = score.team1Quarters.reduce((s, n) => s + n, 0);
+  const sum2 = score.team2Quarters.reduce((s, n) => s + n, 0);
+  if (sum1 === score.team1Score) q += 20;
+  else if (Math.abs(sum1 - score.team1Score) <= 9) q += 8;
+  else if (sum1 > 0 && score.team1Score === 0) q -= 15;
+  if (sum2 === score.team2Score) q += 20;
+  else if (Math.abs(sum2 - score.team2Score) <= 9) q += 8;
+  else if (sum2 > 0 && score.team2Score === 0) q -= 15;
+  if (score.team1Score + score.team2Score === 0 && sum1 + sum2 > 0) q -= 25;
+  return q;
+}
+
+function reconcileScoreTotals(score: ParsedScore): ParsedScore {
+  const fixTotal = (quarters: number[], total: number) => {
+    const sum = quarters.reduce((s, n) => s + n, 0);
+    if (sum > 80) return total > 80 ? total : sum <= 80 ? sum : total;
+    if (sum > 0 && total === 0) return sum;
+    if (sum >= 6 && total < sum - 5) return sum;
+    if (sum > total && sum - total <= 15) return sum;
+    return total;
+  };
+  return {
+    ...score,
+    team1Score: fixTotal(score.team1Quarters, score.team1Score),
+    team2Score: fixTotal(score.team2Quarters, score.team2Score),
+  };
+}
+
+function pickBestScore(...candidates: (ParsedScore | null | undefined)[]): ParsedScore | null {
+  return candidates
+    .filter((s): s is ParsedScore => s != null)
+    .map(reconcileScoreTotals)
+    .sort((a, b) => scoreQuality(b) - scoreQuality(a))[0] ?? null;
+}
+
+function cellQuality(key: string, value: string): number {
+  const v = value.trim();
+  if (!v) return 0;
+
+  if (key.includes("conversion")) {
+    const m = v.match(/^(\d+)[/:](\d+)$/);
+    if (!m) return v.match(/^\d+$/) ? 2 : 1;
+    const made = parseInt(m[1], 10);
+    const att = parseInt(m[2], 10);
+    if (made > att || att > 15 || made > 15) return 1;
+    return 10;
+  }
+
+  if (key.includes("percentage")) {
+    const n = parseInt(v, 10);
+    return !isNaN(n) && n >= 0 && n <= 100 ? 10 : 2;
+  }
+
+  if (key === "time_of_possession") {
+    return /^\d{1,2}:\d{2}$/.test(v) ? 10 : 4;
+  }
+
+  const n = parseInt(v, 10);
+  if (isNaN(n)) return 0;
+  if (key.includes("yards") || key.includes("down")) return n >= 0 && n <= 999 ? 10 : 2;
+  if (SMALL_ARROW_STAT_KEYS.has(key)) return n >= 0 && n <= 20 ? 8 : 3;
+  return 6;
+}
+
+function mergeSide(existing: string, candidate: string, key: string): string {
+  if (!candidate.trim()) return existing;
+  if (!existing.trim()) return candidate;
+  return cellQuality(key, candidate) > cellQuality(key, existing) ? candidate : existing;
+}
+
+function detectScrolledScreenshot(stats: ParsedStat[]): boolean {
+  const keys = new Set(stats.map((s) => s.key));
+  const hasBottom = keys.has("penalty_yards") || keys.has("time_of_possession") || keys.has("fourth_down_conversions");
+  const hasTop = keys.has("off_yards_gained") && keys.has("off_rush_yards");
+  return hasBottom && !hasTop;
 }
 
 // ─── Image fetch helper ───────────────────────────────────────────────────────
@@ -516,34 +1272,59 @@ async function fetchImageBuffer(url: string): Promise<Buffer> {
 
 // ─── Main parse entry point ───────────────────────────────────────────────────
 
-async function parseImage(buffer: Buffer, aliases: LabelAliases, variant: PreprocessVariant = "default"): Promise<{ score: ParsedScore | null; stats: ParsedStat[]; warnings: string[] }> {
+type PassResult = {
+  score: ParsedScore | null;
+  stats: ParsedStat[];
+  warnings: string[];
+  statsTopY: number;
+  defaultWords: NormalizedWord[];
+};
+
+async function parseImage(buffer: Buffer, aliases: LabelAliases, variant: PreprocessVariant = "default"): Promise<PassResult> {
   const warnings: string[] = [];
   let score: ParsedScore | null = null;
   let stats: ParsedStat[] = [];
+  let statsTopY = STATS_Y_MIN;
+  let defaultWords: NormalizedWord[] = [];
 
   try {
-    const { words } = await extractNormalizedWords(buffer, variant);
-    const header = parseScoreHeader(words);
-    score = header?.score ?? null;
+    const defaultExtract = await extractNormalizedWords(buffer, "default");
+    defaultWords = defaultExtract.words;
+    const statExtract = await extractNormalizedWords(buffer, variant === "default" ? "stats" : variant);
+    const leftWords = await extractLeftColumnWords(buffer);
+    const rightWords = await extractRightColumnWords(buffer);
+
+    const headerDefault = parseScoreHeader(defaultExtract.words);
+    const headerStat = parseScoreHeader(statExtract.words);
+    score = pickBestScore(headerDefault?.score, headerStat?.score);
+    statsTopY = headerDefault?.statsTopY ?? headerStat?.statsTopY ?? STATS_Y_MIN;
+
     if (!score) warnings.push("Could not parse score header from this image.");
-    stats = parseStatRows(words, aliases, header?.statsTopY ?? STATS_Y_MIN);
+
+    const statWords = mergeStatWords(leftWords, rightWords, statExtract.words, defaultExtract.words, statsTopY);
+    stats = fillInferredTopOffense(
+      statWords,
+      parseStatRows(statWords, aliases, statsTopY),
+      aliases,
+      statsTopY,
+    );
+
+    if (detectScrolledScreenshot(stats)) {
+      warnings.push("Box score appears scrolled — top stats may be missing.");
+    }
   } catch (err) {
     warnings.push(`OCR error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  return { score, stats, warnings };
+  return { score, stats, warnings, statsTopY, defaultWords };
 }
-
-type PassResult = { score: ParsedScore | null; stats: ParsedStat[]; warnings: string[] };
 
 // Merge a set of per-image (and per-variant) parse results into one box score.
 // Stats prefer the first non-empty value found per key, so an earlier/proven
 // pass wins and later passes only fill gaps.
 function combineResults(results: PassResult[]): ParsedBoxScore {
-  // Score: first pass that yields one wins (page 1 is primary, but accept any).
-  const score = results.map((r) => r.score).find((s): s is ParsedScore => s != null) ?? null;
+  const score = pickBestScore(...results.map((r) => r.score));
 
-  // Capture fuzzy-matched raw labels so an approval can promote them to aliases.
   const labelSamples: Record<string, string> = {};
   for (const r of results) {
     for (const stat of r.stats) {
@@ -553,23 +1334,19 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
     }
   }
 
-  // Merge stats across all passes. A later pass can fill in a key that an
-  // earlier pass either missed entirely or read with an empty value.
   const statsMap: Record<string, { team1: string; team2: string }> = {};
   for (const r of results) {
     for (const stat of r.stats) {
       const candidate = { team1: stat.team1, team2: stat.team2 };
       const existing = statsMap[stat.key];
-      if (!hasValue(existing) && hasValue(candidate)) {
+      if (!existing) {
         statsMap[stat.key] = candidate;
-      } else if (!(stat.key in statsMap)) {
-        statsMap[stat.key] = candidate; // keep an (empty) placeholder so the key is known
-      } else if (existing) {
-        statsMap[stat.key] = {
-          team1: existing.team1 || candidate.team1,
-          team2: existing.team2 || candidate.team2,
-        };
+        continue;
       }
+      statsMap[stat.key] = {
+        team1: mergeSide(existing.team1, candidate.team1, stat.key),
+        team2: mergeSide(existing.team2, candidate.team2, stat.key),
+      };
     }
   }
 
@@ -592,6 +1369,51 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
   };
   fillMissingReturnYards("team1");
   fillMissingReturnYards("team2");
+
+  // Off Yards Gained = Total Yards − return yards when the top rows were clipped.
+  const deriveOffYardsFromTotal = (side: "team1" | "team2") => {
+    const off = statsMap["off_yards_gained"]?.[side]?.trim() ?? "";
+    if (off) return;
+    const total = parseInt(statsMap["total_yards_gained"]?.[side] ?? "", 10);
+    const punt = parseInt(statsMap["punt_return_yards"]?.[side] ?? "0", 10);
+    const kick = parseInt(statsMap["kick_return_yards"]?.[side] ?? "0", 10);
+    if (isNaN(total) || isNaN(punt) || isNaN(kick)) return;
+    const derived = total - punt - kick;
+    if (derived >= 0) {
+      statsMap["off_yards_gained"] = {
+        ...(statsMap["off_yards_gained"] ?? { team1: "", team2: "" }),
+        [side]: String(derived),
+      };
+    }
+  };
+  deriveOffYardsFromTotal("team1");
+  deriveOffYardsFromTotal("team2");
+
+  const deriveRushPassFromOffYards = (side: "team1" | "team2") => {
+    const off = parseInt(statsMap["off_yards_gained"]?.[side] ?? "", 10);
+    if (isNaN(off)) return;
+    const rush = statsMap["off_rush_yards"]?.[side]?.trim() ?? "";
+    const pass = statsMap["off_pass_yards"]?.[side]?.trim() ?? "";
+    if (rush && !pass) {
+      const r = parseInt(rush, 10);
+      if (!isNaN(r) && off >= r) {
+        statsMap["off_pass_yards"] = {
+          ...(statsMap["off_pass_yards"] ?? { team1: "", team2: "" }),
+          [side]: String(off - r),
+        };
+      }
+    } else if (pass && !rush) {
+      const p = parseInt(pass, 10);
+      if (!isNaN(p) && off >= p) {
+        statsMap["off_rush_yards"] = {
+          ...(statsMap["off_rush_yards"] ?? { team1: "", team2: "" }),
+          [side]: String(off - p),
+        };
+      }
+    }
+  };
+  deriveRushPassFromOffYards("team1");
+  deriveRushPassFromOffYards("team2");
 
   // Derive Total Yards Gained = Off Yards + Punt Return + Kick Return when it
   // wasn't read directly (it lives on the second screenshot we no longer require).
@@ -627,10 +1449,68 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
   // Warn about any expected stats that couldn't be parsed.
   const warnings = results.flatMap((r) => r.warnings);
   for (const key of ALL_STAT_KEYS) {
-    if (!hasValue(statsMap[key])) warnings.push(`Stat not found: ${key}`);
+    if (!hasBothSides(statsMap[key])) warnings.push(`Stat not found: ${key}`);
   }
 
-  return { score, stats: statsMap, warnings, missingRequired: computeMissingRequired(score, statsMap), labelSamples };
+  const missingRequired = computeMissingRequired(score, statsMap);
+
+  return { score, stats: statsMap, warnings, missingRequired, labelSamples };
+}
+
+async function parseImageStatsPass(
+  buffer: Buffer,
+  aliases: LabelAliases,
+  variant: "stats" | "robust",
+  score: ParsedScore | null,
+  statsTopY: number,
+  defaultWords: NormalizedWord[],
+): Promise<PassResult> {
+  const statExtract = await extractNormalizedWords(buffer, variant);
+  const leftWords = await extractLeftColumnWords(buffer);
+  const rightWords = await extractRightColumnWords(buffer);
+  const statWords = mergeStatWords(leftWords, rightWords, statExtract.words, defaultWords, statsTopY);
+  return {
+    score,
+    stats: fillInferredTopOffense(statWords, parseStatRows(statWords, aliases, statsTopY), aliases, statsTopY),
+    warnings: [],
+    statsTopY,
+    defaultWords,
+  };
+}
+
+async function parseBoxScoreFromBuffers(buffers: Buffer[], aliases: LabelAliases = {}): Promise<ParsedBoxScore> {
+  const primaryResults = await Promise.all(buffers.map((b) => parseImage(b, aliases, "default")));
+  let combined = combineResults(primaryResults);
+
+  if (combined.missingRequired.length > 0 || hasIncompleteRequiredCell(combined.stats)) {
+    const fallbackResults = await Promise.all(
+      buffers.map((buffer, idx) =>
+        parseImageStatsPass(
+          buffer,
+          aliases,
+          "robust",
+          primaryResults[idx].score,
+          primaryResults[idx].statsTopY,
+          primaryResults[idx].defaultWords,
+        ),
+      ),
+    );
+    const statsPassResults = await Promise.all(
+      buffers.map((buffer, idx) =>
+        parseImageStatsPass(
+          buffer,
+          aliases,
+          "stats",
+          primaryResults[idx].score,
+          primaryResults[idx].statsTopY,
+          primaryResults[idx].defaultWords,
+        ),
+      ),
+    );
+    combined = combineResults([...primaryResults, ...fallbackResults, ...statsPassResults]);
+  }
+
+  return combined;
 }
 
 // The single default Box Score screenshot carries every required field. Still
@@ -638,20 +1518,12 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
 // field — and merges them, preferring the first non-empty value found per key.
 export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAliases = {}): Promise<ParsedBoxScore> {
   const buffers = await Promise.all(imageUrls.map(fetchImageBuffer));
+  return parseBoxScoreFromBuffers(buffers, aliases);
+}
 
-  const defaultResults = await Promise.all(buffers.map((b) => parseImage(b, aliases, "default")));
-  let combined = combineResults(defaultResults);
-
-  // If a required field is missing OR any required cell is only half-read (one
-  // side empty — always an OCR miss, since every cell has a value), re-run the
-  // illumination-robust pass and merge it in. Recovers dim stats over the bright
-  // field and isolated single digits, while keeping the clean case to one pass.
-  if (combined.missingRequired.length > 0 || hasIncompleteRequiredCell(combined.stats)) {
-    const robustResults = await Promise.all(buffers.map((b) => parseImage(b, aliases, "robust")));
-    combined = combineResults([...defaultResults, ...robustResults]);
-  }
-
-  return combined;
+/** Local-file entry point for batch scripts and tests. */
+export async function parseBoxScoreBuffers(buffers: Buffer[], aliases: LabelAliases = {}): Promise<ParsedBoxScore> {
+  return parseBoxScoreFromBuffers(buffers, aliases);
 }
 
 // ─── Debug helper (used by scripts/box-score-diagnose.ts) ──────────────────────
@@ -659,10 +1531,33 @@ export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAli
 // processed image plus the OCR words/coords and parse, so we can see exactly
 // what the parser sees for a given screenshot.
 export async function debugParseBuffer(buffer: Buffer, variant: PreprocessVariant = "default") {
+  const defaultExtract = await extractNormalizedWords(buffer, "default");
+  const statExtract = await extractNormalizedWords(buffer, variant === "default" ? "stats" : variant);
+  const leftWords = await extractLeftColumnWords(buffer);
+  const rightWords = await extractRightColumnWords(buffer);
+  const headerDefault = parseScoreHeader(defaultExtract.words);
+  const statsTopY = headerDefault?.statsTopY ?? STATS_Y_MIN;
+  const statWords = mergeStatWords(leftWords, rightWords, statExtract.words, defaultExtract.words, statsTopY);
+  const stats = parseStatRows(statWords, {}, statsTopY);
+  const center = statWords.filter((w) => w.x >= CENTER_X_MIN && w.x <= CENTER_X_MAX && w.y >= statsTopY);
+  const centerRows = groupIntoRows(center, LABEL_ROW_Y_TOLERANCE);
+  const rowLabels = centerRows.map((row) =>
+    normalizeLabel([...row].sort((a, b) => a.x - b.x).map((w) => w.text).join(" ")),
+  );
   const { processed } = await preprocessImage(buffer, variant);
-  const { words } = await extractNormalizedWords(buffer, variant);
-  const header = parseScoreHeader(words);
-  const statsTopY = header?.statsTopY ?? STATS_Y_MIN;
-  const stats = parseStatRows(words, {}, statsTopY);
-  return { processed, words, score: header?.score ?? null, statsTopY, stats };
+  return {
+    processed,
+    words: statWords,
+    leftWordCount: leftWords.length,
+    score: headerDefault?.score ?? null,
+    statsTopY,
+    stats,
+    centerRowCount: centerRows.length,
+    rowLabels,
+  };
+}
+
+/** Script helper: inspect left-column OCR tokens. */
+export async function debugLeftColumnWords(buffer: Buffer) {
+  return extractLeftColumnWords(buffer);
 }

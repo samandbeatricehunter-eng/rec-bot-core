@@ -304,6 +304,7 @@ export const recApi = {
     imageUrls: string[];
     discordChannelId?: string | null;
     discordMessageId?: string | null;
+    ledgerDiscordMessageId?: string | null;
     seasonNumber?: number | null;
     weekNumber?: number | null;
     expectedGameId?: string | null;
@@ -324,6 +325,12 @@ export const recApi = {
 
   listBoxScoreGames: (input: { guildId: string; weekNumber: number; seasonNumber?: number | null }) =>
     recFetch<any>("/v1/box-score/games", { method: "POST", body: JSON.stringify(input) }),
+
+  getBoxScoreUploadEligibility: (input: { guildId: string; discordId: string }) =>
+    recFetch<any>("/v1/box-score/upload-eligibility", { method: "POST", body: JSON.stringify(input) }),
+
+  updateBoxScoreLedgerMessage: (input: { submissionId: string; ledgerDiscordMessageId: string }) =>
+    recFetch<any>("/v1/box-score/ledger-message", { method: "POST", body: JSON.stringify(input) }),
 
   listScheduleTeams: (guildId: string) =>
     recFetch<any>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),

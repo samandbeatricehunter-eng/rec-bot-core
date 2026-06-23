@@ -127,12 +127,48 @@ async function resolveTeams(leagueId: string, abbr1: string, abbr2: string) {
     .eq("league_id", leagueId);
   if (error) throw new ApiError(500, "Failed to load league teams.", error);
 
-  const match = (abbr: string) =>
-    (teams ?? []).find(
-      (t) =>
-        t.abbreviation?.toUpperCase() === abbr.toUpperCase() ||
-        t.display_abbr?.toUpperCase() === abbr.toUpperCase()
+  const levenshtein = (a: string, b: string): number => {
+    const m = a.length;
+    const n = b.length;
+    const dp = Array.from({ length: m + 1 }, (_, i) =>
+      Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
     );
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+        );
+      }
+    }
+    return dp[m][n];
+  };
+
+  const match = (abbr: string) => {
+    const u = abbr.toUpperCase();
+    const list = teams ?? [];
+    const exact = list.find(
+      (t) =>
+        t.abbreviation?.toUpperCase() === u ||
+        t.display_abbr?.toUpperCase() === u,
+    );
+    if (exact) return exact;
+
+    let best: (typeof list)[number] | null = null;
+    let bestDist = Infinity;
+    for (const t of list) {
+      for (const candidate of [t.abbreviation, t.display_abbr]) {
+        if (!candidate) continue;
+        const d = levenshtein(u, candidate.toUpperCase());
+        if (d < bestDist) {
+          bestDist = d;
+          best = t;
+        }
+      }
+    }
+    return bestDist <= 2 ? best : null;
+  };
 
   return { team1: match(abbr1) ?? null, team2: match(abbr2) ?? null };
 }
@@ -182,6 +218,72 @@ async function getActiveTeamId(leagueId: string, userId: string): Promise<string
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to load team assignment.", error);
   return data?.team_id ?? null;
+}
+
+async function userHasApprovedBoxScoreForWeek(
+  leagueId: string,
+  userId: string,
+  seasonNumber: number,
+  weekNumber: number,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("rec_box_score_submissions")
+    .select("id")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .eq("submitted_by_user_id", userId)
+    .eq("status", "approved")
+    .limit(1);
+  if (error) throw new ApiError(500, "Failed to check box score payout status.", error);
+  return (data ?? []).length > 0;
+}
+
+async function getUserScheduledGameForWeek(
+  leagueId: string,
+  teamId: string,
+  seasonNumber: number,
+  weekNumber: number,
+) {
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
+  const { data, error } = await supabase
+    .from("rec_games")
+    .select("id,home_team_id,away_team_id,home_user_id,away_user_id")
+    .eq("league_id", leagueId)
+    .eq("season_id", seasonId)
+    .eq("week_number", weekNumber)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load scheduled game.", error);
+  return data ?? null;
+}
+
+export type BoxScoreUploadEligibility = {
+  seasonNumber: number;
+  weekNumber: number;
+  hasApprovedForWeek: boolean;
+  hasScheduledGame: boolean;
+  teamId: string | null;
+  gameId: string | null;
+};
+
+export async function getBoxScoreUploadEligibility(input: { guildId: string; discordId: string }): Promise<BoxScoreUploadEligibility> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await getDiscordAccount(input.discordId, true);
+  const { seasonNumber, weekNumber } = selectedSeasonWeek(context);
+  const leagueId = context.leagueId;
+  const teamId = await getActiveTeamId(leagueId, account!.user_id);
+  const hasApprovedForWeek = await userHasApprovedBoxScoreForWeek(leagueId, account!.user_id, seasonNumber, weekNumber);
+  const game = teamId ? await getUserScheduledGameForWeek(leagueId, teamId, seasonNumber, weekNumber) : null;
+
+  return {
+    seasonNumber,
+    weekNumber,
+    hasApprovedForWeek,
+    hasScheduledGame: !!game,
+    teamId,
+    gameId: game?.id ?? null,
+  };
 }
 
 // Helpers for the per-team stats table.
@@ -342,6 +444,7 @@ export type CreateSubmissionInput = {
   imageUrls: string[];
   discordChannelId?: string | null;
   discordMessageId?: string | null;
+  ledgerDiscordMessageId?: string | null;
   seasonNumber?: number | null;
   weekNumber?: number | null;
   expectedGameId?: string | null;
@@ -374,6 +477,20 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   const leagueId = context.leagueId;
   const { seasonNumber, weekNumber } = selectedSeasonWeek(context, input);
   const phase = context.rec_leagues.season_stage ?? null;
+
+  if (!input.commissionerSubmission && account?.user_id) {
+    if (await userHasApprovedBoxScoreForWeek(leagueId, account.user_id, seasonNumber, weekNumber)) {
+      throw new ApiError(409, "You already have an approved box score payout for this game week.");
+    }
+    const teamId = await getActiveTeamId(leagueId, account.user_id);
+    if (!teamId) {
+      throw new ApiError(400, "You aren't linked to a team in this league.");
+    }
+    const scheduledGame = await getUserScheduledGameForWeek(leagueId, teamId, seasonNumber, weekNumber);
+    if (!scheduledGame) {
+      throw new ApiError(400, `You don't have a scheduled game in Week ${weekNumber}.`);
+    }
+  }
 
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
   // When a commissioner pre-selected the game, it's authoritative — the OCR only
@@ -420,6 +537,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       discord_guild_id: input.guildId,
       discord_channel_id: input.discordChannelId ?? null,
       discord_message_id: input.discordMessageId ?? null,
+      ledger_discord_message_id: input.ledgerDiscordMessageId ?? null,
       image_urls: input.imageUrls,
       team1_abbr: parsed.score?.team1Abbr ?? null,
       team2_abbr: parsed.score?.team2Abbr ?? null,
@@ -502,6 +620,18 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     flagged,
     flagReasons,
   };
+}
+
+export async function updateBoxScoreLedgerMessage(submissionId: string, ledgerDiscordMessageId: string) {
+  const { data, error } = await supabase
+    .from("rec_box_score_submissions")
+    .update({ ledger_discord_message_id: ledgerDiscordMessageId, updated_at: new Date().toISOString() })
+    .eq("id", submissionId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to store box score ledger message id.", error);
+  if (!data) throw new ApiError(404, "Submission not found.");
+  return { ok: true };
 }
 
 // ─── Commissioner review ──────────────────────────────────────────────────────
@@ -676,6 +806,8 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     playersPayd: payouts.length,
     sourceChannelId: sub.discord_channel_id ?? null,
     sourceMessageId: sub.discord_message_id ?? null,
+    ledgerChannelId: sub.discord_channel_id ?? null,
+    ledgerMessageId: sub.ledger_discord_message_id ?? null,
   };
 }
 
