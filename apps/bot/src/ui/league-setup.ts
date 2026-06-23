@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { getDefaultNflSeasonLabelForGame, type MaddenLeagueGame } from "@rec/shared";
+import { getDefaultNflSeasonLabelForGame, MADDEN_ATTRIBUTE_SELECTION_GROUPS, type MaddenAttributeGroupKey, type MaddenLeagueGame } from "@rec/shared";
 import { buildNavigationRow, NAV_CUSTOM_IDS } from "./navigation.js";
 
 export const LEAGUE_SETUP_CUSTOM_IDS = {
@@ -71,7 +71,11 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   coachAbilitiesRestricted: "rec:league_setup:coach_abilities_restricted",
   coachAbilitiesRestrictionModal: "rec:league_setup:coach_abilities_restriction_modal",
   coachAbilitiesRestrictionInput: "rec:league_setup:coach_abilities_restriction_input",
-  reviewJump: "rec:league_setup:review_jump"
+  reviewJump: "rec:league_setup:review_jump",
+  purchaseCapPrefix: "rec:league_setup:purchase_cap",
+  purchaseCoreAttrsOpen: "rec:league_setup:purchase_core_attrs_open",
+  purchaseCoreAttrsDone: "rec:league_setup:purchase_core_attrs_done",
+  coreAttrsPrefix: "rec:league_setup:core_attrs"
 } as const;
 
 export type LeagueSetupSettingsCategory = "features" | "purchases" | "server" | "rules" | "gameplay" | "play_call";
@@ -93,6 +97,7 @@ export type LeagueSetupStep =
   | "dev_upgrades"
   | "age_resets"
   | "attribute_purchases"
+  | "attribute_core_attributes"
   | "player_trait_purchases"
   | "contract_purchases"
   | "server_setup"
@@ -143,15 +148,19 @@ export type LeagueSetupDraft = {
   legendsEnabled: boolean;
   devUpgradesEnabled: boolean;
   ageResetsEnabled: boolean;
-  trainingPackagesEnabled: boolean;
   attributePurchasesEnabled: boolean;
   playerTraitPurchasesEnabled: boolean;
   contractAdjustmentPurchasesEnabled: boolean;
-  capManagementAssistantEnabled: boolean;
-  draftClassFeaturesEnabled: boolean;
-  draftClassType: "custom" | "auto_gen" | "realistic" | "other";
-  scoutingPurchasesEnabled: boolean;
   mediaFeaturesEnabled: boolean;
+  customPlayersSeasonCap: number;
+  legendsSeasonCap: number;
+  devUpgradesSeasonCap: number;
+  ageResetsSeasonCap: number;
+  playerTraitPurchasesSeasonCap: number;
+  contractPurchasesSeasonCap: number;
+  coreAttributePurchasesSeasonCap: number;
+  nonCoreAttributePurchasesSeasonCap: number;
+  coreAttributes: string[];
   streamingRequirement: "required" | "recommended" | "disabled";
   regularSeasonStreamingRequirement: "required" | "recommended" | "disabled";
   postseasonStreamingRequirement: "required" | "recommended" | "disabled";
@@ -220,6 +229,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "dev_upgrades",
   "age_resets",
   "attribute_purchases",
+  "attribute_core_attributes",
   "player_trait_purchases",
   "contract_purchases",
   "server_setup",
@@ -271,15 +281,19 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     legendsEnabled: false,
     devUpgradesEnabled: false,
     ageResetsEnabled: false,
-    trainingPackagesEnabled: false,
     attributePurchasesEnabled: false,
     playerTraitPurchasesEnabled: false,
     contractAdjustmentPurchasesEnabled: false,
-    capManagementAssistantEnabled: false,
-    draftClassFeaturesEnabled: false,
-    draftClassType: "auto_gen",
-    scoutingPurchasesEnabled: false,
     mediaFeaturesEnabled: true,
+    customPlayersSeasonCap: 0,
+    legendsSeasonCap: 0,
+    devUpgradesSeasonCap: 0,
+    ageResetsSeasonCap: 0,
+    playerTraitPurchasesSeasonCap: 0,
+    contractPurchasesSeasonCap: 0,
+    coreAttributePurchasesSeasonCap: 0,
+    nonCoreAttributePurchasesSeasonCap: 0,
+    coreAttributes: [],
     streamingRequirement: "recommended",
     regularSeasonStreamingRequirement: "recommended",
     postseasonStreamingRequirement: "required",
@@ -380,6 +394,9 @@ function streamingUserSettingApplies(requirement: LeagueSetupDraft["regularSeaso
 export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
   // Economy gates the consecutive purchase-feature section.
   if (step === "economy" && !draft.coinEconomyEnabled) return "server_setup";
+
+  if (step === "attribute_purchases" && !draft.attributePurchasesEnabled) return "player_trait_purchases";
+  if (step === "attribute_purchases" && draft.attributePurchasesEnabled) return "attribute_core_attributes";
 
   if (step === "regular_season_streaming" && !streamingUserSettingApplies(draft.regularSeasonStreamingRequirement)) {
     return "postseason_streaming";
@@ -542,11 +559,266 @@ const ECONOMY_FEATURE_STEPS = {
   }
 } as const satisfies Partial<Record<LeagueSetupStep, { title: string; key: keyof LeagueSetupDraft; description: string }>>;
 
+type PurchaseCapField =
+  | "customPlayersSeasonCap"
+  | "legendsSeasonCap"
+  | "devUpgradesSeasonCap"
+  | "ageResetsSeasonCap"
+  | "playerTraitPurchasesSeasonCap"
+  | "contractPurchasesSeasonCap"
+  | "coreAttributePurchasesSeasonCap"
+  | "nonCoreAttributePurchasesSeasonCap";
+
+const PURCHASE_FEATURE_STEPS = {
+  custom_players: {
+    title: "Custom Players",
+    enabledKey: "customPlayersEnabled",
+    capKey: "customPlayersSeasonCap",
+    maxCap: 5,
+    description: "Custom Players: Allows users to purchase and create custom players to be added to the draft pool and reserved for their team. Players are built using template archetypes and a range of 'creation points' based on how much the user spends when purchasing the player package."
+  },
+  legends: {
+    title: "Legends",
+    enabledKey: "legendsEnabled",
+    capKey: "legendsSeasonCap",
+    maxCap: 5,
+    description: "Legends: Allows users to purchase NFL legends to be added to their team instantly."
+  },
+  dev_upgrades: {
+    title: "Dev Upgrades",
+    enabledKey: "devUpgradesEnabled",
+    capKey: "devUpgradesSeasonCap",
+    maxCap: 5,
+    description: "Dev Upgrades: Allows users to purchase a development trait upgrade for a player on their team. Upgrades are in one-tier increments, so Star to Superstar, etc."
+  },
+  age_resets: {
+    title: "Age Resets",
+    enabledKey: "ageResetsEnabled",
+    capKey: "ageResetsSeasonCap",
+    maxCap: 5,
+    description: "Age Resets: Allows users to purchase an age reset for a player, resetting their in-game age to 21."
+  },
+  attribute_purchases: {
+    title: "Attribute Purchases",
+    enabledKey: "attributePurchasesEnabled",
+    capKey: null,
+    maxCap: 20,
+    description: "Attribute Purchases: Allows users to purchase upgrades to a players attributes (grouped as core & non-core with different caps)."
+  },
+  player_trait_purchases: {
+    title: "Player Trait Purchases",
+    enabledKey: "playerTraitPurchasesEnabled",
+    capKey: "playerTraitPurchasesSeasonCap",
+    maxCap: 10,
+    description: "Player Trait Purchases: Allows users to purchase changes to a players trait, ie, they want a player to play the ball but their trait is currently set to Play Defender."
+  },
+  contract_purchases: {
+    title: "Contract Purchases",
+    enabledKey: "contractAdjustmentPurchasesEnabled",
+    capKey: "contractPurchasesSeasonCap",
+    maxCap: 5,
+    description: "Contract Purchases: Allows users to buy salary and bonus reductions for players contracts, as well as limited contract extensions."
+  }
+} as const satisfies Partial<Record<LeagueSetupStep, {
+  title: string;
+  enabledKey: keyof LeagueSetupDraft;
+  capKey: PurchaseCapField | null;
+  maxCap: number;
+  description: string;
+}>>;
+
+export type PurchaseFeatureStep = keyof typeof PURCHASE_FEATURE_STEPS;
+
+export function isPurchaseFeatureStep(step: LeagueSetupStep): step is PurchaseFeatureStep {
+  return step in PURCHASE_FEATURE_STEPS;
+}
+
+export function purchaseCapCustomId(step: PurchaseFeatureStep, cap: "season" | "core" | "non_core" = "season") {
+  return `${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:${step}:${cap}`;
+}
+
+export function coreAttributeGroupCustomId(group: MaddenAttributeGroupKey) {
+  return `${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:${group}`;
+}
+
+function capOptions(maxCap: number) {
+  return Array.from({ length: maxCap + 1 }, (_, index) => option(String(index), String(index), index === 0 ? "No purchases allowed" : `${index} per season`));
+}
+
+function formatPurchaseCapSummary(draft: LeagueSetupDraft, step: PurchaseFeatureStep) {
+  const config = PURCHASE_FEATURE_STEPS[step];
+  if (step === "attribute_purchases") {
+    return [
+      `Core Attribute Cap: **${draft.coreAttributePurchasesSeasonCap}**/season`,
+      `Non-Core Attribute Cap: **${draft.nonCoreAttributePurchasesSeasonCap}**/season`,
+      `Core Attributes Selected: **${draft.coreAttributes.length}**`
+    ].join("\n");
+  }
+  if (!config.capKey) return "";
+  const cap = draft[config.capKey];
+  return `Season Cap: **${cap}**/${config.maxCap}`;
+}
+
+export function setPurchaseCapValue(draft: LeagueSetupDraft, customId: string, value: string) {
+  const parts = customId.split(":");
+  const capKind = parts.at(-1);
+  const step = parts.at(-2) as PurchaseFeatureStep;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return;
+
+  if (capKind === "core") {
+    draft.coreAttributePurchasesSeasonCap = numeric;
+    return;
+  }
+  if (capKind === "non_core") {
+    draft.nonCoreAttributePurchasesSeasonCap = numeric;
+    return;
+  }
+
+  const config = PURCHASE_FEATURE_STEPS[step];
+  if (!config?.capKey) return;
+  (draft as any)[config.capKey] = numeric;
+}
+
+export function setCoreAttributesForGroup(draft: LeagueSetupDraft, group: MaddenAttributeGroupKey, selected: string[]) {
+  const groupCodes = new Set(MADDEN_ATTRIBUTE_SELECTION_GROUPS[group].codes);
+  draft.coreAttributes = [
+    ...draft.coreAttributes.filter((code) => !groupCodes.has(code as any)),
+    ...selected
+  ];
+}
+
+export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
+  if (!isPurchaseFeatureStep(draft.step)) return buildLeagueTypeWindow(draft);
+  const config = PURCHASE_FEATURE_STEPS[draft.step];
+  const enabled = Boolean(draft[config.enabledKey]);
+  const embed = new EmbedBuilder()
+    .setTitle(`League Setup: ${config.title}`)
+    .setDescription([
+      `League: **${draft.name}**`,
+      "",
+      config.description,
+      "",
+      `Current Selection: **${enabled ? "Activated" : "Deactivated"}**`,
+      formatPurchaseCapSummary(draft, draft.step)
+    ].filter(Boolean).join("\n"));
+
+  const components: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.featureActivate).setLabel("Activate Feature").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate).setLabel("Deactivate Feature").setStyle(ButtonStyle.Danger)
+    )
+  ];
+
+  if (draft.step === "attribute_purchases") {
+    components.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(purchaseCapCustomId("attribute_purchases", "core"))
+          .setPlaceholder("Core attribute purchases per season (0-20)")
+          .addOptions(...capOptions(20))
+      ),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(purchaseCapCustomId("attribute_purchases", "non_core"))
+          .setPlaceholder("Non-core attribute purchases per season (0-20)")
+          .addOptions(...capOptions(20))
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsOpen)
+          .setLabel(`Configure Core Attributes (${draft.coreAttributes.length})`)
+          .setStyle(ButtonStyle.Primary)
+      )
+    );
+  } else if (config.capKey) {
+    components.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(purchaseCapCustomId(draft.step))
+          .setPlaceholder(`Season cap (0-${config.maxCap})`)
+          .addOptions(...capOptions(config.maxCap))
+      )
+    );
+  }
+
+  components.push(buildNavigationRow());
+  return { embeds: [embed], components };
+}
+
+export function buildAttributeCoreSelectionWindow(draft: LeagueSetupDraft) {
+  const embed = new EmbedBuilder()
+    .setTitle("League Setup: Core Attributes")
+    .setDescription([
+      `League: **${draft.name}**`,
+      "",
+      "Select which Madden attributes count as **core** for purchase caps. All other attributes are treated as non-core.",
+      "",
+      `Currently selected: **${draft.coreAttributes.length}** attribute(s)`,
+      draft.coreAttributes.length ? draft.coreAttributes.join(", ") : "None selected yet."
+    ].join("\n"));
+
+  const rows = (Object.entries(MADDEN_ATTRIBUTE_SELECTION_GROUPS) as Array<[MaddenAttributeGroupKey, typeof MADDEN_ATTRIBUTE_SELECTION_GROUPS[MaddenAttributeGroupKey]]>)
+    .map(([groupKey, group]) => {
+      const selected = draft.coreAttributes.filter((code) => group.codes.includes(code as any));
+      return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(coreAttributeGroupCustomId(groupKey))
+          .setPlaceholder(group.label)
+          .setMinValues(0)
+          .setMaxValues(group.codes.length)
+          .addOptions(
+            ...group.codes.map((code) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(code)
+                .setValue(code)
+                .setDefault(selected.includes(code))
+            )
+          )
+      );
+    });
+
+  return {
+    embeds: [embed],
+    components: [
+      ...rows,
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsDone)
+          .setLabel(draft.editMode ? "Save & Back to Purchases" : "Continue")
+          .setStyle(ButtonStyle.Success)
+      ),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function formatPurchaseCapsReview(draft: LeagueSetupDraft) {
+  const lines: string[] = [];
+  for (const [step, config] of Object.entries(PURCHASE_FEATURE_STEPS) as Array<[PurchaseFeatureStep, typeof PURCHASE_FEATURE_STEPS[PurchaseFeatureStep]]>) {
+    const enabled = Boolean(draft[config.enabledKey]);
+    if (!enabled) continue;
+    if (step === "attribute_purchases") {
+      lines.push(`Attributes: Core ${draft.coreAttributePurchasesSeasonCap}, Non-Core ${draft.nonCoreAttributePurchasesSeasonCap}, ${draft.coreAttributes.length} core attrs`);
+      continue;
+    }
+    if (config.capKey) {
+      lines.push(`${config.title}: ${draft[config.capKey]}/season`);
+    }
+  }
+  return lines.length ? lines.join("\n") : "No purchase caps configured.";
+}
+
 export function isLeagueSetupFeatureStep(step: LeagueSetupStep): step is keyof typeof ECONOMY_FEATURE_STEPS {
   return step in ECONOMY_FEATURE_STEPS;
 }
 
 export function setLeagueSetupFeatureAnswer(draft: LeagueSetupDraft, enabled: boolean) {
+  if (isPurchaseFeatureStep(draft.step)) {
+    const config = PURCHASE_FEATURE_STEPS[draft.step];
+    (draft as any)[config.enabledKey] = enabled;
+    return;
+  }
   if (!isLeagueSetupFeatureStep(draft.step)) return;
   const config = ECONOMY_FEATURE_STEPS[draft.step];
   (draft as any)[config.key] = enabled;
@@ -1124,6 +1396,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Dev Upgrades", "dev_upgrades"),
       option("Age Resets", "age_resets"),
       option("Attribute Purchases", "attribute_purchases"),
+      option("Attribute Core Attributes", "attribute_core_attributes"),
       option("Player Trait Purchases", "player_trait_purchases"),
       option("Contract Purchases", "contract_purchases"),
     ],
@@ -1246,7 +1519,9 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Age Resets: ${yesNo(draft.ageResetsEnabled)}`,
           `Attribute Purchases: ${yesNo(draft.attributePurchasesEnabled)}`,
           `Player Trait Purchases: ${yesNo(draft.playerTraitPurchasesEnabled)}`,
-          `Contract Purchases: ${yesNo(draft.contractAdjustmentPurchasesEnabled)}`
+          `Contract Purchases: ${yesNo(draft.contractAdjustmentPurchasesEnabled)}`,
+          "",
+          formatPurchaseCapsReview(draft)
         ].join("\n"),
         inline: true
       },
@@ -1331,14 +1606,15 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
     case "game": return buildGameSelectWindow(draft);
     case "league_type": return buildLeagueTypeWindow(draft);
-    case "economy":
+    case "economy": return buildFeatureDecisionWindow(draft);
     case "custom_players":
     case "legends":
     case "dev_upgrades":
     case "age_resets":
     case "attribute_purchases":
     case "player_trait_purchases":
-    case "contract_purchases": return buildFeatureDecisionWindow(draft);
+    case "contract_purchases": return buildPurchaseSettingWindow(draft);
+    case "attribute_core_attributes": return buildAttributeCoreSelectionWindow(draft);
     case "server_setup": return buildLeagueSetupServerSetupWindow(draft);
     case "regular_season_streaming": return buildRegularSeasonStreamingWindow(draft);
     case "regular_season_streaming_side": return buildRegularSeasonStreamingSideWindow(draft);
@@ -1387,16 +1663,32 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.legendsEnabled = false;
     draft.devUpgradesEnabled = false;
     draft.ageResetsEnabled = false;
-    draft.trainingPackagesEnabled = false;
     draft.attributePurchasesEnabled = false;
     draft.playerTraitPurchasesEnabled = false;
     draft.contractAdjustmentPurchasesEnabled = false;
+    draft.customPlayersSeasonCap = 0;
+    draft.legendsSeasonCap = 0;
+    draft.devUpgradesSeasonCap = 0;
+    draft.ageResetsSeasonCap = 0;
+    draft.playerTraitPurchasesSeasonCap = 0;
+    draft.contractPurchasesSeasonCap = 0;
+    draft.coreAttributePurchasesSeasonCap = 0;
+    draft.nonCoreAttributePurchasesSeasonCap = 0;
+    draft.coreAttributes = [];
   }
 
-  draft.trainingPackagesEnabled = false;
-  draft.capManagementAssistantEnabled = false;
-  draft.draftClassFeaturesEnabled = false;
-  draft.scoutingPurchasesEnabled = false;
+  if (!draft.customPlayersEnabled) draft.customPlayersSeasonCap = 0;
+  if (!draft.legendsEnabled) draft.legendsSeasonCap = 0;
+  if (!draft.devUpgradesEnabled) draft.devUpgradesSeasonCap = 0;
+  if (!draft.ageResetsEnabled) draft.ageResetsSeasonCap = 0;
+  if (!draft.playerTraitPurchasesEnabled) draft.playerTraitPurchasesSeasonCap = 0;
+  if (!draft.contractAdjustmentPurchasesEnabled) draft.contractPurchasesSeasonCap = 0;
+  if (!draft.attributePurchasesEnabled) {
+    draft.coreAttributePurchasesSeasonCap = 0;
+    draft.nonCoreAttributePurchasesSeasonCap = 0;
+    draft.coreAttributes = [];
+  }
+
   draft.mediaFeaturesEnabled = draft.coinEconomyEnabled;
 
   if (!draft.acceleratedClockEnabled) {

@@ -1,6 +1,7 @@
 export * from "./nfl-teams.js";
 export * from "./nfl-schedules.js";
 export * from "./stats/index.js";
+export * from "./madden/index.js";
 
 export const REC_API_ROUTES = {
   health: "/health",

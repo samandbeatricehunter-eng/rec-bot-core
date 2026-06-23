@@ -15,14 +15,19 @@ import {
   buildLeagueSetupServerChannelModal,
   buildPositionRestrictionModal,
   buildSettingsPickerWindow,
+  coreAttributeGroupCustomId,
   createDefaultLeagueSetupDraft,
   getNextLeagueSetupStep,
+  isPurchaseFeatureStep,
   LEAGUE_SETUP_CUSTOM_IDS,
+  setCoreAttributesForGroup,
   setLeagueSetupFeatureAnswer,
+  setPurchaseCapValue,
   setLeagueSetupServerChannel,
   type LeagueSetupDraft,
   type LeagueSetupSettingsCategory
 } from "../ui/league-setup.js";
+import type { MaddenAttributeGroupKey } from "@rec/shared";
 import { buildPostSetupTeamLinkingPanel } from "../ui/team-options.js";
 import { markPostSetupActive, startPostSetupScheduleStep } from "./schedule.js";
 
@@ -45,6 +50,35 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
   const value = interaction.values[0];
+
+  if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:`)) {
+    setPurchaseCapValue(draft, interaction.customId, value);
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    if (draft.editMode && interaction.guildId) {
+      try {
+        await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+      } catch (err) {
+        console.error("[ERROR] Failed to save purchase cap setting:", err);
+      }
+    }
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) {
+    const group = interaction.customId.split(":").at(-1) as MaddenAttributeGroupKey;
+    setCoreAttributesForGroup(draft, group, interaction.values);
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    if (draft.editMode && interaction.guildId) {
+      try {
+        await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+      } catch (err) {
+        console.error("[ERROR] Failed to save core attribute selection:", err);
+      }
+    }
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
 
   // First step: pick the game. CFB 27 is a placeholder for now — it keeps the
   // user on this step with a notice; Madden titles proceed into the wizard.
@@ -97,6 +131,13 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
       return interaction.update(buildSettingsPickerWindow(draft));
     }
     draft.step = value as LeagueSetupDraft["step"];
+    if (draft.step === "attribute_core_attributes" && !draft.attributePurchasesEnabled) {
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      const picker = buildSettingsPickerWindow(draft, "purchases");
+      picker.embeds[0]?.setDescription(`League: **${draft.name}**\n\nEnable **Attribute Purchases** before configuring core attributes.`);
+      return interaction.update(picker);
+    }
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
   }
@@ -235,11 +276,34 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
     return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
   }
 
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsOpen) {
+    draft.step = "attribute_core_attributes";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsDone) {
+    applyLeagueSetupDependencies(draft);
+    if (draft.editMode) {
+      await saveDraftEditIfNeeded(interaction, draft);
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, "purchases"));
+    }
+    draft.step = getNextLeagueSetupStep("attribute_core_attributes", draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureActivate || interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate) {
     setLeagueSetupFeatureAnswer(draft, interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureActivate);
     applyLeagueSetupDependencies(draft);
     if (draft.editMode) {
       await saveDraftEditIfNeeded(interaction, draft);
+      if (isPurchaseFeatureStep(draft.step)) {
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.update(buildLeagueSetupWindow(draft));
+      }
       draft.step = "settings_picker";
       leagueSetupSessions.set(interaction.user.id, draft);
       return interaction.update(buildSettingsPickerWindow(draft));
