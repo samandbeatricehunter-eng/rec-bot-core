@@ -216,14 +216,6 @@ function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | 
   return { seasonNumber, weekNumber };
 }
 
-// Does an OCR'd scoreboard abbreviation refer to this team? Checks the league
-// abbreviation and the display (relocation) abbreviation.
-function abbrMatchesTeam(abbr: string | null | undefined, team: any): boolean {
-  if (!abbr || !team) return false;
-  const a = abbr.toUpperCase();
-  return (team.abbreviation ?? "").toUpperCase() === a || (team.display_abbr ?? "").toUpperCase() === a;
-}
-
 async function resolveGameContext(
   leagueId: string,
   seasonNumber: number,
@@ -242,37 +234,29 @@ async function resolveGameContext(
   if (expectedGameId) {
     const { data: game, error } = await supabase
       .from("rec_games")
-      .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
+      .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name),away_team:rec_teams!rec_games_away_team_id_fkey(id,name)")
       .eq("league_id", leagueId)
       .eq("id", expectedGameId)
       .maybeSingle();
     if (error) throw new ApiError(500, "Failed to load the selected scheduled game.", error);
     if (game) {
+      // Box score invariant: the top/left column is always the away team and the
+      // bottom/right column is always the home team. The parser reads the top/left
+      // column as team1 and the bottom/right as team2, so team1 = away, team2 = home.
       const home: any = game.home_team;
       const away: any = game.away_team;
-      const t1Abbr = parsed.score?.team1Abbr;
-      const t2Abbr = parsed.score?.team2Abbr;
-      // Decide whether the OCR's top row (team1) is the home or away team. Prefer
-      // an abbreviation match; otherwise Madden lists the away team on top.
-      let team1IsHome: boolean;
-      if (abbrMatchesTeam(t1Abbr, home) || abbrMatchesTeam(t2Abbr, away)) team1IsHome = true;
-      else if (abbrMatchesTeam(t1Abbr, away) || abbrMatchesTeam(t2Abbr, home)) team1IsHome = false;
-      else team1IsHome = false;
-
-      const t1Score = parsed.score?.team1Score ?? null;
-      const t2Score = parsed.score?.team2Score ?? null;
       return {
-        team1Name: (team1IsHome ? home : away)?.name ?? null,
-        team2Name: (team1IsHome ? away : home)?.name ?? null,
-        team1Id: team1IsHome ? game.home_team_id : game.away_team_id,
-        team2Id: team1IsHome ? game.away_team_id : game.home_team_id,
+        team1Name: away?.name ?? null,
+        team2Name: home?.name ?? null,
+        team1Id: game.away_team_id,
+        team2Id: game.home_team_id,
         gameId: game.id,
         homeTeamId: game.home_team_id,
         awayTeamId: game.away_team_id,
         homeUserId: game.home_user_id ?? null,
         awayUserId: game.away_user_id ?? null,
-        homeScore: team1IsHome ? t1Score : t2Score,
-        awayScore: team1IsHome ? t2Score : t1Score,
+        homeScore: parsed.score?.team2Score ?? null,
+        awayScore: parsed.score?.team1Score ?? null,
       };
     }
     // Selected game vanished — fall through to OCR derivation below.
