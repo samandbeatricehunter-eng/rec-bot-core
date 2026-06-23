@@ -439,7 +439,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "Store tools are not active yet. When enabled, this menu will show only purchase types allowed by this league's settings.");
+      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "Purchase tools will be built after League Mgmt > Settings > Purchases is complete.");
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);

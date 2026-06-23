@@ -74,7 +74,7 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   reviewJump: "rec:league_setup:review_jump"
 } as const;
 
-export type LeagueSetupSettingsCategory = "features" | "server" | "rules" | "gameplay" | "play_call";
+export type LeagueSetupSettingsCategory = "features" | "purchases" | "server" | "rules" | "gameplay" | "play_call";
 
 export type LeagueGame = "madden_26" | "madden_27" | "cfb_27";
 
@@ -1081,6 +1081,7 @@ export function buildActivityRequirementsModal(draft: LeagueSetupDraft) {
 function settingsCategoryLabel(category: LeagueSetupSettingsCategory) {
   switch (category) {
     case "features": return "Features";
+    case "purchases": return "Purchases";
     case "server": return "Server Setup";
     case "rules": return "Rules & Policies";
     case "gameplay": return "Gameplay Settings";
@@ -1099,6 +1100,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
             .setPlaceholder("Select a settings category")
             .addOptions(
               option("Features", "category:features"),
+              option("Purchases", "category:purchases"),
               option("Server Setup", "category:server"),
               option("Rules & Policies", "category:rules"),
               option("Gameplay Settings", "category:gameplay"),
@@ -1113,6 +1115,10 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
   const categoryOptions: Record<LeagueSetupSettingsCategory, StringSelectMenuOptionBuilder[]> = {
     features: [
       option("Economy", "economy"),
+      option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
+      option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")
+    ],
+    purchases: [
       option("Custom Players", "custom_players"),
       option("Legends", "legends"),
       option("Dev Upgrades", "dev_upgrades"),
@@ -1120,8 +1126,6 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Attribute Purchases", "attribute_purchases"),
       option("Player Trait Purchases", "player_trait_purchases"),
       option("Contract Purchases", "contract_purchases"),
-      option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
-      option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")
     ],
     server: [
       option("Server Channel Assignments", "server_setup")

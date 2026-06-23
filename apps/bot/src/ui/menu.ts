@@ -170,16 +170,12 @@ export function buildLeagueMenuEmbed(input: {
     `**PointDiff:** ${input.leagueSeasonPointDifferential ?? 0}`
   ].join("\n");
 
-  const globalCareerInfo = [
-    `**Global (All Games):** ${input.globalRecordText ?? "0-0-0"} | PD: ${input.globalPointDifferential ?? 0}`,
-    `Playoffs: ${input.globalPlayoffText ?? "0-0"} | Super Bowls: ${input.globalSuperbowlText ?? "0-0"}`,
-    input.gameGlobalLabel
-      ? `**Global (${input.gameGlobalLabel}):** ${input.gameGlobalRecordText ?? "0-0-0"} | PD: ${input.gameGlobalPointDifferential ?? 0}`
-      : null,
-    input.gameGlobalLabel
-      ? `Playoffs: ${input.gameGlobalPlayoffText ?? "0-0"} | Super Bowls: ${input.gameGlobalSuperbowlText ?? "0-0"}`
-      : null,
-  ].filter(Boolean).join("\n");
+  const globalCareerInfo = input.gameGlobalLabel
+    ? [
+      `**Global (${input.gameGlobalLabel}):** ${input.gameGlobalRecordText ?? "0-0-0"} | PD: ${input.gameGlobalPointDifferential ?? 0}`,
+      `Playoffs: ${input.gameGlobalPlayoffText ?? "0-0"} | Super Bowls: ${input.gameGlobalSuperbowlText ?? "0-0"}`,
+    ].join("\n")
+    : "";
 
   const purchaseCaps = input.purchaseCapsActive && input.purchaseCaps?.length
     ? input.purchaseCaps.map((cap) => `**${cap.label}:** ${cap.purchased ?? 0}/${cap.allowed ?? 0}`).join("\n")
@@ -191,8 +187,8 @@ export function buildLeagueMenuEmbed(input: {
     "**Schedule** - View your logged league schedule.",
     "**Help/Rules** - Read current league rules and FAQ sections.",
     "**My Wallet** - Review balances, transfer to/from savings, and view transactions.",
-    "**Purchase** - Store tools are not active yet.",
-    "**Wager** - Wager tools are not active yet.",
+    "**Purchase** - Purchase tools will unlock after league purchase settings are built.",
+    "**Wager** - Wager tools will be built last.",
     "**Stream** - Submit a stream for commissioner payout review.",
     "**Upload Box Score** - Submit one box score image for stats and payout review.",
     "**User Profiles** - View linked users and team snapshots.",
@@ -204,7 +200,7 @@ export function buildLeagueMenuEmbed(input: {
     .addFields(
       { name: "USER INFO", value: userInfo.slice(0, 1024), inline: false },
       ...(input.hideLeagueInfo ? [] : [{ name: "LEAGUE INFO", value: leagueInfo.slice(0, 1024), inline: false }]),
-      ...((input.globalRecordText || input.gameGlobalLabel)
+      ...(input.gameGlobalLabel
         ? [{ name: "GLOBAL CAREER", value: globalCareerInfo.slice(0, 1024), inline: false }]
         : []),
       ...(input.noticeText ? [{ name: "NOTICE", value: input.noticeText.slice(0, 1024), inline: false }] : []),

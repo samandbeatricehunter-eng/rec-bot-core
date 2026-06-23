@@ -32,7 +32,7 @@ function formatTransactionLine(transaction: any) {
 
 export async function handlePlaceWager(interaction: ButtonInteraction) {
   return interaction.reply({
-    embeds: [new EmbedBuilder().setTitle("Wager").setDescription("Wager tools are not active yet. When enabled, this menu will let you place approved league wagers on upcoming matchups.")],
+    embeds: [new EmbedBuilder().setTitle("Wager").setDescription("Wager tools are not active yet. This workflow will be built after the purchase workflow.")],
     flags: MessageFlags.Ephemeral
   });
 }
@@ -181,7 +181,7 @@ export async function handleWalletPendingPurchases(interaction: ButtonInteractio
 export async function handleWalletMakePurchase(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Make a Purchase").setDescription("Store tools are not active yet. When enabled, available purchases will appear here based on this league's settings.")],
+    embeds: [new EmbedBuilder().setTitle("Make a Purchase").setDescription("Purchase tools will be built after League Mgmt > Settings > Purchases is complete.")],
     components: buildManageWalletRows()
   });
 }
