@@ -254,6 +254,21 @@ function groupIntoRows(words: NormalizedWord[], yTolerance = 0.04): NormalizedWo
 
 // The score block sits in the top ~38% of the image.
 const HEADER_Y_MAX = 0.38;
+const SCORE_ABBR_X_MIN = 0.30;
+const SCORE_ABBR_X_MAX = 0.42;
+const SCORE_CELL_X_TOLERANCE = 0.022;
+const SCORE_QUARTER_COLUMNS = [0.432, 0.473, 0.516, 0.558, 0.601] as const;
+const SCORE_TOTAL_X = 0.641;
+
+function parseScoreToken(text: string): number | null {
+  const normalized = text
+    .replace(/[Oo]/g, "0")
+    .replace(/^o+$/i, "0")
+    .replace(/[^0-9]/g, "");
+  if (!normalized) return null;
+  const n = parseInt(normalized, 10);
+  return isNaN(n) ? null : n;
+}
 
 function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsTopY: number } | null {
   const headerWords = words.filter((w) => w.y < HEADER_Y_MAX);
@@ -261,22 +276,45 @@ function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsT
 
   // Find rows that have numeric content (team score rows), at least 3 numbers each.
   const teamRows = rows.filter((row) => {
-    const nums = row.filter((w) => /^\d+$/.test(w.text));
-    return nums.length >= 3;
+    const abbr = row.some((w) => /^[A-Za-z]{2,4}$/.test(w.text) && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX);
+    const nums = row.filter((w) => parseScoreToken(w.text) != null && w.x > SCORE_ABBR_X_MAX);
+    return abbr && nums.length >= 3;
   });
 
   if (teamRows.length < 2) return null;
 
   const parseRow = (row: NormalizedWord[]) => {
     const sorted = [...row].sort((a, b) => a.x - b.x);
-    // Team abbreviation: 2–3 uppercase letters; pick the leftmost match
-    const abbrWord = sorted.find((w) => /^[A-Z]{2,4}$/.test(w.text) && w.confidence > 40);
-    const abbr = abbrWord?.text ?? sorted.find((w) => /^[A-Za-z]{2,4}$/.test(w.text))?.text?.toUpperCase() ?? "???";
-    // Numbers: all numeric words sorted left-to-right
-    const numbers = sorted.filter((w) => /^\d+$/.test(w.text)).map((w) => parseInt(w.text, 10));
-    // Last number is the total; preceding numbers are quarters
-    const total = numbers.length > 0 ? numbers[numbers.length - 1] : 0;
-    const quarters = numbers.slice(0, -1);
+    // Team abbreviation sits in the central scoreboard band; ignore stray UI
+    // text on the far left that can share the same OCR row.
+    const abbrWord = sorted.find((w) => /^[A-Z]{2,4}$/.test(w.text) && w.confidence > 40 && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX);
+    const abbr = abbrWord?.text ?? sorted.find((w) => /^[A-Za-z]{2,4}$/.test(w.text) && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX)?.text?.toUpperCase() ?? "???";
+
+    const valueAt = (x: number): { value: number; confidence: number } | null => {
+      const candidates = sorted
+        .map((w) => ({ word: w, value: parseScoreToken(w.text), dx: Math.abs(w.x - x) }))
+        .filter((c): c is { word: NormalizedWord; value: number; dx: number } => c.value != null && c.dx <= SCORE_CELL_X_TOLERANCE)
+        .sort((a, b) => a.dx - b.dx || b.word.confidence - a.word.confidence);
+      const best = candidates[0];
+      return best ? { value: best.value, confidence: best.word.confidence } : null;
+    };
+
+    const quarterCells = SCORE_QUARTER_COLUMNS.map(valueAt);
+    const totalCell = valueAt(SCORE_TOTAL_X);
+    const total = totalCell?.value ?? quarterCells.reduce((s, c) => s + (c?.value ?? 0), 0);
+    const quarters = quarterCells.map((c) => c?.value ?? 0);
+
+    // A scoreboard zero is sometimes OCR'd as 6. If the displayed total proves
+    // exactly one quarter must be zero, zero the least-confident matching cell.
+    const sum = quarters.reduce((s, n) => s + n, 0);
+    if (total < sum) {
+      const fix = quarterCells
+        .map((cell, idx) => ({ cell, idx }))
+        .filter(({ cell }) => cell && sum - cell.value === total)
+        .sort((a, b) => (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
+      if (fix) quarters[fix.idx] = 0;
+    }
+
     return { abbr, total, quarters };
   };
 
@@ -315,12 +353,28 @@ const CENTER_X_MIN = 0.18;
 const CENTER_X_MAX = 0.82;
 const ROW_Y_TOLERANCE = 0.04;
 
-function cleanStatValue(raw: string): string {
-  return raw
+const SMALL_ARROW_STAT_KEYS = new Set([
+  "turnovers",
+  "third_down_conversions",
+  "fourth_down_conversions",
+  "two_point_conversions",
+  "red_zone_off_td",
+  "red_zone_off_fg",
+]);
+
+function cleanStatValue(raw: string, opts: { side: "left" | "right"; key: string }): string {
+  const cleaned = raw
     .replace(/[Oo]/g, "0")     // a lone 0 is frequently OCR'd as the letter O
     .replace(/^[^0-9:]+/, "")  // strip leading non-digit/colon (▶ arrows, spaces)
     .replace(/[^0-9:]+$/, "")  // strip trailing non-digit/colon (◄ arrows)
     .trim();
+
+  // Right-side "better stat" arrows are occasionally fused into a single token
+  // as a trailing 4: 0◄ -> 04, 1◄ -> 14, 2◄ -> 24.
+  if (opts.side === "right" && SMALL_ARROW_STAT_KEYS.has(opts.key) && /^\d4$/.test(cleaned)) {
+    return cleaned.slice(0, -1);
+  }
+  return cleaned;
 }
 
 function normalizeLabel(text: string): string {
@@ -348,7 +402,7 @@ function matchStatLabel(normalized: string, aliases: LabelAliases): { key: strin
 // the right token within the row: the value sits to the RIGHT of the ▶ expander
 // in the left column, and to the LEFT of the ◄ "better stat" arrow in the right
 // column — those arrows otherwise get misread as digits.
-function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "left" | "right"): string {
+function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "left" | "right", key: string): string {
   const nearby = candidates.filter((w) => Math.abs(w.y - targetY) < ROW_Y_TOLERANCE);
   if (nearby.length === 0) return "";
 
@@ -362,7 +416,7 @@ function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "le
   sameRow.sort((a, b) => (side === "left" ? b.x - a.x : a.x - b.x));
 
   for (const w of sameRow) {
-    const v = cleanStatValue(w.text);
+    const v = cleanStatValue(w.text, { side, key });
     if (v) return v;
   }
   return "";
@@ -390,8 +444,8 @@ function parseStatRows(words: NormalizedWord[], aliases: LabelAliases, statsTopY
     if (!match || seenKeys.has(match.key)) continue;
     seenKeys.add(match.key);
 
-    const team1Val = findValueNearY(leftVals, rowY, "left");
-    const team2Val = findValueNearY(rightVals, rowY, "right");
+    const team1Val = findValueNearY(leftVals, rowY, "left", match.key);
+    const team2Val = findValueNearY(rightVals, rowY, "right", match.key);
 
     stats.push({ key: match.key, team1: team1Val, team2: team2Val, rawLabel: normalized, matchedVia: match.via });
   }
@@ -452,13 +506,39 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
   for (const r of results) {
     for (const stat of r.stats) {
       const candidate = { team1: stat.team1, team2: stat.team2 };
-      if (!hasValue(statsMap[stat.key]) && hasValue(candidate)) {
+      const existing = statsMap[stat.key];
+      if (!hasValue(existing) && hasValue(candidate)) {
         statsMap[stat.key] = candidate;
       } else if (!(stat.key in statsMap)) {
         statsMap[stat.key] = candidate; // keep an (empty) placeholder so the key is known
+      } else if (existing) {
+        statsMap[stat.key] = {
+          team1: existing.team1 || candidate.team1,
+          team2: existing.team2 || candidate.team2,
+        };
       }
     }
   }
+
+  // Return-yard rows can be OCR-hostile because the expander arrow sits right
+  // next to a single zero. If total yards and one return-yard row are known,
+  // infer the missing return cell from total = offense + punt return + kick return.
+  const fillMissingReturnYards = (side: "team1" | "team2") => {
+    const total = parseInt(statsMap["total_yards_gained"]?.[side] ?? "", 10);
+    const off = parseInt(statsMap["off_yards_gained"]?.[side] ?? "", 10);
+    const punt = statsMap["punt_return_yards"]?.[side] ?? "";
+    const kick = statsMap["kick_return_yards"]?.[side] ?? "";
+    if (isNaN(total) || isNaN(off)) return;
+    if (!punt && kick) {
+      const kickNum = parseInt(kick, 10);
+      if (!isNaN(kickNum)) statsMap["punt_return_yards"] = { ...(statsMap["punt_return_yards"] ?? { team1: "", team2: "" }), [side]: String(total - off - kickNum) };
+    } else if (punt && !kick) {
+      const puntNum = parseInt(punt, 10);
+      if (!isNaN(puntNum)) statsMap["kick_return_yards"] = { ...(statsMap["kick_return_yards"] ?? { team1: "", team2: "" }), [side]: String(total - off - puntNum) };
+    }
+  };
+  fillMissingReturnYards("team1");
+  fillMissingReturnYards("team2");
 
   // Derive Total Yards Gained = Off Yards + Punt Return + Kick Return when it
   // wasn't read directly (it lives on the second screenshot we no longer require).

@@ -672,9 +672,11 @@ function defensiveSummary(stats: Record<string, { team1: string; team2: string }
   if (!stats) return "*n/a*";
   const to = stats["turnovers"];
   const yds = stats["total_yards_gained"] ?? stats["off_yards_gained"];
+  const rz = stats["red_zone_def_percentage"];
   const g1 = to?.team2 || "?", g2 = to?.team1 || "?";
   const a1 = yds?.team2 || "?", a2 = yds?.team1 || "?";
-  return `Generated TO: **${g1}** / **${g2}**\nYards Allowed: **${a1}** / **${a2}**`;
+  const rz1 = rz?.team1 || "?", rz2 = rz?.team2 || "?";
+  return `Generated TO: **${g1}** / **${g2}**\nYards Allowed: **${a1}** / **${a2}**\nRed Zone Def %: **${rz1}** / **${rz2}**`;
 }
 
 function buildPreviewEmbed(preview: any): EmbedBuilder {
