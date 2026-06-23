@@ -308,8 +308,9 @@ const ROW_Y_TOLERANCE = 0.04;
 
 function cleanStatValue(raw: string): string {
   return raw
+    .replace(/[Oo]/g, "0")     // a lone 0 is frequently OCR'd as the letter O
     .replace(/^[^0-9:]+/, "")  // strip leading non-digit/colon (▶ arrows, spaces)
-    .replace(/[^0-9:]+$/, "")  // strip trailing non-digit/colon
+    .replace(/[^0-9:]+$/, "")  // strip trailing non-digit/colon (◄ arrows)
     .trim();
 }
 
@@ -333,11 +334,29 @@ function matchStatLabel(normalized: string, aliases: LabelAliases): { key: strin
   return null;
 }
 
-function findValueNearY(candidates: NormalizedWord[], targetY: number): string {
+// A stat has exactly one value per column. Pick that single token rather than
+// joining everything in the band (which bled in the next row's number) and pick
+// the right token within the row: the value sits to the RIGHT of the ▶ expander
+// in the left column, and to the LEFT of the ◄ "better stat" arrow in the right
+// column — those arrows otherwise get misread as digits.
+function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "left" | "right"): string {
   const nearby = candidates.filter((w) => Math.abs(w.y - targetY) < ROW_Y_TOLERANCE);
   if (nearby.length === 0) return "";
-  nearby.sort((a, b) => Math.abs(a.y - targetY) - Math.abs(b.y - targetY));
-  return cleanStatValue(nearby.map((w) => w.text).join(" "));
+
+  // Keep only the row physically closest to the label; drop adjacent rows that
+  // crept into the band.
+  const minDy = Math.min(...nearby.map((w) => Math.abs(w.y - targetY)));
+  const sameRow = nearby.filter((w) => Math.abs(w.y - targetY) <= minDy + 0.012);
+
+  // Left column: value is the rightmost token (▶ is to its left).
+  // Right column: value is the leftmost token (◄ is to its right).
+  sameRow.sort((a, b) => (side === "left" ? b.x - a.x : a.x - b.x));
+
+  for (const w of sameRow) {
+    const v = cleanStatValue(w.text);
+    if (v) return v;
+  }
+  return "";
 }
 
 function parseStatRows(words: NormalizedWord[], aliases: LabelAliases, statsTopY: number = STATS_Y_MIN): ParsedStat[] {
@@ -362,8 +381,8 @@ function parseStatRows(words: NormalizedWord[], aliases: LabelAliases, statsTopY
     if (!match || seenKeys.has(match.key)) continue;
     seenKeys.add(match.key);
 
-    const team1Val = findValueNearY(leftVals, rowY);
-    const team2Val = findValueNearY(rightVals, rowY);
+    const team1Val = findValueNearY(leftVals, rowY, "left");
+    const team2Val = findValueNearY(rightVals, rowY, "right");
 
     stats.push({ key: match.key, team1: team1Val, team2: team2Val, rawLabel: normalized, matchedVia: match.via });
   }
