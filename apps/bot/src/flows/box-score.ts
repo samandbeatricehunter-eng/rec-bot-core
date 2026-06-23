@@ -622,10 +622,12 @@ export async function handleBoxScoreAdminGameSelect(interaction: StringSelectMen
   }
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
 
-  const [weekText, seasonText, gameId] = (interaction.values[0] ?? "").split(":");
-  const weekNumber = Number(weekText);
-  const seasonNumber = seasonText ? Number(seasonText) : null;
-  const gameLabel = `Week ${weekNumber} selected game`;
+  const parts = (interaction.values[0] ?? "").split(":");
+  const weekNumber = Number(parts[0]);
+  const seasonNumber = parts[1] ? Number(parts[1]) : null;
+  const gameId = parts[2];
+  const matchup = parts.slice(3).join(":").trim();
+  const gameLabel = matchup || `Week ${weekNumber} selected game`;
   commissionerSubmissionSessions.set(exKey(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,
     channelId: interaction.channelId,
@@ -639,7 +641,7 @@ export async function handleBoxScoreAdminGameSelect(interaction: StringSelectMen
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Upload Box Score")
-      .setDescription(`Now upload exactly one box score image for **${gameLabel}** in this channel. The image will be deleted after parsing.`)],
+      .setDescription(`Now upload exactly one box score image for **${gameLabel}** — Week ${weekNumber} — in this channel. The image will be deleted after parsing.`)],
     components: [buildAdminCancelRow()],
   });
 }
@@ -806,9 +808,10 @@ function buildAdminGameRows(games: any[], weekNumber: number, seasonNumber: numb
           const away = teamLabel(game.away_team);
           const home = teamLabel(game.home_team);
           const label = `${away} at ${home}`.slice(0, 100);
+          // Carry the matchup in the value so the upload prompt can name the game.
           return new StringSelectMenuOptionBuilder()
             .setLabel(label)
-            .setValue(`${weekNumber}:${seasonNumber ?? ""}:${game.id}`)
+            .setValue(`${weekNumber}:${seasonNumber ?? ""}:${game.id}:${label}`.slice(0, 100))
             .setDescription(`Week ${weekNumber}`.slice(0, 100));
         }))
     ),

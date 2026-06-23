@@ -216,16 +216,68 @@ function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | 
   return { seasonNumber, weekNumber };
 }
 
+// Does an OCR'd scoreboard abbreviation refer to this team? Checks the league
+// abbreviation and the display (relocation) abbreviation.
+function abbrMatchesTeam(abbr: string | null | undefined, team: any): boolean {
+  if (!abbr || !team) return false;
+  const a = abbr.toUpperCase();
+  return (team.abbreviation ?? "").toUpperCase() === a || (team.display_abbr ?? "").toUpperCase() === a;
+}
+
 async function resolveGameContext(
   leagueId: string,
   seasonNumber: number,
   weekNumber: number,
   parsed: ParsedBoxScore,
+  expectedGameId: string | null = null,
 ): Promise<ResolvedGame> {
   const empty: ResolvedGame = {
     team1Name: null, team2Name: null, team1Id: null, team2Id: null, gameId: null,
     homeTeamId: null, awayTeamId: null, homeUserId: null, awayUserId: null, homeScore: null, awayScore: null,
   };
+
+  // Commissioner flow: a specific scheduled game was pre-selected, so it's
+  // authoritative. The OCR scoreboard (esp. relocated teams in a stylized font)
+  // is only used to orient which column is home vs away — never to reject.
+  if (expectedGameId) {
+    const { data: game, error } = await supabase
+      .from("rec_games")
+      .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
+      .eq("league_id", leagueId)
+      .eq("id", expectedGameId)
+      .maybeSingle();
+    if (error) throw new ApiError(500, "Failed to load the selected scheduled game.", error);
+    if (game) {
+      const home: any = game.home_team;
+      const away: any = game.away_team;
+      const t1Abbr = parsed.score?.team1Abbr;
+      const t2Abbr = parsed.score?.team2Abbr;
+      // Decide whether the OCR's top row (team1) is the home or away team. Prefer
+      // an abbreviation match; otherwise Madden lists the away team on top.
+      let team1IsHome: boolean;
+      if (abbrMatchesTeam(t1Abbr, home) || abbrMatchesTeam(t2Abbr, away)) team1IsHome = true;
+      else if (abbrMatchesTeam(t1Abbr, away) || abbrMatchesTeam(t2Abbr, home)) team1IsHome = false;
+      else team1IsHome = false;
+
+      const t1Score = parsed.score?.team1Score ?? null;
+      const t2Score = parsed.score?.team2Score ?? null;
+      return {
+        team1Name: (team1IsHome ? home : away)?.name ?? null,
+        team2Name: (team1IsHome ? away : home)?.name ?? null,
+        team1Id: team1IsHome ? game.home_team_id : game.away_team_id,
+        team2Id: team1IsHome ? game.away_team_id : game.home_team_id,
+        gameId: game.id,
+        homeTeamId: game.home_team_id,
+        awayTeamId: game.away_team_id,
+        homeUserId: game.home_user_id ?? null,
+        awayUserId: game.away_user_id ?? null,
+        homeScore: team1IsHome ? t1Score : t2Score,
+        awayScore: team1IsHome ? t2Score : t1Score,
+      };
+    }
+    // Selected game vanished — fall through to OCR derivation below.
+  }
+
   if (!parsed.score) return empty;
 
   const { team1, team2 } = await resolveTeams(leagueId, parsed.score.team1Abbr, parsed.score.team2Abbr);
@@ -333,10 +385,9 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   const phase = context.rec_leagues.season_stage ?? null;
 
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
-  const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed);
-  if (input.expectedGameId && resolved.gameId !== input.expectedGameId) {
-    throw new ApiError(400, "That screenshot does not match the selected scheduled game.");
-  }
+  // When a commissioner pre-selected the game, it's authoritative — the OCR only
+  // orients home/away, so a relocated team or a misread abbreviation can't reject it.
+  const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, input.expectedGameId ?? null);
   if (resolved.gameId) await assertNoExistingBoxScorePayout(resolved.gameId, null);
 
   // Verify the submitter is reporting their own current-week game:
