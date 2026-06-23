@@ -270,16 +270,66 @@ function parseScoreToken(text: string): number | null {
   return isNaN(n) ? null : n;
 }
 
-function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsTopY: number } | null {
-  const headerWords = words.filter((w) => w.y < HEADER_Y_MAX);
-  const rows = groupIntoRows(headerWords, 0.04);
+// Decorative UI glyphs between scoreboard rows otherwise merge AZ/NO into one OCR row.
+function isScoreboardNoise(text: string): boolean {
+  return /^[\\|/_\[\](){}<>,.;:!@#$%^&*\-=+~`"'«»•]+$/.test(text);
+}
 
-  // Find rows that have numeric content (team score rows), at least 3 numbers each.
-  const teamRows = rows.filter((row) => {
+function looksLikeScoreboardZero(text: string): boolean {
+  return /^[oO0©°¢Oo]$/.test(text.trim());
+}
+
+function scoreDigitAt(word: NormalizedWord, x: number): { value: number; confidence: number } | null {
+  const dx = Math.abs(word.x - x);
+  if (dx > SCORE_CELL_X_TOLERANCE) return null;
+
+  const parsed = parseScoreToken(word.text);
+  if (parsed != null) return { value: parsed, confidence: word.confidence };
+  if (looksLikeScoreboardZero(word.text)) return { value: 0, confidence: word.confidence };
+  return null;
+}
+
+// Tighter than the stats-table tolerance — UI chrome between rows is ~0.02–0.03 apart.
+const SCORE_ROW_Y_TOLERANCE = 0.025;
+const SCORE_ABBR_ROW_Y_TOLERANCE = 0.035;
+
+function findScoreboardTeamRows(headerWords: NormalizedWord[]): NormalizedWord[][] {
+  const cleaned = headerWords.filter((w) => !isScoreboardNoise(w.text));
+
+  const abbrCandidates = cleaned
+    .filter((w) => /^[A-Z]{2,4}$/.test(w.text) && w.confidence > 40 && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX)
+    .sort((a, b) => a.y - b.y);
+
+  const abbrs: NormalizedWord[] = [];
+  for (const candidate of abbrCandidates) {
+    if (!abbrs.some((existing) => Math.abs(existing.y - candidate.y) < SCORE_ROW_Y_TOLERANCE)) {
+      abbrs.push(candidate);
+    }
+  }
+
+  if (abbrs.length >= 2) {
+    return abbrs.slice(0, 2).map((abbr) =>
+      cleaned.filter((w) => {
+        const dy = Math.abs(w.y - abbr.y);
+        if (w.x > SCORE_ABBR_X_MAX) return dy <= SCORE_ABBR_ROW_Y_TOLERANCE;
+        return /^[A-Za-z]{2,4}$/.test(w.text) && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX && dy <= SCORE_ROW_Y_TOLERANCE;
+      }),
+    );
+  }
+
+  const rows = groupIntoRows(cleaned, SCORE_ROW_Y_TOLERANCE);
+  return rows.filter((row) => {
     const abbr = row.some((w) => /^[A-Za-z]{2,4}$/.test(w.text) && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX);
-    const nums = row.filter((w) => parseScoreToken(w.text) != null && w.x > SCORE_ABBR_X_MAX);
+    const nums = row.filter((w) => w.x > SCORE_ABBR_X_MAX && (
+      SCORE_QUARTER_COLUMNS.some((x) => scoreDigitAt(w, x) != null) || scoreDigitAt(w, SCORE_TOTAL_X) != null
+    ));
     return abbr && nums.length >= 3;
   });
+}
+
+function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsTopY: number } | null {
+  const headerWords = words.filter((w) => w.y < HEADER_Y_MAX);
+  const teamRows = findScoreboardTeamRows(headerWords);
 
   if (teamRows.length < 2) return null;
 
@@ -292,27 +342,30 @@ function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsT
 
     const valueAt = (x: number): { value: number; confidence: number } | null => {
       const candidates = sorted
-        .map((w) => ({ word: w, value: parseScoreToken(w.text), dx: Math.abs(w.x - x) }))
-        .filter((c): c is { word: NormalizedWord; value: number; dx: number } => c.value != null && c.dx <= SCORE_CELL_X_TOLERANCE)
-        .sort((a, b) => a.dx - b.dx || b.word.confidence - a.word.confidence);
+        .map((w) => ({ word: w, cell: scoreDigitAt(w, x), dx: Math.abs(w.x - x) }))
+        .filter((c): c is { word: NormalizedWord; cell: { value: number; confidence: number }; dx: number } => c.cell != null)
+        .sort((a, b) => a.dx - b.dx || b.cell.confidence - a.cell.confidence);
       const best = candidates[0];
-      return best ? { value: best.value, confidence: best.word.confidence } : null;
+      return best ? best.cell : null;
     };
 
     const quarterCells = SCORE_QUARTER_COLUMNS.map(valueAt);
     const totalCell = valueAt(SCORE_TOTAL_X);
-    const total = totalCell?.value ?? quarterCells.reduce((s, c) => s + (c?.value ?? 0), 0);
     const quarters = quarterCells.map((c) => c?.value ?? 0);
+    const sum = quarters.reduce((s, n) => s + n, 0);
+    let total = totalCell?.value ?? sum;
 
     // A scoreboard zero is sometimes OCR'd as 6. If the displayed total proves
     // exactly one quarter must be zero, zero the least-confident matching cell.
-    const sum = quarters.reduce((s, n) => s + n, 0);
     if (total < sum) {
       const fix = quarterCells
         .map((cell, idx) => ({ cell, idx }))
         .filter(({ cell }) => cell && sum - cell.value === total)
         .sort((a, b) => (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
       if (fix) quarters[fix.idx] = 0;
+    } else if (totalCell && total !== sum && total - sum <= 9) {
+      // Totals are occasionally misread (16 -> 18). Prefer the quarter sum when close.
+      total = quarters.reduce((s, n) => s + n, 0);
     }
 
     return { abbr, total, quarters };
