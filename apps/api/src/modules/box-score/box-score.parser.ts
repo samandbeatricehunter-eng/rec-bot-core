@@ -147,21 +147,38 @@ function computeMissingRequired(
 
 // ─── Image preprocessing ─────────────────────────────────────────────────────
 
-async function preprocessImage(buffer: Buffer): Promise<{ processed: Buffer; width: number; height: number }> {
+// "default": global threshold — fast, proven for the dark-panel upper rows.
+// "robust":  local-contrast (CLAHE) pass that recovers dim text sitting over the
+//            bright field background at the bottom of the screenshot, where a
+//            global threshold merges light text into a light background.
+export type PreprocessVariant = "default" | "robust";
+
+async function preprocessImage(
+  buffer: Buffer,
+  variant: PreprocessVariant = "default",
+): Promise<{ processed: Buffer; width: number; height: number }> {
   // Resize to max 1920px wide so coordinates are consistent regardless of capture resolution.
   const meta = await sharp(buffer).metadata();
   const originalWidth = meta.width ?? 1920;
   const targetWidth = Math.min(originalWidth, 1920);
 
-  const processed = await sharp(buffer)
+  let pipeline = sharp(buffer)
     .resize(targetWidth, undefined, { fit: "inside", withoutEnlargement: true })
-    .grayscale()
-    .normalise()            // auto-stretch contrast
-    .threshold(100)         // >100 stays white (text), rest becomes black
-    .negate()               // flip to black-text-on-white for Tesseract
-    .png()
-    .toBuffer();
+    .grayscale();
 
+  if (variant === "robust") {
+    // CLAHE equalizes contrast in local tiles, so dim rows over the bright field
+    // get boosted relative to their own background. Negate to black-text-on-white
+    // and let Tesseract binarize adaptively rather than a global threshold.
+    pipeline = pipeline.clahe({ width: 128, height: 128, maxSlope: 3 }).negate();
+  } else {
+    pipeline = pipeline
+      .normalise()            // auto-stretch contrast
+      .threshold(100)         // >100 stays white (text), rest becomes black
+      .negate();              // flip to black-text-on-white for Tesseract
+  }
+
+  const processed = await pipeline.png().toBuffer();
   const processedMeta = await sharp(processed).metadata();
   return { processed, width: processedMeta.width!, height: processedMeta.height! };
 }
@@ -180,8 +197,8 @@ function flattenPageWords(page: TesseractPage): Tesseract.Word[] {
   return out;
 }
 
-async function extractNormalizedWords(buffer: Buffer): Promise<{ words: NormalizedWord[]; width: number; height: number }> {
-  const { processed, width, height } = await preprocessImage(buffer);
+async function extractNormalizedWords(buffer: Buffer, variant: PreprocessVariant = "default"): Promise<{ words: NormalizedWord[]; width: number; height: number }> {
+  const { processed, width, height } = await preprocessImage(buffer, variant);
   const worker = await getWorker();
   // blocks: true is required in v7 to populate the nested block/paragraph/line/word structure
   const result = await worker.recognize(processed, undefined, { blocks: true });
@@ -229,7 +246,7 @@ function groupIntoRows(words: NormalizedWord[], yTolerance = 0.04): NormalizedWo
 // The score block sits in the top ~38% of the image.
 const HEADER_Y_MAX = 0.38;
 
-function parseScoreHeader(words: NormalizedWord[]): ParsedScore | null {
+function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsTopY: number } | null {
   const headerWords = words.filter((w) => w.y < HEADER_Y_MAX);
   const rows = groupIntoRows(headerWords, 0.04);
 
@@ -257,20 +274,31 @@ function parseScoreHeader(words: NormalizedWord[]): ParsedScore | null {
   const t1 = parseRow(teamRows[0]);
   const t2 = parseRow(teamRows[1]);
 
+  // The stats table starts just below the lowest scoreboard row. Deriving the
+  // boundary from the actual scoreboard (rather than a fixed cutoff) keeps the
+  // top stat rows — Off Yards Gained / Off Rush Yards — from being clipped.
+  const teamRowMaxY = Math.max(...teamRows[0].map((w) => w.y), ...teamRows[1].map((w) => w.y));
+  const statsTopY = teamRowMaxY + ROW_Y_TOLERANCE;
+
   return {
-    team1Abbr: t1.abbr,
-    team2Abbr: t2.abbr,
-    team1Score: t1.total,
-    team2Score: t2.total,
-    team1Quarters: t1.quarters,
-    team2Quarters: t2.quarters,
+    score: {
+      team1Abbr: t1.abbr,
+      team2Abbr: t2.abbr,
+      team1Score: t1.total,
+      team2Score: t2.total,
+      team1Quarters: t1.quarters,
+      team2Quarters: t2.quarters,
+    },
+    statsTopY,
   };
 }
 
 // ─── Stats table parsing ──────────────────────────────────────────────────────
 
-// Stats occupy the bottom ~65% of the image.
-const STATS_Y_MIN = 0.35;
+// Fallback start of the stats table, used only when the scoreboard can't be
+// located. Normally the boundary is derived dynamically from the scoreboard's
+// lowest row (see parseScoreHeader) so the top stat rows aren't clipped.
+const STATS_Y_MIN = 0.28;
 // Column thresholds (relative to image width).
 const LEFT_VAL_X_MAX = 0.18;
 const RIGHT_VAL_X_MIN = 0.82;
@@ -312,8 +340,8 @@ function findValueNearY(candidates: NormalizedWord[], targetY: number): string {
   return cleanStatValue(nearby.map((w) => w.text).join(" "));
 }
 
-function parseStatRows(words: NormalizedWord[], aliases: LabelAliases): ParsedStat[] {
-  const statZone = words.filter((w) => w.y >= STATS_Y_MIN);
+function parseStatRows(words: NormalizedWord[], aliases: LabelAliases, statsTopY: number = STATS_Y_MIN): ParsedStat[] {
+  const statZone = words.filter((w) => w.y >= statsTopY);
 
   const leftVals  = statZone.filter((w) => w.x < LEFT_VAL_X_MAX);
   const rightVals = statZone.filter((w) => w.x > RIGHT_VAL_X_MIN);
@@ -353,16 +381,17 @@ async function fetchImageBuffer(url: string): Promise<Buffer> {
 
 // ─── Main parse entry point ───────────────────────────────────────────────────
 
-async function parseImage(buffer: Buffer, aliases: LabelAliases): Promise<{ score: ParsedScore | null; stats: ParsedStat[]; warnings: string[] }> {
+async function parseImage(buffer: Buffer, aliases: LabelAliases, variant: PreprocessVariant = "default"): Promise<{ score: ParsedScore | null; stats: ParsedStat[]; warnings: string[] }> {
   const warnings: string[] = [];
   let score: ParsedScore | null = null;
   let stats: ParsedStat[] = [];
 
   try {
-    const { words } = await extractNormalizedWords(buffer);
-    score = parseScoreHeader(words);
+    const { words } = await extractNormalizedWords(buffer, variant);
+    const header = parseScoreHeader(words);
+    score = header?.score ?? null;
     if (!score) warnings.push("Could not parse score header from this image.");
-    stats = parseStatRows(words, aliases);
+    stats = parseStatRows(words, aliases, header?.statsTopY ?? STATS_Y_MIN);
   } catch (err) {
     warnings.push(`OCR error: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -370,14 +399,13 @@ async function parseImage(buffer: Buffer, aliases: LabelAliases): Promise<{ scor
   return { score, stats, warnings };
 }
 
-// The single default Box Score screenshot carries every required field. Still
-// accepts more than one image — a submitter can re-post when the OCR misses a
-// field — and merges them, preferring the first non-empty value found per key.
-export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAliases = {}): Promise<ParsedBoxScore> {
-  const buffers = await Promise.all(imageUrls.map(fetchImageBuffer));
-  const results = await Promise.all(buffers.map((b) => parseImage(b, aliases)));
+type PassResult = { score: ParsedScore | null; stats: ParsedStat[]; warnings: string[] };
 
-  // Score: first image that yields one wins (page 1 is primary, but accept any).
+// Merge a set of per-image (and per-variant) parse results into one box score.
+// Stats prefer the first non-empty value found per key, so an earlier/proven
+// pass wins and later passes only fill gaps.
+function combineResults(results: PassResult[]): ParsedBoxScore {
+  // Score: first pass that yields one wins (page 1 is primary, but accept any).
   const score = results.map((r) => r.score).find((s): s is ParsedScore => s != null) ?? null;
 
   // Capture fuzzy-matched raw labels so an approval can promote them to aliases.
@@ -390,8 +418,8 @@ export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAli
     }
   }
 
-  // Merge stats across all images. A later image can fill in a key that an
-  // earlier image either missed entirely or read with an empty value.
+  // Merge stats across all passes. A later pass can fill in a key that an
+  // earlier pass either missed entirely or read with an empty value.
   const statsMap: Record<string, { team1: string; team2: string }> = {};
   for (const r of results) {
     for (const stat of r.stats) {
@@ -442,4 +470,37 @@ export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAli
   }
 
   return { score, stats: statsMap, warnings, missingRequired: computeMissingRequired(score, statsMap), labelSamples };
+}
+
+// The single default Box Score screenshot carries every required field. Still
+// accepts more than one image — a submitter can re-post when the OCR misses a
+// field — and merges them, preferring the first non-empty value found per key.
+export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAliases = {}): Promise<ParsedBoxScore> {
+  const buffers = await Promise.all(imageUrls.map(fetchImageBuffer));
+
+  const defaultResults = await Promise.all(buffers.map((b) => parseImage(b, aliases, "default")));
+  let combined = combineResults(defaultResults);
+
+  // If a required field is still missing, re-run the illumination-robust pass and
+  // merge it in. This recovers dim stats over the bright field background (e.g.
+  // Red Zone %) while keeping the common case to a single fast OCR pass.
+  if (combined.missingRequired.length > 0) {
+    const robustResults = await Promise.all(buffers.map((b) => parseImage(b, aliases, "robust")));
+    combined = combineResults([...defaultResults, ...robustResults]);
+  }
+
+  return combined;
+}
+
+// ─── Debug helper (used by scripts/box-score-diagnose.ts) ──────────────────────
+// Runs one preprocessing variant against a local buffer and returns the
+// processed image plus the OCR words/coords and parse, so we can see exactly
+// what the parser sees for a given screenshot.
+export async function debugParseBuffer(buffer: Buffer, variant: PreprocessVariant = "default") {
+  const { processed } = await preprocessImage(buffer, variant);
+  const { words } = await extractNormalizedWords(buffer, variant);
+  const header = parseScoreHeader(words);
+  const statsTopY = header?.statsTopY ?? STATS_Y_MIN;
+  const stats = parseStatRows(words, {}, statsTopY);
+  return { processed, words, score: header?.score ?? null, statsTopY, stats };
 }
