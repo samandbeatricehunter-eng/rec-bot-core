@@ -4,6 +4,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
+import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
 
@@ -173,10 +174,53 @@ export async function completeAdvanceWeek(input: {
     seasonNumber,
   });
 
+  // The previously-scheduled advance just happened, so clear it. A fresh time is
+  // set by the next-advance step (or left null if the commissioner skips).
+  await supabase
+    .from("rec_leagues")
+    .update({ next_advance_at: null, next_advance_timezone: null })
+    .eq("id", context.leagueId)
+    .then(({ error }) => {
+      if (error) console.error("[ERROR] Failed to clear next_advance_at on advance (non-fatal):", error);
+    });
+
   // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
     console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);
   });
 
   return advanceResult;
+}
+
+// Store (or clear) the league's next scheduled advance time. The bot supplies a
+// wall-clock date/hour plus a timezone label; we resolve it to a UTC instant.
+export async function setNextAdvanceTime(input: {
+  guildId: string;
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  tzLabel: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+
+  const when = zonedWallTimeToUtc(input.year, input.month, input.day, input.hour, input.minute, input.tzLabel);
+  if (isNaN(when.getTime())) throw new ApiError(400, "Invalid next advance date/time.");
+  if (when.getTime() <= Date.now()) throw new ApiError(400, "The next advance time must be in the future.");
+
+  const nextAdvanceAt = when.toISOString();
+  const result = await supabase
+    .from("rec_leagues")
+    .update({ next_advance_at: nextAdvanceAt, next_advance_timezone: input.tzLabel })
+    .eq("id", context.leagueId)
+    .select("id")
+    .single();
+  if (result.error) throw new ApiError(500, "Failed to save next advance time.", result.error);
+
+  return {
+    nextAdvanceAt,
+    epochSeconds: Math.floor(when.getTime() / 1000),
+    tzLabel: input.tzLabel,
+  };
 }

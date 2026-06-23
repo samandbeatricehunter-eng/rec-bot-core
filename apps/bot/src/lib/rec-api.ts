@@ -176,6 +176,20 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
+  setNextAdvance: (input: {
+    guildId: string;
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute?: number;
+    tzLabel: string;
+  }) =>
+    recFetch<{ nextAdvanceAt: string; epochSeconds: number; tzLabel: string }>("/v1/league-week/set-next-advance", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   createTeamLinkRequest: (input: { guildId: string; discordId: string; teamId: string }) =>
     recFetch<any>("/v1/team-requests/create", {
       method: "POST",

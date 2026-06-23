@@ -8,6 +8,7 @@ import {
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { nextLeagueStage, stageLabel } from "../lib/league-stage.js";
 import { recApi } from "../lib/rec-api.js";
+import { enterAdvanceTimeStep } from "./advance-time.js";
 
 export const ADVANCE_WIZARD_CUSTOM_IDS = {
   homeWinPrefix: "rec:advance_wizard:home",
@@ -127,12 +128,8 @@ export async function startAdvanceWeekWizard(interaction: ButtonInteraction, bui
     const interestLine = interest?.applied && interest.usersCredited > 0
       ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
       : "";
-    return interaction.editReply({
-      embeds: [new EmbedBuilder()
-        .setTitle("Week Advanced")
-        .setDescription(`League advanced from **${stageLabel(currentStage, currentWeek)}** to **${stageLabel(next.seasonStage, next.weekNumber)}**.${interestLine}`)],
-      components: buildAdvanceRows(),
-    });
+    const headline = `League advanced from **${stageLabel(currentStage, currentWeek)}** to **${stageLabel(next.seasonStage, next.weekNumber)}**.${interestLine}`;
+    return enterAdvanceTimeStep(interaction, headline);
   }
 
   return interaction.editReply(renderWizardStep(session));
@@ -186,10 +183,6 @@ export async function handleAdvanceWizardOutcome(interaction: ButtonInteraction,
     ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
     : "";
 
-  return interaction.editReply({
-    embeds: [new EmbedBuilder()
-      .setTitle("Week Advanced")
-      .setDescription(`League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}`)],
-    components: buildAdvanceRows(),
-  });
+  const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}`;
+  return enterAdvanceTimeStep(interaction, headline);
 }

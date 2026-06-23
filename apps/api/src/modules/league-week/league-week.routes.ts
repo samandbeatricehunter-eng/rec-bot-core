@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
-import { completeAdvanceWeek, getAdvanceWeekGames } from "./advance-results.service.js";
+import { completeAdvanceWeek, getAdvanceWeekGames, setNextAdvanceTime } from "./advance-results.service.js";
+import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 
 const ViewLeagueWeekSchema = z.object({
   guildId: z.string().min(1)
@@ -59,6 +60,24 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         })),
       }).parse(request.body);
       return reply.send(await completeAdvanceWeek(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/set-next-advance", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        year: z.number().int().min(2026).max(2100),
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+        hour: z.number().int().min(0).max(23),
+        minute: z.number().int().min(0).max(59).default(0),
+        tzLabel: z.enum(SUPPORTED_TZ_LABELS as [string, ...string[]]),
+      }).parse(request.body);
+      return reply.send(await setNextAdvanceTime(body));
     } catch (error) {
       return sendError(reply, error);
     }
