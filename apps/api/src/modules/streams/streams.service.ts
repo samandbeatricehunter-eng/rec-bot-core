@@ -167,53 +167,26 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
   }
 
   const amount = Number(existing.data.amount ?? STREAM_PAYOUT_AMOUNT);
-  const wallet = await supabase
-    .from("rec_wallets")
-    .select("wallet_balance,savings_balance")
-    .eq("user_id", existing.data.user_id)
-    .maybeSingle();
-
-  if (wallet.error) throw new ApiError(500, "Failed to load wallet for stream payout.", wallet.error);
-
-  const walletBalance = Number(wallet.data?.wallet_balance ?? 0);
-  const savingsBalance = Number(wallet.data?.savings_balance ?? 0);
-  const updatedWallet = await supabase
-    .from("rec_wallets")
-    .upsert({
-      user_id: existing.data.user_id,
-      wallet_balance: walletBalance + amount,
-      savings_balance: savingsBalance,
-      updated_at: new Date().toISOString()
-    }, { onConflict: "user_id" });
-
-  if (updatedWallet.error) throw new ApiError(500, "Failed to issue stream payout.", updatedWallet.error);
-
-  const ledger = await supabase
-    .from("rec_dollar_ledger")
-    .insert({
-      user_id: existing.data.user_id,
-      league_id: existing.data.league_id,
-      amount,
-      transaction_type: "stream_payout",
-      description: "Discord Live stream payout",
-      source: "manual_admin_entry",
-      source_reference: {
-        streamReviewId: existing.data.id,
-        streamLogId: existing.data.stream_log_id,
-        reviewedByDiscordId: input.reviewedByDiscordId
-      }
-    })
-    .select("id")
-    .single();
-
-  if (ledger.error) throw new ApiError(500, "Failed to write stream payout ledger entry.", ledger.error);
+  const ledger = await supabase.rpc("add_to_wallet", {
+    p_user_id: existing.data.user_id,
+    p_amount: amount,
+    p_league_id: existing.data.league_id,
+    p_description: `Discord Live stream payout - Wk ${existing.data.week_number}`,
+    p_transaction_type: "stream_payout",
+    p_source: "stream",
+    p_source_reference: {
+      reviewId: existing.data.id,
+      streamLogId: existing.data.stream_log_id
+    }
+  });
+  if (ledger.error) throw new ApiError(500, "Failed to issue stream payout.", ledger.error);
 
   const approved = await supabase
     .from("rec_stream_payout_reviews")
     .update({
       status: "issued",
       reviewed_by_discord_id: input.reviewedByDiscordId,
-      issued_ledger_id: ledger.data.id,
+      issued_ledger_id: ledger.data,
       reviewed_at: new Date().toISOString(),
       issued_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

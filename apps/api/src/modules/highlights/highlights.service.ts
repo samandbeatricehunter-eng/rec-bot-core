@@ -123,10 +123,11 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
     .single();
   if (review.error) throw new ApiError(500, "Failed to create highlight payout review.", review.error);
 
-  await supabase
+  const postUpdate = await supabase
     .from("rec_highlight_posts")
     .update({ payout_review_id: review.data.id, updated_at: new Date().toISOString() })
     .eq("id", highlight.data.id);
+  if (postUpdate.error) throw new ApiError(500, "Failed to attach highlight payout review.", postUpdate.error);
 
   return {
     recorded: true,
@@ -169,7 +170,7 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
   }
 
   const amount = Number(existing.data.amount ?? HIGHLIGHT_PAYOUT_AMOUNT);
-  await supabase.rpc("add_to_wallet", {
+  const ledger = await supabase.rpc("add_to_wallet", {
     p_user_id: existing.data.user_id,
     p_amount: amount,
     p_league_id: existing.data.league_id,
@@ -179,13 +180,15 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
     p_transaction_type: existing.data.payout_kind === "season_award" ? "highlight_award_payout" : "highlight_payout",
     p_source: "highlight",
     p_source_reference: { reviewId: existing.data.id, highlightPostId: existing.data.highlight_post_id, awardCategory: existing.data.award_category ?? null },
-  }).throwOnError();
+  });
+  if (ledger.error) throw new ApiError(500, "Failed to issue highlight payout.", ledger.error);
 
   const approved = await supabase
     .from("rec_highlight_payout_reviews")
     .update({
       status: "issued",
       reviewed_by_discord_id: input.reviewedByDiscordId,
+      issued_ledger_id: ledger.data,
       reviewed_at: new Date().toISOString(),
       issued_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -195,10 +198,11 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
     .single();
   if (approved.error) throw new ApiError(500, "Failed to approve highlight payout review.", approved.error);
 
-  await supabase
+  const postUpdate = await supabase
     .from("rec_highlight_posts")
     .update({ payout_issued: true, updated_at: new Date().toISOString() })
     .eq("id", existing.data.highlight_post_id);
+  if (postUpdate.error) throw new ApiError(500, "Failed to mark highlight payout issued.", postUpdate.error);
 
   const account = await supabase
     .from("rec_discord_accounts")
@@ -247,13 +251,22 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
 
   const existing = await supabase
     .from("rec_highlight_payout_reviews")
-    .select("id")
+    .select("*")
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("payout_kind", "season_award")
     .eq("award_category", input.category)
     .maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load existing highlight award review.", existing.error);
+  if (existing.data && ["approved", "issued"].includes(existing.data.status)) {
+    return {
+      review: existing.data,
+      highlight: highlight.data,
+      pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
+      commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
+      compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
+    };
+  }
 
   const payload = {
       highlight_post_id: highlight.data.id,

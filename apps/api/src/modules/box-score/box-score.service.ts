@@ -636,7 +636,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     });
   }
 
-  await supabase
+  const submissionUpdate = await supabase
     .from("rec_box_score_submissions")
     .update({
       status: "approved",
@@ -646,12 +646,14 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       updated_at: now,
     })
     .eq("id", input.submissionId);
+  if (submissionUpdate.error) throw new ApiError(500, "Failed to mark box score submission approved.", submissionUpdate.error);
 
-  await supabase
+  const inboxUpdate = await supabase
     .from("rec_commissioners_inbox")
     .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
     .eq("source_table", "rec_box_score_submissions")
     .eq("source_id", input.submissionId);
+  if (inboxUpdate.error) throw new ApiError(500, "Failed to update box score commissioner inbox item.", inboxUpdate.error);
 
   // Approval confirms the parse — promote any fuzzy-matched labels to aliases.
   await recordLabelAliases(sub.parse_label_samples as Record<string, string> | null);
