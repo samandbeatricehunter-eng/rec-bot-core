@@ -372,7 +372,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   // When a commissioner pre-selected the game, it's authoritative — the OCR only
   // orients home/away, so a relocated team or a misread abbreviation can't reject it.
   const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, input.expectedGameId ?? null);
-  if (resolved.gameId) await assertNoExistingBoxScorePayout(resolved.gameId, null);
+  if (resolved.gameId) await clearStalePendingForGame(resolved.gameId);
 
   // Verify the submitter is reporting their own current-week game:
   //  1. They are linked to one of the two teams in the box score.
@@ -662,6 +662,36 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     sourceChannelId: sub.discord_channel_id ?? null,
     sourceMessageId: sub.discord_message_id ?? null,
   };
+}
+
+// On a fresh submission: an already-approved/paid review for this game is final
+// (block). A still-pending review is stale once a new screenshot arrives (the
+// commissioner is re-uploading, or a prior deny failed to land), so supersede it
+// instead of trapping the resubmission behind a 409.
+async function clearStalePendingForGame(gameId: string) {
+  const { data, error } = await supabase
+    .from("rec_box_score_submissions")
+    .select("id,status,payout_issued")
+    .eq("game_id", gameId)
+    .in("status", ["pending", "approved"]);
+  if (error) throw new ApiError(500, "Failed to check existing box score payouts.", error);
+  const rows = data ?? [];
+  if (rows.some((r) => r.status === "approved" || r.payout_issued)) {
+    throw new ApiError(409, "A payout has already been issued for this scheduled game.");
+  }
+  const pendingIds = rows.filter((r) => r.status === "pending").map((r) => r.id);
+  if (pendingIds.length === 0) return;
+
+  const now = new Date().toISOString();
+  await supabase
+    .from("rec_box_score_submissions")
+    .update({ status: "denied", reviewed_at: now, denied_reason: "Superseded by a newer submission for this game.", updated_at: now })
+    .in("id", pendingIds);
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "denied", reviewed_at: now, review_reason: "Superseded by a newer submission for this game." })
+    .eq("source_table", "rec_box_score_submissions")
+    .in("source_id", pendingIds);
 }
 
 async function assertNoExistingBoxScorePayout(gameId: string, currentSubmissionId: string | null) {
