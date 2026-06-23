@@ -9,7 +9,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS } from "../ui/menu.js";
 
@@ -133,8 +133,8 @@ export async function renderSchedulePlaceholder(interaction: ButtonInteraction, 
 }
 
 export async function startManualScheduleEntry(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can set the league schedule.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners or server admins can set the league schedule.", flags: MessageFlags.Ephemeral });
   }
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
 
@@ -282,8 +282,8 @@ export async function handleManualScheduleBack(interaction: ButtonInteraction) {
 }
 
 export async function startScheduleViewer(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can view the full league schedule.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners or server admins can view the full league schedule.", flags: MessageFlags.Ephemeral });
   }
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();

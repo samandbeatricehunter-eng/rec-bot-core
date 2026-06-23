@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
-import { isDiscordAdminInteraction } from "./lib/admin.js";
+import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getVotingPollsChannel } from "./lib/route-channels.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
@@ -14,6 +14,7 @@ import {
   buildSetupDangerModal,
   buildDeleteLeagueWarningPayload,
   buildDeleteLeagueModal,
+  LEAGUE_MGMT_BOX_SCORE_INBOX_ID,
   MENU_CUSTOM_IDS,
   ROSTERS_CUSTOM_IDS,
   STREAM_CUSTOM_IDS,
@@ -138,6 +139,38 @@ const ADVANCE_CUSTOM_IDS = {
   seasonManualModal: "rec:advance:season_manual_modal",
   seasonManualInput: "rec:advance:season_manual_input"
 } as const;
+
+const CO_COMMISSIONER_ALLOWED_LEAGUE_MGMT_IDS = new Set<string>([
+  MENU_CUSTOM_IDS.leagueMgmt,
+  MENU_CUSTOM_IDS.leagueMgmtTeams,
+  LEAGUE_MGMT_BOX_SCORE_INBOX_ID,
+  MENU_CUSTOM_IDS.leagueMgmtBack,
+]);
+
+function isRestrictedLeagueMgmtButton(customId: string) {
+  if (customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return false;
+  if (!customId.startsWith("rec:league_mgmt:")) return false;
+  return !CO_COMMISSIONER_ALLOWED_LEAGUE_MGMT_IDS.has(customId);
+}
+
+function coCommissionerLimited(interaction: ButtonInteraction) {
+  return isCoCommissionerInteraction(interaction);
+}
+
+function buildAdminPanelPayload(interaction: ButtonInteraction) {
+  const limited = coCommissionerLimited(interaction);
+  return {
+    embeds: [buildAdminPanelEmbed({ coCommissionerLimited: limited })],
+    components: buildAdminPanelRows({ coCommissionerLimited: limited }),
+  };
+}
+
+function replyFullAdminOnly(interaction: { reply: (options: any) => Promise<any> }, action: string) {
+  return interaction.reply({
+    content: `Only commissioners or server admins can ${action}.`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
 
 setInterval(() => {
   menuSessions.cleanup();
@@ -309,9 +342,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsEditBack) return renderLeagueMgmtTeams(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConfirmBack) return handleLeagueTeamsConfirmBack(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConfirmUnlink) return handleLeagueTeamsConfirmUnlink(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueCancel) return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+      if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueCancel) return interaction.update(buildAdminPanelPayload(interaction));
       if (interaction.customId === MENU_CUSTOM_IDS.deleteLeagueConfirm) {
-        if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can delete league data.", flags: MessageFlags.Ephemeral });
+        if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "delete league data");
         const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
         const leagueName = week?.league?.name;
         if (!leagueName) return interaction.reply({ content: "No league is set up for this server.", flags: MessageFlags.Ephemeral });
@@ -350,6 +383,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === NAV_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.adminPanel) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === NAV_CUSTOM_IDS.back) return handleBackNavigation(interaction);
+      if (isRestrictedLeagueMgmtButton(interaction.customId) && !isFullLeagueAdminInteraction(interaction)) {
+        return interaction.reply({
+          content: "Co-Commissioners can only use League Mgmt > Teams, League Mgmt > Box Scores, and Back to Menu.",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTeams) return handleLeagueMgmtTeams(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtServerSetup) return handleLeagueMgmtServerSetup(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSchedule) return handleLeagueMgmtSchedule(interaction);
@@ -544,7 +583,7 @@ async function renderMainMenuFromComponent(interaction: Extract<Interaction, { i
 async function renderAdminPanelFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
-  await interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+  await interaction.update(buildAdminPanelPayload(interaction));
 }
 
 async function replyMenuPlaceholder(interaction: ButtonInteraction, title: string, description: string) {
@@ -562,15 +601,15 @@ async function handleLeagueMgmtTeams(interaction: ButtonInteraction) {
 }
 
 async function handleLeagueMgmtServerSetup(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can manage server setup.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "manage server setup");
   }
   return interaction.update(buildServerSetupPanel());
 }
 
 async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can manage league schedule imports.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
   return interaction.update({
     embeds: [new EmbedBuilder()
@@ -600,8 +639,8 @@ function buildScheduleMgmtRows() {
 }
 
 async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can manage league schedule imports.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
   return interaction.update({
     embeds: [new EmbedBuilder()
@@ -618,8 +657,8 @@ async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
 }
 
 async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can manage league schedule imports.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
   return interaction.update({
     embeds: [new EmbedBuilder()
@@ -636,8 +675,8 @@ async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
 }
 
 async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can advance the league.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "advance the league");
   }
   return interaction.update({
     embeds: [new EmbedBuilder()
@@ -702,7 +741,7 @@ async function getRouteChannels(guildId: string) {
 
 async function handleActiveCheck(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can run active checks.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run active checks");
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting Active Check...").setDescription("Finding the announcements channel and preparing the active-check prompt.")], components: [] });
   const routes = await getRouteChannels(interaction.guildId);
@@ -740,7 +779,7 @@ async function currentSchedule(interaction: ButtonInteraction) {
 
 async function handleSetGotw(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can set GOTW.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set GOTW");
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading GOTW Matchups...").setDescription("Checking the active week's logged schedule for games where both teams have linked users.")], components: [] });
   const { currentWeek, stage, games } = await currentSchedule(interaction);
@@ -771,6 +810,7 @@ async function handleSetGotw(interaction: ButtonInteraction) {
 
 async function handleGotwSelect(interaction: any) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set GOTW");
   await interaction.deferUpdate();
   const selectedGameId = interaction.values[0];
   const { currentWeek, stage, games } = await currentSchedule(interaction as any);
@@ -796,7 +836,7 @@ async function handleGotwSelect(interaction: any) {
 
 async function handleGameChannels(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can create game channels.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "create game channels");
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Creating Game Channels...").setDescription("Checking the active week's logged schedule for H2H matchups where both teams have linked Discord users.")], components: [] });
   const routes = await getRouteChannels(interaction.guildId);
@@ -955,7 +995,7 @@ function buildSetWeekRows() {
 
 async function handleSetWeek(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can set the league week.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Set Week")
@@ -966,7 +1006,7 @@ async function handleSetWeek(interaction: ButtonInteraction) {
 
 async function handleSetWeekSelect(interaction: any) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can set the league week.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
   await interaction.deferUpdate();
   const [rawStage, rawWeek] = String(interaction.values[0] ?? "regular:1").split(":");
   const weekNumber = Math.max(1, Number(rawWeek) || 1);
@@ -999,7 +1039,7 @@ function buildSetSeasonRows() {
 
 async function handleSetSeason(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can set the league season.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league season");
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Set Season")
@@ -1010,7 +1050,7 @@ async function handleSetSeason(interaction: ButtonInteraction) {
 
 async function handleSetSeasonSelect(interaction: any) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can set the league season.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league season");
   const selected = String(interaction.values[0] ?? "");
   if (selected === "manual") {
     return interaction.showModal(new ModalBuilder()
@@ -1037,7 +1077,7 @@ async function handleSetSeasonSelect(interaction: any) {
 
 async function handleSetSeasonManual(interaction: ModalSubmitInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can set the league season.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league season");
   const seasonNumber = Number(interaction.fields.getTextInputValue(ADVANCE_CUSTOM_IDS.seasonManualInput));
   if (!Number.isInteger(seasonNumber) || seasonNumber < 25) {
     return interaction.reply({ content: "Manual season number must be 25 or higher.", flags: MessageFlags.Ephemeral });
@@ -1083,6 +1123,7 @@ function weeklyChallengesEmbed() {
 }
 
 async function handleEosPayouts(interaction: ButtonInteraction) {
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS payouts");
   const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
   const currentWeek = Number(week?.league?.current_week ?? 1);
   if (currentWeek < 19 || currentWeek > 22) {
@@ -1093,7 +1134,7 @@ async function handleEosPayouts(interaction: ButtonInteraction) {
 
 async function handlePotyTallies(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can run POTY tallies.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run POTY tallies");
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const currentWeek = Number(week?.league?.current_week ?? 1);
   if (currentWeek < 19 || currentWeek > 22) {
@@ -1106,8 +1147,8 @@ async function handlePotyTallies(interaction: ButtonInteraction) {
 }
 
 async function handleLeagueMgmtSettings(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can manage league settings.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "manage league settings");
   }
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "This action requires a guild context.", flags: MessageFlags.Ephemeral });
 
@@ -1125,22 +1166,22 @@ async function handleLeagueMgmtSettings(interaction: ButtonInteraction) {
 }
 
 async function handleLeagueMgmtFirstTimeSetup(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can run first-time setup.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "run first-time setup");
   }
   return interaction.showModal(buildSetupDangerModal("league_setup"));
 }
 
 async function handleLeagueMgmtRoles(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can manage league roles.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "manage league roles");
   }
   return replyMenuPlaceholder(interaction, "Roles", "Role management is not active yet. For now, assign Commissioner, Co Commissioner, and member roles directly in Discord or through League Mgmt > Teams where team links are managed.");
 }
 
 async function handleLeagueMgmtDeleteLeague(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can delete league data.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "delete league data");
   }
   const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
   const leagueName = week?.league?.name;
@@ -1152,8 +1193,8 @@ async function handleLeagueMgmtDeleteLeague(interaction: ButtonInteraction) {
 
 async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
   if (!interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can delete league data.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "delete league data");
   }
   const confirmationText = interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.deleteLeagueNameInput);
   await interaction.deferUpdate();
@@ -1184,7 +1225,7 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
     const previous = getPreviousLeagueSetupStep(draft.step, draft);
     if (previous === "admin_panel") {
       leagueSetupSessions.delete(interaction.user.id);
-      return interaction.update({ embeds: [buildAdminPanelEmbed()], components: buildAdminPanelRows() });
+      return interaction.update(buildAdminPanelPayload(interaction));
     }
     draft.step = previous;
     leagueSetupSessions.set(interaction.user.id, draft);

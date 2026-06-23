@@ -9,7 +9,7 @@ import {
   type ButtonInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
@@ -261,8 +261,8 @@ export function handleAdvanceTimeTimeSelect(interaction: StringSelectMenuInterac
 
 export async function handleAdvanceTimeSet(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only authorized admins can set the advance time.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners or server admins can set the advance time.", flags: MessageFlags.Ephemeral });
   }
   const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
   if (!session) {

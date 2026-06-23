@@ -5,7 +5,7 @@ import {
   EmbedBuilder,
   type ButtonInteraction,
 } from "discord.js";
-import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { nextLeagueStage, stageLabel } from "../lib/league-stage.js";
 import { recApi } from "../lib/rec-api.js";
 import { enterAdvanceTimeStep } from "./advance-time.js";
@@ -80,7 +80,7 @@ function renderWizardStep(session: AdvanceWizardSession) {
 
 export async function startAdvanceWeekWizard(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can advance the league.", ephemeral: true });
+  if (!isFullLeagueAdminInteraction(interaction)) return interaction.reply({ content: "Only commissioners or server admins can advance the league.", ephemeral: true });
 
   await interaction.deferUpdate();
   await interaction.editReply({

@@ -236,12 +236,13 @@ export function buildLeagueMenuRows(canManageLeague: boolean, isLinkedToTeam = t
   return isLinkedToTeam ? [row1, row2, row3, row4] : [row1, row4];
 }
 
-export function buildAdminPanelEmbed() {
-  return new EmbedBuilder()
-    .setTitle("League Mgmt")
-    .setDescription([
-      "From this menu, you can manage your league in a variety of ways.",
-      "",
+export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } = {}) {
+  const menuText = input.coCommissionerLimited
+    ? [
+      "**Teams** - Link users to teams, unlink users, reset default teams, and edit relocated/custom team names.",
+      "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
+    ]
+    : [
       "**Teams** - Link users to teams, unlink users, reset default teams, and edit relocated/custom team names.",
       "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
       "**Schedule** - Enter, review, and publicly post the league schedule.",
@@ -249,18 +250,41 @@ export function buildAdminPanelEmbed() {
       "**Settings** - Edit saved league/server setup values.",
       "**First-Time Setup** - Create or rebuild a league setup. This can clear league data when rerun.",
       "**Delete League** - Permanently delete this server's current league data.",
-      "**Roles** - Role management placeholder."
+      "**Roles** - Role management placeholder.",
+    ];
+
+  return new EmbedBuilder()
+    .setTitle("League Mgmt")
+    .setDescription([
+      input.coCommissionerLimited
+        ? "Co-Commissioners can manage team links and box score reviews from this menu."
+        : "From this menu, you can manage your league in a variety of ways.",
+      "",
+      ...menuText,
     ].join("\n"));
 }
 
 export const LEAGUE_MGMT_BOX_SCORE_INBOX_ID = "rec:league_mgmt:box_score_inbox";
 
-export function buildAdminPanelRows() {
-  return [
+export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } = {}) {
+  const sharedRows = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Scores").setStyle(ButtonStyle.Primary)
     ),
+  ];
+
+  if (input.coCommissionerLimited) {
+    return [
+      ...sharedRows,
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
+      ),
+    ];
+  }
+
+  return [
+    ...sharedRows,
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success),

@@ -41,12 +41,61 @@ function openTeams(conferences: RosterConference[]) {
   return open;
 }
 
+function requestTeamBackRow() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary),
+    ),
+  ];
+}
+
+async function loadTeamRequestEligibility(guildId: string, discordId: string) {
+  const [profileResult, confData] = await Promise.all([
+    recApi.getMenuProfile(discordId, guildId).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("404") || /Discord account not found/i.test(message)) return null;
+      throw error;
+    }),
+    recApi.getLeagueConferences(guildId),
+  ]);
+
+  const conferences: RosterConference[] = confData?.conferences ?? [];
+  return {
+    isLinkedToTeam: Boolean(profileResult?.team),
+    openTeams: openTeams(conferences),
+    conferences,
+  };
+}
+
 export async function startTeamRequestFlow(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Request Team").setDescription("Open /menu inside a REC Discord server.")],
       components: [],
+    });
+  }
+
+  const eligibility = await loadTeamRequestEligibility(interaction.guildId, interaction.user.id);
+  if (eligibility.isLinkedToTeam) {
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Request Team")
+          .setDescription("You can't request a team because you're already linked to a team in this league."),
+      ],
+      components: requestTeamBackRow(),
+    });
+  }
+
+  if (!eligibility.openTeams.length) {
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Request Team")
+          .setDescription("This league is currently full with no available teams to request."),
+      ],
+      components: requestTeamBackRow(),
     });
   }
 

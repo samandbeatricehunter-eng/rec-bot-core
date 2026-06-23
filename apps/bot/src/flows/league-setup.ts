@@ -1,5 +1,5 @@
 import { EmbedBuilder, MessageFlags, type Interaction, type ModalSubmitInteraction } from "discord.js";
-import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { ensureRecBaseRoles } from "../lib/role-sync.js";
@@ -29,7 +29,7 @@ import { markPostSetupActive, startPostSetupScheduleStep } from "./schedule.js";
 export const leagueSetupSessions = new ExpiringSessionStore<LeagueSetupDraft>();
 export async function handleSetupModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit()) return;
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can use setup workflows.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return interaction.reply({ content: "Only commissioners or server admins can use setup workflows.", flags: MessageFlags.Ephemeral });
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Setup workflows must be run inside a Discord server.", flags: MessageFlags.Ephemeral });
   const action = interaction.customId.split(":").at(-1) as SetupDangerAction | undefined;
   if (action === "league_setup") {
@@ -431,7 +431,7 @@ function formatDefaultScheduleSeedResult(result: { seeded?: boolean; reason?: st
 
 export async function handleLeagueSetupSave(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can save League Setup.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return interaction.reply({ content: "Only commissioners or server admins can save League Setup.", flags: MessageFlags.Ephemeral });
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
 
