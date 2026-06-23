@@ -558,7 +558,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       ? `boxscore:game:${sub.game_id}`
       : `boxscore:${sub.league_id}:${sub.season_number}:${sub.week_number}:${sub.home_team_id}:${sub.away_team_id}`;
 
-    await supabase.from("rec_game_results").upsert(
+    const { error: resultError } = await supabase.from("rec_game_results").upsert(
       {
         league_id: sub.league_id,
         season_number: sub.season_number,
@@ -586,7 +586,17 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       },
       { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
+    if (resultError) throw new ApiError(500, "Failed to record box score game result.", resultError);
   }
+
+  await syncUsersAfterBoxScoreApproval(sub);
+
+  // Record flat per-team-per-game stats (two rows, offense + generated/allowed)
+  // before rebuilding stat rollups.
+  await recordTeamGameStats(sub);
+  await syncCpuTeamsAfterBoxScoreApproval(sub).catch((error) => {
+    console.error("[ERROR] Failed to sync CPU team season stats after box score approval:", error);
+  });
 
   // Issue payouts: winner $100, loser $50. Matched games pay both participants
   // by result; an unmatched (commissioner-approved) score pays just the submitter.
@@ -614,14 +624,6 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     }).throwOnError();
     totalPaid += p.amount;
   }
-
-  await syncUsersAfterBoxScoreApproval(sub);
-
-  // Record flat per-team-per-game stats (two rows, offense + generated/allowed).
-  await recordTeamGameStats(sub);
-  await syncCpuTeamsAfterBoxScoreApproval(sub).catch((error) => {
-    console.error("[ERROR] Failed to sync CPU team season stats after box score approval:", error);
-  });
 
   if (sub.league_id && sub.season_number) {
     await rebuildOfficialRecordsAfterBoxScore({
@@ -798,7 +800,8 @@ async function recordTeamGameStats(sub: any) {
 
   const rows = [sub.team1_id ? sideOf("team1") : null, sub.team2_id ? sideOf("team2") : null].filter(Boolean);
   if (!rows.length) return;
-  await supabase.from("rec_team_game_stats").upsert(rows, { onConflict: "submission_id,team_id" });
+  const { error } = await supabase.from("rec_team_game_stats").upsert(rows, { onConflict: "submission_id,team_id" });
+  if (error) throw new ApiError(500, "Failed to record team game stats from box score.", error);
 }
 
 // ─── List pending submissions ─────────────────────────────────────────────────
