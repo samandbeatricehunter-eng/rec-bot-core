@@ -75,7 +75,10 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   purchaseCapPrefix: "rec:league_setup:purchase_cap",
   purchaseCoreAttrsOpen: "rec:league_setup:purchase_core_attrs_open",
   purchaseCoreAttrsDone: "rec:league_setup:purchase_core_attrs_done",
-  coreAttrsPrefix: "rec:league_setup:core_attrs"
+  coreAttrsPrefix: "rec:league_setup:core_attrs",
+  purchaseAllTimeCapOpenPrefix: "rec:league_setup:alltime_cap_open",
+  purchaseAllTimeCapModalPrefix: "rec:league_setup:alltime_cap_modal",
+  purchaseAllTimeCapInput: "rec:league_setup:alltime_cap_input"
 } as const;
 
 export type LeagueSetupSettingsCategory = "features" | "purchases" | "server" | "rules" | "gameplay" | "play_call";
@@ -161,6 +164,14 @@ export type LeagueSetupDraft = {
   coreAttributePurchasesSeasonCap: number;
   nonCoreAttributePurchasesSeasonCap: number;
   coreAttributes: string[];
+  customPlayersAllTimeCap: number | null;
+  legendsAllTimeCap: number | null;
+  devUpgradesAllTimeCap: number | null;
+  ageResetsAllTimeCap: number | null;
+  playerTraitPurchasesAllTimeCap: number | null;
+  contractPurchasesAllTimeCap: number | null;
+  coreAttributePurchasesAllTimeCap: number | null;
+  nonCoreAttributePurchasesAllTimeCap: number | null;
   streamingRequirement: "required" | "recommended" | "disabled";
   regularSeasonStreamingRequirement: "required" | "recommended" | "disabled";
   postseasonStreamingRequirement: "required" | "recommended" | "disabled";
@@ -294,6 +305,14 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     coreAttributePurchasesSeasonCap: 0,
     nonCoreAttributePurchasesSeasonCap: 0,
     coreAttributes: [],
+    customPlayersAllTimeCap: null,
+    legendsAllTimeCap: null,
+    devUpgradesAllTimeCap: null,
+    ageResetsAllTimeCap: null,
+    playerTraitPurchasesAllTimeCap: null,
+    contractPurchasesAllTimeCap: null,
+    coreAttributePurchasesAllTimeCap: null,
+    nonCoreAttributePurchasesAllTimeCap: null,
     streamingRequirement: "recommended",
     regularSeasonStreamingRequirement: "recommended",
     postseasonStreamingRequirement: "required",
@@ -559,7 +578,7 @@ const ECONOMY_FEATURE_STEPS = {
   }
 } as const satisfies Partial<Record<LeagueSetupStep, { title: string; key: keyof LeagueSetupDraft; description: string }>>;
 
-type PurchaseCapField =
+type PurchaseSeasonCapField =
   | "customPlayersSeasonCap"
   | "legendsSeasonCap"
   | "devUpgradesSeasonCap"
@@ -569,65 +588,93 @@ type PurchaseCapField =
   | "coreAttributePurchasesSeasonCap"
   | "nonCoreAttributePurchasesSeasonCap";
 
+type PurchaseAllTimeCapField =
+  | "customPlayersAllTimeCap"
+  | "legendsAllTimeCap"
+  | "devUpgradesAllTimeCap"
+  | "ageResetsAllTimeCap"
+  | "playerTraitPurchasesAllTimeCap"
+  | "contractPurchasesAllTimeCap"
+  | "coreAttributePurchasesAllTimeCap"
+  | "nonCoreAttributePurchasesAllTimeCap";
+
 const PURCHASE_FEATURE_STEPS = {
   custom_players: {
     title: "Custom Players",
     enabledKey: "customPlayersEnabled",
-    capKey: "customPlayersSeasonCap",
-    maxCap: 5,
+    seasonCapKey: "customPlayersSeasonCap",
+    allTimeCapKey: "customPlayersAllTimeCap",
+    maxSeasonCap: 5,
+    maxAllTimeCap: 50,
     description: "Custom Players: Allows users to purchase and create custom players to be added to the draft pool and reserved for their team. Players are built using template archetypes and a range of 'creation points' based on how much the user spends when purchasing the player package."
   },
   legends: {
     title: "Legends",
     enabledKey: "legendsEnabled",
-    capKey: "legendsSeasonCap",
-    maxCap: 5,
+    seasonCapKey: "legendsSeasonCap",
+    allTimeCapKey: "legendsAllTimeCap",
+    maxSeasonCap: 5,
+    maxAllTimeCap: 50,
     description: "Legends: Allows users to purchase NFL legends to be added to their team instantly."
   },
   dev_upgrades: {
     title: "Dev Upgrades",
     enabledKey: "devUpgradesEnabled",
-    capKey: "devUpgradesSeasonCap",
-    maxCap: 5,
+    seasonCapKey: "devUpgradesSeasonCap",
+    allTimeCapKey: "devUpgradesAllTimeCap",
+    maxSeasonCap: 5,
+    maxAllTimeCap: 50,
     description: "Dev Upgrades: Allows users to purchase a development trait upgrade for a player on their team. Upgrades are in one-tier increments, so Star to Superstar, etc."
   },
   age_resets: {
     title: "Age Resets",
     enabledKey: "ageResetsEnabled",
-    capKey: "ageResetsSeasonCap",
-    maxCap: 5,
+    seasonCapKey: "ageResetsSeasonCap",
+    allTimeCapKey: "ageResetsAllTimeCap",
+    maxSeasonCap: 5,
+    maxAllTimeCap: 50,
     description: "Age Resets: Allows users to purchase an age reset for a player, resetting their in-game age to 21."
   },
   attribute_purchases: {
     title: "Attribute Purchases",
     enabledKey: "attributePurchasesEnabled",
-    capKey: null,
-    maxCap: 20,
+    seasonCapKey: null,
+    allTimeCapKey: null,
+    maxSeasonCap: 20,
+    maxAllTimeCap: 100,
     description: "Attribute Purchases: Allows users to purchase upgrades to a players attributes (grouped as core & non-core with different caps)."
   },
   player_trait_purchases: {
     title: "Player Trait Purchases",
     enabledKey: "playerTraitPurchasesEnabled",
-    capKey: "playerTraitPurchasesSeasonCap",
-    maxCap: 10,
+    seasonCapKey: "playerTraitPurchasesSeasonCap",
+    allTimeCapKey: "playerTraitPurchasesAllTimeCap",
+    maxSeasonCap: 10,
+    maxAllTimeCap: 50,
     description: "Player Trait Purchases: Allows users to purchase changes to a players trait, ie, they want a player to play the ball but their trait is currently set to Play Defender."
   },
   contract_purchases: {
     title: "Contract Purchases",
     enabledKey: "contractAdjustmentPurchasesEnabled",
-    capKey: "contractPurchasesSeasonCap",
-    maxCap: 5,
+    seasonCapKey: "contractPurchasesSeasonCap",
+    allTimeCapKey: "contractPurchasesAllTimeCap",
+    maxSeasonCap: 5,
+    maxAllTimeCap: 50,
     description: "Contract Purchases: Allows users to buy salary and bonus reductions for players contracts, as well as limited contract extensions."
   }
 } as const satisfies Partial<Record<LeagueSetupStep, {
   title: string;
   enabledKey: keyof LeagueSetupDraft;
-  capKey: PurchaseCapField | null;
-  maxCap: number;
+  seasonCapKey: PurchaseSeasonCapField | null;
+  allTimeCapKey: PurchaseAllTimeCapField | null;
+  maxSeasonCap: number;
+  maxAllTimeCap: number;
   description: string;
 }>>;
 
 export type PurchaseFeatureStep = keyof typeof PURCHASE_FEATURE_STEPS;
+
+export type PurchaseAllTimeCapKind = "default" | "core" | "non_core";
 
 export function isPurchaseFeatureStep(step: LeagueSetupStep): step is PurchaseFeatureStep {
   return step in PURCHASE_FEATURE_STEPS;
@@ -637,26 +684,101 @@ export function purchaseCapCustomId(step: PurchaseFeatureStep, cap: "season" | "
   return `${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:${step}:${cap}`;
 }
 
+export function purchaseAllTimeCapOpenCustomId(step: PurchaseFeatureStep, kind: PurchaseAllTimeCapKind = "default") {
+  return `${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapOpenPrefix}:${step}:${kind}`;
+}
+
+export function purchaseAllTimeCapModalCustomId(step: PurchaseFeatureStep, kind: PurchaseAllTimeCapKind = "default") {
+  return `${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapModalPrefix}:${step}:${kind}`;
+}
+
 export function coreAttributeGroupCustomId(group: MaddenAttributeGroupKey) {
   return `${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:${group}`;
 }
 
-function capOptions(maxCap: number) {
-  return Array.from({ length: maxCap + 1 }, (_, index) => option(String(index), String(index), index === 0 ? "No purchases allowed" : `${index} per season`));
+function capOptions(maxCap: number, unitLabel = "season") {
+  return Array.from({ length: maxCap + 1 }, (_, index) => option(String(index), String(index), index === 0 ? "No purchases allowed" : `${index} per ${unitLabel}`));
+}
+
+function formatAllTimeCapLabel(value: number | null | undefined) {
+  return value == null ? "None" : String(value);
+}
+
+function getAllTimeCapField(step: PurchaseFeatureStep, kind: PurchaseAllTimeCapKind): PurchaseAllTimeCapField | null {
+  if (step === "attribute_purchases") {
+    return kind === "core" ? "coreAttributePurchasesAllTimeCap" : kind === "non_core" ? "nonCoreAttributePurchasesAllTimeCap" : null;
+  }
+  const config = PURCHASE_FEATURE_STEPS[step];
+  return config.allTimeCapKey;
+}
+
+function getMaxAllTimeCap(step: PurchaseFeatureStep, kind: PurchaseAllTimeCapKind) {
+  if (step === "attribute_purchases") return PURCHASE_FEATURE_STEPS.attribute_purchases.maxAllTimeCap;
+  return PURCHASE_FEATURE_STEPS[step].maxAllTimeCap;
 }
 
 function formatPurchaseCapSummary(draft: LeagueSetupDraft, step: PurchaseFeatureStep) {
   const config = PURCHASE_FEATURE_STEPS[step];
   if (step === "attribute_purchases") {
     return [
-      `Core Attribute Cap: **${draft.coreAttributePurchasesSeasonCap}**/season`,
-      `Non-Core Attribute Cap: **${draft.nonCoreAttributePurchasesSeasonCap}**/season`,
+      `Core Season Cap: **${draft.coreAttributePurchasesSeasonCap}**/20`,
+      `Non-Core Season Cap: **${draft.nonCoreAttributePurchasesSeasonCap}**/20`,
+      `Core All-Time Cap: **${formatAllTimeCapLabel(draft.coreAttributePurchasesAllTimeCap)}**`,
+      `Non-Core All-Time Cap: **${formatAllTimeCapLabel(draft.nonCoreAttributePurchasesAllTimeCap)}**`,
       `Core Attributes Selected: **${draft.coreAttributes.length}**`
     ].join("\n");
   }
-  if (!config.capKey) return "";
-  const cap = draft[config.capKey];
-  return `Season Cap: **${cap}**/${config.maxCap}`;
+  if (!config.seasonCapKey) return "";
+  const cap = draft[config.seasonCapKey];
+  const allTime = config.allTimeCapKey ? draft[config.allTimeCapKey] : null;
+  return [
+    `Season Cap: **${cap}**/${config.maxSeasonCap}`,
+    `All-Time Cap: **${formatAllTimeCapLabel(allTime)}**`
+  ].join("\n");
+}
+
+export function parsePurchaseAllTimeCapInput(raw: string, max: number): number | null | "invalid" {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.toLowerCase() === "none") return null;
+  const numeric = Number(trimmed);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric > max) return "invalid";
+  return numeric;
+}
+
+export function buildPurchaseAllTimeCapModal(step: PurchaseFeatureStep, kind: PurchaseAllTimeCapKind, draft: LeagueSetupDraft) {
+  const max = getMaxAllTimeCap(step, kind);
+  const field = getAllTimeCapField(step, kind);
+  const current = field ? draft[field] : null;
+  const label = step === "attribute_purchases"
+    ? kind === "core" ? "Core Attribute All-Time Cap" : "Non-Core Attribute All-Time Cap"
+    : `${PURCHASE_FEATURE_STEPS[step].title} All-Time Cap`;
+
+  return new ModalBuilder()
+    .setCustomId(purchaseAllTimeCapModalCustomId(step, kind))
+    .setTitle(label.slice(0, 45))
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapInput)
+          .setLabel(`All-time cap (0-${max}, blank=None)`)
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setValue(current == null ? "" : String(current))
+          .setPlaceholder(`Leave blank for None, or enter 0-${max}`)
+      )
+    );
+}
+
+export function setPurchaseAllTimeCapValue(draft: LeagueSetupDraft, modalCustomId: string, raw: string): "invalid" | "ok" {
+  const parts = modalCustomId.split(":");
+  const kind = (parts.at(-1) ?? "default") as PurchaseAllTimeCapKind;
+  const step = parts.at(-2) as PurchaseFeatureStep;
+  const field = getAllTimeCapField(step, kind);
+  if (!field) return "invalid";
+  const parsed = parsePurchaseAllTimeCapInput(raw, getMaxAllTimeCap(step, kind));
+  if (parsed === "invalid") return "invalid";
+  (draft as any)[field] = parsed;
+  return "ok";
 }
 
 export function setPurchaseCapValue(draft: LeagueSetupDraft, customId: string, value: string) {
@@ -676,8 +798,8 @@ export function setPurchaseCapValue(draft: LeagueSetupDraft, customId: string, v
   }
 
   const config = PURCHASE_FEATURE_STEPS[step];
-  if (!config?.capKey) return;
-  (draft as any)[config.capKey] = numeric;
+  if (!config?.seasonCapKey) return;
+  (draft as any)[config.seasonCapKey] = numeric;
 }
 
 export function setCoreAttributesForGroup(draft: LeagueSetupDraft, group: MaddenAttributeGroupKey, selected: string[]) {
@@ -726,18 +848,34 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
+          .setCustomId(purchaseAllTimeCapOpenCustomId("attribute_purchases", "core"))
+          .setLabel(`Core All-Time Cap (${formatAllTimeCapLabel(draft.coreAttributePurchasesAllTimeCap)})`)
+          .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+          .setCustomId(purchaseAllTimeCapOpenCustomId("attribute_purchases", "non_core"))
+          .setLabel(`Non-Core All-Time Cap (${formatAllTimeCapLabel(draft.nonCoreAttributePurchasesAllTimeCap)})`)
+          .setStyle(ButtonStyle.Secondary)
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
           .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsOpen)
           .setLabel(`Configure Core Attributes (${draft.coreAttributes.length})`)
           .setStyle(ButtonStyle.Primary)
       )
     );
-  } else if (config.capKey) {
+  } else if (config.seasonCapKey) {
     components.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(purchaseCapCustomId(draft.step))
-          .setPlaceholder(`Season cap (0-${config.maxCap})`)
-          .addOptions(...capOptions(config.maxCap))
+          .setPlaceholder(`Season cap (0-${config.maxSeasonCap})`)
+          .addOptions(...capOptions(config.maxSeasonCap))
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(purchaseAllTimeCapOpenCustomId(draft.step))
+          .setLabel(`All-Time Cap (${formatAllTimeCapLabel(config.allTimeCapKey ? draft[config.allTimeCapKey] : null)})`)
+          .setStyle(ButtonStyle.Secondary)
       )
     );
   }
@@ -799,11 +937,12 @@ export function formatPurchaseCapsReview(draft: LeagueSetupDraft) {
     const enabled = Boolean(draft[config.enabledKey]);
     if (!enabled) continue;
     if (step === "attribute_purchases") {
-      lines.push(`Attributes: Core ${draft.coreAttributePurchasesSeasonCap}, Non-Core ${draft.nonCoreAttributePurchasesSeasonCap}, ${draft.coreAttributes.length} core attrs`);
+      lines.push(`Attributes: Core ${draft.coreAttributePurchasesSeasonCap}/season (${formatAllTimeCapLabel(draft.coreAttributePurchasesAllTimeCap)} all-time), Non-Core ${draft.nonCoreAttributePurchasesSeasonCap}/season (${formatAllTimeCapLabel(draft.nonCoreAttributePurchasesAllTimeCap)} all-time), ${draft.coreAttributes.length} core attrs`);
       continue;
     }
-    if (config.capKey) {
-      lines.push(`${config.title}: ${draft[config.capKey]}/season`);
+    if (config.seasonCapKey) {
+      const allTime = config.allTimeCapKey ? formatAllTimeCapLabel(draft[config.allTimeCapKey]) : "None";
+      lines.push(`${config.title}: ${draft[config.seasonCapKey]}/season, ${allTime} all-time`);
     }
   }
   return lines.length ? lines.join("\n") : "No purchase caps configured.";
@@ -1675,18 +1814,46 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.coreAttributePurchasesSeasonCap = 0;
     draft.nonCoreAttributePurchasesSeasonCap = 0;
     draft.coreAttributes = [];
+    draft.customPlayersAllTimeCap = null;
+    draft.legendsAllTimeCap = null;
+    draft.devUpgradesAllTimeCap = null;
+    draft.ageResetsAllTimeCap = null;
+    draft.playerTraitPurchasesAllTimeCap = null;
+    draft.contractPurchasesAllTimeCap = null;
+    draft.coreAttributePurchasesAllTimeCap = null;
+    draft.nonCoreAttributePurchasesAllTimeCap = null;
   }
 
-  if (!draft.customPlayersEnabled) draft.customPlayersSeasonCap = 0;
-  if (!draft.legendsEnabled) draft.legendsSeasonCap = 0;
-  if (!draft.devUpgradesEnabled) draft.devUpgradesSeasonCap = 0;
-  if (!draft.ageResetsEnabled) draft.ageResetsSeasonCap = 0;
-  if (!draft.playerTraitPurchasesEnabled) draft.playerTraitPurchasesSeasonCap = 0;
-  if (!draft.contractAdjustmentPurchasesEnabled) draft.contractPurchasesSeasonCap = 0;
+  if (!draft.customPlayersEnabled) {
+    draft.customPlayersSeasonCap = 0;
+    draft.customPlayersAllTimeCap = null;
+  }
+  if (!draft.legendsEnabled) {
+    draft.legendsSeasonCap = 0;
+    draft.legendsAllTimeCap = null;
+  }
+  if (!draft.devUpgradesEnabled) {
+    draft.devUpgradesSeasonCap = 0;
+    draft.devUpgradesAllTimeCap = null;
+  }
+  if (!draft.ageResetsEnabled) {
+    draft.ageResetsSeasonCap = 0;
+    draft.ageResetsAllTimeCap = null;
+  }
+  if (!draft.playerTraitPurchasesEnabled) {
+    draft.playerTraitPurchasesSeasonCap = 0;
+    draft.playerTraitPurchasesAllTimeCap = null;
+  }
+  if (!draft.contractAdjustmentPurchasesEnabled) {
+    draft.contractPurchasesSeasonCap = 0;
+    draft.contractPurchasesAllTimeCap = null;
+  }
   if (!draft.attributePurchasesEnabled) {
     draft.coreAttributePurchasesSeasonCap = 0;
     draft.nonCoreAttributePurchasesSeasonCap = 0;
     draft.coreAttributes = [];
+    draft.coreAttributePurchasesAllTimeCap = null;
+    draft.nonCoreAttributePurchasesAllTimeCap = null;
   }
 
   draft.mediaFeaturesEnabled = draft.coinEconomyEnabled;

@@ -15,6 +15,7 @@ import {
   buildLeagueSetupServerChannelModal,
   buildPositionRestrictionModal,
   buildSettingsPickerWindow,
+  buildPurchaseAllTimeCapModal,
   coreAttributeGroupCustomId,
   createDefaultLeagueSetupDraft,
   getNextLeagueSetupStep,
@@ -22,10 +23,13 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   setCoreAttributesForGroup,
   setLeagueSetupFeatureAnswer,
+  setPurchaseAllTimeCapValue,
   setPurchaseCapValue,
   setLeagueSetupServerChannel,
   type LeagueSetupDraft,
-  type LeagueSetupSettingsCategory
+  type LeagueSetupSettingsCategory,
+  type PurchaseAllTimeCapKind,
+  type PurchaseFeatureStep,
 } from "../ui/league-setup.js";
 import type { MaddenAttributeGroupKey } from "@rec/shared";
 import { buildPostSetupTeamLinkingPanel } from "../ui/team-options.js";
@@ -266,6 +270,35 @@ async function saveDraftEditIfNeeded(interaction: { guildId: string | null; user
   }
 }
 
+export async function handlePurchaseAllTimeCapModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+
+  const raw = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapInput);
+  const result = setPurchaseAllTimeCapValue(draft, interaction.customId, raw);
+  if (result === "invalid") {
+    return interaction.reply({
+      content: "Invalid all-time cap. Leave blank for None, or enter a whole number within the allowed range.",
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  applyLeagueSetupDependencies(draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (draft.editMode && interaction.guildId) {
+    try {
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save all-time purchase cap:", err);
+    }
+  }
+
+  return interaction.editReply(buildLeagueSetupWindow(draft));
+}
+
 export async function handleLeagueSetupButton(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
@@ -280,6 +313,14 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
     draft.step = "attribute_core_attributes";
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapOpenPrefix}:`)) {
+    const parts = interaction.customId.split(":");
+    const kind = (parts.at(-1) ?? "default") as PurchaseAllTimeCapKind;
+    const step = parts.at(-2) as PurchaseFeatureStep;
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.showModal(buildPurchaseAllTimeCapModal(step, kind, draft));
   }
 
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsDone) {
