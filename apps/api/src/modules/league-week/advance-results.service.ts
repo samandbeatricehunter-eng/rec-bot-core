@@ -166,12 +166,17 @@ export async function completeAdvanceWeek(input: {
     );
   }
 
-  await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber);
-
-  return setLeagueWeek({
+  const advanceResult = await setLeagueWeek({
     guildId: input.guildId,
     weekNumber: input.nextWeekNumber,
     seasonStage: input.nextSeasonStage,
     seasonNumber,
   });
+
+  // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
+  await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
+    console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);
+  });
+
+  return advanceResult;
 }

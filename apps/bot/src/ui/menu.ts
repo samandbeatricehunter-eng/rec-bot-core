@@ -134,6 +134,8 @@ export function buildLeagueMenuEmbed(input: {
   seasonNumber?: number | string | null;
   currentWeek?: number | string | null;
   seasonStage?: string | null;
+  leagueTeamRecordText?: string;
+  leagueUserRecordText?: string;
   leagueSeasonRecordText?: string;
   leagueSeasonPointDifferential?: number;
   userStreakText?: string;
@@ -162,7 +164,8 @@ export function buildLeagueMenuEmbed(input: {
   const leagueInfo = [
     `**Team:** ${input.teamName ?? "None"}`,
     `**Szn/Wk:** ${formatMenuSeasonWeek(input)}`,
-    `**Record:** ${input.leagueSeasonRecordText ?? "0-0-0"}`,
+    `**Team Record:** ${input.leagueTeamRecordText ?? input.leagueSeasonRecordText ?? "0-0-0"}`,
+    `**User Record:** ${input.leagueUserRecordText ?? input.leagueSeasonRecordText ?? "0-0-0"}`,
     `**Streak:** ${input.userStreakText ?? "-"}`,
     `**PointDiff:** ${input.leagueSeasonPointDifferential ?? 0}`
   ].join("\n");
@@ -202,7 +205,7 @@ export function buildLeagueMenuEmbed(input: {
       { name: "USER INFO", value: userInfo.slice(0, 1024), inline: false },
       ...(input.hideLeagueInfo ? [] : [{ name: "LEAGUE INFO", value: leagueInfo.slice(0, 1024), inline: false }]),
       ...((input.globalRecordText || input.gameGlobalLabel)
-        ? [{ name: "GLOBAL CAREER (Official)", value: globalCareerInfo.slice(0, 1024), inline: false }]
+        ? [{ name: "GLOBAL CAREER", value: globalCareerInfo.slice(0, 1024), inline: false }]
         : []),
       ...(input.noticeText ? [{ name: "NOTICE", value: input.noticeText.slice(0, 1024), inline: false }] : []),
       ...(!input.hideLeagueInfo && purchaseCaps ? [{ name: "PURCHASE CAPS", value: purchaseCaps.slice(0, 1024), inline: false }] : []),

@@ -174,7 +174,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     leagueId
       ? supabase
           .from("rec_user_badges")
-          .select("badge_name,badge_label,tier,earned_at")
+          .select("badge_name,badge_label,tier,earned_value,earned_at")
           .eq("league_id", leagueId)
           .eq("season_number", seasonNumber)
           .eq("user_id", userId)
@@ -182,7 +182,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       : Promise.resolve({ data: [] }),
     supabase
       .from("rec_user_badges")
-      .select("badge_name,badge_label,tier,earned_at,league_id,season_number")
+      .select("badge_name,badge_label,tier,earned_value,earned_at,league_id,season_number")
       .eq("user_id", userId)
       .is("league_id", null)
       .order("earned_at", { ascending: false }),
@@ -554,6 +554,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   let assignment: any = null;
   let membership: any = null;
   let seasonRecord: any = null;
+  let displayRecord: any = null;
   let currentMatchup = "None";
   let currentGame: any = null;
   let gotwStatus = "No";
@@ -569,7 +570,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
     const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(stage);
 
-    const [assignmentResult, membershipResult, seasonRecordResult] = await Promise.all([
+    const [assignmentResult, membershipResult, seasonRecordResult, displayRecordResult] = await Promise.all([
       supabase
         .from("rec_team_assignments")
         .select("team_id,assignment_status,team:rec_teams(id,name,abbreviation)")
@@ -590,6 +591,13 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         .eq("league_id", league.id)
         .eq("season_number", seasonNumber)
         .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("rec_season_user_display_records")
+        .select("wins,losses,ties,point_differential")
+        .eq("league_id", league.id)
+        .eq("season_number", seasonNumber)
+        .eq("user_id", userId)
         .maybeSingle()
     ]);
 
@@ -600,6 +608,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     assignment = assignmentResult.data;
     membership = membershipResult.data;
     seasonRecord = seasonRecordResult.data;
+    displayRecord = displayRecordResult.data ?? null;
     badges = await loadUserBadges(userId, league.id);
 
     if (assignment?.team_id) {
@@ -746,6 +755,8 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       seasonNumber: league?.season_number ?? league?.display_season_number ?? 1,
       currentWeek: league?.current_week ?? 1,
       seasonStage: league?.season_stage ?? league?.current_phase ?? "regular_season",
+      leagueTeamRecordText: recordText(displayRecord),
+      leagueUserRecordText: recordText(seasonRecord),
       leagueSeasonRecordText: recordText(seasonRecord),
       leagueSeasonPointDifferential: seasonRecord?.point_differential ?? 0,
       currentMatchupText: currentMatchup,
