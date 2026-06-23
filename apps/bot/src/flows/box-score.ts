@@ -460,7 +460,8 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
     }
     const base = interaction.message.embeds[0];
     const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0x2ecc71);
-    embed.addFields({ name: "STATUS", value: `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPayd} player(s).` });
+    const paidPlayerList = formatPaidPlayers(result);
+    embed.addFields({ name: "STATUS", value: `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}.` });
     return interaction.editReply({ embeds: [embed], components: [] });
   } catch (err) {
     return interaction.editReply({
@@ -468,6 +469,14 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
       components: [],
     });
   }
+}
+
+function formatPaidPlayers(result: any): string {
+  const paidPlayers = Array.isArray(result?.paidPlayers) ? result.paidPlayers : [];
+  return paidPlayers
+    .map((player: any) => player?.discordId ? `<@${player.discordId}>` : player?.displayName ? `@${player.displayName}` : null)
+    .filter(Boolean)
+    .join(", ");
 }
 
 export async function handleBoxScoreDenyModal(interaction: ButtonInteraction) {

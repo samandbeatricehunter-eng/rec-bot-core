@@ -10,6 +10,13 @@ import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/officia
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
 
+type BoxScorePaidPlayer = {
+  userId: string;
+  amount: number;
+  discordId: string | null;
+  displayName: string | null;
+};
+
 // ─── Learned OCR label aliases (#2) ────────────────────────────────────────────
 // Garbled labels that an approved parse mapped to a canonical key, so future
 // parses hit them exactly instead of relying on fuzzy matching.
@@ -658,14 +665,44 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // Approval confirms the parse — promote any fuzzy-matched labels to aliases.
   await recordLabelAliases(sub.parse_label_samples as Record<string, string> | null);
 
+  const paidPlayers = await getBoxScorePaidPlayers(payouts);
+
   return {
     ok: true,
     action: "approved" as const,
     totalPaid,
+    paidPlayers,
+    playersPaid: payouts.length,
     playersPayd: payouts.length,
     sourceChannelId: sub.discord_channel_id ?? null,
     sourceMessageId: sub.discord_message_id ?? null,
   };
+}
+
+async function getBoxScorePaidPlayers(payouts: { userId: string; amount: number }[]): Promise<BoxScorePaidPlayer[]> {
+  const uniqueUserIds = [...new Set(payouts.map((p) => p.userId))];
+  if (uniqueUserIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("rec_discord_accounts")
+    .select("user_id,discord_id,username,global_name")
+    .in("user_id", uniqueUserIds);
+
+  if (error) {
+    console.error("[WARN] Failed to load paid player Discord accounts for box score approval:", error);
+    return payouts.map((p) => ({ userId: p.userId, amount: p.amount, discordId: null, displayName: null }));
+  }
+
+  const accountByUserId = new Map((data ?? []).map((row) => [row.user_id, row]));
+  return payouts.map((p) => {
+    const account = accountByUserId.get(p.userId);
+    return {
+      userId: p.userId,
+      amount: p.amount,
+      discordId: account?.discord_id ?? null,
+      displayName: account?.global_name ?? account?.username ?? null,
+    };
+  });
 }
 
 // On a fresh submission: an already-approved/paid review for this game is final
