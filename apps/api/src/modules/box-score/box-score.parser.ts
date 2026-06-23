@@ -129,6 +129,15 @@ function hasValue(v: { team1: string; team2: string } | undefined): boolean {
   return !!v && (v.team1?.trim().length > 0 || v.team2?.trim().length > 0);
 }
 
+// Every box-score cell always holds a value (negative, 0, or positive), so an
+// empty side of a required stat is always an OCR miss worth a second read.
+function hasIncompleteRequiredCell(statsMap: Record<string, { team1: string; team2: string }>): boolean {
+  return REQUIRED_STAT_KEYS.some((key) => {
+    const v = statsMap[key];
+    return !v || !v.team1?.trim() || !v.team2?.trim();
+  });
+}
+
 function computeMissingRequired(
   score: ParsedScore | null,
   statsMap: Record<string, { team1: string; team2: string }>,
@@ -500,10 +509,11 @@ export async function parseBoxScoreImages(imageUrls: string[], aliases: LabelAli
   const defaultResults = await Promise.all(buffers.map((b) => parseImage(b, aliases, "default")));
   let combined = combineResults(defaultResults);
 
-  // If a required field is still missing, re-run the illumination-robust pass and
-  // merge it in. This recovers dim stats over the bright field background (e.g.
-  // Red Zone %) while keeping the common case to a single fast OCR pass.
-  if (combined.missingRequired.length > 0) {
+  // If a required field is missing OR any required cell is only half-read (one
+  // side empty — always an OCR miss, since every cell has a value), re-run the
+  // illumination-robust pass and merge it in. Recovers dim stats over the bright
+  // field and isolated single digits, while keeping the clean case to one pass.
+  if (combined.missingRequired.length > 0 || hasIncompleteRequiredCell(combined.stats)) {
     const robustResults = await Promise.all(buffers.map((b) => parseImage(b, aliases, "robust")));
     combined = combineResults([...defaultResults, ...robustResults]);
   }
