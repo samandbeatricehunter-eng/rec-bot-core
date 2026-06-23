@@ -132,6 +132,68 @@ export async function renderSchedulePlaceholder(interaction: ButtonInteraction, 
   });
 }
 
+function fmtPct(n: number) {
+  return n.toFixed(3).replace(/^0/, ""); // .540
+}
+
+function buildSosEmbed(data: any, viewerDiscordId: string): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle(`Strength of Schedule — Season ${data?.currentSeason ?? 1}`)
+    .setColor(0xe67e22);
+
+  if (!data?.scheduleLogged) {
+    return embed.setDescription("No schedule has been logged for this season yet. Ask a commissioner to enter it from **League Mgmt → Schedule**.");
+  }
+
+  const teams: any[] = data.teams ?? [];
+  const viewer = data.viewerTeamId ? teams.find((t) => t.teamId === data.viewerTeamId) : null;
+
+  const header = [
+    "Tougher schedules rank higher. SOS weights each opponent **1.0 if human, 0.5 if CPU**, then nudges by the opponent's record" +
+      (data.hasPrior ? " (with a small carry-over from last season)" : "") + ".",
+  ];
+  if (viewer) {
+    header.push(
+      "",
+      `**Your team — ${viewer.teamName}**`,
+      `SOS **${viewer.sosFull.toFixed(1)}** · Rank **${viewer.rank}/${data.totalTeams}** · Remaining **${viewer.sosRemaining.toFixed(1)}**`,
+      `${viewer.humanCount} human / ${viewer.cpuCount} CPU · opp record ${fmtPct(viewer.oppRecord)}`,
+    );
+  } else {
+    header.push("", "_You're not linked to a team in this league, so only the league board is shown._");
+  }
+
+  const board = teams.map((t) => {
+    const mark = t.teamId === data.viewerTeamId ? "▶ " : "";
+    const label = t.abbr ?? t.teamName;
+    const line = `\`${String(t.rank).padStart(2)}\` ${mark}${label} — **${t.sosFull.toFixed(1)}**  ·  ${t.humanCount}H/${t.cpuCount}C`;
+    return t.teamId === data.viewerTeamId ? `__${line}__` : line;
+  });
+
+  return embed.setDescription(
+    [header.join("\n"), "", "**League SOS (toughest → easiest)**", board.join("\n")].join("\n").slice(0, 4096),
+  );
+}
+
+export async function handleScheduleSos(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Strength of Schedule").setDescription("Open /menu inside a REC Discord server to view SOS.")],
+      components: buildScheduleRows(),
+    });
+  }
+  try {
+    const data = await recApi.getLeagueSos(interaction.guildId, interaction.user.id);
+    return interaction.editReply({ embeds: [buildSosEmbed(data, interaction.user.id)], components: buildScheduleRows() });
+  } catch (error) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Strength of Schedule").setColor(0xe74c3c).setDescription(error instanceof Error ? error.message : String(error))],
+      components: buildScheduleRows(),
+    });
+  }
+}
+
 export async function startManualScheduleEntry(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners or server admins can set the league schedule.", flags: MessageFlags.Ephemeral });

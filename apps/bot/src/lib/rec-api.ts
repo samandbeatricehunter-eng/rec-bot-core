@@ -334,6 +334,9 @@ export const recApi = {
   listScheduleSeason: (input: { guildId: string; seasonNumber?: number | null }) =>
     recFetch<any>("/v1/schedule/season", { method: "POST", body: JSON.stringify(input) }),
 
+  getLeagueSos: (guildId: string, discordId: string) =>
+    recFetch<any>("/v1/schedule/sos", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
+
   saveManualScheduleGame: (input: {
     guildId: string;
     seasonNumber?: number | null;
