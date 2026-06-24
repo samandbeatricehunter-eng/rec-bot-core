@@ -1,0 +1,17 @@
+{
+  "image-1f8ae807-397a-454b-8094-3ecf01e41417.png": { "team1": "NYG", "team2": "LAR", "team1Score": 10, "team2Score": 30 },
+  "image-66b5cb16-b101-4c38-8866-a5de580f0182.png": { "team1": "CLE", "team2": "BAL", "team1Score": 23, "team2Score": 17 },
+  "image-10dbf377-58a2-4bd5-b2d9-d8c88df10756.png": { "team1": "SF", "team2": "NO", "team1Score": 21, "team2Score": 24 },
+  "image-5107b935-6b9e-4b3b-afc3-033c95943352.png": { "team1": "LAC", "team2": "SDG", "team1Score": 16, "team2Score": 20 },
+  "image-45052da6-497c-43b7-ae08-73bfec230336.png": { "team1": "DAL", "team2": "HOU", "team1Score": 42, "team2Score": 24 },
+  "image-ffec1dce-ffce-44f4-a637-dac9a9285788.png": { "team1": "AK", "team2": "AZ", "team1Score": 21, "team2Score": 13 },
+  "image-6f53f791-00e6-4165-88ce-2a1e729ed446.png": { "team1": "SEA", "team2": "PIT", "team1Score": 17, "team2Score": 41 },
+  "image-e6654195-a003-4e60-89c6-751e28642795.png": { "team1": "AZ", "team2": "NO", "team1Score": 10, "team2Score": 16 },
+  "image-0f6e9b47-60b3-4c29-9c29-320f668f7e4d.png": { "team1": "AK", "team2": "JAX", "team1Score": 42, "team2Score": 39 },
+  "image-3401d20a-ec4b-4d93-935a-e338f5067154.png": { "team1": "DAL", "team2": "ATL", "team1Score": 49, "team2Score": 21 },
+  "image-5215508b-940a-4767-86eb-403ebc123637.png": { "team1": "SDG", "team2": "NE", "team1Score": 28, "team2Score": 17 },
+  "image-787604ee-f390-4489-aca4-96741d0bd406.png": { "team1": "PIT", "team2": "NYJ", "team1Score": 35, "team2Score": 27 },
+  "image-516b2c29-d368-4bb5-ba5e-7bdb32e92311.png": { "team1": "CIN", "team2": "CLE", "team1Score": 17, "team2Score": 20 },
+  "image-7ae64fed-4a2e-4981-9fcb-53c2e045fb60.png": { "team1": "LV", "team2": "PHI", "team1Score": 19, "team2Score": 13 },
+  "image-fd0c3a01-d48a-43c9-bfa2-b714a46adf19.png": { "team1": "NO", "team2": "AK", "team1Score": 21, "team2Score": 42 }
+}

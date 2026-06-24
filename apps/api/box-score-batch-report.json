@@ -2,7 +2,9 @@
   {
     "file": "image-1f8ae807-397a-454b-8094-3ecf01e41417.png",
     "ok": true,
+    "scoreOk": true,
     "score": "NYG 10–30 LAR",
+    "expectedScore": "NYG 10–30 LAR",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -17,7 +19,9 @@
   {
     "file": "image-66b5cb16-b101-4c38-8866-a5de580f0182.png",
     "ok": true,
+    "scoreOk": true,
     "score": "CLE 23–17 BAL",
+    "expectedScore": "CLE 23–17 BAL",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -34,7 +38,9 @@
   {
     "file": "image-10dbf377-58a2-4bd5-b2d9-d8c88df10756.png",
     "ok": true,
-    "score": "SF 21–15 NO",
+    "scoreOk": true,
+    "score": "SF 21–24 NO",
+    "expectedScore": "SF 21–24 NO",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -49,7 +55,9 @@
   {
     "file": "image-5107b935-6b9e-4b3b-afc3-033c95943352.png",
     "ok": true,
+    "scoreOk": true,
     "score": "LAC 16–20 SDG",
+    "expectedScore": "LAC 16–20 SDG",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -65,7 +73,9 @@
   {
     "file": "image-45052da6-497c-43b7-ae08-73bfec230336.png",
     "ok": true,
-    "score": "HOU 0–42 DAL",
+    "scoreOk": true,
+    "score": "DAL 42–24 HOU",
+    "expectedScore": "DAL 42–24 HOU",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -80,7 +90,9 @@
   {
     "file": "image-ffec1dce-ffce-44f4-a637-dac9a9285788.png",
     "ok": true,
+    "scoreOk": true,
     "score": "AK 21–13 AZ",
+    "expectedScore": "AK 21–13 AZ",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -95,7 +107,9 @@
   {
     "file": "image-6f53f791-00e6-4165-88ce-2a1e729ed446.png",
     "ok": true,
+    "scoreOk": true,
     "score": "SEA 17–41 PIT",
+    "expectedScore": "SEA 17–41 PIT",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -111,7 +125,9 @@
   {
     "file": "image-e6654195-a003-4e60-89c6-751e28642795.png",
     "ok": true,
+    "scoreOk": true,
     "score": "AZ 10–16 NO",
+    "expectedScore": "AZ 10–16 NO",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -126,7 +142,9 @@
   {
     "file": "image-0f6e9b47-60b3-4c29-9c29-320f668f7e4d.png",
     "ok": true,
+    "scoreOk": false,
     "score": "AK 35–39 JAX",
+    "expectedScore": "AK 42–39 JAX",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -142,7 +160,9 @@
   {
     "file": "image-3401d20a-ec4b-4d93-935a-e338f5067154.png",
     "ok": true,
+    "scoreOk": false,
     "score": "DAL 49–7 ATL",
+    "expectedScore": "DAL 49–21 ATL",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -156,7 +176,9 @@
   {
     "file": "image-5215508b-940a-4767-86eb-403ebc123637.png",
     "ok": true,
-    "score": "SDG 0–28 NE",
+    "scoreOk": true,
+    "score": "SDG 28–17 NE",
+    "expectedScore": "SDG 28–17 NE",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -173,7 +195,9 @@
   {
     "file": "image-787604ee-f390-4489-aca4-96741d0bd406.png",
     "ok": true,
+    "scoreOk": true,
     "score": "PIT 35–27 NYJ",
+    "expectedScore": "PIT 35–27 NYJ",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -187,7 +211,9 @@
   {
     "file": "image-516b2c29-d368-4bb5-ba5e-7bdb32e92311.png",
     "ok": true,
+    "scoreOk": true,
     "score": "CIN 17–20 CLE",
+    "expectedScore": "CIN 17–20 CLE",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -203,7 +229,9 @@
   {
     "file": "image-7ae64fed-4a2e-4981-9fcb-53c2e045fb60.png",
     "ok": true,
+    "scoreOk": false,
     "score": "LV 18–15 PHI",
+    "expectedScore": "LV 18–13 PHI",
     "missingRequired": [],
     "incompleteRequired": [],
     "optionalGaps": [
@@ -219,7 +247,9 @@
   {
     "file": "image-fd0c3a01-d48a-43c9-bfa2-b714a46adf19.png",
     "ok": false,
+    "scoreOk": true,
     "score": "NO 21–42 AK",
+    "expectedScore": "NO 21–42 AK",
     "missingRequired": [
       "Off Rush Yards",
       "Off Pass Yards"

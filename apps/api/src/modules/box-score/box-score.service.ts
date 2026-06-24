@@ -325,6 +325,52 @@ function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | 
   return { seasonNumber, weekNumber };
 }
 
+function abbrEditDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[] = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+// Sanity check for self-serve uploads: confirm the OCR scoreboard abbreviations
+// correspond to the scheduled matchup. Tolerant of one misread side (relocated
+// teams / stylized fonts) — true if at least one scheduled team is recognizable.
+async function boxScoreAbbrsMatchScheduledGame(
+  leagueId: string,
+  gameId: string,
+  abbr1: string,
+  abbr2: string,
+): Promise<boolean> {
+  const { data: game, error } = await supabase
+    .from("rec_games")
+    .select("home_team:rec_teams!rec_games_home_team_id_fkey(abbreviation,display_abbr,original_abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(abbreviation,display_abbr,original_abbreviation)")
+    .eq("league_id", leagueId)
+    .eq("id", gameId)
+    .maybeSingle();
+  if (error || !game) return true; // can't verify → don't block the submitter
+
+  const ocr = [abbr1, abbr2].map((a) => (a ?? "").toUpperCase().replace(/[^A-Z]/g, "")).filter(Boolean);
+  if (!ocr.length) return true;
+
+  const candidates = (t: any) =>
+    [t?.abbreviation, t?.display_abbr, t?.original_abbreviation]
+      .filter(Boolean)
+      .map((s: string) => s.toUpperCase());
+  const recognizable = (t: any) =>
+    ocr.some((o) => candidates(t).some((c) => c === o || abbrEditDistance(o, c) <= 1));
+
+  return recognizable((game as any).away_team) || recognizable((game as any).home_team);
+}
+
 async function resolveGameContext(
   leagueId: string,
   seasonNumber: number,
@@ -420,11 +466,22 @@ export type PreviewResult = {
 
 export async function parseBoxScorePreview(input: PreviewInput): Promise<PreviewResult> {
   const context = await getCurrentLeagueContext(input.guildId);
-  await getDiscordAccount(input.discordId, !input.commissionerSubmission);
+  const account = await getDiscordAccount(input.discordId, !input.commissionerSubmission);
   const { seasonNumber, weekNumber } = selectedSeasonWeek(context, input);
 
+  // Self-serve preview anchors on the submitter's scheduled game (same as submit),
+  // so the matched teams shown to the user don't depend on OCR reading both abbrs.
+  let anchorGameId: string | null = null;
+  if (!input.commissionerSubmission && account?.user_id) {
+    const teamId = await getActiveTeamId(context.leagueId, account.user_id);
+    if (teamId) {
+      const game = await getUserScheduledGameForWeek(context.leagueId, teamId, seasonNumber, weekNumber);
+      anchorGameId = game?.id ?? null;
+    }
+  }
+
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
-  const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed);
+  const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed, anchorGameId);
 
   return {
     parsed,
@@ -478,6 +535,9 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   const { seasonNumber, weekNumber } = selectedSeasonWeek(context, input);
   const phase = context.rec_leagues.season_stage ?? null;
 
+  // Self-serve: anchor resolution on the submitter's scheduled game for the week,
+  // so routing never depends on OCR reading both team abbreviations correctly.
+  let selfServeGameId: string | null = null;
   if (!input.commissionerSubmission && account?.user_id) {
     if (await userHasApprovedBoxScoreForWeek(leagueId, account.user_id, seasonNumber, weekNumber)) {
       throw new ApiError(409, "You already have an approved box score payout for this game week.");
@@ -490,30 +550,34 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     if (!scheduledGame) {
       throw new ApiError(400, `You don't have a scheduled game in Week ${weekNumber}.`);
     }
+    selfServeGameId = scheduledGame.id;
   }
 
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
-  // When a commissioner pre-selected the game, it's authoritative — the OCR only
-  // orients home/away, so a relocated team or a misread abbreviation can't reject it.
-  const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, input.expectedGameId ?? null);
+
+  // Game resolution priority: the commissioner's pre-selected game, otherwise the
+  // submitter's scheduled game. Either way the game is authoritative and the OCR
+  // scoreboard only orients home/away (top/left = away) — a relocated team or a
+  // misread abbreviation can't misroute it.
+  const effectiveGameId = input.expectedGameId ?? selfServeGameId;
+  const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, effectiveGameId);
   if (resolved.gameId) await clearStalePendingForGame(resolved.gameId);
 
-  // Verify the submitter is reporting their own current-week game:
-  //  1. They are linked to one of the two teams in the box score.
-  //  2. Those two teams are scheduled to play each other this week (resolved.gameId).
-  const submitterTeamId = input.commissionerSubmission ? null : await getActiveTeamId(leagueId, account!.user_id);
-  const linkedToBoxScore = !!submitterTeamId && (submitterTeamId === resolved.team1Id || submitterTeamId === resolved.team2Id);
-  const opponentMatches = !!resolved.gameId;
+  // Flag for commissioner review (never a hard reject on a self-serve upload).
   const flagReasons: string[] = [];
-  if (!input.commissionerSubmission) {
-    if (!submitterTeamId) {
-      flagReasons.push("You aren't linked to a team in this league.");
-    } else if (!linkedToBoxScore) {
-      flagReasons.push("You aren't linked to either team shown in this box score.");
-    }
+  if (!resolved.gameId) {
+    flagReasons.push(`No scheduled game was found for Week ${weekNumber}.`);
   }
-  if (!opponentMatches) {
-    flagReasons.push(`These teams aren't scheduled to play each other in Week ${weekNumber}.`);
+  // The game came from the schedule, so confirm the uploaded scoreboard actually
+  // shows that matchup — if neither team's abbreviation is recognizable, the wrong
+  // screenshot was probably uploaded. Tolerant of one misread side.
+  if (!input.commissionerSubmission && resolved.gameId && parsed.score) {
+    const looksRight = await boxScoreAbbrsMatchScheduledGame(
+      leagueId, resolved.gameId, parsed.score.team1Abbr, parsed.score.team2Abbr,
+    );
+    if (!looksRight) {
+      flagReasons.push("The uploaded box score doesn't look like your scheduled matchup — a commissioner should confirm before approving.");
+    }
   }
   const flagged = flagReasons.length > 0;
 

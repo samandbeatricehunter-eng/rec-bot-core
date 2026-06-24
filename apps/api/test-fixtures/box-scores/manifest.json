@@ -1,5 +1,11 @@
 {
-  "description": "User-provided Madden box score screenshots (15 samples, 2026-06-23)",
+  "description": "Valid Madden box score screenshots — top row (Off Yards Gained) must be visible",
+  "excluded": [
+    {
+      "file": "image-fd0c3a01-d48a-43c9-bfa2-b714a46adf19.png",
+      "reason": "Top offensive stat rows not visible (starts at Off First Down)"
+    }
+  ],
   "files": [
     "image-1f8ae807-397a-454b-8094-3ecf01e41417.png",
     "image-66b5cb16-b101-4c38-8866-a5de580f0182.png",
@@ -14,7 +20,6 @@
     "image-5215508b-940a-4767-86eb-403ebc123637.png",
     "image-787604ee-f390-4489-aca4-96741d0bd406.png",
     "image-516b2c29-d368-4bb5-ba5e-7bdb32e92311.png",
-    "image-7ae64fed-4a2e-4981-9fcb-53c2e045fb60.png",
-    "image-fd0c3a01-d48a-43c9-bfa2-b714a46adf19.png"
+    "image-7ae64fed-4a2e-4981-9fcb-53c2e045fb60.png"
   ]
 }

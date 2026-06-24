@@ -551,8 +551,28 @@ function scoreDigitAt(word: NormalizedWord, x: number): { value: number; confide
 const SCORE_ROW_Y_TOLERANCE = 0.025;
 const SCORE_ABBR_ROW_Y_TOLERANCE = 0.035;
 
+function rowAvgY(row: NormalizedWord[]): number {
+  return row.reduce((s, w) => s + w.y, 0) / row.length;
+}
+
+function countScoreColumns(row: NormalizedWord[]): number {
+  let n = 0;
+  for (const x of SCORE_QUARTER_COLUMNS) {
+    if (row.some((w) => scoreDigitAt(w, x) != null)) n++;
+  }
+  if (row.some((w) => scoreDigitAt(w, SCORE_TOTAL_X) != null)) n++;
+  return n;
+}
+
 function findScoreboardTeamRows(headerWords: NormalizedWord[]): NormalizedWord[][] {
   const cleaned = headerWords.filter((w) => !isScoreboardNoise(w.text));
+
+  // Prefer digit-complete rows sorted top-to-bottom (away team first).
+  const grouped = groupIntoRows(cleaned, SCORE_ROW_Y_TOLERANCE);
+  const scoreRows = grouped
+    .filter((row) => countScoreColumns(row) >= 4)
+    .sort((a, b) => rowAvgY(a) - rowAvgY(b));
+  if (scoreRows.length >= 2) return scoreRows.slice(0, 2);
 
   const abbrCandidates = cleaned
     .filter((w) => /^[A-Z]{2,4}$/.test(w.text) && w.confidence > 40 && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX)
@@ -575,14 +595,119 @@ function findScoreboardTeamRows(headerWords: NormalizedWord[]): NormalizedWord[]
     );
   }
 
-  const rows = groupIntoRows(cleaned, SCORE_ROW_Y_TOLERANCE);
-  return rows.filter((row) => {
+  return grouped.filter((row) => {
     const abbr = row.some((w) => /^[A-Za-z]{2,4}$/.test(w.text) && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX);
     const nums = row.filter((w) => w.x > SCORE_ABBR_X_MAX && (
       SCORE_QUARTER_COLUMNS.some((x) => scoreDigitAt(w, x) != null) || scoreDigitAt(w, SCORE_TOTAL_X) != null
     ));
     return abbr && nums.length >= 3;
   });
+}
+
+function scoreValueAtColumn(row: NormalizedWord[], x: number): { value: number; confidence: number } | null {
+  const sorted = [...row].sort((a, b) => a.x - b.x);
+  const inCol = sorted.filter((w) => Math.abs(w.x - x) <= SCORE_CELL_X_TOLERANCE);
+  if (inCol.length === 0) return null;
+
+  // Join split digit tokens in one column (e.g. Q4 "1" + "0" -> 10).
+  const digitParts = inCol
+    .sort((a, b) => a.x - b.x)
+    .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[^0-9]/g, ""))
+    .filter(Boolean);
+  if (digitParts.length >= 2 && digitParts.every((p) => p.length === 1)) {
+    const joined = parseInt(digitParts.join(""), 10);
+    if (!isNaN(joined) && joined <= 35) {
+      const confidence = inCol.reduce((s, w) => s + w.confidence, 0) / inCol.length;
+      return { value: joined, confidence };
+    }
+  }
+
+  const candidates = inCol
+    .map((w) => ({ word: w, cell: scoreDigitAt(w, x), dx: Math.abs(w.x - x) }))
+    .filter((c): c is { word: NormalizedWord; cell: { value: number; confidence: number }; dx: number } => c.cell != null)
+    .sort((a, b) => a.dx - b.dx || b.cell.confidence - a.cell.confidence);
+  return candidates[0]?.cell ?? null;
+}
+
+function reconcileRowScore(
+  quarters: number[],
+  quarterCells: ({ value: number; confidence: number } | null)[],
+  totalCell: { value: number; confidence: number } | null,
+): { quarters: number[]; total: number } {
+  const qs = [...quarters];
+  let sum = qs.reduce((s, n) => s + n, 0);
+  let total = totalCell?.value ?? sum;
+
+  if (sum > 0 && total === 0) total = sum;
+
+  // Iteratively repair quarters until they match the total column (handles 21->2, 10->1, etc.).
+  let guard = 0;
+  while (totalCell && sum < totalCell.value && guard++ < 6) {
+    const deficit = totalCell.value - sum;
+    if (deficit <= 0) break;
+
+    const bump = quarterCells
+      .map((cell, idx) => ({ cell, idx, q: qs[idx] }))
+      .filter(({ q }) => q > 0 && q < 10 && q + deficit <= 21)
+      .sort((a, b) => (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
+    if (bump) {
+      qs[bump.idx] = bump.q + deficit;
+      sum = qs.reduce((s, n) => s + n, 0);
+      continue;
+    }
+
+    const partialBump = quarterCells
+      .map((cell, idx) => ({ cell, idx, q: qs[idx] }))
+      .filter(({ q }) => q > 0 && q < 10 && q < 21)
+      .sort((a, b) => (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
+    if (partialBump) {
+      const add = Math.min(deficit, 21 - partialBump.q);
+      if (add > 0) {
+        qs[partialBump.idx] = partialBump.q + add;
+        sum = qs.reduce((s, n) => s + n, 0);
+        continue;
+      }
+    }
+
+    const lastNonZero = qs.reduce((last, q, idx) => (q > 0 ? idx : last), -1);
+    const zero = quarterCells
+      .map((cell, idx) => ({ cell, idx, q: qs[idx] }))
+      .filter(({ q, idx }) => q === 0 && deficit >= 1 && deficit <= 21 && (lastNonZero < 0 || idx < lastNonZero))
+      .sort((a, b) => b.idx - a.idx || (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
+    if (zero) {
+      qs[zero.idx] = deficit;
+      sum = qs.reduce((s, n) => s + n, 0);
+      continue;
+    }
+
+    const anyZero = quarterCells
+      .map((cell, idx) => ({ cell, idx, q: qs[idx] }))
+      .filter(({ q }) => q === 0 && deficit >= 1 && deficit <= 21)
+      .sort((a, b) => (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
+    if (anyZero) {
+      qs[anyZero.idx] = deficit;
+      sum = qs.reduce((s, n) => s + n, 0);
+      continue;
+    }
+    break;
+  }
+
+  if (sum > total + 5 && sum <= 80) total = sum;
+  if (sum > 0 && sum < total && total - sum <= 3) total = sum;
+
+  if (total < sum) {
+    const fix = quarterCells
+      .map((cell, idx) => ({ cell, idx }))
+      .filter(({ cell }) => cell && sum - cell.value === total)
+      .sort((a, b) => (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
+    if (fix) qs[fix.idx] = 0;
+    sum = qs.reduce((s, n) => s + n, 0);
+  }
+
+  if (totalCell && Math.abs(totalCell.value - sum) <= 3) total = sum;
+  else if (sum > total && sum <= 80) total = sum;
+
+  return { quarters: qs, total };
 }
 
 function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsTopY: number } | null {
@@ -593,43 +718,30 @@ function parseScoreHeader(words: NormalizedWord[]): { score: ParsedScore; statsT
 
   const parseRow = (row: NormalizedWord[]) => {
     const sorted = [...row].sort((a, b) => a.x - b.x);
-    // Team abbreviation sits in the central scoreboard band; ignore stray UI
-    // text on the far left that can share the same OCR row.
-    const abbrWord = sorted.find((w) => /^[A-Z]{2,4}$/.test(w.text) && w.confidence > 40 && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX);
-    const abbr = abbrWord?.text ?? sorted.find((w) => /^[A-Za-z]{2,4}$/.test(w.text) && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX)?.text?.toUpperCase() ?? "???";
+    const rowY = rowAvgY(sorted);
+    const abbrWord =
+      sorted.find((w) => /^[A-Z]{2,4}$/.test(w.text) && w.confidence > 40 && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX) ??
+      headerWords
+        .filter(
+          (w) =>
+            /^[A-Z]{2,4}$/.test(w.text) &&
+            w.confidence > 35 &&
+            w.x >= SCORE_ABBR_X_MIN &&
+            w.x <= SCORE_ABBR_X_MAX &&
+            Math.abs(w.y - rowY) < SCORE_ABBR_ROW_Y_TOLERANCE,
+        )
+        .sort((a, b) => Math.abs(a.y - rowY) - Math.abs(b.y - rowY) || b.confidence - a.confidence)[0];
+    const abbr =
+      abbrWord?.text ??
+      sorted.find((w) => /^[A-Za-z]{2,4}$/.test(w.text) && w.x >= SCORE_ABBR_X_MIN && w.x <= SCORE_ABBR_X_MAX)?.text?.toUpperCase() ??
+      "???";
 
-    const valueAt = (x: number): { value: number; confidence: number } | null => {
-      const candidates = sorted
-        .map((w) => ({ word: w, cell: scoreDigitAt(w, x), dx: Math.abs(w.x - x) }))
-        .filter((c): c is { word: NormalizedWord; cell: { value: number; confidence: number }; dx: number } => c.cell != null)
-        .sort((a, b) => a.dx - b.dx || b.cell.confidence - a.cell.confidence);
-      const best = candidates[0];
-      return best ? best.cell : null;
-    };
-
-    const quarterCells = SCORE_QUARTER_COLUMNS.map(valueAt);
-    const totalCell = valueAt(SCORE_TOTAL_X);
+    const quarterCells = SCORE_QUARTER_COLUMNS.map((x) => scoreValueAtColumn(sorted, x));
+    const totalCell = scoreValueAtColumn(sorted, SCORE_TOTAL_X);
     const quarters = quarterCells.map((c) => c?.value ?? 0);
-    const sum = quarters.reduce((s, n) => s + n, 0);
-    let total = totalCell?.value ?? sum;
+    const reconciled = reconcileRowScore(quarters, quarterCells, totalCell);
 
-    // Total column sometimes reads 0 when quarter cells parsed correctly.
-    if (sum > 0 && total === 0) total = sum;
-
-    // A scoreboard zero is sometimes OCR'd as 6. If the displayed total proves
-    // exactly one quarter must be zero, zero the least-confident matching cell.
-    if (total < sum) {
-      const fix = quarterCells
-        .map((cell, idx) => ({ cell, idx }))
-        .filter(({ cell }) => cell && sum - cell.value === total)
-        .sort((a, b) => (a.cell?.confidence ?? 100) - (b.cell?.confidence ?? 100))[0];
-      if (fix) quarters[fix.idx] = 0;
-    } else if (totalCell && total !== sum && total - sum <= 9) {
-      // Totals are occasionally misread (16 -> 18). Prefer the quarter sum when close.
-      total = quarters.reduce((s, n) => s + n, 0);
-    }
-
-    return { abbr: correctTeamAbbr(abbr), total, quarters };
+    return { abbr: correctTeamAbbr(abbr), total: reconciled.total, quarters: reconciled.quarters };
   };
 
   const t1 = parseRow(teamRows[0]);
@@ -696,9 +808,6 @@ function validateStatValue(key: string, value: string): string {
   const v = value.trim();
   if (!v) return "";
 
-  if (key.includes("conversion")) {
-    return /^\d+[/:]\d+$/.test(v.replace(":", "/")) ? v.replace(":", "/") : "";
-  }
   if (key.includes("percentage")) {
     const n = parseInt(v, 10);
     return !isNaN(n) && n >= 0 && n <= 100 ? String(n) : "";
@@ -713,11 +822,6 @@ function cleanStatValue(raw: string, opts: { side: "left" | "right"; key: string
   const stripped = raw
     .replace(/[Oo]/g, "0")
     .replace(/[>▶◀◁▷◄]/g, "");
-
-  const ratio = stripped.match(/(\d+)\s*[\/:]\s*(\d+)/);
-  if (ratio && opts.key.includes("conversion")) {
-    return `${ratio[1]}/${ratio[2]}`;
-  }
 
   const cleaned = stripped
     .replace(/^[^0-9:]+/, "")
@@ -929,10 +1033,6 @@ function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "le
     }
   }
 
-  if (key.includes("conversion")) {
-    return findConversionValue(candidates, targetY, side, key);
-  }
-
   const yTolerance = SMALL_ARROW_STAT_KEYS.has(key)
     ? ARROW_STAT_ROW_Y_TOLERANCE
     : ROW_Y_TOLERANCE;
@@ -1015,16 +1115,6 @@ function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "le
   for (const w of sameRow) {
     const v = cleanStatValue(w.text, { side, key });
     if (v) return v;
-  }
-
-  // Conversion rows sometimes split "1/4" across two OCR tokens on the same row.
-  if (key.includes("conversion") && sameRow.length >= 2) {
-    const joined = [...sameRow]
-      .sort((a, b) => a.x - b.x)
-      .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[>▶◀◁▷◄]/g, ""))
-      .join("");
-    const split = joined.match(/(\d+)\s*[\/:]\s*(\d+)/);
-    if (split) return `${split[1]}/${split[2]}`;
   }
 
   // Last resort for arrow stats: a lone digit sometimes lands on the adjacent
@@ -1126,7 +1216,7 @@ function fillPositionalTurnovers(
 
 const OFFENSE_ROW_STEP = 0.0385;
 
-/** When top offensive labels are clipped, infer values from fixed row spacing below them. */
+/** Fill top offensive values only when the Off Yards Gained label is on screen. */
 function fillInferredTopOffense(
   words: NormalizedWord[],
   stats: ParsedStat[],
@@ -1141,6 +1231,8 @@ function fillInferredTopOffense(
   ) {
     return stats;
   }
+  // Scrolled screenshots start at Off First Down — do not infer clipped top rows.
+  if (!hasOffYardsGainedLabel(stats)) return stats;
 
   const zoneMinY = statZoneMinY(statsTopY);
   const valueMinY = Math.max(STATS_Y_MIN - 0.04, statsTopY - 0.16);
@@ -1198,18 +1290,19 @@ function scoreQuality(score: ParsedScore | null): number {
 }
 
 function reconcileScoreTotals(score: ParsedScore): ParsedScore {
-  const fixTotal = (quarters: number[], total: number) => {
-    const sum = quarters.reduce((s, n) => s + n, 0);
-    if (sum > 80) return total > 80 ? total : sum <= 80 ? sum : total;
-    if (sum > 0 && total === 0) return sum;
-    if (sum >= 6 && total < sum - 5) return sum;
-    if (sum > total && sum - total <= 15) return sum;
-    return total;
+  const sum1 = score.team1Quarters.reduce((s, n) => s + n, 0);
+  const sum2 = score.team2Quarters.reduce((s, n) => s + n, 0);
+  const fixTotal = (displayed: number, sum: number) => {
+    if (sum > 80) return displayed > 80 ? displayed : sum <= 80 ? sum : displayed;
+    if (sum > 0 && displayed === 0) return sum;
+    if (sum > displayed + 5 && sum <= 80) return sum;
+    if (Math.abs(displayed - sum) <= 3) return sum;
+    return displayed;
   };
   return {
     ...score,
-    team1Score: fixTotal(score.team1Quarters, score.team1Score),
-    team2Score: fixTotal(score.team2Quarters, score.team2Score),
+    team1Score: fixTotal(score.team1Score, sum1),
+    team2Score: fixTotal(score.team2Score, sum2),
   };
 }
 
@@ -1223,15 +1316,6 @@ function pickBestScore(...candidates: (ParsedScore | null | undefined)[]): Parse
 function cellQuality(key: string, value: string): number {
   const v = value.trim();
   if (!v) return 0;
-
-  if (key.includes("conversion")) {
-    const m = v.match(/^(\d+)[/:](\d+)$/);
-    if (!m) return v.match(/^\d+$/) ? 2 : 1;
-    const made = parseInt(m[1], 10);
-    const att = parseInt(m[2], 10);
-    if (made > att || att > 15 || made > 15) return 1;
-    return 10;
-  }
 
   if (key.includes("percentage")) {
     const n = parseInt(v, 10);
@@ -1255,11 +1339,16 @@ function mergeSide(existing: string, candidate: string, key: string): string {
   return cellQuality(key, candidate) > cellQuality(key, existing) ? candidate : existing;
 }
 
+function isLabelMatchedStat(stat: ParsedStat): boolean {
+  return !stat.rawLabel.startsWith("(inferred");
+}
+
+function hasOffYardsGainedLabel(stats: ParsedStat[]): boolean {
+  return stats.some((s) => s.key === "off_yards_gained" && isLabelMatchedStat(s));
+}
+
 function detectScrolledScreenshot(stats: ParsedStat[]): boolean {
-  const keys = new Set(stats.map((s) => s.key));
-  const hasBottom = keys.has("penalty_yards") || keys.has("time_of_possession") || keys.has("fourth_down_conversions");
-  const hasTop = keys.has("off_yards_gained") && keys.has("off_rush_yards");
-  return hasBottom && !hasTop;
+  return !hasOffYardsGainedLabel(stats);
 }
 
 // ─── Image fetch helper ───────────────────────────────────────────────────────
@@ -1310,7 +1399,7 @@ async function parseImage(buffer: Buffer, aliases: LabelAliases, variant: Prepro
     );
 
     if (detectScrolledScreenshot(stats)) {
-      warnings.push("Box score appears scrolled — top stats may be missing.");
+      warnings.push("Box score appears scrolled — scroll up so Off Yards Gained is visible.");
     }
   } catch (err) {
     warnings.push(`OCR error: ${err instanceof Error ? err.message : String(err)}`);
@@ -1334,9 +1423,21 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
     }
   }
 
+  const labelMatchedKeys = new Set<string>();
+  for (const r of results) {
+    for (const stat of r.stats) {
+      if (isLabelMatchedStat(stat)) labelMatchedKeys.add(stat.key);
+    }
+  }
+
+  const topOffenseVisible = labelMatchedKeys.has("off_yards_gained");
+
   const statsMap: Record<string, { team1: string; team2: string }> = {};
   for (const r of results) {
     for (const stat of r.stats) {
+      if (!topOffenseVisible && (stat.key === "off_yards_gained" || stat.key === "off_rush_yards" || stat.key === "off_pass_yards")) {
+        continue;
+      }
       const candidate = { team1: stat.team1, team2: stat.team2 };
       const existing = statsMap[stat.key];
       if (!existing) {
@@ -1370,8 +1471,9 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
   fillMissingReturnYards("team1");
   fillMissingReturnYards("team2");
 
-  // Off Yards Gained = Total Yards − return yards when the top rows were clipped.
+  // Off Yards Gained = Total Yards − return yards when the label row was read but a cell was blank.
   const deriveOffYardsFromTotal = (side: "team1" | "team2") => {
+    if (!topOffenseVisible) return;
     const off = statsMap["off_yards_gained"]?.[side]?.trim() ?? "";
     if (off) return;
     const total = parseInt(statsMap["total_yards_gained"]?.[side] ?? "", 10);
@@ -1386,10 +1488,13 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
       };
     }
   };
-  deriveOffYardsFromTotal("team1");
-  deriveOffYardsFromTotal("team2");
+  if (topOffenseVisible) {
+    deriveOffYardsFromTotal("team1");
+    deriveOffYardsFromTotal("team2");
+  }
 
   const deriveRushPassFromOffYards = (side: "team1" | "team2") => {
+    if (!topOffenseVisible) return;
     const off = parseInt(statsMap["off_yards_gained"]?.[side] ?? "", 10);
     if (isNaN(off)) return;
     const rush = statsMap["off_rush_yards"]?.[side]?.trim() ?? "";
@@ -1412,8 +1517,10 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
       }
     }
   };
-  deriveRushPassFromOffYards("team1");
-  deriveRushPassFromOffYards("team2");
+  if (topOffenseVisible) {
+    deriveRushPassFromOffYards("team1");
+    deriveRushPassFromOffYards("team2");
+  }
 
   // Derive Total Yards Gained = Off Yards + Punt Return + Kick Return when it
   // wasn't read directly (it lives on the second screenshot we no longer require).

@@ -6,3 +6,8 @@ dist
 !.env.example
 .DS_Store
 *.log
+
+# Tesseract language data (downloaded/bundled at runtime, not source)
+*.traineddata
+# Local OCR debug scratch output
+sea-debug.txt
