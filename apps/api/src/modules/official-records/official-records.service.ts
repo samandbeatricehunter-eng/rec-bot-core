@@ -263,7 +263,8 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
   for (const userId of affectedUsers) {
     const userResults = results.filter((row) => row.home_user_id === userId || row.away_user_id === userId);
     const boxScoreTotals = aggregateResultsForUser(userId, userResults);
-    const allGames = mergeRecordTotals(baselineFromLegacyJson(baselineByUser.get(userId) as Record<string, unknown>), boxScoreTotals);
+    const baseline = baselineFromLegacyJson(baselineByUser.get(userId) as Record<string, unknown>);
+    const allGames = mergeRecordTotals(baseline, boxScoreTotals);
 
     await supabase.from("rec_global_user_records").upsert(
       recordRowFromTotals(allGames, { user_id: userId }),
@@ -279,8 +280,12 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
     }
 
     for (const game of ["madden_26", "madden_27", "cfb_27"] as const) {
-      const totals = byGame.get(game);
-      if (!totals || totals.gamesPlayed === 0) {
+      // The legacy carry-over baseline IS the madden_26 record, so merge it in for
+      // that game — the per-game record is baseline + box-score games, never reset
+      // to box-score-only (which previously erased the seeded baseline).
+      const boxTotals = byGame.get(game) ?? emptyRecordTotals();
+      const totals = game === "madden_26" ? mergeRecordTotals(baseline, boxTotals) : boxTotals;
+      if (totals.gamesPlayed === 0) {
         await supabase.from("rec_global_user_game_records").delete().eq("user_id", userId).eq("game", game);
         continue;
       }

@@ -6,6 +6,7 @@ import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js"
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
+import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -867,6 +868,11 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       awayUserId: sub.away_user_id,
     }).catch((error) => {
       console.error("[ERROR] Failed to rebuild official user records after box score approval:", error);
+    });
+    // Team Record (display) reflects every season game regardless of source, so
+    // rebuild it on approval too — not only on advance.
+    await rebuildSeasonDisplayRecords(sub.league_id, sub.season_number).catch((error) => {
+      console.error("[ERROR] Failed to rebuild display records after box score approval:", error);
     });
   }
 
