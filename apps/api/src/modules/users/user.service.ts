@@ -226,7 +226,11 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
 
   const teamName = formatTeamDisplayName(teamRow);
   const globalRecord = (globalRecordRow as any)?.data ?? baseline.globalRecord ?? {};
-  const gameGlobalRecord = (gameGlobalRecordRow as any)?.data ?? null;
+  const gameGlobalRecord = buildGameRecordForDisplay(
+    (gameGlobalRecordRow as any)?.data ?? null,
+    leagueGame,
+    baseline.legacyBaseline?.global_record as Record<string, unknown> | null | undefined,
+  );
 
   let gotwWins = 0;
   let gotwLosses = 0;
@@ -289,9 +293,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       superbowlText: superbowlText(globalRecord),
       activeStreak: careerStats?.activeStreak ?? "—",
     },
-    gameGlobalRecord: leagueId
-      ? buildGameGlobalRecordDisplay(gameGlobalRecord as Record<string, unknown> | null, leagueGame)
-      : null,
+    gameGlobalRecord: leagueId ? buildGameGlobalRecordDisplay(gameGlobalRecord, leagueGame) : null,
     powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: rankRow.sos_score } : null,
     gotwGuessing: gotwTotal > 0 ? { correct: gotwCorrect, total: gotwTotal, accuracy: Math.round((gotwCorrect / gotwTotal) * 100) } : null,
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
@@ -471,6 +473,41 @@ export function formatLeagueGameLabel(game?: string | null) {
     case "cfb_27": return "College Football 27";
     default: return "Madden NFL 26";
   }
+}
+
+function recordTotalGames(record: Record<string, unknown> | null | undefined) {
+  return Number(record?.games_played ?? record?.gamesPlayed ?? 0)
+    || Number(record?.wins ?? 0) + Number(record?.losses ?? 0) + Number(record?.ties ?? 0);
+}
+
+function addRecordFields(a: Record<string, unknown> | null | undefined, b: Record<string, unknown> | null | undefined) {
+  return {
+    wins: Number(a?.wins ?? 0) + Number(b?.wins ?? 0),
+    losses: Number(a?.losses ?? 0) + Number(b?.losses ?? 0),
+    ties: Number(a?.ties ?? 0) + Number(b?.ties ?? 0),
+    playoff_wins: Number(a?.playoff_wins ?? 0) + Number(b?.playoff_wins ?? 0),
+    playoff_losses: Number(a?.playoff_losses ?? 0) + Number(b?.playoff_losses ?? 0),
+    superbowl_wins: Number(a?.superbowl_wins ?? 0) + Number(b?.superbowl_wins ?? 0),
+    superbowl_losses: Number(a?.superbowl_losses ?? 0) + Number(b?.superbowl_losses ?? 0),
+    point_differential: Number(a?.point_differential ?? 0) + Number(b?.point_differential ?? 0),
+    games_played: recordTotalGames(a) + recordTotalGames(b),
+  };
+}
+
+function buildGameRecordForDisplay(
+  gameRecord: Record<string, unknown> | null | undefined,
+  leagueGame: string,
+  legacyBaselineRecord: Record<string, unknown> | null | undefined,
+) {
+  if (leagueGame !== "madden_26") return gameRecord ?? null;
+  const baselineGames = recordTotalGames(legacyBaselineRecord);
+  if (baselineGames <= 0) return gameRecord ?? null;
+  const gameGames = recordTotalGames(gameRecord);
+
+  // Some existing madden_26 rows were created from box scores only. The legacy
+  // all-games baseline is Madden 26 history until newer game families exist.
+  if (!gameRecord || gameGames < baselineGames) return addRecordFields(legacyBaselineRecord, gameRecord);
+  return gameRecord;
 }
 
 function buildGameGlobalRecordDisplay(row: Record<string, unknown> | null | undefined, leagueGame: string) {
@@ -667,7 +704,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     supabase.from("rec_global_user_game_records").select("*").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
   ]);
   const globalRecord = globalRecordResult.data ?? baseline.globalRecord ?? {};
-  const gameGlobalRecord = gameGlobalRecordResult.data ?? null;
+  const gameGlobalRecord = buildGameRecordForDisplay(
+    gameGlobalRecordResult.data ?? null,
+    leagueGame,
+    baseline.legacyBaseline?.global_record as Record<string, unknown> | null | undefined,
+  );
 
   // GOTW voting record — read from the settled aggregate table (populated by settleGotwVotes
   // during advance). The raw rec_game_of_week_votes table can have null user_id when the
@@ -767,7 +808,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       globalSuperbowlText: superbowlText(globalRecord),
       globalPointDifferential: globalRecord?.point_differential ?? 0,
       gameGlobalRecord: league?.id
-        ? buildGameGlobalRecordDisplay(gameGlobalRecord as Record<string, unknown> | null, leagueGame)
+        ? buildGameGlobalRecordDisplay(gameGlobalRecord, leagueGame)
         : null,
       gameGlobalRecordText: league?.id ? recordText(gameGlobalRecord ?? {}) : null,
       gameGlobalPlayoffText: league?.id ? playoffText(gameGlobalRecord ?? {}) : null,
