@@ -7,6 +7,7 @@ import {
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
   type ButtonInteraction,
+  type Guild,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
@@ -259,6 +260,28 @@ export function handleAdvanceTimeTimeSelect(interaction: StringSelectMenuInterac
 
 // ─── Button handlers ──────────────────────────────────────────────────────────
 
+// Always announce the advance to @everyone on the announcements channel. If a
+// next-advance time was set, include it spelled out in all four timezones.
+async function announceAdvance(guild: Guild, guildId: string, headline: string, epochSeconds: number | null): Promise<boolean> {
+  try {
+    const cfg = await recApi.getEconomyConfig(guildId).catch(() => null);
+    const channel = await getAnnouncementsChannel(guild, cfg?.routes ?? {});
+    if (!channel) return false;
+    const lines = [headline];
+    if (epochSeconds != null) {
+      lines.push("", `**Next advance** (<t:${epochSeconds}:R>):`, formatAllZones(epochSeconds));
+    }
+    await channel.send({
+      content: "@everyone",
+      embeds: [new EmbedBuilder().setTitle("📣 League Advanced").setColor(0x2ecc71).setDescription(lines.join("\n"))],
+      allowedMentions: { parse: ["everyone"] },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function handleAdvanceTimeSet(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
   if (!isFullLeagueAdminInteraction(interaction)) {
@@ -297,28 +320,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
 
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
 
-  // Announce to the configured announcements channel (best-effort).
-  let announced = false;
-  try {
-    const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
-    const channel = await getAnnouncementsChannel(interaction.guild, cfg?.routes ?? {});
-    if (channel) {
-      await channel.send({
-        content: "@everyone",
-        embeds: [new EmbedBuilder()
-          .setTitle("📅 Next Advance Scheduled")
-          .setColor(0x2ecc71)
-          .setDescription(
-            `The next advance is scheduled for (<t:${result.epochSeconds}:R>):\n\n` +
-            `${formatAllZones(result.epochSeconds)}`,
-          )],
-        allowedMentions: { parse: ["everyone"] },
-      });
-      announced = true;
-    }
-  } catch {
-    /* announcement is best-effort */
-  }
+  const announced = await announceAdvance(interaction.guild, session.guildId, session.headline, result.epochSeconds);
 
   return interaction.editReply({
     embeds: [new EmbedBuilder()
@@ -338,11 +340,12 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, buil
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
+  await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nNo next advance time was set.`)],
+      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.`)],
     components: buildAdvanceRows(),
   });
 }
@@ -353,11 +356,12 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, buil
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
+  await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nReturned without setting a next advance time.`)],
+      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.`)],
     components: buildAdvanceRows(),
   });
 }

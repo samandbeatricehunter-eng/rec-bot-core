@@ -27,6 +27,7 @@ type CreateHighlightAwardReviewInput = {
   category: string;
   highlightPostId: string;
   voteCount: number;
+  amount?: number | null;
 };
 
 async function getDiscordAccount(discordId: string) {
@@ -61,7 +62,22 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   const assignment = await getActiveAssignment(context.leagueId, account.user_id);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
-  const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season";
+  const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
+
+  // Highlights are only accepted during an active season: regular-season Week 1
+  // through the Super Bowl. Voting emojis preload only in the regular season
+  // (Wk 1–18); in the postseason the payout is logged but POTY voting is closed.
+  const postseasonStages = ["wild_card", "divisional", "conference_championship", "super_bowl"];
+  const isRegularSeason = seasonStage === "regular_season" && weekNumber >= 1 && weekNumber <= 18;
+  const isPostseason = postseasonStages.includes(seasonStage) || (weekNumber >= 19 && weekNumber <= 22);
+  if (!isRegularSeason && !isPostseason) {
+    return {
+      recorded: false,
+      accepted: false,
+      reason: "Highlights are only accepted during an active season — regular-season Week 1 through the Super Bowl.",
+    };
+  }
+  const preloadEmojis = isRegularSeason;
 
   const existingPaid = await supabase
     .from("rec_highlight_payout_reviews")
@@ -98,6 +114,8 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   if (!paidSlotAvailable) {
     return {
       recorded: true,
+      accepted: true,
+      preloadEmojis,
       paidSlotAvailable: false,
       highlight: highlight.data,
       pendingPayoutsChannelId: null,
@@ -131,6 +149,8 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
 
   return {
     recorded: true,
+    accepted: true,
+    preloadEmojis,
     paidSlotAvailable: true,
     highlight: { ...highlight.data, payout_review_id: review.data.id },
     review: review.data,
@@ -231,9 +251,22 @@ export async function listHighlightAwardCandidates(guildId: string) {
     .not("discord_channel_id", "is", null)
     .not("discord_message_id", "is", null);
   if (error) throw new ApiError(500, "Failed to load highlight award candidates.", error);
+
+  // POTY is finalized once any season_award review exists for the season — after
+  // that, emoji changes don't re-tally until the league advances to a new season.
+  const existingAwards = await supabase
+    .from("rec_highlight_payout_reviews")
+    .select("id")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("payout_kind", "season_award")
+    .limit(1);
+  if (existingAwards.error) throw new ApiError(500, "Failed to check POTY finalization.", existingAwards.error);
+
   return {
     league: { id: context.leagueId, seasonNumber, announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null, pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null },
     highlights: data ?? [],
+    alreadyFinalized: (existingAwards.data ?? []).length > 0,
   };
 }
 
@@ -249,6 +282,8 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
   if (highlight.error) throw new ApiError(500, "Failed to load award highlight.", highlight.error);
   if (!highlight.data) throw new ApiError(404, "Highlight was not found.");
 
+  // Keyed by category + highlight so ties produce one review per tied winner. Once
+  // a review exists it's locked (frozen) — re-running the tally never changes it.
   const existing = await supabase
     .from("rec_highlight_payout_reviews")
     .select("*")
@@ -256,9 +291,10 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
     .eq("season_number", seasonNumber)
     .eq("payout_kind", "season_award")
     .eq("award_category", input.category)
+    .eq("highlight_post_id", input.highlightPostId)
     .maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load existing highlight award review.", existing.error);
-  if (existing.data && ["approved", "issued"].includes(existing.data.status)) {
+  if (existing.data) {
     return {
       review: existing.data,
       highlight: highlight.data,
@@ -279,15 +315,13 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
       award_category: input.category,
       vote_count: input.voteCount,
       status: "pending",
-      amount: HIGHLIGHT_AWARD_AMOUNT,
+      amount: Math.max(0, Math.round(input.amount ?? HIGHLIGHT_AWARD_AMOUNT)),
       discord_channel_id: highlight.data.discord_channel_id,
       discord_message_id: highlight.data.discord_message_id,
       updated_at: new Date().toISOString(),
     };
 
-  const review = existing.data?.id
-    ? await supabase.from("rec_highlight_payout_reviews").update(payload).eq("id", existing.data.id).select("*").single()
-    : await supabase.from("rec_highlight_payout_reviews").insert(payload).select("*").single();
+  const review = await supabase.from("rec_highlight_payout_reviews").insert(payload).select("*").single();
   if (review.error) throw new ApiError(500, "Failed to create highlight award review.", review.error);
 
   return {

@@ -25,6 +25,7 @@ const AwardReviewSchema = z.object({
   category: z.string().min(1),
   highlightPostId: z.string().uuid(),
   voteCount: z.number().int().min(0),
+  amount: z.number().int().min(0).optional().nullable(),
 });
 
 export async function highlightRoutes(app: FastifyInstance) {

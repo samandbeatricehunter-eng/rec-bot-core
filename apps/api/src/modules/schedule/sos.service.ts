@@ -13,9 +13,19 @@ const K_W = 0.5;             // win% weight
 const K_D = 0.25;            // point-differential weight
 const DOMINANCE_SCALE = 14;  // avg margin (pts/game) treated as max dominance
 const PRIOR_WEIGHT = 3;      // prior-season "pseudo-games" (small; fades as games are played)
+const K_M = 0.2;             // momentum (recent form) weight
 const QUALITY_MIN = 0.5;
 const QUALITY_MAX = 1.5;
 const REGULAR_SEASON_WEEKS = 18;
+
+// Recent-form adjustment from a team's current streak: 0 until a 2-game streak,
+// ramping linearly to ±1 at a 5+ game streak. Positive = hot (win streak),
+// negative = cold (loss streak).
+function momentumAdj(streak: number): number {
+  const mag = Math.abs(streak);
+  if (mag < 2) return 0;
+  return Math.sign(streak) * (Math.min(mag - 1, 4) / 4);
+}
 
 type TeamRecord = { wins: number; losses: number; ties: number; pf: number; pa: number; scored: number };
 const emptyRecord = (): TeamRecord => ({ wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, scored: 0 });
@@ -72,6 +82,46 @@ async function loadTeamRecords(leagueId: string, seasonNumber: number): Promise<
     }
   }
   return map;
+}
+
+// Each team's current win/loss streak (signed: + win streak, − loss streak),
+// from the chronological game-results sequence. Ties end a streak.
+async function loadTeamStreaks(leagueId: string, seasonNumber: number): Promise<Map<string, number>> {
+  const { data, error } = await supabase
+    .from("rec_game_results")
+    .select("week_number,winning_team_id,losing_team_id,home_team_id,away_team_id,is_tie")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .order("week_number", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load streaks for SOS.", error);
+
+  const seq = new Map<string, ("W" | "L" | "T")[]>();
+  const push = (id: string | null, r: "W" | "L" | "T") => {
+    if (!id) return;
+    const a = seq.get(id) ?? [];
+    a.push(r);
+    seq.set(id, a);
+  };
+  for (const g of data ?? []) {
+    const { winning_team_id: w, losing_team_id: l, home_team_id: h, away_team_id: a, is_tie } = g as any;
+    if (is_tie) { push(h, "T"); push(a, "T"); }
+    else { push(w, "W"); push(l, "L"); }
+  }
+
+  const streaks = new Map<string, number>();
+  for (const [id, results] of seq) {
+    let streak = 0;
+    for (let i = results.length - 1; i >= 0; i--) {
+      const r = results[i];
+      if (r === "T") break;
+      if (streak === 0) streak = r === "W" ? 1 : -1;
+      else if (streak > 0 && r === "W") streak++;
+      else if (streak < 0 && r === "L") streak--;
+      else break;
+    }
+    streaks.set(id, streak);
+  }
+  return streaks;
 }
 
 // Scheduled matchups (this season) that already have a logged result, so SOS can
@@ -140,10 +190,11 @@ export async function computeLeagueSos(guildId: string, viewerDiscordId?: string
   const userIdByTeam = new Map((assignmentsRes.data ?? []).map((r) => [r.team_id, r.user_id]));
 
   const hasPrior = currentSeason > 1;
-  const [currentRecords, priorRecords, playedKeys] = await Promise.all([
+  const [currentRecords, priorRecords, playedKeys, streaks] = await Promise.all([
     loadTeamRecords(leagueId, currentSeason),
     hasPrior ? loadTeamRecords(leagueId, currentSeason - 1) : Promise.resolve(new Map<string, TeamRecord>()),
     loadPlayedMatchupKeys(leagueId, currentSeason),
+    loadTeamStreaks(leagueId, currentSeason),
   ]);
 
   const typeWeight = (oppId: string) => (humanTeamIds.has(oppId) ? 1.0 : 0.5);
@@ -158,7 +209,8 @@ export async function computeLeagueSos(guildId: string, viewerDiscordId?: string
       }
     }
     const normPd = clamp(avgPointDiff(cur) / DOMINANCE_SCALE, -1, 1);
-    return clamp(1 + K_W * (eff - 0.5) + K_D * normPd, QUALITY_MIN, QUALITY_MAX);
+    const momentum = momentumAdj(streaks.get(oppId) ?? 0);
+    return clamp(1 + K_W * (eff - 0.5) + K_D * normPd + K_M * momentum, QUALITY_MIN, QUALITY_MAX);
   };
 
   type Acc = { full: number; remaining: number; games: number; remGames: number; human: number; cpu: number; oppW: number; oppGp: number };

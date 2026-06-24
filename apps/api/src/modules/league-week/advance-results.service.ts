@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
+import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -187,6 +188,12 @@ export async function completeAdvanceWeek(input: {
   // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
     console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);
+  });
+
+  // Snapshot power rankings for the week that just completed, so next week can
+  // show movement. Non-fatal.
+  await snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek).catch((err) => {
+    console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
   });
 
   return advanceResult;

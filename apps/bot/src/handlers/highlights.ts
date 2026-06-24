@@ -1,20 +1,19 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Message, type TextChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Message, type MessageReaction, type PartialMessageReaction, type PartialUser, type TextChannel, type User } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 
 export const HIGHLIGHT_REVIEW_PREFIX = "rec:highlight_review:";
 
 export const HIGHLIGHT_VOTE_EMOJIS = {
-  TOTY: { label: "Throw of the Year", name: "TOTYMadden", id: "1518679624370880603" },
-  COTY: { label: "Catch of the Year", name: "COTYMadden", id: "1518679314927714355" },
-  ROTY: { label: "Run of the Year", name: "ROTYMadden", id: "1518680040265482373" },
-  IOTY: { label: "Interception of the Year", name: "IOTYMadden", id: "1518680268578357488" },
-  HOTY: { label: "Hit of the Year", name: "HOTYMadden", id: "1518680557553451069" },
+  TOTY: { label: "Throw of the Year", name: "BestThrow", id: "1519426233019011162" },
+  COTY: { label: "Catch of the Year", name: "BestCatch", id: "1519426404213588148" },
+  ROTY: { label: "Run of the Year", name: "BestRun", id: "1519427393364824217" },
+  IOTY: { label: "Interception of the Year", name: "BestINT", id: "1519427729361997864" },
+  HOTY: { label: "Hit of the Year", name: "BestHit", id: "1519429778761846914" },
 } as const;
 
-const VOTE_GUIDE = Object.values(HIGHLIGHT_VOTE_EMOJIS)
-  .map((emoji) => `<:${emoji.name}:${emoji.id}> = ${emoji.label}`)
-  .join("\n");
+// Emoji ids only — used to detect/restrict the one-vote-per-highlight reactions.
+export const HIGHLIGHT_VOTE_EMOJI_IDS = new Set<string>(Object.values(HIGHLIGHT_VOTE_EMOJIS).map((e) => e.id));
 
 const CLIP_URL_RE = /https?:\/\/\S+/gi;
 
@@ -65,6 +64,33 @@ async function postPendingReview(message: Message, result: any) {
   }).catch(() => undefined);
 }
 
+// One category vote per user per highlight: when a user adds one of the five
+// vote emojis, remove any other vote emoji they had on that message (radio-button).
+export async function handleHighlightReactionRestrict(
+  reaction: MessageReaction | PartialMessageReaction,
+  user: User | PartialUser,
+): Promise<void> {
+  if (user.bot) return;
+  try {
+    if (reaction.partial) await reaction.fetch();
+    if (reaction.message.partial) await reaction.message.fetch();
+  } catch {
+    return;
+  }
+  const emojiId = reaction.emoji.id;
+  if (!emojiId || !HIGHLIGHT_VOTE_EMOJI_IDS.has(emojiId)) return;
+  const guildId = reaction.message.guildId ?? reaction.message.guild?.id ?? null;
+  if (!guildId) return;
+  const highlightsChannelId = await getHighlightsChannelId(guildId);
+  if (!highlightsChannelId || reaction.message.channelId !== highlightsChannelId) return;
+
+  for (const other of reaction.message.reactions.cache.values()) {
+    if (other.emoji.id && other.emoji.id !== emojiId && HIGHLIGHT_VOTE_EMOJI_IDS.has(other.emoji.id)) {
+      await other.users.remove(user.id).catch(() => undefined);
+    }
+  }
+}
+
 export async function handleHighlightChannelMessage(message: Message): Promise<boolean> {
   if (!message.inGuild() || message.author.bot) return false;
   const highlightsChannelId = await getHighlightsChannelId(message.guildId);
@@ -81,22 +107,6 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
     return true;
   }
 
-  for (const emoji of Object.values(HIGHLIGHT_VOTE_EMOJIS)) {
-    await message.react(emojiResolvable(emoji)).catch(() => undefined);
-  }
-
-  await message.reply({
-    embeds: [new EmbedBuilder()
-      .setTitle("Play of the Year Voting")
-      .setDescription([
-        "Vote on this highlight with the reactions below:",
-        "",
-        VOTE_GUIDE,
-        "",
-        "A play voted as the winner of a category it does not actually qualify for can have that payout voided."
-      ].join("\n"))]
-  }).catch(() => undefined);
-
   const result = await recApi.recordHighlightPost({
     guildId: message.guildId,
     discordId: message.author.id,
@@ -106,12 +116,32 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
     content: message.content || mediaAttachments(message)[0]?.url || null,
   }).catch((error) => ({ recorded: false, reason: error instanceof Error ? error.message : String(error) }));
 
+  // Posted outside an active season (before regular-season Wk 1 or after the Super
+  // Bowl) — highlights aren't accepted, so remove it and tell the user.
+  if (result?.accepted === false) {
+    await message.delete().catch(() => undefined);
+    const notice = await message.channel.send({
+      content: `<@${message.author.id}> ${result.reason ?? "Highlights are only accepted during an active season (regular-season Week 1 through the Super Bowl)."}`,
+      allowedMentions: { users: [message.author.id] },
+    }).catch(() => null);
+    if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 12_000);
+    return true;
+  }
+
   if (!result?.recorded) {
     await message.reply({
       content: `I couldn't record this highlight for payout review: ${result?.reason ?? "unknown error"}`,
       allowedMentions: { parse: [] },
     }).catch(() => undefined);
     return true;
+  }
+
+  // Voting emojis only preload during the regular season (Wk 1–18). In the
+  // postseason the payout is still logged, but POTY voting has already concluded.
+  if (result.preloadEmojis !== false) {
+    for (const emoji of Object.values(HIGHLIGHT_VOTE_EMOJIS)) {
+      await message.react(emojiResolvable(emoji)).catch(() => undefined);
+    }
   }
 
   if (result?.paidSlotAvailable === false) {
@@ -160,23 +190,35 @@ export async function handleHighlightReviewButton(interaction: ButtonInteraction
   }
 }
 
+const POTY_AWARD_TOTAL = 500;
+
 export async function settleHighlightAwardsForGuild(guildId: string, client: Message["client"]) {
   const result = await recApi.listHighlightAwardCandidates(guildId);
-  const highlights = result?.highlights ?? [];
-  const winners = new Map<string, { highlight: any; count: number }>();
   const guild = await client.guilds.fetch(guildId).catch(() => null);
-  if (!guild) return { winners: [] };
+  if (!guild) return { winners: [], alreadyFinalized: false };
+
+  // Frozen: POTY already finalized this season — emoji changes no longer re-tally.
+  if (result?.alreadyFinalized) {
+    return { winners: [], alreadyFinalized: true };
+  }
+
+  const highlights = result?.highlights ?? [];
+  // Per category, track the leading vote count and ALL highlights tied at it.
+  const leaders = new Map<string, { count: number; highlights: any[] }>();
 
   for (const highlight of highlights) {
     const channel = await guild.channels.fetch(highlight.discord_channel_id).catch(() => null);
     if (!channel?.isTextBased()) continue;
     const message = await channel.messages.fetch(highlight.discord_message_id).catch(() => null);
-      if (!message) continue;
+    if (!message) continue;
     for (const [category, emoji] of Object.entries(HIGHLIGHT_VOTE_EMOJIS)) {
       const reaction = message.reactions.cache.get(emoji.id) ?? message.reactions.cache.find((r) => r.emoji.id === emoji.id);
-      const count = Math.max(0, (reaction?.count ?? 0) - 1);
-      const current = winners.get(category);
-      if (!current || count > current.count) winners.set(category, { highlight: { ...highlight, messageUrl: message.url, authorId: message.author.id }, count });
+      const count = Math.max(0, (reaction?.count ?? 0) - 1); // subtract the bot's own preload reaction
+      if (count <= 0) continue;
+      const entry = { ...highlight, messageUrl: message.url, authorId: message.author.id };
+      const cur = leaders.get(category);
+      if (!cur || count > cur.count) leaders.set(category, { count, highlights: [entry] });
+      else if (count === cur.count) cur.highlights.push(entry);
     }
   }
 
@@ -186,43 +228,48 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
   const announcementsChannel = announcementsChannelId ? await guild.channels.fetch(announcementsChannelId).catch(() => null) : null;
   const pendingPayoutsChannel = pendingPayoutsChannelId ? await guild.channels.fetch(pendingPayoutsChannelId).catch(() => null) : null;
 
-  for (const [category, winner] of winners) {
-    const review = await recApi.createHighlightAwardReview({ guildId, category, highlightPostId: winner.highlight.id, voteCount: winner.count });
+  for (const [category, { count, highlights: tied }] of leaders) {
     const emoji = HIGHLIGHT_VOTE_EMOJIS[category as keyof typeof HIGHLIGHT_VOTE_EMOJIS];
-    const winnerMention = winner.highlight.authorId ? `<@${winner.highlight.authorId}>` : "Winning user";
-    if (announcementsChannel?.isTextBased() && "send" in announcementsChannel) {
-      await announcementsChannel.send({
-        embeds: [new EmbedBuilder()
-          .setTitle(`${emoji.label} Winner`)
-          .setDescription([
-            `**${emoji.label} Winner:** ${winnerMention}`,
-            `Votes: **${winner.count}**`,
-            "",
-            `[Open winning highlight](${winner.highlight.messageUrl ?? winner.highlight.message_url})`
-          ].join("\n"))]
-      }).catch(() => undefined);
+    const splitAmount = Math.round(POTY_AWARD_TOTAL / tied.length); // ties split the $500 evenly
+    const tieNote = tied.length > 1 ? ` (tie — split ${tied.length} ways)` : "";
+
+    for (const winner of tied) {
+      const review = await recApi.createHighlightAwardReview({ guildId, category, highlightPostId: winner.id, voteCount: count, amount: splitAmount });
+      const winnerMention = winner.authorId ? `<@${winner.authorId}>` : "Winning user";
+      if (announcementsChannel?.isTextBased() && "send" in announcementsChannel) {
+        await announcementsChannel.send({
+          embeds: [new EmbedBuilder()
+            .setTitle(`${emoji.label} Winner${tieNote}`)
+            .setDescription([
+              `**${emoji.label} Winner:** ${winnerMention}`,
+              `Votes: **${count}**`,
+              "",
+              `[Open winning highlight](${winner.messageUrl ?? winner.message_url})`,
+            ].join("\n"))]
+        }).catch(() => undefined);
+      }
+      if (pendingPayoutsChannel?.isTextBased() && "send" in pendingPayoutsChannel && review?.review?.id) {
+        await pendingPayoutsChannel.send({
+          embeds: [new EmbedBuilder()
+            .setTitle("PLAY OF THE YEAR PAYOUT REVIEW")
+            .setDescription([
+              `**Category:** ${emoji.label}${tieNote}`,
+              `**Winner:** ${winnerMention}`,
+              `**Bonus:** $${splitAmount}${tied.length > 1 ? ` (split of $${POTY_AWARD_TOTAL})` : ""}`,
+              `**Votes:** ${count}`,
+              "",
+              `[Open Highlight](${winner.messageUrl ?? winner.message_url})`,
+              "",
+              "Approve to issue the category bonus. Deny if the clip does not qualify for this category."
+            ].join("\n"))],
+          components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder().setCustomId(`${HIGHLIGHT_REVIEW_PREFIX}approve:${review.review.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`${HIGHLIGHT_REVIEW_PREFIX}deny:${review.review.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
+          )]
+        }).catch(() => undefined);
+      }
+      created.push({ category, count, highlight: winner, review });
     }
-    if (pendingPayoutsChannel?.isTextBased() && "send" in pendingPayoutsChannel && review?.review?.id) {
-      await pendingPayoutsChannel.send({
-        embeds: [new EmbedBuilder()
-          .setTitle("PLAY OF THE YEAR PAYOUT REVIEW")
-          .setDescription([
-            `**Category:** ${emoji.label}`,
-            `**Winner:** ${winnerMention}`,
-            `**Bonus:** $500`,
-            `**Votes:** ${winner.count}`,
-            "",
-            `[Open Highlight](${winner.highlight.messageUrl ?? winner.highlight.message_url})`,
-            "",
-            "Approve to issue the category bonus. Deny if the clip does not qualify for this category."
-          ].join("\n"))],
-        components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${HIGHLIGHT_REVIEW_PREFIX}approve:${review.review.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${HIGHLIGHT_REVIEW_PREFIX}deny:${review.review.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
-        )]
-      }).catch(() => undefined);
-    }
-    created.push({ category, ...winner, review });
   }
-  return { winners: created };
+  return { winners: created, alreadyFinalized: false };
 }

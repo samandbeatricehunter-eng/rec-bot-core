@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction } from "./lib/admin.js";
@@ -48,6 +48,7 @@ import {
   renderScheduleMenu,
   renderSchedulePlaceholder,
   handleScheduleSos,
+  handleSchedulePowerRankings,
   SCHEDULE_MGMT_CUSTOM_IDS,
   startManualScheduleEntry,
   startPostSetupManualScheduleEntry,
@@ -109,7 +110,7 @@ import {
   handleWalletMakePurchase,
   handleWalletPendingPurchases
 } from "./handlers/wallet.js";
-import { handleHighlightChannelMessage, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
+import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
 import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import {
   BOX_SCORE_CUSTOM_IDS,
@@ -128,7 +129,17 @@ import {
   sweepBoxScoreExchanges,
 } from "./flows/box-score.js";
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions,
+  ],
+  // Partials so reaction events fire on messages not in cache (older highlights).
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+});
 client.setMaxListeners(50);
 const menuSessions = new ExpiringSessionStore<true>();
 const serverSetupChannelSessions = new Map<string, string>();
@@ -426,9 +437,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.schedulePowerRankings) {
-        return renderSchedulePlaceholder(interaction, "Power Rankings", "Power rankings are coming soon. Box score stats for user and CPU teams are being collected to support this view.");
-      }
+      if (interaction.customId === MENU_CUSTOM_IDS.schedulePowerRankings) return handleSchedulePowerRankings(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return handleScheduleSos(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleStats) {
         return renderSchedulePlaceholder(interaction, "Stats", "Season stats for your schedule view are coming soon.");
@@ -511,6 +520,10 @@ client.on("messageCreate", async (message) => {
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
   if (await handleCommissionerBoxScoreSubmissionMessage(message).catch(() => false)) return;
   await handleBoxScoreChannelMessage(message).catch(() => undefined);
+});
+
+client.on("messageReactionAdd", async (reaction, user) => {
+  await handleHighlightReactionRestrict(reaction, user).catch(() => undefined);
 });
 
 async function buildMainMenuPayload(userId: string, guildId: string | null, isAdmin: boolean) {
@@ -1157,7 +1170,10 @@ async function handlePotyTallies(interaction: ButtonInteraction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Running POTY Tallies...").setDescription("Fetching eligible highlights, counting category reactions, and preparing payout reviews for any unpaid winners.")] });
   const result = await settleHighlightAwardsForGuild(interaction.guildId, interaction.client as any);
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription(`Tallied Play of the Year reactions and prepared ${result.winners.length} category review(s).`)] });
+  if (result.alreadyFinalized) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription("Play of the Year is already finalized for this season — reaction changes no longer affect results. It resets when the league advances to a new season.")] });
+  }
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription(`Tallied Play of the Year reactions and prepared ${result.winners.length} category review(s). Ties split the $500 evenly.`)] });
 }
 
 async function handleLeagueMgmtSettings(interaction: ButtonInteraction) {

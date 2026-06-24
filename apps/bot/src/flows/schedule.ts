@@ -195,6 +195,56 @@ export async function handleScheduleSos(interaction: ButtonInteraction) {
   }
 }
 
+function moveArrow(change: number | null): string {
+  if (change == null) return "•";       // new / no prior week
+  if (change > 0) return `▲${change}`;
+  if (change < 0) return `▼${Math.abs(change)}`;
+  return "—";
+}
+
+function buildPowerRankingsEmbed(data: any, viewerTeamId: string | null): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle(`Power Rankings — Season ${data?.currentSeason ?? 1}`)
+    .setColor(0x9b59b6);
+
+  const teams: any[] = data?.teams ?? [];
+  if (!teams.length) {
+    return embed.setDescription("No teams to rank yet.");
+  }
+
+  const header = data.hasPreviousWeek
+    ? "Record + point differential, with bonus weight for actually playing (posted box scores) and winning close H2H games. ▲/▼ = movement vs last week."
+    : "Record + point differential, with bonus weight for actually playing (posted box scores) and winning close H2H games. Movement appears after the first advance.";
+
+  const board = teams.map((t) => {
+    const mark = t.teamId === viewerTeamId ? "▶ " : "";
+    const label = t.abbr ?? t.teamName;
+    const line = `\`${String(t.rank).padStart(2)}\` ${mark}${label} — **${(t.score ?? 0).toFixed(3)}**  ${moveArrow(t.change)}`;
+    return t.teamId === viewerTeamId ? `__${line}__` : line;
+  });
+
+  return embed.setDescription([header, "", board.join("\n")].join("\n").slice(0, 4096));
+}
+
+export async function handleSchedulePowerRankings(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Power Rankings").setDescription("Open /menu inside a REC Discord server to view power rankings.")],
+      components: buildScheduleRows(),
+    });
+  }
+  try {
+    const data = await recApi.getPowerRankings(interaction.guildId, interaction.user.id);
+    return interaction.editReply({ embeds: [buildPowerRankingsEmbed(data, data?.viewerTeamId ?? null)], components: buildScheduleRows() });
+  } catch (error) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Power Rankings").setColor(0xe74c3c).setDescription(error instanceof Error ? error.message : String(error))],
+      components: buildScheduleRows(),
+    });
+  }
+}
+
 export async function startManualScheduleEntry(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners or server admins can set the league schedule.", flags: MessageFlags.Ephemeral });

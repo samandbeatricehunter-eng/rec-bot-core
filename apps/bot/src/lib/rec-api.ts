@@ -282,6 +282,7 @@ export const recApi = {
     category: string;
     highlightPostId: string;
     voteCount: number;
+    amount?: number;
   }) =>
     recFetch<any>("/v1/highlights/award-review", { method: "POST", body: JSON.stringify(input) }),
 
@@ -343,6 +344,9 @@ export const recApi = {
 
   getLeagueSos: (guildId: string, discordId: string) =>
     recFetch<any>("/v1/schedule/sos", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
+
+  getPowerRankings: (guildId: string, discordId: string) =>
+    recFetch<any>("/v1/schedule/power-rankings", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
 
   saveManualScheduleGame: (input: {
     guildId: string;
