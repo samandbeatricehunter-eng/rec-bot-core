@@ -445,6 +445,17 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     return resolveTeamNick(opponentTeam);
   }
 
+  // A team's display label: the linked user's @mention (renders as their nickname,
+  // and doesn't ping inside an embed) for a user team, otherwise the team name.
+  function sideLabel(game: any, side: "home" | "away") {
+    const userId = resolveGameUserId(game, side);
+    if (userId) {
+      const discordId = discordByUserId.get(userId);
+      if (discordId) return `<@${discordId}>`;
+    }
+    return resolveTeamNick(side === "home" ? game.home_team : game.away_team);
+  }
+
   const games = [];
   for (let week = 1; week <= 18; week += 1) {
     const game = gamesByWeek.get(week);
@@ -474,6 +485,8 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
       awayTeamId: game.away_team_id,
       homeTeamName: formatTeamDisplayName(game.home_team) ?? teamName(game, "home"),
       awayTeamName: formatTeamDisplayName(game.away_team) ?? teamName(game, "away"),
+      homeLabel: sideLabel(game, "home"),
+      awayLabel: sideLabel(game, "away"),
       homeScore: result?.home_score ?? null,
       awayScore: result?.away_score ?? null,
       isCompleted: result?.home_score != null && result?.away_score != null,

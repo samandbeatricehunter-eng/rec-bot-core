@@ -52,6 +52,7 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtGameChannels: "rec:league_mgmt:advance:game_channels",
   leagueMgmtSetWeek: "rec:league_mgmt:advance:set_week",
   leagueMgmtSetSeason: "rec:league_mgmt:advance:set_season",
+  leagueMgmtEosActions: "rec:league_mgmt:advance:eos_actions",
   leagueMgmtEosPayouts: "rec:league_mgmt:advance:eos_payouts",
   leagueMgmtEosAwards: "rec:league_mgmt:advance:eos_awards",
   leagueMgmtPotyTallies: "rec:league_mgmt:advance:poty_tallies",
@@ -579,6 +580,8 @@ export type TeamScheduleGame = {
   awayTeamId?: string | null;
   homeTeamName?: string | null;
   awayTeamName?: string | null;
+  homeLabel?: string | null;
+  awayLabel?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
   isCompleted?: boolean;
@@ -627,10 +630,11 @@ function formatScheduleLineForWeek(game: TeamScheduleGame, currentWeek?: number 
   }
   const homeLost = completed && Number(game.homeScore) < Number(game.awayScore);
   const awayLost = completed && Number(game.awayScore) < Number(game.homeScore);
-  const away = formatScheduleTeam(game.awayTeamName, awayLost);
-  const home = formatScheduleTeam(game.homeTeamName, homeLost);
-  const suffix = completed ? `${game.awayScore}-${game.homeScore}` : (game.isH2h ? "H2H" : "CPU");
-  return `${formatScheduleStage(game.phase, game.weekNumber)}: ${away} VS ${home} (${suffix})`;
+  // User teams render as their @nickname; CPU teams by name. No H2H/CPU suffix.
+  const away = formatScheduleTeam(game.awayLabel ?? game.awayTeamName, awayLost);
+  const home = formatScheduleTeam(game.homeLabel ?? game.homeTeamName, homeLost);
+  const scorePart = completed ? ` (${game.awayScore}-${game.homeScore})` : "";
+  return `${formatScheduleStage(game.phase, game.weekNumber)}: ${away} VS ${home}${scorePart}`;
 }
 
 export function buildScheduleEmbed(input: {

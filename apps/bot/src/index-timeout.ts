@@ -423,6 +423,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtGameChannels) return handleGameChannels(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetWeek) return handleSetWeek(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetSeason) return handleSetSeason(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosActions) return handleEosActions(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosPayouts) return handleEosPayouts(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return replyMenuPlaceholder(interaction, "EOS Awards", "EOS Awards is intentionally a placeholder for now.");
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtPotyTallies) return handlePotyTallies(interaction);
@@ -708,7 +709,7 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
         "**Set GOTW** posts the current week's GOTW poll to the voting polls channel.",
         "**Game Channels** creates private channels for scheduled H2H games with two linked users.",
         "**Set Week / Set Season** manually correct the league clock.",
-        "**EOS Payouts / POTY Tallies** are postseason-only payout tools."
+        "**EOS Actions** opens postseason payout tools (Wild Card through Super Bowl week)."
       ].join("\n"))],
     components: buildAdvanceMgmtRows()
   });
@@ -729,14 +730,45 @@ function buildAdvanceMgmtRows() {
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetSeason).setLabel("Set Season").setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosPayouts).setLabel("EOS Payouts").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosAwards).setLabel("EOS Awards").setStyle(ButtonStyle.Secondary)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtPotyTallies).setLabel("POTY Tallies").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("EOS Actions").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back").setStyle(ButtonStyle.Danger)
     )
   ];
+}
+
+function buildEosActionsRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosPayouts).setLabel("Payouts").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosAwards).setLabel("Awards").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtPotyTallies).setLabel("POTY Votes").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+async function handleEosActions(interaction: ButtonInteraction) {
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS actions");
+  const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
+  const currentWeek = Number(week?.league?.current_week ?? 1);
+  if (currentWeek < 19 || currentWeek > 22) {
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle("EOS Actions").setColor(0xe74c3c).setDescription("EOS Actions are only available during the postseason — once the league advances past Week 18 (Wild Card) and before it advances past the Super Bowl.")],
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("EOS Actions")
+      .setDescription([
+        "End-of-season payout tools for the postseason.",
+        "",
+        "**Payouts** issues end-of-season stat/award payouts for review.",
+        "**Awards** prepares end-of-season award reviews.",
+        "**POTY Votes** tallies the Play of the Year emoji votes and prepares category payout reviews.",
+      ].join("\n"))],
+    components: buildEosActionsRows(),
+  });
 }
 
 function buildUnlinkedTeamNotice(profile: any) {
