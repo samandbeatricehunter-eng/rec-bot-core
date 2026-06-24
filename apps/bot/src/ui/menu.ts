@@ -609,9 +609,22 @@ function formatScheduleTeam(name?: string | null, lost?: boolean) {
 }
 
 function formatScheduleLine(game: TeamScheduleGame) {
+  return formatScheduleLineForWeek(game, null);
+}
+
+function formatScheduleLineForWeek(game: TeamScheduleGame, currentWeek?: number | null) {
   if (game.line) return game.line;
   if (game.isBye) return `Week ${game.weekNumber ?? "?"}: BYE`;
   const completed = Boolean(game.isCompleted && game.homeScore != null && game.awayScore != null);
+  const isPastWeek = currentWeek == null || Number(game.weekNumber ?? 0) < Number(currentWeek);
+  if (completed && isPastWeek) {
+    const prefix = game.isHome ? "VS" : "@";
+    const opponent = String(game.opponentLabel ?? (game.isHome ? game.awayTeamName : game.homeTeamName) ?? "Team").trim();
+    const mine = Number(game.isHome ? game.homeScore : game.awayScore);
+    const theirs = Number(game.isHome ? game.awayScore : game.homeScore);
+    const result = mine > theirs ? "W" : mine < theirs ? "L" : "T";
+    return `${formatScheduleStage(game.phase, game.weekNumber)}: ~~${prefix} ${opponent}~~ ${game.awayScore}-${game.homeScore} **${result}**`;
+  }
   const homeLost = completed && Number(game.homeScore) < Number(game.awayScore);
   const awayLost = completed && Number(game.awayScore) < Number(game.homeScore);
   const away = formatScheduleTeam(game.awayTeamName, awayLost);
@@ -625,6 +638,7 @@ export function buildScheduleEmbed(input: {
   teamName?: string | null;
   isLinked?: boolean;
   hasLoggedSchedule?: boolean;
+  currentWeek?: number | null;
   games?: TeamScheduleGame[];
 }) {
   const embed = new EmbedBuilder().setTitle(input.teamName ? `${input.teamName} Schedule` : "Schedule");
@@ -648,7 +662,7 @@ export function buildScheduleEmbed(input: {
 
   const games = input.games ?? [];
   const scheduleText = games.length
-    ? games.map(formatScheduleLine).join("\n")
+    ? games.map((game) => formatScheduleLineForWeek(game, input.currentWeek)).join("\n")
     : "No schedule entries found for your team.";
 
   return embed.setDescription([

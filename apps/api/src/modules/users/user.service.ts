@@ -371,6 +371,26 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
 
   const hasLoggedSchedule = (scheduledGames ?? []).length > 0;
 
+  const { data: gameResults, error: resultsError } = await supabase
+    .from("rec_game_results")
+    .select("week_number,season_number,home_team_id,away_team_id,home_score,away_score,winning_user_id")
+    .eq("league_id", league.id)
+    .eq("season_number", seasonNumber)
+    .lte("week_number", 18)
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
+  if (resultsError) throw new ApiError(500, "Failed to load schedule results", resultsError);
+  const resultsByMatchup = new Map(
+    (gameResults ?? []).map((result: any) => [
+      matchupKey({
+        season_number: result.season_number,
+        week_number: result.week_number,
+        home_team_id: result.home_team_id,
+        away_team_id: result.away_team_id,
+      }),
+      result,
+    ]),
+  );
+
   const scheduledTeamIds = [...new Set((scheduledGames ?? []).flatMap((game: any) => [game.home_team_id, game.away_team_id]).filter(Boolean))];
   const teamAssignments = scheduledTeamIds.length
     ? await supabase
@@ -433,23 +453,33 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
         weekNumber: week,
         phase: "regular_season",
         isBye: true,
-        line: `Week ${week}: BYE`,
       });
       continue;
     }
 
     const isHome = game.home_team_id === teamId;
     const displayLabel = opponentLabel(game, isHome);
-    const prefix = isHome ? `VS ${displayLabel}` : `@ ${displayLabel}`;
     const homeUserId = resolveGameUserId(game, "home");
     const awayUserId = resolveGameUserId(game, "away");
+    const result = resultsByMatchup.get(matchupKey({
+      season_number: seasonNumber,
+      week_number: game.week_number,
+      home_team_id: game.home_team_id,
+      away_team_id: game.away_team_id,
+    }));
     games.push({
       weekNumber: week,
       phase: game.phase ?? "regular_season",
+      homeTeamId: game.home_team_id,
+      awayTeamId: game.away_team_id,
+      homeTeamName: formatTeamDisplayName(game.home_team) ?? teamName(game, "home"),
+      awayTeamName: formatTeamDisplayName(game.away_team) ?? teamName(game, "away"),
+      homeScore: result?.home_score ?? null,
+      awayScore: result?.away_score ?? null,
+      isCompleted: result?.home_score != null && result?.away_score != null,
       isHome,
       isH2h: Boolean(homeUserId && awayUserId),
       opponentLabel: displayLabel,
-      line: `Week ${week}: ${prefix}`,
     });
   }
 
@@ -457,7 +487,11 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   return {
     isLinked: true,
     hasLoggedSchedule,
-    league,
+    league: {
+      ...league,
+      currentWeek: league.current_week ?? null,
+      seasonStage: league.season_stage ?? league.current_phase ?? null,
+    },
     team: teamRow ? { ...teamRow, name: formatTeamDisplayName(teamRow) ?? teamRow.name } : null,
     games,
   };

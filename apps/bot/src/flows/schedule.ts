@@ -109,6 +109,7 @@ export async function renderScheduleMenu(interaction: ButtonInteraction) {
           teamName: schedule?.team?.name ?? null,
           isLinked: Boolean(schedule?.isLinked),
           hasLoggedSchedule: Boolean(schedule?.hasLoggedSchedule),
+          currentWeek: schedule?.league?.currentWeek ?? schedule?.league?.current_week ?? null,
           games: schedule?.games ?? []
         })
       ],
