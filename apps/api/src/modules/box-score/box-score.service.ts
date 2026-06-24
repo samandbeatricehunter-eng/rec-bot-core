@@ -299,6 +299,8 @@ function toInt(value: string | null | undefined): number | null {
 type ResolvedGame = {
   team1Name: string | null;
   team2Name: string | null;
+  team1Abbr: string | null;
+  team2Abbr: string | null;
   team1Id: string | null;
   team2Id: string | null;
   gameId: string | null;
@@ -398,7 +400,7 @@ async function resolveGameContext(
   expectedGameId: string | null = null,
 ): Promise<ResolvedGame> {
   const empty: ResolvedGame = {
-    team1Name: null, team2Name: null, team1Id: null, team2Id: null, gameId: null,
+    team1Name: null, team2Name: null, team1Abbr: null, team2Abbr: null, team1Id: null, team2Id: null, gameId: null,
     homeTeamId: null, awayTeamId: null, homeUserId: null, awayUserId: null, homeScore: null, awayScore: null,
   };
 
@@ -408,7 +410,7 @@ async function resolveGameContext(
   if (expectedGameId) {
     const { data: game, error } = await supabase
       .from("rec_games")
-      .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name),away_team:rec_teams!rec_games_away_team_id_fkey(id,name)")
+      .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
       .eq("league_id", leagueId)
       .eq("id", expectedGameId)
       .maybeSingle();
@@ -423,6 +425,8 @@ async function resolveGameContext(
       return {
         team1Name: away?.name ?? null,
         team2Name: home?.name ?? null,
+        team1Abbr: away?.display_abbr ?? away?.abbreviation ?? null,
+        team2Abbr: home?.display_abbr ?? home?.abbreviation ?? null,
         team1Id: game.away_team_id,
         team2Id: game.home_team_id,
         gameId: game.id,
@@ -444,6 +448,8 @@ async function resolveGameContext(
     ...empty,
     team1Name: team1?.name ?? null,
     team2Name: team2?.name ?? null,
+    team1Abbr: team1?.display_abbr ?? team1?.abbreviation ?? null,
+    team2Abbr: team2?.display_abbr ?? team2?.abbreviation ?? null,
     team1Id: team1?.id ?? null,
     team2Id: team2?.id ?? null,
   };
@@ -480,6 +486,8 @@ export type PreviewResult = {
   complete: boolean;
   team1Name: string | null;
   team2Name: string | null;
+  team1Abbr: string | null;
+  team2Abbr: string | null;
   gameMatched: boolean;
 };
 
@@ -508,6 +516,8 @@ export async function parseBoxScorePreview(input: PreviewInput): Promise<Preview
     complete: parsed.missingRequired.length === 0,
     team1Name: resolved.team1Name,
     team2Name: resolved.team2Name,
+    team1Abbr: resolved.team1Abbr ?? parsed.score?.team1Abbr ?? null,
+    team2Abbr: resolved.team2Abbr ?? parsed.score?.team2Abbr ?? null,
     gameMatched: !!resolved.gameId,
   };
 }
@@ -582,6 +592,11 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, effectiveGameId);
   if (resolved.gameId) await clearStalePendingForGame(resolved.gameId);
 
+  // Display the resolved league team's abbreviation (authoritative), falling back
+  // to the raw OCR scoreboard only when the game couldn't be resolved.
+  const displayTeam1Abbr = resolved.team1Abbr ?? parsed.score?.team1Abbr ?? null;
+  const displayTeam2Abbr = resolved.team2Abbr ?? parsed.score?.team2Abbr ?? null;
+
   // Flag for commissioner review (never a hard reject on a self-serve upload).
   const flagReasons: string[] = [];
   if (!resolved.gameId) {
@@ -622,8 +637,8 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       discord_message_id: input.discordMessageId ?? null,
       ledger_discord_message_id: input.ledgerDiscordMessageId ?? null,
       image_urls: input.imageUrls,
-      team1_abbr: parsed.score?.team1Abbr ?? null,
-      team2_abbr: parsed.score?.team2Abbr ?? null,
+      team1_abbr: displayTeam1Abbr,
+      team2_abbr: displayTeam2Abbr,
       team1_id: resolved.team1Id,
       team2_id: resolved.team2Id,
       flagged,
@@ -657,7 +672,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   }
 
   const matchSuffix = resolved.homeTeamId ? "" : " (unmatched)";
-  const header = `Box Score: ${parsed.score?.team1Abbr ?? "?"} vs ${parsed.score?.team2Abbr ?? "?"} — Wk ${weekNumber}${matchSuffix}`;
+  const header = `Box Score: ${displayTeam1Abbr ?? "?"} vs ${displayTeam2Abbr ?? "?"} — Wk ${weekNumber}${matchSuffix}`;
 
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
@@ -676,8 +691,8 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     source_id: submission.id,
     payload: {
       submissionId: submission.id,
-      team1Abbr: parsed.score?.team1Abbr ?? null,
-      team2Abbr: parsed.score?.team2Abbr ?? null,
+      team1Abbr: displayTeam1Abbr,
+      team2Abbr: displayTeam2Abbr,
       homeScore: resolved.homeScore,
       awayScore: resolved.awayScore,
       commissionerSubmission: !!input.commissionerSubmission,
@@ -686,8 +701,8 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
 
   return {
     submissionId: submission.id,
-    team1Abbr: parsed.score?.team1Abbr ?? null,
-    team2Abbr: parsed.score?.team2Abbr ?? null,
+    team1Abbr: displayTeam1Abbr,
+    team2Abbr: displayTeam2Abbr,
     team1Name: resolved.team1Name,
     team2Name: resolved.team2Name,
     team1Score: parsed.score?.team1Score ?? null,
