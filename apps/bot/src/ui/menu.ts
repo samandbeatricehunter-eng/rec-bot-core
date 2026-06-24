@@ -189,7 +189,7 @@ export function buildLeagueMenuEmbed(input: {
     "**Purchase** - Purchase tools will unlock after league purchase settings are built.",
     "**Wager** - Wager tools will be built last.",
     "**Stream** - Submit a stream for commissioner payout review.",
-    "**User Profiles** - View linked users and team snapshots.",
+    "**Profiles** - View linked users and team snapshots.",
     ...(input.canManageLeague ? ["**League Mgmt** - Commissioner-only league operations."] : [])
   ].join("\n");
 
@@ -220,13 +220,11 @@ export function buildLeagueMenuRows(canManageLeague: boolean, isLinkedToTeam = t
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Wager").setStyle(ButtonStyle.Success)
   );
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("User Profiles").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.stream).setLabel("Stream").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("Profiles").setStyle(ButtonStyle.Danger),
     ...(canManageLeague ? [new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)] : [])
   );
-  const row4 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.stream).setLabel("Stream").setStyle(ButtonStyle.Danger)
-  );
-  return isLinkedToTeam ? [row1, row2, row3, row4] : [row1, row3, row4];
+  return isLinkedToTeam ? [row1, row2, row3] : [row1, row3];
 }
 
 export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } = {}) {
