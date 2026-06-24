@@ -7,7 +7,6 @@ import { buildAdminPanelEmbed, buildAdminPanelRows, buildSetupDangerModal, MENU_
 import {
   applyLeagueSetupDependencies,
   buildCoachAbilitiesRestrictionModal,
-  buildGameSelectWindow,
   buildCpuTradingRestrictionModal,
   buildDifficultyCustomModal,
   buildFourthDownCustomModal,
@@ -84,15 +83,12 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     return interaction.update(buildLeagueSetupWindow(draft));
   }
 
-  // First step: pick the game. CFB 27 is a placeholder for now — it keeps the
-  // user on this step with a notice; Madden titles proceed into the wizard.
+  // First step: pick the game. Madden titles and College Football 27 both proceed
+  // into the wizard; the game choice branches which steps the wizard presents.
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.game) {
-    if (value === "cfb_27") {
-      leagueSetupSessions.set(interaction.user.id, draft);
-      return interaction.update(buildGameSelectWindow(draft, "College Football 27 dynasty setup isn't available yet — it's coming soon. Choose a Madden title to continue for now."));
-    }
     draft.game = value as LeagueSetupDraft["game"];
     draft.step = getNextLeagueSetupStep("game", draft);
+    applyLeagueSetupDependencies(draft);
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
   }
@@ -214,6 +210,16 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     case LEAGUE_SETUP_CUSTOM_IDS.quarterLength: draft.quarterLengthMinutes = Number(value); break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockEnabled: draft.acceleratedClockEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockSeconds: draft.acceleratedClockMinimumSeconds = Number(value); break;
+    case LEAGUE_SETUP_CUSTOM_IDS.dynastyStructure:
+      draft.dynastyType = value as LeagueSetupDraft["dynastyType"];
+      draft.teamBuilderAllowed = draft.dynastyType === "mixed";
+      break;
+    case LEAGUE_SETUP_CUSTOM_IDS.recruitingDifficulty: draft.recruitingDifficulty = value as LeagueSetupDraft["recruitingDifficulty"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.transferPortal: draft.transferPortalEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.coachCarousel: draft.coachCarouselEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.conferenceRealignment: draft.conferenceRealignment = value as LeagueSetupDraft["conferenceRealignment"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.homeFieldAdvantage: draft.homeFieldAdvantageEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.stadiumPulse: draft.stadiumPulseEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.salaryCap: draft.salaryCapEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.tradeDeadline: draft.tradeDeadlineEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.abilities: draft.abilitiesEnabled = value === "yes"; break;

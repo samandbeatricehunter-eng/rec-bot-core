@@ -46,6 +46,14 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   acceleratedClockSeconds: "rec:league_setup:accelerated_clock_seconds",
   salaryCap: "rec:league_setup:salary_cap",
   tradeDeadline: "rec:league_setup:trade_deadline",
+  // CFB 27 dynasty-only settings (shown when game === "cfb_27").
+  dynastyStructure: "rec:league_setup:dynasty_structure",
+  recruitingDifficulty: "rec:league_setup:recruiting_difficulty",
+  transferPortal: "rec:league_setup:transfer_portal",
+  coachCarousel: "rec:league_setup:coach_carousel",
+  conferenceRealignment: "rec:league_setup:conference_realignment",
+  homeFieldAdvantage: "rec:league_setup:home_field_advantage",
+  stadiumPulse: "rec:league_setup:stadium_pulse",
   abilities: "rec:league_setup:abilities",
   wearAndTear: "rec:league_setup:wear_and_tear",
   injuryPolicy: "rec:league_setup:injury_policy",
@@ -81,7 +89,7 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   purchaseAllTimeCapInput: "rec:league_setup:alltime_cap_input"
 } as const;
 
-export type LeagueSetupSettingsCategory = "features" | "purchases" | "server" | "rules" | "gameplay" | "play_call";
+export type LeagueSetupSettingsCategory = "features" | "purchases" | "server" | "rules" | "dynasty" | "gameplay" | "play_call";
 
 export type LeagueGame = "madden_26" | "madden_27" | "cfb_27";
 
@@ -94,6 +102,13 @@ export const LEAGUE_GAME_OPTIONS: Record<LeagueGame, string> = {
 export type LeagueSetupStep =
   | "game"
   | "league_type"
+  | "dynasty_structure"
+  | "recruiting_difficulty"
+  | "transfer_portal"
+  | "coach_carousel"
+  | "conference_realignment"
+  | "home_field_advantage"
+  | "stadium_pulse"
   | "economy"
   | "custom_players"
   | "legends"
@@ -204,6 +219,17 @@ export type LeagueSetupDraft = {
   tradeDeadlineEnabled: boolean;
   abilitiesEnabled: boolean;
   wearAndTearEnabled: boolean;
+  // CFB 27 dynasty settings (only meaningful when game === "cfb_27").
+  dynastyType: "real" | "mixed";
+  recruitingDifficulty: "easy" | "normal" | "hard";
+  recruitingRestrictions: string;
+  transferPortalEnabled: boolean;
+  coachCarouselEnabled: boolean;
+  conferenceRealignment: "allowed" | "locked";
+  homeFieldAdvantageEnabled: boolean;
+  stadiumPulseEnabled: boolean;
+  /** Derived from dynastyType: Mixed Teams ⇒ true, Real Teams ⇒ false. */
+  teamBuilderAllowed: boolean;
   offensivePlayCallLimitsEnabled: boolean;
   offensivePlayCallLimit?: number | null;
   offensivePlayCallCooldownEnabled: boolean;
@@ -234,6 +260,13 @@ export type LeagueSetupDraft = {
 const STEP_ORDER: LeagueSetupStep[] = [
   "game",
   "league_type",
+  "dynasty_structure",
+  "recruiting_difficulty",
+  "transfer_portal",
+  "coach_carousel",
+  "conference_realignment",
+  "home_field_advantage",
+  "stadium_pulse",
   "economy",
   "custom_players",
   "legends",
@@ -345,6 +378,15 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     tradeDeadlineEnabled: false,
     abilitiesEnabled: true,
     wearAndTearEnabled: true,
+    dynastyType: "real",
+    recruitingDifficulty: "normal",
+    recruitingRestrictions: "",
+    transferPortalEnabled: true,
+    coachCarouselEnabled: true,
+    conferenceRealignment: "locked",
+    homeFieldAdvantageEnabled: true,
+    stadiumPulseEnabled: true,
+    teamBuilderAllowed: false,
     offensivePlayCallLimitsEnabled: false,
     offensivePlayCallLimit: null,
     offensivePlayCallCooldownEnabled: false,
@@ -411,6 +453,23 @@ function streamingUserSettingApplies(requirement: LeagueSetupDraft["regularSeaso
 }
 
 export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
+  const isCfb = draft.game === "cfb_27";
+
+  // The CFB dynasty block (dynasty_structure … stadium_pulse) sits between league_type and
+  // economy. Madden titles skip the entire block; CFB walks through it via STEP_ORDER.
+  if (step === "league_type" && !isCfb) return "economy";
+
+  // CFB has no Legends, Age Resets, or Contract Purchases — skip those purchase steps.
+  if (isCfb && step === "custom_players") return "dev_upgrades";
+  if (isCfb && step === "dev_upgrades") return "attribute_purchases";
+  if (isCfb && step === "player_trait_purchases") return "server_setup";
+
+  // CFB has no Salary Cap or Trade Deadline gameplay toggles.
+  if (isCfb && step === "accelerated_clock_seconds") return "abilities";
+
+  // CFB has no NFL default-schedule seeding question.
+  if (isCfb && step === "activity_requirements") return "review";
+
   // Economy gates the consecutive purchase-feature section.
   if (step === "economy" && !draft.coinEconomyEnabled) return "server_setup";
 
@@ -425,8 +484,9 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
     return "fourth_down_regular";
   }
 
-  // Skip accelerated clock seconds question if accelerated clock is disabled
-  if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return "salary_cap";
+  // Skip accelerated clock seconds question if accelerated clock is disabled.
+  // CFB then skips straight past the Madden-only salary cap / trade deadline toggles.
+  if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) return isCfb ? "abilities" : "salary_cap";
 
   // Offensive: limit and cooldown are independent features, each with its own enable toggle.
   if (step === "offensive_limits_enabled" && !draft.offensivePlayCallLimitsEnabled) return "offensive_cooldown_enabled";
@@ -814,12 +874,18 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
   if (!isPurchaseFeatureStep(draft.step)) return buildLeagueTypeWindow(draft);
   const config = PURCHASE_FEATURE_STEPS[draft.step];
   const enabled = Boolean(draft[config.enabledKey]);
+  // CFB calls these "Custom Recruits" rather than "Custom Players".
+  const isCfbRecruits = draft.game === "cfb_27" && draft.step === "custom_players";
+  const title = isCfbRecruits ? "Custom Recruits" : config.title;
+  const description = isCfbRecruits
+    ? "Custom Recruits: Allows users to purchase and create custom recruits added to the recruiting pool and reserved for their program. Recruits are built using template archetypes and a range of 'creation points' based on how much the user spends when purchasing the recruit package."
+    : config.description;
   const embed = new EmbedBuilder()
-    .setTitle(`League Setup: ${config.title}`)
+    .setTitle(`League Setup: ${title}`)
     .setDescription([
       `League: **${draft.name}**`,
       "",
-      config.description,
+      description,
       "",
       `Current Selection: **${enabled ? "Activated" : "Deactivated"}**`,
       formatPurchaseCapSummary(draft, draft.step)
@@ -980,7 +1046,7 @@ export function buildGameSelectWindow(draft: LeagueSetupDraft, notice?: string) 
       "Which game is this league for? This determines the setup options and features available.",
       "",
       "• **Madden NFL 26** / **Madden NFL 27** — full franchise setup (Madden 27 uses the Madden 26 options for now).",
-      "• **College Football 27** — dynasty setup is coming soon; not yet available."
+      "• **College Football 27** — full dynasty setup with recruiting, transfer portal, and conference options."
     ].join("\n"));
   if (notice) embed.addFields({ name: "Heads up", value: notice });
 
@@ -990,7 +1056,7 @@ export function buildGameSelectWindow(draft: LeagueSetupDraft, notice?: string) 
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.game, "Select the game", [
         option("Madden NFL 26", "madden_26"),
         option("Madden NFL 27", "madden_27", "Uses the Madden 26 setup for now."),
-        option("College Football 27", "cfb_27", "Coming soon — placeholder.")
+        option("College Football 27", "cfb_27", "Dynasty setup with recruiting & transfer portal.")
       ]),
       buildNavigationRow()
     ]
@@ -1391,6 +1457,71 @@ export function buildBooleanGameplayWindow(draft: LeagueSetupDraft, title: strin
   };
 }
 
+// ---- CFB 27 dynasty setup windows (only reached when game === "cfb_27") ----
+
+function cfbEmbed(title: string, draft: LeagueSetupDraft, description: string) {
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setDescription([`League: **${draft.name}**`, "", description].join("\n"));
+}
+
+export function buildDynastyStructureWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [cfbEmbed("CFB Setup: Dynasty Structure", draft, [
+      "How are this dynasty's teams composed?",
+      "",
+      "• **Real Teams** — everyone uses the real FBS programs. Team Builder is **disabled**.",
+      "• **Mixed Teams** — custom/created programs are allowed alongside real ones, so Team Builder is **enabled**."
+    ].join("\n"))],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.dynastyStructure, "Select dynasty structure", [
+        option("Real Teams", "real", "Real FBS programs only — Team Builder off."),
+        option("Mixed Teams", "mixed", "Allow created programs — Team Builder on.")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildRecruitingDifficultyWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [cfbEmbed("CFB Setup: Recruiting Difficulty", draft, "How hard is it to land recruits and win recruiting battles this dynasty?")],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.recruitingDifficulty, "Select recruiting difficulty", [
+        option("Easy", "easy"),
+        option("Normal", "normal"),
+        option("Hard", "hard")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildConferenceRealignmentWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [cfbEmbed("CFB Setup: Conference Realignment", draft, [
+      "May teams move conferences during the dynasty?",
+      "",
+      "• **Locked** — conferences stay as they start.",
+      "• **Allowed** — realignment / expansion is permitted between seasons."
+    ].join("\n"))],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.conferenceRealignment, "Select realignment policy", [
+        option("Locked", "locked"),
+        option("Allowed", "allowed")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildCfbToggleWindow(draft: LeagueSetupDraft, title: string, customId: string, description: string, placeholder: string) {
+  return {
+    embeds: [cfbEmbed(title, draft, description)],
+    components: [selectRow(customId, placeholder, yesNoOptions()), buildNavigationRow()]
+  };
+}
+
 export function buildInjuryPolicyWindow(draft: LeagueSetupDraft) {
   return {
     embeds: [baseEmbed("Gameplay: Injuries", draft)],
@@ -1495,13 +1626,25 @@ function settingsCategoryLabel(category: LeagueSetupSettingsCategory) {
     case "purchases": return "Purchases";
     case "server": return "Server Setup";
     case "rules": return "Rules & Policies";
+    case "dynasty": return "Dynasty Settings";
     case "gameplay": return "Gameplay Settings";
     case "play_call": return "Play Call Settings";
   }
 }
 
 export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: LeagueSetupSettingsCategory) {
+  const isCfb = draft.game === "cfb_27";
   if (!category) {
+    const categoryChoices = [
+      option("Features", "category:features"),
+      option("Purchases", "category:purchases"),
+      option("Server Setup", "category:server"),
+      option("Rules & Policies", "category:rules"),
+      ...(isCfb ? [option("Dynasty Settings", "category:dynasty")] : []),
+      option("Gameplay Settings", "category:gameplay"),
+      option("Play Call Settings", "category:play_call")
+    ];
+
     return {
       embeds: [new EmbedBuilder().setTitle("Edit League Settings").setDescription(`League: **${draft.name}**\n\nChoose a settings category. Changes are saved immediately.`)],
       components: [
@@ -1509,14 +1652,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
           new StringSelectMenuBuilder()
             .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.settingsPicker)
             .setPlaceholder("Select a settings category")
-            .addOptions(
-              option("Features", "category:features"),
-              option("Purchases", "category:purchases"),
-              option("Server Setup", "category:server"),
-              option("Rules & Policies", "category:rules"),
-              option("Gameplay Settings", "category:gameplay"),
-              option("Play Call Settings", "category:play_call")
-            )
+            .addOptions(...categoryChoices)
         ),
         buildNavigationRow({ includeAdminPanel: true })
       ]
@@ -1527,9 +1663,15 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
     features: [
       option("Economy", "economy"),
       option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
-      option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")
+      ...(isCfb ? [] : [option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")])
     ],
-    purchases: [
+    purchases: isCfb ? [
+      option("Custom Recruits", "custom_players"),
+      option("Dev Upgrades", "dev_upgrades"),
+      option("Attribute Purchases", "attribute_purchases"),
+      option("Attribute Core Attributes", "attribute_core_attributes"),
+      option("Player Trait Purchases", "player_trait_purchases"),
+    ] : [
       option("Custom Players", "custom_players"),
       option("Legends", "legends"),
       option("Dev Upgrades", "dev_upgrades"),
@@ -1556,7 +1698,23 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Trade Approval Policy", "trade_approval"),
       option("CPU Trading", "cpu_trading")
     ],
-    gameplay: [
+    dynasty: [
+      option("Dynasty Structure", "dynasty_structure"),
+      option("Recruiting Difficulty", "recruiting_difficulty"),
+      option("Transfer Portal", "transfer_portal"),
+      option("Coach Carousel", "coach_carousel"),
+      option("Conference Realignment", "conference_realignment"),
+      option("Home-Field Advantage", "home_field_advantage"),
+      option("Stadium Pulse", "stadium_pulse")
+    ],
+    gameplay: isCfb ? [
+      option("Difficulty", "difficulty"),
+      option("Quarter Length", "quarter_length"),
+      option("Accelerated Clock", "accelerated_clock_enabled"),
+      option("Abilities", "abilities"),
+      option("Wear & Tear", "wear_and_tear"),
+      option("Injuries", "injury_policy")
+    ] : [
       option("Difficulty", "difficulty"),
       option("Quarter Length", "quarter_length"),
       option("Accelerated Clock", "accelerated_clock_enabled"),
@@ -1639,6 +1797,8 @@ export function buildDefaultScheduleConfirmWindow(draft: LeagueSetupDraft) {
 }
 
 export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
+  if (draft.game === "cfb_27") return buildCfbReviewWindow(draft);
+
   const embed = new EmbedBuilder()
     .setTitle("Review League Setup")
     .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? "Set" : "Not set / public"}`, "", "Review the configuration below, then save the league. Use the section buttons below to jump back and change answers."].join("\n"))
@@ -1741,10 +1901,119 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
   return { embeds: [embed], components: [saveRow, actionRow, buildNavigationRow()] };
 }
 
+export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
+  const embed = new EmbedBuilder()
+    .setTitle("Review CFB 27 Dynasty Setup")
+    .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? "Set" : "Not set / public"}`, "", "Review your College Football 27 dynasty configuration, then save. Use the section buttons below to jump back and change answers."].join("\n"))
+    .addFields(
+      {
+        name: "Identity",
+        value: [
+          `Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`,
+          `Type: ${fmt(draft.leagueType)}`,
+          `Dynasty Structure: ${draft.dynastyType === "mixed" ? "Mixed Teams" : "Real Teams"}`,
+          `Team Builder: ${yesNo(draft.teamBuilderAllowed)}`,
+          "Starts: Season 1, Training Camp"
+        ].join("\n"),
+        inline: true
+      },
+      {
+        name: "Dynasty Settings",
+        value: [
+          `Recruiting Difficulty: ${fmt(draft.recruitingDifficulty)}`,
+          `Transfer Portal: ${yesNo(draft.transferPortalEnabled)}`,
+          `Coach Carousel: ${yesNo(draft.coachCarouselEnabled)}`,
+          `Conference Realignment: ${fmt(draft.conferenceRealignment)}`,
+          `Home-Field Advantage: ${yesNo(draft.homeFieldAdvantageEnabled)}`,
+          `Stadium Pulse: ${yesNo(draft.stadiumPulseEnabled)}`,
+          `Wear & Tear: ${boolText(draft.wearAndTearEnabled)}`
+        ].join("\n"),
+        inline: true
+      },
+      {
+        name: "Features",
+        value: [
+          `Economy: ${yesNo(draft.coinEconomyEnabled)}`,
+          `Custom Recruits: ${yesNo(draft.customPlayersEnabled)}`,
+          `Dev Upgrades: ${yesNo(draft.devUpgradesEnabled)}`,
+          `Attribute Purchases: ${yesNo(draft.attributePurchasesEnabled)}`,
+          `Player Trait Purchases: ${yesNo(draft.playerTraitPurchasesEnabled)}`,
+          "",
+          formatPurchaseCapsReview(draft)
+        ].join("\n"),
+        inline: false
+      },
+      {
+        name: "Server Setup",
+        value: Object.entries(LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS)
+          .map(([, config]) => `${config.label}: ${formatChannelValue((draft as any)[config.field])}`)
+          .join("\n"),
+        inline: false
+      },
+      {
+        name: "Rules",
+        value: [
+          `Regular Season Streaming: ${fmt(draft.regularSeasonStreamingRequirement)}`,
+          `Regular Season Streaming Side: ${fmt(draft.regularSeasonStreamingSide)}`,
+          `Postseason Streaming: ${fmt(draft.postseasonStreamingRequirement)}`,
+          `Postseason Streaming Side: ${fmt(draft.postseasonStreamingSide)}`,
+          `4th Down (Regular Season): ${fmt(draft.fourthDownRuleTypeRegular)}${draft.fourthDownRuleTypeRegular === "custom" ? ` - ${draft.customFourthDownRuleRegular || "Custom text missing"}` : ""}`,
+          `4th Down (Playoff): ${fmt(draft.fourthDownRuleTypePlayoff)}${draft.fourthDownRuleTypePlayoff === "custom" ? ` - ${draft.customFourthDownRulePlayoff || "Custom text missing"}` : ""}`,
+          `Position Changes: ${fmt(draft.positionChangePolicy)}${draft.positionChangePolicy !== "open" ? ` - ${draft.positionChangePolicyDescription || "Restriction text missing"}` : ""}`,
+          `Custom Coaches Required: ${yesNo(draft.customCoachesRequired)}`,
+          `Custom Playbooks Allowed: ${yesNo(draft.customPlaybooksAllowed)}`,
+          `Coach Abilities Restricted: ${yesNo(draft.coachAbilitiesRestricted)}${draft.coachAbilitiesRestricted && draft.coachAbilitiesRestrictionNotes ? ` - ${draft.coachAbilitiesRestrictionNotes}` : ""}`,
+          `Trade Approval: ${fmt(draft.tradeApprovalPolicy)}`,
+          `CPU Trading: ${fmt(draft.cpuTradingPolicy)}${draft.cpuTradingPolicy === "restricted" ? ` - ${draft.cpuTradingRestriction || "Restriction text missing"}` : ""}`,
+          `Fair Sim: ${draft.fairSimRequirements || "Not set"}`,
+          `Force Win: ${draft.forceWinRequirements || "Not set"}`
+        ].join("\n"),
+        inline: false
+      },
+      {
+        name: "Gameplay",
+        value: [
+          `Difficulty: ${fmt(draft.difficulty)}${draft.difficulty === "custom" ? ` - ${draft.difficultyCustomSettings || "Custom text missing"}` : ""}`,
+          `Quarter Length: ${draft.quarterLengthMinutes}`,
+          `Accelerated Clock: ${boolText(draft.acceleratedClockEnabled)}${draft.acceleratedClockEnabled ? ` (${draft.acceleratedClockMinimumSeconds}s)` : ""}`,
+          `Abilities: ${boolText(draft.abilitiesEnabled)}`,
+          `Injuries: ${fmt(draft.injuryPolicy)}`,
+          `Offense Limit: ${draft.offensivePlayCallLimitsEnabled ? `${draft.offensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
+          `Offense Cooldown: ${draft.offensivePlayCallCooldownEnabled ? `${draft.offensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`,
+          `Defense Limit: ${draft.defensivePlayCallLimitsEnabled ? `${draft.defensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
+          `Defense Cooldown: ${draft.defensivePlayCallCooldownEnabled ? `${draft.defensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`
+        ].join("\n"),
+        inline: false
+      }
+    )
+    .setFooter({ text: "Economy payouts activate for linked users when Coin Economy is enabled." });
+
+  const editRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:dynasty`).setLabel("Edit Dynasty").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:features`).setLabel("Edit Features").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:server_setup`).setLabel("Edit Server").setStyle(ButtonStyle.Secondary)
+  );
+
+  const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:rules`).setLabel("Edit Rules").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:gameplay`).setLabel("Edit Gameplay").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.save).setLabel("Save Dynasty Setup").setStyle(ButtonStyle.Success)
+  );
+
+  return { embeds: [embed], components: [editRow, actionRow, buildNavigationRow()] };
+}
+
 export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
     case "game": return buildGameSelectWindow(draft);
     case "league_type": return buildLeagueTypeWindow(draft);
+    case "dynasty_structure": return buildDynastyStructureWindow(draft);
+    case "recruiting_difficulty": return buildRecruitingDifficultyWindow(draft);
+    case "transfer_portal": return buildCfbToggleWindow(draft, "CFB Setup: Transfer Portal", LEAGUE_SETUP_CUSTOM_IDS.transferPortal, "Is the Transfer Portal active? Players may enter/leave via the portal between seasons.", "Transfer Portal enabled?");
+    case "coach_carousel": return buildCfbToggleWindow(draft, "CFB Setup: Coach Carousel", LEAGUE_SETUP_CUSTOM_IDS.coachCarousel, "Is the Coach Carousel active? Coaches may be hired away or change programs between seasons.", "Coach Carousel enabled?");
+    case "conference_realignment": return buildConferenceRealignmentWindow(draft);
+    case "home_field_advantage": return buildCfbToggleWindow(draft, "CFB Setup: Home-Field Advantage", LEAGUE_SETUP_CUSTOM_IDS.homeFieldAdvantage, "Enable Home-Field Advantage? Hostile road environments shake the play-art and pressure the visiting offense.", "Home-Field Advantage enabled?");
+    case "stadium_pulse": return buildCfbToggleWindow(draft, "CFB Setup: Stadium Pulse", LEAGUE_SETUP_CUSTOM_IDS.stadiumPulse, "Enable Stadium Pulse? Crowd energy builds with momentum and affects the on-field atmosphere.", "Stadium Pulse enabled?");
     case "economy": return buildFeatureDecisionWindow(draft);
     case "custom_players":
     case "legends":
@@ -1793,6 +2062,26 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
 }
 
 export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
+  // CFB: Team Builder availability is coupled to the dynasty structure.
+  // Mixed Teams ⇒ team builder on; Real Teams ⇒ off.
+  draft.teamBuilderAllowed = draft.dynastyType === "mixed";
+
+  // CFB has no Legends, Age Resets, or Contract Purchases — keep them off so they can never persist on.
+  if (draft.game === "cfb_27") {
+    draft.legendsEnabled = false;
+    draft.legendsSeasonCap = 0;
+    draft.legendsAllTimeCap = null;
+    draft.ageResetsEnabled = false;
+    draft.ageResetsSeasonCap = 0;
+    draft.ageResetsAllTimeCap = null;
+    draft.contractAdjustmentPurchasesEnabled = false;
+    draft.contractPurchasesSeasonCap = 0;
+    draft.contractPurchasesAllTimeCap = null;
+    // CFB has no salary cap or trade deadline.
+    draft.salaryCapEnabled = false;
+    draft.tradeDeadlineEnabled = false;
+  }
+
   draft.streamingRequirement = draft.regularSeasonStreamingRequirement;
   draft.streamingSide = draft.regularSeasonStreamingSide;
   draft.streamingScope = draft.postseasonStreamingRequirement === "required" && draft.regularSeasonStreamingRequirement !== "required" ? "playoffs_only" : "every_game";

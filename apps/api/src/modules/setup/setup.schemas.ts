@@ -31,6 +31,16 @@ export const CreateLeagueSchema = z.object({
   game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
 
+  dynastyType: z.enum(["real", "mixed"]).default("real"),
+  recruitingDifficulty: z.enum(["easy", "normal", "hard"]).default("normal"),
+  transferPortalEnabled: z.boolean().default(true),
+  recruitingRestrictions: z.string().optional().nullable(),
+  coachCarouselEnabled: z.boolean().default(true),
+  homeFieldAdvantageEnabled: z.boolean().default(true),
+  stadiumPulseEnabled: z.boolean().default(true),
+  conferenceRealignment: z.enum(["allowed", "locked"]).default("locked"),
+  teamBuilderAllowed: z.boolean().default(false),
+
   seasonNumber: z.number().int().min(1).default(1),
   seasonStage: SeasonStageSchema.default("preseason_training_camp"),
   currentWeek: z.number().int().min(1).max(30).default(1),

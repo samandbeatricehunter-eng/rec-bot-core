@@ -9,6 +9,36 @@ import type {
   UpdateServerRoutesInput
 } from "./setup.schemas.js";
 
+function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput {
+  if (input.game !== "cfb_27") return input;
+
+  const dynastyType = input.dynastyType ?? "real";
+  return {
+    ...input,
+    dynastyType,
+    teamBuilderAllowed: dynastyType === "mixed",
+    legendsEnabled: false,
+    ageResetsEnabled: false,
+    contractAdjustmentPurchasesEnabled: false,
+    legendsSeasonCap: 0,
+    ageResetsSeasonCap: 0,
+    contractPurchasesSeasonCap: 0,
+    legendsAllTimeCap: null,
+    ageResetsAllTimeCap: null,
+    contractPurchasesAllTimeCap: null,
+    salaryCapEnabled: false,
+    tradeDeadlineEnabled: false,
+  };
+}
+
+function buildCfbSettings(input: CreateLeagueInput) {
+  return {
+    recruitingRestrictions: input.recruitingRestrictions ?? null,
+    coachCarouselEnabled: input.coachCarouselEnabled ?? true,
+    stadiumPulseEnabled: input.stadiumPulseEnabled ?? true,
+  };
+}
+
 /**
  * Registers or updates a Discord guild in REC Core.
  *
@@ -83,6 +113,8 @@ export async function registerServer(input: RegisterServerInput) {
 }
 
 export async function createLeagueForServer(input: CreateLeagueInput) {
+  input = normalizeLeagueSetupInput(input);
+
   const serverResult = await registerServer({
     guildId: input.guildId,
     name: input.serverName ?? input.guildId,
@@ -133,6 +165,15 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     league_id: league.data.id,
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
+    dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
+    recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
+    transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
+    coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
+    conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
+    home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
+    stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
+    team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
+    cfb_settings: input.game === "cfb_27" ? buildCfbSettings(input) : {},
 
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
@@ -320,12 +361,22 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
 }
 
 export async function updateLeagueConfig(input: CreateLeagueInput) {
+  input = normalizeLeagueSetupInput(input);
   const context = await getCurrentLeagueContext(input.guildId);
 
   const configurationPayload = {
     league_id: context.leagueId,
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
+    dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
+    recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
+    transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
+    coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
+    conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
+    home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
+    stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
+    team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
+    cfb_settings: input.game === "cfb_27" ? buildCfbSettings(input) : {},
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
@@ -414,12 +465,22 @@ export async function getLeagueConfigAsDraft(guildId: string) {
   ]);
   if (league.error) throw new ApiError(500, "Failed to load league", league.error);
   const c = config.data ?? {};
+  const cfbSettings = c.cfb_settings && typeof c.cfb_settings === "object" && !Array.isArray(c.cfb_settings) ? c.cfb_settings : {};
   const r = context.routes ?? {};
   const draft = {
     name: league.data.name ?? "League",
     game: league.data.game ?? "madden_26",
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
+    dynastyType: c.dynasty_type ?? "real",
+    recruitingDifficulty: c.recruiting_difficulty ?? "normal",
+    transferPortalEnabled: c.transfer_portal_enabled ?? true,
+    recruitingRestrictions: typeof cfbSettings.recruitingRestrictions === "string" ? cfbSettings.recruitingRestrictions : "",
+    coachCarouselEnabled: c.coach_carousel_enabled ?? true,
+    conferenceRealignment: c.conference_realignment ?? "locked",
+    homeFieldAdvantageEnabled: c.home_field_advantage_enabled ?? true,
+    stadiumPulseEnabled: c.stadium_pulse_enabled ?? true,
+    teamBuilderAllowed: c.team_builder_allowed ?? (c.dynasty_type === "mixed"),
     seasonWeek: "week_1",
     coinEconomyEnabled: c.coin_economy_enabled ?? false,
     customPlayersEnabled: c.custom_players_enabled ?? false,
