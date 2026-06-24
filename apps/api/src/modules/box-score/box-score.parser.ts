@@ -94,7 +94,6 @@ const STAT_LABEL_MAP: Record<string, string> = {
   "red zone off td": "red_zone_off_td",
   "red zone off fg": "red_zone_off_fg",
   "penalty yards": "penalty_yards",
-  "time of possession": "time_of_possession",
 };
 
 const ALL_STAT_KEYS = new Set(Object.values(STAT_LABEL_MAP));
@@ -124,7 +123,6 @@ const FIELD_DISPLAY_NAMES: Record<string, string> = {
   turnovers: "Turnovers",
   red_zone_off_percentage: "Red Zone Off %",
   total_yards_gained: "Total Yards Gained",
-  time_of_possession: "Time of Possession",
   third_down_conversions: "Third Down Conversions",
   fourth_down_conversions: "Fourth Down Conversions",
   two_point_conversions: "Two Point Conversions",
@@ -812,9 +810,6 @@ function validateStatValue(key: string, value: string): string {
     const n = parseInt(v, 10);
     return !isNaN(n) && n >= 0 && n <= 100 ? String(n) : "";
   }
-  if (key === "time_of_possession") {
-    return /^\d{1,2}:\d{2}$/.test(v) ? v : "";
-  }
   return /^\d+$/.test(v) ? v : "";
 }
 
@@ -866,7 +861,6 @@ const LABEL_OCR_ALIASES: Record<string, string> = {
   "red zone off td": "red zone off td",
   "red zone ol td": "red zone off td",
   "penalty vards": "penalty yards",
-  "time of possesion": "time of possession",
   "ot yards gained": "off yards gained",
   "oft rush vars": "off rush yards",
   "oftpass yards": "off pass yards",
@@ -1320,10 +1314,6 @@ function cellQuality(key: string, value: string): number {
   if (key.includes("percentage")) {
     const n = parseInt(v, 10);
     return !isNaN(n) && n >= 0 && n <= 100 ? 10 : 2;
-  }
-
-  if (key === "time_of_possession") {
-    return /^\d{1,2}:\d{2}$/.test(v) ? 10 : 4;
   }
 
   const n = parseInt(v, 10);

@@ -1057,7 +1057,6 @@ async function recordTeamGameStats(sub: any) {
       result,
       points_for: ptsFor ?? null,
       points_against: ptsAgainst ?? null,
-      time_of_possession: stats["time_of_possession"]?.[side] || null,
       // generated/allowed = opponent's offense mirrored.
       generated_turnovers: toInt(stats["turnovers"]?.[oppSide]),
       yards_allowed: toInt(stats["total_yards_gained"]?.[oppSide]),

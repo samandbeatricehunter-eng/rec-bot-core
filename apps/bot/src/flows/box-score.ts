@@ -95,6 +95,20 @@ function prettifyKey(k: string): string {
   return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function userFacingError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const apiError = message.match(/^REC API request failed:\s*\d+\s+(\{.*\})$/s);
+  if (apiError?.[1]) {
+    try {
+      const parsed = JSON.parse(apiError[1]) as { error?: unknown };
+      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
+    } catch {
+      // Fall through to the original message if the API did not return JSON.
+    }
+  }
+  return message;
+}
+
 async function deleteMessages(channel: TextChannel, ids: string[]) {
   for (const id of ids) {
     await channel.messages.delete(id).catch(() => undefined);
@@ -200,7 +214,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
         embeds: [new EmbedBuilder()
           .setTitle("Box Score Check Failed")
           .setColor(0xe74c3c)
-          .setDescription(err instanceof Error ? err.message : String(err))],
+          .setDescription(userFacingError(err))],
       }).catch(() => undefined);
       return;
     }
@@ -324,7 +338,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
   } catch (err) {
     await message.delete().catch(() => undefined);
     await working?.edit({
-      embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(0xe74c3c).setDescription(userFacingError(err))],
     }).catch(() => undefined);
   }
   return true;
@@ -356,7 +370,7 @@ async function advanceExchange(ex: Exchange) {
       embeds: [new EmbedBuilder()
         .setTitle("Box Score Failed")
         .setColor(0xe74c3c)
-        .setDescription(err instanceof Error ? err.message : String(err))],
+        .setDescription(userFacingError(err))],
     }).catch(() => undefined);
     return;
   }
@@ -402,7 +416,7 @@ async function advanceExchange(ex: Exchange) {
       embeds: [new EmbedBuilder()
         .setTitle("Box Score Submission Failed")
         .setColor(0xe74c3c)
-        .setDescription(err instanceof Error ? err.message : String(err))],
+        .setDescription(userFacingError(err))],
     }).catch(() => undefined);
     return;
   }
@@ -715,7 +729,6 @@ function statLines(stats: Record<string, { team1: string; team2: string } | null
     "red_zone_off_td",
     "red_zone_off_fg",
     "penalty_yards",
-    "time_of_possession",
   ];
   const keys = [
     ...preferredOrder.filter((key) => stats[key]),
