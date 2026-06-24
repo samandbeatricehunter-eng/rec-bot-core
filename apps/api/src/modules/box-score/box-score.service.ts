@@ -371,6 +371,25 @@ async function boxScoreAbbrsMatchScheduledGame(
   return recognizable((game as any).away_team) || recognizable((game as any).home_team);
 }
 
+// The user currently linked to each given team (active assignment), keyed by
+// team id. rec_games.home_user_id/away_user_id are frequently null or stale, so
+// the active assignment is the source of truth for who gets paid and recorded.
+async function activeUsersForTeams(leagueId: string, teamIds: (string | null | undefined)[]): Promise<Map<string, string>> {
+  const ids = [...new Set(teamIds.filter((t): t is string => !!t))];
+  if (!ids.length) return new Map();
+  const { data, error } = await supabase
+    .from("rec_team_assignments")
+    .select("team_id,user_id")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .in("team_id", ids);
+  if (error) throw new ApiError(500, "Failed to load team assignments for payout routing.", error);
+  const map = new Map<string, string>();
+  for (const r of data ?? []) if (r.team_id && r.user_id) map.set(r.team_id, r.user_id);
+  return map;
+}
+
 async function resolveGameContext(
   leagueId: string,
   seasonNumber: number,
@@ -400,6 +419,7 @@ async function resolveGameContext(
       // column as team1 and the bottom/right as team2, so team1 = away, team2 = home.
       const home: any = game.home_team;
       const away: any = game.away_team;
+      const users = await activeUsersForTeams(leagueId, [game.home_team_id, game.away_team_id]);
       return {
         team1Name: away?.name ?? null,
         team2Name: home?.name ?? null,
@@ -408,8 +428,8 @@ async function resolveGameContext(
         gameId: game.id,
         homeTeamId: game.home_team_id,
         awayTeamId: game.away_team_id,
-        homeUserId: game.home_user_id ?? null,
-        awayUserId: game.away_user_id ?? null,
+        homeUserId: users.get(game.home_team_id) ?? game.home_user_id ?? null,
+        awayUserId: users.get(game.away_team_id) ?? game.away_user_id ?? null,
         homeScore: parsed.score?.team2Score ?? null,
         awayScore: parsed.score?.team1Score ?? null,
       };
@@ -433,19 +453,18 @@ async function resolveGameContext(
   const game = await resolveGame(leagueId, team1.id, team2.id, seasonId, weekNumber);
   if (!game) return out;
 
+  const users = await activeUsersForTeams(leagueId, [game.home_team_id, game.away_team_id]);
   out.gameId = game.id;
+  out.homeUserId = users.get(game.home_team_id) ?? game.home_user_id ?? null;
+  out.awayUserId = users.get(game.away_team_id) ?? game.away_user_id ?? null;
   if (game.home_team_id === team1.id) {
     out.homeTeamId = team1.id;
     out.awayTeamId = team2.id;
-    out.homeUserId = game.home_user_id ?? null;
-    out.awayUserId = game.away_user_id ?? null;
     out.homeScore = parsed.score.team1Score;
     out.awayScore = parsed.score.team2Score;
   } else {
     out.homeTeamId = team2.id;
     out.awayTeamId = team1.id;
-    out.homeUserId = game.home_user_id ?? null;
-    out.awayUserId = game.away_user_id ?? null;
     out.homeScore = parsed.score.team2Score;
     out.awayScore = parsed.score.team1Score;
   }
@@ -799,17 +818,16 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     console.error("[ERROR] Failed to sync CPU team season stats after box score approval:", error);
   });
 
-  // Issue payouts: winner $100, loser $50. Matched games pay both participants
-  // by result; an unmatched (commissioner-approved) score pays just the submitter.
+  // Issue payouts only to linked-user participants (winner $100, loser $50). A
+  // CPU-vs-CPU game — no linked user on either team — is still recorded but pays
+  // no one (the commissioner who uploaded it is never paid).
   const payouts: { userId: string; amount: number }[] = [];
-  if (sub.home_team_id && sub.away_team_id && (sub.home_user_id || sub.away_user_id)) {
+  if (sub.home_team_id && sub.away_team_id) {
     for (const uid of [sub.home_user_id, sub.away_user_id] as (string | null)[]) {
       if (!uid) continue;
       const amount = winningUserId == null ? BOX_SCORE_LOSS_PAYOUT : (uid === winningUserId ? BOX_SCORE_WIN_PAYOUT : BOX_SCORE_LOSS_PAYOUT);
       payouts.push({ userId: uid, amount });
     }
-  } else if (sub.submitted_by_user_id) {
-    payouts.push({ userId: sub.submitted_by_user_id, amount: BOX_SCORE_LOSS_PAYOUT });
   }
 
   let totalPaid = 0;
