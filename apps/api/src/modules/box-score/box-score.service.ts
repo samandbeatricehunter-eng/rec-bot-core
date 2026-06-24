@@ -499,17 +499,26 @@ export async function parseBoxScorePreview(input: PreviewInput): Promise<Preview
 
   // Self-serve preview anchors on the submitter's scheduled game (same as submit),
   // so the matched teams shown to the user don't depend on OCR reading both abbrs.
+  // A self-serve user can only upload their OWN scheduled game.
   let anchorGameId: string | null = null;
   if (!input.commissionerSubmission && account?.user_id) {
     const teamId = await getActiveTeamId(context.leagueId, account.user_id);
-    if (teamId) {
-      const game = await getUserScheduledGameForWeek(context.leagueId, teamId, seasonNumber, weekNumber);
-      anchorGameId = game?.id ?? null;
-    }
+    if (!teamId) throw new ApiError(400, "You aren't linked to a team in this league, so you can't upload a box score here.");
+    const game = await getUserScheduledGameForWeek(context.leagueId, teamId, seasonNumber, weekNumber);
+    if (!game) throw new ApiError(400, `You don't have a scheduled game in Week ${weekNumber}.`);
+    anchorGameId = game.id;
   }
 
   const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
   const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed, anchorGameId);
+
+  // Reject a self-serve upload that isn't the submitter's own scheduled matchup.
+  if (!input.commissionerSubmission && anchorGameId && parsed.score) {
+    const looksRight = await boxScoreAbbrsMatchScheduledGame(context.leagueId, anchorGameId, parsed.score.team1Abbr, parsed.score.team2Abbr);
+    if (!looksRight) {
+      throw new ApiError(400, `This box score isn't your Week ${weekNumber} matchup. You can only upload your own scheduled game in this channel.`);
+    }
+  }
 
   return {
     parsed,
@@ -598,20 +607,18 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   const displayTeam1Abbr = resolved.team1Abbr ?? parsed.score?.team1Abbr ?? null;
   const displayTeam2Abbr = resolved.team2Abbr ?? parsed.score?.team2Abbr ?? null;
 
-  // Flag for commissioner review (never a hard reject on a self-serve upload).
   const flagReasons: string[] = [];
   if (!resolved.gameId) {
     flagReasons.push(`No scheduled game was found for Week ${weekNumber}.`);
   }
-  // The game came from the schedule, so confirm the uploaded scoreboard actually
-  // shows that matchup — if neither team's abbreviation is recognizable, the wrong
-  // screenshot was probably uploaded. Tolerant of one misread side.
+  // Self-serve: reject a box score that isn't the submitter's own scheduled
+  // matchup (they may only upload their own game). Commissioner uploads are exempt.
   if (!input.commissionerSubmission && resolved.gameId && parsed.score) {
     const looksRight = await boxScoreAbbrsMatchScheduledGame(
       leagueId, resolved.gameId, parsed.score.team1Abbr, parsed.score.team2Abbr,
     );
     if (!looksRight) {
-      flagReasons.push("The uploaded box score doesn't look like your scheduled matchup — a commissioner should confirm before approving.");
+      throw new ApiError(400, `This box score isn't your Week ${weekNumber} matchup. You can only upload your own scheduled game in this channel.`);
     }
   }
   const flagged = flagReasons.length > 0;

@@ -154,27 +154,16 @@ export async function removeSupersededWeekGameStats(sub: {
   league_id: string;
   season_number: number;
   week_number: number;
+  game_id?: string | null;
+  home_team_id?: string | null;
+  away_team_id?: string | null;
   home_user_id?: string | null;
   away_user_id?: string | null;
 }) {
-  const { data: existing, error: existingError } = await supabase
-    .from("rec_team_game_stats")
-    .select("user_id")
-    .eq("league_id", sub.league_id)
-    .eq("season_number", sub.season_number)
-    .eq("week_number", sub.week_number)
-    .neq("submission_id", sub.id);
-
-  if (existingError) throw existingError;
-
-  const userIds = new Set<string>();
-  for (const row of existing ?? []) {
-    if (row.user_id) userIds.add(row.user_id);
-  }
-  if (sub.home_user_id) userIds.add(sub.home_user_id);
-  if (sub.away_user_id) userIds.add(sub.away_user_id);
-
-  const { error: deleteError } = await supabase
+  // Only stats from a PRIOR submission for the SAME game are superseded by this
+  // approval — never other teams' games in the same week. Scope by game_id when
+  // matched, otherwise by this submission's two team ids.
+  let query = supabase
     .from("rec_team_game_stats")
     .delete()
     .eq("league_id", sub.league_id)
@@ -182,8 +171,17 @@ export async function removeSupersededWeekGameStats(sub: {
     .eq("week_number", sub.week_number)
     .neq("submission_id", sub.id);
 
-  if (deleteError) throw deleteError;
-  return [...userIds];
+  if (sub.game_id) {
+    query = query.eq("game_id", sub.game_id);
+  } else {
+    const teamIds = [sub.home_team_id, sub.away_team_id].filter(Boolean) as string[];
+    if (!teamIds.length) return []; // nothing to scope to — never delete league-wide
+    query = query.in("team_id", teamIds);
+  }
+
+  const { error } = await query;
+  if (error) throw error;
+  return [];
 }
 
 export async function syncUsersAfterBoxScoreApproval(sub: {

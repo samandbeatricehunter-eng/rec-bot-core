@@ -141,12 +141,30 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   if (!message.channel.isTextBased() || message.channel.isDMBased()) return;
   const channel = message.channel as TextChannel;
 
-  const images = [...message.attachments.values()]
-    .filter((a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""))
-    .map((a) => a.url);
+  const attachments = [...message.attachments.values()];
+  const imageAttachments = attachments.filter(
+    (a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""),
+  );
 
-  // Ignore plain chatter — we only act on image uploads.
-  if (images.length === 0) return;
+  // Channel rule: a message here must be exactly one box-score image and nothing
+  // else. Anything else (text, files, multiple images) is removed with a notice.
+  if (imageAttachments.length !== 1 || attachments.length !== imageAttachments.length) {
+    await message.delete().catch(() => undefined);
+    const reason =
+      imageAttachments.length === 0
+        ? "Only box score **images** can be posted in this channel."
+        : imageAttachments.length > 1
+          ? "Upload **one** box score image per message — not several."
+          : "Post **only** the box score image — no other files.";
+    const notice = await channel.send({
+      content: `<@${message.author.id}> ${reason} Your message was removed.`,
+      allowedMentions: { users: [message.author.id] },
+    }).catch(() => null);
+    if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 10_000);
+    return;
+  }
+
+  const images = imageAttachments.map((a) => a.url);
 
   const key = exKey(message.guildId, message.author.id);
   const existing = exchanges.get(key);
