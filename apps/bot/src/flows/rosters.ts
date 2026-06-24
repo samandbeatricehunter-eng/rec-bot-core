@@ -7,6 +7,7 @@ import {
   buildOpenTeamsEmbeds,
   buildSnapshotConferenceSelectRows,
   buildSnapshotTeamSelectRows,
+  MENU_CUSTOM_IDS,
   ROSTERS_CUSTOM_IDS,
   type MaddenTeamsPage
 } from "../ui/menu.js";
@@ -30,24 +31,25 @@ export async function renderTeamsMenu(interaction: ButtonInteraction) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("No teams found for this league yet.")], components: buildMaddenTeamsRows() });
   }
 
+  const page = conferences.some((conference) => conference.conference === "NFC") ? "NFC" : String(conferences[0]?.conference ?? "Teams");
   return interaction.editReply({
-    embeds: [buildMaddenTeamsEmbed(conferences, "NFC")],
-    components: buildMaddenTeamsRows("NFC")
+    embeds: [buildMaddenTeamsEmbed(conferences, page)],
+    components: buildMaddenTeamsRows(page, conferences)
   });
 }
 
-export async function handleTeamsPage(interaction: ButtonInteraction) {
+export async function handleTeamsPage(interaction: ButtonInteraction | StringSelectMenuInteraction) {
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Teams...").setDescription("Switching conferences and refreshing linked/open teams.")], components: [] });
   if (!interaction.guildId) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildMaddenTeamsRows("NFC") });
   }
-  const page = interaction.customId.split(":").pop() === "AFC" ? "AFC" : "NFC";
+  const page = interaction.isStringSelectMenu() ? interaction.values[0] ?? "NFC" : interaction.customId.slice(`${MENU_CUSTOM_IDS.teamsPage}:`.length) || "NFC";
   const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
   const conferences: any[] = confData?.conferences ?? [];
   return interaction.editReply({
     embeds: [buildMaddenTeamsEmbed(conferences, page as MaddenTeamsPage)],
-    components: buildMaddenTeamsRows(page as MaddenTeamsPage)
+    components: buildMaddenTeamsRows(page as MaddenTeamsPage, conferences)
   });
 }
 
@@ -65,7 +67,9 @@ export async function handlePostOpenTeams(interaction: ButtonInteraction) {
   const conferences: any[] = confData?.conferences ?? [];
   const embeds = buildOpenTeamsEmbeds(conferences);
 
-  await interaction.channel.send({ embeds });
+  for (let i = 0; i < embeds.length; i += 10) {
+    await interaction.channel.send({ embeds: embeds.slice(i, i + 10) });
+  }
   return interaction.editReply({ content: "Posted open teams to this channel." });
 }
 

@@ -26,9 +26,7 @@ const OPTIONAL = [
   "third_down_conversions",
   "fourth_down_conversions",
   "two_point_conversions",
-  "red_zone_off_td",
   "total_yards_gained",
-  "penalty_yards",
 ] as const;
 
 function incompleteRequired(stats: Record<string, { team1: string; team2: string }>) {

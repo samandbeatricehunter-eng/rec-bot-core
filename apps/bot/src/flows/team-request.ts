@@ -49,6 +49,25 @@ function requestTeamBackRow() {
   ];
 }
 
+function buildTeamRequestConferenceRows(openTeamsList: Array<{ conference: string }>) {
+  const conferences = [...new Set(openTeamsList.map((team) => team.conference).filter(Boolean))].slice(0, 25);
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(TEAM_REQUEST_CUSTOM_IDS.conferenceSelect)
+        .setPlaceholder("Select conference")
+        .addOptions(
+          ...conferences.map((conference) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(conference.slice(0, 100))
+              .setValue(conference)
+          )
+        )
+    ),
+    ...requestTeamBackRow(),
+  ];
+}
+
 async function loadTeamRequestEligibility(guildId: string, discordId: string) {
   const [profileResult, confData] = await Promise.all([
     recApi.getMenuProfile(discordId, guildId).catch((error) => {
@@ -105,20 +124,16 @@ export async function startTeamRequestFlow(interaction: ButtonInteraction) {
         .setTitle("Request Team")
         .setDescription("Choose a conference to see **available** (unlinked) teams you can request."),
     ],
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${TEAM_REQUEST_CUSTOM_IDS.conferenceSelect}:NFC`).setLabel("NFC").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`${TEAM_REQUEST_CUSTOM_IDS.conferenceSelect}:AFC`).setLabel("AFC").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary),
-      ),
-    ],
+    components: buildTeamRequestConferenceRows(eligibility.openTeams),
   });
 }
 
-export async function handleTeamRequestConference(interaction: ButtonInteraction) {
+export async function handleTeamRequestConference(interaction: ButtonInteraction | StringSelectMenuInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) return;
-  const conference = interaction.customId.endsWith(":AFC") ? "AFC" : "NFC";
+  const conference = interaction.isStringSelectMenu()
+    ? interaction.values[0] ?? ""
+    : interaction.customId.slice(`${TEAM_REQUEST_CUSTOM_IDS.conferenceSelect}:`.length);
   const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
   const conferences: RosterConference[] = confData?.conferences ?? [];
   const teams = openTeams(conferences).filter((team) => team.conference === conference);
@@ -126,7 +141,7 @@ export async function handleTeamRequestConference(interaction: ButtonInteraction
   if (!teams.length) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle(`${conference} — No Open Teams`).setDescription("Every team in this conference is already linked. Try the other conference or ask a commissioner.")],
-      components: buildMaddenTeamsRows(conference as MaddenTeamsPage),
+      components: buildMaddenTeamsRows(conference as MaddenTeamsPage, conferences),
     });
   }
 
@@ -146,7 +161,7 @@ export async function handleTeamRequestConference(interaction: ButtonInteraction
           .setPlaceholder("Select an open team")
           .addOptions(options),
       ),
-      ...buildMaddenTeamsRows(conference as MaddenTeamsPage),
+      ...buildMaddenTeamsRows(conference as MaddenTeamsPage, conferences),
     ],
   });
 }

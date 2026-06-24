@@ -726,9 +726,6 @@ function statLines(stats: Record<string, { team1: string; team2: string } | null
     "fourth_down_conversions",
     "two_point_conversions",
     "red_zone_off_percentage",
-    "red_zone_off_td",
-    "red_zone_off_fg",
-    "penalty_yards",
   ];
   const keys = [
     ...preferredOrder.filter((key) => stats[key]),

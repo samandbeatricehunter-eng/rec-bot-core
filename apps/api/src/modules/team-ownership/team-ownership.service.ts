@@ -1,4 +1,4 @@
-import { AFC_TEAMS, NFC_TEAMS, getTeamByAbbreviation } from "@rec/shared";
+import { AFC_TEAMS, CFB_27_TEAMS, NFC_TEAMS, getTeamByAbbreviation } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -11,9 +11,21 @@ export async function getCurrentLeagueForGuild(guildId: string) {
   return { server: context.rec_discord_servers, league: context.rec_leagues };
 }
 
+function getDefaultTeamCatalog(game?: string | null) {
+  if (game === "cfb_27") return CFB_27_TEAMS;
+  return [...AFC_TEAMS, ...NFC_TEAMS];
+}
+
+function defaultTeamResetDescription(game?: string | null) {
+  if (game === "cfb_27") return "default College Football 27 teams";
+  if (game === "madden_27") return "default Madden NFL 27 teams";
+  return "default Madden NFL 26 teams";
+}
+
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
-  const rows = [...AFC_TEAMS, ...NFC_TEAMS].map((team) => ({
+  const catalog = getDefaultTeamCatalog(league.game);
+  const rows = catalog.map((team) => ({
     league_id: league.id,
     name: team.name,
     abbreviation: team.abbreviation,
@@ -32,10 +44,10 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
   if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
 
   await writeAuditLog({
-    action: "teams.default_nfl.upserted",
+    action: league.game === "cfb_27" ? "teams.default_cfb.upserted" : "teams.default_nfl.upserted",
     entityType: "rec_teams",
-    newValue: { guildId: input.guildId, leagueId: league.id, teamCount: rows.length },
-    reason: "Default teams created for Team Ownership setup.",
+    newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, teamCount: rows.length },
+    reason: `${defaultTeamResetDescription(league.game)} created for Team Ownership setup.`,
     source: "manual_admin_entry"
   });
 
@@ -49,7 +61,8 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
 
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
-  const rows = [...AFC_TEAMS, ...NFC_TEAMS].map((team) => ({
+  const catalog = getDefaultTeamCatalog(league.game);
+  const rows = catalog.map((team) => ({
     league_id: league.id,
     name: team.name,
     abbreviation: team.abbreviation,
@@ -73,10 +86,10 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   if (result.error) throw new ApiError(500, "Failed to reset default league teams.", result.error);
 
   await writeAuditLog({
-    action: "teams.default_nfl.reset",
+    action: league.game === "cfb_27" ? "teams.default_cfb.reset" : "teams.default_nfl.reset",
     entityType: "rec_teams",
-    newValue: { guildId: input.guildId, leagueId: league.id, teamCount: result.data?.length ?? 0 },
-    reason: "Default teams reset through Team Management.",
+    newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, teamCount: result.data?.length ?? 0 },
+    reason: `${defaultTeamResetDescription(league.game)} reset through Team Management.`,
     source: "manual_admin_entry"
   });
 

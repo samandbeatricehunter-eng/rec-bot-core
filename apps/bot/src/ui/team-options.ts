@@ -173,7 +173,7 @@ export function buildConferenceSelectRow() {
   );
 }
 
-export function buildOpenTeamSelectRow(conference: "AFC" | "NFC", openTeams: TeamLinkTeamOption[]) {
+export function buildOpenTeamSelectRow(conference: string, openTeams: TeamLinkTeamOption[]) {
   const customId = conference === "AFC" ? TEAM_LINK_CUSTOM_IDS.afcTeamSelect : TEAM_LINK_CUSTOM_IDS.nfcTeamSelect;
   const options = openTeams
     .filter((team) => team.conference === conference)
@@ -197,7 +197,7 @@ export function buildOpenTeamSelectRow(conference: "AFC" | "NFC", openTeams: Tea
   );
 }
 
-export function buildTeamSelectRow(conference: "AFC" | "NFC") {
+export function buildTeamSelectRow(conference: string) {
   const teams = conference === "AFC" ? AFC_TEAMS : NFC_TEAMS;
   return buildOpenTeamSelectRow(conference, teams);
 }
@@ -336,7 +336,9 @@ function normalizeDivisionName(value: unknown, conference: string) {
 function normalizeLeagueTeamConferences(rawConferences: any[]) {
   const confMap = new Map<string, Map<string, any[]>>();
   for (const conference of rawConferences ?? []) {
-    const confName = String(conference.conference ?? "").toUpperCase() || "Other";
+    const rawName = String(conference.conference ?? "").trim();
+    const upperName = rawName.toUpperCase();
+    const confName = upperName === "AFC" || upperName === "NFC" ? upperName : rawName || "Other";
     for (const division of conference.divisions ?? []) {
       const label = normalizeDivisionName(division.label ?? division.division, confName);
       if (!confMap.has(confName)) confMap.set(confName, new Map());
@@ -345,7 +347,7 @@ function normalizeLeagueTeamConferences(rawConferences: any[]) {
       divMap.get(label)!.push(...(division.teams ?? []));
     }
   }
-  const confOrder = ["NFC", "AFC", "Other"];
+  const confOrder = ["NFC", "AFC", "Big Ten", "SEC", "Big 12", "ACC", "Pac-12", "Mountain West", "Sun Belt", "MAC", "Conference USA", "American", "FCS (Non-D1)", "Other"];
   return [...confMap.entries()]
     .sort((a, b) => {
       const ai = confOrder.indexOf(a[0]);
@@ -586,7 +588,7 @@ export function buildUserSelectionPanel(
   };
 }
 
-export function buildCustomTeamModal(conference?: "AFC" | "NFC") {
+export function buildCustomTeamModal(conference?: string) {
   const modal = new ModalBuilder()
     .setCustomId(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:${conference ?? "GEN"}`)
     .setTitle(conference ? `Register Custom ${conference} Team` : "Register Custom Team");

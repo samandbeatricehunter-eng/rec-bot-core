@@ -36,6 +36,7 @@ export const MENU_CUSTOM_IDS = {
   teamsPostOpen: "rec:teams:post_open",
   teamsBack: "rec:teams:back",
   teamsPage: "rec:teams:page",
+  teamsConferenceSelect: "rec:teams:conference",
   leagueMgmtTeams: "rec:league_mgmt:teams",
   leagueMgmtServerSetup: "rec:league_mgmt:server_setup",
   leagueMgmtSchedule: "rec:league_mgmt:schedule",
@@ -433,8 +434,10 @@ function maddenTeamLine(team: RosterTeam) {
 // so the grid always renders exactly the two real conferences — no empty/duplicate groups.
 export function normalizeRosterConferences(conferences: RosterConference[]): RosterConference[] {
   const inferConf = (confName: string, divisionText: string) => {
-    const c = String(confName ?? "").toUpperCase().trim();
+    const raw = String(confName ?? "").trim();
+    const c = raw.toUpperCase();
     if (c === "NFC" || c === "AFC") return c;
+    if (raw) return raw;
     const text = String(divisionText ?? "").toUpperCase();
     if (text.includes("AFC")) return "AFC";
     if (text.includes("NFC")) return "NFC";
@@ -462,11 +465,11 @@ export function normalizeRosterConferences(conferences: RosterConference[]): Ros
       }
     }
   }
-  const order = ["NFC", "AFC", "Other"];
+  const order = ["NFC", "AFC", "Big Ten", "SEC", "Big 12", "ACC", "Pac-12", "Mountain West", "Sun Belt", "MAC", "Conference USA", "American", "FCS (Non-D1)", "Other"];
   return [...confMap.keys()]
     .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99))
     .map((c) => ({
-      conference: c === "Other" ? "Other" : c,
+      conference: c,
       divisions: [...confMap.get(c)!.entries()]
         .sort((a, b) => {
           const ai = divisionOrder.indexOf(a[0]);
@@ -477,11 +480,16 @@ export function normalizeRosterConferences(conferences: RosterConference[]): Ros
     }));
 }
 
-export type MaddenTeamsPage = "NFC" | "AFC";
+export type MaddenTeamsPage = string;
 
-export function buildMaddenTeamsEmbed(rawConferences: RosterConference[], page: MaddenTeamsPage = "NFC") {
+function defaultTeamsPage(rawConferences: RosterConference[]) {
   const conferences = normalizeRosterConferences(rawConferences);
-  const conf = conferences.find((c) => c.conference === page) ?? conferences.find((c) => c.conference === "NFC" || c.conference === "AFC");
+  return conferences.find((c) => c.conference === "NFC")?.conference ?? conferences[0]?.conference ?? "Teams";
+}
+
+export function buildMaddenTeamsEmbed(rawConferences: RosterConference[], page: MaddenTeamsPage = defaultTeamsPage(rawConferences)) {
+  const conferences = normalizeRosterConferences(rawConferences);
+  const conf = conferences.find((c) => c.conference === page) ?? conferences.find((c) => c.conference === "NFC" || c.conference === "AFC") ?? conferences[0];
   const embed = new EmbedBuilder()
     .setTitle(`${conf?.conference ?? page} Teams`)
     .setDescription("Open teams are shown plainly. Linked teams are struck through with the assigned Discord username in parentheses.");
@@ -497,11 +505,38 @@ export function buildMaddenTeamsEmbed(rawConferences: RosterConference[], page: 
   return embed;
 }
 
-export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC") {
-  const nextPage: MaddenTeamsPage = page === "NFC" ? "AFC" : "NFC";
+export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC", rawConferences?: RosterConference[]) {
+  const conferences = rawConferences ? normalizeRosterConferences(rawConferences) : [];
+  const conferenceNames = conferences.map((conference) => conference.conference);
+  const isNflLayout = conferenceNames.length <= 2 && conferenceNames.every((conference) => conference === "NFC" || conference === "AFC");
+  if (!rawConferences || isNflLayout) {
+    const nextPage: MaddenTeamsPage = page === "NFC" ? "AFC" : "NFC";
+    return [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(nextPage === "AFC" ? ButtonStyle.Danger : ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsPostOpen).setLabel("Post Open Teams").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+      )
+    ];
+  }
+
+  const selectedPage = conferenceNames.includes(page) ? page : conferenceNames[0] ?? page;
   return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(MENU_CUSTOM_IDS.teamsConferenceSelect)
+        .setPlaceholder("Select conference")
+        .addOptions(
+          ...conferences.slice(0, 25).map((conference) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(conference.conference.slice(0, 100))
+              .setValue(conference.conference)
+              .setDefault(conference.conference === selectedPage)
+          )
+        )
+    ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(nextPage === "AFC" ? ButtonStyle.Danger : ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsPostOpen).setLabel("Post Open Teams").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.teamsBack).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
@@ -513,10 +548,7 @@ export function buildOpenTeamsEmbeds(conferences: RosterConference[]) {
   const normalized = normalizeRosterConferences(conferences);
   const embeds: EmbedBuilder[] = [];
 
-  for (const confName of ["NFC", "AFC"] as const) {
-    const conf = normalized.find((c) => c.conference === confName);
-    if (!conf) continue;
-
+  for (const conf of normalized) {
     const fields: Array<{ name: string; value: string; inline: false }> = [];
     for (const division of conf.divisions) {
       const openTeams = division.teams.filter((team) => !team.linkedDiscordId);
@@ -529,7 +561,7 @@ export function buildOpenTeamsEmbeds(conferences: RosterConference[]) {
     }
 
     if (fields.length) {
-      embeds.push(new EmbedBuilder().setTitle(`${confName} Open Teams`).addFields(fields));
+      embeds.push(new EmbedBuilder().setTitle(`${conf.conference} Open Teams`).addFields(fields));
     }
   }
 

@@ -34,7 +34,6 @@ function optionalGaps(stats: Record<string, { team1: string; team2: string }>): 
     "third_down_conversions",
     "fourth_down_conversions",
     "two_point_conversions",
-    "red_zone_off_td",
     "total_yards_gained",
   ] as const;
   return optional.filter((key) => {

@@ -25,7 +25,7 @@ import {
 export type TeamLinkDraft = {
   discordId?: string;
   authority?: RecTeamAuthority;
-  conference?: "AFC" | "NFC";
+  conference?: string;
   userPage: number;
 };
 
@@ -35,7 +35,7 @@ export const simpleTeamLinkSessions = new Map<string, {
   teamId: string;
   teamAbbr: string;
   teamName: string;
-  conference?: "AFC" | "NFC";
+  conference?: string;
   selectedUserId?: string;
   team?: {
     name?: string | null;
@@ -46,7 +46,7 @@ export const simpleTeamLinkSessions = new Map<string, {
 
 type LeagueTeamsPendingUnlink = {
   guildId: string;
-  conference: "AFC" | "NFC";
+  conference: string;
   teamId: string;
   teamName: string;
   discordId: string;
@@ -56,7 +56,7 @@ const leagueTeamsPendingUnlinks = new Map<string, LeagueTeamsPendingUnlink>();
 
 export const customTeamPendingSessions = new Map<string, {
   guildId: string;
-  conference?: "AFC" | "NFC";
+  conference?: string;
   replacementTeamAbbreviation?: string;
   returnToLeagueTeams?: boolean;
   // When false, the modal only registers the relocated team (so imports map) and does not link a user.
@@ -164,10 +164,14 @@ async function loadLeagueConferences(guildId: string) {
 }
 
 function findConferenceTeam(conferences: any[], conferenceName: string, teamId: string) {
-  const conference = conferences.find((conf: any) => conf.conference === conferenceName);
-  for (const division of conference?.divisions ?? []) {
-    const team = (division.teams ?? []).find((row: any) => String(row.id) === String(teamId));
-    if (team) return { ...team, divisionLabel: division.label ?? division.division ?? "Teams" };
+  const normalizedConference = conferenceName.toLowerCase();
+  for (const conference of conferences) {
+    const conferenceMatches = String(conference?.conference ?? "").toLowerCase() === normalizedConference;
+    for (const division of conference?.divisions ?? []) {
+      const team = (division.teams ?? []).find((row: any) => String(row.id) === String(teamId));
+      if (team && (conferenceMatches || !conferenceName)) return { ...team, divisionLabel: division.label ?? division.division ?? "Teams" };
+      if (team) return { ...team, divisionLabel: division.label ?? division.division ?? "Teams" };
+    }
   }
   return null;
 }
@@ -193,7 +197,7 @@ async function renderLeagueTeamsConferenceSelect(interaction: ButtonInteraction 
   return interaction.editReply(buildLeagueTeamsConferencePanel(conferences));
 }
 
-async function renderLeagueTeamsTeamSelect(interaction: ButtonInteraction | StringSelectMenuInteraction, conference: "AFC" | "NFC") {
+async function renderLeagueTeamsTeamSelect(interaction: ButtonInteraction | StringSelectMenuInteraction, conference: string) {
   if (!interaction.inCachedGuild()) return;
   const conferences = await loadLeagueConferences(interaction.guildId);
   return interaction.editReply(buildLeagueTeamsTeamSelectPanel(conferences, conference));
@@ -337,7 +341,7 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
       embeds: [
         new EmbedBuilder()
           .setTitle("Link User to Team")
-          .setDescription("Step 3: select AFC or NFC.")
+          .setDescription("Step 3: select a conference.")
       ],
       components: [buildConferenceSelectRow(), buildNavigationRow({ includeAdminPanel: true })]
     });
@@ -345,7 +349,7 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
   }
 
   if (interaction.customId === TEAM_LINK_CUSTOM_IDS.conferenceSelect) {
-    draft.conference = value as "AFC" | "NFC";
+    draft.conference = value;
     teamLinkSessions.set(interaction.user.id, draft);
 
     await interaction.deferUpdate();
@@ -507,7 +511,7 @@ export async function handleLeagueTeamsConferenceSelect(interaction: Extract<Int
     return interaction.update(buildLeagueMgmtTeamsPanel());
   }
   await interaction.deferUpdate();
-  return renderLeagueTeamsTeamSelect(interaction, selected as "AFC" | "NFC");
+  return renderLeagueTeamsTeamSelect(interaction, selected);
 }
 
 export async function handleLeagueTeamsTeamSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
@@ -517,7 +521,7 @@ export async function handleLeagueTeamsTeamSelect(interaction: Extract<Interacti
     return;
   }
 
-  const conference = interaction.customId.split(":").pop() as "AFC" | "NFC";
+  const conference = interaction.customId.split(":").pop() ?? "";
   const selected = interaction.values[0];
   if (selected === "back_to_conferences") {
     return renderLeagueTeamsConferenceSelect(interaction);
@@ -583,7 +587,7 @@ export async function handleLeagueTeamsEditTeamSelect(interaction: Extract<Inter
   if (!replacementAbbreviation) return interaction.reply({ content: "That team could not be found.", ephemeral: true });
   customTeamPendingSessions.set(interaction.user.id, {
     guildId: interaction.guildId,
-    conference: conference as "AFC" | "NFC",
+    conference,
     replacementTeamAbbreviation: replacementAbbreviation,
     returnToLeagueTeams: true,
     linkUser: false
@@ -659,7 +663,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
   const { TEAM_LINK_CUSTOM_IDS, buildSimpleTeamSelectPanel, buildUserSelectionPanel } = await import("../ui/team-options.js");
 
   if (interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect) {
-    const conference = interaction.values[0] as "AFC" | "NFC";
+    const conference = interaction.values[0] === "AFC" ? "AFC" : "NFC";
 
     // Acknowledge immediately — the linked-users API call below can exceed Discord's 3s window
     // (especially on a cold API), which previously caused Unknown interaction (10062) on update.
@@ -694,7 +698,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     // showModal requires an unacknowledged interaction — must branch before deferUpdate
     if (teamAbbr === "CUSTOM_TEAM") {
       const { buildCustomTeamModal } = await import("../ui/team-options.js");
-      customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference, linkUser: true });
+  customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference, linkUser: true });
       await interaction.showModal(buildCustomTeamModal(conference));
       return;
     }

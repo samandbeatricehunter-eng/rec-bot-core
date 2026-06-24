@@ -91,9 +91,6 @@ const STAT_LABEL_MAP: Record<string, string> = {
   "fourth down conversions": "fourth_down_conversions",
   "two point conversions": "two_point_conversions",
   "red zone off percentage": "red_zone_off_percentage",
-  "red zone off td": "red_zone_off_td",
-  "red zone off fg": "red_zone_off_fg",
-  "penalty yards": "penalty_yards",
 };
 
 const ALL_STAT_KEYS = new Set(Object.values(STAT_LABEL_MAP));
@@ -126,9 +123,6 @@ const FIELD_DISPLAY_NAMES: Record<string, string> = {
   third_down_conversions: "Third Down Conversions",
   fourth_down_conversions: "Fourth Down Conversions",
   two_point_conversions: "Two Point Conversions",
-  red_zone_off_td: "Red Zone Off TD",
-  red_zone_off_fg: "Red Zone Off FG",
-  penalty_yards: "Penalty Yards",
 };
 
 function hasValue(v: { team1: string; team2: string } | undefined): boolean {
@@ -798,8 +792,6 @@ const SMALL_ARROW_STAT_KEYS = new Set([
   "third_down_conversions",
   "fourth_down_conversions",
   "two_point_conversions",
-  "red_zone_off_td",
-  "red_zone_off_fg",
 ]);
 
 function validateStatValue(key: string, value: string): string {
@@ -857,10 +849,6 @@ const LABEL_OCR_ALIASES: Record<string, string> = {
   "two pint conversions": "two point conversions",
   "red zone of percentage": "red zone off percentage",
   "red zone off uw": "red zone off percentage",
-  "red zone td": "red zone off td",
-  "red zone off td": "red zone off td",
-  "red zone ol td": "red zone off td",
-  "penalty vards": "penalty yards",
   "ot yards gained": "off yards gained",
   "oft rush vars": "off rush yards",
   "oftpass yards": "off pass yards",
