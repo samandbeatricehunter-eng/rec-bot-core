@@ -347,7 +347,7 @@ function normalizeLeagueTeamConferences(rawConferences: any[]) {
       divMap.get(label)!.push(...(division.teams ?? []));
     }
   }
-  const confOrder = ["NFC", "AFC", "Big Ten", "SEC", "Big 12", "ACC", "Pac-12", "Mountain West", "Sun Belt", "MAC", "Conference USA", "American", "FCS (Non-D1)", "Other"];
+  const confOrder = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
   return [...confMap.entries()]
     .sort((a, b) => {
       const ai = confOrder.indexOf(a[0]);

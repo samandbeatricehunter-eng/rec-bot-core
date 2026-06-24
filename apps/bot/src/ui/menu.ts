@@ -465,7 +465,7 @@ export function normalizeRosterConferences(conferences: RosterConference[]): Ros
       }
     }
   }
-  const order = ["NFC", "AFC", "Big Ten", "SEC", "Big 12", "ACC", "Pac-12", "Mountain West", "Sun Belt", "MAC", "Conference USA", "American", "FCS (Non-D1)", "Other"];
+  const order = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
   return [...confMap.keys()]
     .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99))
     .map((c) => ({
