@@ -1010,6 +1010,14 @@ async function handleSetWeek(interaction: ButtonInteraction) {
   });
 }
 
+function formatSavingsInterestSummary(result: any) {
+  const interest = result?.savingsInterest;
+  if (!interest?.applied || Number(interest.usersCredited ?? 0) <= 0) return "";
+  const usersCredited = Number(interest.usersCredited ?? 0);
+  const totalInterest = Number(interest.totalInterest ?? 0);
+  return `\n\nSavings interest credited: **$${totalInterest}** across **${usersCredited}** user${usersCredited === 1 ? "" : "s"} (3.5%, floored).`;
+}
+
 async function handleSetWeekSelect(interaction: any) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
@@ -1017,9 +1025,9 @@ async function handleSetWeekSelect(interaction: any) {
   const [rawStage, rawWeek] = String(interaction.values[0] ?? "regular:1").split(":");
   const weekNumber = Math.max(1, Number(rawWeek) || 1);
   const seasonStage = rawStage === "regular" ? stageFromWeekNumber(weekNumber) : rawStage;
-  await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
+  const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Week Set").setDescription(`League is now set to **${stageLabel(seasonStage, weekNumber)}**.`)],
+    embeds: [new EmbedBuilder().setTitle("Week Set").setDescription(`League is now set to **${stageLabel(seasonStage, weekNumber)}**.${formatSavingsInterestSummary(result)}`)],
     components: buildAdvanceMgmtRows()
   });
 }

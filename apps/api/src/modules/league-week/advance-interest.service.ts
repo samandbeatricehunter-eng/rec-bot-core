@@ -119,7 +119,7 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
       amount: interest,
       transaction_type: "savings_interest",
       description: `Savings interest (${Math.round(SAVINGS_INTEREST_RATE * 1000) / 10}%) — Week ${input.nextWeek}`,
-      source: "advance_week",
+      source: "commissioner_advance",
       source_reference: {
         idempotencyKey,
         seasonNumber: input.seasonNumber,
