@@ -177,6 +177,23 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
+  getDivisionWinnerOptions: (guildId: string) =>
+    recFetch<any>("/v1/league-week/division-winner-options", {
+      method: "POST",
+      body: JSON.stringify({ guildId }),
+    }),
+
+  saveDivisionWinners: (input: {
+    guildId: string;
+    seasonNumber: number;
+    selectedByDiscordId: string;
+    winners: Array<{ divisionKey: string; teamId: string }>;
+  }) =>
+    recFetch<any>("/v1/league-week/division-winners", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   setNextAdvance: (input: {
     guildId: string;
     year: number;

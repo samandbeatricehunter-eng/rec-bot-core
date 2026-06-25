@@ -28,6 +28,7 @@ const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 const BADGE_LABELS = new Map(
   [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label]),
 );
+const DIVISION_CHAMPION_BADGE = "division_champion";
 
 export async function getAdvanceWeekGames(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -201,6 +202,161 @@ export async function completeAdvanceWeek(input: {
   });
 
   return advanceResult;
+}
+
+export async function getDivisionWinnerOptions(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+
+  const { data: teams, error } = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,display_city,display_nick,is_relocated,conference,division")
+    .eq("league_id", context.leagueId)
+    .order("conference", { ascending: true })
+    .order("division", { ascending: true })
+    .order("name", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load teams for division winner selection.", error);
+
+  const divisions = new Map<string, any>();
+  for (const team of teams ?? []) {
+    const conference = String(team.conference ?? "Conference");
+    const division = String(team.division ?? "Division");
+    const key = `${conference}:${division}`;
+    const existing = divisions.get(key) ?? {
+      key,
+      conference,
+      division,
+      label: `${conference} ${division}`.trim(),
+      teams: [],
+    };
+    existing.teams.push({
+      id: team.id,
+      name: formatTeamDisplayName(team) ?? team.name ?? team.abbreviation ?? "Team",
+      abbreviation: team.abbreviation ?? null,
+    });
+    divisions.set(key, existing);
+  }
+
+  return { league: { id: context.leagueId, seasonNumber }, divisions: [...divisions.values()] };
+}
+
+export async function saveDivisionWinners(input: {
+  guildId: string;
+  seasonNumber: number;
+  selectedByDiscordId: string;
+  winners: Array<{ divisionKey: string; teamId: string }>;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const now = new Date().toISOString();
+  const requested = new Map(input.winners.map((winner) => [winner.divisionKey, winner.teamId]));
+  if (!requested.size) throw new ApiError(400, "Select at least one division winner.");
+
+  const teamIds = [...new Set(input.winners.map((winner) => winner.teamId))];
+  const { data: teams, error: teamsError } = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,conference,division")
+    .eq("league_id", context.leagueId)
+    .in("id", teamIds);
+  if (teamsError) throw new ApiError(500, "Failed to validate division winners.", teamsError);
+
+  const teamsById = new Map((teams ?? []).map((team) => [team.id, team]));
+  const seedRows = [];
+  for (const [divisionKey, teamId] of requested.entries()) {
+    const team = teamsById.get(teamId);
+    if (!team) throw new ApiError(400, "One selected division winner is not in this league.");
+    const expectedKey = `${team.conference ?? "Conference"}:${team.division ?? "Division"}`;
+    if (expectedKey !== divisionKey) {
+      throw new ApiError(400, `${team.name ?? team.abbreviation ?? "Selected team"} is not in ${divisionKey.replace(":", " ")}.`);
+    }
+    seedRows.push({
+      league_id: context.leagueId,
+      season_number: input.seasonNumber,
+      team_id: teamId,
+      conference: team.conference ?? null,
+      division_name: team.division ?? null,
+      division_winner: true,
+      made_playoffs: true,
+      updated_at: now,
+    });
+  }
+
+  await supabase
+    .from("rec_season_team_seeds")
+    .update({ division_winner: false, updated_at: now })
+    .eq("league_id", context.leagueId)
+    .eq("season_number", input.seasonNumber)
+    .then(({ error }) => {
+      if (error) throw new ApiError(500, "Failed to clear previous division winners.", error);
+    });
+
+  const upsert = await supabase
+    .from("rec_season_team_seeds")
+    .upsert(seedRows, { onConflict: "league_id,season_number,team_id" })
+    .select("team_id,conference,division_name,division_winner");
+  if (upsert.error) throw new ApiError(500, "Failed to save division winners.", upsert.error);
+
+  const assignmentResult = await supabase
+    .from("rec_team_assignments")
+    .select("team_id,user_id")
+    .eq("league_id", context.leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .in("team_id", teamIds);
+  if (assignmentResult.error) throw new ApiError(500, "Failed to load division winner users.", assignmentResult.error);
+
+  const winnerAssignments = assignmentResult.data ?? [];
+  await supabase
+    .from("rec_badge_ownership")
+    .delete()
+    .eq("league_id", context.leagueId)
+    .eq("season", input.seasonNumber)
+    .eq("badge_scope", "season")
+    .eq("badge_key", DIVISION_CHAMPION_BADGE);
+  await supabase
+    .from("rec_badge_events")
+    .delete()
+    .eq("league_id", context.leagueId)
+    .eq("season", input.seasonNumber)
+    .eq("badge_scope", "season")
+    .eq("badge_key", DIVISION_CHAMPION_BADGE);
+
+  if (winnerAssignments.length) {
+    const ownershipRows = winnerAssignments.map((assignment) => ({
+      league_id: context.leagueId,
+      user_id: assignment.user_id,
+      team_id: assignment.team_id,
+      badge_key: DIVISION_CHAMPION_BADGE,
+      badge_scope: "season",
+      tier: "normal",
+      season: input.seasonNumber,
+      earned_count: 1,
+      current_streak: 1,
+      best_streak: 1,
+      active: true,
+      updated_at: now,
+    }));
+    const ownership = await supabase.from("rec_badge_ownership").insert(ownershipRows);
+    if (ownership.error) throw new ApiError(500, "Failed to award division champion badges.", ownership.error);
+
+    const events = await supabase.from("rec_badge_events").insert(
+      winnerAssignments.map((assignment) => ({
+        league_id: context.leagueId,
+        user_id: assignment.user_id,
+        team_id: assignment.team_id,
+        badge_key: DIVISION_CHAMPION_BADGE,
+        badge_scope: "season",
+        tier: "normal",
+        season: input.seasonNumber,
+        reason: `Division winner selected by discord:${input.selectedByDiscordId}`,
+      })),
+    );
+    if (events.error) throw new ApiError(500, "Failed to record division champion badge events.", events.error);
+  }
+
+  return {
+    saved: upsert.data ?? [],
+    badgesAwarded: winnerAssignments.length,
+  };
 }
 
 export async function listAdvanceGameStories(input: {

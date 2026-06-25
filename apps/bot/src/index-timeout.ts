@@ -58,6 +58,7 @@ import {
 import {
   ADVANCE_WIZARD_CUSTOM_IDS,
   handleAdvanceWizardCancel,
+  handleAdvanceWizardDivisionWinnerSelect,
   handleAdvanceWizardOutcome,
   startAdvanceWeekWizard,
 } from "./flows/advance-wizard.js";
@@ -338,6 +339,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
+      if (interaction.customId.startsWith(ADVANCE_WIZARD_CUSTOM_IDS.divisionWinnerSelectPrefix)) return handleAdvanceWizardDivisionWinnerSelect(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualWeekSelect) return handleManualScheduleWeekSelect(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect) return handleManualScheduleTeamSelect(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.gotwSelect) return handleGotwSelect(interaction);

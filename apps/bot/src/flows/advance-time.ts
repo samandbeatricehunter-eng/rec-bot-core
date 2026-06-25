@@ -219,7 +219,7 @@ function renderStep(session: AdvanceTimeSession) {
 // ─── Entry point (called by the advance wizard once the week has flipped) ───────
 
 export async function enterAdvanceTimeStep(
-  interaction: ButtonInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
   headline: string,
   completed: { seasonNumber: number; weekNumber: number },
 ) {
