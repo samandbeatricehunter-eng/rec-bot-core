@@ -501,6 +501,7 @@ const ABBR_OCR_TYPOS: Record<string, string> = {
   ATI: "ATL",
   JAK: "JAX",
   HO0: "HOU",
+  LEY: "LCV",
 };
 
 function correctTeamAbbr(raw: string): string {
