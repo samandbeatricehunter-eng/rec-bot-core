@@ -5,6 +5,7 @@ import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdm
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getVotingPollsChannel } from "./lib/route-channels.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
+import { DEV_TIER_EMOJIS } from "./lib/tier-emojis.js";
 import {
   buildAdminPanelEmbed,
   buildAdminPanelRows,
@@ -1159,9 +1160,9 @@ async function updateLeagueSeason(guildId: string, seasonNumber: number) {
 }
 
 function weeklyChallengesEmbed() {
-  const star = "<:dev_star:1494392249163972699>";
-  const superstar = "<:dev_superstar:1494392251776897134>";
-  const xfactor = "<:dev_xfactor:1494392253177663688>";
+  const star = DEV_TIER_EMOJIS.silver;
+  const superstar = DEV_TIER_EMOJIS.gold;
+  const xfactor = DEV_TIER_EMOJIS.xf;
   return new EmbedBuilder().setTitle("Weekly Challenges").setDescription([
     "**Tiered Challenges**",
     `${star} Total Yards: 400 +$10 | ${superstar} 600 +$15 | ${xfactor} 800 +$25`,

@@ -13,6 +13,7 @@ import {
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel, getHeadlinesChannel } from "../lib/route-channels.js";
+import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 
 // Final step of the advance flow: set (or skip) the next scheduled advance time.
 // Three dropdowns — date (next 7 days), timezone, and time (remaining hours) — plus
@@ -290,18 +291,13 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
   }
 }
 
-function formatTier(tier?: string | null) {
-  const normalized = String(tier ?? "normal");
-  return normalized === "normal" ? "" : ` (${normalized})`;
-}
-
 function buildStoryEmbed(story: any) {
   const notes = Array.isArray(story.notes) ? story.notes.filter(Boolean) : [];
   const badgeLines = (Array.isArray(story.badges) ? story.badges : [])
     .slice(0, 8)
     .map((badge: any) => {
       const team = badge.teamName ? `${badge.teamName}: ` : "";
-      return `${team}${badge.badgeLabel ?? badge.badgeKey ?? "Badge"}${formatTier(badge.tier)}`;
+      return `${team}${formatTierEmojiPrefix(badge.tier)}${badge.badgeLabel ?? badge.badgeKey ?? "Badge"}`;
     });
 
   const embed = new EmbedBuilder()

@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 import {
   buildMaddenTeamsEmbed,
   buildMaddenTeamsRows,
@@ -123,9 +124,9 @@ function formatBadgeLines(badges: any[]) {
   if (!badges.length) return "No badges earned yet.";
   return badges.map((badge) => {
     const name = badge.badge_label ?? badge.badge_name ?? "Badge";
-    const tier = badge.tier ? ` (${badge.tier})` : "";
+    const tier = formatTierEmojiPrefix(badge.tier);
     const earned = badge.earned_at ? ` - ${new Date(badge.earned_at).toLocaleDateString("en-US")}` : "";
-    return `- ${name}${tier}${earned}`;
+    return `- ${tier}${name}${earned}`;
   }).join("\n");
 }
 
