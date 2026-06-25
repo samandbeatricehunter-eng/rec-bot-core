@@ -8,15 +8,28 @@ import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-st
 import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
+import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
+const BADGE_BONUS_PAYOUT = 10;
+
+const BADGE_LABELS = new Map(
+  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label] as const),
+);
 
 type BoxScorePaidPlayer = {
   userId: string;
   amount: number;
   discordId: string | null;
   displayName: string | null;
+};
+
+type BadgeBonusPaid = {
+  userId: string;
+  badgeKey: string;
+  badgeLabel: string;
+  amount: number;
 };
 
 // ─── Learned OCR label aliases (#2) ────────────────────────────────────────────
@@ -743,6 +756,70 @@ export async function updateBoxScoreLedgerMessage(submissionId: string, ledgerDi
 
 // ─── Commissioner review ──────────────────────────────────────────────────────
 
+function badgeBonusIdempotencyKey(event: {
+  league_id: string;
+  season: number;
+  week: number;
+  game_id: string | null;
+  user_id: string;
+  badge_key: string;
+}, submissionId: string) {
+  const gameRef = event.game_id ?? `submission:${submissionId}`;
+  return `badge_bonus:${event.league_id}:${event.season}:${event.week}:${gameRef}:${event.user_id}:${event.badge_key}`;
+}
+
+async function issueBadgeBonusesForSubmission(sub: {
+  id: string;
+  league_id: string;
+  season_number: number;
+  week_number: number;
+  game_id: string | null;
+}): Promise<BadgeBonusPaid[]> {
+  const query = supabase
+    .from("rec_badge_events")
+    .select("id,league_id,user_id,badge_key,badge_scope,tier,season,week,game_id")
+    .eq("league_id", sub.league_id)
+    .eq("season", sub.season_number)
+    .eq("week", sub.week_number)
+    .not("user_id", "is", null);
+
+  if (sub.game_id) query.eq("game_id", sub.game_id);
+  else query.is("game_id", null);
+
+  const { data, error } = await query;
+  if (error) throw new ApiError(500, "Failed to load earned badge bonuses.", error);
+
+  const paid: BadgeBonusPaid[] = [];
+  for (const event of data ?? []) {
+    if (!event.user_id) continue;
+    const badgeLabel = BADGE_LABELS.get(event.badge_key) ?? event.badge_key;
+    await supabase.rpc("add_to_wallet", {
+      p_user_id: event.user_id,
+      p_amount: BADGE_BONUS_PAYOUT,
+      p_league_id: sub.league_id,
+      p_description: `Badge bonus: ${badgeLabel} - Wk ${sub.week_number}`,
+      p_transaction_type: "badge_bonus",
+      p_source: "box_score",
+      p_source_reference: {
+        idempotencyKey: badgeBonusIdempotencyKey(
+          {
+            league_id: event.league_id,
+            season: event.season,
+            week: event.week,
+            game_id: event.game_id,
+            user_id: event.user_id,
+            badge_key: event.badge_key,
+          },
+          sub.id,
+        ),
+      },
+    }).throwOnError();
+    paid.push({ userId: event.user_id, badgeKey: event.badge_key, badgeLabel, amount: BADGE_BONUS_PAYOUT });
+  }
+
+  return paid;
+}
+
 export type ReviewBoxScoreInput = {
   submissionId: string;
   action: "approve" | "deny";
@@ -848,6 +925,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   await processGameIntelligence(sub).catch((error) => {
     console.error("[ERROR] Failed to compute box score intelligence (badges/story):", error);
   });
+  const badgeBonuses = await issueBadgeBonusesForSubmission(sub);
 
   // Issue payouts only to linked-user participants (winner $100, loser $50). A
   // CPU-vs-CPU game — no linked user on either team — is still recorded but pays
@@ -874,6 +952,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     }).throwOnError();
     totalPaid += p.amount;
   }
+  for (const bonus of badgeBonuses) totalPaid += bonus.amount;
 
   if (sub.league_id && sub.season_number) {
     await rebuildOfficialRecordsAfterBoxScore({
@@ -920,6 +999,9 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     action: "approved" as const,
     totalPaid,
     paidPlayers,
+    badgeBonuses,
+    badgeBonusPaid: badgeBonuses.reduce((sum, bonus) => sum + bonus.amount, 0),
+    badgeBonusCount: badgeBonuses.length,
     playersPaid: payouts.length,
     playersPayd: payouts.length,
     sourceChannelId: sub.discord_channel_id ?? null,

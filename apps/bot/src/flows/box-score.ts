@@ -508,7 +508,8 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
   try {
     const result = await recApi.reviewBoxScore({ submissionId, action: "approve", reviewedByDiscordId: interaction.user.id });
     const paidPlayerList = formatPaidPlayers(result);
-    const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}.`;
+    const badgeBonusText = result.badgeBonusCount ? `, including ${result.badgeBonusCount} badge bonus(es)` : "";
+    const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.`;
 
     if (result.ledgerChannelId && result.ledgerMessageId && interaction.inCachedGuild()) {
       const ledgerChannel = await interaction.guild.channels.fetch(result.ledgerChannelId).catch(() => null);
