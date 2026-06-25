@@ -877,6 +877,12 @@ const LABEL_OCR_ALIASES: Record<string, string> = {
   "tie down conversions": "third down conversions",
   "off pass yard": "off pass yards",
   "of fst down": "off first down",
+  "offfistdown down": "off first down",
+  "offfistdown": "off first down",
+  "fuck return yards": "kick return yards",
+  "ick return ards": "kick return yards",
+  "total gained": "total yards gained",
+  "toa gained": "total yards gained",
   taos: "turnovers",
   tumovers: "turnovers",
   down: "off first down",
@@ -903,6 +909,9 @@ function levenshtein(a: string, b: string): number {
 function fixLabelOcr(text: string): string {
   return text
     .replace(/\bfist\b/g, "first")
+    .replace(/offfistdown/g, "off first down")
+    .replace(/fistdown/g, "first down")
+    .replace(/\bfuck\b/g, "kick")
     .replace(/\bof\b(?=\s+(?:yards|rush|pass|first))/g, "off")
     .replace(/^ot\s/, "off ")
     .replace(/^oft\s*/, "off ")
@@ -1169,7 +1178,76 @@ function parseStatRows(words: NormalizedWord[], aliases: LabelAliases, statsTopY
     });
   }
 
-  return fillPositionalTurnovers(stats, centerRows, leftVals, rightVals);
+  return fillPositionalKickReturn(
+    fillPositionalOffFirstDown(
+      fillPositionalTurnovers(stats, centerRows, leftVals, rightVals),
+      leftVals,
+      rightVals,
+    ),
+    leftVals,
+    rightVals,
+  );
+}
+
+function fillPositionalOffFirstDown(
+  stats: ParsedStat[],
+  leftVals: NormalizedWord[],
+  rightVals: NormalizedWord[],
+): ParsedStat[] {
+  const existing = stats.find((s) => s.key === "off_first_down");
+  if (existing?.team1?.trim() && existing?.team2?.trim()) return stats;
+
+  const pass = stats.find((s) => s.key === "off_pass_yards");
+  const punt = stats.find((s) => s.key === "punt_return_yards");
+  if (!pass?.rowY || !punt?.rowY) return stats;
+
+  const rowY = pass.rowY + (punt.rowY - pass.rowY) / 2;
+  const team1 = findValueNearY(leftVals, rowY, "left", "off_first_down") || existing?.team1 || "";
+  const team2 = findValueNearY(rightVals, rowY, "right", "off_first_down") || existing?.team2 || "";
+  if (!team1 && !team2) return stats;
+
+  const out = stats.filter((s) => s.key !== "off_first_down");
+  out.push({
+    key: "off_first_down",
+    team1,
+    team2,
+    rawLabel: "(positional off first down)",
+    matchedVia: "fuzzy",
+    rowY,
+  });
+  return out;
+}
+
+function fillPositionalKickReturn(
+  stats: ParsedStat[],
+  leftVals: NormalizedWord[],
+  rightVals: NormalizedWord[],
+): ParsedStat[] {
+  const existing = stats.find((s) => s.key === "kick_return_yards");
+  if (existing?.team1?.trim() && existing?.team2?.trim()) return stats;
+
+  const punt = stats.find((s) => s.key === "punt_return_yards");
+  if (!punt?.rowY) return stats;
+
+  const total = stats.find((s) => s.key === "total_yards_gained");
+  const rowY = total?.rowY
+    ? punt.rowY + (total.rowY - punt.rowY) / 2
+    : punt.rowY + OFFENSE_ROW_STEP;
+
+  const team1 = findValueNearY(leftVals, rowY, "left", "kick_return_yards") || existing?.team1 || "";
+  const team2 = findValueNearY(rightVals, rowY, "right", "kick_return_yards") || existing?.team2 || "";
+  if (!team1 && !team2) return stats;
+
+  const out = stats.filter((s) => s.key !== "kick_return_yards");
+  out.push({
+    key: "kick_return_yards",
+    team1,
+    team2,
+    rawLabel: "(positional kick return yards)",
+    matchedVia: "fuzzy",
+    rowY,
+  });
+  return out;
 }
 
 function avgRowY(row: NormalizedWord[]): number {
@@ -1456,12 +1534,28 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
     const punt = statsMap["punt_return_yards"]?.[side] ?? "";
     const kick = statsMap["kick_return_yards"]?.[side] ?? "";
     if (isNaN(total) || isNaN(off)) return;
-    if (!punt && kick) {
-      const kickNum = parseInt(kick, 10);
-      if (!isNaN(kickNum)) statsMap["punt_return_yards"] = { ...(statsMap["punt_return_yards"] ?? { team1: "", team2: "" }), [side]: String(total - off - kickNum) };
-    } else if (punt && !kick) {
+    if (punt !== "" && kick === "") {
       const puntNum = parseInt(punt, 10);
-      if (!isNaN(puntNum)) statsMap["kick_return_yards"] = { ...(statsMap["kick_return_yards"] ?? { team1: "", team2: "" }), [side]: String(total - off - puntNum) };
+      if (!isNaN(puntNum)) {
+        const derived = total - off - puntNum;
+        if (derived >= 0) {
+          statsMap["kick_return_yards"] = {
+            ...(statsMap["kick_return_yards"] ?? { team1: "", team2: "" }),
+            [side]: String(derived),
+          };
+        }
+      }
+    } else if (punt === "" && kick !== "") {
+      const kickNum = parseInt(kick, 10);
+      if (!isNaN(kickNum)) {
+        const derived = total - off - kickNum;
+        if (derived >= 0) {
+          statsMap["punt_return_yards"] = {
+            ...(statsMap["punt_return_yards"] ?? { team1: "", team2: "" }),
+            [side]: String(derived),
+          };
+        }
+      }
     }
   };
   fillMissingReturnYards("team1");
