@@ -49,7 +49,10 @@ alter table public.rec_game_stories enable row level security;
 create index if not exists idx_rec_game_stories_league_week on public.rec_game_stories (league_id, season, week);
 
 -- ── Permanent badge ownership (weekly / season / global) ─────────────────────────
-create table if not exists public.rec_user_badges (
+-- NOTE: named rec_badge_ownership (not the blueprint's rec_user_badges) because a
+-- legacy rec_user_badges table from the removed advance-time badge system still
+-- exists with an incompatible schema and is read by user.service.ts. Leave it be.
+create table if not exists public.rec_badge_ownership (
   id uuid primary key default gen_random_uuid(),
   league_id uuid not null,
   user_id uuid not null,
@@ -67,19 +70,19 @@ create table if not exists public.rec_user_badges (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table public.rec_user_badges enable row level security;
+alter table public.rec_badge_ownership enable row level security;
 -- Season-scoped badges are unique per (user, key, scope, season); global badges
 -- (season is null) are unique per (user, key, scope).
-create unique index if not exists uq_rec_user_badges_seasoned
-  on public.rec_user_badges (league_id, user_id, badge_key, badge_scope, season)
+create unique index if not exists uq_rec_badge_ownership_seasoned
+  on public.rec_badge_ownership (league_id, user_id, badge_key, badge_scope, season)
   where season is not null;
-create unique index if not exists uq_rec_user_badges_global
-  on public.rec_user_badges (league_id, user_id, badge_key, badge_scope)
+create unique index if not exists uq_rec_badge_ownership_global
+  on public.rec_badge_ownership (league_id, user_id, badge_key, badge_scope)
   where season is null;
-create index if not exists idx_rec_user_badges_lookup on public.rec_user_badges (league_id, user_id, badge_scope);
+create index if not exists idx_rec_badge_ownership_lookup on public.rec_badge_ownership (league_id, user_id, badge_scope);
 
 -- ── Append-only audit/history of every badge earn ────────────────────────────────
-create table if not exists public.rec_user_badge_events (
+create table if not exists public.rec_badge_events (
   id uuid primary key default gen_random_uuid(),
   league_id uuid not null,
   user_id uuid not null,
@@ -94,6 +97,6 @@ create table if not exists public.rec_user_badge_events (
   stats_snapshot jsonb,
   created_at timestamptz not null default now()
 );
-alter table public.rec_user_badge_events enable row level security;
-create index if not exists idx_rec_user_badge_events_user on public.rec_user_badge_events (league_id, user_id, season);
-create index if not exists idx_rec_user_badge_events_game on public.rec_user_badge_events (game_id);
+alter table public.rec_badge_events enable row level security;
+create index if not exists idx_rec_badge_events_user on public.rec_badge_events (league_id, user_id, season);
+create index if not exists idx_rec_badge_events_game on public.rec_badge_events (game_id);

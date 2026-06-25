@@ -8,3 +8,7 @@ export * from "./types.js";
 export * from "./badge-rules.js";
 export * from "./story-angles.js";
 export * from "./game-profile.js";
+export * from "./aggregate.js";
+// NOTE: ./persistence is intentionally NOT re-exported here — it imports the
+// Supabase client (env-dependent). Import it directly where needed so the pure
+// engine stays usable without a DB/env (e.g. scripts/badge-rules-verify.ts).

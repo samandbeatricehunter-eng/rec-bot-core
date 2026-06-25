@@ -7,6 +7,7 @@ import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.serv
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
+import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -839,6 +840,13 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   await recordTeamGameStats(sub);
   await syncCpuTeamsAfterBoxScoreApproval(sub).catch((error) => {
     console.error("[ERROR] Failed to sync CPU team season stats after box score approval:", error);
+  });
+
+  // Import-time badge + story computation (blueprint): qualify badges, recompute
+  // streak/season/global progress, and generate the game story. Non-fatal — a
+  // failure here must never block the payout/approval. Advance only reads these.
+  await processGameIntelligence(sub).catch((error) => {
+    console.error("[ERROR] Failed to compute box score intelligence (badges/story):", error);
   });
 
   // Issue payouts only to linked-user participants (winner $100, loser $50). A

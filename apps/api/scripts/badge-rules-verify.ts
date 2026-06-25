@@ -14,6 +14,9 @@ import {
   getSeasonTier,
   generateGameStory,
   rowToGameStats,
+  seasonTotalsFromGames,
+  careerTotalsFromGames,
+  weeklyStreaks,
   type GameStats,
   type SeasonTotals,
   type CareerTotals,
@@ -168,6 +171,40 @@ check("map: opp red zone from def% (100-65)", mapped.opponentRedZoneOffensivePct
 check("map: away + win", mapped.homeAway === "away" && mapped.won);
 check("map: margin", mapped.margin === 11);
 check("map: chain_mover qualifies (26 FD)", wonWeekly(mapped, "chain_mover"));
+
+// ── Aggregation: season / career totals + weekly streaks ─────────────────────────
+const wk = (week: number, over: Partial<GameStats>): GameStats => ({ ...base, week, ...over });
+const seasonGames: GameStats[] = [
+  wk(1, { won: true, lost: false, rushingYards: 210, passingYards: 150, pointsFor: 30, pointsAgainst: 10, turnoversCommitted: 0 }),
+  wk(2, { won: true, lost: false, rushingYards: 220, passingYards: 140, pointsFor: 24, pointsAgainst: 14, turnoversCommitted: 0 }),
+  wk(3, { won: false, lost: true, rushingYards: 80, passingYards: 300, pointsFor: 17, pointsAgainst: 28, turnoversCommitted: 2 }),
+  wk(4, { won: true, lost: false, rushingYards: 205, passingYards: 120, pointsFor: 31, pointsAgainst: 20, turnoversCommitted: 1 }),
+];
+const st = seasonTotalsFromGames(seasonGames);
+check("season totals: wins", st.wins === 3);
+check("season totals: losses", st.losses === 1);
+check("season totals: rushing sum", st.rushingYards === 210 + 220 + 80 + 205);
+check("season totals: games", st.gamesPlayed === 4);
+
+const ct = careerTotalsFromGames(seasonGames);
+check("career: games200PlusRush = 3", ct.games200PlusRush === 3);
+check("career: turnoverFreeGames = 2", ct.turnoverFreeGames === 2);
+check("career: wins = 3", ct.wins === 3);
+
+const streaks = weeklyStreaks(seasonGames);
+const gp = streaks.find((s) => s.badgeKey === "ground_and_pound");
+// Ground & Pound earned wk1,2,4 (not wk3) → earnedCount 3, best streak 2, current streak 1 (wk4 only).
+check("streak: ground_and_pound earnedCount 3", gp?.earnedCount === 3);
+check("streak: ground_and_pound bestStreak 2", gp?.bestStreak === 2);
+check("streak: ground_and_pound currentStreak 1", gp?.currentStreak === 1);
+check("streak: getSeasonTier(2 best not current) — current 1 → no season tier", getSeasonTier(gp?.currentStreak ?? 0, gp?.earnedCount ?? 0) === null);
+
+// A clean 4-week streak → gold weekly + gold season-long.
+const cleanStreak: GameStats[] = [1, 2, 3, 4].map((w) => wk(w, { rushingYards: 210, won: true, lost: false }));
+const csGp = weeklyStreaks(cleanStreak).find((s) => s.badgeKey === "ground_and_pound");
+check("streak: 4 straight → currentStreak 4", csGp?.currentStreak === 4);
+check("streak: 4 straight → weekly gold", getWeeklyTier(csGp?.currentStreak ?? 0) === "gold");
+check("streak: 4 straight → season gold", getSeasonTier(csGp?.currentStreak ?? 0, csGp?.earnedCount ?? 0) === "gold");
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);
 if (fail) process.exit(1);
