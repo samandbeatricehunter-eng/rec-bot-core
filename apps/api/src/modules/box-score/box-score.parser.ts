@@ -684,6 +684,24 @@ function reconcileRowScore(
     break;
   }
 
+  // Over-read quarter vs. a confidently-read total: e.g. Q2 13 misread as 18 pushes
+  // the quarter sum to 39 while the total column correctly reads 34. When the total is
+  // at least as confident as the weakest contributing quarter, trust the total and
+  // shrink that quarter to close the gap instead of inflating the final score to the
+  // bad sum. (The reverse — total misread low, quarters right — keeps the existing
+  // "trust the sum" behavior below, because a low-confidence total fails this guard.)
+  if (totalCell && sum > total && total > 0 && total <= 80) {
+    const gap = sum - total;
+    const weakest = quarterCells
+      .map((cell, idx) => ({ cell, idx, q: qs[idx] }))
+      .filter((c): c is { cell: { value: number; confidence: number }; idx: number; q: number } => !!c.cell && c.q > 0)
+      .sort((a, b) => a.cell.confidence - b.cell.confidence)[0];
+    if (weakest && totalCell.confidence >= weakest.cell.confidence && gap < weakest.q) {
+      qs[weakest.idx] = weakest.q - gap;
+      sum = qs.reduce((s, n) => s + n, 0);
+    }
+  }
+
   if (sum > total + 5 && sum <= 80) total = sum;
   if (sum > 0 && sum < total && total - sum <= 3) total = sum;
 
@@ -1498,6 +1516,44 @@ function combineResults(results: PassResult[]): ParsedBoxScore {
   if (topOffenseVisible) {
     deriveRushPassFromOffYards("team1");
     deriveRushPassFromOffYards("team2");
+  }
+
+  // Off Yards Gained is trustworthy when Total Yards corroborates it
+  // (Total = Off + Punt Return + Kick Return). With no Total to check against,
+  // treat it as trustworthy — it reads cleanly far more often than not.
+  const offYardsCorroborated = (side: "team1" | "team2"): boolean => {
+    const off = parseInt(statsMap["off_yards_gained"]?.[side] ?? "", 10);
+    if (isNaN(off)) return false;
+    const total = parseInt(statsMap["total_yards_gained"]?.[side] ?? "", 10);
+    if (isNaN(total)) return true;
+    const punt = parseInt(statsMap["punt_return_yards"]?.[side] ?? "0", 10) || 0;
+    const kick = parseInt(statsMap["kick_return_yards"]?.[side] ?? "0", 10) || 0;
+    return off === total - punt - kick;
+  };
+
+  // Madden invariant: Off Rush + Off Pass = Off Yards Gained. When both cells were
+  // read but their sum doesn't match Off Yards, one was misread — almost always a
+  // ◄ "better-stat" arrow read as a digit or a dropped leading digit, which shrinks
+  // the wrong cell. Trust Off Yards (when corroborated) plus the larger component and
+  // recompute the smaller one. (DAL/DET: DET "117◄" split into 17 + 4, so rush read
+  // as 4; pass 146 > 4 ⇒ rush = 263 − 146 = 117.)
+  const repairRushPassFromOffYards = (side: "team1" | "team2") => {
+    if (!topOffenseVisible) return;
+    const off = parseInt(statsMap["off_yards_gained"]?.[side] ?? "", 10);
+    const rush = parseInt(statsMap["off_rush_yards"]?.[side] ?? "", 10);
+    const pass = parseInt(statsMap["off_pass_yards"]?.[side] ?? "", 10);
+    if (isNaN(off) || isNaN(rush) || isNaN(pass)) return;
+    if (rush + pass === off) return;          // already consistent
+    if (off < 0 || !offYardsCorroborated(side)) return;
+    if (rush >= pass) {
+      if (rush <= off) statsMap["off_pass_yards"] = { ...statsMap["off_pass_yards"]!, [side]: String(off - rush) };
+    } else {
+      if (pass <= off) statsMap["off_rush_yards"] = { ...statsMap["off_rush_yards"]!, [side]: String(off - pass) };
+    }
+  };
+  if (topOffenseVisible) {
+    repairRushPassFromOffYards("team1");
+    repairRushPassFromOffYards("team2");
   }
 
   // Derive Total Yards Gained = Off Yards + Punt Return + Kick Return when it

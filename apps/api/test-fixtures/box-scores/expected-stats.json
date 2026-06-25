@@ -1,0 +1,37 @@
+{
+  "_comment": "Value-level golden expectations for box-score OCR regression. Stats are asserted exactly by scripts/box-score-verify.ts; score totals are reported informationally (final-score digit reads have a known OCR fragility, e.g. NO Q2 13 misread as 18).",
+  "NO_CHI.jpeg": {
+    "score": { "team1Abbr": "NO", "team2Abbr": "CHI", "team1Score": 34, "team2Score": 24 },
+    "stats": {
+      "off_yards_gained": { "team1": "405", "team2": "338" },
+      "off_rush_yards": { "team1": "96", "team2": "139" },
+      "off_pass_yards": { "team1": "309", "team2": "199" },
+      "off_first_down": { "team1": "18", "team2": "20" },
+      "punt_return_yards": { "team1": "23", "team2": "0" },
+      "kick_return_yards": { "team1": "23", "team2": "11" },
+      "total_yards_gained": { "team1": "451", "team2": "349" },
+      "turnovers": { "team1": "1", "team2": "1" },
+      "third_down_conversions": { "team1": "7", "team2": "5" },
+      "fourth_down_conversions": { "team1": "0", "team2": "0" },
+      "two_point_conversions": { "team1": "0", "team2": "0" },
+      "red_zone_off_percentage": { "team1": "100", "team2": "50" }
+    }
+  },
+  "DAL_DET.jpeg": {
+    "score": { "team1Abbr": "DAL", "team2Abbr": "DET", "team1Score": 24, "team2Score": 19 },
+    "stats": {
+      "off_yards_gained": { "team1": "270", "team2": "263" },
+      "off_rush_yards": { "team1": "109", "team2": "117" },
+      "off_pass_yards": { "team1": "161", "team2": "146" },
+      "off_first_down": { "team1": "15", "team2": "15" },
+      "punt_return_yards": { "team1": "0", "team2": "0" },
+      "kick_return_yards": { "team1": "0", "team2": "0" },
+      "total_yards_gained": { "team1": "270", "team2": "263" },
+      "turnovers": { "team1": "1", "team2": "0" },
+      "third_down_conversions": { "team1": "6", "team2": "6" },
+      "fourth_down_conversions": { "team1": "1", "team2": "1" },
+      "two_point_conversions": { "team1": "0", "team2": "0" },
+      "red_zone_off_percentage": { "team1": "100", "team2": "100" }
+    }
+  }
+}
