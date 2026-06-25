@@ -33,5 +33,22 @@
       "two_point_conversions": { "team1": "0", "team2": "0" },
       "red_zone_off_percentage": { "team1": "100", "team2": "100" }
     }
+  },
+  "WAS_LCV.jpeg": {
+    "_note": "turnovers omitted: WAS's left value (1) is not OCR-readable here — only the ▶ expander glyph is captured, so the cell is intentionally not asserted.",
+    "score": { "team1Abbr": "WAS", "team2Abbr": "LCV", "team1Score": 26, "team2Score": 49 },
+    "stats": {
+      "off_yards_gained": { "team1": "258", "team2": "404" },
+      "off_rush_yards": { "team1": "97", "team2": "116" },
+      "off_pass_yards": { "team1": "161", "team2": "288" },
+      "off_first_down": { "team1": "11", "team2": "25" },
+      "punt_return_yards": { "team1": "0", "team2": "6" },
+      "kick_return_yards": { "team1": "0", "team2": "0" },
+      "total_yards_gained": { "team1": "258", "team2": "410" },
+      "third_down_conversions": { "team1": "4", "team2": "5" },
+      "fourth_down_conversions": { "team1": "2", "team2": "4" },
+      "two_point_conversions": { "team1": "2", "team2": "0" },
+      "red_zone_off_percentage": { "team1": "100", "team2": "83" }
+    }
   }
 }
