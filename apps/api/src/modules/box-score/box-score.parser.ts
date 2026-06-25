@@ -1035,24 +1035,32 @@ function findConversionValue(
   return parts[0] ? validateStatValue(key, parts[0]) : "";
 }
 
-function findValueNearY(candidates: NormalizedWord[], targetY: number, side: "left" | "right", key: string): string {
+function findValueNearY(candidatesAll: NormalizedWord[], targetY: number, side: "left" | "right", key: string): string {
+  // Turnovers sits only ~0.037 above the third-down row. Confine its search to
+  // its own row so a faint or unread cell can't borrow the third-down digit
+  // (DAL/DET right read 6, WAS/LCV left read 4 — both actually neighbours).
+  const candidates =
+    key === "turnovers"
+      ? candidatesAll.filter((w) => Math.abs(w.y - targetY) < 0.028)
+      : candidatesAll;
+
   if (key === "turnovers") {
     const leftMax = 0.24;
     const rightMin = 0.76;
-    const rowWords = candidates.filter(
-      (w) =>
-        Math.abs(w.y - targetY) < 0.05 &&
-        (side === "left" ? w.x < leftMax : w.x > rightMin),
-    );
+    const rowWords = candidates.filter((w) => (side === "left" ? w.x < leftMax : w.x > rightMin));
     const joined = rowWords
       .sort((a, b) => a.x - b.x)
-      .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[>▶◀◁▷◄]/g, ""))
+      .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[>▶◀◁▷◄»«]/g, ""))
       .join("");
     const digit = joined.match(/\d{1,2}/);
     if (digit) {
       const n = parseInt(digit[0], 10);
       if (n >= 0 && n <= 10) return String(n);
     }
+    // No digit on the row — only the ◄ marker / faint "0" glyph (reads as
+    // ] [ ) ( | etc.). A turnovers cell is never blank, so treat that as 0.
+    const noise = joined.replace(/\s/g, "");
+    if (noise.length > 0 && /^[\]\[)(}{|!lIiː:;.,]+$/.test(noise)) return "0";
   }
 
   const yTolerance = SMALL_ARROW_STAT_KEYS.has(key)
