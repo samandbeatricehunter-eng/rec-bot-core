@@ -849,6 +849,19 @@ function cleanStatValue(raw: string, opts: { side: "left" | "right"; key: string
     return v;
   }
 
+  return salvageVerticalStrokeDigits(stripped);
+}
+
+// Madden's thin sans-serif "1" glyphs frequently OCR as vertical-stroke letters
+// when no digit survives in the token: "11" reads as "n", a lone "1" as
+// "l"/"I"/"i"/"|". Only invoked on value-column tokens as a last resort, so a
+// stray letter in a number cell is overwhelmingly a misread one.
+function salvageVerticalStrokeDigits(token: string): string {
+  const t = token.trim();
+  if (!t || /\d/.test(t)) return "";
+  if (/^[nN]$/.test(t)) return "11";
+  if (/^[lIi|!]$/.test(t)) return "1";
+  if (/^[lIi|!]{2}$/.test(t)) return "11";
   return "";
 }
 
