@@ -14,6 +14,7 @@ const SetConfigSchema = z.object({
   pendingPayoutsChannelId: z.string().optional().nullable(),
   pendingPurchasesChannelId: z.string().optional().nullable(),
   boxScoresChannelId: z.string().optional().nullable(),
+  headlinesChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
   commissionerOfficeChannelId: z.string().optional().nullable(),
   streamsChannelId: z.string().optional().nullable(),

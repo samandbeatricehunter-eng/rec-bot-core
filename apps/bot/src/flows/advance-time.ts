@@ -12,7 +12,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
-import { getAnnouncementsChannel } from "../lib/route-channels.js";
+import { getAnnouncementsChannel, getHeadlinesChannel } from "../lib/route-channels.js";
 
 // Final step of the advance flow: set (or skip) the next scheduled advance time.
 // Three dropdowns — date (next 7 days), timezone, and time (remaining hours) — plus
@@ -44,6 +44,8 @@ type AdvanceTimeSession = {
   guildId: string;
   userId: string;
   headline: string;
+  completedSeasonNumber: number;
+  completedWeekNumber: number;
   selectedDate: string | null; // YYYY-MM-DD in the selected timezone
   selectedTz: string;
   selectedHour: number | null; // 0–23
@@ -216,12 +218,18 @@ function renderStep(session: AdvanceTimeSession) {
 
 // ─── Entry point (called by the advance wizard once the week has flipped) ───────
 
-export async function enterAdvanceTimeStep(interaction: ButtonInteraction, headline: string) {
+export async function enterAdvanceTimeStep(
+  interaction: ButtonInteraction,
+  headline: string,
+  completed: { seasonNumber: number; weekNumber: number },
+) {
   if (!interaction.inCachedGuild()) return;
   const session: AdvanceTimeSession = {
     guildId: interaction.guildId,
     userId: interaction.user.id,
     headline,
+    completedSeasonNumber: completed.seasonNumber,
+    completedWeekNumber: completed.weekNumber,
     selectedDate: null,
     selectedTz: DEFAULT_TZ,
     selectedHour: null,
@@ -282,6 +290,69 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
   }
 }
 
+function formatTier(tier?: string | null) {
+  const normalized = String(tier ?? "normal");
+  return normalized === "normal" ? "" : ` (${normalized})`;
+}
+
+function buildStoryEmbed(story: any) {
+  const notes = Array.isArray(story.notes) ? story.notes.filter(Boolean) : [];
+  const badgeLines = (Array.isArray(story.badges) ? story.badges : [])
+    .slice(0, 8)
+    .map((badge: any) => {
+      const team = badge.teamName ? `${badge.teamName}: ` : "";
+      return `${team}${badge.badgeLabel ?? badge.badgeKey ?? "Badge"}${formatTier(badge.tier)}`;
+    });
+
+  const embed = new EmbedBuilder()
+    .setTitle(String(story.headline ?? "REC Game Story").slice(0, 256))
+    .setColor(0xf1c40f)
+    .setDescription(String(story.body ?? "Game story generated from the approved box score.").slice(0, 4096))
+    .setFooter({ text: `Season ${story.season}, Week ${story.week}` });
+
+  if (notes.length) embed.addFields({ name: "Key Notes", value: notes.slice(0, 3).join("\n").slice(0, 1024) });
+  if (badgeLines.length) embed.addFields({ name: "Badges", value: badgeLines.join("\n").slice(0, 1024) });
+  return embed;
+}
+
+async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession): Promise<{ posted: number; configured: boolean }> {
+  try {
+    const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
+    const channel = await getHeadlinesChannel(guild, cfg?.routes ?? {});
+    if (!channel) return { posted: 0, configured: false };
+
+    const result = await recApi.listAdvanceStories({
+      guildId: session.guildId,
+      seasonNumber: session.completedSeasonNumber,
+      weekNumber: session.completedWeekNumber,
+    });
+    const stories: any[] = result?.stories ?? [];
+    let posted = 0;
+    for (const story of stories) {
+      const message = await channel.send({ embeds: [buildStoryEmbed(story)] });
+      posted += 1;
+      await recApi.markAdvanceStoryPosted({
+        guildId: session.guildId,
+        storyId: story.id,
+        channelId: channel.id,
+        messageId: message.id,
+      }).catch((error) => {
+        console.error("[ERROR] Failed to stamp posted game story (non-fatal):", error);
+      });
+    }
+    return { posted, configured: true };
+  } catch (error) {
+    console.error("[ERROR] Failed to publish advance headlines (non-fatal):", error);
+    return { posted: 0, configured: true };
+  }
+}
+
+function headlinePublishLine(result: { posted: number; configured: boolean }) {
+  if (result.posted > 0) return `\n\nPosted **${result.posted}** game headline${result.posted === 1 ? "" : "s"}.`;
+  if (!result.configured) return "\n\nNo headlines channel is configured, so game stories were not posted.";
+  return "\n\nNo new game headlines were ready to post.";
+}
+
 export async function handleAdvanceTimeSet(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
   if (!isFullLeagueAdminInteraction(interaction)) {
@@ -320,7 +391,11 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
 
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
 
+  const headlines = await publishAdvanceHeadlines(interaction.guild, session);
   const announced = await announceAdvance(interaction.guild, session.guildId, session.headline, result.epochSeconds);
+  const announcementLine = announced
+    ? "\n\nPosted to the announcements channel."
+    : "\n\nNo announcements channel is configured, so the advance announcement was not posted.";
 
   return interaction.editReply({
     embeds: [new EmbedBuilder()
@@ -328,7 +403,8 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
       .setColor(0x2ecc71)
       .setDescription(
         `${session.headline}\n\n**Next advance** (<t:${result.epochSeconds}:R>):\n${formatAllZones(result.epochSeconds)}` +
-        (announced ? "\n\nPosted to the announcements channel." : "\n\n⚠️ No announcements channel is configured, so nothing was posted."),
+        announcementLine +
+        headlinePublishLine(headlines),
       )],
     components: buildAdvanceRows(),
   });
@@ -340,12 +416,13 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, buil
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
+  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.`)],
+      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}`)],
     components: buildAdvanceRows(),
   });
 }
@@ -356,12 +433,13 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, buil
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
+  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.`)],
+      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}`)],
     components: buildAdvanceRows(),
   });
 }

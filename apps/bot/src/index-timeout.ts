@@ -1318,6 +1318,7 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
     const channelTypeToApiField: Record<string, string> = {
       commissioner_office: "commissionerOfficeChannelId",
       announcements: "announcementsChannelId",
+      headlines: "headlinesChannelId",
       voting_polls: "votingPollsChannelId",
       streams: "streamsChannelId",
       highlights: "highlightsChannelId",

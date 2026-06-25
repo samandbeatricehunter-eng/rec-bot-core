@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
-import { completeAdvanceWeek, getAdvanceWeekGames, setNextAdvanceTime } from "./advance-results.service.js";
+import { completeAdvanceWeek, getAdvanceWeekGames, listAdvanceGameStories, markAdvanceGameStoryPosted, setNextAdvanceTime } from "./advance-results.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 
 const ViewLeagueWeekSchema = z.object({
@@ -60,6 +60,35 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         })),
       }).parse(request.body);
       return reply.send(await completeAdvanceWeek(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/advance-stories", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        seasonNumber: z.number().int().min(1),
+        weekNumber: z.number().int().min(1).max(30),
+      }).parse(request.body);
+      return reply.send(await listAdvanceGameStories(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/advance-stories/posted", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        storyId: z.string().uuid(),
+        channelId: z.string().min(1),
+        messageId: z.string().min(1),
+      }).parse(request.body);
+      return reply.send(await markAdvanceGameStoryPosted(body));
     } catch (error) {
       return sendError(reply, error);
     }

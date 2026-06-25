@@ -2,6 +2,7 @@ import type { Guild, TextChannel } from "discord.js";
 
 type ServerRoutes = {
   announcements_channel_id?: string | null;
+  headlines_channel_id?: string | null;
   voting_polls_channel_id?: string | null;
 };
 
@@ -14,6 +15,10 @@ export async function fetchRoutedTextChannel(guild: Guild, channelId?: string | 
 
 export async function getAnnouncementsChannel(guild: Guild, routes: ServerRoutes) {
   return fetchRoutedTextChannel(guild, routes.announcements_channel_id);
+}
+
+export async function getHeadlinesChannel(guild: Guild, routes: ServerRoutes) {
+  return fetchRoutedTextChannel(guild, routes.headlines_channel_id);
 }
 
 export async function getVotingPollsChannel(guild: Guild, routes: ServerRoutes) {

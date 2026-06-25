@@ -7,6 +7,7 @@ import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
 
 type AdvanceGameResultInput = {
@@ -24,6 +25,9 @@ function phaseForWeek(weekNumber: number) {
 }
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
+const BADGE_LABELS = new Map(
+  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label]),
+);
 
 export async function getAdvanceWeekGames(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -197,6 +201,106 @@ export async function completeAdvanceWeek(input: {
   });
 
   return advanceResult;
+}
+
+export async function listAdvanceGameStories(input: {
+  guildId: string;
+  seasonNumber: number;
+  weekNumber: number;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+
+  const { data: stories, error } = await supabase
+    .from("rec_game_stories")
+    .select("id,game_id,season,week,winner_team_id,loser_team_id,primary_angle,headline,body,notes,posted_message_id,posted_channel_id,created_at")
+    .eq("league_id", context.leagueId)
+    .eq("season", input.seasonNumber)
+    .eq("week", input.weekNumber)
+    .is("posted_message_id", null)
+    .order("created_at", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load game stories for advance publishing.", error);
+
+  const gameIds = [...new Set((stories ?? []).map((story) => story.game_id).filter(Boolean))];
+  const teamIds = [...new Set((stories ?? []).flatMap((story) => [story.winner_team_id, story.loser_team_id]).filter(Boolean))];
+
+  const [eventsResult, teamsResult] = await Promise.all([
+    gameIds.length
+      ? supabase
+          .from("rec_badge_events")
+          .select("game_id,user_id,team_id,badge_key,badge_scope,tier,season,week")
+          .eq("league_id", context.leagueId)
+          .eq("season", input.seasonNumber)
+          .eq("week", input.weekNumber)
+          .in("game_id", gameIds)
+      : Promise.resolve({ data: [], error: null }),
+    teamIds.length
+      ? supabase
+          .from("rec_teams")
+          .select("id,name,abbreviation,display_city,display_nick,is_relocated")
+          .in("id", teamIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (eventsResult.error) throw new ApiError(500, "Failed to load badge events for advance publishing.", eventsResult.error);
+  if (teamsResult.error) throw new ApiError(500, "Failed to load story teams for advance publishing.", teamsResult.error);
+
+  const teamById = new Map((teamsResult.data ?? []).map((team: any) => [team.id, formatTeamDisplayName(team) ?? team.name ?? team.abbreviation ?? "Team"]));
+  const badgesByGame = new Map<string, any[]>();
+  for (const event of eventsResult.data ?? []) {
+    const key = String(event.game_id ?? "");
+    if (!key) continue;
+    const rows = badgesByGame.get(key) ?? [];
+    rows.push({
+      userId: event.user_id,
+      teamId: event.team_id,
+      teamName: teamById.get(event.team_id) ?? null,
+      badgeKey: event.badge_key,
+      badgeLabel: BADGE_LABELS.get(event.badge_key) ?? event.badge_key,
+      scope: event.badge_scope,
+      tier: event.tier ?? "normal",
+    });
+    badgesByGame.set(key, rows);
+  }
+
+  return {
+    league: { id: context.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber },
+    stories: (stories ?? []).map((story) => ({
+      id: story.id,
+      gameId: story.game_id,
+      season: story.season,
+      week: story.week,
+      winnerTeamId: story.winner_team_id,
+      loserTeamId: story.loser_team_id,
+      winnerTeamName: teamById.get(story.winner_team_id) ?? null,
+      loserTeamName: teamById.get(story.loser_team_id) ?? null,
+      primaryAngle: story.primary_angle,
+      headline: story.headline,
+      body: story.body,
+      notes: Array.isArray(story.notes) ? story.notes : [],
+      badges: story.game_id ? badgesByGame.get(story.game_id) ?? [] : [],
+    })),
+  };
+}
+
+export async function markAdvanceGameStoryPosted(input: {
+  guildId: string;
+  storyId: string;
+  channelId: string;
+  messageId: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const { data, error } = await supabase
+    .from("rec_game_stories")
+    .update({
+      posted_channel_id: input.channelId,
+      posted_message_id: input.messageId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("league_id", context.leagueId)
+    .eq("id", input.storyId)
+    .select("id,posted_channel_id,posted_message_id")
+    .single();
+  if (error) throw new ApiError(500, "Failed to mark game story as posted.", error);
+  return { story: data };
 }
 
 // Store (or clear) the league's next scheduled advance time. The bot supplies a

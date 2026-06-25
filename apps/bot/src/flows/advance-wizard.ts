@@ -129,7 +129,7 @@ export async function startAdvanceWeekWizard(interaction: ButtonInteraction, bui
       ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
       : "";
     const headline = `League advanced from **${stageLabel(currentStage, currentWeek)}** to **${stageLabel(next.seasonStage, next.weekNumber)}**.${interestLine}`;
-    return enterAdvanceTimeStep(interaction, headline);
+    return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: currentWeek });
   }
 
   return interaction.editReply(renderWizardStep(session));
@@ -184,5 +184,5 @@ export async function handleAdvanceWizardOutcome(interaction: ButtonInteraction,
     : "";
 
   const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}`;
-  return enterAdvanceTimeStep(interaction, headline);
+  return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: session.currentWeek });
 }

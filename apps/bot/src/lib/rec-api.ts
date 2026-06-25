@@ -121,6 +121,7 @@ export const recApi = {
     pendingPayoutsChannelId?: string;
     pendingPurchasesChannelId?: string;
     boxScoresChannelId?: string;
+    headlinesChannelId?: string;
     gameChannelsCategoryId?: string;
     commissionerOfficeChannelId?: string;
     streamsChannelId?: string;
@@ -186,6 +187,18 @@ export const recApi = {
     tzLabel: string;
   }) =>
     recFetch<{ nextAdvanceAt: string; epochSeconds: number; tzLabel: string }>("/v1/league-week/set-next-advance", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  listAdvanceStories: (input: { guildId: string; seasonNumber: number; weekNumber: number }) =>
+    recFetch<any>("/v1/league-week/advance-stories", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  markAdvanceStoryPosted: (input: { guildId: string; storyId: string; channelId: string; messageId: string }) =>
+    recFetch<any>("/v1/league-week/advance-stories/posted", {
       method: "POST",
       body: JSON.stringify(input),
     }),

@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
+import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -10,6 +11,23 @@ import {
   loadUserFinancialSummary,
   resolveTeamNick,
 } from "./user-profile-stats.service.js";
+
+const BADGE_LABELS = new Map<string, string>(
+  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge: BadgeDef<any>) => [badge.key, badge.label]),
+);
+
+function mapOwnedBadge(row: any) {
+  const badgeKey = row.badge_key ?? row.badge_name ?? "badge";
+  return {
+    ...row,
+    badge_name: badgeKey,
+    badge_label: BADGE_LABELS.get(badgeKey) ?? badgeKey,
+    earned_value: row.earned_count ?? row.current_streak ?? 1,
+    earned_at: row.updated_at ?? row.created_at ?? null,
+    league_id: row.league_id ?? null,
+    season_number: row.season ?? null,
+  };
+}
 
 export async function getUserBaselineByDiscordId(discordId: string) {
   const account = await supabase
@@ -173,19 +191,24 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       : Promise.resolve({ data: null }),
     leagueId
       ? supabase
-          .from("rec_user_badges")
-          .select("badge_name,badge_label,tier,earned_value,earned_at")
+          .from("rec_badge_ownership")
+          .select("badge_key,badge_scope,tier,earned_count,current_streak,best_streak,last_earned_week,created_at,updated_at,league_id,season,week")
           .eq("league_id", leagueId)
-          .eq("season_number", seasonNumber)
+          .eq("season", seasonNumber)
           .eq("user_id", userId)
-          .order("earned_at", { ascending: false })
+          .in("badge_scope", ["weekly", "season"])
+          .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] }),
-    supabase
-      .from("rec_user_badges")
-      .select("badge_name,badge_label,tier,earned_value,earned_at,league_id,season_number")
-      .eq("user_id", userId)
-      .is("league_id", null)
-      .order("earned_at", { ascending: false }),
+    leagueId
+      ? supabase
+        .from("rec_badge_ownership")
+        .select("badge_key,badge_scope,tier,earned_count,current_streak,best_streak,last_earned_week,created_at,updated_at,league_id,season,week")
+        .eq("league_id", leagueId)
+        .eq("user_id", userId)
+        .eq("badge_scope", "global")
+        .is("season", null)
+        .order("updated_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
     supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
     leagueId && teamId
       ? supabase
@@ -299,8 +322,8 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
     seasonStats,
     careerStats,
-    seasonBadges: (seasonBadges as any)?.data ?? [],
-    globalBadges: (globalBadges as any)?.data ?? [],
+    seasonBadges: ((seasonBadges as any)?.data ?? []).map(mapOwnedBadge),
+    globalBadges: ((globalBadges as any)?.data ?? []).map(mapOwnedBadge),
     globalAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
     financialSummary,
   };
@@ -591,13 +614,14 @@ function stageDisplay(stage?: string | null) {
 async function loadUserBadges(userId: string, leagueId: string) {
   try {
     const result = await supabase
-      .from("rec_user_badges")
-      .select("*")
+      .from("rec_badge_ownership")
+      .select("badge_key,badge_scope,tier,earned_count,current_streak,best_streak,last_earned_week,created_at,updated_at,league_id,season,week")
+      .eq("league_id", leagueId)
       .eq("user_id", userId)
-      .or(`league_id.is.null,league_id.eq.${leagueId}`);
+      .order("updated_at", { ascending: false });
 
     if (result.error) return [];
-    return result.data ?? [];
+    return (result.data ?? []).map(mapOwnedBadge);
   } catch {
     // Some environments may not have the badge table yet. Do not break /menu.
     return [];
