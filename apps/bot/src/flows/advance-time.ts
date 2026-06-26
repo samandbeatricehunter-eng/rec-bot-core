@@ -312,11 +312,20 @@ function buildStoryEmbed(story: any) {
   return embed;
 }
 
-async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession): Promise<{ posted: number; configured: boolean }> {
+type HeadlinePublishResult = {
+  posted: number;
+  configured: boolean;
+  accessible: boolean;
+};
+
+async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession): Promise<HeadlinePublishResult> {
   try {
     const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
+    const channelId = cfg?.routes?.headlines_channel_id ?? null;
+    if (!channelId) return { posted: 0, configured: false, accessible: false };
+
     const channel = await getHeadlinesChannel(guild, cfg?.routes ?? {});
-    if (!channel) return { posted: 0, configured: false };
+    if (!channel) return { posted: 0, configured: true, accessible: false };
 
     const result = await recApi.listAdvanceStories({
       guildId: session.guildId,
@@ -337,16 +346,17 @@ async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession
         console.error("[ERROR] Failed to stamp posted game story (non-fatal):", error);
       });
     }
-    return { posted, configured: true };
+    return { posted, configured: true, accessible: true };
   } catch (error) {
     console.error("[ERROR] Failed to publish advance headlines (non-fatal):", error);
-    return { posted: 0, configured: true };
+    return { posted: 0, configured: true, accessible: true };
   }
 }
 
-function headlinePublishLine(result: { posted: number; configured: boolean }) {
+function headlinePublishLine(result: HeadlinePublishResult) {
   if (result.posted > 0) return `\n\nPosted **${result.posted}** game headline${result.posted === 1 ? "" : "s"}.`;
   if (!result.configured) return "\n\nNo headlines channel is configured, so game stories were not posted.";
+  if (!result.accessible) return "\n\nA headlines channel is configured, but I couldn't access it. Check the bot's channel permissions.";
   return "\n\nNo new game headlines were ready to post.";
 }
 
@@ -413,7 +423,7 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, buil
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
-  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true };
+  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   return interaction.editReply({
     embeds: [new EmbedBuilder()
@@ -430,7 +440,7 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, buil
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
-  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true };
+  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   return interaction.editReply({
     embeds: [new EmbedBuilder()

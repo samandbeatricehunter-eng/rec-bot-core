@@ -39,6 +39,10 @@ function buildCfbSettings(input: CreateLeagueInput) {
   };
 }
 
+function preserveWhenOmitted<T>(value: T | undefined, existing: T | null | undefined) {
+  return value === undefined ? existing ?? null : value;
+}
+
 /**
  * Registers or updates a Discord guild in REC Core.
  *
@@ -322,21 +326,32 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
     throw new ApiError(404, "Server must be registered before routes can be saved", server.error);
   }
 
+  const existingRoutes = await supabase
+    .from("rec_server_routes")
+    .select("*")
+    .eq("server_id", server.data.id)
+    .maybeSingle();
+
+  if (existingRoutes.error) {
+    throw new ApiError(500, "Failed to load existing server routes", existingRoutes.error);
+  }
+
+  const existing = existingRoutes.data ?? {};
   const payload = {
     server_id: server.data.id,
-    general_chat_channel_id: input.generalChatChannelId ?? null,
-    scheduling_channel_id: input.schedulingChannelId ?? null,
-    media_channel_id: input.mediaChannelId ?? null,
-    rules_channel_id: input.rulesChannelId ?? null,
-    announcements_channel_id: input.announcementsChannelId ?? null,
-    headlines_channel_id: input.headlinesChannelId ?? null,
-    streams_channel_id: input.streamsChannelId ?? null,
-    highlights_channel_id: input.highlightsChannelId ?? null,
-    pending_payouts_channel_id: input.pendingPayoutsChannelId ?? null,
-    pending_purchases_channel_id: input.pendingPurchasesChannelId ?? null,
-    game_channels_category_id: input.gameChannelsCategoryId ?? null,
-    commissioner_office_channel_id: input.commissionerOfficeChannelId ?? null,
-    voting_polls_channel_id: input.votingPollsChannelId ?? null
+    general_chat_channel_id: preserveWhenOmitted(input.generalChatChannelId, existing.general_chat_channel_id),
+    scheduling_channel_id: preserveWhenOmitted(input.schedulingChannelId, existing.scheduling_channel_id),
+    media_channel_id: preserveWhenOmitted(input.mediaChannelId, existing.media_channel_id),
+    rules_channel_id: preserveWhenOmitted(input.rulesChannelId, existing.rules_channel_id),
+    announcements_channel_id: preserveWhenOmitted(input.announcementsChannelId, existing.announcements_channel_id),
+    headlines_channel_id: preserveWhenOmitted(input.headlinesChannelId, existing.headlines_channel_id),
+    streams_channel_id: preserveWhenOmitted(input.streamsChannelId, existing.streams_channel_id),
+    highlights_channel_id: preserveWhenOmitted(input.highlightsChannelId, existing.highlights_channel_id),
+    pending_payouts_channel_id: preserveWhenOmitted(input.pendingPayoutsChannelId, existing.pending_payouts_channel_id),
+    pending_purchases_channel_id: preserveWhenOmitted(input.pendingPurchasesChannelId, existing.pending_purchases_channel_id),
+    game_channels_category_id: preserveWhenOmitted(input.gameChannelsCategoryId, existing.game_channels_category_id),
+    commissioner_office_channel_id: preserveWhenOmitted(input.commissionerOfficeChannelId, existing.commissioner_office_channel_id),
+    voting_polls_channel_id: preserveWhenOmitted(input.votingPollsChannelId, existing.voting_polls_channel_id)
   };
 
   const routes = await supabase
