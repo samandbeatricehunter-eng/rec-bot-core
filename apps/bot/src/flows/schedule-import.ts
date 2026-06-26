@@ -13,6 +13,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { getPendingPayoutsChannel } from "./schedule-scores.js";
 
 // ─── Schedule import: parse a League Schedule screenshot into a week's matchups ──
 // Wizard mode walks Weeks 1–18; one-week mode does a single chosen week. Both share
@@ -210,8 +211,14 @@ export async function handleScheduleImportUploadMessage(message: Message): Promi
     session.at = Date.now();
     sessions.set(key(session.guildId, session.userId), session);
 
-    await channel.send({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session) }).catch(() => null);
-    await working?.delete().catch(() => undefined);
+    const payoutsChannel = await getPendingPayoutsChannel(message.client, session.guildId);
+    const target = payoutsChannel ?? channel;
+    await target.send({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session) }).catch(() => null);
+    if (payoutsChannel && payoutsChannel.id !== channel.id) {
+      await working?.edit({ embeds: [new EmbedBuilder().setTitle("Schedule Import").setColor(0x2ecc71).setDescription(`Parsed Week ${session.weekNumber} — review sent to <#${payoutsChannel.id}>.`)] }).catch(() => undefined);
+    } else {
+      await working?.delete().catch(() => undefined);
+    }
   } catch (err) {
     await message.delete().catch(() => undefined);
     await working?.edit({ embeds: [new EmbedBuilder().setTitle("Couldn't read schedule").setColor(0xe74c3c).setDescription(userFacingError(err))] }).catch(() => undefined);
@@ -253,6 +260,12 @@ export async function handleScheduleImportSave(interaction: ButtonInteraction) {
   savedEmbed.spliceFields(0, 1, { name: "SAVED ✅", value: `Saved **${matched.length}** matchup${matched.length === 1 ? "" : "s"} for Week ${savedWeek}.`, inline: false });
   await interaction.editReply({ embeds: [savedEmbed], components: [] });
 
+  // The next prompt / completion notice goes back to the upload channel (where the
+  // commissioner posts screenshots), which may differ from the pending-payouts
+  // channel this Save button lives in.
+  const uploadChannel = await interaction.client.channels.fetch(session.channelId).catch(() => null);
+  const promptTarget = uploadChannel?.isTextBased() && !uploadChannel.isDMBased() ? (uploadChannel as TextChannel) : null;
+
   // Wizard: advance to the next week (or finish at 18).
   if (session.mode === "wizard" && savedWeek < MAX_IMPORT_WEEK) {
     session.weekNumber = savedWeek + 1;
@@ -262,16 +275,12 @@ export async function handleScheduleImportSave(interaction: ButtonInteraction) {
     session.imageUrl = null;
     session.at = Date.now();
     sessions.set(key(session.guildId, session.userId), session);
-    if (interaction.channel?.isTextBased() && "send" in interaction.channel) {
-      await (interaction.channel as TextChannel).send({ embeds: [uploadPrompt(session.weekNumber, "wizard")] }).catch(() => undefined);
-    }
+    await promptTarget?.send({ embeds: [uploadPrompt(session.weekNumber, "wizard")] }).catch(() => undefined);
   } else {
     sessions.delete(key(session.guildId, session.userId));
-    if (interaction.channel?.isTextBased() && "send" in interaction.channel) {
-      await (interaction.channel as TextChannel).send({
-        embeds: [new EmbedBuilder().setTitle("Schedule Import Complete").setColor(0x2ecc71).setDescription(session.mode === "wizard" ? "All weeks imported. Review with **View Schedule**." : `Week ${savedWeek} saved. Review with **View Schedule**.`)],
-      }).catch(() => undefined);
-    }
+    await promptTarget?.send({
+      embeds: [new EmbedBuilder().setTitle("Schedule Import Complete").setColor(0x2ecc71).setDescription(session.mode === "wizard" ? "All weeks imported. Review with **View Schedule**." : `Week ${savedWeek} saved. Review with **View Schedule**.`)],
+    }).catch(() => undefined);
   }
 }
 

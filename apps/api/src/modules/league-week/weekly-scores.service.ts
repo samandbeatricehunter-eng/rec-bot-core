@@ -7,7 +7,7 @@ import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { parseScheduleImages, type ParsedScheduleGame } from "../schedule/schedule.parser.js";
 import { buildAbbrMap, resolveScheduleAbbr } from "../schedule/schedule.service.js";
-import { persistUploadImage } from "../box-score/box-score.service.js";
+import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 const SCHEDULE_SOURCE = "schedule_screenshot";
@@ -58,7 +58,7 @@ async function loadWeekContext(guildId: string, weekNumber?: number | null) {
 async function loadScheduledGamesWithTeams(leagueId: string, seasonId: string, weekNumber: number) {
   const { data, error } = await supabase
     .from("rec_games")
-    .select("id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation,is_relocated)")
+    .select("id,external_game_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation,is_relocated)")
     .eq("league_id", leagueId)
     .eq("season_id", seasonId)
     .eq("week_number", weekNumber)
@@ -151,7 +151,7 @@ export async function previewWeeklyScores(input: {
     };
   });
 
-  const imageUrl = input.imageUrls[0] ? await persistUploadImage(`schedule-${leagueId}-${seasonNumber}-${weekNumber}`, input.imageUrls[0]) : null;
+  const imageUrl = input.imageUrls.length ? await persistStitchedUploadImage(`schedule-${leagueId}-${seasonNumber}-${weekNumber}`, input.imageUrls) : null;
 
   return {
     seasonNumber,

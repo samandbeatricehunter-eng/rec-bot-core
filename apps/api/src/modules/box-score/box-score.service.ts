@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -335,6 +336,42 @@ export async function persistUploadImage(key: string, imageUrl: string): Promise
   } catch (err) {
     console.error("[WARN] Failed to re-host screenshot (non-fatal):", err);
     return null;
+  }
+}
+
+// Re-host one or more screenshots as a SINGLE image (stacked vertically) so an embed
+// — which only renders one image — can show every uploaded shot. Falls back to
+// re-hosting the first image, then to its CDN URL, on any failure.
+export async function persistStitchedUploadImage(key: string, imageUrls: string[]): Promise<string | null> {
+  const urls = imageUrls.filter(Boolean);
+  if (urls.length <= 1) return persistUploadImage(key, urls[0] ?? "");
+  try {
+    const buffers = await Promise.all(urls.map(fetchImageBuffer));
+    const width = Math.max(...(await Promise.all(buffers.map(async (b) => (await sharp(b).metadata()).width ?? 0))));
+    const tiles = await Promise.all(buffers.map((b) => sharp(b).resize({ width, fit: "inside" }).png().toBuffer()));
+    const heights = await Promise.all(tiles.map(async (t) => (await sharp(t).metadata()).height ?? 0));
+    const totalHeight = heights.reduce((s, h) => s + h, 0);
+    let top = 0;
+    const composite = tiles.map((input, i) => {
+      const layer = { input, top, left: 0 };
+      top += heights[i];
+      return layer;
+    });
+    const stitched = await sharp({ create: { width, height: totalHeight, channels: 3, background: { r: 0, g: 0, b: 0 } } })
+      .composite(composite)
+      .png()
+      .toBuffer();
+    const path = `${key}.png`;
+    const { error } = await supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).upload(path, stitched, { contentType: "image/png", upsert: true });
+    if (error) {
+      console.error("[WARN] Failed to upload stitched screenshot (non-fatal):", error);
+      return persistUploadImage(key, urls[0]);
+    }
+    const { data } = supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).getPublicUrl(path);
+    return data?.publicUrl ?? (await persistUploadImage(key, urls[0]));
+  } catch (err) {
+    console.error("[WARN] Failed to stitch screenshots (non-fatal):", err);
+    return persistUploadImage(key, urls[0]);
   }
 }
 

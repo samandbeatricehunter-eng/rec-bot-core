@@ -85,6 +85,21 @@ function userFacingError(err: unknown): string {
   return message;
 }
 
+// Resolve the league's Pending Payouts channel (where screenshot reviews are posted
+// for approval). Returns null if not configured or unreachable.
+export async function getPendingPayoutsChannel(client: { channels: { fetch: (id: string) => Promise<any> } }, guildId: string): Promise<TextChannel | null> {
+  try {
+    const cfg = await recApi.getEconomyConfig(guildId);
+    const id: string | null = cfg?.routes?.pending_payouts_channel_id ?? null;
+    if (!id) return null;
+    const ch = await client.channels.fetch(id).catch(() => null);
+    if (ch && ch.isTextBased?.() && !ch.isDMBased?.()) return ch as TextChannel;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── Embed / components ─────────────────────────────────────────────────────────
 
 function gameLine(g: ReviewGame): string {
@@ -209,10 +224,19 @@ export async function handleWeeklyScoresUploadMessage(message: Message): Promise
     session.phase = "review";
     session.at = Date.now();
 
-    const reviewMsg = await channel.send({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session.weekNumber) }).catch(() => null);
+    // Post the review (with Approve/Corrections) to the Pending Payouts channel; fall
+    // back to this channel if none is configured.
+    const payoutsChannel = await getPendingPayoutsChannel(message.client, session.guildId);
+    const target = payoutsChannel ?? channel;
+    const reviewMsg = await target.send({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session.weekNumber) }).catch(() => null);
     session.reviewMessageId = reviewMsg?.id ?? null;
     sessions.set(key(session.guildId, session.userId), session);
-    await working?.delete().catch(() => undefined);
+
+    if (payoutsChannel && payoutsChannel.id !== channel.id) {
+      await working?.edit({ embeds: [new EmbedBuilder().setTitle("Weekly Scores").setColor(0x2ecc71).setDescription(`Parsed Week ${session.weekNumber} — review sent to <#${payoutsChannel.id}> for approval.`)] }).catch(() => undefined);
+    } else {
+      await working?.delete().catch(() => undefined);
+    }
   } catch (err) {
     await message.delete().catch(() => undefined);
     await working?.edit({

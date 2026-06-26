@@ -10,7 +10,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonContext, resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { persistUploadImage } from "../box-score/box-score.service.js";
+import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseScheduleImages } from "./schedule.parser.js";
 
 // ─── Team abbreviation resolution (shared by score + matchup screenshot imports) ─
@@ -607,8 +607,8 @@ export async function previewScheduleImport(input: {
     });
   }
 
-  const imageUrl = input.imageUrls[0]
-    ? await persistUploadImage(`schedimport-${leagueId}-${seasonNumber}-${input.weekNumber}`, input.imageUrls[0])
+  const imageUrl = input.imageUrls.length
+    ? await persistStitchedUploadImage(`schedimport-${leagueId}-${seasonNumber}-${input.weekNumber}`, input.imageUrls)
     : null;
 
   return {
