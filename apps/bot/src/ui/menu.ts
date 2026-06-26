@@ -9,6 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
+import { WEEKLY_SCORES_CUSTOM_IDS } from "../flows/schedule-scores.js";
 
 /**
  * Central custom IDs for the REC menu system.
@@ -263,7 +264,8 @@ export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } =
   const sharedRows = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Scores").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Scores").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(WEEKLY_SCORES_CUSTOM_IDS.uploadOpen).setLabel("Upload Scores").setStyle(ButtonStyle.Primary)
     ),
   ];
 
