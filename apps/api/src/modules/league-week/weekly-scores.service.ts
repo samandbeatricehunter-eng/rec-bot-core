@@ -9,8 +9,8 @@ import { parseScheduleImages, type ParsedScheduleGame } from "../schedule/schedu
 import { buildAbbrMap, resolveScheduleAbbr } from "../schedule/schedule.service.js";
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 
-const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 const SCHEDULE_SOURCE = "schedule_screenshot";
+const REVIEW_TABLE = "rec_weekly_score_reviews";
 
 type TeamRow = {
   id: string;
@@ -34,16 +34,17 @@ export type WeeklyScoreGame = {
   awayScore: number | null;
   homeScore: number | null;
   hasBoxScore: boolean;
-  fromOcr: boolean;
 };
 
-export type WeeklyScorePreview = {
+export type WeeklyScoreReview = {
+  reviewId: string;
   seasonNumber: number;
   weekNumber: number;
+  status: string;
   games: WeeklyScoreGame[];
+  imageUrl: string | null;
   warnings: string[];
   readCount: number;
-  imageUrl: string | null;
 };
 
 async function loadWeekContext(guildId: string, weekNumber?: number | null) {
@@ -67,15 +68,18 @@ async function loadScheduledGamesWithTeams(leagueId: string, seasonId: string, w
   return data ?? [];
 }
 
-async function approvedBoxScoreGameIds(leagueId: string, seasonNumber: number, weekNumber: number): Promise<Set<string>> {
+// Games with a box-score submission that is pending OR approved — those stay
+// authoritative, so the schedule pre-log marks them locked and never overwrites
+// them (a pending box score has no result row yet but will once approved).
+async function boxScoreGameIds(leagueId: string, seasonNumber: number, weekNumber: number): Promise<Set<string>> {
   const { data, error } = await supabase
     .from("rec_box_score_submissions")
     .select("game_id")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
-    .eq("status", "approved");
-  if (error) throw new ApiError(500, "Failed to load approved box scores for the week.", error);
+    .in("status", ["pending", "approved"]);
+  if (error) throw new ApiError(500, "Failed to load box scores for the week.", error);
   return new Set((data ?? []).map((r) => String(r.game_id)).filter(Boolean));
 }
 
@@ -85,20 +89,19 @@ function scoresForScheduledGame(
   game: { away_team_id: string | null; home_team_id: string | null },
   parsed: ParsedScheduleGame[],
   abbrMap: Map<string, string>,
-): { awayScore: number | null; homeScore: number | null; fromOcr: boolean } {
+): { awayScore: number | null; homeScore: number | null } {
   for (const p of parsed) {
     const pAway = resolveScheduleAbbr(abbrMap, p.awayAbbr);
     const pHome = resolveScheduleAbbr(abbrMap, p.homeAbbr);
     if (!pAway || !pHome) continue;
     if (pAway === game.away_team_id && pHome === game.home_team_id) {
-      return { awayScore: p.awayScore, homeScore: p.homeScore, fromOcr: p.awayScore != null || p.homeScore != null };
+      return { awayScore: p.awayScore, homeScore: p.homeScore };
     }
     if (pAway === game.home_team_id && pHome === game.away_team_id) {
-      // Read with away/home swapped — flip the scores back to schedule orientation.
-      return { awayScore: p.homeScore, homeScore: p.awayScore, fromOcr: p.awayScore != null || p.homeScore != null };
+      return { awayScore: p.homeScore, homeScore: p.awayScore };
     }
   }
-  return { awayScore: null, homeScore: null, fromOcr: false };
+  return { awayScore: null, homeScore: null };
 }
 
 function teamLabel(team: TeamRow | null): string | null {
@@ -110,17 +113,34 @@ function teamAbbr(team: TeamRow | null): string | null {
   return team?.display_abbr ?? team?.abbreviation ?? null;
 }
 
-export async function previewWeeklyScores(input: {
+function shapeReview(row: any): WeeklyScoreReview {
+  const games = (row.games ?? []) as WeeklyScoreGame[];
+  return {
+    reviewId: row.id,
+    seasonNumber: row.season_number,
+    weekNumber: row.week_number,
+    status: row.status,
+    games,
+    imageUrl: row.image_url ?? null,
+    warnings: [],
+    readCount: games.filter((g) => g.awayScore != null && g.homeScore != null).length,
+  };
+}
+
+// ─── Create a review (parse + match + persist; supersedes any prior pending) ─────
+
+export async function createWeeklyScoreReview(input: {
   guildId: string;
   weekNumber?: number | null;
   imageUrls: string[];
-}): Promise<WeeklyScorePreview> {
+  createdByDiscordId: string;
+}): Promise<WeeklyScoreReview> {
   const { leagueId, seasonNumber, seasonId, weekNumber } = await loadWeekContext(input.guildId, input.weekNumber);
 
-  const [scheduled, parsedWeek, boxScoreGameIds] = await Promise.all([
+  const [scheduled, parsedWeek, boxScored] = await Promise.all([
     loadScheduledGamesWithTeams(leagueId, seasonId, weekNumber),
     parseScheduleImages(input.imageUrls),
-    approvedBoxScoreGameIds(leagueId, seasonNumber, weekNumber),
+    boxScoreGameIds(leagueId, seasonNumber, weekNumber),
   ]);
 
   if (!scheduled.length) {
@@ -146,53 +166,123 @@ export async function previewWeeklyScores(input: {
       homeName: teamLabel(g.home_team),
       awayScore: scores.awayScore,
       homeScore: scores.homeScore,
-      hasBoxScore: boxScoreGameIds.has(String(g.id)),
-      fromOcr: scores.fromOcr,
+      hasBoxScore: boxScored.has(String(g.id)),
     };
   });
 
-  const imageUrl = input.imageUrls.length ? await persistStitchedUploadImage(`schedule-${leagueId}-${seasonNumber}-${weekNumber}`, input.imageUrls) : null;
+  const imageUrl = input.imageUrls.length
+    ? await persistStitchedUploadImage(`schedule-${leagueId}-${seasonNumber}-${weekNumber}`, input.imageUrls)
+    : null;
 
-  return {
-    seasonNumber,
-    weekNumber,
-    games,
-    warnings: parsedWeek.warnings,
-    readCount: games.filter((g) => g.awayScore != null && g.homeScore != null).length,
-    imageUrl: imageUrl ?? input.imageUrls[0] ?? null,
-  };
+  // A new upload supersedes any prior pending review for this week.
+  await clearWeeklyScoreReviewsForWeek(leagueId, seasonNumber, weekNumber);
+
+  const { data, error } = await supabase
+    .from(REVIEW_TABLE)
+    .insert({
+      league_id: leagueId,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      guild_id: input.guildId,
+      image_url: imageUrl ?? input.imageUrls[0] ?? null,
+      games,
+      status: "pending",
+      created_by_discord_id: input.createdByDiscordId,
+    })
+    .select("*")
+    .single();
+  if (error || !data) throw new ApiError(500, "Failed to save the weekly score review.", error);
+
+  return { ...shapeReview(data), warnings: parsedWeek.warnings };
 }
 
-// Write real final scores for the week's games to rec_game_results. Skips games
-// that already have a box-score result (those stay authoritative) and any game
-// missing a score. Mirrors the result-writing + rollups in completeAdvanceWeek.
-export async function prelogWeeklyScores(input: {
-  guildId: string;
-  weekNumber: number;
-  loggedByDiscordId: string;
-  games: Array<{ gameId: string; awayScore: number | null; homeScore: number | null }>;
-}): Promise<{ seasonNumber: number; weekNumber: number; logged: number; skipped: number }> {
-  const { leagueId, seasonNumber, seasonId, weekNumber } = await loadWeekContext(input.guildId, input.weekNumber);
-  const now = new Date().toISOString();
+async function loadPendingReview(reviewId: string) {
+  const { data, error } = await supabase.from(REVIEW_TABLE).select("*").eq("id", reviewId).maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load the weekly score review.", error);
+  if (!data) throw new ApiError(404, "This weekly score review no longer exists (it may have been superseded or the week advanced).");
+  if (data.status !== "pending") throw new ApiError(409, "This weekly score review has already been logged or cancelled.");
+  return data;
+}
 
-  const scheduled = await loadScheduledGamesWithTeams(leagueId, seasonId, weekNumber);
-  const byId = new Map((scheduled as any[]).map((g) => [String(g.id), g]));
+export async function getWeeklyScoreReview(reviewId: string): Promise<WeeklyScoreReview> {
+  const { data, error } = await supabase.from(REVIEW_TABLE).select("*").eq("id", reviewId).maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load the weekly score review.", error);
+  if (!data) throw new ApiError(404, "This weekly score review no longer exists.");
+  return shapeReview(data);
+}
 
-  // Don't overwrite games that already carry a box-score result.
-  const existing = await supabase
-    .from("rec_game_results")
-    .select("home_team_id,away_team_id,source")
+export async function correctWeeklyScoreReview(input: {
+  reviewId: string;
+  gameId: string;
+  awayScore: number | null;
+  homeScore: number | null;
+}): Promise<WeeklyScoreReview> {
+  const row = await loadPendingReview(input.reviewId);
+  const games = (row.games ?? []) as WeeklyScoreGame[];
+  const game = games.find((g) => g.gameId === input.gameId);
+  if (!game) throw new ApiError(400, "That game isn't part of this review.");
+  game.awayScore = input.awayScore;
+  game.homeScore = input.homeScore;
+
+  const { data, error } = await supabase
+    .from(REVIEW_TABLE)
+    .update({ games, updated_at: new Date().toISOString() })
+    .eq("id", input.reviewId)
+    .eq("status", "pending")
+    .select("*")
+    .single();
+  if (error || !data) throw new ApiError(500, "Failed to apply the correction.", error);
+  return shapeReview(data);
+}
+
+export async function cancelWeeklyScoreReview(reviewId: string): Promise<{ ok: true }> {
+  await supabase.from(REVIEW_TABLE).update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", reviewId);
+  return { ok: true };
+}
+
+export async function clearWeeklyScoreReviewsForWeek(leagueId: string, seasonNumber: number, weekNumber: number): Promise<void> {
+  await supabase
+    .from(REVIEW_TABLE)
+    .delete()
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber);
-  if (existing.error) throw new ApiError(500, "Failed to load existing game results.", existing.error);
-  const boxScoreLocked = new Set(
-    (existing.data ?? [])
-      .filter((r) => BOX_SCORE_SOURCES.includes(String(r.source)))
-      .map((r) => `${r.home_team_id}:${r.away_team_id}`),
-  );
+}
 
-  // Game users for win/loss routing.
+// ─── Approve: pre-log the review's scores to rec_game_results ────────────────────
+
+export async function approveWeeklyScoreReview(input: {
+  reviewId: string;
+  loggedByDiscordId: string;
+}): Promise<{ seasonNumber: number; weekNumber: number; logged: number; skipped: number }> {
+  const row = await loadPendingReview(input.reviewId);
+  const leagueId = row.league_id as string;
+  const seasonNumber = row.season_number as number;
+  const weekNumber = row.week_number as number;
+  const games = (row.games ?? []) as WeeklyScoreGame[];
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
+
+  const result = await writePrelogResults(leagueId, seasonNumber, seasonId, weekNumber, games);
+
+  await supabase.from(REVIEW_TABLE).update({ status: "logged", updated_at: new Date().toISOString() }).eq("id", input.reviewId);
+  return { seasonNumber, weekNumber, ...result };
+}
+
+// Write real final scores to rec_game_results, skipping games that already have a
+// box-score submission (pending/approved) and any game missing a score. Mirrors the
+// result-writing + rollups in completeAdvanceWeek.
+async function writePrelogResults(
+  leagueId: string,
+  seasonNumber: number,
+  seasonId: string,
+  weekNumber: number,
+  games: WeeklyScoreGame[],
+): Promise<{ logged: number; skipped: number }> {
+  const now = new Date().toISOString();
+  const scheduled = await loadScheduledGamesWithTeams(leagueId, seasonId, weekNumber);
+  const byId = new Map((scheduled as any[]).map((g) => [String(g.id), g]));
+  const boxScored = await boxScoreGameIds(leagueId, seasonNumber, weekNumber);
+
   const teamIds = [...new Set((scheduled as any[]).flatMap((g) => [g.away_team_id, g.home_team_id]).filter(Boolean))];
   const assignments = teamIds.length
     ? await supabase
@@ -209,13 +299,9 @@ export async function prelogWeeklyScores(input: {
   let logged = 0;
   let skipped = 0;
   const rows: any[] = [];
-  for (const g of input.games) {
+  for (const g of games) {
     const game = byId.get(String(g.gameId));
-    if (!game || g.awayScore == null || g.homeScore == null) {
-      skipped++;
-      continue;
-    }
-    if (boxScoreLocked.has(`${game.home_team_id}:${game.away_team_id}`)) {
+    if (!game || g.awayScore == null || g.homeScore == null || boxScored.has(String(g.gameId))) {
       skipped++;
       continue;
     }
@@ -263,5 +349,5 @@ export async function prelogWeeklyScores(input: {
     });
   }
 
-  return { seasonNumber, weekNumber, logged, skipped };
+  return { logged, skipped };
 }

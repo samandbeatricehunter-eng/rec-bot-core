@@ -319,6 +319,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.approvePrefix)) return handleWeeklyScoresApprove(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctOpenPrefix)) return handleWeeklyScoresCorrectOpen(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.cancelPrefix)) return handleWeeklyScoresCancel(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctModalPrefix)) return handleWeeklyScoresCorrectModal(interaction);
+
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       await expireWindow(interaction);
@@ -364,7 +370,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminGameSelect) return handleBoxScoreAdminGameSelect(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
-      if (interaction.customId === WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix) return handleWeeklyScoresCorrectGameSelect(interaction);
+      if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
       if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect) return handleScheduleImportWeekSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);

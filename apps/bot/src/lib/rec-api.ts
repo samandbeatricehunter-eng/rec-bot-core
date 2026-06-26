@@ -165,16 +165,20 @@ export const recApi = {
       body: JSON.stringify({ guildId }),
     }),
 
-  previewWeeklyScores: (input: { guildId: string; weekNumber?: number | null; imageUrls: string[] }) =>
-    recFetch<any>("/v1/league-week/weekly-scores/preview", { method: "POST", body: JSON.stringify(input) }),
+  createWeeklyScoreReview: (input: { guildId: string; weekNumber?: number | null; imageUrls: string[]; createdByDiscordId: string }) =>
+    recFetch<any>("/v1/league-week/weekly-scores/review/create", { method: "POST", body: JSON.stringify(input) }),
 
-  prelogWeeklyScores: (input: {
-    guildId: string;
-    weekNumber: number;
-    loggedByDiscordId: string;
-    games: Array<{ gameId: string; awayScore: number | null; homeScore: number | null }>;
-  }) =>
-    recFetch<any>("/v1/league-week/weekly-scores/prelog", { method: "POST", body: JSON.stringify(input) }),
+  getWeeklyScoreReview: (reviewId: string) =>
+    recFetch<any>("/v1/league-week/weekly-scores/review/get", { method: "POST", body: JSON.stringify({ reviewId }) }),
+
+  correctWeeklyScoreReview: (input: { reviewId: string; gameId: string; awayScore: number | null; homeScore: number | null }) =>
+    recFetch<any>("/v1/league-week/weekly-scores/review/correct", { method: "POST", body: JSON.stringify(input) }),
+
+  approveWeeklyScoreReview: (input: { reviewId: string; loggedByDiscordId: string }) =>
+    recFetch<any>("/v1/league-week/weekly-scores/review/approve", { method: "POST", body: JSON.stringify(input) }),
+
+  cancelWeeklyScoreReview: (reviewId: string) =>
+    recFetch<any>("/v1/league-week/weekly-scores/review/cancel", { method: "POST", body: JSON.stringify({ reviewId }) }),
 
   completeAdvanceWeek: (input: {
     guildId: string;

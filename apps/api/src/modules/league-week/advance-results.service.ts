@@ -9,6 +9,7 @@ import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
+import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 
 type AdvanceGameResultInput = {
   gameId: string;
@@ -76,7 +77,7 @@ export async function getAdvanceWeekGames(guildId: string) {
       .eq("league_id", context.leagueId)
       .eq("season_number", seasonNumber)
       .eq("week_number", currentWeek)
-      .eq("status", "approved"),
+      .in("status", ["pending", "approved"]),
   ]);
 
   if (results.error) throw new ApiError(500, "Failed to load existing game results.", results.error);
@@ -198,6 +199,11 @@ export async function completeAdvanceWeek(input: {
     .then(({ error }) => {
       if (error) console.error("[ERROR] Failed to clear next_advance_at on advance (non-fatal):", error);
     });
+
+  // The completed week's weekly-score review is now stale — clear it. Non-fatal.
+  await clearWeeklyScoreReviewsForWeek(context.leagueId, seasonNumber, currentWeek).catch((err) => {
+    console.error("[ERROR] clearWeeklyScoreReviewsForWeek failed after advance (non-fatal):", err);
+  });
 
   // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {

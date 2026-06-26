@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
-import { previewWeeklyScores, prelogWeeklyScores } from "./weekly-scores.service.js";
+import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 
 const ViewLeagueWeekSchema = z.object({
@@ -68,36 +68,66 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
     }
   });
 
-  // Parse a League Schedule screenshot for the week's final scores (no DB write).
-  app.post("/v1/league-week/weekly-scores/preview", async (request, reply) => {
+  // Parse a League Schedule screenshot into a persisted, correctable weekly-scores
+  // review (supersedes any prior pending review for the week).
+  app.post("/v1/league-week/weekly-scores/review/create", async (request, reply) => {
     try {
       requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
         weekNumber: z.number().int().min(1).max(22).optional().nullable(),
         imageUrls: z.array(z.string().url()).min(1).max(2),
+        createdByDiscordId: z.string().min(1),
       }).parse(request.body);
-      return reply.send(await previewWeeklyScores(body));
+      return reply.send(await createWeeklyScoreReview(body));
     } catch (error) {
       return sendError(reply, error);
     }
   });
 
-  // Pre-log the (possibly corrected) weekly scores to rec_game_results.
-  app.post("/v1/league-week/weekly-scores/prelog", async (request, reply) => {
+  app.post("/v1/league-week/weekly-scores/review/get", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { reviewId } = z.object({ reviewId: z.string().uuid() }).parse(request.body);
+      return reply.send(await getWeeklyScoreReview(reviewId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/weekly-scores/review/correct", async (request, reply) => {
     try {
       requireInternalApiKey(request);
       const body = z.object({
-        guildId: z.string().min(1),
-        weekNumber: z.number().int().min(1).max(22),
-        loggedByDiscordId: z.string().min(1),
-        games: z.array(z.object({
-          gameId: z.string().uuid(),
-          awayScore: z.number().int().min(0).max(200).nullable(),
-          homeScore: z.number().int().min(0).max(200).nullable(),
-        })).min(1),
+        reviewId: z.string().uuid(),
+        gameId: z.string().uuid(),
+        awayScore: z.number().int().min(0).max(200).nullable(),
+        homeScore: z.number().int().min(0).max(200).nullable(),
       }).parse(request.body);
-      return reply.send(await prelogWeeklyScores(body));
+      return reply.send(await correctWeeklyScoreReview(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/weekly-scores/review/approve", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        reviewId: z.string().uuid(),
+        loggedByDiscordId: z.string().min(1),
+      }).parse(request.body);
+      return reply.send(await approveWeeklyScoreReview(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/weekly-scores/review/cancel", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { reviewId } = z.object({ reviewId: z.string().uuid() }).parse(request.body);
+      return reply.send(await cancelWeeklyScoreReview(reviewId));
     } catch (error) {
       return sendError(reply, error);
     }
