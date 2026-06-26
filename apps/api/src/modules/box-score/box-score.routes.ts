@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import {
+  correctBoxScoreSubmission,
   createBoxScoreSubmission,
   getBoxScoreSubmission,
   getBoxScoreUploadEligibility,
@@ -42,6 +43,15 @@ const ReviewSchema = z.object({
   deniedReason: z.string().optional().nullable(),
 });
 
+const CorrectSchema = z.object({
+  submissionId: z.string().uuid(),
+  reviewedByDiscordId: z.string().min(1),
+  field: z.string().min(1),
+  team1: z.string().optional().nullable(),
+  team2: z.string().optional().nullable(),
+  gameId: z.string().uuid().optional().nullable(),
+});
+
 export async function boxScoreRoutes(app: FastifyInstance) {
   // Parse screenshot URLs → parsed data + missing required fields (no DB write)
   app.post("/v1/box-score/parse", async (request, reply) => {
@@ -68,6 +78,16 @@ export async function boxScoreRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await reviewBoxScore(ReviewSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Commissioner correction of a pending submission's logged fields
+  app.post("/v1/box-score/correct", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await correctBoxScoreSubmission(CorrectSchema.parse(request.body)));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -2,7 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonContext, resolveSeasonId } from "../league-context/season.service.js";
-import { parseBoxScoreImages, type ParsedBoxScore } from "./box-score.parser.js";
+import { fetchImageBuffer, parseBoxScoreImages, type ParsedBoxScore, type ParsedScore } from "./box-score.parser.js";
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
@@ -309,6 +309,78 @@ function toInt(value: string | null | undefined): number | null {
   return isNaN(n) ? null : n;
 }
 
+// ─── Screenshot persistence ────────────────────────────────────────────────────
+// The Discord CDN URL dies once the source message is deleted, so re-host the
+// screenshot in a public Storage bucket and keep its stable URL on the submission
+// for the pending-payout / inbox embeds to reference.
+const BOX_SCORE_IMAGE_BUCKET = "box-scores";
+
+async function persistBoxScoreImage(submissionId: string, imageUrl: string): Promise<string | null> {
+  try {
+    const buffer = await fetchImageBuffer(imageUrl);
+    const ext = (/\.(jpe?g|webp|png)/i.exec(imageUrl)?.[1] ?? "png").toLowerCase();
+    const normalizedExt = ext === "jpg" ? "jpeg" : ext;
+    const contentType = normalizedExt === "jpeg" ? "image/jpeg" : normalizedExt === "webp" ? "image/webp" : "image/png";
+    const path = `${submissionId}.${normalizedExt}`;
+    const { error } = await supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).upload(path, buffer, { contentType, upsert: true });
+    if (error) {
+      console.error("[WARN] Failed to upload box score screenshot to storage (non-fatal):", error);
+      return null;
+    }
+    const { data } = supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).getPublicUrl(path);
+    return data?.publicUrl ?? null;
+  } catch (err) {
+    console.error("[WARN] Failed to re-host box score screenshot (non-fatal):", err);
+    return null;
+  }
+}
+
+// Stat fields a commissioner can correct (mirrors the embed's preferred order).
+const CORRECTABLE_STAT_KEYS = [
+  "off_yards_gained",
+  "off_rush_yards",
+  "off_pass_yards",
+  "off_first_down",
+  "punt_return_yards",
+  "kick_return_yards",
+  "total_yards_gained",
+  "turnovers",
+  "third_down_conversions",
+  "fourth_down_conversions",
+  "two_point_conversions",
+  "red_zone_off_percentage",
+] as const;
+const CORRECTABLE_STAT_KEY_SET = new Set<string>(CORRECTABLE_STAT_KEYS);
+
+// Reshape a stored submission row into the payload the payout-review embed expects
+// (same shape as CreateSubmissionResult). Used by the correction flow so a patched
+// row re-renders identically to a fresh submission.
+function shapeSubmissionForEmbed(sub: any): CreateSubmissionResult {
+  const team1IsHome = !!(sub.team1_id && sub.home_team_id && sub.home_team_id === sub.team1_id);
+  const team1Score = team1IsHome ? sub.home_score : sub.away_score;
+  const team2Score = team1IsHome ? sub.away_score : sub.home_score;
+  return {
+    submissionId: sub.id,
+    team1Abbr: sub.team1_abbr ?? null,
+    team2Abbr: sub.team2_abbr ?? null,
+    team1Name: null,
+    team2Name: null,
+    team1Score: team1Score ?? null,
+    team2Score: team2Score ?? null,
+    homeScore: sub.home_score ?? null,
+    awayScore: sub.away_score ?? null,
+    weekNumber: sub.week_number,
+    gameMatched: !!sub.game_id,
+    warnings: (sub.parse_warnings as string[] | null) ?? [],
+    stats: (sub.team_stats as Record<string, { team1: string; team2: string }>) ?? {},
+    quarterScores: (sub.quarter_scores as { team1: number[]; team2: number[] } | null) ?? null,
+    submittedByDiscordId: sub.submitted_by_discord_id,
+    flagged: !!sub.flagged,
+    flagReasons: (sub.flag_reasons as string[] | null) ?? [],
+    imageUrl: sub.image_storage_url ?? null,
+  };
+}
+
 // ─── Shared game/team resolution from a parsed box score ───────────────────────
 
 type ResolvedGame = {
@@ -579,6 +651,7 @@ export type CreateSubmissionResult = {
   submittedByDiscordId: string;
   flagged: boolean;
   flagReasons: string[];
+  imageUrl: string | null;
 };
 
 export async function createBoxScoreSubmission(input: CreateSubmissionInput): Promise<CreateSubmissionResult> {
@@ -693,6 +766,20 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     throw new ApiError(500, "Failed to save box score submission.", error);
   }
 
+  // Re-host the screenshot so the payout embeds keep it after the source Discord
+  // message is deleted. Non-fatal — fall back to the (soon-expiring) Discord URL.
+  const firstImage = input.imageUrls[0] ?? null;
+  let imageStorageUrl: string | null = null;
+  if (firstImage) {
+    imageStorageUrl = await persistBoxScoreImage(submission.id, firstImage);
+    if (imageStorageUrl) {
+      await supabase
+        .from("rec_box_score_submissions")
+        .update({ image_storage_url: imageStorageUrl })
+        .eq("id", submission.id);
+    }
+  }
+
   const matchSuffix = resolved.homeTeamId ? "" : " (unmatched)";
   const header = `Box Score: ${displayTeam1Abbr ?? "?"} vs ${displayTeam2Abbr ?? "?"} — Wk ${weekNumber}${matchSuffix}`;
 
@@ -739,6 +826,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     submittedByDiscordId: input.discordId,
     flagged,
     flagReasons,
+    imageUrl: imageStorageUrl ?? firstImage,
   };
 }
 
@@ -859,7 +947,13 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     return { ok: true, action: "denied" as const };
   }
 
-  // Approve: record game result + issue payouts
+  // Approve: record game result + issue payouts.
+  // Correction contract: payouts and badges are computed HERE, at approval, from
+  // the freshly-loaded `sub` — never at submission time. A commissioner's pending
+  // corrections (score/matchup → winner & routing; stats → badges) are already
+  // patched into this row, so the payout and badge computation below reflect them.
+  // Do not move payout/badge issuance earlier (e.g. into createBoxScoreSubmission)
+  // or corrections would stop affecting them.
   const now = new Date().toISOString();
   if (sub.game_id) await assertNoExistingBoxScorePayout(sub.game_id, sub.id);
 
@@ -1009,6 +1103,151 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     ledgerChannelId: sub.discord_channel_id ?? null,
     ledgerMessageId: sub.ledger_discord_message_id ?? null,
   };
+}
+
+// ─── Commissioner corrections (patch a pending submission before approval) ─────
+
+export type CorrectBoxScoreInput = {
+  submissionId: string;
+  reviewedByDiscordId: string;
+  field: string; // a stat key, or "score" | "quarters" | "matchup"
+  team1?: string | null;
+  team2?: string | null;
+  gameId?: string | null;
+};
+
+function correctionScoreInt(raw: string | null | undefined): number | null {
+  const digits = (raw ?? "").replace(/[^0-9]/g, "");
+  if (!digits) return null;
+  const n = parseInt(digits, 10);
+  return isNaN(n) ? null : n;
+}
+
+function correctionQuarterList(raw: string | null | undefined): number[] {
+  return (raw ?? "")
+    .split(/[^0-9]+/)
+    .filter(Boolean)
+    .map((s) => parseInt(s, 10))
+    .filter((n) => !isNaN(n));
+}
+
+function correctionStatValue(field: string, raw: string | null | undefined): string {
+  const v = (raw ?? "").replace(/[^0-9]/g, "");
+  if (!v) return "";
+  if (field.includes("percentage")) {
+    const n = parseInt(v, 10);
+    return !isNaN(n) && n >= 0 && n <= 100 ? String(n) : "";
+  }
+  return String(parseInt(v, 10));
+}
+
+function comebackUpdate(comeback: ComebackStats) {
+  return {
+    comeback_deficit: comeback.comebackDeficit,
+    comeback_deficit_quarter: comeback.comebackDeficitQuarter,
+    comeback_rate: comeback.comebackRate,
+    comeback_winner_team_id: comeback.comebackWinnerTeamId,
+    fourth_quarter_comeback: comeback.fourthQuarterComeback,
+  };
+}
+
+export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Promise<CreateSubmissionResult> {
+  const { data: sub, error } = await supabase
+    .from("rec_box_score_submissions")
+    .select("*")
+    .eq("id", input.submissionId)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load submission for correction.", error);
+  if (!sub) throw new ApiError(404, "No pending box score submission to correct (it may already be approved or denied).");
+
+  const update: Record<string, any> = { updated_at: new Date().toISOString() };
+
+  if (input.field === "score") {
+    const t1 = correctionScoreInt(input.team1);
+    const t2 = correctionScoreInt(input.team2);
+    // Map team1 (top/left = away) and team2 (bottom/right = home) onto home/away,
+    // honoring the resolved team↔home orientation when the game is matched.
+    const team1IsHome = !!(sub.team1_id && sub.home_team_id && sub.home_team_id === sub.team1_id);
+    update.home_score = team1IsHome ? t1 : t2;
+    update.away_score = team1IsHome ? t2 : t1;
+  } else if (input.field === "quarters") {
+    const q1 = correctionQuarterList(input.team1);
+    const q2 = correctionQuarterList(input.team2);
+    update.quarter_scores = { team1: q1, team2: q2 };
+    Object.assign(update, comebackUpdate(computeComebackStats(q1, q2, sub.team1_id, sub.team2_id)));
+  } else if (input.field === "matchup") {
+    if (!input.gameId) throw new ApiError(400, "Select a scheduled game to re-link this box score.");
+    const shaped = shapeSubmissionForEmbed(sub);
+    const quarters = (sub.quarter_scores as { team1: number[]; team2: number[] } | null) ?? { team1: [], team2: [] };
+    const scoreLike: ParsedScore = {
+      team1Abbr: sub.team1_abbr ?? "",
+      team2Abbr: sub.team2_abbr ?? "",
+      team1Score: shaped.team1Score ?? 0,
+      team2Score: shaped.team2Score ?? 0,
+      team1Quarters: quarters.team1 ?? [],
+      team2Quarters: quarters.team2 ?? [],
+    };
+    const parsedLike: ParsedBoxScore = {
+      score: scoreLike,
+      stats: (sub.team_stats as Record<string, { team1: string; team2: string }>) ?? {},
+      warnings: [],
+      missingRequired: [],
+      labelSamples: {},
+    };
+    const resolved = await resolveGameContext(sub.league_id, sub.season_number, sub.week_number, parsedLike, input.gameId);
+    if (!resolved.gameId) throw new ApiError(400, "That scheduled game could not be loaded.");
+    if (resolved.gameId !== sub.game_id) await clearStalePendingForGame(resolved.gameId);
+    update.game_id = resolved.gameId;
+    update.team1_id = resolved.team1Id;
+    update.team2_id = resolved.team2Id;
+    update.team1_abbr = resolved.team1Abbr ?? sub.team1_abbr;
+    update.team2_abbr = resolved.team2Abbr ?? sub.team2_abbr;
+    update.home_team_id = resolved.homeTeamId;
+    update.away_team_id = resolved.awayTeamId;
+    update.home_user_id = resolved.homeUserId;
+    update.away_user_id = resolved.awayUserId;
+    update.home_score = resolved.homeScore;
+    update.away_score = resolved.awayScore;
+    update.flagged = false;
+    update.flag_reasons = [];
+    Object.assign(
+      update,
+      comebackUpdate(computeComebackStats(scoreLike.team1Quarters, scoreLike.team2Quarters, resolved.team1Id, resolved.team2Id)),
+    );
+  } else if (CORRECTABLE_STAT_KEY_SET.has(input.field)) {
+    const stats = { ...((sub.team_stats as Record<string, { team1: string; team2: string }>) ?? {}) };
+    stats[input.field] = {
+      team1: correctionStatValue(input.field, input.team1),
+      team2: correctionStatValue(input.field, input.team2),
+    };
+    // Keep the defensive red-zone mirror consistent (def % = 100 − opponent off %).
+    if (input.field === "red_zone_off_percentage") {
+      const t1Off = parseInt(stats[input.field].team1, 10);
+      const t2Off = parseInt(stats[input.field].team2, 10);
+      stats["red_zone_def_percentage"] = {
+        team1: isNaN(t2Off) ? "" : String(100 - t2Off),
+        team2: isNaN(t1Off) ? "" : String(100 - t1Off),
+      };
+    }
+    update.team_stats = stats;
+  } else {
+    throw new ApiError(400, `Unknown correction field: ${input.field}`);
+  }
+
+  const { error: updateError } = await supabase
+    .from("rec_box_score_submissions")
+    .update(update)
+    .eq("id", sub.id)
+    .eq("status", "pending");
+  if (updateError) {
+    if (updateError.code === "23505") {
+      throw new ApiError(409, "Another box score payout is already pending or approved for that scheduled game.", updateError);
+    }
+    throw new ApiError(500, "Failed to apply box score correction.", updateError);
+  }
+
+  return shapeSubmissionForEmbed({ ...sub, ...update });
 }
 
 async function getBoxScorePaidPlayers(payouts: { userId: string; amount: number }[]): Promise<BoxScorePaidPlayer[]> {
@@ -1180,7 +1419,7 @@ export async function listPendingBoxScores(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_box_score_submissions")
-    .select("id,team1_abbr,team2_abbr,home_score,away_score,week_number,submitted_by_discord_id,created_at,parse_warnings,team_stats,quarter_scores,home_team_id,away_team_id")
+    .select("id,team1_abbr,team2_abbr,home_score,away_score,week_number,submitted_by_discord_id,created_at,parse_warnings,team_stats,quarter_scores,home_team_id,away_team_id,team1_id,image_storage_url")
     .eq("league_id", context.leagueId)
     .eq("status", "pending")
     .order("created_at", { ascending: false })

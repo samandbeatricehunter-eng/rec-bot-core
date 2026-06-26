@@ -126,6 +126,11 @@ import {
   handleCommissionerBoxScoreSubmissionMessage,
   handleBoxScoreDenyModal,
   handleBoxScoreDenySubmit,
+  handleBoxScoreCorrectionsOpen,
+  handleBoxScoreCorrectionsFieldSelect,
+  handleBoxScoreCorrectionsMatchupSelect,
+  handleBoxScoreCorrectionsModal,
+  handleBoxScoreCorrectionsCancel,
   handleBoxScoreInbox,
   handleBoxScoreSubmitConfirm,
   sweepBoxScoreExchanges,
@@ -337,6 +342,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminWeekSelect) return handleBoxScoreAdminWeekSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminGameSelect) return handleBoxScoreAdminGameSelect(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
@@ -469,6 +476,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submitConfirm) return handleBoxScoreSubmitConfirm(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctOpenPrefix)) return handleBoxScoreCorrectionsOpen(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctCancelPrefix)) return handleBoxScoreCorrectionsCancel(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
@@ -511,6 +520,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction);
     }

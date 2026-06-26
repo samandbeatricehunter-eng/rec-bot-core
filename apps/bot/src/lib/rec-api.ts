@@ -351,6 +351,19 @@ export const recApi = {
   }) =>
     recFetch<any>("/v1/box-score/review", { method: "POST", body: JSON.stringify(input) }),
 
+  correctBoxScore: (input: {
+    submissionId: string;
+    reviewedByDiscordId: string;
+    field: string;
+    team1?: string | null;
+    team2?: string | null;
+    gameId?: string | null;
+  }) =>
+    recFetch<any>("/v1/box-score/correct", { method: "POST", body: JSON.stringify(input) }),
+
+  getBoxScore: (submissionId: string) =>
+    recFetch<any>("/v1/box-score/get", { method: "POST", body: JSON.stringify({ submissionId }) }),
+
   listPendingBoxScores: (guildId: string) =>
     recFetch<{ submissions: any[] }>("/v1/box-score/pending", { method: "POST", body: JSON.stringify({ guildId }) }),
 

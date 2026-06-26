@@ -1449,7 +1449,7 @@ function detectScrolledScreenshot(stats: ParsedStat[]): boolean {
 
 // ─── Image fetch helper ───────────────────────────────────────────────────────
 
-async function fetchImageBuffer(url: string): Promise<Buffer> {
+export async function fetchImageBuffer(url: string): Promise<Buffer> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch image: ${response.status} ${url}`);
   return Buffer.from(await response.arrayBuffer());

@@ -32,15 +32,38 @@ export const BOX_SCORE_CUSTOM_IDS = {
   denyModalPrefix: "rec:box_score:deny_modal:", // + submissionId
   denyReasonInput: "rec:box_score:deny_reason",
   inboxBack: "rec:box_score:inbox_back",
+  // Corrections workflow
+  correctOpenPrefix: "rec:box_score:corr_open:",     // + submissionId
+  correctFieldPrefix: "rec:box_score:corr_field:",   // + submissionId  (string select)
+  correctMatchupPrefix: "rec:box_score:corr_match:", // + submissionId  (string select)
+  correctCancelPrefix: "rec:box_score:corr_cancel:", // + submissionId
+  correctModalPrefix: "rec:box_score:corr_modal:",   // + submissionId:field
+  correctInputTeam1: "rec:box_score:corr_t1",
+  correctInputTeam2: "rec:box_score:corr_t2",
 } as const;
 
-// ─── Timing windows ────────────────────────────────────────────────────────────
-
-const MISSING_FIELDS_MS = 5 * 60 * 1000; // wait for a re-upload with missing fields
+// Stat/score fields a commissioner can correct, in the order shown in the dropdown.
+// "score", "quarters" and "matchup" are special; the rest are OCR stat keys.
+const CORRECTION_FIELDS: { value: string; label: string; kind: "score" | "quarters" | "matchup" | "stat" }[] = [
+  { value: "score", label: "Final Score", kind: "score" },
+  { value: "quarters", label: "Quarter Scores", kind: "quarters" },
+  { value: "matchup", label: "Matchup / Teams", kind: "matchup" },
+  { value: "off_yards_gained", label: "Off Yards Gained", kind: "stat" },
+  { value: "off_rush_yards", label: "Off Rush Yards", kind: "stat" },
+  { value: "off_pass_yards", label: "Off Pass Yards", kind: "stat" },
+  { value: "off_first_down", label: "Off First Downs", kind: "stat" },
+  { value: "punt_return_yards", label: "Punt Return Yards", kind: "stat" },
+  { value: "kick_return_yards", label: "Kick Return Yards", kind: "stat" },
+  { value: "total_yards_gained", label: "Total Yards Gained", kind: "stat" },
+  { value: "turnovers", label: "Turnovers", kind: "stat" },
+  { value: "third_down_conversions", label: "Third Down Conversions", kind: "stat" },
+  { value: "fourth_down_conversions", label: "Fourth Down Conversions", kind: "stat" },
+  { value: "two_point_conversions", label: "Two Point Conversions", kind: "stat" },
+  { value: "red_zone_off_percentage", label: "Red Zone Off %", kind: "stat" },
+];
+const CORRECTION_FIELD_BY_VALUE = new Map(CORRECTION_FIELDS.map((f) => [f.value, f]));
 
 // ─── Per-user exchange state (one active upload per user per guild) ────────────
-
-type ExchangePhase = "awaiting_missing";
 
 type Exchange = {
   guildId: string;
@@ -49,7 +72,6 @@ type Exchange = {
   imageUrls: string[];
   userMessageIds: string[];
   botMessageIds: string[];
-  phase: ExchangePhase;
   timer: NodeJS.Timeout | null;
   expiresAt: number;
   busy: boolean;
@@ -69,6 +91,35 @@ type CommissionerSubmissionSession = {
 };
 
 const commissionerSubmissionSessions = new Map<string, CommissionerSubmissionSession>();
+
+// ─── Correction sessions (one open correction flow per user per guild) ─────────
+// Captured when the Corrections button is clicked so the field select / modal /
+// matchup steps can prefill current values and list the week's games without
+// re-fetching on every interaction.
+type CorrectionSession = {
+  submissionId: string;
+  weekNumber: number;
+  seasonNumber: number | null;
+  team1Abbr: string;
+  team2Abbr: string;
+  stats: Record<string, { team1: string; team2: string }>;
+  quarterScores: { team1: number[]; team2: number[] } | null;
+  team1Score: number | null;
+  team2Score: number | null;
+  at: number;
+};
+const correctionSessions = new Map<string, CorrectionSession>();
+const CORRECTION_SESSION_TTL = 15 * 60 * 1000;
+
+function getCorrectionSession(guildId: string, userId: string): CorrectionSession | null {
+  const s = correctionSessions.get(exKey(guildId, userId));
+  if (!s) return null;
+  if (Date.now() - s.at > CORRECTION_SESSION_TTL) {
+    correctionSessions.delete(exKey(guildId, userId));
+    return null;
+  }
+  return s;
+}
 
 // ─── Server route cache (box scores + pending payouts channels) ───────────────
 
@@ -120,28 +171,6 @@ async function clearExchange(ex: Exchange, opts: { deleteUserImages: boolean }) 
   exchanges.delete(exKey(ex.guildId, ex.userId));
   await deleteMessages(ex.channel, ex.botMessageIds);
   if (opts.deleteUserImages) await deleteMessages(ex.channel, ex.userMessageIds);
-}
-
-function scheduleTimeout(ex: Exchange, ms: number, onExpire: () => void) {
-  if (ex.timer) clearTimeout(ex.timer);
-  ex.expiresAt = Date.now() + ms;
-  ex.timer = setTimeout(onExpire, ms);
-  if (typeof ex.timer.unref === "function") ex.timer.unref();
-}
-
-async function dmUser(ex: Exchange, content: string) {
-  try {
-    const user = await ex.channel.client.users.fetch(ex.userId);
-    await user.send(content);
-  } catch {
-    /* DMs closed — nothing we can do */
-  }
-}
-
-async function onExchangeTimeout(ex: Exchange, dmReason: string) {
-  if (exchanges.get(exKey(ex.guildId, ex.userId)) !== ex) return;
-  await clearExchange(ex, { deleteUserImages: false });
-  await dmUser(ex, dmReason);
 }
 
 // ─── Channel listener (called from messageCreate) ─────────────────────────────
@@ -229,7 +258,6 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
       imageUrls: [],
       userMessageIds: [],
       botMessageIds: [],
-      phase: "awaiting_missing",
       timer: null,
       expiresAt: 0,
       busy: false,
@@ -281,26 +309,8 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
   }).catch(() => null);
 
   try {
-    const preview = await recApi.parseBoxScore({
-      guildId: session.guildId,
-      discordId: session.userId,
-      imageUrls: images,
-      seasonNumber: session.seasonNumber ?? null,
-      weekNumber: session.weekNumber,
-      commissionerSubmission: true,
-    });
-    const missing: string[] = preview.missingRequired ?? [];
-    if (missing.length > 0) {
-      await message.delete().catch(() => undefined);
-      await working?.edit({
-        embeds: [new EmbedBuilder()
-          .setTitle("Missing required fields")
-          .setColor(0xf1c40f)
-          .setDescription(`I couldn't read these required field(s):\n\n${missing.map((m) => `• **${m}**`).join("\n")}\n\nStart Box Score Submissions again and upload a clearer image.`)],
-      }).catch(() => undefined);
-      return true;
-    }
-
+    // OCR misses no longer block: any unread field is flagged with "?" on the
+    // pending payout, and a commissioner can repair it via Corrections.
     const result = await recApi.submitBoxScore({
       guildId: session.guildId,
       discordId: session.userId,
@@ -358,46 +368,9 @@ async function advanceExchange(ex: Exchange) {
   }).catch(() => null);
   if (working) ex.botMessageIds.push(working.id);
 
-  let preview: any;
-  try {
-    preview = await recApi.parseBoxScore({ guildId: ex.guildId, discordId: ex.userId, imageUrls: ex.imageUrls });
-  } catch (err) {
-    await deleteMessages(ex.channel, ex.botMessageIds);
-    ex.botMessageIds = [];
-    await clearExchange(ex, { deleteUserImages: false });
-    await ex.channel.send({
-      content: `<@${ex.userId}>`,
-      embeds: [new EmbedBuilder()
-        .setTitle("Box Score Failed")
-        .setColor(0xe74c3c)
-        .setDescription(userFacingError(err))],
-    }).catch(() => undefined);
-    return;
-  }
-
-  const missing: string[] = preview.missingRequired ?? [];
-  if (missing.length > 0) {
-    ex.phase = "awaiting_missing";
-    await deleteMessages(ex.channel, ex.botMessageIds);
-    ex.botMessageIds = [];
-    const msg = await ex.channel.send({
-      content: `<@${ex.userId}>`,
-      embeds: [new EmbedBuilder()
-        .setTitle("Missing required fields")
-        .setColor(0xf1c40f)
-        .setDescription(
-          `I couldn't read these required field(s):\n\n${missing.map((m) => `• **${m}**`).join("\n")}\n\n` +
-          "Post another screenshot that clearly shows them within **5 minutes**, or this submission will be discarded."
-        )],
-    }).catch(() => null);
-    if (msg) ex.botMessageIds.push(msg.id);
-    scheduleTimeout(ex, MISSING_FIELDS_MS, () => {
-      void onExchangeTimeout(ex, "Your box score was discarded — the missing fields weren't supplied within 5 minutes. Feel free to post again in the box scores channel.");
-    });
-    return;
-  }
-
-  // Complete — submit automatically and post the payout ledger.
+  // OCR misses no longer block: submit immediately, flag any unread cell with "?"
+  // on the payout, and let a commissioner repair it via Corrections. submitBoxScore
+  // runs the OCR and applies the same self-serve validation the preview used to.
   let result: any;
   try {
     result = await recApi.submitBoxScore({
@@ -593,6 +566,215 @@ export async function handleBoxScoreDenySubmit(interaction: ModalSubmitInteracti
   }
 }
 
+// ─── Commissioner corrections (repair any logged field on a pending payout) ────
+
+function team1ScoresFromRow(sub: any): { team1Score: number | null; team2Score: number | null } {
+  const team1IsHome = !!(sub.team1_id && sub.home_team_id && sub.home_team_id === sub.team1_id);
+  return {
+    team1Score: (team1IsHome ? sub.home_score : sub.away_score) ?? null,
+    team2Score: (team1IsHome ? sub.away_score : sub.home_score) ?? null,
+  };
+}
+
+function buildCorrectionFieldRows(submissionId: string) {
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctFieldPrefix}${submissionId}`)
+        .setPlaceholder("Pick a field to correct")
+        .addOptions(CORRECTION_FIELDS.map((f) => new StringSelectMenuOptionBuilder().setLabel(f.label).setValue(f.value))),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctCancelPrefix}${submissionId}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
+    ),
+  ];
+}
+
+function correctionInputs(label1: string, value1: string, label2: string, value2: string, placeholder: string) {
+  return [
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.correctInputTeam1).setLabel(label1.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(false).setValue(value1).setPlaceholder(placeholder),
+    ),
+    new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.correctInputTeam2).setLabel(label2.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(false).setValue(value2).setPlaceholder(placeholder),
+    ),
+  ];
+}
+
+function buildCorrectionModal(submissionId: string, field: string, session: CorrectionSession): ModalBuilder {
+  const def = CORRECTION_FIELD_BY_VALUE.get(field);
+  const t1 = session.team1Abbr || "Top/Away";
+  const t2 = session.team2Abbr || "Bottom/Home";
+  const modal = new ModalBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctModalPrefix}${submissionId}:${field}`);
+
+  if (field === "score") {
+    modal.setTitle("Correct Final Score");
+    modal.addComponents(...correctionInputs(`${t1} — final score`, String(session.team1Score ?? ""), `${t2} — final score`, String(session.team2Score ?? ""), "numbers only"));
+  } else if (field === "quarters") {
+    modal.setTitle("Correct Quarter Scores");
+    const q1 = (session.quarterScores?.team1 ?? []).join(",");
+    const q2 = (session.quarterScores?.team2 ?? []).join(",");
+    modal.addComponents(...correctionInputs(`${t1} — quarters`, q1, `${t2} — quarters`, q2, "e.g. 7,0,7,7"));
+  } else {
+    const label = def?.label ?? field;
+    const cur = session.stats[field] ?? { team1: "", team2: "" };
+    modal.setTitle(`Correct ${label}`.slice(0, 45));
+    modal.addComponents(...correctionInputs(`${t1} — ${label}`, cur.team1 ?? "", `${t2} — ${label}`, cur.team2 ?? "", "numbers only"));
+  }
+  return modal;
+}
+
+function buildCorrectionMatchupRows(submissionId: string, games: any[]) {
+  const options = games.slice(0, 25).map((game: any) => {
+    const away = teamLabel(game.away_team);
+    const home = teamLabel(game.home_team);
+    return new StringSelectMenuOptionBuilder().setLabel(`${away} at ${home}`.slice(0, 100)).setValue(String(game.id));
+  });
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix}${submissionId}`)
+        .setPlaceholder("Re-link to the correct scheduled game")
+        .addOptions(options.length ? options : [new StringSelectMenuOptionBuilder().setLabel("No scheduled games found").setValue("none")]),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctCancelPrefix}${submissionId}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
+    ),
+  ];
+}
+
+// Click "Corrections": load the submission, stash a session for prefills, and swap
+// the Approve/Deny/Corrections row for the field picker. Embed + image stay put.
+export async function handleBoxScoreCorrectionsOpen(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can correct box scores.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  const submissionId = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.correctOpenPrefix.length);
+
+  await interaction.deferUpdate();
+  try {
+    const sub = await recApi.getBoxScore(submissionId);
+    if (sub?.status && sub.status !== "pending") {
+      return interaction.followUp({ content: "This box score is already approved or denied — corrections are only available while pending.", flags: MessageFlags.Ephemeral });
+    }
+    const { team1Score, team2Score } = team1ScoresFromRow(sub);
+    correctionSessions.set(exKey(interaction.guildId, interaction.user.id), {
+      submissionId,
+      weekNumber: Number(sub.week_number ?? 1),
+      seasonNumber: sub.season_number ?? null,
+      team1Abbr: sub.team1_abbr ?? "",
+      team2Abbr: sub.team2_abbr ?? "",
+      stats: (sub.team_stats as Record<string, { team1: string; team2: string }>) ?? {},
+      quarterScores: (sub.quarter_scores as { team1: number[]; team2: number[] } | null) ?? null,
+      team1Score,
+      team2Score,
+      at: Date.now(),
+    });
+    return interaction.editReply({ components: buildCorrectionFieldRows(submissionId) });
+  } catch (err) {
+    return interaction.followUp({ content: userFacingError(err), flags: MessageFlags.Ephemeral });
+  }
+}
+
+export async function handleBoxScoreCorrectionsFieldSelect(interaction: StringSelectMenuInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can correct box scores.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.inCachedGuild()) return;
+  const submissionId = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix.length);
+  const field = interaction.values[0] ?? "";
+  const def = CORRECTION_FIELD_BY_VALUE.get(field);
+  let session = getCorrectionSession(interaction.guildId, interaction.user.id);
+
+  if (def?.kind === "matchup") {
+    await interaction.deferUpdate();
+    try {
+      const weekNumber = session?.weekNumber ?? Number((await recApi.getBoxScore(submissionId))?.week_number ?? 1);
+      const result = await recApi.listBoxScoreGames({ guildId: interaction.guildId, weekNumber });
+      return interaction.editReply({ components: buildCorrectionMatchupRows(submissionId, result?.games ?? []) });
+    } catch (err) {
+      return interaction.editReply({ components: buildCorrectionFieldRows(submissionId) }).then(() =>
+        interaction.followUp({ content: userFacingError(err), flags: MessageFlags.Ephemeral }),
+      );
+    }
+  }
+
+  // Stat / score / quarters → modal. Re-hydrate the session if it expired so the
+  // modal can still prefill (the modal is the first response, so no defer here).
+  if (!session) {
+    try {
+      const sub = await recApi.getBoxScore(submissionId);
+      const { team1Score, team2Score } = team1ScoresFromRow(sub);
+      session = {
+        submissionId,
+        weekNumber: Number(sub.week_number ?? 1),
+        seasonNumber: sub.season_number ?? null,
+        team1Abbr: sub.team1_abbr ?? "",
+        team2Abbr: sub.team2_abbr ?? "",
+        stats: (sub.team_stats as Record<string, { team1: string; team2: string }>) ?? {},
+        quarterScores: (sub.quarter_scores as { team1: number[]; team2: number[] } | null) ?? null,
+        team1Score,
+        team2Score,
+        at: Date.now(),
+      };
+    } catch {
+      session = { submissionId, weekNumber: 1, seasonNumber: null, team1Abbr: "", team2Abbr: "", stats: {}, quarterScores: null, team1Score: null, team2Score: null, at: Date.now() };
+    }
+  }
+  return interaction.showModal(buildCorrectionModal(submissionId, field, session));
+}
+
+export async function handleBoxScoreCorrectionsMatchupSelect(interaction: StringSelectMenuInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can correct box scores.", flags: MessageFlags.Ephemeral });
+  }
+  const submissionId = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix.length);
+  const gameId = interaction.values[0] ?? "";
+
+  await interaction.deferUpdate();
+  if (!gameId || gameId === "none") {
+    return interaction.editReply({ components: buildPayoutReviewRows(submissionId) });
+  }
+  try {
+    const result = await recApi.correctBoxScore({ submissionId, reviewedByDiscordId: interaction.user.id, field: "matchup", gameId });
+    if (interaction.inCachedGuild()) correctionSessions.delete(exKey(interaction.guildId, interaction.user.id));
+    return interaction.editReply({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(submissionId) });
+  } catch (err) {
+    await interaction.editReply({ components: buildPayoutReviewRows(submissionId) });
+    return interaction.followUp({ content: userFacingError(err), flags: MessageFlags.Ephemeral });
+  }
+}
+
+export async function handleBoxScoreCorrectionsModal(interaction: ModalSubmitInteraction) {
+  const rest = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.correctModalPrefix.length);
+  const sep = rest.indexOf(":");
+  const submissionId = sep >= 0 ? rest.slice(0, sep) : rest;
+  const field = sep >= 0 ? rest.slice(sep + 1) : "";
+  const team1 = interaction.fields.getTextInputValue(BOX_SCORE_CUSTOM_IDS.correctInputTeam1);
+  const team2 = interaction.fields.getTextInputValue(BOX_SCORE_CUSTOM_IDS.correctInputTeam2);
+
+  await interaction.deferUpdate();
+  try {
+    const result = await recApi.correctBoxScore({ submissionId, reviewedByDiscordId: interaction.user.id, field, team1, team2 });
+    if (interaction.inCachedGuild()) correctionSessions.delete(exKey(interaction.guildId, interaction.user.id));
+    return interaction.editReply({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(submissionId) });
+  } catch (err) {
+    await interaction.editReply({ components: buildPayoutReviewRows(submissionId) }).catch(() => undefined);
+    return interaction.followUp({ content: userFacingError(err), flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+}
+
+export async function handleBoxScoreCorrectionsCancel(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can correct box scores.", flags: MessageFlags.Ephemeral });
+  }
+  const submissionId = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.correctCancelPrefix.length);
+  if (interaction.inCachedGuild()) correctionSessions.delete(exKey(interaction.guildId, interaction.user.id));
+  await interaction.deferUpdate();
+  return interaction.editReply({ components: buildPayoutReviewRows(submissionId) });
+}
+
 // ─── Commissioner review (on the Pending Payouts embed or the pull inbox) ──────
 
 export async function handleBoxScoreInbox(interaction: ButtonInteraction) {
@@ -783,7 +965,8 @@ function buildPayoutReviewEmbed(result: any): EmbedBuilder {
   } else if (!result?.gameMatched) {
     embed.addFields({ name: "⚠️ NOTICE", value: "Could not auto-match to a scheduled game. You can still approve.", inline: false });
   }
-  embed.setFooter({ text: `Submission ${result.submissionId}` });
+  if (result?.imageUrl) embed.setImage(String(result.imageUrl));
+  embed.setFooter({ text: `Submission ${result.submissionId} • Use Corrections to fix any “?” field` });
   return embed;
 }
 
@@ -793,7 +976,7 @@ function buildInboxItemEmbed(sub: any, totalPending: number): EmbedBuilder {
     ? `${sub.team1_abbr ?? "T1"}: ${quarterScores.team1.join(" | ")}\n${sub.team2_abbr ?? "T2"}: ${quarterScores.team2.join(" | ")}`
     : "*Not available*";
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setTitle(`Box Score Inbox (${totalPending} pending)`)
     .addFields(
       { name: "GAME", value: `**${sub.team1_abbr ?? "?"}** ${sub.home_score ?? "?"} – ${sub.away_score ?? "?"} **${sub.team2_abbr ?? "?"}** — Week ${sub.week_number ?? "?"}`, inline: false },
@@ -802,6 +985,8 @@ function buildInboxItemEmbed(sub: any, totalPending: number): EmbedBuilder {
       { name: "SUBMITTED BY", value: `<@${sub.submitted_by_discord_id}>`, inline: true },
     )
     .setFooter({ text: `ID: ${sub.id}` });
+  if (sub.image_storage_url) embed.setImage(String(sub.image_storage_url));
+  return embed;
 }
 
 // ─── Component builders ───────────────────────────────────────────────────────
@@ -811,6 +996,7 @@ function buildPayoutReviewRows(submissionId: string) {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.approvePrefix}${submissionId}`).setLabel("Approve").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.denyModalPrefix}${submissionId}`).setLabel("Deny").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctOpenPrefix}${submissionId}`).setLabel("Corrections").setStyle(ButtonStyle.Primary),
     ),
   ];
 }
@@ -820,6 +1006,7 @@ function buildInboxReviewRows(submissionId: string) {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.approvePrefix}${submissionId}`).setLabel("Approve").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.denyModalPrefix}${submissionId}`).setLabel("Deny").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctOpenPrefix}${submissionId}`).setLabel("Corrections").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary),
     ),
   ];
