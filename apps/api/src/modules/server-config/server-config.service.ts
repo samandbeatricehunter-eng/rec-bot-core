@@ -34,8 +34,7 @@ export async function getServerConfig(guildId: string) {
 
 export async function setServerConfig(input: SetServerConfigInput) {
   const context = await getCurrentLeagueContext(input.guildId);
-  const payload = compactDefined({
-    server_id: context.serverId,
+  const updatePayload = compactDefined({
     pending_economy_channel_id: input.pendingEconomyChannelId,
     pending_payouts_channel_id: input.pendingPayoutsChannelId,
     pending_purchases_channel_id: input.pendingPurchasesChannelId,
@@ -51,11 +50,33 @@ export async function setServerConfig(input: SetServerConfigInput) {
     comp_committee_role_id: input.compCommitteeRoleId
   });
 
-  const result = await supabase
+  const existing = await supabase
     .from("rec_server_routes")
-    .upsert(payload, { onConflict: "server_id" })
     .select("*")
-    .single();
+    .eq("server_id", context.serverId)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load server route configuration.", existing.error);
+
+  if (Object.keys(updatePayload).length === 0) {
+    return {
+      server: context.rec_discord_servers,
+      league: context.rec_leagues,
+      routes: existing.data ?? {}
+    };
+  }
+
+  const result = existing.data
+    ? await supabase
+        .from("rec_server_routes")
+        .update(updatePayload)
+        .eq("server_id", context.serverId)
+        .select("*")
+        .single()
+    : await supabase
+        .from("rec_server_routes")
+        .insert({ server_id: context.serverId, ...updatePayload })
+        .select("*")
+        .single();
 
   if (result.error) throw new ApiError(500, "Failed to update server route configuration.", result.error);
 

@@ -354,11 +354,18 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
     voting_polls_channel_id: preserveWhenOmitted(input.votingPollsChannelId, existing.voting_polls_channel_id)
   };
 
-  const routes = await supabase
-    .from("rec_server_routes")
-    .upsert(payload, { onConflict: "server_id" })
-    .select("*")
-    .single();
+  const routes = existingRoutes.data
+    ? await supabase
+        .from("rec_server_routes")
+        .update(payload)
+        .eq("server_id", server.data.id)
+        .select("*")
+        .single()
+    : await supabase
+        .from("rec_server_routes")
+        .insert(payload)
+        .select("*")
+        .single();
 
   if (routes.error) {
     throw new ApiError(500, "Failed to update server routes", routes.error);
