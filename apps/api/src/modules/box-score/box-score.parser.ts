@@ -6,13 +6,13 @@ let _worker: Tesseract.Worker | null = null;
 let _workerInitializing: Promise<Tesseract.Worker> | null = null;
 let _ocrChain: Promise<unknown> = Promise.resolve();
 
-function withOcrLock<T>(fn: () => Promise<T>): Promise<T> {
+export function withOcrLock<T>(fn: () => Promise<T>): Promise<T> {
   const run = _ocrChain.then(fn, fn);
   _ocrChain = run.then(() => undefined, () => undefined);
   return run;
 }
 
-async function getWorker(): Promise<Tesseract.Worker> {
+export async function getWorker(): Promise<Tesseract.Worker> {
   if (_worker) return _worker;
   if (_workerInitializing) return _workerInitializing;
   _workerInitializing = Tesseract.createWorker("eng").then((w) => {
@@ -32,7 +32,7 @@ export async function terminateTesseractWorker() {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type NormalizedWord = {
+export type NormalizedWord = {
   text: string;
   confidence: number;
   x: number;   // center x, 0–1
@@ -165,7 +165,7 @@ function computeMissingRequired(
 // "robust":  stronger CLAHE for dim rows over the bright field background.
 export type PreprocessVariant = "default" | "stats" | "robust";
 
-async function preprocessImage(
+export async function preprocessImage(
   buffer: Buffer,
   variant: PreprocessVariant = "default",
 ): Promise<{ processed: Buffer; width: number; height: number }> {
@@ -201,7 +201,7 @@ async function preprocessImage(
 const LEFT_VAL_X_MAX = 0.20;
 const RIGHT_VAL_X_MIN = 0.80;
 
-function flattenPageWords(page: TesseractPage): Tesseract.Word[] {
+export function flattenPageWords(page: TesseractPage): Tesseract.Word[] {
   const out: Tesseract.Word[] = [];
   for (const block of page.blocks ?? []) {
     for (const para of block.paragraphs) {
@@ -456,7 +456,7 @@ function mergeWordLists(...lists: NormalizedWord[][]): NormalizedWord[] {
   return out;
 }
 
-function groupIntoRows(words: NormalizedWord[], yTolerance = 0.04): NormalizedWord[][] {
+export function groupIntoRows(words: NormalizedWord[], yTolerance = 0.04): NormalizedWord[][] {
   if (words.length === 0) return [];
   const sorted = [...words].sort((a, b) => a.y - b.y);
   const rows: NormalizedWord[][] = [[sorted[0]]];

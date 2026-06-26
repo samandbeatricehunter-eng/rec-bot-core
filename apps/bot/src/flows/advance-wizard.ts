@@ -3,9 +3,13 @@ import {
   ButtonBuilder,
   ButtonStyle,
   EmbedBuilder,
+  ModalBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ButtonInteraction,
+  type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
@@ -19,6 +23,9 @@ export const ADVANCE_WIZARD_CUSTOM_IDS = {
   tiePrefix: "rec:advance_wizard:tie",
   divisionWinnerSelectPrefix: "rec:advance_wizard:division_winner",
   cancelPrefix: "rec:advance_wizard:cancel",
+  scoreModalPrefix: "rec:advance_wizard:score_modal",
+  scoreAwayInput: "rec:advance_wizard:score_away",
+  scoreHomeInput: "rec:advance_wizard:score_home",
 } as const;
 
 type WizardGame = {
@@ -39,7 +46,8 @@ type AdvanceWizardSession = {
   nextSeasonStage: string;
   pendingGames: WizardGame[];
   gameIndex: number;
-  results: Array<{ gameId: string; outcome: "home" | "away" | "tie" }>;
+  results: Array<{ gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null }>;
+  pendingOutcome: "home" | "away" | "tie" | null;
   divisions: DivisionWinnerGroup[];
   divisionIndex: number;
   divisionWinners: Array<{ divisionKey: string; teamId: string }>;
@@ -74,7 +82,7 @@ function renderWizardStep(session: AdvanceWizardSession) {
       `**Home:** ${game.homeTeamName}`,
       game.isH2h ? "User H2H" : "Includes CPU",
       "",
-      "Select the winner. These results update **display records only** (power rankings / team embed W-L). Box scores still drive official stats and payouts.",
+      "Pick the winner (or Tie), then enter each team's final score. These results update **display records only** (power rankings / team embed W-L). Box scores still drive official stats and payouts.",
     ].join("\n"));
 
   const suffix = `:${session.guildId}:${session.userId}`;
@@ -146,7 +154,7 @@ function renderDivisionWinnerStep(session: AdvanceWizardSession) {
 }
 
 async function enterDivisionWinnerStepOrComplete(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
   session: AdvanceWizardSession,
   buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[],
 ) {
@@ -164,7 +172,7 @@ async function enterDivisionWinnerStepOrComplete(
 }
 
 async function completeAdvanceFromSession(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
   session: AdvanceWizardSession,
   _buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[],
 ) {
@@ -233,6 +241,7 @@ export async function startAdvanceWeekWizard(interaction: ButtonInteraction, bui
     pendingGames,
     gameIndex: 0,
     results: [],
+    pendingOutcome: null,
     divisions: [],
     divisionIndex: 0,
     divisionWinners: [],
@@ -258,7 +267,10 @@ export async function handleAdvanceWizardCancel(interaction: ButtonInteraction, 
   });
 }
 
-export async function handleAdvanceWizardOutcome(interaction: ButtonInteraction, outcome: "home" | "away" | "tie", buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+// Step 1 of logging a game: pick the winner/tie, then collect the final scores in a
+// modal. The scores are authoritative — the recorded outcome is re-derived from them
+// so the result can't end up inconsistent with the entered final.
+export async function handleAdvanceWizardOutcome(interaction: ButtonInteraction, outcome: "home" | "away" | "tie", _buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
   const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
   if (!session) {
@@ -268,8 +280,53 @@ export async function handleAdvanceWizardOutcome(interaction: ButtonInteraction,
   const game = session.pendingGames[session.gameIndex];
   if (!game) return;
 
+  session.pendingOutcome = outcome;
+  sessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+
+  const suffix = `:${session.guildId}:${session.userId}`;
+  const modal = new ModalBuilder()
+    .setCustomId(`${ADVANCE_WIZARD_CUSTOM_IDS.scoreModalPrefix}${suffix}`)
+    .setTitle(`Final Score — Game ${session.gameIndex + 1}`.slice(0, 45))
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.scoreAwayInput).setLabel(`${game.awayTeamName} final score`.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("numbers only"),
+      ),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder().setCustomId(ADVANCE_WIZARD_CUSTOM_IDS.scoreHomeInput).setLabel(`${game.homeTeamName} final score`.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(false).setPlaceholder("numbers only"),
+      ),
+    );
+  return interaction.showModal(modal);
+}
+
+function parseWizardScore(raw: string): number | null {
+  const v = (raw ?? "").replace(/[^0-9]/g, "");
+  if (!v) return null;
+  const n = parseInt(v, 10);
+  return isNaN(n) ? null : n;
+}
+
+// Step 2: record the game with its final scores, then move to the next game.
+export async function handleAdvanceWizardScoreModal(interaction: ModalSubmitInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+  if (!interaction.inCachedGuild()) return;
+  const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
+  if (!session) {
+    return interaction.reply({ content: "Advance session expired. Reopen League Mgmt > Advance.", ephemeral: true });
+  }
+  const game = session.pendingGames[session.gameIndex];
+  if (!game || !session.pendingOutcome) return interaction.deferUpdate().catch(() => undefined);
+
   await interaction.deferUpdate();
-  session.results.push({ gameId: game.gameId, outcome });
+  const awayScore = parseWizardScore(interaction.fields.getTextInputValue(ADVANCE_WIZARD_CUSTOM_IDS.scoreAwayInput));
+  const homeScore = parseWizardScore(interaction.fields.getTextInputValue(ADVANCE_WIZARD_CUSTOM_IDS.scoreHomeInput));
+
+  // When both scores are entered they decide the outcome; otherwise keep the picked one.
+  let outcome = session.pendingOutcome;
+  if (awayScore != null && homeScore != null) {
+    outcome = homeScore > awayScore ? "home" : awayScore > homeScore ? "away" : "tie";
+  }
+
+  session.results.push({ gameId: game.gameId, outcome, homeScore, awayScore });
+  session.pendingOutcome = null;
   session.gameIndex += 1;
 
   if (session.gameIndex < session.pendingGames.length) {

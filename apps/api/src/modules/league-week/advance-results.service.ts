@@ -13,6 +13,9 @@ import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js"
 type AdvanceGameResultInput = {
   gameId: string;
   outcome: "home" | "away" | "tie";
+  // Optional real final scores; when absent we fall back to a 1–0 win/loss flag.
+  homeScore?: number | null;
+  awayScore?: number | null;
 };
 
 function phaseForWeek(weekNumber: number) {
@@ -25,6 +28,9 @@ function phaseForWeek(weekNumber: number) {
 }
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
+// Sources that already settle a game so the advance wizard doesn't re-ask for it.
+// schedule_screenshot = scores pre-logged from a League Schedule screenshot upload.
+const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot"];
 const BADGE_LABELS = new Map(
   [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label]),
 );
@@ -84,7 +90,7 @@ export async function getAdvanceWeekGames(guildId: string) {
   const mapped = (games ?? []).map((game: any) => {
     const hasBoxScore = boxScoreGameIds.has(String(game.id));
     const existingSource = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
-    const hasOfficialResult = existingSource != null && BOX_SCORE_SOURCES.includes(String(existingSource));
+    const hasOfficialResult = existingSource != null && RESOLVED_RESULT_SOURCES.includes(String(existingSource));
     const needsInput = !hasBoxScore && !hasOfficialResult;
     return {
       gameId: game.id,
@@ -135,8 +141,11 @@ export async function completeAdvanceWeek(input: {
     if (game.error) throw new ApiError(500, "Failed to load game for advance result.", game.error);
     if (!game.data) throw new ApiError(404, "Scheduled game not found.");
 
-    const homeScore = result.outcome === "home" ? 1 : 0;
-    const awayScore = result.outcome === "away" ? 1 : 0;
+    // Prefer real final scores when the commissioner supplied them; otherwise fall
+    // back to a 1–0 win/loss flag (legacy behavior).
+    const hasRealScores = result.homeScore != null && result.awayScore != null;
+    const homeScore = hasRealScores ? Number(result.homeScore) : result.outcome === "home" ? 1 : 0;
+    const awayScore = hasRealScores ? Number(result.awayScore) : result.outcome === "away" ? 1 : 0;
     const isTie = result.outcome === "tie";
     const winningUserId = isTie ? null : result.outcome === "home" ? game.data.home_user_id : game.data.away_user_id;
     const losingUserId = isTie ? null : result.outcome === "home" ? game.data.away_user_id : game.data.home_user_id;

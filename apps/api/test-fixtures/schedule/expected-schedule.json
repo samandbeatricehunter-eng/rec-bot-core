@@ -1,0 +1,42 @@
+{
+  "_comment": "Golden transcription of the mw4 Week 8/9 League Schedule screenshots. Verified to match the live mw4 DB schedule during planning. Abbreviations are exactly as shown in-game in the RESULT column (display_abbr for relocations: AK/LCV/SDG/DAL; AZ for Arizona). Drop the screenshots on disk with the names under each week's 'images' (1 or 2 per week) and run scripts/schedule-verify.ts.",
+  "week8": {
+    "weekNumber": 8,
+    "images": ["schedule_wk8_a.jpg", "schedule_wk8_b.jpg"],
+    "games": [
+      { "away": "MIN", "awayScore": 31, "home": "LAC", "homeScore": 35 },
+      { "away": "NYJ", "awayScore": 17, "home": "CIN", "homeScore": 35 },
+      { "away": "NYG", "awayScore": 24, "home": "PHI", "homeScore": 27 },
+      { "away": "CLE", "awayScore": 23, "home": "NE", "homeScore": 9 },
+      { "away": "SF", "awayScore": 14, "home": "HOU", "homeScore": 20 },
+      { "away": "CHI", "awayScore": 21, "home": "BAL", "homeScore": 24 },
+      { "away": "BUF", "awayScore": 35, "home": "AK", "homeScore": 41 },
+      { "away": "MIA", "awayScore": 21, "home": "ATL", "homeScore": 28 },
+      { "away": "DAL", "awayScore": 45, "home": "NO", "homeScore": 24 },
+      { "away": "TEN", "awayScore": 21, "home": "IND", "homeScore": 24 },
+      { "away": "LCV", "awayScore": 27, "home": "DEN", "homeScore": 13 },
+      { "away": "GB", "awayScore": 14, "home": "PIT", "homeScore": 35 },
+      { "away": "WAS", "awayScore": 27, "home": "KC", "homeScore": 22 }
+    ]
+  },
+  "week9": {
+    "weekNumber": 9,
+    "images": ["schedule_wk9_a.jpg", "schedule_wk9_b.jpg"],
+    "games": [
+      { "away": "BAL", "awayScore": 24, "home": "MIA", "homeScore": 30 },
+      { "away": "CHI", "awayScore": 35, "home": "CIN", "homeScore": 14 },
+      { "away": "MIN", "awayScore": 14, "home": "DET", "homeScore": 17 },
+      { "away": "LAC", "awayScore": 28, "home": "TEN", "homeScore": 22 },
+      { "away": "SF", "awayScore": 30, "home": "NYG", "homeScore": 24 },
+      { "away": "DEN", "awayScore": 20, "home": "HOU", "homeScore": 17 },
+      { "away": "ATL", "awayScore": 28, "home": "NE", "homeScore": 7 },
+      { "away": "AK", "awayScore": 24, "home": "GB", "homeScore": 21 },
+      { "away": "IND", "awayScore": 27, "home": "PIT", "homeScore": 35 },
+      { "away": "JAX", "awayScore": 17, "home": "SDG", "homeScore": 45 },
+      { "away": "NO", "awayScore": 27, "home": "LAR", "homeScore": 20 },
+      { "away": "KC", "awayScore": 9, "home": "BUF", "homeScore": 24 },
+      { "away": "SEA", "awayScore": 31, "home": "WAS", "homeScore": 24 },
+      { "away": "AZ", "awayScore": 23, "home": "LCV", "homeScore": 24 }
+    ]
+  }
+}

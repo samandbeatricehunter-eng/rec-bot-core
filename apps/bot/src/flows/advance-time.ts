@@ -8,6 +8,7 @@ import {
   StringSelectMenuOptionBuilder,
   type ButtonInteraction,
   type Guild,
+  type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
@@ -220,7 +221,7 @@ function renderStep(session: AdvanceTimeSession) {
 // ─── Entry point (called by the advance wizard once the week has flipped) ───────
 
 export async function enterAdvanceTimeStep(
-  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
   headline: string,
   completed: { seasonNumber: number; weekNumber: number },
 ) {

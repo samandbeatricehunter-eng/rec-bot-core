@@ -165,12 +165,23 @@ export const recApi = {
       body: JSON.stringify({ guildId }),
     }),
 
+  previewWeeklyScores: (input: { guildId: string; weekNumber?: number | null; imageUrls: string[] }) =>
+    recFetch<any>("/v1/league-week/weekly-scores/preview", { method: "POST", body: JSON.stringify(input) }),
+
+  prelogWeeklyScores: (input: {
+    guildId: string;
+    weekNumber: number;
+    loggedByDiscordId: string;
+    games: Array<{ gameId: string; awayScore: number | null; homeScore: number | null }>;
+  }) =>
+    recFetch<any>("/v1/league-week/weekly-scores/prelog", { method: "POST", body: JSON.stringify(input) }),
+
   completeAdvanceWeek: (input: {
     guildId: string;
     nextWeekNumber: number;
     nextSeasonStage: string;
     advancedByDiscordId: string;
-    results: Array<{ gameId: string; outcome: "home" | "away" | "tie" }>;
+    results: Array<{ gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null }>;
   }) =>
     recFetch<any>("/v1/league-week/advance-complete", {
       method: "POST",

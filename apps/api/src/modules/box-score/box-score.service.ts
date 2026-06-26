@@ -315,22 +315,25 @@ function toInt(value: string | null | undefined): number | null {
 // for the pending-payout / inbox embeds to reference.
 const BOX_SCORE_IMAGE_BUCKET = "box-scores";
 
-async function persistBoxScoreImage(submissionId: string, imageUrl: string): Promise<string | null> {
+// Re-host a Discord screenshot to the public bucket and return its stable URL.
+// Generic so the schedule/weekly-scores flow can reuse it (key becomes the object
+// path). Non-fatal: returns null on any failure, callers fall back to the CDN URL.
+export async function persistUploadImage(key: string, imageUrl: string): Promise<string | null> {
   try {
     const buffer = await fetchImageBuffer(imageUrl);
     const ext = (/\.(jpe?g|webp|png)/i.exec(imageUrl)?.[1] ?? "png").toLowerCase();
     const normalizedExt = ext === "jpg" ? "jpeg" : ext;
     const contentType = normalizedExt === "jpeg" ? "image/jpeg" : normalizedExt === "webp" ? "image/webp" : "image/png";
-    const path = `${submissionId}.${normalizedExt}`;
+    const path = `${key}.${normalizedExt}`;
     const { error } = await supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).upload(path, buffer, { contentType, upsert: true });
     if (error) {
-      console.error("[WARN] Failed to upload box score screenshot to storage (non-fatal):", error);
+      console.error("[WARN] Failed to upload screenshot to storage (non-fatal):", error);
       return null;
     }
     const { data } = supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).getPublicUrl(path);
     return data?.publicUrl ?? null;
   } catch (err) {
-    console.error("[WARN] Failed to re-host box score screenshot (non-fatal):", err);
+    console.error("[WARN] Failed to re-host screenshot (non-fatal):", err);
     return null;
   }
 }
@@ -771,7 +774,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   const firstImage = input.imageUrls[0] ?? null;
   let imageStorageUrl: string | null = null;
   if (firstImage) {
-    imageStorageUrl = await persistBoxScoreImage(submission.id, firstImage);
+    imageStorageUrl = await persistUploadImage(submission.id, firstImage);
     if (imageStorageUrl) {
       await supabase
         .from("rec_box_score_submissions")
