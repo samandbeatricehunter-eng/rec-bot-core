@@ -425,6 +425,9 @@ export const recApi = {
   }) =>
     recFetch<any>(REC_API_ROUTES.scheduleReplaceWeek, { method: "POST", body: JSON.stringify(input) }),
 
+  previewScheduleImport: (input: { guildId: string; weekNumber: number; imageUrls: string[] }) =>
+    recFetch<any>("/v1/schedule/import-preview", { method: "POST", body: JSON.stringify(input) }),
+
   listTrackedGameChannels: (guildId: string) =>
     recFetch<{ discordChannelIds: string[] }>(REC_API_ROUTES.gameChannelsTracked, {
       method: "POST",

@@ -60,12 +60,15 @@ const TABLE_Y_MAX = 0.91;
 const ROW_Y_TOLERANCE = 0.016;
 
 // Multiple passes catch both the normal (light-on-dark) and selected/highlighted
-// rows. Each variant is parsed independently and merged at the game level.
-const SCHEDULE_VARIANTS: PreprocessVariant[] = ["stats", "robust", "default"];
+// rows. Each variant is parsed independently and merged at the game level. The
+// "highlight" pass specifically recovers the selected row the others wash out.
+const SCHEDULE_VARIANTS: PreprocessVariant[] = ["stats", "robust", "default", "highlight"];
 
 function extractWords(page: Tesseract.Page, width: number, height: number): NormalizedWord[] {
   return flattenPageWords(page)
-    .filter((w) => w.text.trim().length > 0 && w.confidence > 30)
+    // Low cutoff on purpose — faint away-side digits (e.g. a selected row) are worth
+    // keeping; garbage tokens don't resolve to a team and are dropped downstream.
+    .filter((w) => w.text.trim().length > 0 && w.confidence > 20)
     .map((w) => ({
       text: w.text.trim(),
       confidence: w.confidence,

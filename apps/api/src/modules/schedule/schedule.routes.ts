@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { listScheduleSeason, listScheduleTeams, listScheduleWeek, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
+import { listScheduleSeason, listScheduleTeams, listScheduleWeek, previewScheduleImport, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 
@@ -102,6 +102,21 @@ export async function scheduleRoutes(app: FastifyInstance) {
         force: z.boolean().optional(),
       }).parse(request.body);
       return reply.send(await seedDefaultScheduleForGuild(input));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Parse a League Schedule screenshot into matchups matched to league teams (no DB write).
+  app.post("/v1/schedule/import-preview", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const input = z.object({
+        guildId: z.string().min(1),
+        weekNumber: z.number().int().min(1).max(18),
+        imageUrls: z.array(z.string().url()).min(1).max(2),
+      }).parse(request.body);
+      return reply.send(await previewScheduleImport(input));
     } catch (error) {
       return sendError(reply, error);
     }

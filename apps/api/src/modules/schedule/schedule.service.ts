@@ -9,6 +9,44 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonContext, resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { persistUploadImage } from "../box-score/box-score.service.js";
+import { parseScheduleImages } from "./schedule.parser.js";
+
+// ─── Team abbreviation resolution (shared by score + matchup screenshot imports) ─
+// In-game abbreviations that differ from our stored DB abbreviation — Madden
+// labelling differences, not OCR errors. Extend as more surface.
+export const MADDEN_ABBR_ALIASES: Record<string, string> = {
+  AZ: "ARI",
+};
+
+type AbbrTeamRow = { id: string; abbreviation: string | null; display_abbr?: string | null; original_abbreviation?: string | null };
+
+function normAbbr(raw: string | null | undefined): string {
+  return (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+// Map an in-game abbreviation to a team id. display_abbr wins collisions, because
+// relocated teams show their display abbr in-game (and a relocated team's base
+// abbreviation can equal another team's display abbr — e.g. Coyotes' base DAL vs
+// the Cowboys' display DAL).
+export function buildAbbrMap(teams: AbbrTeamRow[]): Map<string, string> {
+  const map = new Map<string, string>();
+  const put = (abbr: string | null | undefined, id: string) => {
+    const k = normAbbr(abbr);
+    if (k && !map.has(k)) map.set(k, id);
+  };
+  for (const t of teams) put(t.display_abbr, t.id);
+  for (const t of teams) put(t.abbreviation, t.id);
+  for (const t of teams) put(t.original_abbreviation, t.id);
+  return map;
+}
+
+export function resolveScheduleAbbr(map: Map<string, string>, raw: string | null): string | null {
+  const u = normAbbr(raw);
+  if (!u) return null;
+  return map.get(MADDEN_ABBR_ALIASES[u] ?? u) ?? map.get(u) ?? null;
+}
 
 type SaveManualScheduleGameInput = {
   guildId: string;
@@ -478,4 +516,108 @@ export async function trySeedDefaultScheduleAfterTeamsReady(input: {
   requestedByDiscordId?: string | null;
 }) {
   return seedDefaultScheduleForGuild(input);
+}
+
+// ─── Matchup import from a League Schedule screenshot ───────────────────────────
+
+export type ScheduleImportGame = {
+  awayTeamId: string | null;
+  homeTeamId: string | null;
+  awayLabel: string;
+  homeLabel: string;
+  matched: boolean;
+};
+
+export type ScheduleImportPreview = {
+  seasonNumber: number;
+  weekNumber: number;
+  expectedGames: number;
+  games: ScheduleImportGame[];
+  matchedCount: number;
+  warnings: string[];
+  imageUrl: string | null;
+};
+
+function nickNorm(raw: string | null | undefined): string {
+  return (raw ?? "").toUpperCase().replace(/[^A-Z]/g, "");
+}
+
+// Nickname → team id, as a fallback when the RESULT abbr can't be read (the MATCHUP
+// column is often legible on rows whose result is not). Keys: display_nick, full
+// name, and the last word of the name (e.g. "Vikings" from "Minnesota Vikings").
+function buildNickMap(teams: Array<{ id: string; name: string | null; display_nick?: string | null }>): Map<string, string> {
+  const map = new Map<string, string>();
+  const put = (s: string | null | undefined, id: string) => {
+    const k = nickNorm(s);
+    if (k.length >= 3 && !map.has(k)) map.set(k, id);
+  };
+  for (const t of teams) {
+    put(t.display_nick, t.id);
+    put(t.name, t.id);
+    const words = String(t.name ?? "").trim().split(/\s+/);
+    if (words.length > 1) put(words[words.length - 1], t.id);
+  }
+  return map;
+}
+
+export async function previewScheduleImport(input: {
+  guildId: string;
+  weekNumber: number;
+  imageUrls: string[];
+}): Promise<ScheduleImportPreview> {
+  assertWeekSlot({ weekNumber: input.weekNumber });
+  if (input.weekNumber > 18) throw new ApiError(400, "Screenshot schedule imports are limited to regular-season weeks 1–18.");
+
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+
+  const teamsRes = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation")
+    .eq("league_id", leagueId);
+  if (teamsRes.error) throw new ApiError(500, "Failed to load league teams for schedule import.", teamsRes.error);
+  const teams = teamsRes.data ?? [];
+
+  const abbrMap = buildAbbrMap(teams);
+  const nickMap = buildNickMap(teams);
+  const labelById = new Map(teams.map((t) => [t.id, formatTeamDisplayName(t) ?? t.name ?? t.display_abbr ?? t.abbreviation ?? "Team"]));
+  const resolve = (abbr: string | null, nick: string | null): string | null =>
+    resolveScheduleAbbr(abbrMap, abbr) ?? (nick ? nickMap.get(nickNorm(nick)) ?? null : null);
+
+  const parsed = await parseScheduleImages(input.imageUrls);
+
+  const seen = new Set<string>();
+  const games: ScheduleImportGame[] = [];
+  for (const p of parsed.games) {
+    const awayTeamId = resolve(p.awayAbbr, p.awayNick);
+    const homeTeamId = resolve(p.homeAbbr, p.homeNick);
+    const matched = !!(awayTeamId && homeTeamId && awayTeamId !== homeTeamId);
+    if (matched) {
+      const k = `${awayTeamId}:${homeTeamId}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+    }
+    games.push({
+      awayTeamId,
+      homeTeamId,
+      awayLabel: (awayTeamId ? labelById.get(awayTeamId) : null) ?? p.awayNick ?? p.awayAbbr ?? "?",
+      homeLabel: (homeTeamId ? labelById.get(homeTeamId) : null) ?? p.homeNick ?? p.homeAbbr ?? "?",
+      matched,
+    });
+  }
+
+  const imageUrl = input.imageUrls[0]
+    ? await persistUploadImage(`schedimport-${leagueId}-${seasonNumber}-${input.weekNumber}`, input.imageUrls[0])
+    : null;
+
+  return {
+    seasonNumber,
+    weekNumber: input.weekNumber,
+    expectedGames: Math.floor(teams.length / 2),
+    games,
+    matchedCount: games.filter((g) => g.matched).length,
+    warnings: parsed.warnings,
+    imageUrl: imageUrl ?? input.imageUrls[0] ?? null,
+  };
 }

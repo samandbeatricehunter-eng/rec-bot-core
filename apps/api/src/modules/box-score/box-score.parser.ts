@@ -160,10 +160,12 @@ function computeMissingRequired(
 
 // ─── Image preprocessing ─────────────────────────────────────────────────────
 
-// "default": global threshold — fast, proven for the dark-panel scoreboard.
-// "stats":   CLAHE on the full frame — recovers stat-table digits without crushing the left column.
-// "robust":  stronger CLAHE for dim rows over the bright field background.
-export type PreprocessVariant = "default" | "stats" | "robust";
+// "default":   global threshold — fast, proven for the dark-panel scoreboard.
+// "stats":     CLAHE on the full frame — recovers stat-table digits without crushing the left column.
+// "robust":    stronger CLAHE for dim rows over the bright field background.
+// "highlight": high threshold (no merge of white text into a light highlight bar) —
+//              recovers the selected/highlighted schedule row that the others wash out.
+export type PreprocessVariant = "default" | "stats" | "robust" | "highlight";
 
 export async function preprocessImage(
   buffer: Buffer,
@@ -183,6 +185,11 @@ export async function preprocessImage(
     pipeline = pipeline.clahe({ width: 128, height: 128, maxSlope: 3 }).negate();
   } else if (variant === "stats") {
     pipeline = pipeline.clahe({ width: 64, height: 64, maxSlope: 2 }).normalise().negate();
+  } else if (variant === "highlight") {
+    // A low threshold merges near-white text into a light highlight bar (the
+    // selected row). A high cutoff isolates the brightest text from the bar while
+    // still catching normal light-on-dark rows; negate → black text on white.
+    pipeline = pipeline.threshold(200).negate();
   } else {
     pipeline = pipeline
       .normalise()

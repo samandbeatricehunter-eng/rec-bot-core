@@ -6,13 +6,8 @@ import { rebuildSeasonDisplayRecords } from "../display-records/display-records.
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { parseScheduleImages, type ParsedScheduleGame } from "../schedule/schedule.parser.js";
+import { buildAbbrMap, resolveScheduleAbbr } from "../schedule/schedule.service.js";
 import { persistUploadImage } from "../box-score/box-score.service.js";
-
-// In-game abbreviations that differ from our stored DB abbreviation — these are
-// Madden labelling differences, not OCR errors. Extend as more surface.
-const MADDEN_ABBR_ALIASES: Record<string, string> = {
-  AZ: "ARI",
-};
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 const SCHEDULE_SOURCE = "schedule_screenshot";
@@ -27,32 +22,6 @@ type TeamRow = {
   original_abbreviation: string | null;
   is_relocated: boolean | null;
 };
-
-function normAbbr(raw: string | null | undefined): string {
-  return (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-// Map an in-game abbreviation to a team id. display_abbr wins collisions, because
-// relocated teams show their display abbr in-game (and a relocated team's base
-// abbreviation can equal another team's display abbr — e.g. Coyotes' base DAL vs
-// the Cowboys' display DAL).
-function buildAbbrMap(teams: TeamRow[]): Map<string, string> {
-  const map = new Map<string, string>();
-  const put = (abbr: string | null, id: string) => {
-    const k = normAbbr(abbr);
-    if (k && !map.has(k)) map.set(k, id);
-  };
-  for (const t of teams) put(t.display_abbr, t.id);
-  for (const t of teams) put(t.abbreviation, t.id);
-  for (const t of teams) put(t.original_abbreviation, t.id);
-  return map;
-}
-
-function resolveAbbr(map: Map<string, string>, raw: string | null): string | null {
-  const u = normAbbr(raw);
-  if (!u) return null;
-  return map.get(MADDEN_ABBR_ALIASES[u] ?? u) ?? map.get(u) ?? null;
-}
 
 export type WeeklyScoreGame = {
   gameId: string;
@@ -118,8 +87,8 @@ function scoresForScheduledGame(
   abbrMap: Map<string, string>,
 ): { awayScore: number | null; homeScore: number | null; fromOcr: boolean } {
   for (const p of parsed) {
-    const pAway = resolveAbbr(abbrMap, p.awayAbbr);
-    const pHome = resolveAbbr(abbrMap, p.homeAbbr);
+    const pAway = resolveScheduleAbbr(abbrMap, p.awayAbbr);
+    const pHome = resolveScheduleAbbr(abbrMap, p.homeAbbr);
     if (!pAway || !pHome) continue;
     if (pAway === game.away_team_id && pHome === game.home_team_id) {
       return { awayScore: p.awayScore, homeScore: p.homeScore, fromOcr: p.awayScore != null || p.homeScore != null };

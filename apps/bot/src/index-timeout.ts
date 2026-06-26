@@ -146,6 +146,15 @@ import {
   handleWeeklyScoresCorrectGameSelect,
   handleWeeklyScoresCorrectModal,
 } from "./flows/schedule-scores.js";
+import {
+  SCHEDULE_IMPORT_CUSTOM_IDS,
+  startScheduleImportWizard,
+  startScheduleImportOneWeek,
+  handleScheduleImportWeekSelect,
+  handleScheduleImportUploadMessage,
+  handleScheduleImportSave,
+  handleScheduleImportCancel,
+} from "./flows/schedule-import.js";
 
 const client = new Client({
   intents: [
@@ -356,6 +365,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
       if (interaction.customId === WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix) return handleWeeklyScoresCorrectGameSelect(interaction);
+      if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect) return handleScheduleImportWeekSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
@@ -494,6 +504,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.approvePrefix)) return handleWeeklyScoresApprove(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctOpenPrefix)) return handleWeeklyScoresCorrectOpen(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.cancelPrefix)) return handleWeeklyScoresCancel(interaction);
+      if (interaction.customId.startsWith(SCHEDULE_IMPORT_CUSTOM_IDS.savePrefix)) return handleScheduleImportSave(interaction);
+      if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.cancel) return handleScheduleImportCancel(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
@@ -551,6 +563,7 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
   if (await handleWeeklyScoresUploadMessage(message).catch(() => false)) return;
+  if (await handleScheduleImportUploadMessage(message).catch(() => false)) return;
   if (await handleCommissionerBoxScoreSubmissionMessage(message).catch(() => false)) return;
   await handleBoxScoreChannelMessage(message).catch(() => undefined);
 });
@@ -694,36 +707,14 @@ async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
-  return interaction.update({
-    embeds: [new EmbedBuilder()
-      .setTitle("Schedule Wizard")
-      .setDescription([
-        "Schedule screenshot parsing is not connected yet.",
-        "",
-        "When enabled, this flow will collect two screenshots per regular-season week, ask you to confirm the parsed games, and then advance through Week 18.",
-        "",
-        "Use **Set Manually** today if you need to enter matchups now."
-      ].join("\n"))],
-    components: buildScheduleMgmtRows()
-  });
+  return startScheduleImportWizard(interaction, buildScheduleMgmtRows);
 }
 
 async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
-  return interaction.update({
-    embeds: [new EmbedBuilder()
-      .setTitle("Upload One Week")
-      .setDescription([
-        "One-week screenshot parsing is not connected yet.",
-        "",
-        "When enabled, this flow will let you choose one eligible week, upload its schedule screenshots, confirm the parsed games, and save only that week.",
-        "",
-        "Use **Set Manually** today if you need to enter matchups now."
-      ].join("\n"))],
-    components: buildScheduleMgmtRows()
-  });
+  return startScheduleImportOneWeek(interaction, buildScheduleMgmtRows);
 }
 
 async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {

@@ -1,0 +1,282 @@
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+  MessageFlags,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
+  type ButtonInteraction,
+  type Message,
+  type StringSelectMenuInteraction,
+  type TextChannel,
+} from "discord.js";
+import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { recApi } from "../lib/rec-api.js";
+
+// ─── Schedule import: parse a League Schedule screenshot into a week's matchups ──
+// Wizard mode walks Weeks 1–18; one-week mode does a single chosen week. Both share
+// the upload → preview → review → save (replaceScheduleWeek) loop. The RESULT-column
+// abbreviations and MATCHUP nicknames are matched to league teams server-side.
+
+const MAX_IMPORT_WEEK = 18;
+
+export const SCHEDULE_IMPORT_CUSTOM_IDS = {
+  weekSelect: "rec:sched_import:week",
+  savePrefix: "rec:sched_import:save:",   // + weekNumber
+  cancel: "rec:sched_import:cancel",
+} as const;
+
+type ImportGame = {
+  awayTeamId: string | null;
+  homeTeamId: string | null;
+  awayLabel: string;
+  homeLabel: string;
+  matched: boolean;
+};
+
+type ImportSession = {
+  guildId: string;
+  userId: string;
+  channelId: string;
+  mode: "wizard" | "one_week";
+  weekNumber: number;
+  phase: "awaiting_upload" | "review";
+  games: ImportGame[];
+  expectedGames: number;
+  imageUrl: string | null;
+  at: number;
+};
+
+const sessions = new Map<string, ImportSession>();
+const key = (guildId: string, userId: string) => `${guildId}:${userId}`;
+const SESSION_TTL = 20 * 60 * 1000;
+
+function getSession(guildId: string, userId: string): ImportSession | null {
+  const s = sessions.get(key(guildId, userId));
+  if (!s) return null;
+  if (Date.now() - s.at > SESSION_TTL) {
+    sessions.delete(key(guildId, userId));
+    return null;
+  }
+  return s;
+}
+
+function userFacingError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const apiError = message.match(/^REC API request failed:\s*\d+\s+(\{.*\})$/s);
+  if (apiError?.[1]) {
+    try {
+      const parsed = JSON.parse(apiError[1]) as { error?: unknown };
+      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
+    } catch {
+      /* fall through */
+    }
+  }
+  return message;
+}
+
+function uploadPrompt(weekNumber: number, mode: "wizard" | "one_week") {
+  return new EmbedBuilder()
+    .setTitle(`${mode === "wizard" ? "Schedule Wizard" : "Upload One Week"} — Week ${weekNumber}`)
+    .setColor(0x3498db)
+    .setDescription([
+      `Post the **League Schedule** screenshot(s) for **Week ${weekNumber}** in this channel — attach **1 or 2 images** (top + bottom of the list) to a single message.`,
+      "",
+      "I'll read the matchups, match them to your league's teams, and show a review before saving.",
+    ].join("\n"));
+}
+
+// ─── Entry points ────────────────────────────────────────────────────────────────
+
+export async function startScheduleImportWizard(interaction: ButtonInteraction, buildScheduleRows: () => any[]) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners or server admins can import the schedule.", flags: MessageFlags.Ephemeral });
+  }
+  sessions.set(key(interaction.guildId, interaction.user.id), {
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    channelId: interaction.channelId,
+    mode: "wizard",
+    weekNumber: 1,
+    phase: "awaiting_upload",
+    games: [],
+    expectedGames: 0,
+    imageUrl: null,
+    at: Date.now(),
+  });
+  return interaction.update({ embeds: [uploadPrompt(1, "wizard")], components: buildScheduleRows() });
+}
+
+export async function startScheduleImportOneWeek(interaction: ButtonInteraction, buildScheduleRows: () => any[]) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners or server admins can import the schedule.", flags: MessageFlags.Ephemeral });
+  }
+  sessions.delete(key(interaction.guildId, interaction.user.id));
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect)
+    .setPlaceholder("Select the week to import")
+    .addOptions(Array.from({ length: MAX_IMPORT_WEEK }, (_, i) => new StringSelectMenuOptionBuilder().setLabel(`Week ${i + 1}`).setValue(String(i + 1))));
+  return interaction.update({
+    embeds: [new EmbedBuilder().setTitle("Upload One Week").setDescription("Pick the week you're importing, then upload its schedule screenshot(s).")],
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), ...buildScheduleRows()],
+  });
+}
+
+export async function handleScheduleImportWeekSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can import the schedule.", flags: MessageFlags.Ephemeral });
+  }
+  const weekNumber = Math.max(1, Math.min(MAX_IMPORT_WEEK, Number(interaction.values[0] ?? 1)));
+  sessions.set(key(interaction.guildId, interaction.user.id), {
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    channelId: interaction.channelId,
+    mode: "one_week",
+    weekNumber,
+    phase: "awaiting_upload",
+    games: [],
+    expectedGames: 0,
+    imageUrl: null,
+    at: Date.now(),
+  });
+  return interaction.update({ embeds: [uploadPrompt(weekNumber, "one_week")], components: [] });
+}
+
+// ─── Review embed / rows ──────────────────────────────────────────────────────────
+
+function buildReviewEmbed(session: ImportSession): EmbedBuilder {
+  const lines = session.games.map((g) => (g.matched ? `✓ ${g.awayLabel} @ ${g.homeLabel}` : `⚠ ${g.awayLabel} @ ${g.homeLabel} — couldn't match`));
+  const embed = new EmbedBuilder()
+    .setTitle(`Schedule Import — Week ${session.weekNumber}`)
+    .setColor(session.games.some((g) => !g.matched) || session.games.filter((g) => g.matched).length < session.expectedGames ? 0xf1c40f : 0x3498db)
+    .setDescription(lines.length ? lines.join("\n").slice(0, 4096) : "No matchups could be read from the screenshot.")
+    .addFields({
+      name: "STATUS",
+      value: [
+        `Matched **${session.games.filter((g) => g.matched).length}/${session.expectedGames}** games.`,
+        session.games.filter((g) => g.matched).length < session.expectedGames
+          ? "Some games are missing or unmatched — Save logs what matched; add the rest with **Set Manually**, or re-upload a clearer/second screenshot."
+          : "All games matched.",
+      ].join("\n"),
+      inline: false,
+    });
+  if (session.imageUrl) embed.setImage(session.imageUrl);
+  return embed;
+}
+
+function buildReviewRows(session: ImportSession) {
+  const last = session.mode === "wizard" && session.weekNumber >= MAX_IMPORT_WEEK;
+  const saveLabel = session.mode === "wizard" ? (last ? "Save & Finish" : "Save & Next Week") : "Save Week";
+  const matched = session.games.filter((g) => g.matched).length;
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${SCHEDULE_IMPORT_CUSTOM_IDS.savePrefix}${session.weekNumber}`).setLabel(saveLabel).setStyle(ButtonStyle.Success).setDisabled(matched === 0),
+      new ButtonBuilder().setCustomId(SCHEDULE_IMPORT_CUSTOM_IDS.cancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
+    ),
+  ];
+}
+
+// ─── Screenshot listener ───────────────────────────────────────────────────────────
+
+export async function handleScheduleImportUploadMessage(message: Message): Promise<boolean> {
+  if (!message.inGuild() || message.author.bot) return false;
+  const session = getSession(message.guildId, message.author.id);
+  if (!session || session.phase !== "awaiting_upload" || session.channelId !== message.channelId) return false;
+  if (!message.channel.isTextBased() || message.channel.isDMBased()) return false;
+  const channel = message.channel as TextChannel;
+
+  const images = [...message.attachments.values()]
+    .filter((a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""))
+    .map((a) => a.url)
+    .slice(0, 2);
+  if (images.length === 0) return false;
+
+  const working = await channel.send({
+    embeds: [new EmbedBuilder().setTitle("Reading schedule…").setDescription(`Parsing Week ${session.weekNumber} matchups. This can take ~30–60 seconds.`)],
+  }).catch(() => null);
+
+  try {
+    const preview = await recApi.previewScheduleImport({ guildId: session.guildId, weekNumber: session.weekNumber, imageUrls: images });
+    await message.delete().catch(() => undefined);
+
+    session.games = (preview.games ?? []) as ImportGame[];
+    session.expectedGames = Number(preview.expectedGames ?? session.games.length);
+    session.imageUrl = preview.imageUrl ?? null;
+    session.phase = "review";
+    session.at = Date.now();
+    sessions.set(key(session.guildId, session.userId), session);
+
+    await channel.send({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session) }).catch(() => null);
+    await working?.delete().catch(() => undefined);
+  } catch (err) {
+    await message.delete().catch(() => undefined);
+    await working?.edit({ embeds: [new EmbedBuilder().setTitle("Couldn't read schedule").setColor(0xe74c3c).setDescription(userFacingError(err))] }).catch(() => undefined);
+    sessions.delete(key(session.guildId, session.userId));
+  }
+  return true;
+}
+
+// ─── Save / cancel ───────────────────────────────────────────────────────────────
+
+export async function handleScheduleImportSave(interaction: ButtonInteraction) {
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners can save the schedule.", flags: MessageFlags.Ephemeral });
+  }
+  if (!interaction.inCachedGuild()) return;
+  const session = getSession(interaction.guildId, interaction.user.id);
+  await interaction.deferUpdate();
+  if (!session || session.phase !== "review") {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Schedule Import").setDescription("This import expired. Reopen League Mgmt → Schedule.")], components: [] });
+  }
+
+  const matched = session.games.filter((g) => g.matched && g.awayTeamId && g.homeTeamId).map((g) => ({ awayTeamId: g.awayTeamId!, homeTeamId: g.homeTeamId! }));
+  if (!matched.length) {
+    return interaction.editReply({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session) }).then(() =>
+      interaction.followUp({ content: "No matched games to save. Re-upload a clearer screenshot or use Set Manually.", flags: MessageFlags.Ephemeral }),
+    );
+  }
+
+  try {
+    await recApi.replaceScheduleWeek({ guildId: session.guildId, weekNumber: session.weekNumber, games: matched, requestedByDiscordId: interaction.user.id });
+  } catch (err) {
+    return interaction.editReply({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session) }).then(() =>
+      interaction.followUp({ content: userFacingError(err), flags: MessageFlags.Ephemeral }),
+    );
+  }
+
+  const savedWeek = session.weekNumber;
+  const savedEmbed = buildReviewEmbed(session).setColor(0x2ecc71);
+  savedEmbed.spliceFields(0, 1, { name: "SAVED ✅", value: `Saved **${matched.length}** matchup${matched.length === 1 ? "" : "s"} for Week ${savedWeek}.`, inline: false });
+  await interaction.editReply({ embeds: [savedEmbed], components: [] });
+
+  // Wizard: advance to the next week (or finish at 18).
+  if (session.mode === "wizard" && savedWeek < MAX_IMPORT_WEEK) {
+    session.weekNumber = savedWeek + 1;
+    session.phase = "awaiting_upload";
+    session.games = [];
+    session.expectedGames = 0;
+    session.imageUrl = null;
+    session.at = Date.now();
+    sessions.set(key(session.guildId, session.userId), session);
+    if (interaction.channel?.isTextBased() && "send" in interaction.channel) {
+      await (interaction.channel as TextChannel).send({ embeds: [uploadPrompt(session.weekNumber, "wizard")] }).catch(() => undefined);
+    }
+  } else {
+    sessions.delete(key(session.guildId, session.userId));
+    if (interaction.channel?.isTextBased() && "send" in interaction.channel) {
+      await (interaction.channel as TextChannel).send({
+        embeds: [new EmbedBuilder().setTitle("Schedule Import Complete").setColor(0x2ecc71).setDescription(session.mode === "wizard" ? "All weeks imported. Review with **View Schedule**." : `Week ${savedWeek} saved. Review with **View Schedule**.`)],
+      }).catch(() => undefined);
+    }
+  }
+}
+
+export async function handleScheduleImportCancel(interaction: ButtonInteraction) {
+  if (interaction.inCachedGuild()) sessions.delete(key(interaction.guildId, interaction.user.id));
+  await interaction.deferUpdate();
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Schedule Import").setColor(0x95a5a6).setDescription("Import cancelled.")], components: [] }).catch(() => undefined);
+}
