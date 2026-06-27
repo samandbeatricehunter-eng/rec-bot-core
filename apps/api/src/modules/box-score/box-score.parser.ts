@@ -266,6 +266,7 @@ async function preprocessColumnCrop(
   variant: LeftColPreprocess,
 ): Promise<Buffer> {
   let pipeline = sharp(cropBuffer)
+    .flatten({ background: { r: 0, g: 0, b: 0 } })
     .grayscale();
 
   if (variant === "threshold") {
