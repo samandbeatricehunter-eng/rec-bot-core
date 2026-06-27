@@ -12,9 +12,9 @@ import {
   resolveTeamNick,
 } from "./user-profile-stats.service.js";
 
-const BADGE_LABELS = new Map<string, string>(
-  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge: BadgeDef<any>) => [badge.key, badge.label]),
-);
+const ALL_BADGE_DEFS = [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES];
+const BADGE_LABELS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.label]));
+const BADGE_DESCRIPTIONS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.description]));
 
 function mapOwnedBadge(row: any) {
   const badgeKey = row.badge_key ?? row.badge_name ?? "badge";
@@ -22,6 +22,7 @@ function mapOwnedBadge(row: any) {
     ...row,
     badge_name: badgeKey,
     badge_label: BADGE_LABELS.get(badgeKey) ?? badgeKey,
+    badge_description: BADGE_DESCRIPTIONS.get(badgeKey) ?? null,
     earned_value: row.earned_count ?? row.current_streak ?? 1,
     earned_at: row.updated_at ?? row.created_at ?? null,
     league_id: row.league_id ?? null,
@@ -322,7 +323,8 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
     seasonStats,
     careerStats,
-    seasonBadges: ((seasonBadges as any)?.data ?? []).map(mapOwnedBadge),
+    seasonBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "season").map(mapOwnedBadge),
+    weeklyBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "weekly").map(mapOwnedBadge),
     globalBadges: ((globalBadges as any)?.data ?? []).map(mapOwnedBadge),
     globalAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
     financialSummary,

@@ -126,8 +126,43 @@ function formatBadgeLines(badges: any[]) {
     const name = badge.badge_label ?? badge.badge_name ?? "Badge";
     const tier = formatTierEmojiPrefix(badge.tier);
     const earned = badge.earned_at ? ` - ${new Date(badge.earned_at).toLocaleDateString("en-US")}` : "";
-    return `- ${tier}${name}${earned}`;
+    const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
+    return `- ${tier}${name}${earned}${desc}`;
   }).join("\n");
+}
+
+function formatWeeklyBadgeLines(badges: any[]) {
+  if (!badges.length) return "No weekly badges earned this season.";
+
+  const active = badges.filter((b) => (b.current_streak ?? 0) > 0);
+  const inactive = badges.filter((b) => (b.current_streak ?? 0) === 0);
+
+  const lines: string[] = [];
+
+  if (active.length) {
+    lines.push("**Active Streaks**");
+    for (const badge of active.sort((a, b) => (b.current_streak ?? 0) - (a.current_streak ?? 0))) {
+      const name = badge.badge_label ?? badge.badge_name ?? "Badge";
+      const tier = formatTierEmojiPrefix(badge.tier);
+      const streak = badge.current_streak ?? 1;
+      const streakLabel = streak > 1 ? ` — ${streak}-week streak` : "";
+      const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
+      lines.push(`- ${tier}${name}${streakLabel}${desc}`);
+    }
+  }
+
+  if (inactive.length) {
+    if (lines.length) lines.push("");
+    lines.push("**Streak Lost**");
+    for (const badge of inactive) {
+      const name = badge.badge_label ?? badge.badge_name ?? "Badge";
+      const lastWeek = badge.last_earned_week != null ? ` — last earned Wk ${badge.last_earned_week}` : "";
+      const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
+      lines.push(`- ${name}${lastWeek}${desc}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function formatStatBlock(stats: any, prefix: "Season" | "Career") {
@@ -215,6 +250,10 @@ function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedB
   pages.push(new EmbedBuilder()
     .setTitle(`${coachName} - Season Stats`)
     .setDescription(formatStatBlock(snapshot.seasonStats, "Season").slice(0, 4096)));
+
+  pages.push(new EmbedBuilder()
+    .setTitle(`${coachName} - Weekly Badges`)
+    .setDescription(formatWeeklyBadgeLines(snapshot.weeklyBadges ?? []).slice(0, 4096)));
 
   pages.push(new EmbedBuilder()
     .setTitle(`${coachName} - Season Badges`)
