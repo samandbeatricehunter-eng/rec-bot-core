@@ -177,7 +177,11 @@ export async function preprocessImage(
   const MIN_OCR_WIDTH = 1024;
   const targetWidth = Math.min(Math.max(originalWidth, MIN_OCR_WIDTH), 1920);
 
+  // RGBA screenshots (4-channel PNGs from Discord/consoles) break sharp's
+  // normalise() — the alpha channel prevents histogram stretching, producing
+  // a blank white output that Tesseract sees as empty. Flatten to RGB first.
   let pipeline = sharp(buffer)
+    .flatten({ background: { r: 0, g: 0, b: 0 } })
     .resize(targetWidth, undefined, { fit: "inside", withoutEnlargement: false })
     .grayscale();
 
