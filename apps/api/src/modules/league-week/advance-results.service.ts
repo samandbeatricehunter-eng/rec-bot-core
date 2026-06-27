@@ -8,6 +8,7 @@ import { setLeagueWeek } from "./league-week.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
+import { issueSeasonTotalBadges } from "../box-score-intelligence/persistence.js";
 import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 
@@ -215,6 +216,16 @@ export async function completeAdvanceWeek(input: {
   await snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek).catch((err) => {
     console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
   });
+
+  // When the regular season ends (next stage is a playoff stage), issue the
+  // season-total badges (Winning Season, Ball Control Season, etc.) for every
+  // active user. These are only valid once the full season is in the books.
+  const playoffStages = new Set(["wild_card", "divisional", "conference_championship", "super_bowl", "postseason"]);
+  if (playoffStages.has(input.nextSeasonStage)) {
+    await issueSeasonTotalBadges(context.leagueId, seasonNumber).catch((err) => {
+      console.error("[ERROR] issueSeasonTotalBadges failed after advance to playoffs (non-fatal):", err);
+    });
+  }
 
   return advanceResult;
 }

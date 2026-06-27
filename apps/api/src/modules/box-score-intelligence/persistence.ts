@@ -145,8 +145,10 @@ async function recomputeUserBadges(current: GameStats): Promise<void> {
   }));
 
   // Season-long tiered versions of repeated weekly badges (bronze/silver/gold/xf).
+  // Use bestStreak (not currentStreak) so a broken streak doesn't erase the tier
+  // a user already earned — the badge is kept at the highest tier reached.
   const seasonRows = streaks
-    .map((s) => ({ s, tier: getSeasonTier(s.currentStreak, s.earnedCount) }))
+    .map((s) => ({ s, tier: getSeasonTier(s.bestStreak, s.earnedCount) }))
     .filter((x): x is { s: typeof x.s; tier: NonNullable<typeof x.tier> } => x.tier !== null)
     .map(({ s, tier }) => ({
       league_id: leagueId,
@@ -160,28 +162,14 @@ async function recomputeUserBadges(current: GameStats): Promise<void> {
       current_streak: s.currentStreak,
       best_streak: s.bestStreak,
       last_earned_week: s.lastEarnedWeek,
-      active: true,
+      active: s.currentStreak > 0,
       updated_at: now,
     }));
 
-  // Non-tiered season badges from season totals.
-  for (const b of qualifySeasonBadges(seasonTotals)) {
-    seasonRows.push({
-      league_id: leagueId,
-      user_id: userId,
-      team_id: teamId,
-      badge_key: b.key,
-      badge_scope: "season",
-      tier: "normal",
-      season,
-      earned_count: 1,
-      current_streak: 1,
-      best_streak: 1,
-      last_earned_week: null,
-      active: true,
-      updated_at: now,
-    });
-  }
+  // NOTE: qualifySeasonBadges (season-total badges like "Winning Season",
+  // "Ball Control Season") are NOT issued here — they only apply once the
+  // regular season is complete. Call issueSeasonTotalBadges() from the
+  // advance service when the league transitions to playoffs.
 
   // Global / career badges (per-league career; season is null).
   const globalRows = qualifyGlobalBadges(careerTotals).map((b) => ({
@@ -259,4 +247,66 @@ async function loadTeamNames(teamIds: string[]): Promise<Map<string, string>> {
     map.set(t.id, (t.name as string) || (t.display_abbr as string) || (t.abbreviation as string) || "Team");
   }
   return map;
+}
+
+/**
+ * Issues season-total badges (Winning Season, Ball Control Season, etc.) for
+ * every active user in a league. Call this once when the league advances OUT of
+ * the regular season (i.e. nextSeasonStage becomes "wild_card" or any playoff
+ * stage). These badges are based on full-season totals and must not be issued
+ * mid-season because the totals are still changing.
+ */
+export async function issueSeasonTotalBadges(leagueId: string, season: number): Promise<void> {
+  const { data: assignments } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id, team_id")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+
+  if (!assignments?.length) return;
+
+  const now = new Date().toISOString();
+
+  for (const { user_id: userId, team_id: teamId } of assignments) {
+    const { data: rows } = await supabase
+      .from("rec_team_game_stats")
+      .select("*")
+      .eq("league_id", leagueId)
+      .eq("user_id", userId);
+
+    if (!rows?.length) continue;
+
+    const allGames = rows.map((r) => rowToGameStats(r as TeamGameStatsRow));
+    const seasonGames = allGames.filter((g) => g.season === season);
+    if (!seasonGames.length) continue;
+
+    const seasonTotals = seasonTotalsFromGames(seasonGames);
+    const qualified = qualifySeasonBadges(seasonTotals);
+    if (!qualified.length) continue;
+
+    const badgeRows = qualified.map((b) => ({
+      league_id: leagueId,
+      user_id: userId,
+      team_id: teamId,
+      badge_key: b.key,
+      badge_scope: "season",
+      tier: "normal",
+      season,
+      earned_count: 1,
+      current_streak: 1,
+      best_streak: 1,
+      last_earned_week: null,
+      active: true,
+      updated_at: now,
+    }));
+
+    // Upsert so re-running at season end is safe and doesn't duplicate.
+    await supabase
+      .from("rec_badge_ownership")
+      .upsert(badgeRows, { onConflict: "league_id,user_id,badge_key,badge_scope,season" })
+      .then(({ error }) => {
+        if (error) console.error("[ERROR] issueSeasonTotalBadges upsert failed:", error);
+      });
+  }
 }
