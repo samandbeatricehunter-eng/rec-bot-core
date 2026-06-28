@@ -251,6 +251,9 @@ export const recApi = {
     voters: { discordId: string; userId?: string | null; selectedTeamId: string }[];
   }) => recFetch<any>("/v1/gotw/poll/settle", { method: "POST", body: JSON.stringify(input) }),
 
+  getGotwGameResult: (input: { guildId: string; awayTeamId: string; homeTeamId: string; weekNumber: number }) =>
+    recFetch<any>("/v1/gotw/poll/game-result", { method: "POST", body: JSON.stringify(input) }),
+
   createTeamLinkRequest: (input: { guildId: string; discordId: string; teamId: string }) =>
     recFetch<any>("/v1/team-requests/create", {
       method: "POST",

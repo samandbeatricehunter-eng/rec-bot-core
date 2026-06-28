@@ -224,21 +224,11 @@ async function settleGotwForWeek(guild: Guild, guildId: string, weekNumber: numb
   const message = await (channel as any).messages.fetch(poll.discord_message_id).catch(() => null);
   if (!message?.poll) return;
 
-  // End the poll early so results are final (Discord freezes vote counts on end).
+  // End the Discord poll so vote counts are frozen and fetchVoters works.
   const endedPoll = await message.poll.end().catch(() => message.poll);
 
-  // answer_id 1 = away team, answer_id 2 = home team (order we inserted them).
-  const awayAnswer = endedPoll.answers?.get(1);
-  const homeAnswer = endedPoll.answers?.get(2);
-  const awayVotes = awayAnswer?.voteCount ?? 0;
-  const homeVotes = homeAnswer?.voteCount ?? 0;
-
-  // Winning team: more votes wins; tie = null (no payout).
-  const winningTeamId =
-    awayVotes > homeVotes ? poll.away_team_id :
-    homeVotes > awayVotes ? poll.home_team_id : null;
-
-  // Collect all voters from both answers.
+  // Collect who voted for which team.
+  // answer_id 1 = away team, answer_id 2 = home team (the order we inserted them).
   const voters: { discordId: string; selectedTeamId: string }[] = [];
   for (const [answerId, teamId] of [[1, poll.away_team_id], [2, poll.home_team_id]] as [number, string][]) {
     const answer = endedPoll.answers?.get(answerId);
@@ -249,16 +239,23 @@ async function settleGotwForWeek(guild: Guild, guildId: string, weekNumber: numb
         if (!user.bot) voters.push({ discordId: user.id, selectedTeamId: teamId });
       }
     } catch {
-      // fetchVoters may fail if poll has no votes — non-fatal.
+      // no votes on this answer — non-fatal
     }
   }
 
-  await recApi.settleGotwPoll({
+  // Look up the ACTUAL game result to determine who was right.
+  // Poll vote counts are irrelevant — what matters is which team won the real game.
+  const gameResult = await recApi.getGotwGameResult({
     guildId,
-    pollId: poll.id,
-    winningTeamId,
-    voters,
-  });
+    awayTeamId: poll.away_team_id,
+    homeTeamId: poll.home_team_id,
+    weekNumber,
+  }).catch(() => null);
+
+  // winning_team_id from actual game result; null on tie or game not yet logged.
+  const winningTeamId = gameResult?.is_tie ? null : (gameResult?.winning_team_id ?? null);
+
+  await recApi.settleGotwPoll({ guildId, pollId: poll.id, winningTeamId, voters });
 }
 
 export async function startAdvanceWeekWizard(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
