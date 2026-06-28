@@ -170,8 +170,10 @@ export async function createWeeklyScoreReview(input: {
     };
   });
 
+  // Use a timestamp suffix so each upload gets a unique storage path — re-uploading
+  // the same week would otherwise hit Supabase CDN cache and show the old image.
   const imageUrl = input.imageUrls.length
-    ? await persistStitchedUploadImage(`schedule-${leagueId}-${seasonNumber}-${weekNumber}`, input.imageUrls)
+    ? await persistStitchedUploadImage(`schedule-${leagueId}-${seasonNumber}-${weekNumber}-${Date.now()}`, input.imageUrls)
     : null;
 
   // A new upload supersedes any prior pending review for this week.
