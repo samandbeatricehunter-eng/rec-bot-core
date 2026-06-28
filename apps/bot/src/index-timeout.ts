@@ -906,17 +906,21 @@ async function handleGotwSelect(interaction: any) {
   if (!game || !channel) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceMgmtRows() });
   }
+  const awayLabel = teamDisplay(game.away_team).slice(0, 55);
+  const homeLabel = teamDisplay(game.home_team).slice(0, 55);
   await channel.send({
     content: "@everyone",
-    embeds: [new EmbedBuilder()
-      .setTitle("Who will win this week's GOTW?")
-      .setDescription(`**${teamDisplay(game.away_team)}** at **${teamDisplay(game.home_team)}**\n\nVote with the buttons below. Poll closes in 8 hours.`)],
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`rec:gotw_vote:${selectedGameId}:away`).setLabel(teamDisplay(game.away_team).slice(0, 80)).setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(`rec:gotw_vote:${selectedGameId}:home`).setLabel(teamDisplay(game.home_team).slice(0, 80)).setStyle(ButtonStyle.Primary)
-    )],
-    allowedMentions: { parse: ["everyone"] }
-  });
+    poll: {
+      question: { text: `Who will win this week's GOTW? ${awayLabel} at ${homeLabel}`.slice(0, 300) },
+      answers: [
+        { poll_media: { text: awayLabel } },
+        { poll_media: { text: homeLabel } },
+      ],
+      duration: 8,
+      allow_multiselect: false,
+    },
+    allowedMentions: { parse: ["everyone"] },
+  } as any);
   return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Posted").setDescription(`Posted GOTW poll to the voting polls channel for ${stageLabel(stage, currentWeek)}.`)], components: buildAdvanceMgmtRows() });
 }
 
@@ -981,7 +985,7 @@ async function handleGameChannels(interaction: ButtonInteraction) {
         ...(game.away_discord_id ? [{ id: game.away_discord_id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }] : []),
         ...(game.home_discord_id ? [{ id: game.home_discord_id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }] : []),
       ]
-    }).catch(() => null);
+    }).catch((err) => { console.error("[ERROR] Failed to create game channel:", err?.message ?? err); return null; });
     if (!ch?.isTextBased()) continue;
     created.push(`<#${ch.id}>`);
     await recApi.registerGameChannel({
@@ -1010,20 +1014,22 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       ]
     }).catch(() => undefined);
   }
-  const announcements = await getAnnouncementsChannel(interaction.guild, routes);
-  if (announcements?.isTextBased() && "send" in announcements) {
-    const boxScores = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the Box Scores channel";
-    await announcements.send({
-      content: "@everyone",
-      embeds: [new EmbedBuilder().setTitle("Weekly Box Scores Required").setDescription([
-        `Game channels have been created for ${stageLabel(stage, currentWeek)}.`,
-        "",
-        `Even if you do not have an H2H matchup this week, upload a box score screenshot to ${boxScores} before the league advances if you want payouts and stats logged.`,
-        "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
-        "If your opponent cannot make it, request a 1-week autopilot to get your stats and payout IF you play and submit the box score."
-      ].join("\n"))],
-      allowedMentions: { parse: ["everyone"] }
-    }).catch(() => undefined);
+  if (created.length) {
+    const announcements = await getAnnouncementsChannel(interaction.guild, routes);
+    if (announcements?.isTextBased() && "send" in announcements) {
+      const boxScores = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the Box Scores channel";
+      await announcements.send({
+        content: "@everyone",
+        embeds: [new EmbedBuilder().setTitle("Weekly Box Scores Required").setDescription([
+          `Game channels have been created for ${stageLabel(stage, currentWeek)}.`,
+          "",
+          `Even if you do not have an H2H matchup this week, upload a box score screenshot to ${boxScores} before the league advances if you want payouts and stats logged.`,
+          "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
+          "If your opponent cannot make it, request a 1-week autopilot to get your stats and payout IF you play and submit the box score."
+        ].join("\n"))],
+        allowedMentions: { parse: ["everyone"] }
+      }).catch(() => undefined);
+    }
   }
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Game Channels").setDescription([
