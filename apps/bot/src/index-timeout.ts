@@ -66,12 +66,14 @@ import {
 } from "./flows/advance-wizard.js";
 import {
   ADVANCE_TIME_CUSTOM_IDS,
+  HEADLINES_CUSTOM_IDS,
   handleAdvanceTimeDateSelect,
   handleAdvanceTimeTzSelect,
   handleAdvanceTimeTimeSelect,
   handleAdvanceTimeSet,
   handleAdvanceTimeSkip,
   handleAdvanceTimeBack,
+  handleHeadlinesNav,
 } from "./flows/advance-time.js";
 import { stageLabel } from "./lib/league-stage.js";
 import {
@@ -529,6 +531,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.setBtn) return handleAdvanceTimeSet(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.skipBtn) return handleAdvanceTimeSkip(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.backBtn) return handleAdvanceTimeBack(interaction, buildAdvanceMgmtRows);
+      if (interaction.customId.startsWith(HEADLINES_CUSTOM_IDS.prevPrefix)) return handleHeadlinesNav(interaction, "prev");
+      if (interaction.customId.startsWith(HEADLINES_CUSTOM_IDS.nextPrefix)) return handleHeadlinesNav(interaction, "next");
       if (interaction.customId === MENU_CUSTOM_IDS.teamsBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transfer) return handleWalletTransferOpen(interaction);
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferAll}:`)) return handleWalletTransferAll(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");

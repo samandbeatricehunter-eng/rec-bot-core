@@ -292,7 +292,17 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
   }
 }
 
-function buildStoryEmbed(story: any) {
+export const HEADLINES_CUSTOM_IDS = {
+  prevPrefix: "rec:headlines:prev:",
+  nextPrefix: "rec:headlines:next:",
+} as const;
+
+// Custom ID format: rec:headlines:prev/next:guildId:season:week:currentPage
+function buildHeadlinesNavId(dir: "prev" | "next", guildId: string, season: number, week: number, page: number) {
+  return `rec:headlines:${dir}:${guildId}:${season}:${week}:${page}`;
+}
+
+function buildStoryEmbed(story: any, page: number, total: number, season: number, week: number) {
   const notes = Array.isArray(story.notes) ? story.notes.filter(Boolean) : [];
   const badgeLines = (Array.isArray(story.badges) ? story.badges : [])
     .slice(0, 8)
@@ -302,14 +312,29 @@ function buildStoryEmbed(story: any) {
     });
 
   const embed = new EmbedBuilder()
-    .setTitle(String(story.headline ?? "REC Game Story").slice(0, 256))
+    .setTitle(`📰 Season ${season}, Week ${week} Headlines`)
     .setColor(0xf1c40f)
-    .setDescription(String(story.body ?? "Game story generated from the approved box score.").slice(0, 4096))
-    .setFooter({ text: `Season ${story.season}, Week ${story.week}` });
+    .addFields({ name: story.headline ?? "Game Story", value: String(story.body ?? "Game story generated from the approved box score.").slice(0, 1024) });
 
   if (notes.length) embed.addFields({ name: "Key Notes", value: notes.slice(0, 3).join("\n").slice(0, 1024) });
-  if (badgeLines.length) embed.addFields({ name: "Badges", value: badgeLines.join("\n").slice(0, 1024) });
+  if (badgeLines.length) embed.addFields({ name: "Badges Earned", value: badgeLines.join("\n").slice(0, 1024) });
+  embed.setFooter({ text: `Story ${page + 1} of ${total}` });
   return embed;
+}
+
+function buildHeadlinesNavRow(guildId: string, season: number, week: number, page: number, total: number) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(buildHeadlinesNavId("prev", guildId, season, week, page))
+      .setLabel("◀ Prev")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page === 0),
+    new ButtonBuilder()
+      .setCustomId(buildHeadlinesNavId("next", guildId, season, week, page))
+      .setLabel("Next ▶")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page >= total - 1),
+  );
 }
 
 type HeadlinePublishResult = {
@@ -333,10 +358,19 @@ async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession
       weekNumber: session.completedWeekNumber,
     });
     const stories: any[] = result?.stories ?? [];
-    let posted = 0;
+    if (!stories.length) return { posted: 0, configured: true, accessible: true };
+
+    const season = session.completedSeasonNumber;
+    const week = session.completedWeekNumber;
+    const total = stories.length;
+
+    const message = await channel.send({
+      embeds: [buildStoryEmbed(stories[0], 0, total, season, week)],
+      components: total > 1 ? [buildHeadlinesNavRow(session.guildId, season, week, 0, total)] : [],
+    });
+
+    // Mark all stories as posted with the single message they now share.
     for (const story of stories) {
-      const message = await channel.send({ embeds: [buildStoryEmbed(story)] });
-      posted += 1;
       await recApi.markAdvanceStoryPosted({
         guildId: session.guildId,
         storyId: story.id,
@@ -346,11 +380,34 @@ async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession
         console.error("[ERROR] Failed to stamp posted game story (non-fatal):", error);
       });
     }
-    return { posted, configured: true, accessible: true };
+    return { posted: total, configured: true, accessible: true };
   } catch (error) {
     console.error("[ERROR] Failed to publish advance headlines (non-fatal):", error);
     return { posted: 0, configured: true, accessible: true };
   }
+}
+
+export async function handleHeadlinesNav(interaction: ButtonInteraction, dir: "prev" | "next") {
+  if (!interaction.inCachedGuild()) return;
+  const parts = interaction.customId.split(":");
+  // format: rec:headlines:dir:guildId:season:week:page  (indices 0-6)
+  const guildId = parts[3];
+  const season = Number(parts[4]);
+  const week = Number(parts[5]);
+  const currentPage = Number(parts[6]);
+  if (!guildId || isNaN(season) || isNaN(week) || isNaN(currentPage)) return;
+
+  const nextPage = dir === "next" ? currentPage + 1 : currentPage - 1;
+
+  const result = await recApi.listAdvanceStories({ guildId, seasonNumber: season, weekNumber: week }).catch(() => null);
+  const stories: any[] = result?.stories ?? [];
+  if (!stories.length) return interaction.update({});
+
+  const safePage = Math.max(0, Math.min(nextPage, stories.length - 1));
+  await interaction.update({
+    embeds: [buildStoryEmbed(stories[safePage], safePage, stories.length, season, week)],
+    components: [buildHeadlinesNavRow(guildId, season, week, safePage, stories.length)],
+  });
 }
 
 function headlinePublishLine(result: HeadlinePublishResult) {
