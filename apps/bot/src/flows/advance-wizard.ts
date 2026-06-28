@@ -9,6 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type ButtonInteraction,
+  type Guild,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
@@ -203,9 +204,61 @@ async function completeAdvanceFromSession(
     ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
     : "";
 
+  // Settle the GOTW poll for the week that just completed.
+  if (interaction.guild) await settleGotwForWeek(interaction.guild, session.guildId, session.currentWeek).catch((err) => {
+    console.error("[ERROR] GOTW settlement failed (non-fatal):", err);
+  });
+
   const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}`;
   sessions.delete(sessionKey(session.guildId, session.userId));
   return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: session.currentWeek });
+}
+
+async function settleGotwForWeek(guild: Guild, guildId: string, weekNumber: number) {
+  const poll = await recApi.getActiveGotwPoll({ guildId, weekNumber }).catch(() => null);
+  if (!poll?.id || !poll.discord_channel_id || !poll.discord_message_id) return;
+
+  // Fetch the Discord message that holds the native poll.
+  const channel = await guild.channels.fetch(poll.discord_channel_id).catch(() => null);
+  if (!channel?.isTextBased() || !("messages" in channel)) return;
+  const message = await (channel as any).messages.fetch(poll.discord_message_id).catch(() => null);
+  if (!message?.poll) return;
+
+  // End the poll early so results are final (Discord freezes vote counts on end).
+  const endedPoll = await message.poll.end().catch(() => message.poll);
+
+  // answer_id 1 = away team, answer_id 2 = home team (order we inserted them).
+  const awayAnswer = endedPoll.answers?.get(1);
+  const homeAnswer = endedPoll.answers?.get(2);
+  const awayVotes = awayAnswer?.voteCount ?? 0;
+  const homeVotes = homeAnswer?.voteCount ?? 0;
+
+  // Winning team: more votes wins; tie = null (no payout).
+  const winningTeamId =
+    awayVotes > homeVotes ? poll.away_team_id :
+    homeVotes > awayVotes ? poll.home_team_id : null;
+
+  // Collect all voters from both answers.
+  const voters: { discordId: string; selectedTeamId: string }[] = [];
+  for (const [answerId, teamId] of [[1, poll.away_team_id], [2, poll.home_team_id]] as [number, string][]) {
+    const answer = endedPoll.answers?.get(answerId);
+    if (!answer) continue;
+    try {
+      const voterCollection = await answer.fetchVoters();
+      for (const [, user] of voterCollection) {
+        if (!user.bot) voters.push({ discordId: user.id, selectedTeamId: teamId });
+      }
+    } catch {
+      // fetchVoters may fail if poll has no votes — non-fatal.
+    }
+  }
+
+  await recApi.settleGotwPoll({
+    guildId,
+    pollId: poll.id,
+    winningTeamId,
+    voters,
+  });
 }
 
 export async function startAdvanceWeekWizard(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {

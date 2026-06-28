@@ -235,6 +235,22 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
+  createGotwPoll: (input: {
+    guildId: string; gameId: string; awayTeamId: string; homeTeamId: string;
+    awayUserId?: string | null; homeUserId?: string | null;
+    awayTeamName: string; homeTeamName: string;
+    discordChannelId: string; discordMessageId: string;
+    weekNumber: number; expiresAt: string;
+  }) => recFetch<any>("/v1/gotw/poll/create", { method: "POST", body: JSON.stringify(input) }),
+
+  getActiveGotwPoll: (input: { guildId: string; weekNumber: number }) =>
+    recFetch<any>("/v1/gotw/poll/active", { method: "POST", body: JSON.stringify(input) }),
+
+  settleGotwPoll: (input: {
+    guildId: string; pollId: string; winningTeamId: string | null;
+    voters: { discordId: string; userId?: string | null; selectedTeamId: string }[];
+  }) => recFetch<any>("/v1/gotw/poll/settle", { method: "POST", body: JSON.stringify(input) }),
+
   createTeamLinkRequest: (input: { guildId: string; discordId: string; teamId: string }) =>
     recFetch<any>("/v1/team-requests/create", {
       method: "POST",

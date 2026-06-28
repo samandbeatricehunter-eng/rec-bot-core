@@ -908,19 +908,36 @@ async function handleGotwSelect(interaction: any) {
   }
   const awayLabel = teamDisplay(game.away_team).slice(0, 55);
   const homeLabel = teamDisplay(game.home_team).slice(0, 55);
-  await channel.send({
+  const pollDurationHours = 8;
+  const expiresAt = new Date(Date.now() + pollDurationHours * 60 * 60 * 1000).toISOString();
+  const pollMsg = await channel.send({
     content: "@everyone",
     poll: {
       question: { text: `Who will win this week's GOTW? ${awayLabel} at ${homeLabel}`.slice(0, 300) },
       answers: [
-        { poll_media: { text: awayLabel } },
-        { poll_media: { text: homeLabel } },
+        { poll_media: { text: awayLabel } },  // answer_id 1 = away
+        { poll_media: { text: homeLabel } },  // answer_id 2 = home
       ],
-      duration: 8,
+      duration: pollDurationHours,
       allow_multiselect: false,
     },
     allowedMentions: { parse: ["everyone"] },
   } as any);
+  // Create DB record so the advance can settle this poll and pay out correct guessers.
+  await recApi.createGotwPoll({
+    guildId: interaction.guildId,
+    gameId: selectedGameId,
+    awayTeamId: game.away_team?.id ?? game.away_team_id,
+    homeTeamId: game.home_team?.id ?? game.home_team_id,
+    awayUserId: game.away_user_id ?? null,
+    homeUserId: game.home_user_id ?? null,
+    awayTeamName: awayLabel,
+    homeTeamName: homeLabel,
+    discordChannelId: channel.id,
+    discordMessageId: pollMsg.id,
+    weekNumber: currentWeek,
+    expiresAt,
+  }).catch((err: unknown) => console.error("[ERROR] Failed to create GOTW poll record (non-fatal):", err));
   return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Posted").setDescription(`Posted GOTW poll to the voting polls channel for ${stageLabel(stage, currentWeek)}.`)], components: buildAdvanceMgmtRows() });
 }
 
