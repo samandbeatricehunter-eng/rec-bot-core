@@ -28,6 +28,7 @@ export const BOX_SCORE_CUSTOM_IDS = {
   adminWeekSelect: "rec:box_score_admin:week",
   adminGameSelect: "rec:box_score_admin:game",
   adminCancel: "rec:box_score_admin:cancel",
+  adminAnotherPrefix: "rec:box_score_admin:another:", // + weekNumber:seasonNumber
   approvePrefix: "rec:box_score:approve:",      // + submissionId
   denyModalPrefix: "rec:box_score:deny_modal:", // + submissionId
   denyReasonInput: "rec:box_score:deny_reason",
@@ -344,6 +345,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
         .setDescription(posted
           ? `Parsed ${session.gameLabel} and sent it to Pending Payouts for commissioner approval.`
           : `Parsed ${session.gameLabel}, but no Pending Payouts channel is configured.`)],
+      components: [buildAdminAnotherRow(session.weekNumber, session.seasonNumber ?? null)],
     }).catch(() => undefined);
   } catch (err) {
     await message.delete().catch(() => undefined);
@@ -1064,4 +1066,43 @@ function buildAdminCancelRow() {
     new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.adminCancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary)
   );
+}
+
+function buildAdminAnotherRow(weekNumber: number, seasonNumber: number | null) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${BOX_SCORE_CUSTOM_IDS.adminAnotherPrefix}${weekNumber}:${seasonNumber ?? ""}`)
+      .setLabel("Upload Another")
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary),
+  );
+}
+
+export async function handleBoxScoreAdminAnother(interaction: ButtonInteraction) {
+  if (!isDiscordAdminInteraction(interaction)) return;
+  if (!interaction.inCachedGuild()) return;
+  const payload = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.adminAnotherPrefix.length);
+  const [weekStr, seasonStr] = payload.split(":");
+  const weekNumber = Number(weekStr);
+  const seasonNumber = seasonStr ? Number(seasonStr) : null;
+  await interaction.deferUpdate();
+  try {
+    const result = await recApi.listBoxScoreGames({ guildId: interaction.guildId, weekNumber });
+    const games = result?.games ?? [];
+    if (!games.length) {
+      return interaction.editReply({
+        embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xf1c40f).setDescription(`No remaining scheduled games found for Week ${weekNumber}.`)],
+        components: [buildAdminCancelRow()],
+      });
+    }
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setDescription(`Select the scheduled game for Week ${weekNumber}.`)],
+      components: buildAdminGameRows(games, weekNumber, seasonNumber ?? result?.league?.seasonNumber ?? null),
+    });
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: [buildAdminCancelRow()],
+    });
+  }
 }

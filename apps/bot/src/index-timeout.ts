@@ -121,6 +121,7 @@ import {
   BOX_SCORE_CUSTOM_IDS,
   handleBoxScoreApprove,
   handleBoxScoreAdminCancel,
+  handleBoxScoreAdminAnother,
   handleBoxScoreAdminGameSelect,
   handleBoxScoreAdminWeekSelect,
   handleBoxScoreCancel,
@@ -503,6 +504,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.cancel) return handleBoxScoreCancel(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submissionsOpen) return handleBoxScoreSubmissions(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminCancel) return handleBoxScoreAdminCancel(interaction);
+      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.adminAnotherPrefix)) return handleBoxScoreAdminAnother(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submitConfirm) return handleBoxScoreSubmitConfirm(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);

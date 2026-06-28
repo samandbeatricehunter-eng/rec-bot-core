@@ -1216,6 +1216,14 @@ export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Pr
     const q2 = correctionQuarterList(input.team2);
     update.quarter_scores = { team1: q1, team2: q2 };
     Object.assign(update, comebackUpdate(computeComebackStats(q1, q2, sub.team1_id, sub.team2_id)));
+    // Derive the final score from the corrected quarters automatically.
+    if (q1.length > 0 || q2.length > 0) {
+      const t1Total = q1.reduce((s, n) => s + n, 0);
+      const t2Total = q2.reduce((s, n) => s + n, 0);
+      const team1IsHome = !!(sub.team1_id && sub.home_team_id && sub.home_team_id === sub.team1_id);
+      update.home_score = team1IsHome ? t1Total : t2Total;
+      update.away_score = team1IsHome ? t2Total : t1Total;
+    }
   } else if (input.field === "matchup") {
     if (!input.gameId) throw new ApiError(400, "Select a scheduled game to re-link this box score.");
     const shaped = shapeSubmissionForEmbed(sub);
