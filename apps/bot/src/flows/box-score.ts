@@ -345,7 +345,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
         .setDescription(posted
           ? `Parsed ${session.gameLabel} and sent it to Pending Payouts for commissioner approval.`
           : `Parsed ${session.gameLabel}, but no Pending Payouts channel is configured.`)],
-      components: [buildAdminAnotherRow(session.weekNumber, session.seasonNumber ?? null)],
+      components: [],
     }).catch(() => undefined);
   } catch (err) {
     await message.delete().catch(() => undefined);
@@ -882,7 +882,7 @@ export async function handleBoxScoreAdminGameSelect(interaction: StringSelectMen
     embeds: [new EmbedBuilder()
       .setTitle("Upload Box Score")
       .setDescription(`Now upload exactly one box score image for **${gameLabel}** — Week ${weekNumber} — in this channel. The image will be deleted after parsing.`)],
-    components: [buildAdminCancelRow()],
+    components: [buildAdminAnotherRow(weekNumber, seasonNumber)],
   });
 }
 
