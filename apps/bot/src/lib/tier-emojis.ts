@@ -1,13 +1,12 @@
 export type RecDisplayTier = "normal" | "bronze" | "silver" | "gold" | "xf";
 
 export const TIER_EMOJIS: Record<Exclude<RecDisplayTier, "normal">, string> = {
-  bronze: "🥉",
-  silver: "⭐",
-  gold: "🌟",
-  xf: "⚡",
+  bronze: "<:dev_Hidden:1519768397796212847>",
+  silver: "<:dev_star:1494392249163972699>",
+  gold: "<:dev_superstar:1494392251776897134>",
+  xf: "<:dev_xfactor:1494392253177663688>",
 };
 
-// Keep for backwards compatibility (referenced in index-timeout.ts)
 export const DEV_TIER_EMOJIS = TIER_EMOJIS;
 
 export function normalizeDisplayTier(tier?: string | null): RecDisplayTier {
