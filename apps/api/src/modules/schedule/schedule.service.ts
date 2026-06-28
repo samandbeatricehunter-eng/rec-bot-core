@@ -125,18 +125,40 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load season schedule.", error);
 
-  const userIds = [...new Set((data ?? []).flatMap((game: any) => [game.away_user_id, game.home_user_id]).filter(Boolean))];
-  const accounts = userIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
+  // Resolve user IDs from current active team assignments rather than the stale
+  // stored home_user_id/away_user_id values — those were written at schedule-import
+  // time and are null when teams weren't linked to users yet.
+  const teamIds = [...new Set((data ?? []).flatMap((game: any) => [game.home_team_id, game.away_team_id]).filter(Boolean))];
+  const assignments = teamIds.length
+    ? await supabase
+        .from("rec_team_assignments")
+        .select("team_id,user_id")
+        .eq("league_id", context.leagueId)
+        .in("team_id", teamIds)
+        .eq("assignment_status", "active")
+        .is("ended_at", null)
+    : { data: [], error: null };
+  if (assignments.error) throw new ApiError(500, "Failed to load team assignments for schedule.", assignments.error);
+  const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id]));
+
+  const allUserIds = [...new Set([...userByTeam.values()].filter(Boolean))];
+  const accounts = allUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", allUserIds)
     : { data: [], error: null };
   if (accounts.error) throw new ApiError(500, "Failed to load schedule Discord accounts.", accounts.error);
   const discordByUser = new Map((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
 
-  const games = (data ?? []).map((game: any) => ({
-    ...game,
-    away_discord_id: game.away_user_id ? discordByUser.get(game.away_user_id) ?? null : null,
-    home_discord_id: game.home_user_id ? discordByUser.get(game.home_user_id) ?? null : null,
-  }));
+  const games = (data ?? []).map((game: any) => {
+    const homeUserId = userByTeam.get(game.home_team_id) ?? game.home_user_id ?? null;
+    const awayUserId = userByTeam.get(game.away_team_id) ?? game.away_user_id ?? null;
+    return {
+      ...game,
+      home_user_id: homeUserId,
+      away_user_id: awayUserId,
+      away_discord_id: awayUserId ? discordByUser.get(awayUserId) ?? null : null,
+      home_discord_id: homeUserId ? discordByUser.get(homeUserId) ?? null : null,
+    };
+  });
 
   return {
     league: {
