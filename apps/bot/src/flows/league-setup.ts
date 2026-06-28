@@ -25,6 +25,7 @@ import {
   setPurchaseAllTimeCapValue,
   setPurchaseCapValue,
   setLeagueSetupServerChannel,
+  LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS,
   type LeagueSetupDraft,
   type LeagueSetupSettingsCategory,
   type PurchaseAllTimeCapKind,
@@ -259,21 +260,22 @@ async function saveDraftEditIfNeeded(interaction: { guildId: string | null; user
   if (!draft.editMode || !interaction.guildId) return;
   try {
     await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
-    await recApi.setEconomyConfig({
-      guildId: interaction.guildId,
-      commissionerOfficeChannelId: draft.commissionerOfficeChannelId ?? undefined,
-      announcementsChannelId: draft.announcementsChannelId ?? undefined,
-      headlinesChannelId: draft.headlinesChannelId ?? undefined,
-      votingPollsChannelId: draft.votingPollsChannelId ?? undefined,
-      streamsChannelId: draft.streamsChannelId ?? undefined,
-      highlightsChannelId: draft.highlightsChannelId ?? undefined,
-      pendingPayoutsChannelId: draft.pendingPayoutsChannelId ?? undefined,
-      pendingPurchasesChannelId: draft.pendingPurchasesChannelId ?? undefined,
-      boxScoresChannelId: draft.boxScoresChannelId ?? undefined,
-      gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
-    });
   } catch (err) {
-    console.error("[ERROR] Failed to save league setup edit:", err);
+    console.error("[ERROR] Failed to save league setting edit:", err);
+  }
+}
+
+// Saves a single channel assignment that the user explicitly changed in the
+// current session. Kept separate from saveDraftEditIfNeeded so that bulk
+// navigation saves (Next/Back) never overwrite channels set via the direct
+// Server Setup panel with stale draft values.
+async function saveChannelEditIfNeeded(interaction: { guildId: string | null; user: { id: string } }, draft: LeagueSetupDraft, channelField: string) {
+  if (!draft.editMode || !interaction.guildId) return;
+  const value = (draft as any)[channelField] ?? undefined;
+  try {
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, [channelField]: value });
+  } catch (err) {
+    console.error("[ERROR] Failed to save channel edit:", err);
   }
 }
 
@@ -458,9 +460,12 @@ export async function handleLeagueSetupServerChannelModal(interaction: Extract<I
   if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
   const channelType = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelModal}:`.length);
   const value = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelInput).trim() || null;
+  const option = LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS[channelType as keyof typeof LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS];
   setLeagueSetupServerChannel(draft, channelType, value);
   leagueSetupSessions.set(interaction.user.id, draft);
-  await saveDraftEditIfNeeded(interaction, draft);
+  // Save only the channel the user just changed — not the full draft — so stale
+  // draft values can't overwrite channels set via the direct Server Setup panel.
+  if (option) await saveChannelEditIfNeeded(interaction, draft, option.field);
   return interaction.reply({ ...buildLeagueSetupWindow(draft), flags: MessageFlags.Ephemeral });
 }
 
