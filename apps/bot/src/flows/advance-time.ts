@@ -327,13 +327,11 @@ function buildHeadlinesNavRow(guildId: string, season: number, week: number, pag
     new ButtonBuilder()
       .setCustomId(buildHeadlinesNavId("prev", guildId, season, week, page))
       .setLabel("◀ Prev")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page === 0),
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(buildHeadlinesNavId("next", guildId, season, week, page))
       .setLabel("Next ▶")
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(page >= total - 1),
+      .setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -403,7 +401,7 @@ export async function handleHeadlinesNav(interaction: ButtonInteraction, dir: "p
   const stories: any[] = result?.stories ?? [];
   if (!stories.length) return interaction.update({});
 
-  const safePage = Math.max(0, Math.min(nextPage, stories.length - 1));
+  const safePage = ((nextPage % stories.length) + stories.length) % stories.length;
   await interaction.update({
     embeds: [buildStoryEmbed(stories[safePage], safePage, stories.length, season, week)],
     components: [buildHeadlinesNavRow(guildId, season, week, safePage, stories.length)],
