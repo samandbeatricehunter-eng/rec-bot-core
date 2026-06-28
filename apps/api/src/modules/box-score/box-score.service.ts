@@ -418,6 +418,7 @@ function shapeSubmissionForEmbed(sub: any): CreateSubmissionResult {
     flagged: !!sub.flagged,
     flagReasons: (sub.flag_reasons as string[] | null) ?? [],
     imageUrl: sub.image_storage_url ?? null,
+    supersededLedgerMessageIds: [],
   };
 }
 
@@ -692,6 +693,7 @@ export type CreateSubmissionResult = {
   flagged: boolean;
   flagReasons: string[];
   imageUrl: string | null;
+  supersededLedgerMessageIds: string[];
 };
 
 export async function createBoxScoreSubmission(input: CreateSubmissionInput): Promise<CreateSubmissionResult> {
@@ -727,7 +729,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   // misread abbreviation can't misroute it.
   const effectiveGameId = input.expectedGameId ?? selfServeGameId;
   const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, effectiveGameId);
-  if (resolved.gameId) await clearStalePendingForGame(resolved.gameId);
+  const supersededLedgerMessageIds = resolved.gameId ? await clearStalePendingForGame(resolved.gameId) : [];
 
   // Display the resolved league team's abbreviation (authoritative), falling back
   // to the raw OCR scoreboard only when the game couldn't be resolved.
@@ -867,6 +869,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     flagged,
     flagReasons,
     imageUrl: imageStorageUrl ?? firstImage,
+    supersededLedgerMessageIds,
   };
 }
 
@@ -1328,10 +1331,12 @@ async function getBoxScorePaidPlayers(payouts: { userId: string; amount: number 
 // (block). A still-pending review is stale once a new screenshot arrives (the
 // commissioner is re-uploading, or a prior deny failed to land), so supersede it
 // instead of trapping the resubmission behind a 409.
-async function clearStalePendingForGame(gameId: string) {
+// Returns the ledger Discord message IDs of any superseded pending submissions
+// so the bot can delete the old pending-payouts embeds before posting the new one.
+async function clearStalePendingForGame(gameId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("rec_box_score_submissions")
-    .select("id,status,payout_issued")
+    .select("id,status,payout_issued,ledger_discord_message_id")
     .eq("game_id", gameId)
     .in("status", ["pending", "approved"]);
   if (error) throw new ApiError(500, "Failed to check existing box score payouts.", error);
@@ -1339,9 +1344,10 @@ async function clearStalePendingForGame(gameId: string) {
   if (rows.some((r) => r.status === "approved" || r.payout_issued)) {
     throw new ApiError(409, "A payout has already been issued for this scheduled game.");
   }
-  const pendingIds = rows.filter((r) => r.status === "pending").map((r) => r.id);
-  if (pendingIds.length === 0) return;
+  const pendingRows = rows.filter((r) => r.status === "pending");
+  if (pendingRows.length === 0) return [];
 
+  const pendingIds = pendingRows.map((r) => r.id);
   const now = new Date().toISOString();
   await supabase
     .from("rec_box_score_submissions")
@@ -1352,6 +1358,10 @@ async function clearStalePendingForGame(gameId: string) {
     .update({ status: "denied", reviewed_at: now, review_reason: "Superseded by a newer submission for this game." })
     .eq("source_table", "rec_box_score_submissions")
     .in("source_id", pendingIds);
+
+  return pendingRows
+    .map((r) => r.ledger_discord_message_id as string | null)
+    .filter((id): id is string => !!id);
 }
 
 async function assertNoExistingBoxScorePayout(gameId: string, currentSubmissionId: string | null) {

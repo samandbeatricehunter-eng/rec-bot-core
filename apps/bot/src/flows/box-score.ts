@@ -333,8 +333,15 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
     if (payoutsChannelId) {
       const ch = await channel.client.channels.fetch(payoutsChannelId).catch(() => null);
       if (ch && ch.isTextBased() && !ch.isDMBased()) {
-        await (ch as TextChannel).send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
+        const payoutsCh = ch as TextChannel;
+        // Delete any superseded pending-payouts embeds for this game before posting the new one.
+        for (const oldMsgId of result.supersededLedgerMessageIds ?? []) {
+          await payoutsCh.messages.delete(oldMsgId).catch(() => undefined);
+        }
+        const newMsg = await payoutsCh.send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
         posted = true;
+        // Store the new message ID so future re-uploads can delete this embed too.
+        await recApi.updateBoxScoreLedgerMessage({ submissionId: result.submissionId, ledgerDiscordMessageId: newMsg.id }).catch(() => undefined);
       }
     }
 
@@ -420,7 +427,11 @@ async function advanceExchange(ex: Exchange) {
     try {
       const ch = await ex.channel.client.channels.fetch(payoutsChannelId);
       if (ch && ch.isTextBased() && !ch.isDMBased()) {
-        await (ch as TextChannel).send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
+        const payoutsCh = ch as TextChannel;
+        for (const oldMsgId of result.supersededLedgerMessageIds ?? []) {
+          await payoutsCh.messages.delete(oldMsgId).catch(() => undefined);
+        }
+        await payoutsCh.send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
       }
     } catch {
       /* pending payouts channel unavailable */
