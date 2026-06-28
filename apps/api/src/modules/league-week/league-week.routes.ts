@@ -168,6 +168,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         guildId: z.string().min(1),
         seasonNumber: z.number().int().min(1),
         weekNumber: z.number().int().min(1).max(30),
+        includePosted: z.boolean().optional(),
       }).parse(request.body);
       return reply.send(await listAdvanceGameStories(body));
     } catch (error) {

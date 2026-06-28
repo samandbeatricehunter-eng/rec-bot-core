@@ -223,7 +223,7 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
-  listAdvanceStories: (input: { guildId: string; seasonNumber: number; weekNumber: number }) =>
+  listAdvanceStories: (input: { guildId: string; seasonNumber: number; weekNumber: number; includePosted?: boolean }) =>
     recFetch<any>("/v1/league-week/advance-stories", {
       method: "POST",
       body: JSON.stringify(input),

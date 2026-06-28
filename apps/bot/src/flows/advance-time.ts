@@ -363,6 +363,7 @@ async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession
     const total = stories.length;
 
     const message = await channel.send({
+      content: "@everyone",
       embeds: [buildStoryEmbed(stories[0], 0, total, season, week)],
       components: total > 1 ? [buildHeadlinesNavRow(session.guildId, season, week, 0, total)] : [],
     });
@@ -397,7 +398,7 @@ export async function handleHeadlinesNav(interaction: ButtonInteraction, dir: "p
 
   const nextPage = dir === "next" ? currentPage + 1 : currentPage - 1;
 
-  const result = await recApi.listAdvanceStories({ guildId, seasonNumber: season, weekNumber: week }).catch(() => null);
+  const result = await recApi.listAdvanceStories({ guildId, seasonNumber: season, weekNumber: week, includePosted: true }).catch(() => null);
   const stories: any[] = result?.stories ?? [];
   if (!stories.length) return interaction.update({});
 

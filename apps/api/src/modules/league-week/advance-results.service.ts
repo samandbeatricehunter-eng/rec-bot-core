@@ -389,17 +389,19 @@ export async function listAdvanceGameStories(input: {
   guildId: string;
   seasonNumber: number;
   weekNumber: number;
+  includePosted?: boolean;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
 
-  const { data: stories, error } = await supabase
+  let query = supabase
     .from("rec_game_stories")
     .select("id,game_id,season,week,winner_team_id,loser_team_id,primary_angle,headline,body,notes,posted_message_id,posted_channel_id,created_at")
     .eq("league_id", context.leagueId)
     .eq("season", input.seasonNumber)
     .eq("week", input.weekNumber)
-    .is("posted_message_id", null)
     .order("created_at", { ascending: true });
+  if (!input.includePosted) query = query.is("posted_message_id", null);
+  const { data: stories, error } = await query;
   if (error) throw new ApiError(500, "Failed to load game stories for advance publishing.", error);
 
   const gameIds = [...new Set((stories ?? []).map((story) => story.game_id).filter(Boolean))];
