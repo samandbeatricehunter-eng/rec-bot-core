@@ -989,6 +989,10 @@ async function handleGameChannels(interaction: ButtonInteraction) {
     });
   }
   const created: string[] = [];
+  const config = await recApi.getLeagueConfig(interaction.guildId).catch(() => null);
+  const isPlayoff = currentWeek >= 19;
+  const rulesLines = gameRulesLines(config?.draft ?? null, isPlayoff);
+  const boxScoresMention = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the box scores channel";
   for (const game of h2h) {
     const away = teamDisplay(game.away_team);
     const home = teamDisplay(game.home_team);
@@ -1022,10 +1026,10 @@ async function handleGameChannels(interaction: ButtonInteraction) {
         new EmbedBuilder().setTitle("Game Channel").setDescription([
           "Play your game here and coordinate respectfully.",
           "",
-          "**4th Down Rules:** Follow the current league rules as configured by commissioners.",
-          "**Streaming:** Follow this week's league streaming requirements.",
+          ...rulesLines,
           "",
-          "Failure to post your box score image after the game WILL result in no payouts and no stat accumulation for awards and EOS payouts."
+          `After the game, post your box score screenshot in ${boxScoresMention} — not in this channel.`,
+          "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts."
         ].join("\n")),
         weeklyChallengesEmbed()
       ]
@@ -1214,6 +1218,37 @@ async function updateLeagueSeason(guildId: string, seasonNumber: number) {
   return recApi.setLeagueWeek({ guildId, weekNumber, seasonStage, seasonNumber });
 }
 
+// Render the league's configured 4th-down and streaming rules as displayable
+// lines for the game channel embed, using the regular-season or postseason
+// values depending on the current phase. Falls back to generic wording when the
+// league config can't be loaded.
+function gameRulesLines(draft: any, isPlayoff: boolean): string[] {
+  const fourthType = isPlayoff ? draft?.fourthDownRuleTypePlayoff : draft?.fourthDownRuleTypeRegular;
+  const fourthCustom = isPlayoff ? draft?.customFourthDownRulePlayoff : draft?.customFourthDownRuleRegular;
+  let fourthText: string;
+  if (!draft || fourthType == null) fourthText = "Follow the current league 4th down rules.";
+  else if (fourthType === "none") fourthText = "No 4th down restrictions.";
+  else if (fourthType === "standard_rec") fourthText = "Standard REC Rule — only go for it past midfield on 4th & 3 or less; if trailing in the second half you may go for it anytime.";
+  else fourthText = fourthCustom && String(fourthCustom).trim() ? String(fourthCustom).trim() : "Custom league 4th down rules apply.";
+
+  const req = isPlayoff ? draft?.postseasonStreamingRequirement : draft?.regularSeasonStreamingRequirement;
+  const side = isPlayoff ? draft?.postseasonStreamingSide : draft?.regularSeasonStreamingSide;
+  let streamText: string;
+  if (!draft || req == null) streamText = "Follow this week's league streaming requirements.";
+  else if (req === "disabled") streamText = "Not required.";
+  else {
+    const reqLabel = req === "required" ? "Required" : "Recommended";
+    const sideLabel =
+      side === "home" ? "the home team must stream"
+      : side === "away" ? "the away team must stream"
+      : side === "both" ? "both teams must stream"
+      : "at least one team must stream";
+    streamText = `${reqLabel} — ${sideLabel}.`;
+  }
+
+  return [`**4th Down Rules:** ${fourthText}`, `**Streaming:** ${streamText}`];
+}
+
 function weeklyChallengesEmbed() {
   const star = DEV_TIER_EMOJIS.silver;
   const superstar = DEV_TIER_EMOJIS.gold;
@@ -1231,11 +1266,12 @@ function weeklyChallengesEmbed() {
     `Defensive Redzone Stop Rate: ${star} >65% +$10 | ${superstar} >85% +$15 | ${xfactor} 100% +$25`,
     "",
     "**Game Bonuses And Penalties**",
-    "4th Quarter Comeback +$50",
-    "Upset +$25 | Major Upset +$50",
-    "Shut-Out +$50",
-    "Slow-Starter -$10",
-    "Weak-Closer -$10"
+    "4th Quarter Comeback +$50 — win after trailing entering the 4th quarter.",
+    "Upset +$25 — beat any opponent ranked above you in the power rankings.",
+    "Major Upset +$50 — beat an opponent 10+ spots above you in the power rankings.",
+    "Shut-Out +$50 — hold your opponent to 0 points.",
+    "Slow-Starter -$10 — score 0 points in the 1st quarter.",
+    "Weak-Closer -$10 — lead entering the 4th quarter but lose by 14+ points."
   ].join("\n"));
 }
 
