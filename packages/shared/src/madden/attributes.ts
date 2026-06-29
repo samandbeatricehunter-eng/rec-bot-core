@@ -111,6 +111,29 @@ export const MADDEN_ATTRIBUTE_SELECTION_GROUPS: Record<MaddenAttributeGroupKey, 
   },
 };
 
+// Dropdown-safe grouping: exactly 3 groups, each ≤25 options, covering all 53 attributes.
+// Used by the Core-attribute config picker and the attribute purchase picker so selects stay
+// under Discord's 25-option / 5-row limits. Keep these exhaustive and mutually exclusive.
+export type MaddenAttributeDropdownGroupKey = "athletic_carrier" | "passing_receiving" | "blocking_defense_kicking";
+
+export const MADDEN_ATTRIBUTE_DROPDOWN_GROUPS: Record<MaddenAttributeDropdownGroupKey, {
+  label: string;
+  codes: MaddenAttributeCode[];
+}> = {
+  athletic_carrier: {
+    label: "Athletic & Ball Carrier",
+    codes: ["SPD", "ACC", "AGI", "COD", "STR", "JMP", "STA", "INJ", "AWR", "TOU", "TRK", "BCV", "SFA", "SPM", "JKM", "CAR", "BTK"],
+  },
+  passing_receiving: {
+    label: "Passing & Receiving",
+    codes: ["THP", "SAC", "MAC", "DAC", "RUN", "TUP", "BSK", "PAC", "CTH", "CIT", "SPC", "RLS", "SRR", "MRR", "DRR", "RET"],
+  },
+  blocking_defense_kicking: {
+    label: "Blocking, Defense & Kicking",
+    codes: ["PBK", "PBP", "PBF", "RBK", "RBP", "RBF", "LBK", "IBL", "TAK", "POW", "PMV", "FMV", "BSH", "PUR", "PRC", "MCV", "ZCV", "PRS", "KPW", "KAC"],
+  },
+};
+
 export const MADDEN_ATTRIBUTE_CATEGORY_SUMMARY = {
   physical: MADDEN_ATTRIBUTE_DEFINITIONS.filter((def) => def.category === "physical"),
   offensive: MADDEN_ATTRIBUTE_DEFINITIONS.filter((def) => def.category === "offensive"),

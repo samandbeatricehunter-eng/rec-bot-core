@@ -15,7 +15,10 @@ import {
   buildPositionRestrictionModal,
   buildSettingsPickerWindow,
   buildPurchaseAllTimeCapModal,
+  buildAttributeCapOverrideWindow,
+  buildAttributeCapModal,
   coreAttributeGroupCustomId,
+  setAttributeCapOverride,
   createDefaultLeagueSetupDraft,
   getNextLeagueSetupStep,
   isPurchaseFeatureStep,
@@ -31,7 +34,7 @@ import {
   type PurchaseAllTimeCapKind,
   type PurchaseFeatureStep,
 } from "../ui/league-setup.js";
-import type { MaddenAttributeGroupKey } from "@rec/shared";
+import type { MaddenAttributeDropdownGroupKey } from "@rec/shared";
 import { buildPostSetupTeamLinkingPanel } from "../ui/team-options.js";
 import { markPostSetupActive, startPostSetupScheduleStep } from "./schedule.js";
 
@@ -70,7 +73,7 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   }
 
   if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) {
-    const group = interaction.customId.split(":").at(-1) as MaddenAttributeGroupKey;
+    const group = interaction.customId.split(":").at(-1) as MaddenAttributeDropdownGroupKey;
     setCoreAttributesForGroup(draft, group, interaction.values);
     applyLeagueSetupDependencies(draft);
     leagueSetupSessions.set(interaction.user.id, draft);
@@ -82,6 +85,14 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
       }
     }
     return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  // Picking a core attribute in the per-attribute cap window opens a modal to set its cap.
+  if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) {
+    const code = interaction.values[0];
+    if (!code) return interaction.update(buildAttributeCapOverrideWindow(draft));
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.showModal(buildAttributeCapModal(code, draft));
   }
 
   // First step: pick the game. Madden titles and College Football 27 both proceed
@@ -308,6 +319,32 @@ export async function handlePurchaseAllTimeCapModal(interaction: Extract<Interac
   return interaction.editReply(buildLeagueSetupWindow(draft));
 }
 
+export async function handleAttributeCapModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+
+  const code = interaction.customId.split(":").at(-1)!;
+  const raw = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.attrCapModalInput);
+  const result = setAttributeCapOverride(draft, code, raw);
+  if (result === "invalid") {
+    return interaction.reply({ content: "Invalid cap. Enter a whole number 0-99 (0 = unlimited), or leave blank to use the default.", flags: MessageFlags.Ephemeral });
+  }
+
+  applyLeagueSetupDependencies(draft);
+  leagueSetupSessions.set(interaction.user.id, draft);
+  if (draft.editMode && interaction.guildId) {
+    try {
+      await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+    } catch (err) {
+      console.error("[ERROR] Failed to save attribute cap override:", err);
+    }
+  }
+
+  if (interaction.isFromMessage()) return interaction.update(buildAttributeCapOverrideWindow(draft));
+  return interaction.reply({ ...buildAttributeCapOverrideWindow(draft), flags: MessageFlags.Ephemeral });
+}
+
 export async function handleLeagueSetupButton(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
@@ -320,6 +357,16 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
 
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsOpen) {
     draft.step = "attribute_core_attributes";
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideOpen) {
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildAttributeCapOverrideWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideDone) {
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
   }

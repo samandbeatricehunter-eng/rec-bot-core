@@ -75,9 +75,13 @@ export const CreateLeagueSchema = z.object({
   ageResetsSeasonCap: z.number().int().min(0).max(5).default(0),
   playerTraitPurchasesSeasonCap: z.number().int().min(0).max(10).default(0),
   contractPurchasesSeasonCap: z.number().int().min(0).max(5).default(0),
-  coreAttributePurchasesSeasonCap: z.number().int().min(0).max(20).default(0),
-  nonCoreAttributePurchasesSeasonCap: z.number().int().min(0).max(20).default(0),
+  // Attribute caps are points-per-user-per-season. coreAttributePurchasesSeasonCap is the
+  // DEFAULT per-core-attribute cap; nonCoreAttributePurchasesSeasonCap is the TOTAL non-core
+  // points cap. 0 means unlimited. core_attribute_cap_overrides override the default per code.
+  coreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).default(0),
+  nonCoreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).default(0),
   coreAttributes: z.array(z.string()).default([]),
+  coreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),
 
   customPlayersAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),
   legendsAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),

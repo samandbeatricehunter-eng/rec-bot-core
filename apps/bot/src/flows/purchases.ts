@@ -15,7 +15,10 @@ import {
   type StringSelectMenuInteraction,
 } from "discord.js";
 import {
+  MADDEN_ATTRIBUTE_BY_CODE,
+  MADDEN_ATTRIBUTE_DROPDOWN_GROUPS,
   priceForPurchase,
+  REC_ATTRIBUTE_POINT_PRICE,
   REC_CONTRACT_PRICE,
   REC_CONTRACT_VARIANT_LABELS,
   REC_DEFENSE_POSITIONS,
@@ -23,6 +26,9 @@ import {
   REC_DEV_UPGRADE_PRICE,
   REC_OFFENSE_POSITIONS,
   REC_PURCHASE_TYPE_LABELS,
+  type MaddenAttributeCode,
+  type MaddenAttributeDropdownGroupKey,
+  type RecAttributeAllocation,
   type RecContractVariant,
   type RecDevTier,
   type RecPurchaseType,
@@ -45,26 +51,34 @@ export const PURCHASE_CUSTOM_IDS = {
   approvePrefix: "rec:purchase:approve",
   denyPrefix: "rec:purchase:deny",
   denyModalPrefix: "rec:purchase:denymodal",
+  attrGroupPrefix: "rec:purchase:attrgroup",
+  attrSetAmounts: "rec:purchase:attrsetamounts",
+  attrAmountsModal: "rec:purchase:attramounts",
 } as const;
 
-// Phase 1 store offers the simple, request-and-approve player purchase types.
-const PHASE1_TYPES: RecPurchaseType[] = ["age_reset", "dev_upgrade", "contract", "player_trait"];
+// Store types: the simple request-and-approve player types plus Attribute points.
+const STORE_TYPES: RecPurchaseType[] = ["age_reset", "dev_upgrade", "contract", "player_trait", "attribute"];
 const TYPE_ENABLED_FLAG: Record<string, keyof any> = {
   age_reset: "ageResetsEnabled",
   dev_upgrade: "devUpgradesEnabled",
   contract: "contractAdjustmentPurchasesEnabled",
   player_trait: "playerTraitPurchasesEnabled",
+  attribute: "attributePurchasesEnabled",
 };
+const MAX_ATTRS_PER_PURCHASE = 5;
 
 type PurchaseDraft = {
   purchaseType: RecPurchaseType;
   details: Record<string, unknown>;
+  coreSet?: string[];
+  attrSelected?: Record<string, string[]>;
 };
 const purchaseSessions = new Map<string, PurchaseDraft>();
 
 function staticPriceLabel(type: RecPurchaseType): string {
   if (type === "dev_upgrade") return "from $250";
   if (type === "contract") return "$500";
+  if (type === "attribute") return "$100/pt core, $50/pt non-core";
   return `$${priceForPurchase(type, {})}`;
 }
 
@@ -74,6 +88,80 @@ function draftPrice(draft: PurchaseDraft): number {
 
 function positionsForSide(side: string): readonly string[] {
   return side === "defense" ? REC_DEFENSE_POSITIONS : REC_OFFENSE_POSITIONS;
+}
+
+// ─── Attribute picker ───────────────────────────────────────────────────────────
+function selectedAttrCodes(draft: PurchaseDraft): string[] {
+  return Object.values(draft.attrSelected ?? {}).flat();
+}
+
+function isCore(draft: PurchaseDraft, code: string): boolean {
+  return (draft.coreSet ?? []).includes(code);
+}
+
+function formatAllocations(allocations: RecAttributeAllocation[] | undefined): string {
+  if (!allocations?.length) return "—";
+  return allocations.map((a) => `+${a.points} ${a.code}${a.core ? "" : " (NC)"}`).join(", ");
+}
+
+function attributePickerPayload(draft: PurchaseDraft) {
+  const chosen = selectedAttrCodes(draft);
+  const groups = Object.entries(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS) as Array<
+    [MaddenAttributeDropdownGroupKey, typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS[MaddenAttributeDropdownGroupKey]]
+  >;
+  const rows = groups.map(([groupKey, group]) => {
+    const sel = draft.attrSelected?.[groupKey] ?? [];
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`${PURCHASE_CUSTOM_IDS.attrGroupPrefix}:${groupKey}`)
+        .setPlaceholder(group.label)
+        .setMinValues(0)
+        .setMaxValues(group.codes.length)
+        .addOptions(
+          ...group.codes.map((code) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(`${code} — ${MADDEN_ATTRIBUTE_BY_CODE.get(code)?.name ?? code}`.slice(0, 100))
+              .setValue(code)
+              .setDescription(isCore(draft, code) ? `Core $${REC_ATTRIBUTE_POINT_PRICE.core}/pt` : `Non-Core $${REC_ATTRIBUTE_POINT_PRICE.non_core}/pt`)
+              .setDefault(sel.includes(code))
+          )
+        )
+    );
+  });
+  const lines = [
+    `Pick the attributes to upgrade (up to ${MAX_ATTRS_PER_PURCHASE} per purchase), then set point amounts. **Core** = $${REC_ATTRIBUTE_POINT_PRICE.core}/pt, **Non-Core** = $${REC_ATTRIBUTE_POINT_PRICE.non_core}/pt.`,
+    "",
+    chosen.length ? `**Selected (${chosen.length}/${MAX_ATTRS_PER_PURCHASE}):** ${chosen.join(", ")}` : "_Nothing selected yet._",
+  ];
+  if (chosen.length > MAX_ATTRS_PER_PURCHASE) lines.push(`⚠️ Pick at most ${MAX_ATTRS_PER_PURCHASE}.`);
+  return {
+    embeds: [new EmbedBuilder().setTitle("Attribute Points").setDescription(lines.join("\n"))],
+    components: [
+      ...rows,
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(PURCHASE_CUSTOM_IDS.attrSetAmounts).setLabel("Set Amounts").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(PURCHASE_CUSTOM_IDS.cancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary)
+      ),
+    ],
+  };
+}
+
+function buildAmountsModal(codes: string[]) {
+  const modal = new ModalBuilder().setCustomId(PURCHASE_CUSTOM_IDS.attrAmountsModal).setTitle("Attribute Point Amounts");
+  for (const code of codes.slice(0, MAX_ATTRS_PER_PURCHASE)) {
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(`pts:${code}`)
+          .setLabel(`${code} — ${MADDEN_ATTRIBUTE_BY_CODE.get(code as MaddenAttributeCode)?.name ?? code}`.slice(0, 45))
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(3)
+          .setPlaceholder("Points to add")
+      )
+    );
+  }
+  return modal;
 }
 
 // ─── Store landing ──────────────────────────────────────────────────────────────
@@ -102,7 +190,7 @@ export async function openPurchaseStore(interaction: ButtonInteraction) {
     });
   }
 
-  const available = PHASE1_TYPES.filter((type) => Boolean(draft?.[TYPE_ENABLED_FLAG[type] as string]));
+  const available = STORE_TYPES.filter((type) => Boolean(draft?.[TYPE_ENABLED_FLAG[type] as string]));
   if (!available.length) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Store").setDescription([
@@ -204,12 +292,29 @@ export async function handlePurchaseSelect(interaction: StringSelectMenuInteract
         ],
       });
     }
+    if (purchaseType === "attribute") {
+      // Attribute points are chosen before the player target.
+      await interaction.deferUpdate();
+      const config = interaction.guildId ? await recApi.getLeagueConfig(interaction.guildId).catch(() => null) : null;
+      const coreSet: string[] = Array.isArray((config as any)?.draft?.coreAttributes) ? (config as any).draft.coreAttributes : [];
+      const session = purchaseSessions.get(interaction.user.id)!;
+      session.coreSet = coreSet;
+      session.attrSelected = {};
+      return interaction.editReply(attributePickerPayload(session));
+    }
     // age_reset / player_trait → straight to player target
     return interaction.update({ embeds: [stepEmbed(REC_PURCHASE_TYPE_LABELS[purchaseType], "Which side of the ball is the player on?")], components: sideSelectComponents() });
   }
 
   const draft = purchaseSessions.get(interaction.user.id);
   if (!draft) return interaction.update({ embeds: [stepEmbed("Store", "This purchase session expired. Reopen the Store.")], components: [backRow()] });
+
+  if (id.startsWith(PURCHASE_CUSTOM_IDS.attrGroupPrefix)) {
+    const group = id.split(":").pop() as MaddenAttributeDropdownGroupKey;
+    draft.attrSelected = draft.attrSelected ?? {};
+    draft.attrSelected[group] = interaction.values;
+    return interaction.update(attributePickerPayload(draft));
+  }
 
   if (id === PURCHASE_CUSTOM_IDS.devTierSelect) {
     draft.details.targetTier = value as RecDevTier;
@@ -269,6 +374,19 @@ export async function handlePurchaseModal(interaction: ModalSubmitInteraction) {
   if (interaction.customId.startsWith(PURCHASE_CUSTOM_IDS.denyModalPrefix)) {
     return handleDenyModal(interaction);
   }
+  if (interaction.customId === PURCHASE_CUSTOM_IDS.attrAmountsModal) {
+    if (!interaction.isFromMessage()) return interaction.reply({ content: "Could not continue this purchase. Reopen the Store.", flags: MessageFlags.Ephemeral });
+    const draft = purchaseSessions.get(interaction.user.id);
+    if (!draft) return interaction.reply({ content: "This purchase session expired. Reopen the Store.", flags: MessageFlags.Ephemeral });
+    const allocations: RecAttributeAllocation[] = [];
+    for (const code of selectedAttrCodes(draft).slice(0, MAX_ATTRS_PER_PURCHASE)) {
+      const pts = Math.max(0, Math.floor(Number(interaction.fields.getTextInputValue(`pts:${code}`)) || 0));
+      if (pts > 0) allocations.push({ code, points: pts, core: isCore(draft, code) });
+    }
+    if (!allocations.length) return interaction.reply({ content: "Enter a positive point amount for at least one attribute.", flags: MessageFlags.Ephemeral });
+    draft.details.allocations = allocations;
+    return interaction.update({ embeds: [stepEmbed("Attribute Points", "Which side of the ball is the player on?")], components: sideSelectComponents() });
+  }
   if (interaction.customId === PURCHASE_CUSTOM_IDS.nameModal) {
     if (!interaction.isFromMessage()) return interaction.reply({ content: "Could not continue this purchase. Reopen the Store.", flags: MessageFlags.Ephemeral });
     const draft = purchaseSessions.get(interaction.user.id);
@@ -287,6 +405,7 @@ function confirmEmbed(draft: PurchaseDraft) {
   const lines = [`**Type:** ${REC_PURCHASE_TYPE_LABELS[draft.purchaseType]}`];
   if (draft.purchaseType === "dev_upgrade") lines.push(`**Upgrade to:** ${REC_DEV_TIER_LABELS[d.targetTier as RecDevTier]}`);
   if (draft.purchaseType === "contract") lines.push(`**Adjustment:** ${REC_CONTRACT_VARIANT_LABELS[d.variant as RecContractVariant]}`);
+  if (draft.purchaseType === "attribute") lines.push(`**Upgrades:** ${formatAllocations(d.allocations as RecAttributeAllocation[] | undefined)}`);
   lines.push(`**Player:** ${d.playerName} (${String(d.position)}, ${d.side === "defense" ? "Defense" : "Offense"})`);
   if (draft.purchaseType === "player_trait") lines.push(`**Trait change:** ${d.traitChange}`);
   lines.push("", `**Cost:** $${draftPrice(draft)}`, "", "Submitting deducts the cost now and sends the request for commissioner approval. Denied requests are refunded.");
@@ -316,6 +435,14 @@ export async function handlePurchaseButton(interaction: ButtonInteraction) {
   if (id === PURCHASE_CUSTOM_IDS.cancel) {
     purchaseSessions.delete(interaction.user.id);
     return interaction.update({ embeds: [stepEmbed("Store", "Purchase cancelled.")], components: [backRow()] });
+  }
+  if (id === PURCHASE_CUSTOM_IDS.attrSetAmounts) {
+    const draft = purchaseSessions.get(interaction.user.id);
+    if (!draft) return interaction.update({ embeds: [stepEmbed("Store", "This purchase session expired. Reopen the Store.")], components: [backRow()] });
+    const codes = selectedAttrCodes(draft);
+    if (!codes.length) return interaction.reply({ content: "Select at least one attribute first.", flags: MessageFlags.Ephemeral });
+    if (codes.length > MAX_ATTRS_PER_PURCHASE) return interaction.reply({ content: `Select at most ${MAX_ATTRS_PER_PURCHASE} attributes per purchase.`, flags: MessageFlags.Ephemeral });
+    return interaction.showModal(buildAmountsModal(codes));
   }
   if (id === PURCHASE_CUSTOM_IDS.submit) return submitPurchase(interaction);
   if (id.startsWith(PURCHASE_CUSTOM_IDS.approvePrefix)) return handleApprove(interaction);
@@ -381,6 +508,7 @@ function pendingEmbed(purchase: any, buyerDiscordId: string) {
   ];
   if (type === "dev_upgrade" && d.targetTier) lines.push(`**Upgrade to:** ${REC_DEV_TIER_LABELS[d.targetTier as RecDevTier] ?? d.targetTier}`);
   if (type === "contract" && d.variant) lines.push(`**Adjustment:** ${REC_CONTRACT_VARIANT_LABELS[d.variant as RecContractVariant] ?? d.variant}`);
+  if (type === "attribute") lines.push(`**Upgrades:** ${formatAllocations(d.allocations as RecAttributeAllocation[] | undefined)}`);
   if (d.playerName) lines.push(`**Player:** ${d.playerName}${d.position ? ` (${d.position})` : ""}`);
   if (type === "player_trait" && d.traitChange) lines.push(`**Trait change:** ${d.traitChange}`);
   lines.push(`**Cost:** $${purchase.cost ?? 0}`);

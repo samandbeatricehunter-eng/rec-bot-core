@@ -98,6 +98,7 @@ import {
   handleLeagueSetupServerChannelModal,
   handlePositionRestrictionModal,
   handlePurchaseAllTimeCapModal,
+  handleAttributeCapModal,
   handleSetupModal,
   leagueSetupSessions
 } from "./flows/league-setup.js";
@@ -387,6 +388,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
+      if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseSelect(interaction);
     }
 
@@ -415,6 +417,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.serverSetupDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsOpen ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsDone ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideOpen ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideDone ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapOpenPrefix}:`) ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)
       ) return handleLeagueSetupButton(interaction);
@@ -563,6 +567,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionModal) return handleCpuTradingRestrictionModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomModal) return handleDifficultyCustomModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapModalPrefix}:`)) return handlePurchaseAllTimeCapModal(interaction);
+      if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapModalPrefix}:`)) return handleAttributeCapModal(interaction);
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);

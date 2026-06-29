@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { getDefaultNflSeasonLabelForGame, MADDEN_ATTRIBUTE_SELECTION_GROUPS, type MaddenAttributeGroupKey, type MaddenLeagueGame } from "@rec/shared";
+import { getDefaultNflSeasonLabelForGame, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, type MaddenAttributeCode, type MaddenAttributeDropdownGroupKey, type MaddenLeagueGame } from "@rec/shared";
 import { buildNavigationRow, NAV_CUSTOM_IDS } from "./navigation.js";
 
 export const LEAGUE_SETUP_CUSTOM_IDS = {
@@ -84,6 +84,11 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   purchaseCoreAttrsOpen: "rec:league_setup:purchase_core_attrs_open",
   purchaseCoreAttrsDone: "rec:league_setup:purchase_core_attrs_done",
   coreAttrsPrefix: "rec:league_setup:core_attrs",
+  attrCapOverrideOpen: "rec:league_setup:attr_cap_override_open",
+  attrCapOverrideDone: "rec:league_setup:attr_cap_override_done",
+  attrCapGroupPrefix: "rec:league_setup:attr_cap_group",
+  attrCapModalPrefix: "rec:league_setup:attr_cap_modal",
+  attrCapModalInput: "rec:league_setup:attr_cap_input",
   purchaseAllTimeCapOpenPrefix: "rec:league_setup:alltime_cap_open",
   purchaseAllTimeCapModalPrefix: "rec:league_setup:alltime_cap_modal",
   purchaseAllTimeCapInput: "rec:league_setup:alltime_cap_input"
@@ -179,6 +184,7 @@ export type LeagueSetupDraft = {
   coreAttributePurchasesSeasonCap: number;
   nonCoreAttributePurchasesSeasonCap: number;
   coreAttributes: string[];
+  coreAttributeCapOverrides: Record<string, number>;
   customPlayersAllTimeCap: number | null;
   legendsAllTimeCap: number | null;
   devUpgradesAllTimeCap: number | null;
@@ -339,6 +345,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     coreAttributePurchasesSeasonCap: 0,
     nonCoreAttributePurchasesSeasonCap: 0,
     coreAttributes: [],
+    coreAttributeCapOverrides: {},
     customPlayersAllTimeCap: null,
     legendsAllTimeCap: null,
     devUpgradesAllTimeCap: null,
@@ -754,12 +761,31 @@ export function purchaseAllTimeCapModalCustomId(step: PurchaseFeatureStep, kind:
   return `${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapModalPrefix}:${step}:${kind}`;
 }
 
-export function coreAttributeGroupCustomId(group: MaddenAttributeGroupKey) {
+export function coreAttributeGroupCustomId(group: MaddenAttributeDropdownGroupKey) {
   return `${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:${group}`;
 }
 
+export function attributeCapGroupCustomId(group: MaddenAttributeDropdownGroupKey) {
+  return `${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:${group}`;
+}
+
+export function attributeCapModalCustomId(code: string) {
+  return `${LEAGUE_SETUP_CUSTOM_IDS.attrCapModalPrefix}:${code}`;
+}
+
+function attrLabel(code: string) {
+  const def = MADDEN_ATTRIBUTE_BY_CODE.get(code as MaddenAttributeCode);
+  return def ? `${code} — ${def.name}` : code;
+}
+
+function effectiveCoreCap(draft: LeagueSetupDraft, code: string) {
+  const override = draft.coreAttributeCapOverrides?.[code];
+  const base = override != null ? override : draft.coreAttributePurchasesSeasonCap;
+  return base === 0 ? "Unlimited" : String(base);
+}
+
 function capOptions(maxCap: number, unitLabel = "season") {
-  return Array.from({ length: maxCap + 1 }, (_, index) => option(String(index), String(index), index === 0 ? "No purchases allowed" : `${index} per ${unitLabel}`));
+  return Array.from({ length: maxCap + 1 }, (_, index) => option(String(index), String(index), index === 0 ? "Unlimited (no cap)" : `${index} per ${unitLabel}`));
 }
 
 function formatAllTimeCapLabel(value: number | null | undefined) {
@@ -782,12 +808,12 @@ function getMaxAllTimeCap(step: PurchaseFeatureStep, kind: PurchaseAllTimeCapKin
 function formatPurchaseCapSummary(draft: LeagueSetupDraft, step: PurchaseFeatureStep) {
   const config = PURCHASE_FEATURE_STEPS[step];
   if (step === "attribute_purchases") {
+    const fmt = (n: number) => (n === 0 ? "Unlimited" : `${n} pts`);
     return [
-      `Core Season Cap: **${draft.coreAttributePurchasesSeasonCap}**/20`,
-      `Non-Core Season Cap: **${draft.nonCoreAttributePurchasesSeasonCap}**/20`,
-      `Core All-Time Cap: **${formatAllTimeCapLabel(draft.coreAttributePurchasesAllTimeCap)}**`,
-      `Non-Core All-Time Cap: **${formatAllTimeCapLabel(draft.nonCoreAttributePurchasesAllTimeCap)}**`,
-      `Core Attributes Selected: **${draft.coreAttributes.length}**`
+      `Default Core Cap: **${fmt(draft.coreAttributePurchasesSeasonCap)}**/season`,
+      `Non-Core Total Cap: **${fmt(draft.nonCoreAttributePurchasesSeasonCap)}**/season`,
+      `Core Attributes: **${draft.coreAttributes.length}** (per-attribute overrides: **${Object.keys(draft.coreAttributeCapOverrides ?? {}).length}**)`,
+      "_Caps are points per user, per season. Core/Non-Core pricing: $100 / $50 per point._",
     ].join("\n");
   }
   if (!config.seasonCapKey) return "";
@@ -864,12 +890,30 @@ export function setPurchaseCapValue(draft: LeagueSetupDraft, customId: string, v
   (draft as any)[config.seasonCapKey] = numeric;
 }
 
-export function setCoreAttributesForGroup(draft: LeagueSetupDraft, group: MaddenAttributeGroupKey, selected: string[]) {
-  const groupCodes = new Set(MADDEN_ATTRIBUTE_SELECTION_GROUPS[group].codes);
+export function setCoreAttributesForGroup(draft: LeagueSetupDraft, group: MaddenAttributeDropdownGroupKey, selected: string[]) {
+  const groupCodes = new Set(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS[group].codes);
   draft.coreAttributes = [
     ...draft.coreAttributes.filter((code) => !groupCodes.has(code as any)),
     ...selected
   ];
+  // Drop overrides for attributes no longer core.
+  const coreSet = new Set(draft.coreAttributes);
+  for (const code of Object.keys(draft.coreAttributeCapOverrides ?? {})) {
+    if (!coreSet.has(code)) delete draft.coreAttributeCapOverrides[code];
+  }
+}
+
+export function setAttributeCapOverride(draft: LeagueSetupDraft, code: string, raw: string): "ok" | "invalid" {
+  const trimmed = raw.trim();
+  draft.coreAttributeCapOverrides = draft.coreAttributeCapOverrides ?? {};
+  if (!trimmed || trimmed.toLowerCase() === "default") {
+    delete draft.coreAttributeCapOverrides[code];
+    return "ok";
+  }
+  const numeric = Number(trimmed);
+  if (!Number.isInteger(numeric) || numeric < 0 || numeric > 99) return "invalid";
+  draft.coreAttributeCapOverrides[code] = numeric;
+  return "ok";
 }
 
 export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
@@ -901,34 +945,30 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
   ];
 
   if (draft.step === "attribute_purchases") {
+    const overrideCount = Object.keys(draft.coreAttributeCapOverrides ?? {}).length;
     components.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(purchaseCapCustomId("attribute_purchases", "core"))
-          .setPlaceholder("Core attribute purchases per season (0-20)")
-          .addOptions(...capOptions(20))
+          .setPlaceholder("Default core attribute cap — points/season")
+          .addOptions(...capOptions(24, "season"))
       ),
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(purchaseCapCustomId("attribute_purchases", "non_core"))
-          .setPlaceholder("Non-core attribute purchases per season (0-20)")
-          .addOptions(...capOptions(20))
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(purchaseAllTimeCapOpenCustomId("attribute_purchases", "core"))
-          .setLabel(`Core All-Time Cap (${formatAllTimeCapLabel(draft.coreAttributePurchasesAllTimeCap)})`)
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(purchaseAllTimeCapOpenCustomId("attribute_purchases", "non_core"))
-          .setLabel(`Non-Core All-Time Cap (${formatAllTimeCapLabel(draft.nonCoreAttributePurchasesAllTimeCap)})`)
-          .setStyle(ButtonStyle.Secondary)
+          .setPlaceholder("Non-core total cap — points/season")
+          .addOptions(...capOptions(24, "season"))
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsOpen)
           .setLabel(`Configure Core Attributes (${draft.coreAttributes.length})`)
-          .setStyle(ButtonStyle.Primary)
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideOpen)
+          .setLabel(`Per-Attribute Caps (${overrideCount})`)
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(draft.coreAttributes.length === 0)
       )
     );
   } else if (config.seasonCapKey) {
@@ -936,14 +976,8 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId(purchaseCapCustomId(draft.step))
-          .setPlaceholder(`Season cap (0-${config.maxSeasonCap})`)
+          .setPlaceholder(`Season cap (0 = unlimited)`)
           .addOptions(...capOptions(config.maxSeasonCap))
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(purchaseAllTimeCapOpenCustomId(draft.step))
-          .setLabel(`All-Time Cap (${formatAllTimeCapLabel(config.allTimeCapKey ? draft[config.allTimeCapKey] : null)})`)
-          .setStyle(ButtonStyle.Secondary)
       )
     );
   }
@@ -952,37 +986,44 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
   return { embeds: [embed], components };
 }
 
+const ATTRIBUTE_DROPDOWN_GROUP_ENTRIES = Object.entries(MADDEN_ATTRIBUTE_DROPDOWN_GROUPS) as Array<
+  [MaddenAttributeDropdownGroupKey, typeof MADDEN_ATTRIBUTE_DROPDOWN_GROUPS[MaddenAttributeDropdownGroupKey]]
+>;
+
 export function buildAttributeCoreSelectionWindow(draft: LeagueSetupDraft) {
+  const groupDoc = ATTRIBUTE_DROPDOWN_GROUP_ENTRIES.map(
+    ([, group]) => `**${group.label}:** ${group.codes.join(", ")}`
+  );
   const embed = new EmbedBuilder()
     .setTitle("League Setup: Core Attributes")
     .setDescription([
       `League: **${draft.name}**`,
       "",
-      "Select which Madden attributes count as **core** for purchase caps. All other attributes are treated as non-core.",
+      "Select which Madden attributes count as **core** (priced $100/pt; others are non-core at $50/pt). The 53 attributes are split across three dropdowns:",
       "",
-      `Currently selected: **${draft.coreAttributes.length}** attribute(s)`,
-      draft.coreAttributes.length ? draft.coreAttributes.join(", ") : "None selected yet."
-    ].join("\n"));
+      ...groupDoc,
+      "",
+      `Currently core (**${draft.coreAttributes.length}**): ${draft.coreAttributes.length ? draft.coreAttributes.join(", ") : "None selected yet."}`,
+    ].join("\n").slice(0, 4096));
 
-  const rows = (Object.entries(MADDEN_ATTRIBUTE_SELECTION_GROUPS) as Array<[MaddenAttributeGroupKey, typeof MADDEN_ATTRIBUTE_SELECTION_GROUPS[MaddenAttributeGroupKey]]>)
-    .map(([groupKey, group]) => {
-      const selected = draft.coreAttributes.filter((code) => group.codes.includes(code as any));
-      return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(coreAttributeGroupCustomId(groupKey))
-          .setPlaceholder(group.label)
-          .setMinValues(0)
-          .setMaxValues(group.codes.length)
-          .addOptions(
-            ...group.codes.map((code) =>
-              new StringSelectMenuOptionBuilder()
-                .setLabel(code)
-                .setValue(code)
-                .setDefault(selected.includes(code))
-            )
+  const rows = ATTRIBUTE_DROPDOWN_GROUP_ENTRIES.map(([groupKey, group]) => {
+    const selected = draft.coreAttributes.filter((code) => group.codes.includes(code as any));
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(coreAttributeGroupCustomId(groupKey))
+        .setPlaceholder(group.label)
+        .setMinValues(0)
+        .setMaxValues(group.codes.length)
+        .addOptions(
+          ...group.codes.map((code) =>
+            new StringSelectMenuOptionBuilder()
+              .setLabel(attrLabel(code).slice(0, 100))
+              .setValue(code)
+              .setDefault(selected.includes(code))
           )
-      );
-    });
+        )
+    );
+  });
 
   return {
     embeds: [embed],
@@ -999,13 +1040,88 @@ export function buildAttributeCoreSelectionWindow(draft: LeagueSetupDraft) {
   };
 }
 
+// Per-individual core-attribute cap overrides. One single-select per dropdown group, listing
+// only that group's core attributes (with their current effective cap); picking one opens a
+// modal to set its cap. Default cap applies to anything without an override.
+export function buildAttributeCapOverrideWindow(draft: LeagueSetupDraft) {
+  const coreSet = new Set(draft.coreAttributes);
+  const overrides = draft.coreAttributeCapOverrides ?? {};
+  const overrideLines = Object.keys(overrides).length
+    ? Object.entries(overrides).map(([code, cap]) => `${attrLabel(code)}: **${cap === 0 ? "Unlimited" : `${cap} pts`}**`)
+    : ["None — all core attributes use the default cap."];
+
+  const embed = new EmbedBuilder()
+    .setTitle("League Setup: Per-Attribute Caps")
+    .setDescription([
+      `Default core cap: **${draft.coreAttributePurchasesSeasonCap === 0 ? "Unlimited" : `${draft.coreAttributePurchasesSeasonCap} pts`}** / season.`,
+      "Pick a core attribute below to override its cap. Leave a cap blank in the popup to revert it to the default.",
+      "",
+      "**Overrides:**",
+      ...overrideLines,
+    ].join("\n").slice(0, 4096));
+
+  const rows: ActionRowBuilder<StringSelectMenuBuilder>[] = [];
+  for (const [groupKey, group] of ATTRIBUTE_DROPDOWN_GROUP_ENTRIES) {
+    const coreCodes = group.codes.filter((code) => coreSet.has(code));
+    if (!coreCodes.length) continue;
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(attributeCapGroupCustomId(groupKey))
+          .setPlaceholder(`${group.label} — set a cap`)
+          .setMinValues(0)
+          .setMaxValues(1)
+          .addOptions(
+            ...coreCodes.map((code) =>
+              new StringSelectMenuOptionBuilder()
+                .setLabel(attrLabel(code).slice(0, 100))
+                .setValue(code)
+                .setDescription(`Current: ${effectiveCoreCap(draft, code)}`.slice(0, 100))
+            )
+          )
+      )
+    );
+  }
+
+  return {
+    embeds: [embed],
+    components: [
+      ...rows,
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideDone)
+          .setLabel("Done")
+          .setStyle(ButtonStyle.Success)
+      ),
+    ],
+  };
+}
+
+export function buildAttributeCapModal(code: string, draft: LeagueSetupDraft) {
+  const current = draft.coreAttributeCapOverrides?.[code];
+  return new ModalBuilder()
+    .setCustomId(attributeCapModalCustomId(code))
+    .setTitle(`Cap: ${attrLabel(code)}`.slice(0, 45))
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.attrCapModalInput)
+          .setLabel("Points/season (blank = use default)")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setValue(current == null ? "" : String(current))
+          .setPlaceholder("0 = unlimited, blank = default")
+      )
+    );
+}
+
 export function formatPurchaseCapsReview(draft: LeagueSetupDraft) {
   const lines: string[] = [];
   for (const [step, config] of Object.entries(PURCHASE_FEATURE_STEPS) as Array<[PurchaseFeatureStep, typeof PURCHASE_FEATURE_STEPS[PurchaseFeatureStep]]>) {
     const enabled = Boolean(draft[config.enabledKey]);
     if (!enabled) continue;
     if (step === "attribute_purchases") {
-      lines.push(`Attributes: Core ${draft.coreAttributePurchasesSeasonCap}/season (${formatAllTimeCapLabel(draft.coreAttributePurchasesAllTimeCap)} all-time), Non-Core ${draft.nonCoreAttributePurchasesSeasonCap}/season (${formatAllTimeCapLabel(draft.nonCoreAttributePurchasesAllTimeCap)} all-time), ${draft.coreAttributes.length} core attrs`);
+      lines.push(`Attributes: default core ${draft.coreAttributePurchasesSeasonCap === 0 ? "unlimited" : `${draft.coreAttributePurchasesSeasonCap} pts`}/season, non-core ${draft.nonCoreAttributePurchasesSeasonCap === 0 ? "unlimited" : `${draft.nonCoreAttributePurchasesSeasonCap} pts`}/season, ${draft.coreAttributes.length} core attrs (${Object.keys(draft.coreAttributeCapOverrides ?? {}).length} overrides)`);
       continue;
     }
     if (config.seasonCapKey) {
@@ -2106,6 +2222,7 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.coreAttributePurchasesSeasonCap = 0;
     draft.nonCoreAttributePurchasesSeasonCap = 0;
     draft.coreAttributes = [];
+    draft.coreAttributeCapOverrides = {};
     draft.customPlayersAllTimeCap = null;
     draft.legendsAllTimeCap = null;
     draft.devUpgradesAllTimeCap = null;
@@ -2144,6 +2261,7 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.coreAttributePurchasesSeasonCap = 0;
     draft.nonCoreAttributePurchasesSeasonCap = 0;
     draft.coreAttributes = [];
+    draft.coreAttributeCapOverrides = {};
     draft.coreAttributePurchasesAllTimeCap = null;
     draft.nonCoreAttributePurchasesAllTimeCap = null;
   }
