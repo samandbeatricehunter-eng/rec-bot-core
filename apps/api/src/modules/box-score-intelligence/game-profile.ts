@@ -118,7 +118,7 @@ export interface GameProfile {
 }
 
 /** Compact tactical labels for rec_game_profiles.profile (tracked stats only). */
-export function computeGameProfile(g: GameStats): GameProfile {
+export function computeGameProfile(g: GameStats, game?: string | null): GameProfile {
   const offensiveIdentity: OffensiveIdentity =
     g.rushingYards - g.passingYards >= 75
       ? "run_heavy"
@@ -136,6 +136,6 @@ export function computeGameProfile(g: GameStats): GameProfile {
     stoutDefense: g.pointsAgainst <= 14,
     redZoneSharp: g.redZoneOffensivePct >= 75,
     specialTeamsEdge: returnYards(g) >= 150,
-    qualifiedBadges: qualifyWeeklyBadges(g),
+    qualifiedBadges: qualifyWeeklyBadges(g, game),
   };
 }

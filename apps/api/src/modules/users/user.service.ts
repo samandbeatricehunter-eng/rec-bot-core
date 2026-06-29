@@ -17,6 +17,7 @@ import {
 const ALL_BADGE_DEFS = [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES];
 const BADGE_LABELS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.label]));
 const BADGE_DESCRIPTIONS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.description]));
+const CFB_27_ONLY = ["cfb_27"];
 
 const IDENTITY_GROUPS = [
   {
@@ -114,6 +115,7 @@ const IDENTITY_GROUPS = [
     key: "option_program",
     label: "Option Program Builder",
     summary: "Builds the offense through heavy rushing volume, option-style yardage splits, and drive control.",
+    games: CFB_27_ONLY,
     badges: new Set(["option_identity", "option_program", "ground_and_pound", "run_heavy", "ground_commander"]),
     statScore: (s: any) => scoreAbove(s?.rushingYardsAvg, 150, 260, 30) + scoreAbove(rushShare(s), 0.46, 0.66, 22) + scoreAbove(s?.firstDownsAvg, 19, 28, 8),
   },
@@ -121,6 +123,7 @@ const IDENTITY_GROUPS = [
     key: "campus_power",
     label: "Campus Power",
     summary: "Looks like a weekly favorite: big margins, bowl-level wins, and enough season consistency to separate from the pack.",
+    games: CFB_27_ONLY,
     badges: new Set(["bowl_statement", "statement_win", "bowl_eligible", "conference_contender", "perfect_regular_season", "ten_win_club"]),
     statScore: (s: any) => scoreAbove(s?.pointsForAvg - s?.pointsAgainstAvg, 10, 28, 26) + scoreAbove(s?.pointsForAvg, 30, 45, 10) + scoreBelow(s?.pointsAgainstAvg, 24, 14, 10),
   },
@@ -128,6 +131,7 @@ const IDENTITY_GROUPS = [
     key: "home_field",
     label: "Home-Field Hammer",
     summary: "Turns home games into pressure spots, pairing home wins with defensive stands and low-scoring control.",
+    games: CFB_27_ONLY,
     badges: new Set(["home_fortress", "home_fortress_career", "student_section_stand", "campus_fortress"]),
     statScore: (s: any) => scoreBelow(s?.pointsAgainstAvg, 21, 13, 18) + scoreBelow(s?.redZoneDefPct, 55, 36, 10),
   },
@@ -135,6 +139,7 @@ const IDENTITY_GROUPS = [
     key: "special_teams",
     label: "Special Teams Catalyst",
     summary: "Changes field position with return production and forces opponents to defend more than the normal offensive script.",
+    games: CFB_27_ONLY,
     badges: new Set(["special_teams_spark", "return_game_edge", "hidden_yardage", "return_threat"]),
     statScore: (s: any) => scoreAbove(s?.returnYardsAvg, 100, 190, 28),
   },
@@ -406,7 +411,7 @@ function styleSummary(parts: Array<{ key: string; label: string; summary: string
   return `${lead}${detail}`;
 }
 
-function buildIdentityFromSignals(badges: any[], seasonStats: any) {
+function buildIdentityFromSignals(badges: any[], seasonStats: any, game?: string | null) {
   if (!badges.length && (!seasonStats || seasonStats.gamesLogged === 0)) {
     return {
       identityKey: "unscouted",
@@ -422,7 +427,8 @@ function buildIdentityFromSignals(badges: any[], seasonStats: any) {
     };
   }
 
-  const groupScores = IDENTITY_GROUPS.map((group) => {
+  const availableGroups = IDENTITY_GROUPS.filter((group) => !group.games?.length || group.games.includes(String(game ?? "madden_26")));
+  const groupScores = availableGroups.map((group) => {
     const matching = badges.filter((badge) => group.badges.has(String(badge.badge_key)));
     const badgePoints = matching.reduce((sum, badge) => sum + badgeScore(badge), 0);
     const statPoints = seasonStats ? group.statScore(seasonStats) : 0;
@@ -503,7 +509,7 @@ export async function getLeagueUserIdentities(guildId: string) {
     const seasonStats = assignment.user_id
       ? await loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber).catch(() => null)
       : null;
-    const identity = buildIdentityFromSignals(badgesByUser.get(assignment.user_id) ?? [], seasonStats);
+    const identity = buildIdentityFromSignals(badgesByUser.get(assignment.user_id) ?? [], seasonStats, league?.game);
     return {
       userId: assignment.user_id,
       teamId: assignment.team_id,

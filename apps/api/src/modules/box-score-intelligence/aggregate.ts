@@ -80,10 +80,10 @@ export interface WeeklyStreak {
  * Per-weekly-badge streaks for one user's season, walking games in week order.
  * `currentStreak` is the consecutive run that includes the most recent game.
  */
-export function weeklyStreaks(seasonGames: GameStats[]): WeeklyStreak[] {
+export function weeklyStreaks(seasonGames: GameStats[], game?: string | null): WeeklyStreak[] {
   const ordered = [...seasonGames].sort((a, b) => a.week - b.week);
   const out: WeeklyStreak[] = [];
-  const earnedByGame = ordered.map((g) => new Set(qualifyWeeklyBadges(g).map((b) => b.key)));
+  const earnedByGame = ordered.map((g) => new Set(qualifyWeeklyBadges(g, game).map((b) => b.key)));
 
   // Collect every key earned at least once.
   const allKeys = new Set<string>();

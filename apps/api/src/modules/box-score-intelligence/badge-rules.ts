@@ -22,8 +22,11 @@ export interface BadgeDef<T> {
   key: string;
   label: string;
   description: string;
+  games?: string[];
   qualifies: (input: T) => boolean;
 }
+
+const CFB_27_ONLY = ["cfb_27"];
 
 // ─── Weekly badges (30) — qualified from a single uploaded game ────────────────
 
@@ -63,12 +66,12 @@ export const WEEKLY_BADGES: BadgeDef<GameStats>[] = [
   { key: "two_point_specialist", label: "Two-Point Specialist", description: "Recorded 2+ successful two-point conversions", qualifies: (g) => g.twoPointConversions >= 2 },
   { key: "road_warrior", label: "Road Warrior", description: "Road win by 10+ points", qualifies: (g) => g.homeAway === "away" && g.won && g.margin >= 10 },
   { key: "home_fortress", label: "Home Fortress", description: "Home win by 10+ points", qualifies: (g) => g.homeAway === "home" && g.won && g.margin >= 10 },
-  { key: "option_identity", label: "Option Identity", description: "250+ rushing yards and rush yards beat pass yards by 100+", qualifies: (g) => g.rushingYards >= 250 && g.rushingYards - g.passingYards >= 100 },
-  { key: "track_meet", label: "Track Meet", description: "Both teams scored 35+ points", qualifies: (g) => g.pointsFor >= 35 && g.pointsAgainst >= 35 },
-  { key: "student_section_stand", label: "Student Section Stand", description: "Home win while allowing 14 or fewer points", qualifies: (g) => g.homeAway === "home" && g.won && g.pointsAgainst <= 14 },
-  { key: "bowl_statement", label: "Bowl Statement", description: "Won by 35+ points", qualifies: (g) => g.won && g.margin >= 35 },
-  { key: "special_teams_spark", label: "Special Teams Spark", description: "175+ combined kick and punt return yards", qualifies: (g) => returnYards(g) >= 175 },
-  { key: "campus_chaos", label: "Campus Chaos", description: "Won a game where both teams scored 28+ and combined turnovers reached 4+", qualifies: (g) => g.won && g.pointsFor >= 28 && g.pointsAgainst >= 28 && g.turnoversCommitted + g.opponentTurnovers >= 4 },
+  { key: "option_identity", label: "Option Identity", description: "250+ rushing yards and rush yards beat pass yards by 100+", games: CFB_27_ONLY, qualifies: (g) => g.rushingYards >= 250 && g.rushingYards - g.passingYards >= 100 },
+  { key: "track_meet", label: "Track Meet", description: "Both teams scored 35+ points", games: CFB_27_ONLY, qualifies: (g) => g.pointsFor >= 35 && g.pointsAgainst >= 35 },
+  { key: "student_section_stand", label: "Student Section Stand", description: "Home win while allowing 14 or fewer points", games: CFB_27_ONLY, qualifies: (g) => g.homeAway === "home" && g.won && g.pointsAgainst <= 14 },
+  { key: "bowl_statement", label: "Bowl Statement", description: "Won by 35+ points", games: CFB_27_ONLY, qualifies: (g) => g.won && g.margin >= 35 },
+  { key: "special_teams_spark", label: "Special Teams Spark", description: "175+ combined kick and punt return yards", games: CFB_27_ONLY, qualifies: (g) => returnYards(g) >= 175 },
+  { key: "campus_chaos", label: "Campus Chaos", description: "Won a game where both teams scored 28+ and combined turnovers reached 4+", games: CFB_27_ONLY, qualifies: (g) => g.won && g.pointsFor >= 28 && g.pointsAgainst >= 28 && g.turnoversCommitted + g.opponentTurnovers >= 4 },
 ];
 
 // ─── Non-tiered season badges (20) — from season totals ────────────────────────
@@ -94,12 +97,12 @@ export const SEASON_BADGES: BadgeDef<SeasonTotals>[] = [
   { key: "two_point_identity", label: "Two-Point Identity", description: "10+ two-point conversions this season", qualifies: (s) => s.twoPointConversions >= 10 },
   { key: "division_champion", label: "Division Champion", description: "Won the division title", qualifies: (s) => s.wonDivision },
   { key: "super_bowl_champion", label: "Super Bowl Champion", description: "Won the championship", qualifies: (s) => s.wonChampionship },
-  { key: "bowl_eligible", label: "Bowl Eligible", description: "Won 6+ games this season", qualifies: (s) => s.wins >= 6 },
-  { key: "conference_contender", label: "Conference Contender", description: "Won 8+ games this season", qualifies: (s) => s.wins >= 8 },
-  { key: "option_program", label: "Option Program", description: "2,500+ rushing yards this season", qualifies: (s) => s.rushingYards >= 2500 },
-  { key: "air_raid_program", label: "Air Raid Program", description: "5,500+ passing yards this season", qualifies: (s) => s.passingYards >= 5500 },
-  { key: "turnover_chain", label: "Turnover Chain", description: "Forced 35+ opponent turnovers this season", qualifies: (s) => s.opponentTurnovers >= 35 },
-  { key: "campus_fortress", label: "Campus Fortress", description: "Allowed 16 or fewer points per game this season", qualifies: (s) => s.gamesPlayed > 0 && s.pointsAgainst / s.gamesPlayed <= 16 },
+  { key: "bowl_eligible", label: "Bowl Eligible", description: "Won 6+ games this season", games: CFB_27_ONLY, qualifies: (s) => s.wins >= 6 },
+  { key: "conference_contender", label: "Conference Contender", description: "Won 8+ games this season", games: CFB_27_ONLY, qualifies: (s) => s.wins >= 8 },
+  { key: "option_program", label: "Option Program", description: "2,500+ rushing yards this season", games: CFB_27_ONLY, qualifies: (s) => s.rushingYards >= 2500 },
+  { key: "air_raid_program", label: "Air Raid Program", description: "5,500+ passing yards this season", games: CFB_27_ONLY, qualifies: (s) => s.passingYards >= 5500 },
+  { key: "turnover_chain", label: "Turnover Chain", description: "Forced 35+ opponent turnovers this season", games: CFB_27_ONLY, qualifies: (s) => s.opponentTurnovers >= 35 },
+  { key: "campus_fortress", label: "Campus Fortress", description: "Allowed 16 or fewer points per game this season", games: CFB_27_ONLY, qualifies: (s) => s.gamesPlayed > 0 && s.pointsAgainst / s.gamesPlayed <= 16 },
 ];
 
 // ─── Global / career badges (50) — permanent ───────────────────────────────────
@@ -164,13 +167,17 @@ export interface QualifiedBadge {
   label: string;
 }
 
-function qualify<T>(defs: BadgeDef<T>[], input: T): QualifiedBadge[] {
-  return defs.filter((d) => d.qualifies(input)).map((d) => ({ key: d.key, label: d.label }));
+function isBadgeAvailableForGame<T>(badge: BadgeDef<T>, game?: string | null) {
+  return !badge.games?.length || badge.games.includes(String(game ?? "madden_26"));
 }
 
-export const qualifyWeeklyBadges = (g: GameStats): QualifiedBadge[] => qualify(WEEKLY_BADGES, g);
-export const qualifySeasonBadges = (s: SeasonTotals): QualifiedBadge[] => qualify(SEASON_BADGES, s);
-export const qualifyGlobalBadges = (c: CareerTotals): QualifiedBadge[] => qualify(GLOBAL_BADGES, c);
+function qualify<T>(defs: BadgeDef<T>[], input: T, game?: string | null): QualifiedBadge[] {
+  return defs.filter((d) => isBadgeAvailableForGame(d, game) && d.qualifies(input)).map((d) => ({ key: d.key, label: d.label }));
+}
+
+export const qualifyWeeklyBadges = (g: GameStats, game?: string | null): QualifiedBadge[] => qualify(WEEKLY_BADGES, g, game);
+export const qualifySeasonBadges = (s: SeasonTotals, game?: string | null): QualifiedBadge[] => qualify(SEASON_BADGES, s, game);
+export const qualifyGlobalBadges = (c: CareerTotals, game?: string | null): QualifiedBadge[] => qualify(GLOBAL_BADGES, c, game);
 
 // ─── Tiering ───────────────────────────────────────────────────────────────────
 

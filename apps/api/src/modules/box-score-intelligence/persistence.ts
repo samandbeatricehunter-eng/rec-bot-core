@@ -35,6 +35,7 @@ const WEEKLY_LABEL = new Map(WEEKLY_BADGES.map((b) => [b.key, b.label]));
 
 export async function processGameIntelligence(sub: SubmissionRow): Promise<void> {
   const gameId = sub.game_id ?? null;
+  const leagueGame = await loadLeagueGame(sub.league_id);
 
   const { data: rows, error } = await supabase
     .from("rec_team_game_stats")
@@ -58,7 +59,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
   const winner = games.find((g) => g.won);
   const loser = games.find((g) => g.lost);
   if (gameId && winner && loser) {
-    const winnerBadges = qualifyWeeklyBadges(winner).map((b) => b.label);
+    const winnerBadges = qualifyWeeklyBadges(winner, leagueGame).map((b) => b.label);
     const story = generateGameStory(
       {
         winner,
@@ -85,7 +86,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
   // Per-team profile + per-user badge recompute.
   for (const g of games) {
     if (gameId) {
-      const profile = computeGameProfile(g);
+      const profile = computeGameProfile(g, leagueGame);
       await supabase.from("rec_game_profiles").insert({
         league_id: g.leagueId,
         season: g.season,
@@ -101,7 +102,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
         profile,
       });
     }
-    if (g.userId) await recomputeUserBadges(g);
+    if (g.userId) await recomputeUserBadges(g, leagueGame);
   }
 }
 
@@ -111,15 +112,17 @@ type RecomputeUserBadgeInput = {
   teamId: string | null;
   season: number;
   current?: GameStats | null;
+  leagueGame?: string | null;
 };
 
-async function recomputeUserBadges(current: GameStats): Promise<void> {
+async function recomputeUserBadges(current: GameStats, leagueGame?: string | null): Promise<void> {
   await recomputeUserBadgeOwnership({
     leagueId: current.leagueId,
     userId: current.userId!,
     teamId: current.teamId,
     season: current.season,
     current,
+    leagueGame,
   });
 }
 
@@ -138,9 +141,10 @@ async function recomputeUserBadgeOwnership(input: RecomputeUserBadgeInput): Prom
 
   const allGames = allRows.map((r) => rowToGameStats(r as TeamGameStatsRow));
   const seasonGames = allGames.filter((g) => g.season === season);
+  const leagueGame = input.leagueGame ?? await loadLeagueGame(leagueId);
 
   const careerTotals = await applyOfficialRecordMilestones(leagueId, userId, careerTotalsFromGames(allGames));
-  const streaks = weeklyStreaks(seasonGames);
+  const streaks = weeklyStreaks(seasonGames, leagueGame);
   const now = new Date().toISOString();
   const teamId = input.teamId;
 
@@ -198,7 +202,7 @@ async function recomputeUserBadgeOwnership(input: RecomputeUserBadgeInput): Prom
   // advance service when the league transitions to playoffs.
 
   // Global / career badges (per-league career; season is null).
-  const globalRows = qualifyGlobalBadges(careerTotals).map((b) => ({
+  const globalRows = qualifyGlobalBadges(careerTotals, leagueGame).map((b) => ({
     league_id: leagueId,
     user_id: userId,
     team_id: teamId,
@@ -265,7 +269,7 @@ async function recomputeUserBadgeOwnership(input: RecomputeUserBadgeInput): Prom
   }
 
   // Audit: weekly badges earned in THIS game (game-scoped, re-import-safe).
-  const earnedThisGame = input.current ? qualifyWeeklyBadges(input.current) : [];
+  const earnedThisGame = input.current ? qualifyWeeklyBadges(input.current, leagueGame) : [];
   if (input.current?.gameId && earnedThisGame.length) {
     await supabase.from("rec_badge_events").insert(
       earnedThisGame.map((b) => ({
@@ -291,8 +295,7 @@ async function recomputeUserBadgeOwnership(input: RecomputeUserBadgeInput): Prom
 }
 
 async function applyOfficialRecordMilestones(leagueId: string, userId: string, careerTotals: CareerTotals): Promise<CareerTotals> {
-  const leagueResult = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
-  const game = String(leagueResult.data?.game ?? "madden_26");
+  const game = await loadLeagueGame(leagueId);
   const recordResult = await supabase
     .from("rec_global_user_game_records")
     .select("wins,games_played,playoff_wins,superbowl_wins")
@@ -311,6 +314,11 @@ async function applyOfficialRecordMilestones(leagueId: string, userId: string, c
   };
 }
 
+async function loadLeagueGame(leagueId: string): Promise<string> {
+  const leagueResult = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
+  return String(leagueResult.data?.game ?? "madden_26");
+}
+
 export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, season: number): Promise<{ usersUpdated: number }> {
   const { data: assignments, error } = await supabase
     .from("rec_team_assignments")
@@ -321,6 +329,7 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
   if (error) throw error;
 
   const seen = new Set<string>();
+  const leagueGame = await loadLeagueGame(leagueId);
   for (const assignment of assignments ?? []) {
     if (!assignment.user_id || seen.has(assignment.user_id)) continue;
     seen.add(assignment.user_id);
@@ -329,6 +338,7 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
       userId: assignment.user_id,
       teamId: assignment.team_id ?? null,
       season,
+      leagueGame,
       current: null,
     });
   }
@@ -367,6 +377,7 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
   if (!assignments?.length) return;
 
   const now = new Date().toISOString();
+  const leagueGame = await loadLeagueGame(leagueId);
 
   for (const { user_id: userId, team_id: teamId } of assignments) {
     const { data: rows } = await supabase
@@ -382,7 +393,7 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
     if (!seasonGames.length) continue;
 
     const seasonTotals = seasonTotalsFromGames(seasonGames);
-    const qualified = qualifySeasonBadges(seasonTotals);
+    const qualified = qualifySeasonBadges(seasonTotals, leagueGame);
     if (!qualified.length) continue;
 
     const badgeRows = qualified.map((b) => ({
