@@ -19,11 +19,13 @@ export const TEAM_LINK_CUSTOM_IDS = {
   userPagePrev: "rec:teamlink:user_page_prev",
   userPageNext: "rec:teamlink:user_page_next",
   conferenceSelect: "rec:teamlink:conference",
+  teamSelect: "rec:teamlink:team",
   afcTeamSelect: "rec:teamlink:team:afc",
   nfcTeamSelect: "rec:teamlink:team:nfc",
   viewLinked: "rec:teamlink:view_linked",
   viewOpen: "rec:teamlink:view_open",
   simpleConferenceSelect: "rec:teamlink:simple_conference",
+  simpleTeamSelect: "rec:teamlink:simple_team",
   simpleAfcTeamSelect: "rec:teamlink:simple_afc",
   simpleNfcTeamSelect: "rec:teamlink:simple_nfc",
   leagueTeamsAddRemove: "rec:league_teams:add_remove",
@@ -58,6 +60,7 @@ export type TeamLinkUserOption = {
 };
 
 export type TeamLinkTeamOption = {
+  id?: string;
   name: string;
   abbreviation: string;
   conference?: string | null;
@@ -161,20 +164,36 @@ export function buildUserSelectRows(input: { users: TeamLinkUserOption[]; page?:
   return rows;
 }
 
-export function buildConferenceSelectRow() {
+function uniqueConferences(teams: Array<{ conference?: string | null }>) {
+  const names = [...new Set(teams.map((team) => String(team.conference ?? "").trim()).filter(Boolean))];
+  const order = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
+  return names.sort((a, b) => {
+    const ai = order.indexOf(a);
+    const bi = order.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a.localeCompare(b);
+  });
+}
+
+export function buildConferenceSelectRow(teams: TeamLinkTeamOption[] = [...AFC_TEAMS, ...NFC_TEAMS]) {
+  const conferences = uniqueConferences(teams).slice(0, 25);
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
       .setCustomId(TEAM_LINK_CUSTOM_IDS.conferenceSelect)
       .setPlaceholder("Select conference")
       .addOptions(
-        new StringSelectMenuOptionBuilder().setLabel("AFC Teams").setValue("AFC"),
-        new StringSelectMenuOptionBuilder().setLabel("NFC Teams").setValue("NFC")
+        ...conferences.map((conference) =>
+          new StringSelectMenuOptionBuilder().setLabel(`${conference} Teams`.slice(0, 100)).setValue(conference)
+        )
       )
   );
 }
 
 export function buildOpenTeamSelectRow(conference: string, openTeams: TeamLinkTeamOption[]) {
-  const customId = conference === "AFC" ? TEAM_LINK_CUSTOM_IDS.afcTeamSelect : TEAM_LINK_CUSTOM_IDS.nfcTeamSelect;
+  const customId = conference === "AFC"
+    ? TEAM_LINK_CUSTOM_IDS.afcTeamSelect
+    : conference === "NFC"
+      ? TEAM_LINK_CUSTOM_IDS.nfcTeamSelect
+      : TEAM_LINK_CUSTOM_IDS.teamSelect;
   const options = openTeams
     .filter((team) => team.conference === conference)
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -187,12 +206,16 @@ export function buildOpenTeamSelectRow(conference: string, openTeams: TeamLinkTe
         ...options.map((team) =>
           new StringSelectMenuOptionBuilder()
             .setLabel(team.name.slice(0, 100))
-            .setValue(team.abbreviation)
+            .setValue(String(team.id ?? team.abbreviation))
         ),
-        new StringSelectMenuOptionBuilder()
-          .setLabel("Custom Team")
-          .setValue("CUSTOM_TEAM")
-          .setDescription("Custom team replacement flow will be added next.")
+        ...(conference === "AFC" || conference === "NFC"
+          ? [
+              new StringSelectMenuOptionBuilder()
+                .setLabel("Custom Team")
+                .setValue("CUSTOM_TEAM")
+                .setDescription("Custom team replacement flow will be added next.")
+            ]
+          : [])
       )
   );
 }
@@ -202,7 +225,8 @@ export function buildTeamSelectRow(conference: string) {
   return buildOpenTeamSelectRow(conference, teams);
 }
 
-export function buildSimpleTeamLinkPanel() {
+export function buildSimpleTeamLinkPanel(teams: TeamLinkTeamOption[] = [...AFC_TEAMS, ...NFC_TEAMS]) {
+  const conferences = uniqueConferences(teams).slice(0, 25);
   return {
     embeds: [
       new EmbedBuilder()
@@ -215,8 +239,9 @@ export function buildSimpleTeamLinkPanel() {
           .setCustomId(TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect)
           .setPlaceholder("Select conference")
           .addOptions(
-            new StringSelectMenuOptionBuilder().setLabel("AFC Teams").setValue("AFC"),
-            new StringSelectMenuOptionBuilder().setLabel("NFC Teams").setValue("NFC")
+            ...conferences.map((conference) =>
+              new StringSelectMenuOptionBuilder().setLabel(`${conference} Teams`.slice(0, 100)).setValue(conference)
+            )
           )
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -324,6 +349,8 @@ export function buildLeagueTeamsConferencePanel(conferences: Array<{ conference:
 }
 
 const DIVISION_ORDER = ["East", "North", "South", "West"];
+const CONFERENCE_ORDER = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
+const CANONICAL_CONFERENCE_NAMES = new Map(CONFERENCE_ORDER.map((conference) => [conference.toUpperCase(), conference]));
 
 function normalizeDivisionName(value: unknown, conference: string) {
   const cleaned = String(value ?? "Other")
@@ -338,7 +365,7 @@ function normalizeLeagueTeamConferences(rawConferences: any[]) {
   for (const conference of rawConferences ?? []) {
     const rawName = String(conference.conference ?? "").trim();
     const upperName = rawName.toUpperCase();
-    const confName = upperName === "AFC" || upperName === "NFC" ? upperName : rawName || "Other";
+    const confName = CANONICAL_CONFERENCE_NAMES.get(upperName) ?? (rawName || "Other");
     for (const division of conference.divisions ?? []) {
       const label = normalizeDivisionName(division.label ?? division.division, confName);
       if (!confMap.has(confName)) confMap.set(confName, new Map());
@@ -347,11 +374,10 @@ function normalizeLeagueTeamConferences(rawConferences: any[]) {
       divMap.get(label)!.push(...(division.teams ?? []));
     }
   }
-  const confOrder = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
   return [...confMap.entries()]
     .sort((a, b) => {
-      const ai = confOrder.indexOf(a[0]);
-      const bi = confOrder.indexOf(b[0]);
+      const ai = CONFERENCE_ORDER.indexOf(a[0]);
+      const bi = CONFERENCE_ORDER.indexOf(b[0]);
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi) || a[0].localeCompare(b[0]);
     })
     .map(([conference, divisions]) => ({
@@ -472,11 +498,16 @@ export function buildLeagueTeamsUnlinkConfirmPanel(teamName: string, discordId: 
 }
 
 export function buildSimpleTeamSelectPanel(
-  conference: "AFC" | "NFC",
-  linkedUsers?: Map<string, { discordUsername: string; discordId: string }>
+  conference: string,
+  linkedUsers?: Map<string, { discordUsername: string; discordId: string }>,
+  leagueTeams?: TeamLinkTeamOption[]
 ) {
-  const teams = conference === "AFC" ? AFC_TEAMS : NFC_TEAMS;
-  const customId = conference === "AFC" ? TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect : TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect;
+  const teams = (leagueTeams ?? (conference === "AFC" ? AFC_TEAMS : NFC_TEAMS)).filter((team) => team.conference === conference);
+  const customId = conference === "AFC"
+    ? TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect
+    : conference === "NFC"
+      ? TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
+      : TEAM_LINK_CUSTOM_IDS.simpleTeamSelect;
 
   return {
     embeds: [
@@ -491,14 +522,14 @@ export function buildSimpleTeamSelectPanel(
           .setPlaceholder(`Select ${conference} team`)
           .addOptions(
             ...teams
-              .filter((team) => team.conference === conference)
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((team) => {
+                const teamValue = String("id" in team && team.id ? team.id : team.abbreviation);
                 const option = new StringSelectMenuOptionBuilder()
                   .setLabel(team.name)
-                  .setValue(team.abbreviation);
+                  .setValue(teamValue);
 
-                const linkedUser = linkedUsers?.get(team.abbreviation);
+                const linkedUser = linkedUsers?.get(teamValue) ?? linkedUsers?.get(team.abbreviation);
                 if (linkedUser) {
                   option.setDescription(`Assigned to: ${linkedUser.discordUsername}`);
                 } else {
@@ -507,10 +538,14 @@ export function buildSimpleTeamSelectPanel(
 
                 return option;
               }),
-            new StringSelectMenuOptionBuilder()
-              .setLabel("Custom / Relocated Team")
-              .setValue("CUSTOM_TEAM")
-              .setDescription(`Register a custom or relocated ${conference} team`)
+            ...(conference === "AFC" || conference === "NFC"
+              ? [
+                  new StringSelectMenuOptionBuilder()
+                    .setLabel("Custom / Relocated Team")
+                    .setValue("CUSTOM_TEAM")
+                    .setDescription(`Register a custom or relocated ${conference} team`)
+                ]
+              : [])
           )
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(

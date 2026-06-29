@@ -60,9 +60,15 @@ export const WEEKLY_BADGES: BadgeDef<GameStats>[] = [
   { key: "empty_yards", label: "Empty Yards", description: "400+ total yards but only 21 or fewer points scored", qualifies: (g) => g.totalYards >= 400 && g.pointsFor <= 21 },
   { key: "return_game_edge", label: "Return Game Edge", description: "150+ combined return yards", qualifies: (g) => returnYards(g) >= 150 },
   { key: "hidden_yardage", label: "Hidden Yardage", description: "200+ combined return yards", qualifies: (g) => returnYards(g) >= 200 },
-  { key: "two_point_specialist", label: "Two-Point Specialist", description: "Converted 2+ two-point attempts", qualifies: (g) => g.twoPointConversions >= 2 },
+  { key: "two_point_specialist", label: "Two-Point Specialist", description: "Recorded 2+ successful two-point conversions", qualifies: (g) => g.twoPointConversions >= 2 },
   { key: "road_warrior", label: "Road Warrior", description: "Road win by 10+ points", qualifies: (g) => g.homeAway === "away" && g.won && g.margin >= 10 },
   { key: "home_fortress", label: "Home Fortress", description: "Home win by 10+ points", qualifies: (g) => g.homeAway === "home" && g.won && g.margin >= 10 },
+  { key: "option_identity", label: "Option Identity", description: "250+ rushing yards and rush yards beat pass yards by 100+", qualifies: (g) => g.rushingYards >= 250 && g.rushingYards - g.passingYards >= 100 },
+  { key: "track_meet", label: "Track Meet", description: "Both teams scored 35+ points", qualifies: (g) => g.pointsFor >= 35 && g.pointsAgainst >= 35 },
+  { key: "student_section_stand", label: "Student Section Stand", description: "Home win while allowing 14 or fewer points", qualifies: (g) => g.homeAway === "home" && g.won && g.pointsAgainst <= 14 },
+  { key: "bowl_statement", label: "Bowl Statement", description: "Won by 35+ points", qualifies: (g) => g.won && g.margin >= 35 },
+  { key: "special_teams_spark", label: "Special Teams Spark", description: "175+ combined kick and punt return yards", qualifies: (g) => returnYards(g) >= 175 },
+  { key: "campus_chaos", label: "Campus Chaos", description: "Won a game where both teams scored 28+ and combined turnovers reached 4+", qualifies: (g) => g.won && g.pointsFor >= 28 && g.pointsAgainst >= 28 && g.turnoversCommitted + g.opponentTurnovers >= 4 },
 ];
 
 // ─── Non-tiered season badges (20) — from season totals ────────────────────────
@@ -88,6 +94,12 @@ export const SEASON_BADGES: BadgeDef<SeasonTotals>[] = [
   { key: "two_point_identity", label: "Two-Point Identity", description: "10+ two-point conversions this season", qualifies: (s) => s.twoPointConversions >= 10 },
   { key: "division_champion", label: "Division Champion", description: "Won the division title", qualifies: (s) => s.wonDivision },
   { key: "super_bowl_champion", label: "Super Bowl Champion", description: "Won the championship", qualifies: (s) => s.wonChampionship },
+  { key: "bowl_eligible", label: "Bowl Eligible", description: "Won 6+ games this season", qualifies: (s) => s.wins >= 6 },
+  { key: "conference_contender", label: "Conference Contender", description: "Won 8+ games this season", qualifies: (s) => s.wins >= 8 },
+  { key: "option_program", label: "Option Program", description: "2,500+ rushing yards this season", qualifies: (s) => s.rushingYards >= 2500 },
+  { key: "air_raid_program", label: "Air Raid Program", description: "5,500+ passing yards this season", qualifies: (s) => s.passingYards >= 5500 },
+  { key: "turnover_chain", label: "Turnover Chain", description: "Forced 35+ opponent turnovers this season", qualifies: (s) => s.opponentTurnovers >= 35 },
+  { key: "campus_fortress", label: "Campus Fortress", description: "Allowed 16 or fewer points per game this season", qualifies: (s) => s.gamesPlayed > 0 && s.pointsAgainst / s.gamesPlayed <= 16 },
 ];
 
 // ─── Global / career badges (50) — permanent ───────────────────────────────────

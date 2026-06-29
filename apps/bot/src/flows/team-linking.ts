@@ -163,6 +163,29 @@ async function loadLeagueConferences(guildId: string) {
   return conferences;
 }
 
+function flattenLeagueTeams(conferences: any[]) {
+  return (conferences ?? []).flatMap((conference: any) =>
+    (conference.divisions ?? []).flatMap((division: any) =>
+      (division.teams ?? []).map((team: any) => ({
+        ...team,
+        conference: conference.conference ?? team.conference,
+        divisionLabel: division.label ?? division.division ?? "Teams"
+      }))
+    )
+  );
+}
+
+async function loadOpenTeams(guildId: string) {
+  let openTeamsResult = await recApi.getOpenTeams(guildId);
+  let openTeams = openTeamsResult.openTeams ?? [];
+  if (!openTeams.length) {
+    await recApi.createDefaultTeams(guildId).catch(() => null);
+    openTeamsResult = await recApi.getOpenTeams(guildId);
+    openTeams = openTeamsResult.openTeams ?? [];
+  }
+  return openTeams;
+}
+
 function findConferenceTeam(conferences: any[], conferenceName: string, teamId: string) {
   const normalizedConference = conferenceName.toLowerCase();
   for (const conference of conferences) {
@@ -336,6 +359,7 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
   if (interaction.customId === TEAM_LINK_CUSTOM_IDS.authoritySelect) {
     draft.authority = value as RecTeamAuthority;
     teamLinkSessions.set(interaction.user.id, draft);
+    const openTeams = await loadOpenTeams(interaction.guildId);
 
     await interaction.update({
       embeds: [
@@ -343,7 +367,7 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
           .setTitle("Link User to Team")
           .setDescription("Step 3: select a conference.")
       ],
-      components: [buildConferenceSelectRow(), buildNavigationRow({ includeAdminPanel: true })]
+      components: [buildConferenceSelectRow(openTeams), buildNavigationRow({ includeAdminPanel: true })]
     });
     return;
   }
@@ -354,8 +378,8 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
 
     await interaction.deferUpdate();
 
-    const openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
-    const openConferenceTeams = (openTeamsResult.openTeams ?? []).filter(
+    const openTeams = await loadOpenTeams(interaction.guildId);
+    const openConferenceTeams = openTeams.filter(
       (team: any) => team.conference === draft.conference
     );
 
@@ -379,7 +403,8 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
 
   if (
     interaction.customId === TEAM_LINK_CUSTOM_IDS.afcTeamSelect ||
-    interaction.customId === TEAM_LINK_CUSTOM_IDS.nfcTeamSelect
+    interaction.customId === TEAM_LINK_CUSTOM_IDS.nfcTeamSelect ||
+    interaction.customId === TEAM_LINK_CUSTOM_IDS.teamSelect
   ) {
     if (value === "CUSTOM_TEAM") {
       await interaction.reply({
@@ -399,8 +424,8 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
 
     await interaction.deferUpdate();
 
-    const openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
-    const selectedTeam = (openTeamsResult.openTeams ?? []).find((team: any) => team.abbreviation === value);
+    const openTeams = await loadOpenTeams(interaction.guildId);
+    const selectedTeam = openTeams.find((team: any) => String(team.id) === value || team.abbreviation === value);
 
     if (!selectedTeam) {
       await interaction.editReply({
@@ -663,7 +688,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
   const { TEAM_LINK_CUSTOM_IDS, buildSimpleTeamSelectPanel, buildUserSelectionPanel } = await import("../ui/team-options.js");
 
   if (interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect) {
-    const conference = interaction.values[0] === "AFC" ? "AFC" : "NFC";
+    const conference = interaction.values[0];
 
     // Acknowledge immediately — the linked-users API call below can exceed Discord's 3s window
     // (especially on a cold API), which previously caused Unknown interaction (10062) on update.
@@ -675,40 +700,49 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     const linkedUsers = new Map<string, { discordUsername: string; discordId: string }>();
     (linkedResult.linked ?? []).forEach((row: any) => {
       const abbr = row.team?.abbreviation;
+      const teamId = row.team?.id;
       if (abbr && row.discordId) {
         const username = row.discordAccount?.global_name || row.discordAccount?.username;
-        linkedUsers.set(abbr, {
+        const linkedUser = {
           discordUsername: username ? `@${username}` : `<@${row.discordId}>`,
           discordId: row.discordId
-        });
+        };
+        linkedUsers.set(abbr, linkedUser);
+        if (teamId) linkedUsers.set(String(teamId), linkedUser);
       }
     });
 
-    await interaction.editReply(buildSimpleTeamSelectPanel(conference, linkedUsers));
+    const conferences = await loadLeagueConferences(interaction.guildId);
+    await interaction.editReply(buildSimpleTeamSelectPanel(conference, linkedUsers, flattenLeagueTeams(conferences)));
     return;
   }
 
   if (
     interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ||
-    interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
+    interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect ||
+    interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleTeamSelect
   ) {
-    const teamAbbr = interaction.values[0];
-    const conference = interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ? "AFC" : "NFC";
+    const selectedValue = interaction.values[0];
+    const conference = interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect
+      ? "AFC"
+      : interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
+        ? "NFC"
+        : undefined;
 
     // showModal requires an unacknowledged interaction — must branch before deferUpdate
-    if (teamAbbr === "CUSTOM_TEAM") {
+    if (selectedValue === "CUSTOM_TEAM") {
       const { buildCustomTeamModal } = await import("../ui/team-options.js");
-  customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference, linkUser: true });
+      customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference, linkUser: true });
       await interaction.showModal(buildCustomTeamModal(conference));
       return;
     }
 
     await interaction.deferUpdate();
 
-    const teams = conference === "AFC"
-      ? (await import("@rec/shared")).AFC_TEAMS
-      : (await import("@rec/shared")).NFC_TEAMS;
-    const selectedTeam = teams.find((t: any) => t.abbreviation === teamAbbr);
+    const conferences = await loadLeagueConferences(interaction.guildId);
+    const teams = flattenLeagueTeams(conferences);
+    const selectedTeam = teams.find((t: any) => String(t.id) === selectedValue || t.abbreviation === selectedValue);
+    const selectedConference = conference ?? selectedTeam?.conference;
 
     if (!selectedTeam) {
       await interaction.editReply({ content: "Team not found." });
@@ -717,7 +751,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
 
     // Get linked users to check if this team already has someone
     const linkedResult = await recApi.getLinkedUsersTeams(interaction.guildId);
-    const currentLinkedUser = (linkedResult.linked ?? []).find((row: any) => row.team?.abbreviation === teamAbbr);
+    const currentLinkedUser = (linkedResult.linked ?? []).find((row: any) => String(row.team?.id) === String(selectedTeam.id) || row.team?.abbreviation === selectedTeam.abbreviation);
 
     if (currentLinkedUser) {
       // Team already has a user — actually delete the DB assignment, then clear Discord roles/nickname.
@@ -754,16 +788,19 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
       const linkedUsers = new Map<string, { discordUsername: string; discordId: string }>();
       (refreshed.linked ?? []).forEach((row: any) => {
         const abbr = row.team?.abbreviation;
+        const teamId = row.team?.id;
         if (abbr && row.discordId) {
           const username = row.discordAccount?.global_name || row.discordAccount?.username;
-          linkedUsers.set(abbr, {
+          const linkedUser = {
             discordUsername: username ? `@${username}` : `<@${row.discordId}>`,
             discordId: row.discordId
-          });
+          };
+          linkedUsers.set(abbr, linkedUser);
+          if (teamId) linkedUsers.set(String(teamId), linkedUser);
         }
       });
 
-      const panel = buildSimpleTeamSelectPanel(conference, linkedUsers);
+      const panel = buildSimpleTeamSelectPanel(selectedConference, linkedUsers, teams);
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
@@ -801,7 +838,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     }
 
     // Find the team in the list
-    let teamData = allTeams.find((t: any) => t.abbreviation === selectedTeam.abbreviation);
+    let teamData = allTeams.find((t: any) => String(t.id) === String(selectedTeam.id) || t.abbreviation === selectedTeam.abbreviation);
 
     if (!teamData) {
       // If still not found in open teams, try to find in linked teams
@@ -812,7 +849,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
         name: link.team?.name
       })) ?? [];
 
-      teamData = linkedTeams.find((t: any) => t.abbreviation === selectedTeam.abbreviation);
+      teamData = linkedTeams.find((t: any) => String(t.id) === String(selectedTeam.id) || t.abbreviation === selectedTeam.abbreviation);
 
       if (!teamData) {
         await interaction.editReply({ content: "Team not found in league. Please try again.", components: [] });
@@ -824,7 +861,8 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
       guildId: interaction.guildId,
       teamId: teamData.id,
       teamAbbr: selectedTeam.abbreviation,
-      teamName: selectedTeam.name
+      teamName: selectedTeam.name,
+      conference: selectedConference
     });
 
     await interaction.editReply(buildUserSelectionPanel(selectedTeam.name, availableUsers, 0));

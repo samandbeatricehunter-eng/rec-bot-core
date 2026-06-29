@@ -440,10 +440,13 @@ function maddenTeamLine(team: RosterTeam) {
 // Re-bucket every team into NFC/AFC (inferring from the division text when the conference is blank)
 // so the grid always renders exactly the two real conferences — no empty/duplicate groups.
 export function normalizeRosterConferences(conferences: RosterConference[]): RosterConference[] {
+  const conferenceOrder = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
+  const canonicalConferenceNames = new Map(conferenceOrder.map((conference) => [conference.toUpperCase(), conference]));
   const inferConf = (confName: string, divisionText: string) => {
     const raw = String(confName ?? "").trim();
     const c = raw.toUpperCase();
-    if (c === "NFC" || c === "AFC") return c;
+    const canonical = canonicalConferenceNames.get(c);
+    if (canonical) return canonical;
     if (raw) return raw;
     const text = String(divisionText ?? "").toUpperCase();
     if (text.includes("AFC")) return "AFC";
@@ -472,9 +475,8 @@ export function normalizeRosterConferences(conferences: RosterConference[]): Ros
       }
     }
   }
-  const order = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
   return [...confMap.keys()]
-    .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99))
+    .sort((a, b) => (conferenceOrder.indexOf(a) + 1 || 99) - (conferenceOrder.indexOf(b) + 1 || 99))
     .map((c) => ({
       conference: c,
       divisions: [...confMap.get(c)!.entries()]

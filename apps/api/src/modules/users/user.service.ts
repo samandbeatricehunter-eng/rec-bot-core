@@ -23,21 +23,21 @@ const IDENTITY_GROUPS = [
     key: "ground_game",
     label: "Ground-and-Pound Operator",
     summary: "Leans on the run game and repeated rushing-control achievements.",
-    badges: new Set(["ground_and_pound", "run_heavy", "ground_commander", "ground_and_pound_veteran"]),
+    badges: new Set(["ground_and_pound", "run_heavy", "ground_commander", "ground_and_pound_veteran", "option_identity", "option_program"]),
     statScore: (s: any) => scoreAbove(s?.rushingYardsAvg, 110, 190, 26) + scoreAbove(rushShare(s), 0.38, 0.55, 16) + scoreAbove(s?.firstDownsAvg, 20, 27, 10),
   },
   {
     key: "air_game",
     label: "Air Raid Merchant",
     summary: "Creates identity through passing volume, explosive air production, and pass-heavy badge history.",
-    badges: new Set(["air_raid", "pass_heavy", "air_commander", "air_raid_veteran"]),
+    badges: new Set(["air_raid", "pass_heavy", "air_commander", "air_raid_veteran", "air_raid_program"]),
     statScore: (s: any) => scoreAbove(s?.passingYardsAvg, 260, 380, 28) + scoreAbove(passShare(s), 0.62, 0.78, 18),
   },
   {
     key: "shootout",
     label: "Shootout Specialist",
     summary: "Regularly plays in high-scoring games and wins with offensive pressure.",
-    badges: new Set(["shootout_winner", "offensive_explosion", "offensive_standard", "shootout_veteran", "shootout_legend"]),
+    badges: new Set(["shootout_winner", "offensive_explosion", "offensive_standard", "shootout_veteran", "shootout_legend", "track_meet"]),
     statScore: (s: any) => scoreAbove(s?.pointsForAvg, 31, 44, 25) + scoreAbove(s?.highScoringRate, 35, 75, 18) + scoreAbove(s?.offensiveYardsAvg, 390, 500, 12),
   },
   {
@@ -58,7 +58,7 @@ const IDENTITY_GROUPS = [
     key: "defense",
     label: "Defensive Closer",
     summary: "Wins with defensive pressure, red-zone resistance, and low points allowed.",
-    badges: new Set(["defensive_grind", "red_zone_wall", "red_zone_defense", "defensive_standard", "opportunistic", "takeaway_season", "red_zone_wall_career", "opportunist"]),
+    badges: new Set(["defensive_grind", "red_zone_wall", "red_zone_defense", "defensive_standard", "opportunistic", "takeaway_season", "red_zone_wall_career", "opportunist", "student_section_stand", "turnover_chain", "campus_fortress"]),
     statScore: (s: any) => scoreBelow(s?.pointsAgainstAvg, 22, 12, 24) + scoreBelow(s?.redZoneDefPct, 55, 35, 14) + scoreAbove(s?.turnoversGeneratedAvg, 1.2, 3, 14),
   },
   {
@@ -79,7 +79,7 @@ const IDENTITY_GROUPS = [
     key: "chaos",
     label: "Chaos Coach",
     summary: "Creates noisy, swing-heavy games through turnovers, explosive scoring, and volatile results.",
-    badges: new Set(["turnover_trouble", "turnover_survivor", "opportunistic", "empty_yards", "heartbreaker", "shootout_winner"]),
+    badges: new Set(["turnover_trouble", "turnover_survivor", "opportunistic", "empty_yards", "heartbreaker", "shootout_winner", "campus_chaos", "track_meet"]),
     statScore: (s: any) => scoreAbove((s?.turnoversCommittedAvg ?? 0) + (s?.turnoversGeneratedAvg ?? 0), 3, 5.5, 22) + scoreAbove(s?.highScoringRate, 35, 75, 12) + scoreAbove(s?.closeGameRate, 35, 75, 8),
   },
   {
@@ -93,7 +93,7 @@ const IDENTITY_GROUPS = [
     key: "field_position",
     label: "Field Position Thief",
     summary: "Steals hidden yards through return production and short-field pressure.",
-    badges: new Set(["return_game_edge", "hidden_yardage", "return_threat"]),
+    badges: new Set(["return_game_edge", "hidden_yardage", "return_threat", "special_teams_spark"]),
     statScore: (s: any) => scoreAbove(s?.returnYardsAvg, 90, 170, 24),
   },
   {
@@ -109,6 +109,34 @@ const IDENTITY_GROUPS = [
     summary: "Lives in lower-scoring, close-margin games where every possession matters.",
     badges: new Set(["close_escape", "heartbreaker", "defensive_grind", "ground_and_pound", "ball_security"]),
     statScore: (s: any) => scoreAbove(s?.closeGameRate, 40, 80, 18) + scoreBelow(s?.pointsForAvg, 30, 18, 7) + scoreBelow(s?.pointsAgainstAvg, 24, 15, 10),
+  },
+  {
+    key: "option_program",
+    label: "Option Program Builder",
+    summary: "Builds the offense through heavy rushing volume, option-style yardage splits, and drive control.",
+    badges: new Set(["option_identity", "option_program", "ground_and_pound", "run_heavy", "ground_commander"]),
+    statScore: (s: any) => scoreAbove(s?.rushingYardsAvg, 150, 260, 30) + scoreAbove(rushShare(s), 0.46, 0.66, 22) + scoreAbove(s?.firstDownsAvg, 19, 28, 8),
+  },
+  {
+    key: "campus_power",
+    label: "Campus Power",
+    summary: "Looks like a weekly favorite: big margins, bowl-level wins, and enough season consistency to separate from the pack.",
+    badges: new Set(["bowl_statement", "statement_win", "bowl_eligible", "conference_contender", "perfect_regular_season", "ten_win_club"]),
+    statScore: (s: any) => scoreAbove(s?.pointsForAvg - s?.pointsAgainstAvg, 10, 28, 26) + scoreAbove(s?.pointsForAvg, 30, 45, 10) + scoreBelow(s?.pointsAgainstAvg, 24, 14, 10),
+  },
+  {
+    key: "home_field",
+    label: "Home-Field Hammer",
+    summary: "Turns home games into pressure spots, pairing home wins with defensive stands and low-scoring control.",
+    badges: new Set(["home_fortress", "home_fortress_career", "student_section_stand", "campus_fortress"]),
+    statScore: (s: any) => scoreBelow(s?.pointsAgainstAvg, 21, 13, 18) + scoreBelow(s?.redZoneDefPct, 55, 36, 10),
+  },
+  {
+    key: "special_teams",
+    label: "Special Teams Catalyst",
+    summary: "Changes field position with return production and forces opponents to defend more than the normal offensive script.",
+    badges: new Set(["special_teams_spark", "return_game_edge", "hidden_yardage", "return_threat"]),
+    statScore: (s: any) => scoreAbove(s?.returnYardsAvg, 100, 190, 28),
   },
 ];
 
@@ -276,6 +304,11 @@ function rushShare(stats: any) {
 function blendLabel(parts: Array<{ key: string; label: string }>) {
   const keys = parts.map((part) => part.key);
   if (keys.includes("shootout") && keys.includes("air_game") && keys.includes("chaos")) return "Volatile Air Raid Finisher";
+  if (keys.includes("option_program") && keys.includes("clock_control")) return "Option-Control Architect";
+  if (keys.includes("option_program") && keys.includes("campus_power")) return "Power Option Program";
+  if (keys.includes("campus_power") && keys.includes("defense")) return "Campus Power Closer";
+  if (keys.includes("special_teams") && keys.includes("field_position")) return "Hidden-Yardage Catalyst";
+  if (keys.includes("home_field") && keys.includes("defense")) return "Home-Field Defensive Hammer";
   if (keys.includes("shootout") && keys.includes("air_game")) return "Air Raid Finisher";
   if (keys.includes("shootout") && keys.includes("chaos")) return "Volatile Shootout Artist";
   if (keys.includes("clock_control") && keys.includes("defense")) return "Possession-Control Closer";
@@ -302,6 +335,10 @@ function statEvidence(stats: any, keys: string[]) {
   if (keys.includes("chaos")) evidence.push(`${(stats.turnoversCommittedAvg + stats.turnoversGeneratedAvg).toFixed(1)} combined turnovers/G`);
   if (keys.includes("red_zone")) evidence.push(`${stats.redZoneOffPct}% red-zone offense`);
   if (keys.includes("field_position")) evidence.push(`${stats.returnYardsAvg} return yards/G`);
+  if (keys.includes("option_program")) evidence.push(`${stats.rushingYardsAvg} rushing YPG, ${Math.round(rushShare(stats) * 100)}% rush-yard share`);
+  if (keys.includes("campus_power")) evidence.push(`${(stats.pointsForAvg - stats.pointsAgainstAvg).toFixed(1)} point differential/G`);
+  if (keys.includes("home_field")) evidence.push(`${stats.pointsAgainstAvg} points allowed/G with ${stats.redZoneDefPct}% opponent red-zone offense`);
+  if (keys.includes("special_teams")) evidence.push(`${stats.returnYardsAvg} return yards/G`);
   if (keys.includes("bend_dont_break")) evidence.push(`${stats.yardsAllowedAvg} yards allowed/G but ${stats.pointsAgainstAvg} points allowed/G`);
   if (keys.includes("grinder")) evidence.push(`${stats.closeGameRate}% close games`);
   return [...new Set(evidence)];
@@ -314,6 +351,21 @@ function styleSummary(parts: Array<{ key: string; label: string; summary: string
   const lead = (() => {
     if (keys.includes("shootout") && keys.includes("air_game") && keys.includes("chaos")) {
       return "This coach wants the game fast and noisy: passing volume, scoring pressure, and turnover swings all show up in the profile.";
+    }
+    if (keys.includes("option_program") && keys.includes("clock_control")) {
+      return "This coach is building a college-style option identity: rushing volume creates the base, first downs keep the offense on schedule, and the game tends to bend around their pace.";
+    }
+    if (keys.includes("option_program") && keys.includes("campus_power")) {
+      return "This coach turns a run-first offense into program pressure, using option-style production to create separation instead of just surviving close possessions.";
+    }
+    if (keys.includes("campus_power") && keys.includes("defense")) {
+      return "This coach profiles like a ranked-program problem: strong margins, enough scoring punch to build leads, and defensive resistance that keeps opponents from trading evenly.";
+    }
+    if (keys.includes("home_field") && keys.includes("defense")) {
+      return "This coach's profile gets heavier in home-field games, where defensive stands and low points allowed make the matchup feel uncomfortable early.";
+    }
+    if (keys.includes("special_teams") && keys.includes("field_position")) {
+      return "This coach changes the field before the offense snaps the ball, stacking return yards and hidden-yardage edges that shorten drives.";
     }
     if (keys.includes("clock_control") && keys.includes("defense")) {
       return "This coach is built to shorten games, stack first downs, and force opponents to win long drives against a defense that closes well.";

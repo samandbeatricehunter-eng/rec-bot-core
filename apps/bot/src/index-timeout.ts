@@ -103,7 +103,7 @@ import {
   leagueSetupSessions
 } from "./flows/league-setup.js";
 import { RULES_CUSTOM_IDS, buildRulesPanel } from "./ui/rules.js";
-import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal, handleCustomTeamNoLink, renderLeagueMgmtTeams, handleLeagueTeamsAddRemove, handleLeagueTeamsEdit, handleLeagueTeamsConferenceSelect, handleLeagueTeamsTeamSelect, handleLeagueTeamsEditConferenceSelect, handleLeagueTeamsEditTeamSelect, handleLeagueTeamsResetDefaults, handleLeagueTeamsConfirmBack, handleLeagueTeamsConfirmUnlink } from "./flows/team-linking.js";
+import { handleSimpleTeamLinkSelect, handleSimpleTeamLinkUserSelect, handleSimpleTeamLinkRoleSelect, handleClearAllTeamLinks, handleCustomTeamModal, handleCustomTeamNoLink, renderLeagueMgmtTeams, handleLeagueTeamsAddRemove, handleLeagueTeamsEdit, handleLeagueTeamsConferenceSelect, handleLeagueTeamsTeamSelect, handleLeagueTeamsEditConferenceSelect, handleLeagueTeamsEditTeamSelect, handleLeagueTeamsResetDefaults, handleLeagueTeamsConfirmBack, handleLeagueTeamsConfirmUnlink, handleTeamLinkSelect } from "./flows/team-linking.js";
 import { TEAM_LINK_CUSTOM_IDS } from "./ui/team-options.js";
 import {
   handleManageWallet,
@@ -340,8 +340,17 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (
         interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect ||
         interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ||
-        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleTeamSelect
       ) return handleSimpleTeamLinkSelect(interaction);
+      if (
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.userSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.authoritySelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.conferenceSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.afcTeamSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.nfcTeamSelect ||
+        interaction.customId === TEAM_LINK_CUSTOM_IDS.teamSelect
+      ) return handleTeamLinkSelect(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConferenceSelect) return handleLeagueTeamsConferenceSelect(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsTeamSelect}:`)) return handleLeagueTeamsTeamSelect(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsEditConferenceSelect) return handleLeagueTeamsEditConferenceSelect(interaction);
