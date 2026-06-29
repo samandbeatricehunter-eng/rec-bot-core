@@ -24,42 +24,91 @@ const IDENTITY_GROUPS = [
     label: "Ground-and-Pound Operator",
     summary: "Leans on the run game and repeated rushing-control achievements.",
     badges: new Set(["ground_and_pound", "run_heavy", "ground_commander", "ground_and_pound_veteran"]),
+    statScore: (s: any) => scoreAbove(s?.rushingYardsAvg, 110, 190, 26) + scoreAbove(rushShare(s), 0.38, 0.55, 16) + scoreAbove(s?.firstDownsAvg, 20, 27, 10),
   },
   {
     key: "air_game",
-    label: "Vertical Pressure Coach",
+    label: "Air Raid Merchant",
     summary: "Creates identity through passing volume, explosive air production, and pass-heavy badge history.",
     badges: new Set(["air_raid", "pass_heavy", "air_commander", "air_raid_veteran"]),
+    statScore: (s: any) => scoreAbove(s?.passingYardsAvg, 260, 380, 28) + scoreAbove(passShare(s), 0.62, 0.78, 18),
   },
   {
     key: "shootout",
     label: "Shootout Specialist",
     summary: "Regularly plays in high-scoring games and wins with offensive pressure.",
     badges: new Set(["shootout_winner", "offensive_explosion", "offensive_standard", "shootout_veteran", "shootout_legend"]),
+    statScore: (s: any) => scoreAbove(s?.pointsForAvg, 31, 44, 25) + scoreAbove(s?.highScoringRate, 35, 75, 18) + scoreAbove(s?.offensiveYardsAvg, 390, 500, 12),
   },
   {
     key: "balanced",
-    label: "Balanced Game Planner",
+    label: "Balanced Problem",
     summary: "Builds production through a balanced passing and rushing profile.",
     badges: new Set(["balanced_attack", "balanced_season", "balanced_identity"]),
+    statScore: (s: any) => scoreAbove(Math.min(s?.passingYardsAvg ?? 0, (s?.rushingYardsAvg ?? 0) * 1.9), 210, 310, 18) + scoreBetween(passShare(s), 0.5, 0.68, 18),
   },
   {
     key: "efficiency",
     label: "Efficiency Manager",
     summary: "Protects possessions, finishes drives, and wins through clean execution.",
     badges: new Set(["ball_security", "perfect_red_zone", "red_zone_efficient", "red_zone_master", "ball_control_season", "ball_security_veteran", "ball_security_legend"]),
+    statScore: (s: any) => scoreBelow(s?.turnoversCommittedAvg, 1.2, 0.2, 22) + scoreAbove(s?.redZoneOffPct, 72, 92, 16) + scoreAbove(s?.turnoverDifferentialAvg, 0.4, 1.8, 12),
   },
   {
     key: "defense",
     label: "Defensive Closer",
     summary: "Wins with defensive pressure, red-zone resistance, and low points allowed.",
     badges: new Set(["defensive_grind", "red_zone_wall", "red_zone_defense", "defensive_standard", "opportunistic", "takeaway_season", "red_zone_wall_career", "opportunist"]),
+    statScore: (s: any) => scoreBelow(s?.pointsAgainstAvg, 22, 12, 24) + scoreBelow(s?.redZoneDefPct, 55, 35, 14) + scoreAbove(s?.turnoversGeneratedAvg, 1.2, 3, 14),
   },
   {
     key: "situational",
     label: "Situational Gambler",
-    summary: "Shows up in fourth-down, close-game, two-point, and volatile matchup achievements.",
+    summary: "Shows up in fourth-down, close-game, and volatile matchup achievements.",
     badges: new Set(["fourth_down_gambler", "fourth_down_menace", "two_point_specialist", "two_point_identity", "close_escape", "turnover_survivor", "bend_dont_break"]),
+    statScore: (s: any) => scoreAbove(s?.fourthDownConversionsAvg, 1.1, 3, 20) + scoreAbove(s?.closeGameRate, 35, 75, 12) + scoreAbove(s?.twoPointConversionsAvg, 0.2, 0.8, 4),
+  },
+  {
+    key: "clock_control",
+    label: "Clock Controller",
+    summary: "Controls games through rushing volume, chains, and low-mistake possession football.",
+    badges: new Set(["chain_mover", "drive_extender", "nickel_and_dime", "ball_security", "ground_and_pound", "chain_king", "drive_sustainer"]),
+    statScore: (s: any) => scoreAbove(s?.firstDownsAvg, 21, 29, 24) + scoreAbove(s?.rushingYardsAvg, 100, 175, 14) + scoreBelow(s?.turnoversCommittedAvg, 1.4, 0.4, 10),
+  },
+  {
+    key: "chaos",
+    label: "Chaos Coach",
+    summary: "Creates noisy, swing-heavy games through turnovers, explosive scoring, and volatile results.",
+    badges: new Set(["turnover_trouble", "turnover_survivor", "opportunistic", "empty_yards", "heartbreaker", "shootout_winner"]),
+    statScore: (s: any) => scoreAbove((s?.turnoversCommittedAvg ?? 0) + (s?.turnoversGeneratedAvg ?? 0), 3, 5.5, 22) + scoreAbove(s?.highScoringRate, 35, 75, 12) + scoreAbove(s?.closeGameRate, 35, 75, 8),
+  },
+  {
+    key: "red_zone",
+    label: "Red Zone Technician",
+    summary: "Turns drives into points through red-zone execution and efficient finishing.",
+    badges: new Set(["perfect_red_zone", "red_zone_efficient", "red_zone_master", "offensive_standard"]),
+    statScore: (s: any) => scoreAbove(s?.redZoneOffPct, 76, 96, 24) + scoreAbove(s?.pointsForAvg, 27, 39, 12),
+  },
+  {
+    key: "field_position",
+    label: "Field Position Thief",
+    summary: "Steals hidden yards through return production and short-field pressure.",
+    badges: new Set(["return_game_edge", "hidden_yardage", "return_threat"]),
+    statScore: (s: any) => scoreAbove(s?.returnYardsAvg, 90, 170, 24),
+  },
+  {
+    key: "bend_dont_break",
+    label: "Bend-Don't-Break Defender",
+    summary: "Can allow movement between the 20s but tightens up in scoring situations.",
+    badges: new Set(["bend_dont_break", "red_zone_wall", "defensive_grind", "red_zone_defense"]),
+    statScore: (s: any) => scoreAbove(s?.yardsAllowedAvg, 340, 450, 8) + scoreBelow(s?.pointsAgainstAvg, 24, 16, 16) + scoreBelow(s?.redZoneDefPct, 52, 34, 14),
+  },
+  {
+    key: "grinder",
+    label: "Grinder",
+    summary: "Lives in lower-scoring, close-margin games where every possession matters.",
+    badges: new Set(["close_escape", "heartbreaker", "defensive_grind", "ground_and_pound", "ball_security"]),
+    statScore: (s: any) => scoreAbove(s?.closeGameRate, 40, 80, 18) + scoreBelow(s?.pointsForAvg, 30, 18, 7) + scoreBelow(s?.pointsAgainstAvg, 24, 15, 10),
   },
 ];
 
@@ -189,12 +238,86 @@ function badgeScore(row: any) {
   return Math.max(1, Number(row.earned_count ?? row.best_streak ?? row.current_streak ?? 1)) * (TIER_WEIGHT[String(row.tier ?? "normal")] ?? 1);
 }
 
-function buildIdentityFromBadges(badges: any[]) {
-  if (!badges.length) {
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function scoreAbove(value: unknown, floor: number, ceiling: number, max: number) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n <= floor) return 0;
+  return Math.round(clamp01((n - floor) / Math.max(1, ceiling - floor)) * max);
+}
+
+function scoreBelow(value: unknown, floor: number, ceiling: number, max: number) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n >= floor) return 0;
+  return Math.round(clamp01((floor - n) / Math.max(0.1, floor - ceiling)) * max);
+}
+
+function scoreBetween(value: unknown, low: number, high: number, max: number) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n < low || n > high) return 0;
+  const midpoint = (low + high) / 2;
+  const half = Math.max(0.01, (high - low) / 2);
+  return Math.round((1 - Math.abs(n - midpoint) / half) * max);
+}
+
+function passShare(stats: any) {
+  const pass = Number(stats?.passingYards ?? 0);
+  const rush = Number(stats?.rushingYards ?? 0);
+  return pass + rush > 0 ? pass / (pass + rush) : 0;
+}
+
+function rushShare(stats: any) {
+  const share = passShare(stats);
+  return share > 0 ? 1 - share : 0;
+}
+
+function blendLabel(parts: Array<{ key: string; label: string }>) {
+  const keys = parts.map((part) => part.key);
+  if (keys.includes("shootout") && keys.includes("air_game") && keys.includes("chaos")) return "Volatile Air Raid Finisher";
+  if (keys.includes("shootout") && keys.includes("air_game")) return "Air Raid Finisher";
+  if (keys.includes("shootout") && keys.includes("chaos")) return "Volatile Shootout Artist";
+  if (keys.includes("clock_control") && keys.includes("defense")) return "Possession-Control Closer";
+  if (keys.includes("balanced") && keys.includes("clock_control")) return "Balanced Possession Problem";
+  if (keys.includes("balanced") && keys.includes("defense")) return "Balanced Defensive Problem";
+  if (keys.includes("ground_game") && keys.includes("clock_control")) return "Ground-Control Grinder";
+  if (keys.includes("red_zone") && keys.includes("efficiency")) return "Red Zone Efficiency Engine";
+  if (keys.includes("defense") && keys.includes("bend_dont_break")) return "Bend-Don't-Break Closer";
+  if (keys.includes("field_position") && keys.includes("defense")) return "Hidden-Yardage Defender";
+  if (parts.length >= 2) return `${parts[0].label.replace(/ Coach$| Operator$| Specialist$| Manager$| Problem$| Merchant$/, "")} / ${parts[1].label}`;
+  return parts[0]?.label ?? "Unscouted Coach";
+}
+
+function statEvidence(stats: any, keys: string[]) {
+  const evidence: string[] = [];
+  if (keys.includes("air_game")) evidence.push(`${stats.passingYardsAvg} passing YPG, ${Math.round(passShare(stats) * 100)}% pass-yard share`);
+  if (keys.includes("ground_game")) evidence.push(`${stats.rushingYardsAvg} rushing YPG, ${Math.round(rushShare(stats) * 100)}% rush-yard share`);
+  if (keys.includes("shootout")) evidence.push(`${stats.pointsForAvg} PPG, ${stats.highScoringRate}% high-scoring games`);
+  if (keys.includes("balanced")) evidence.push(`${stats.passingYardsAvg}/${stats.rushingYardsAvg} pass/rush YPG balance`);
+  if (keys.includes("efficiency")) evidence.push(`${stats.redZoneOffPct}% red-zone offense, ${stats.turnoversCommittedAvg} giveaways/G`);
+  if (keys.includes("defense")) evidence.push(`${stats.pointsAgainstAvg} points allowed/G, ${stats.turnoversGeneratedAvg} takeaways/G`);
+  if (keys.includes("situational")) evidence.push(`${stats.fourthDownConversionsAvg} fourth-down conversions/G, ${stats.closeGameRate}% close games`);
+  if (keys.includes("clock_control")) evidence.push(`${stats.firstDownsAvg} first downs/G with ${stats.turnoversCommittedAvg} giveaways/G`);
+  if (keys.includes("chaos")) evidence.push(`${(stats.turnoversCommittedAvg + stats.turnoversGeneratedAvg).toFixed(1)} combined turnovers/G`);
+  if (keys.includes("red_zone")) evidence.push(`${stats.redZoneOffPct}% red-zone offense`);
+  if (keys.includes("field_position")) evidence.push(`${stats.returnYardsAvg} return yards/G`);
+  if (keys.includes("bend_dont_break")) evidence.push(`${stats.yardsAllowedAvg} yards allowed/G but ${stats.pointsAgainstAvg} points allowed/G`);
+  if (keys.includes("grinder")) evidence.push(`${stats.closeGameRate}% close games`);
+  return evidence;
+}
+
+function buildIdentityFromSignals(badges: any[], seasonStats: any) {
+  if (!badges.length && (!seasonStats || seasonStats.gamesLogged === 0)) {
     return {
       identityKey: "unscouted",
       identityLabel: "Unscouted Coach",
       summary: "Not enough approved box-score badge history has been logged yet.",
+      primary: null,
+      secondary: null,
+      accent: null,
+      confidence: 0,
+      scores: {},
       topBadges: [],
       evidence: ["No badge history yet."],
     };
@@ -202,32 +325,47 @@ function buildIdentityFromBadges(badges: any[]) {
 
   const groupScores = IDENTITY_GROUPS.map((group) => {
     const matching = badges.filter((badge) => group.badges.has(String(badge.badge_key)));
-    const score = matching.reduce((sum, badge) => sum + badgeScore(badge), 0);
-    return { group, matching, score };
+    const badgePoints = matching.reduce((sum, badge) => sum + badgeScore(badge), 0);
+    const statPoints = seasonStats ? group.statScore(seasonStats) : 0;
+    const score = badgePoints + statPoints;
+    return { group, matching, score, badgePoints, statPoints };
   }).sort((a, b) => b.score - a.score);
 
   const best = groupScores[0];
-  const fallback = {
+  const fallback = best && best.score > 0 ? null : {
     key: "badge_collector",
     label: "Badge Collector",
     summary: "Has a broad achievement profile without one dominant tendency yet.",
   };
-  const selected = best && best.score > 0 ? best.group : fallback;
+  const primary = fallback ? fallback : best.group;
+  const meaningful = groupScores.filter((entry) => entry.score >= 12);
+  const secondary = meaningful[1] && meaningful[1].score >= Math.max(12, meaningful[0].score * 0.7) ? meaningful[1].group : null;
+  const accent = meaningful[2] && meaningful[2].score >= Math.max(10, meaningful[0].score * 0.5) ? meaningful[2].group : null;
+  const parts = [primary, secondary, accent].filter(Boolean) as Array<{ key: string; label: string; summary: string }>;
   const evidenceBadges = (best?.matching?.length ? best.matching : badges)
     .sort((a, b) => badgeScore(b) - badgeScore(a))
-    .slice(0, 5)
+    .slice(0, 3)
     .map(mapOwnedBadge);
+  const statLines = seasonStats?.gamesLogged ? statEvidence(seasonStats, parts.map((part) => part.key)).slice(0, 4) : [];
+  const badgeLines = evidenceBadges.map((badge) => {
+    const earns = Number(badge.earned_count ?? badge.earned_value ?? 1);
+    const tier = badge.tier && badge.tier !== "normal" ? `${String(badge.tier).toUpperCase()} ` : "";
+    return `${tier}${badge.badge_label}: ${earns} earn${earns === 1 ? "" : "s"}${badge.badge_description ? ` - ${badge.badge_description}` : ""}`;
+  });
 
   return {
-    identityKey: selected.key,
-    identityLabel: selected.label,
-    summary: selected.summary,
+    identityKey: parts.map((part) => part.key).join("+"),
+    identityLabel: blendLabel(parts),
+    summary: parts.length > 1
+      ? `Hybrid profile blending ${parts.map((part) => part.label).join(", ")}.`
+      : primary.summary,
+    primary: primary.key,
+    secondary: secondary?.key ?? null,
+    accent: accent?.key ?? null,
+    confidence: Math.min(99, Math.round((meaningful[0]?.score ?? 0) + (secondary ? 8 : 0) + (accent ? 4 : 0))),
+    scores: Object.fromEntries(groupScores.map((entry) => [entry.group.key, { total: entry.score, badges: entry.badgePoints, stats: entry.statPoints }])),
     topBadges: evidenceBadges,
-    evidence: evidenceBadges.map((badge) => {
-      const earns = Number(badge.earned_count ?? badge.earned_value ?? 1);
-      const tier = badge.tier && badge.tier !== "normal" ? `${String(badge.tier).toUpperCase()} ` : "";
-      return `${tier}${badge.badge_label}: ${earns} earn${earns === 1 ? "" : "s"}${badge.badge_description ? ` - ${badge.badge_description}` : ""}`;
-    }),
+    evidence: [...statLines, ...badgeLines].slice(0, 6),
   };
 }
 
@@ -262,19 +400,24 @@ export async function getLeagueUserIdentities(guildId: string) {
     badgesByUser.set(badge.user_id, rows);
   }
 
-  const identities = (assignments ?? []).map((assignment: any) => {
+  const identities = await Promise.all((assignments ?? []).map(async (assignment: any) => {
     const discordAccounts = assignment.rec_users?.rec_discord_accounts;
     const discordAcc = Array.isArray(discordAccounts) ? discordAccounts[0] : discordAccounts;
-    const identity = buildIdentityFromBadges(badgesByUser.get(assignment.user_id) ?? []);
+    const seasonStats = assignment.user_id
+      ? await loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber).catch(() => null)
+      : null;
+    const identity = buildIdentityFromSignals(badgesByUser.get(assignment.user_id) ?? [], seasonStats);
     return {
       userId: assignment.user_id,
       teamId: assignment.team_id,
       discordId: discordAcc?.discord_id ?? null,
       displayName: assignment.rec_users?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
       teamName: formatTeamDisplayName(assignment.rec_teams) ?? assignment.rec_teams?.name ?? null,
+      seasonStats,
       ...identity,
     };
-  }).sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
+  }));
+  identities.sort((a, b) => String(a.displayName).localeCompare(String(b.displayName)));
 
   return {
     league: {

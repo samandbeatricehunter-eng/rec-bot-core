@@ -1080,7 +1080,7 @@ function buildMatchupIdentityEmbeds(game: any, identitiesByUserId: Map<string, a
     const mention = identity.discordId ? `<@${identity.discordId}>` : identity.displayName ?? "Coach";
     const evidence = (identity.evidence ?? []).slice(0, 2).map((line: string) => `- ${line}`).join("\n");
     return [
-      `**${mention} - ${identity.identityLabel ?? "Unscouted Coach"}**`,
+      `**${mention} - ${identity.identityLabel ?? "Unscouted Coach"}${identity.confidence ? ` (${identity.confidence}%)` : ""}**`,
       identity.summary ?? "No scouting identity is available yet.",
       evidence,
     ].filter(Boolean).join("\n");

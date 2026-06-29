@@ -207,7 +207,7 @@ function identityLine(identity: any) {
   const evidence = (identity.evidence ?? []).slice(0, 2).join("\n");
   return [
     `**${coach}${team}**`,
-    `**${identity.identityLabel ?? "Unscouted Coach"}** - ${identity.summary ?? "No profile available yet."}`,
+    `**${identity.identityLabel ?? "Unscouted Coach"}**${identity.confidence ? ` (${identity.confidence}% confidence)` : ""} - ${identity.summary ?? "No profile available yet."}`,
     evidence ? evidence.split("\n").map((line: string) => `- ${line}`).join("\n") : null,
   ].filter(Boolean).join("\n");
 }

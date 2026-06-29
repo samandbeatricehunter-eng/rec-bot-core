@@ -5,18 +5,43 @@ export type ProfileBoxScoreStats = {
   boxScoresUploaded: number;
   totalYards: number;
   totalYardsAvg: number;
+  offensiveYards: number;
+  offensiveYardsAvg: number;
   passingYards: number;
   passingYardsAvg: number;
   rushingYards: number;
   rushingYardsAvg: number;
   firstDowns: number;
   firstDownsAvg: number;
+  fourthDownConversions: number;
+  fourthDownConversionsAvg: number;
+  twoPointConversions: number;
+  twoPointConversionsAvg: number;
+  returnYards: number;
+  returnYardsAvg: number;
+  pointsFor: number;
+  pointsForAvg: number;
+  pointsAgainst: number;
+  pointsAgainstAvg: number;
+  yardsAllowed: number;
+  yardsAllowedAvg: number;
+  firstDownsAllowed: number;
+  firstDownsAllowedAvg: number;
   turnoversGenerated: number;
   turnoversGeneratedAvg: number;
   turnoversCommitted: number;
   turnoversCommittedAvg: number;
   turnoverDifferential: number;
   turnoverDifferentialAvg: number;
+  closeGames: number;
+  closeGameRate: number;
+  highScoringGames: number;
+  highScoringRate: number;
+  lowScoringAllowedGames: number;
+  lowScoringAllowedRate: number;
+  wins: number;
+  losses: number;
+  ties: number;
   redZoneOffPct: number;
   redZoneOffPctAvg: number;
   redZoneDefPct: number;
@@ -34,6 +59,11 @@ function perGameAvg(total: number, games: number) {
 
 function pctAvg(sum: number, games: number) {
   return games > 0 ? Math.round(sum / games) : 0;
+}
+
+function jsonNum(raw: unknown, key: string) {
+  if (!raw || typeof raw !== "object") return 0;
+  return num((raw as Record<string, unknown>)[key]);
 }
 
 function streakFromGameStats(rows: Array<{ result?: string | null; week_number?: number | null }>) {
@@ -62,11 +92,25 @@ export function aggregateBoxScoreStats(rows: any[]): ProfileBoxScoreStats {
   const gamesLogged = rows.length;
   const boxScoresUploaded = new Set(rows.map((row) => row.week_number)).size;
   let totalYards = 0;
+  let offensiveYards = 0;
   let passingYards = 0;
   let rushingYards = 0;
   let firstDowns = 0;
+  let fourthDownConversions = 0;
+  let twoPointConversions = 0;
+  let returnYards = 0;
+  let pointsFor = 0;
+  let pointsAgainst = 0;
+  let yardsAllowed = 0;
+  let firstDownsAllowed = 0;
   let turnoversGenerated = 0;
   let turnoversCommitted = 0;
+  let closeGames = 0;
+  let highScoringGames = 0;
+  let lowScoringAllowedGames = 0;
+  let wins = 0;
+  let losses = 0;
+  let ties = 0;
   let redZoneOffSum = 0;
   let redZoneOffGames = 0;
   let redZoneDefSum = 0;
@@ -74,11 +118,26 @@ export function aggregateBoxScoreStats(rows: any[]): ProfileBoxScoreStats {
 
   for (const row of rows) {
     totalYards += num(row.total_yards_gained);
+    offensiveYards += num(row.off_yards_gained);
     passingYards += num(row.off_pass_yards);
     rushingYards += num(row.off_rush_yards);
     firstDowns += num(row.off_first_down);
+    fourthDownConversions += jsonNum(row.offensive_stats, "fourth_down_conversions");
+    twoPointConversions += jsonNum(row.offensive_stats, "two_point_conversions");
+    returnYards += num(row.punt_return_yards) + num(row.kick_return_yards);
+    pointsFor += num(row.points_for);
+    pointsAgainst += num(row.points_against);
+    yardsAllowed += num(row.yards_allowed);
+    firstDownsAllowed += num(row.first_downs_allowed);
     turnoversGenerated += num(row.generated_turnovers);
     turnoversCommitted += num(row.turnovers_committed);
+    const margin = Math.abs(num(row.points_for) - num(row.points_against));
+    if (margin <= 7) closeGames += 1;
+    if (num(row.points_for) >= 35 || num(row.points_for) + num(row.points_against) >= 70) highScoringGames += 1;
+    if (num(row.points_against) <= 17) lowScoringAllowedGames += 1;
+    if (row.result === "win") wins += 1;
+    else if (row.result === "loss") losses += 1;
+    else if (row.result === "tie") ties += 1;
     if (row.red_zone_off_percentage != null) {
       redZoneOffSum += num(row.red_zone_off_percentage);
       redZoneOffGames += 1;
@@ -96,18 +155,43 @@ export function aggregateBoxScoreStats(rows: any[]): ProfileBoxScoreStats {
     boxScoresUploaded,
     totalYards,
     totalYardsAvg: perGameAvg(totalYards, gamesLogged),
+    offensiveYards,
+    offensiveYardsAvg: perGameAvg(offensiveYards, gamesLogged),
     passingYards,
     passingYardsAvg: perGameAvg(passingYards, gamesLogged),
     rushingYards,
     rushingYardsAvg: perGameAvg(rushingYards, gamesLogged),
     firstDowns,
     firstDownsAvg: perGameAvg(firstDowns, gamesLogged),
+    fourthDownConversions,
+    fourthDownConversionsAvg: perGameAvg(fourthDownConversions, gamesLogged),
+    twoPointConversions,
+    twoPointConversionsAvg: perGameAvg(twoPointConversions, gamesLogged),
+    returnYards,
+    returnYardsAvg: perGameAvg(returnYards, gamesLogged),
+    pointsFor,
+    pointsForAvg: perGameAvg(pointsFor, gamesLogged),
+    pointsAgainst,
+    pointsAgainstAvg: perGameAvg(pointsAgainst, gamesLogged),
+    yardsAllowed,
+    yardsAllowedAvg: perGameAvg(yardsAllowed, gamesLogged),
+    firstDownsAllowed,
+    firstDownsAllowedAvg: perGameAvg(firstDownsAllowed, gamesLogged),
     turnoversGenerated,
     turnoversGeneratedAvg: perGameAvg(turnoversGenerated, gamesLogged),
     turnoversCommitted,
     turnoversCommittedAvg: perGameAvg(turnoversCommitted, gamesLogged),
     turnoverDifferential,
     turnoverDifferentialAvg: perGameAvg(turnoverDifferential, gamesLogged),
+    closeGames,
+    closeGameRate: perGameAvg(closeGames * 100, gamesLogged),
+    highScoringGames,
+    highScoringRate: perGameAvg(highScoringGames * 100, gamesLogged),
+    lowScoringAllowedGames,
+    lowScoringAllowedRate: perGameAvg(lowScoringAllowedGames * 100, gamesLogged),
+    wins,
+    losses,
+    ties,
     redZoneOffPct: pctAvg(redZoneOffSum, redZoneOffGames),
     redZoneOffPctAvg: pctAvg(redZoneOffSum, redZoneOffGames),
     redZoneDefPct: pctAvg(redZoneDefSum, redZoneDefGames),
