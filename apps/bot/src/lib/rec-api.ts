@@ -481,4 +481,13 @@ export const recApi = {
       method: "POST",
       body: JSON.stringify({ discordChannelIds }),
     }),
+
+  createPurchaseRequest: (input: { guildId: string; discordId: string; purchaseType: string; details: Record<string, unknown> }) =>
+    recFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify(input) }),
+  reviewPurchase: (input: { purchaseId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) =>
+    recFetch<any>("/v1/purchases/review", { method: "POST", body: JSON.stringify(input) }),
+  listPendingPurchases: (guildId: string) =>
+    recFetch<any>("/v1/purchases/pending", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getPurchaseCounts: (discordId: string, guildId: string) =>
+    recFetch<any>("/v1/purchases/counts", { method: "POST", body: JSON.stringify({ discordId, guildId }) }),
 };

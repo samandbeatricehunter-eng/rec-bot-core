@@ -112,10 +112,10 @@ import {
   handleWalletTransferDirection,
   handleWalletTransferOpen,
   handlePlaceWager,
-  handleWalletMakePurchase,
   handleWalletPendingPurchases
 } from "./handlers/wallet.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
+import { handlePurchaseButton, handlePurchaseModal, handlePurchaseSelect, openPurchaseStore } from "./flows/purchases.js";
 import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import {
   BOX_SCORE_CUSTOM_IDS,
@@ -387,6 +387,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
+      if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseSelect(interaction);
     }
 
     if (interaction.isButton()) {
@@ -495,9 +496,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewNext) return handleScheduleViewPage(interaction, 1);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewPostPublicly) return handleScheduleViewPostPublicly(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
+      if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseButton(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return replyMenuPlaceholder(interaction, "Purchase", "Purchase tools will be built after League Mgmt > Settings > Purchases is complete.");
+      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
@@ -543,7 +545,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transactions) return handleWalletTransactions(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.back) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.pendingPurchases) return handleWalletPendingPurchases(interaction);
-      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.makePurchase) return handleWalletMakePurchase(interaction);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);
     }
 
     if (interaction.isModalSubmit()) {
@@ -566,6 +568,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(ADVANCE_WIZARD_CUSTOM_IDS.scoreModalPrefix)) return handleAdvanceWizardScoreModal(interaction, buildAdvanceMgmtRows);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction);
+      if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseModal(interaction);
     }
   } catch (error) {
     await safeInteractionError(interaction, error);
