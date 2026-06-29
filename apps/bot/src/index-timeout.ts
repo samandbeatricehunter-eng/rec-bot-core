@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, OverwriteType, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction } from "./lib/admin.js";
@@ -1001,13 +1001,11 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       name,
       type: ChannelType.GuildText,
       parent: category.id,
-      permissionOverwrites: [
-        { id: interaction.guild.roles.everyone.id, type: OverwriteType.Role, deny: [PermissionFlagsBits.ViewChannel] },
-        ...(game.away_discord_id ? [{ id: game.away_discord_id, type: OverwriteType.Member, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }] : []),
-        ...(game.home_discord_id ? [{ id: game.home_discord_id, type: OverwriteType.Member, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }] : []),
-      ]
     }).catch((err) => { console.error("[ERROR] Failed to create game channel:", err?.message ?? err); return null; });
     if (!ch?.isTextBased()) continue;
+    // Sync the channel's permissions to its parent category rather than scoping
+    // it to just the two matchup users.
+    await ch.lockPermissions().catch((err) => console.error("[ERROR] Failed to sync game channel permissions:", err?.message ?? err));
     created.push(`<#${ch.id}>`);
     await recApi.registerGameChannel({
       guildId: interaction.guildId,
