@@ -304,7 +304,54 @@ function statEvidence(stats: any, keys: string[]) {
   if (keys.includes("field_position")) evidence.push(`${stats.returnYardsAvg} return yards/G`);
   if (keys.includes("bend_dont_break")) evidence.push(`${stats.yardsAllowedAvg} yards allowed/G but ${stats.pointsAgainstAvg} points allowed/G`);
   if (keys.includes("grinder")) evidence.push(`${stats.closeGameRate}% close games`);
-  return evidence;
+  return [...new Set(evidence)];
+}
+
+function styleSummary(parts: Array<{ key: string; label: string; summary: string }>, stats: any) {
+  const keys = parts.map((part) => part.key);
+  if (!parts.length) return "Not enough approved box-score data has been logged to build a reliable scouting profile yet.";
+
+  const lead = (() => {
+    if (keys.includes("shootout") && keys.includes("air_game") && keys.includes("chaos")) {
+      return "This coach wants the game fast and noisy: passing volume, scoring pressure, and turnover swings all show up in the profile.";
+    }
+    if (keys.includes("clock_control") && keys.includes("defense")) {
+      return "This coach is built to shorten games, stack first downs, and force opponents to win long drives against a defense that closes well.";
+    }
+    if (keys.includes("efficiency") && keys.includes("grinder")) {
+      return "This coach plays a low-waste, possession-focused style where clean drives and close-game execution matter more than fireworks.";
+    }
+    if (keys.includes("defense") && keys.includes("bend_dont_break")) {
+      return "This coach can concede movement, but the profile tightens near scoring range and keeps games from turning into track meets.";
+    }
+    if (keys.includes("red_zone") && keys.includes("efficiency")) {
+      return "This coach's offense is defined by finishing drives: fewer empty possessions, strong red-zone conversion, and controlled mistakes.";
+    }
+    if (keys.includes("ground_game") && keys.includes("clock_control")) {
+      return "This coach leans into possession football, using the run game and chain-moving drives to keep opponents chasing the tempo.";
+    }
+    if (keys.includes("balanced") && keys.includes("defense")) {
+      return "This coach has a balanced offensive base with enough defensive resistance to avoid becoming one-dimensional in close games.";
+    }
+    if (keys.includes("balanced") && keys.includes("clock_control")) {
+      return "This coach mixes run and pass production into sustained drives, creating a balanced profile that still values possession control.";
+    }
+    if (keys.includes("field_position")) {
+      return "This coach gets value outside the normal box score, using return yards and hidden field position to tilt possessions.";
+    }
+    return parts[0].summary;
+  })();
+
+  const texture: string[] = [];
+  if (stats?.gamesLogged) {
+    if (Number(stats.pointsForAvg ?? 0) >= 32) texture.push(`The offense is producing ${stats.pointsForAvg} points per game`);
+    if (Number(stats.pointsAgainstAvg ?? 99) <= 20) texture.push(`the defense is holding opponents to ${stats.pointsAgainstAvg} points per game`);
+    if (Number(stats.turnoversCommittedAvg ?? 99) <= 1) texture.push(`giveaways are staying low at ${stats.turnoversCommittedAvg} per game`);
+    if (Number(stats.closeGameRate ?? 0) >= 45) texture.push(`${stats.closeGameRate}% of logged games are close`);
+  }
+
+  const detail = texture.length ? ` ${texture.slice(0, 2).join(", ")}.` : "";
+  return `${lead}${detail}`;
 }
 
 function buildIdentityFromSignals(badges: any[], seasonStats: any) {
@@ -356,9 +403,7 @@ function buildIdentityFromSignals(badges: any[], seasonStats: any) {
   return {
     identityKey: parts.map((part) => part.key).join("+"),
     identityLabel: blendLabel(parts),
-    summary: parts.length > 1
-      ? `Hybrid profile blending ${parts.map((part) => part.label).join(", ")}.`
-      : primary.summary,
+    summary: styleSummary(parts, seasonStats),
     primary: primary.key,
     secondary: secondary?.key ?? null,
     accent: accent?.key ?? null,

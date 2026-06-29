@@ -15,8 +15,10 @@ import {
 
 type MainMenuPayloadBuilder = (userId: string, guildId: string | null, isAdmin: boolean) => Promise<any>;
 type SnapshotSession = { targetDiscordId: string; targetDisplayName: string; currentPage: number };
+type IdentitySession = { currentPage: number };
 
 const snapshotSessions = new Map<string, SnapshotSession>();
+const identitySessions = new Map<string, IdentitySession>();
 
 export async function renderTeamsMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
@@ -120,6 +122,15 @@ function buildSnapshotNavRows(currentPage: number, totalPages: number) {
   return [row];
 }
 
+function buildIdentityNavRows(currentPage: number, totalPages: number) {
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.identitiesBack).setLabel("Back to Profiles").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.identitiesPrev).setLabel("Prev").setStyle(ButtonStyle.Primary).setDisabled(totalPages <= 1),
+    new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.identitiesNext).setLabel("Next").setStyle(ButtonStyle.Primary).setDisabled(totalPages <= 1)
+  );
+  return [row];
+}
+
 function formatBadgeLines(badges: any[]) {
   if (!badges.length) return "No badges earned yet.";
   return badges.map((badge) => {
@@ -201,33 +212,49 @@ function formatFinancialBlock(scopeLabel: string, summary: any) {
   ].join("\n");
 }
 
-function identityLine(identity: any) {
-  const coach = identity.discordId ? `<@${identity.discordId}>` : identity.displayName ?? "Coach";
-  const team = identity.teamName ? ` (${identity.teamName})` : "";
-  const evidence = (identity.evidence ?? []).slice(0, 2).join("\n");
-  return [
-    `**${coach}${team}**`,
-    `**${identity.identityLabel ?? "Unscouted Coach"}**${identity.confidence ? ` (${identity.confidence}% confidence)` : ""} - ${identity.summary ?? "No profile available yet."}`,
-    evidence ? evidence.split("\n").map((line: string) => `- ${line}`).join("\n") : null,
-  ].filter(Boolean).join("\n");
-}
-
-export function buildIdentityEmbeds(payload: any) {
+function buildIdentityEmbed(payload: any, page: number) {
   const identities: any[] = payload?.identities ?? [];
   const league = payload?.league ?? {};
   if (!identities.length) {
-    return [new EmbedBuilder().setTitle("Player Identities").setDescription("No active linked users were found for this league.")];
+    return { embed: new EmbedBuilder().setTitle("Player Identities").setDescription("No active linked users were found for this league."), totalPages: 1, safePage: 0 };
   }
 
-  const embeds: EmbedBuilder[] = [];
-  for (let i = 0; i < identities.length; i += 5) {
-    const chunk = identities.slice(i, i + 5);
-    embeds.push(new EmbedBuilder()
+  const totalPages = identities.length;
+  const safePage = ((page % totalPages) + totalPages) % totalPages;
+  const identity = identities[safePage];
+  const coach = identity.discordId ? `<@${identity.discordId}>` : identity.displayName ?? "Coach";
+  const evidence = (identity.evidence ?? []).slice(0, 6).map((line: string) => `- ${line}`).join("\n");
+  const stats = identity.seasonStats;
+  const statLine = stats?.gamesLogged
+    ? [
+        `Games logged: **${stats.gamesLogged}**`,
+        `PPG: **${stats.pointsForAvg}**`,
+        `Allowed: **${stats.pointsAgainstAvg}**`,
+        `Pass/Rush YPG: **${stats.passingYardsAvg}/${stats.rushingYardsAvg}**`,
+        `TO Diff/G: **${stats.turnoverDifferentialAvg}**`,
+      ].join(" | ")
+    : "No approved season box-score stats logged yet.";
+
+  const parts = [
+    `Coach: **${coach}**`,
+    `Team: **${identity.teamName ?? "Unassigned"}**`,
+    "",
+    `**${identity.identityLabel ?? "Unscouted Coach"}**${identity.confidence ? ` (${identity.confidence}% confidence)` : ""}`,
+    identity.summary ?? "No profile available yet.",
+    "",
+    "**Season Snapshot**",
+    statLine,
+    evidence ? ["", "**Why This Identity**", evidence].join("\n") : null,
+  ].filter(Boolean).join("\n");
+
+  return {
+    embed: new EmbedBuilder()
       .setTitle(`Player Identities - ${league.name ?? "Current League"}`)
-      .setDescription(chunk.map(identityLine).join("\n\n").slice(0, 4096))
-      .setFooter({ text: `Season ${league.seasonNumber ?? "?"}, Week ${league.currentWeek ?? "?"} - ${i + 1}-${i + chunk.length} of ${identities.length}` }));
-  }
-  return embeds;
+      .setDescription(parts.slice(0, 4096))
+      .setFooter({ text: `Season ${league.seasonNumber ?? "?"}, Week ${league.currentWeek ?? "?"} - Page ${safePage + 1} of ${totalPages}` }),
+    totalPages,
+    safePage,
+  };
 }
 
 export async function handlePlayerIdentities(interaction: ButtonInteraction) {
@@ -239,7 +266,29 @@ export async function handlePlayerIdentities(interaction: ButtonInteraction) {
   if (!payload) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Player Identities").setDescription("Could not load player identities right now.")], components: buildSnapshotConferenceSelectRows([]) });
   }
-  return interaction.editReply({ embeds: buildIdentityEmbeds(payload), components: buildSnapshotConferenceSelectRows([]) });
+  identitySessions.set(interaction.user.id, { currentPage: 0 });
+  const { embed, totalPages } = buildIdentityEmbed(payload, 0);
+  return interaction.editReply({ embeds: [embed], components: buildIdentityNavRows(0, totalPages) });
+}
+
+export async function handlePlayerIdentityNav(interaction: ButtonInteraction, delta: -1 | 1) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return;
+
+  const session = identitySessions.get(interaction.user.id) ?? { currentPage: 0 };
+  const payload = await recApi.getLeagueIdentities(interaction.guildId).catch(() => null);
+  if (!payload) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Player Identities").setDescription("Could not reload player identities right now.")], components: buildSnapshotConferenceSelectRows([]) });
+  }
+
+  const { embed, totalPages, safePage } = buildIdentityEmbed(payload, session.currentPage + delta);
+  identitySessions.set(interaction.user.id, { currentPage: safePage });
+  return interaction.editReply({ embeds: [embed], components: buildIdentityNavRows(safePage, totalPages) });
+}
+
+export async function handlePlayerIdentityBack(interaction: ButtonInteraction) {
+  identitySessions.delete(interaction.user.id);
+  return renderUserSnapshotPicker(interaction);
 }
 
 function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedBuilder; totalPages: number } {

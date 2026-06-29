@@ -32,7 +32,7 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft,
 } from "./ui/league-setup.js";
-import { handlePlayerIdentities, handlePostOpenTeams, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { handlePlayerIdentities, handlePlayerIdentityBack, handlePlayerIdentityNav, handlePostOpenTeams, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import {
   handleManualScheduleBack,
   handleManualScheduleComplete,
@@ -479,6 +479,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.identities) return handlePlayerIdentities(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.identitiesPrev) return handlePlayerIdentityNav(interaction, -1);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.identitiesNext) return handlePlayerIdentityNav(interaction, +1);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.identitiesBack) return handlePlayerIdentityBack(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedulePowerRankings) return handleSchedulePowerRankings(interaction);

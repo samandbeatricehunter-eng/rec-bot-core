@@ -103,6 +103,9 @@ export const ROSTERS_CUSTOM_IDS = {
   snapshotNext: "rec:rosters:snapshot_next",
   snapshotBack: "rec:rosters:snapshot_back",
   identities: "rec:profiles:identities",
+  identitiesPrev: "rec:profiles:identities_prev",
+  identitiesNext: "rec:profiles:identities_next",
+  identitiesBack: "rec:profiles:identities_back",
   snapshotConferenceSelect: "rec:profiles:conference_select",
   snapshotTeamSelect: "rec:profiles:team_select"
 } as const;
