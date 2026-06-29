@@ -809,7 +809,7 @@ async function handleEosActions(interaction: ButtonInteraction) {
   const currentWeek = Number(week?.league?.current_week ?? 1);
   if (currentWeek < 19 || currentWeek > 22) {
     return interaction.reply({
-      embeds: [new EmbedBuilder().setTitle("EOS Actions").setColor(0xe74c3c).setDescription("EOS Actions are only available during the postseason — once the league advances past Week 18 (Wild Card) and before it advances past the Super Bowl.")],
+      embeds: [new EmbedBuilder().setTitle("EOS Actions").setColor(0xe74c3c).setDescription("EOS Actions are only available during the postseason — from Week 19 (Wild Card) through Week 22 (Super Bowl). Week 18 is the final week of the regular season.")],
       flags: MessageFlags.Ephemeral,
     });
   }
