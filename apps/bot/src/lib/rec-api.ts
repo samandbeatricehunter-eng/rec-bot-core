@@ -33,6 +33,12 @@ export const recApi = {
     recFetch<any>(`/v1/users/${discordId}/schedule?guildId=${guildId}`),
   getMenuProfile: (discordId: string, guildId: string) =>
     recFetch<any>(REC_API_ROUTES.menuProfile(discordId, guildId)),
+  getLeagueIdentities: (guildId: string) =>
+    recFetch<any>(`/v1/guilds/${guildId}/identities`),
+  refreshBadgeBaselines: (guildId: string) =>
+    recFetch<any>(`/v1/guilds/${guildId}/badges/refresh-baselines`, { method: "POST", body: JSON.stringify({}) }),
+  getSeasonXfBadges: (guildId: string, seasonNumber?: number | null) =>
+    recFetch<any>(`/v1/guilds/${guildId}/badges/xf-season${seasonNumber ? `?seasonNumber=${seasonNumber}` : ""}`),
 
   createLeague: (input: LeagueSetupDraft & {
     guildId: string;

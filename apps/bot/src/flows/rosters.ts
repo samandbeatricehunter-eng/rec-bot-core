@@ -201,6 +201,47 @@ function formatFinancialBlock(scopeLabel: string, summary: any) {
   ].join("\n");
 }
 
+function identityLine(identity: any) {
+  const coach = identity.discordId ? `<@${identity.discordId}>` : identity.displayName ?? "Coach";
+  const team = identity.teamName ? ` (${identity.teamName})` : "";
+  const evidence = (identity.evidence ?? []).slice(0, 2).join("\n");
+  return [
+    `**${coach}${team}**`,
+    `**${identity.identityLabel ?? "Unscouted Coach"}** - ${identity.summary ?? "No profile available yet."}`,
+    evidence ? evidence.split("\n").map((line: string) => `- ${line}`).join("\n") : null,
+  ].filter(Boolean).join("\n");
+}
+
+export function buildIdentityEmbeds(payload: any) {
+  const identities: any[] = payload?.identities ?? [];
+  const league = payload?.league ?? {};
+  if (!identities.length) {
+    return [new EmbedBuilder().setTitle("Player Identities").setDescription("No active linked users were found for this league.")];
+  }
+
+  const embeds: EmbedBuilder[] = [];
+  for (let i = 0; i < identities.length; i += 5) {
+    const chunk = identities.slice(i, i + 5);
+    embeds.push(new EmbedBuilder()
+      .setTitle(`Player Identities - ${league.name ?? "Current League"}`)
+      .setDescription(chunk.map(identityLine).join("\n\n").slice(0, 4096))
+      .setFooter({ text: `Season ${league.seasonNumber ?? "?"}, Week ${league.currentWeek ?? "?"} - ${i + 1}-${i + chunk.length} of ${identities.length}` }));
+  }
+  return embeds;
+}
+
+export async function handlePlayerIdentities(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Player Identities...").setDescription("Reading active badge profiles and building scouting identities.")], components: [] });
+  if (!interaction.guildId) return;
+
+  const payload = await recApi.getLeagueIdentities(interaction.guildId).catch(() => null);
+  if (!payload) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Player Identities").setDescription("Could not load player identities right now.")], components: buildSnapshotConferenceSelectRows([]) });
+  }
+  return interaction.editReply({ embeds: buildIdentityEmbeds(payload), components: buildSnapshotConferenceSelectRows([]) });
+}
+
 function buildSnapshotPages(snapshot: any, currentPage: number): { embed: EmbedBuilder; totalPages: number } {
   const pages: EmbedBuilder[] = [];
   const sr = snapshot.seasonRecord ?? {};

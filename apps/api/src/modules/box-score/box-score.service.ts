@@ -18,6 +18,9 @@ const BADGE_BONUS_PAYOUT = 10;
 const BADGE_LABELS = new Map(
   [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label] as const),
 );
+const BADGE_DESCRIPTIONS = new Map(
+  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.description] as const),
+);
 
 type BoxScorePaidPlayer = {
   userId: string;
@@ -951,6 +954,44 @@ async function issueBadgeBonusesForSubmission(sub: {
   return paid;
 }
 
+async function loadXfSeasonBadgeEventsForSubmission(sub: {
+  league_id: string;
+  season_number: number;
+  week_number: number;
+  game_id: string | null;
+}) {
+  let query = supabase
+    .from("rec_badge_events")
+    .select("id,user_id,team_id,badge_key,badge_scope,tier,season,week,game_id,reason,stats_snapshot,created_at")
+    .eq("league_id", sub.league_id)
+    .eq("season", sub.season_number)
+    .eq("badge_scope", "season")
+    .eq("tier", "xf");
+
+  if (sub.game_id) query = query.eq("game_id", sub.game_id);
+  else query = query.eq("week", sub.week_number).is("game_id", null);
+
+  const { data, error } = await query.order("created_at", { ascending: true });
+  if (error) {
+    console.error("[ERROR] Failed to load XF badge events after approval:", error);
+    return [];
+  }
+
+  const userIds = [...new Set((data ?? []).map((event) => event.user_id).filter(Boolean))];
+  const accounts = userIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
+    : { data: [], error: null };
+  const accountByUser = new Map((accounts.data ?? []).map((account) => [account.user_id, account]));
+
+  return (data ?? []).map((event) => ({
+    ...event,
+    userDiscordId: accountByUser.get(event.user_id)?.discord_id ?? null,
+    userDisplayName: accountByUser.get(event.user_id)?.global_name ?? accountByUser.get(event.user_id)?.username ?? null,
+    badgeLabel: BADGE_LABELS.get(event.badge_key) ?? event.badge_key,
+    badgeDescription: BADGE_DESCRIPTIONS.get(event.badge_key) ?? null,
+  }));
+}
+
 export type ReviewBoxScoreInput = {
   submissionId: string;
   action: "approve" | "deny";
@@ -1056,6 +1097,17 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     console.error("[ERROR] Failed to sync CPU team season stats after box score approval:", error);
   });
 
+  if (sub.league_id && sub.season_number) {
+    await rebuildOfficialRecordsAfterBoxScore({
+      leagueId: sub.league_id,
+      seasonNumber: sub.season_number,
+      homeUserId: sub.home_user_id,
+      awayUserId: sub.away_user_id,
+    }).catch((error) => {
+      console.error("[ERROR] Failed to rebuild official user records before badge computation:", error);
+    });
+  }
+
   // Import-time badge + story computation (blueprint): qualify badges, recompute
   // streak/season/global progress, and generate the game story. Non-fatal — a
   // failure here must never block the payout/approval. Advance only reads these.
@@ -1063,6 +1115,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     console.error("[ERROR] Failed to compute box score intelligence (badges/story):", error);
   });
   const badgeBonuses = await issueBadgeBonusesForSubmission(sub);
+  const xfSeasonBadgeEvents = await loadXfSeasonBadgeEventsForSubmission(sub);
 
   // Issue payouts only to linked-user participants (winner $100, loser $50). A
   // CPU-vs-CPU game — no linked user on either team — is still recorded but pays
@@ -1137,6 +1190,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     totalPaid,
     paidPlayers,
     badgeBonuses,
+    xfSeasonBadgeEvents,
     badgeBonusPaid: badgeBonuses.reduce((sum, bonus) => sum + bonus.amount, 0),
     badgeBonusCount: badgeBonuses.length,
     playersPaid: payouts.length,

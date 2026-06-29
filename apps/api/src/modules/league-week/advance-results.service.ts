@@ -8,7 +8,7 @@ import { setLeagueWeek } from "./league-week.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
-import { issueSeasonTotalBadges } from "../box-score-intelligence/persistence.js";
+import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 
@@ -209,6 +209,10 @@ export async function completeAdvanceWeek(input: {
   // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
     console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);
+  });
+
+  await recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber).catch((err) => {
+    console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance (non-fatal):", err);
   });
 
   // Snapshot power rankings for the week that just completed, so next week can

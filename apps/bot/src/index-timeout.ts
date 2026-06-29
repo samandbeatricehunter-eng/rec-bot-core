@@ -32,7 +32,7 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft,
 } from "./ui/league-setup.js";
-import { handlePostOpenTeams, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { handlePlayerIdentities, handlePostOpenTeams, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import {
   handleManualScheduleBack,
   handleManualScheduleComplete,
@@ -477,6 +477,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotPrev) return handleSnapshotPageNav(interaction, -1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotBack) return renderUserSnapshotPicker(interaction);
+      if (interaction.customId === ROSTERS_CUSTOM_IDS.identities) return handlePlayerIdentities(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedulePowerRankings) return handleSchedulePowerRankings(interaction);
@@ -990,6 +991,12 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   }
   const created: string[] = [];
   const config = await recApi.getLeagueConfig(interaction.guildId).catch(() => null);
+  const identitiesPayload = await recApi.getLeagueIdentities(interaction.guildId).catch(() => null);
+  const identitiesByUserId = new Map<string, any>(
+    ((identitiesPayload?.identities ?? []) as any[])
+      .filter((identity) => identity.userId)
+      .map((identity) => [identity.userId, identity])
+  );
   const isPlayoff = currentWeek >= 19;
   const rulesLines = gameRulesLines(config?.draft ?? null, isPlayoff);
   const boxScoresMention = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the box scores channel";
@@ -1029,7 +1036,8 @@ async function handleGameChannels(interaction: ButtonInteraction) {
           `After the game, post your box score screenshot in ${boxScoresMention} — not in this channel.`,
           "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts."
         ].join("\n")),
-        weeklyChallengesEmbed()
+        weeklyChallengesEmbed(),
+        ...buildMatchupIdentityEmbeds(game, identitiesByUserId)
       ]
     }).catch(() => undefined);
   }
@@ -1057,6 +1065,29 @@ async function handleGameChannels(interaction: ButtonInteraction) {
     ].filter(Boolean).join("\n\n"))],
     components: buildAdvanceMgmtRows()
   });
+}
+
+function buildMatchupIdentityEmbeds(game: any, identitiesByUserId: Map<string, any>) {
+  const identities = [game.away_user_id, game.home_user_id]
+    .map((userId: string | null | undefined) => userId ? identitiesByUserId.get(userId) : null)
+    .filter(Boolean);
+  if (!identities.length) return [];
+
+  const lines = identities.map((identity: any) => {
+    const mention = identity.discordId ? `<@${identity.discordId}>` : identity.displayName ?? "Coach";
+    const evidence = (identity.evidence ?? []).slice(0, 2).map((line: string) => `- ${line}`).join("\n");
+    return [
+      `**${mention} - ${identity.identityLabel ?? "Unscouted Coach"}**`,
+      identity.summary ?? "No scouting identity is available yet.",
+      evidence,
+    ].filter(Boolean).join("\n");
+  });
+
+  return [
+    new EmbedBuilder()
+      .setTitle("Matchup Identities")
+      .setDescription(lines.join("\n\n").slice(0, 4096))
+  ];
 }
 
 function stageFromWeekNumber(weekNumber: number) {

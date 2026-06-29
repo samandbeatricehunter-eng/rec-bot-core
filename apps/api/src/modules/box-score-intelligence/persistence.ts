@@ -20,7 +20,7 @@ import {
 } from "./badge-rules.js";
 import { computeGameProfile, rowToGameStats, type TeamGameStatsRow } from "./game-profile.js";
 import { generateGameStory } from "./story-angles.js";
-import { type GameStats } from "./types.js";
+import { type CareerTotals, type GameStats } from "./types.js";
 
 /** The box-score submission row (rec_box_score_submissions). Loosely typed — only a few fields are read. */
 type SubmissionRow = {
@@ -105,10 +105,28 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
   }
 }
 
+type RecomputeUserBadgeInput = {
+  leagueId: string;
+  userId: string;
+  teamId: string | null;
+  season: number;
+  current?: GameStats | null;
+};
+
 async function recomputeUserBadges(current: GameStats): Promise<void> {
-  const userId = current.userId!;
-  const leagueId = current.leagueId;
-  const season = current.season;
+  await recomputeUserBadgeOwnership({
+    leagueId: current.leagueId,
+    userId: current.userId!,
+    teamId: current.teamId,
+    season: current.season,
+    current,
+  });
+}
+
+async function recomputeUserBadgeOwnership(input: RecomputeUserBadgeInput): Promise<void> {
+  const userId = input.userId;
+  const leagueId = input.leagueId;
+  const season = input.season;
 
   const { data: allRows, error } = await supabase
     .from("rec_team_game_stats")
@@ -121,11 +139,10 @@ async function recomputeUserBadges(current: GameStats): Promise<void> {
   const allGames = allRows.map((r) => rowToGameStats(r as TeamGameStatsRow));
   const seasonGames = allGames.filter((g) => g.season === season);
 
-  const seasonTotals = seasonTotalsFromGames(seasonGames);
-  const careerTotals = careerTotalsFromGames(allGames);
+  const careerTotals = await applyOfficialRecordMilestones(leagueId, userId, careerTotalsFromGames(allGames));
   const streaks = weeklyStreaks(seasonGames);
   const now = new Date().toISOString();
-  const teamId = current.teamId;
+  const teamId = input.teamId;
 
   const weeklyRows = streaks.map((s) => ({
     league_id: leagueId,
@@ -147,6 +164,15 @@ async function recomputeUserBadges(current: GameStats): Promise<void> {
   // Season-long tiered versions of repeated weekly badges (bronze/silver/gold/xf).
   // Use bestStreak (not currentStreak) so a broken streak doesn't erase the tier
   // a user already earned — the badge is kept at the highest tier reached.
+  const previousSeasonRows = await supabase
+    .from("rec_badge_ownership")
+    .select("badge_key,tier,earned_count,best_streak")
+    .eq("league_id", leagueId)
+    .eq("user_id", userId)
+    .eq("season", season)
+    .eq("badge_scope", "season");
+  const previousSeasonByKey = new Map((previousSeasonRows.data ?? []).map((row) => [row.badge_key, row]));
+
   const seasonRows = streaks
     .map((s) => ({ s, tier: getSeasonTier(s.bestStreak, s.earnedCount) }))
     .filter((x): x is { s: typeof x.s; tier: NonNullable<typeof x.tier> } => x.tier !== null)
@@ -210,9 +236,37 @@ async function recomputeUserBadges(current: GameStats): Promise<void> {
     if (insErr) throw insErr;
   }
 
+  const newXfRows = seasonRows.filter((row) => {
+    if (row.tier !== "xf") return false;
+    const previous = previousSeasonByKey.get(row.badge_key);
+    return previous?.tier !== "xf";
+  });
+  if (newXfRows.length) {
+    await supabase.from("rec_badge_events").insert(
+      newXfRows.map((row) => ({
+        league_id: leagueId,
+        user_id: userId,
+        team_id: teamId,
+        badge_key: row.badge_key,
+        badge_scope: "season",
+        tier: "xf",
+        season,
+        week: row.last_earned_week,
+        game_id: input.current?.gameId ?? null,
+        reason: `XF season badge earned: ${row.earned_count} total earns this season`,
+        stats_snapshot: {
+          earnedCount: row.earned_count,
+          currentStreak: row.current_streak,
+          bestStreak: row.best_streak,
+          lastEarnedWeek: row.last_earned_week,
+        },
+      })),
+    );
+  }
+
   // Audit: weekly badges earned in THIS game (game-scoped, re-import-safe).
-  const earnedThisGame = qualifyWeeklyBadges(current);
-  if (current.gameId && earnedThisGame.length) {
+  const earnedThisGame = input.current ? qualifyWeeklyBadges(input.current) : [];
+  if (input.current?.gameId && earnedThisGame.length) {
     await supabase.from("rec_badge_events").insert(
       earnedThisGame.map((b) => ({
         league_id: leagueId,
@@ -222,18 +276,64 @@ async function recomputeUserBadges(current: GameStats): Promise<void> {
         badge_scope: "weekly",
         tier: getWeeklyTier(streaks.find((s) => s.badgeKey === b.key)?.currentStreak ?? 1),
         season,
-        week: current.week,
-        game_id: current.gameId,
+        week: input.current?.week,
+        game_id: input.current?.gameId,
         reason: "Weekly badge earned",
         stats_snapshot: {
-          pointsFor: current.pointsFor,
-          pointsAgainst: current.pointsAgainst,
-          passingYards: current.passingYards,
-          rushingYards: current.rushingYards,
+          pointsFor: input.current?.pointsFor,
+          pointsAgainst: input.current?.pointsAgainst,
+          passingYards: input.current?.passingYards,
+          rushingYards: input.current?.rushingYards,
         },
       })),
     );
   }
+}
+
+async function applyOfficialRecordMilestones(leagueId: string, userId: string, careerTotals: CareerTotals): Promise<CareerTotals> {
+  const leagueResult = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
+  const game = String(leagueResult.data?.game ?? "madden_26");
+  const recordResult = await supabase
+    .from("rec_global_user_game_records")
+    .select("wins,games_played,playoff_wins,superbowl_wins")
+    .eq("user_id", userId)
+    .eq("game", game)
+    .maybeSingle();
+
+  const record = recordResult.data;
+  if (!record) return careerTotals;
+  return {
+    ...careerTotals,
+    wins: Math.max(careerTotals.wins, Number(record.wins ?? 0)),
+    gamesPlayed: Math.max(careerTotals.gamesPlayed, Number(record.games_played ?? 0)),
+    playoffWins: Math.max(careerTotals.playoffWins, Number(record.playoff_wins ?? 0)),
+    superBowlTitles: Math.max(careerTotals.superBowlTitles, Number(record.superbowl_wins ?? 0)),
+  };
+}
+
+export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, season: number): Promise<{ usersUpdated: number }> {
+  const { data: assignments, error } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,team_id")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  if (error) throw error;
+
+  const seen = new Set<string>();
+  for (const assignment of assignments ?? []) {
+    if (!assignment.user_id || seen.has(assignment.user_id)) continue;
+    seen.add(assignment.user_id);
+    await recomputeUserBadgeOwnership({
+      leagueId,
+      userId: assignment.user_id,
+      teamId: assignment.team_id ?? null,
+      season,
+      current: null,
+    });
+  }
+
+  return { usersUpdated: seen.size };
 }
 
 async function loadTeamNames(teamIds: string[]): Promise<Map<string, string>> {

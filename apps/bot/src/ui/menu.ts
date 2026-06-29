@@ -102,6 +102,7 @@ export const ROSTERS_CUSTOM_IDS = {
   snapshotPrev: "rec:rosters:snapshot_prev",
   snapshotNext: "rec:rosters:snapshot_next",
   snapshotBack: "rec:rosters:snapshot_back",
+  identities: "rec:profiles:identities",
   snapshotConferenceSelect: "rec:profiles:conference_select",
   snapshotTeamSelect: "rec:profiles:team_select"
 } as const;
@@ -704,7 +705,12 @@ export function buildSnapshotConferenceSelectRows(rawConferences: RosterConferen
     .setCustomId(ROSTERS_CUSTOM_IDS.snapshotConferenceSelect)
     .setPlaceholder("Select a conference")
     .addOptions(options);
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(ROSTERS_CUSTOM_IDS.identities).setLabel("Player Identities").setStyle(ButtonStyle.Primary)
+    ),
+  ];
 }
 
 export function buildSnapshotTeamSelectRows(rawConferences: RosterConference[], conferenceName: string) {

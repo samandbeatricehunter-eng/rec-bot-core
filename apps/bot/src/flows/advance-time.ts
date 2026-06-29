@@ -292,6 +292,51 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
   }
 }
 
+async function publishSeasonXfSummary(guild: Guild, session: AdvanceTimeSession): Promise<number> {
+  if (session.completedWeekNumber !== 18) return 0;
+  try {
+    const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
+    const channel = await getAnnouncementsChannel(guild, cfg?.routes ?? {});
+    if (!channel || !("send" in channel) || !channel.isTextBased()) return 0;
+
+    const result = await recApi.getSeasonXfBadges(session.guildId, session.completedSeasonNumber).catch(() => null);
+    const badges: any[] = result?.badges ?? [];
+    if (!badges.length) return 0;
+
+    const byUser = new Map<string, any[]>();
+    for (const badge of badges) {
+      const key = badge.user_id ?? badge.discordId ?? badge.displayName ?? "coach";
+      const rows = byUser.get(key) ?? [];
+      rows.push(badge);
+      byUser.set(key, rows);
+    }
+
+    const lines = [...byUser.values()].map((rows) => {
+      const first = rows[0];
+      const user = first.discordId ? `<@${first.discordId}>` : first.displayName ?? "Coach";
+      const team = first.teamName ? ` (${first.teamName})` : "";
+      const badgeLines = rows.map((badge) => {
+        const earns = badge.earned_count ? `${badge.earned_count} earns` : "XF season performance";
+        return `- **${badge.badgeLabel ?? badge.badge_key}**: ${badge.badgeDescription ?? "Season badge"} (${earns})`;
+      });
+      return [`**${user}${team}**`, ...badgeLines].join("\n");
+    });
+
+    await channel.send({
+      content: "@everyone",
+      embeds: [new EmbedBuilder()
+        .setTitle(`Season ${session.completedSeasonNumber} XF Badge Class`)
+        .setColor(0xffd700)
+        .setDescription(lines.join("\n\n").slice(0, 4096))],
+      allowedMentions: { parse: ["everyone", "users"] },
+    });
+    return badges.length;
+  } catch (error) {
+    console.error("[ERROR] Failed to publish season XF summary (non-fatal):", error);
+    return 0;
+  }
+}
+
 export const HEADLINES_CUSTOM_IDS = {
   prevPrefix: "rec:headlines:prev:",
   nextPrefix: "rec:headlines:next:",
@@ -456,6 +501,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
 
   const headlines = await publishAdvanceHeadlines(interaction.guild, session);
   const announced = await announceAdvance(interaction.guild, session.guildId, session.headline, result.epochSeconds);
+  const xfPosted = await publishSeasonXfSummary(interaction.guild, session);
   const announcementLine = announced
     ? "\n\nPosted to the announcements channel."
     : "\n\nNo announcements channel is configured, so the advance announcement was not posted.";
@@ -467,7 +513,8 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
       .setDescription(
         `${session.headline}\n\n**Next advance** (<t:${result.epochSeconds}:R>):\n${formatAllZones(result.epochSeconds)}` +
         announcementLine +
-        headlinePublishLine(headlines),
+        headlinePublishLine(headlines) +
+        (xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""),
       )],
     components: buildAdvanceRows(),
   });
@@ -481,11 +528,12 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, buil
   await interaction.deferUpdate();
   const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
+  const xfPosted = session ? await publishSeasonXfSummary(interaction.guild, session) : 0;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}`)],
+      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
     components: buildAdvanceRows(),
   });
 }
@@ -498,11 +546,12 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, buil
   await interaction.deferUpdate();
   const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
+  const xfPosted = session ? await publishSeasonXfSummary(interaction.guild, session) : 0;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}`)],
+      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
     components: buildAdvanceRows(),
   });
 }

@@ -17,6 +17,7 @@ import {
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
 // ─── Custom IDs ───────────────────────────────────────────────────────────────
 
@@ -493,6 +494,7 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   try {
     const result = await recApi.reviewBoxScore({ submissionId, action: "approve", reviewedByDiscordId: interaction.user.id });
+    if (interaction.inCachedGuild()) await postXfSeasonBadgeAnnouncements(interaction, result).catch(() => undefined);
     const paidPlayerList = formatPaidPlayers(result);
     const badgeBonusText = result.badgeBonusCount ? `, including ${result.badgeBonusCount} badge bonus(es)` : "";
     const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.`;
@@ -526,6 +528,36 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
       embeds: [new EmbedBuilder().setTitle("Error").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
       components: [],
     });
+  }
+}
+
+async function postXfSeasonBadgeAnnouncements(interaction: ButtonInteraction, result: any) {
+  const events: any[] = Array.isArray(result?.xfSeasonBadgeEvents) ? result.xfSeasonBadgeEvents : [];
+  if (!events.length || !interaction.inCachedGuild()) return;
+
+  const cfg = await recApi.getEconomyConfig(interaction.guildId).catch(() => null);
+  const channel = await getAnnouncementsChannel(interaction.guild, cfg?.routes ?? {});
+  if (!channel || !("send" in channel) || !channel.isTextBased()) return;
+
+  for (const event of events) {
+    const userMention = event.userDiscordId ? `<@${event.userDiscordId}>` : event.userDisplayName ? `@${event.userDisplayName}` : "A coach";
+    const snapshot = event.stats_snapshot ?? {};
+    const qualified = Number(snapshot.earnedCount ?? 0) >= 7
+      ? `${snapshot.earnedCount} total earns this season`
+      : "reached XF season status";
+    await channel.send({
+      content: "@everyone",
+      embeds: [new EmbedBuilder()
+        .setTitle("XF Season Badge Earned")
+        .setColor(0xffd700)
+        .setDescription([
+          `${userMention} acquired **${event.badgeLabel ?? event.badge_key ?? "a season badge"}** at **XF** level.`,
+          "",
+          `**Badge:** ${event.badgeDescription ?? "Season-long badge achievement."}`,
+          `**Qualified By:** ${qualified}${snapshot.bestStreak ? `, best streak ${snapshot.bestStreak}` : ""}.`,
+        ].join("\n"))],
+      allowedMentions: { parse: ["everyone", "users"] },
+    }).catch(() => undefined);
   }
 }
 
