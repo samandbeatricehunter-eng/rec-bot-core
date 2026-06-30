@@ -188,6 +188,14 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
   };
 }
 
+async function attachPayeeDiscordIds(items: any[]): Promise<any[]> {
+  const userIds = [...new Set(items.map((item) => item.user_id).filter(Boolean))];
+  if (!userIds.length) return items.map((item) => ({ ...item, payee_discord_id: null }));
+  const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds);
+  const discordByUser = new Map((accounts.data ?? []).map((row) => [row.user_id, row.discord_id]));
+  return items.map((item) => ({ ...item, payee_discord_id: discordByUser.get(item.user_id) ?? null }));
+}
+
 export async function listEosPayoutBatch(batchId: string) {
   const batch = await supabase.from("rec_eos_payout_batches").select("*").eq("id", batchId).maybeSingle();
   if (batch.error) throw new ApiError(500, "Failed to load EOS payout batch.", batch.error);
@@ -199,8 +207,48 @@ export async function listEosPayoutBatch(batchId: string) {
     .order("payout_category", { ascending: true })
     .order("amount", { ascending: false });
   if (items.error) throw new ApiError(500, "Failed to load EOS payout items.", items.error);
-  const totalAmount = (items.data ?? []).reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
-  return { batch: batch.data, items: items.data ?? [], totalAmount };
+  const withDiscord = await attachPayeeDiscordIds(items.data ?? []);
+  const totalAmount = withDiscord.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  return { batch: batch.data, items: withDiscord, totalAmount };
+}
+
+// Approve or deny ALL of one coach's pending EOS items in a batch, so the bot
+// can post a single per-coach review embed. Returns the processed items (with
+// labels/tiers/values) and the coach's Discord id for the payout DM.
+export async function reviewEosPayoutsForUser(input: {
+  batchId: string;
+  userId: string;
+  action: "approve" | "deny";
+  reviewedByDiscordId: string;
+  deniedReason?: string | null;
+}) {
+  const pending = await supabase
+    .from("rec_eos_payout_items")
+    .select("*")
+    .eq("batch_id", input.batchId)
+    .eq("user_id", input.userId)
+    .eq("status", "pending");
+  if (pending.error) throw new ApiError(500, "Failed to load EOS payout items for coach.", pending.error);
+
+  const processed: any[] = [];
+  const failed: any[] = [];
+  for (const item of pending.data ?? []) {
+    try {
+      const result = await reviewEosPayoutItem({
+        itemId: item.id,
+        action: input.action,
+        reviewedByDiscordId: input.reviewedByDiscordId,
+        deniedReason: input.deniedReason,
+      });
+      if (result.updated) processed.push(result.item);
+    } catch (error) {
+      failed.push({ itemId: item.id, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.userId).maybeSingle();
+  const totalAmount = processed.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  return { action: input.action, userId: input.userId, payeeDiscordId: account.data?.discord_id ?? null, items: processed, failed, totalAmount };
 }
 
 export async function reviewEosPayoutItem(input: { itemId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
@@ -269,6 +317,7 @@ export async function issueEosPayoutBatch(input: { batchId: string; reviewedByDi
     }
   }
   const refreshed = await listEosPayoutBatch(input.batchId);
+  const issuedItems = await attachPayeeDiscordIds(issued);
   const stillPending = refreshed.items.filter((item: any) => item.status === "pending").length;
   await supabase
     .from("rec_eos_payout_batches")
@@ -278,5 +327,5 @@ export async function issueEosPayoutBatch(input: { batchId: string; reviewedByDi
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.batchId);
-  return { ...refreshed, issuedCount: issued.length, failed };
+  return { ...refreshed, issuedCount: issued.length, issuedItems, failed };
 }

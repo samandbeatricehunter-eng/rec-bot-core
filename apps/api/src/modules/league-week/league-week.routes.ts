@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
-import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, reviewEosPayoutItem } from "./eos-payouts.service.js";
+import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 
@@ -243,6 +243,22 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         deniedReason: z.string().optional().nullable(),
       }).parse(request.body);
       return reply.send(await reviewEosPayoutItem(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-payouts/review-user", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        batchId: z.string().uuid(),
+        userId: z.string().uuid(),
+        action: z.enum(["approve", "deny"]),
+        reviewedByDiscordId: z.string().min(1),
+        deniedReason: z.string().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await reviewEosPayoutsForUser(body));
     } catch (error) {
       return sendError(reply, error);
     }

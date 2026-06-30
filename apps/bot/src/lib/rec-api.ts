@@ -254,6 +254,12 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
+  reviewEosPayoutsForUser: (input: { batchId: string; userId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) =>
+    recFetch<any>("/v1/league-week/eos-payouts/review-user", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   issueEosPayoutBatch: (input: { batchId: string; reviewedByDiscordId: string }) =>
     recFetch<any>("/v1/league-week/eos-payouts/issue-batch", {
       method: "POST",

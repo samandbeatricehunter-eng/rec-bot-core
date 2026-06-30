@@ -53,16 +53,18 @@ async function postPendingReview(interaction: StringSelectMenuInteraction | Moda
   if (!channel?.isTextBased()) return;
   const mentions = [streamResult.commissionerRoleId, streamResult.compCommitteeRoleId].filter(Boolean).map((id: string) => `<@&${id}>`).join(" ");
   const matchupLine = boldUserTeam(streamResult.matchup ?? matchup) ?? matchupTitle(matchup);
+  const streamUrl = streamResult.streamLog?.message_url ?? streamResult.review?.message_url ?? null;
   await channel.send({
-    content: mentions || undefined,
+    content: [mentions || null, streamUrl || null].filter(Boolean).join("\n") || undefined,
     embeds: [new EmbedBuilder()
       .setTitle("STREAM PAYOUT REVIEW")
       .setDescription([
         `## ${matchupLine}`,
         "",
         `<@${interaction.user.id}> requested a stream payout.`,
+        streamUrl ? `Stream link: ${streamUrl}` : null,
         "Approve to issue the **$50** stream payout if they did stream their game. Otherwise, deny the request."
-      ].join("\n"))],
+      ].filter(Boolean).join("\n"))],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`rec:stream_review:approve:${streamResult.review?.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`rec:stream_review:deny:${streamResult.review?.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
@@ -127,7 +129,7 @@ async function submitStream(interaction: StringSelectMenuInteraction | ModalSubm
   }
   const title = matchupTitle(matchup);
   const publicMessage = await channel.send({
-    content: "@everyone",
+    content: link ? `@everyone\n${link}` : "@everyone",
     embeds: [new EmbedBuilder()
       .setTitle(title)
       .setDescription([
