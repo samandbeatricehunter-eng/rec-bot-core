@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { createGotwPoll, getActiveGotwPoll, getActiveGotwPolls, getGotwGameResult, settleGotwPoll } from "./gotw.service.js";
+import { clearGotwPollsForWeek, createGotwPoll, getActiveGotwPoll, getActiveGotwPolls, getGotwGameResult, settleGotwPoll } from "./gotw.service.js";
 
 export async function gotwRoutes(app: FastifyInstance) {
   app.post("/v1/gotw/poll/create", async (request, reply) => {
@@ -49,6 +49,19 @@ export async function gotwRoutes(app: FastifyInstance) {
         weekNumber: z.number().int().min(1),
       }).parse(request.body);
       return reply.send({ polls: await getActiveGotwPolls(guildId, weekNumber) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/gotw/poll/clear-week", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId, weekNumber } = z.object({
+        guildId: z.string().min(1),
+        weekNumber: z.number().int().min(1),
+      }).parse(request.body);
+      return reply.send(await clearGotwPollsForWeek(guildId, weekNumber));
     } catch (error) {
       return sendError(reply, error);
     }

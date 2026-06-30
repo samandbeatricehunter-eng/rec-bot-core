@@ -50,8 +50,13 @@ import {
   renderScheduleMenu,
   renderSchedulePlaceholder,
   handleScheduleSos,
+  handleScheduleStats,
+  handleScheduleStatsTeamSelect,
+  handleScheduleTeamSelect,
   handleSchedulePowerRankings,
   SCHEDULE_MGMT_CUSTOM_IDS,
+  startPublicLeagueScheduleViewer,
+  startScheduleTeamSelect,
   startManualScheduleEntry,
   startPostSetupManualScheduleEntry,
   startPostSetupScheduleStep,
@@ -193,17 +198,13 @@ const ACTIVE_CHECK_CUSTOM_IDS = {
   bootPrefix: "rec:active_check:boot:",
   editPrefix: "rec:active_check:edit:",
   editSelectPrefix: "rec:active_check:edit_select:",
+  editPagePrefix: "rec:active_check:edit_page:",
 } as const;
 const roleMgmtSessions = new Map<string, {
   roleKey?: RoleMgmtRoleKey;
   action?: RoleMgmtAction;
   selectedUserIds: string[];
   page: number;
-}>();
-const activeCheckBootSessions = new Map<string, {
-  guildId: string;
-  inactive: Array<{ discordId: string; teamId: string; label: string }>;
-  kickMe: Array<{ discordId: string; teamId: string; label: string }>;
 }>();
 const ADVANCE_CUSTOM_IDS = {
   gotwSelect: "rec:advance:gotw_select",
@@ -303,6 +304,7 @@ client.once("clientReady", async () => {
     console.error("REC Core API health check failed", error);
   }
   await registerCommandsForVisibleGuilds();
+  await recoverOpenActiveChecks();
 });
 
 client.on("error", (error) => {
@@ -437,6 +439,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
       if (interaction.customId === RULES_CUSTOM_IDS.select) return handleRulesSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.teamsConferenceSelect) return handleTeamsPage(interaction);
+      if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.scheduleTeamSelect}:`)) return handleScheduleTeamSelect(interaction);
+      if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.scheduleStatsTeamSelect}:`)) return handleScheduleStatsTeamSelect(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotConferenceSelect) return handleSnapshotConferenceSelect(interaction, buildMainMenuPayload);
       if (interaction.customId.startsWith(`${ROSTERS_CUSTOM_IDS.snapshotTeamSelect}:`)) return handleSnapshotTeamSelect(interaction);
       if (interaction.customId === TEAM_LINK_CUSTOM_IDS.leagueTeamsConferenceSelect) return handleLeagueTeamsConferenceSelect(interaction);
@@ -540,14 +544,21 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleView) return startScheduleViewer(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvance) return handleLeagueMgmtAdvance(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtUploadScores) return handleLeagueMgmtUploadScores(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek) return startAdvanceWeekWizard(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtActiveCheck) return handleActiveCheck(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtGotwPolls) return handleGotwPollsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetGotw) return handleSetGotw(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtRerunGotw) return handleRerunGotwPolls(interaction);
       if (interaction.customId.startsWith(`${ADVANCE_CUSTOM_IDS.gotwConfirm}:`)) return handleGotwConfirm(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtGameChannels) return handleGameChannels(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetWeek) return handleSetWeek(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetSeason) return handleSetSeason(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosActions) return handleEosActions(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshoot) return handleTroubleshootMenu(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootSchedule) return handleLeagueMgmtSchedule(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootEos) return replyMenuPlaceholder(interaction, "EOS Projections", "EOS projection pages will calculate each active user's current projected EOS payouts.");
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn) return replyMenuPlaceholder(interaction, "Reverse Transaction", "Reverse Transaction will let commissioners select a linked user and reverse one of their last 24 transactions.");
       if (interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix)) return handleIssueEosPayoutBatch(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosPayouts) return handleEosPayouts(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return replyMenuPlaceholder(interaction, "EOS Awards", "EOS Awards is intentionally a placeholder for now.");
@@ -565,7 +576,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       ) return handleRoleMgmtButton(interaction);
       if (
         interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.bootPrefix) ||
-        interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.editPrefix)
+        interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.editPrefix) ||
+        interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.editPagePrefix)
       ) return handleActiveCheckReviewButton(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotPrev) return handleSnapshotPageNav(interaction, -1);
@@ -577,11 +589,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ROSTERS_CUSTOM_IDS.identitiesBack) return handlePlayerIdentityBack(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.openTeams) return renderTeamsMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleSelectTeam) return startScheduleTeamSelect(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleLeague) return startPublicLeagueScheduleViewer(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedulePowerRankings) return handleSchedulePowerRankings(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return handleScheduleSos(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.scheduleStats) {
-        return renderSchedulePlaceholder(interaction, "Stats", "Season stats for your schedule view are coming soon.");
-      }
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleStats) return handleScheduleStats(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup) return handleManualScheduleNextMatchup(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek) return handleManualScheduleNextWeek(interaction);
@@ -641,7 +653,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferAll}:`)) return handleWalletTransferAll(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustom}:`)) return interaction.showModal(buildWalletTransferCustomModal(interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings"));
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transactions) return handleWalletTransactions(interaction);
-      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.back) return renderMainMenuFromComponent(interaction);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
+      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.back) return handleManageWallet(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.pendingPurchases) return handleWalletPendingPurchases(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);
     }
@@ -810,12 +823,17 @@ async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
 function buildScheduleMgmtRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleView).setLabel("View Schedule").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleManual).setLabel("Set Manually").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleView).setLabel("View Schedule").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back").setStyle(ButtonStyle.Secondary)
-    )
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Success),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
+    ),
   ];
 }
 
@@ -843,12 +861,15 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
       .setDescription([
         "Run weekly league operations from one place.",
         "",
+        "**Advance in-game first.** REC should be advanced after the console league is advanced so score uploads and new playoff schedules are available.",
+        "",
+        "**Upload Scores** opens commissioner score catch-up tools.",
         "**Advance Week** changes only the league week/stage.",
-        "**Active Check** posts the 24-hour activity prompt.",
-        "**Set GOTW** posts the current week's GOTW poll to the voting polls channel.",
+        "**GOTW Polls** sets or reruns voting polls.",
         "**Game Channels** creates private channels for scheduled H2H games with two linked users.",
         "**Set Week / Set Season** manually correct the league clock.",
-        "**EOS Actions** opens postseason payout tools (Wild Card through Super Bowl week)."
+        "**EOS Actions** opens postseason tools; actions stay gated until the right week.",
+        "**Troubleshoot** checks schedule, payout, transaction, and blocker workflows."
       ].join("\n"))],
     components: buildAdvanceMgmtRows()
   });
@@ -857,11 +878,11 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
 function buildAdvanceMgmtRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek).setLabel("Advance Week").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtActiveCheck).setLabel("Active Check").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtUploadScores).setLabel("Upload Scores").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek).setLabel("Advance Week").setStyle(ButtonStyle.Success)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetGotw).setLabel("Set GOTW").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtGotwPolls).setLabel("GOTW Polls").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtGameChannels).setLabel("Game Channels").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -870,9 +891,87 @@ function buildAdvanceMgmtRows() {
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("EOS Actions").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back").setStyle(ButtonStyle.Danger)
-    )
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshoot).setLabel("Troubleshoot").setStyle(ButtonStyle.Danger)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger)
+    ),
   ];
+}
+
+function buildAdvanceBackRows() {
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
+    ),
+  ];
+}
+
+async function handleLeagueMgmtUploadScores(interaction: ButtonInteraction) {
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "upload score data");
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Upload Scores")
+      .setDescription([
+        "Use these tools after the in-game week has been advanced enough for the needed screenshots to exist.",
+        "",
+        "**Box Scores** - submit or review individual game box scores on behalf of users.",
+        "**Weekly Scores** - upload weekly scoreboard screenshots for the current week."
+      ].join("\n"))],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.submissionsOpen).setLabel("Box Scores").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(WEEKLY_SCORES_CUSTOM_IDS.uploadOpen).setLabel("Weekly Scores").setStyle(ButtonStyle.Primary),
+      ),
+      ...buildAdvanceBackRows(),
+    ],
+  });
+}
+
+async function handleGotwPollsMenu(interaction: ButtonInteraction) {
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "manage GOTW polls");
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("GOTW Polls")
+      .setDescription([
+        "**Set GOTW** lets commissioners pick the current week's GOTW matchup.",
+        "**Rerun Poll(s)** reposts current-week polls. In playoffs, it reruns every scheduled playoff game poll."
+      ].join("\n"))],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetGotw).setLabel("Set GOTW").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtRerunGotw).setLabel("Rerun Poll(s)").setStyle(ButtonStyle.Danger),
+      ),
+      ...buildAdvanceBackRows(),
+    ],
+  });
+}
+
+async function handleTroubleshootMenu(interaction: ButtonInteraction) {
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "open advance troubleshooting");
+  return interaction.update({
+    embeds: [new EmbedBuilder()
+      .setTitle("Troubleshoot")
+      .setDescription([
+        "Use these when an advance is blocked or something needs repair before the next REC advance.",
+        "",
+        "**Weekly Schedule** opens schedule repair tools.",
+        "**EOS Projections** will page through projected EOS payouts.",
+        "**Reverse Transaction** will refund or reverse a recent wallet transaction."
+      ].join("\n"))],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshootSchedule).setLabel("Weekly Schedule").setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshootEos).setLabel("EOS Projections").setStyle(ButtonStyle.Secondary),
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn).setLabel("Reverse Transaction").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
 }
 
 function buildEosActionsRows() {
@@ -880,9 +979,11 @@ function buildEosActionsRows() {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosPayouts).setLabel("Payouts").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosAwards).setLabel("Awards").setStyle(ButtonStyle.Secondary),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtPotyTallies).setLabel("POTY Votes").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary)
-    )
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary),
+    ),
   ];
 }
 
@@ -890,17 +991,14 @@ async function handleEosActions(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS actions");
   const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
   const currentWeek = Number(week?.league?.current_week ?? 1);
-  if (currentWeek < 19 || currentWeek > 22) {
-    return interaction.reply({
-      embeds: [new EmbedBuilder().setTitle("EOS Actions").setColor(0xe74c3c).setDescription("EOS Actions are only available during the postseason — from Week 19 (Wild Card) through Week 22 (Super Bowl). Week 18 is the final week of the regular season.")],
-      flags: MessageFlags.Ephemeral,
-    });
-  }
+  const gated = currentWeek < 19 || currentWeek > 22;
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("EOS Actions")
       .setDescription([
-        "End-of-season payout tools for the postseason.",
+        gated
+          ? "**Postseason action gates are active.** You can open this menu now, but payout/POTY workflows unlock from Week 19 through Week 22."
+          : "**Postseason action gates are open.**",
         "",
         "**Payouts** issues end-of-season stat/award payouts for review.",
         "**Awards** prepares end-of-season award reviews.",
@@ -952,19 +1050,49 @@ async function handleActiveCheck(interaction: ButtonInteraction) {
     },
     allowedMentions: { parse: ["everyone"] }
   } as any);
+  const closesAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const created = await recApi.createActiveCheck({
+    guildId: interaction.guildId,
+    discordChannelId: pollMessage.channelId,
+    discordMessageId: pollMessage.id,
+    createdByDiscordId: interaction.user.id,
+    closesAt,
+  });
+  const eventId = created.event.id;
 
-  setTimeout(() => {
-    settleActiveCheckPoll({
-      guildId: interaction.guildId!,
-      channelId: pollMessage.channelId,
-      messageId: pollMessage.id,
-    }).catch((error) => console.error("[ERROR] Active check settlement failed:", error));
-  }, 24 * 60 * 60 * 1000);
+  scheduleActiveCheckSettlement({
+    id: eventId,
+    guildId: interaction.guildId,
+    discord_channel_id: pollMessage.channelId,
+    discord_message_id: pollMessage.id,
+    closes_at: closesAt,
+  });
 
   return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check Posted").setDescription("The native Discord poll has been posted to the voting polls channel for 24 hours.")], components: buildAdvanceMgmtRows() });
 }
 
-async function settleActiveCheckPoll(input: { guildId: string; channelId: string; messageId: string }) {
+function scheduleActiveCheckSettlement(event: any) {
+  if (!event?.id || !event.guildId || !event.discord_channel_id || !event.discord_message_id) return;
+  const delay = Math.max(0, new Date(event.closes_at ?? Date.now()).getTime() - Date.now());
+  setTimeout(() => {
+    settleActiveCheckPoll({
+      eventId: event.id,
+      guildId: event.guildId,
+      channelId: event.discord_channel_id,
+      messageId: event.discord_message_id,
+    }).catch((error) => console.error("[ERROR] Active check settlement failed:", error));
+  }, Math.min(delay, 24 * 60 * 60 * 1000));
+}
+
+async function recoverOpenActiveChecks() {
+  const events = await recApi.listOpenActiveChecks().then((r) => r.events ?? []).catch((error) => {
+    console.error("[ERROR] Failed to load open active checks:", error);
+    return [];
+  });
+  for (const event of events) scheduleActiveCheckSettlement(event);
+}
+
+async function settleActiveCheckPoll(input: { eventId: string; guildId: string; channelId: string; messageId: string }) {
   const guild = await client.guilds.fetch(input.guildId).catch(() => null);
   if (!guild) return;
   const routes = await getRouteChannels(input.guildId);
@@ -978,34 +1106,21 @@ async function settleActiveCheckPoll(input: { guildId: string; channelId: string
   const kickAnswer = poll.answers?.get(2);
   const activeVoters = activeAnswer ? await activeAnswer.fetchVoters().catch(() => null) : null;
   const kickVoters = kickAnswer ? await kickAnswer.fetchVoters().catch(() => null) : null;
-  const activeDiscordIds = new Set([...(activeVoters?.values() ?? [])].map((user: any) => user.id));
-  const kickDiscordIds = new Set([...(kickVoters?.values() ?? [])].map((user: any) => user.id));
-
-  const linked = await recApi.getLinkedUsersTeams(input.guildId).then((r) => r.linked ?? []).catch(() => []);
-  const linkedUsers = linked
-    .map((row: any) => ({
-      discordId: row.discordId,
-      teamId: row.team?.id,
-      label: `${row.team?.abbreviation ?? row.team?.name ?? "Team"} - <@${row.discordId}>`,
-    }))
-    .filter((row: any) => row.discordId && row.teamId);
-
-  const inactive = linkedUsers.filter((row: any) => !activeDiscordIds.has(row.discordId) && !kickDiscordIds.has(row.discordId));
-  const kickMe = linkedUsers.filter((row: any) => kickDiscordIds.has(row.discordId));
-  const sessionId = input.messageId;
-  activeCheckBootSessions.set(sessionId, { guildId: input.guildId, inactive, kickMe });
+  const activeDiscordIds = [...(activeVoters?.values() ?? [])].map((user: any) => user.id);
+  const kickMeDiscordIds = [...(kickVoters?.values() ?? [])].map((user: any) => user.id);
+  const review = await recApi.settleActiveCheck({ eventId: input.eventId, activeDiscordIds, kickMeDiscordIds });
 
   const commissionerChannelId = routes.commissioner_office_channel_id ?? routes.commissionerOfficeChannelId;
   const commissionerChannel = commissionerChannelId ? await guild.channels.fetch(commissionerChannelId).catch(() => null) : null;
   if (!commissionerChannel?.isTextBased()) return;
-  await commissionerChannel.send(buildActiveCheckReviewPayload(sessionId, inactive, kickMe));
+  await commissionerChannel.send(buildActiveCheckReviewPayload(input.eventId, review.inactive ?? [], review.kickMe ?? []));
 }
 
 function listActiveCheckRows(rows: Array<{ label: string }>) {
   return rows.length ? rows.slice(0, 20).map((row) => `- ${row.label}`).join("\n") : "None";
 }
 
-function buildActiveCheckReviewPayload(sessionId: string, inactive: Array<{ label: string }>, kickMe: Array<{ label: string }>) {
+function buildActiveCheckReviewPayload(eventId: string, inactive: Array<{ label: string }>, kickMe: Array<{ label: string }>) {
   const bootCount = inactive.length + kickMe.length;
   return {
     embeds: [new EmbedBuilder()
@@ -1019,8 +1134,8 @@ function buildActiveCheckReviewPayload(sessionId: string, inactive: Array<{ labe
       ].join("\n"))],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.bootPrefix}${sessionId}`).setLabel(`Boot Listed (${bootCount})`).setStyle(ButtonStyle.Danger).setDisabled(bootCount === 0),
-        new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editPrefix}${sessionId}`).setLabel("Edit Boot List").setStyle(ButtonStyle.Secondary).setDisabled(bootCount === 0),
+        new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.bootPrefix}${eventId}`).setLabel(`Boot Listed (${bootCount})`).setStyle(ButtonStyle.Danger).setDisabled(bootCount === 0),
+        new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editPrefix}${eventId}:0`).setLabel("Edit Boot List").setStyle(ButtonStyle.Secondary).setDisabled(bootCount === 0),
       )
     ],
   };
@@ -1030,37 +1145,49 @@ async function handleActiveCheckReviewButton(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "review active checks");
   const isBoot = interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.bootPrefix);
-  const sessionId = interaction.customId.slice((isBoot ? ACTIVE_CHECK_CUSTOM_IDS.bootPrefix : ACTIVE_CHECK_CUSTOM_IDS.editPrefix).length);
-  const session = activeCheckBootSessions.get(sessionId);
-  if (!session) return interaction.reply({ content: "Active check review expired.", flags: MessageFlags.Ephemeral });
+  const isPage = interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.editPagePrefix);
+  const raw = interaction.customId.slice((isBoot ? ACTIVE_CHECK_CUSTOM_IDS.bootPrefix : isPage ? ACTIVE_CHECK_CUSTOM_IDS.editPagePrefix : ACTIVE_CHECK_CUSTOM_IDS.editPrefix).length);
+  const [eventId, pageRaw] = raw.split(":");
+  const page = Math.max(0, Number(pageRaw ?? 0) || 0);
+  const review = await recApi.getActiveCheckReview(eventId).catch(() => null);
+  if (!review) return interaction.reply({ content: "Active check review expired.", flags: MessageFlags.Ephemeral });
 
   if (!isBoot) {
-    const candidates = [...session.inactive, ...session.kickMe].slice(0, 25);
+    const allCandidates = [...(review.inactive ?? []), ...(review.kickMe ?? [])];
+    const totalPages = Math.max(1, Math.ceil(allCandidates.length / 25));
+    const safePage = Math.min(page, totalPages - 1);
+    const candidates = allCandidates.slice(safePage * 25, safePage * 25 + 25);
     return interaction.reply({
       embeds: [new EmbedBuilder().setTitle("Edit Boot List").setDescription("Select users to keep. They will be removed from the boot list.")],
-      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editSelectPrefix}${sessionId}`)
-          .setPlaceholder("Select users to keep")
-          .setMinValues(1)
-          .setMaxValues(candidates.length)
-          .addOptions(...candidates.map((row) =>
-            new StringSelectMenuOptionBuilder().setLabel(row.label.replace(/<@|>/g, "").slice(0, 100)).setValue(row.discordId)
-          ))
-      )],
+      components: [
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editSelectPrefix}${eventId}`)
+            .setPlaceholder(`Select users to keep (${safePage + 1}/${totalPages})`)
+            .setMinValues(1)
+            .setMaxValues(Math.max(1, candidates.length))
+            .addOptions(...(candidates.length ? candidates.map((row: any) =>
+              new StringSelectMenuOptionBuilder().setLabel(String(row.label).replace(/<@|>/g, "").slice(0, 100)).setValue(row.discordId)
+            ) : [new StringSelectMenuOptionBuilder().setLabel("No users on this page").setValue("none")]))
+        ),
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editPagePrefix}${eventId}:${Math.max(0, safePage - 1)}`).setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(safePage <= 0),
+          new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editPagePrefix}${eventId}:${safePage + 1}`).setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(safePage >= totalPages - 1),
+        )
+      ],
       flags: MessageFlags.Ephemeral,
     });
   }
 
   await interaction.deferUpdate();
-  const bootList = [...session.inactive, ...session.kickMe];
+  const bootList = [...(review.inactive ?? []), ...(review.kickMe ?? [])];
   let unlinked = 0;
-  for (const row of bootList) {
-    await recApi.unlinkTeam({ guildId: session.guildId, teamId: row.teamId, requestedByDiscordId: interaction.user.id })
+  for (const row of bootList as any[]) {
+    await recApi.unlinkTeam({ guildId: interaction.guildId, teamId: row.teamId, requestedByDiscordId: interaction.user.id })
       .then(() => { unlinked += 1; })
       .catch(() => undefined);
   }
-  activeCheckBootSessions.delete(sessionId);
+  await recApi.markActiveCheckBooted({ eventId, discordIds: bootList.map((row: any) => row.discordId).filter(Boolean) }).catch(() => undefined);
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Active Check Boot Complete").setDescription(`Unlinked **${unlinked}** team user(s).`)],
     components: [],
@@ -1070,13 +1197,9 @@ async function handleActiveCheckReviewButton(interaction: ButtonInteraction) {
 async function handleActiveCheckEditSelect(interaction: StringSelectMenuInteraction) {
   if (!interaction.inCachedGuild()) return;
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "edit active check boot lists");
-  const sessionId = interaction.customId.slice(ACTIVE_CHECK_CUSTOM_IDS.editSelectPrefix.length);
-  const session = activeCheckBootSessions.get(sessionId);
-  if (!session) return interaction.reply({ content: "Active check review expired.", flags: MessageFlags.Ephemeral });
-  const keep = new Set(interaction.values);
-  session.inactive = session.inactive.filter((row) => !keep.has(row.discordId));
-  session.kickMe = session.kickMe.filter((row) => !keep.has(row.discordId));
-  activeCheckBootSessions.set(sessionId, session);
+  const eventId = interaction.customId.slice(ACTIVE_CHECK_CUSTOM_IDS.editSelectPrefix.length);
+  const keep = interaction.values.filter((value) => value !== "none");
+  if (keep.length) await recApi.keepActiveCheckUsers({ eventId, discordIds: keep });
   await interaction.update({ content: "Boot list updated.", embeds: [], components: [] });
 }
 
@@ -1113,7 +1236,7 @@ async function handleSetGotw(interaction: ButtonInteraction) {
   if (!h2h.length) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription(`No H2H matchups are scheduled for ${stageLabel(stage, currentWeek)}.`)],
-      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back").setStyle(ButtonStyle.Secondary))]
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary))]
     });
   }
   return interaction.editReply({
@@ -1129,7 +1252,7 @@ async function handleSetGotw(interaction: ButtonInteraction) {
             description: `Week ${currentWeek}`.slice(0, 100)
           })))
       ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back").setStyle(ButtonStyle.Secondary))
+      new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary))
     ]
   });
 }
@@ -1161,7 +1284,7 @@ async function handleGotwSelect(interaction: any) {
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${ADVANCE_CUSTOM_IDS.gotwConfirm}:${selectedGameId}`).setLabel("Confirm & Post GOTW").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetGotw).setLabel("Pick Different Matchup").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary),
       ),
     ],
   });
@@ -1229,6 +1352,72 @@ async function handleGotwConfirm(interaction: ButtonInteraction) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceMgmtRows() });
   }
   return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Posted").setDescription(`Posted GOTW poll to the voting polls channel for ${stageLabel(stage, currentWeek)}.`)], components: buildAdvanceMgmtRows() });
+}
+
+async function handleRerunGotwPolls(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "rerun GOTW polls");
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rerunning GOTW Polls...").setDescription("Clearing old current-week GOTW poll records and preparing replacements.")], components: [] });
+
+  const { currentWeek, stage, games } = await currentSchedule(interaction);
+  const h2h = games.filter((g: any) => g.away_discord_id && g.home_discord_id);
+  const cleared = await recApi.clearGotwPollsForWeek({ guildId: interaction.guildId, weekNumber: currentWeek }).catch(() => ({ cleared: 0, polls: [] as any[] }));
+  let deletedMessages = 0;
+  for (const poll of cleared.polls ?? []) {
+    const channelId = poll.discord_channel_id;
+    const messageId = poll.discord_message_id;
+    if (!channelId || !messageId) continue;
+    const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+    if (!channel?.isTextBased() || !("messages" in channel)) continue;
+    const deleted = await channel.messages.delete(messageId).then(() => true).catch(() => false);
+    if (deleted) deletedMessages += 1;
+  }
+
+  const routes = await getRouteChannels(interaction.guildId);
+  const channel = await getVotingPollsChannel(interaction.guild, routes);
+  if (!channel) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rerun GOTW Polls").setDescription("No voting polls channel is configured.")], components: buildAdvanceMgmtRows() });
+  }
+
+  const oldGameIds = new Set((cleared.polls ?? []).map((poll: any) => poll.game_id).filter(Boolean));
+  const gamesToPost = currentWeek >= 19
+    ? h2h
+    : h2h.filter((game: any) => oldGameIds.has(game.id) || (oldGameIds.size === 0 && h2h.length === 1));
+
+  if (!gamesToPost.length) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setTitle("Rerun GOTW Polls")
+        .setDescription([
+          `Cleared **${cleared.cleared ?? 0}** old poll record(s) and deleted **${deletedMessages}** Discord poll message(s).`,
+          "",
+          "No replacement poll was posted because there was no existing GOTW game to rerun. Use **Set GOTW** to pick the matchup."
+        ].join("\n"))],
+      components: buildAdvanceMgmtRows(),
+    });
+  }
+
+  let posted = 0;
+  const skipped: string[] = [];
+  for (const game of gamesToPost) {
+    const ok = await postGotwPollForGame({ guildId: interaction.guildId, channel, game, weekNumber: currentWeek });
+    if (ok) posted += 1;
+    else skipped.push(`${teamDisplay(game.away_team)} at ${teamDisplay(game.home_team)}`);
+  }
+
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("GOTW Polls Rerun")
+      .setDescription([
+        `Week: **${stageLabel(stage, currentWeek)}**`,
+        `Cleared DB records: **${cleared.cleared ?? 0}**`,
+        `Deleted old Discord messages: **${deletedMessages}**`,
+        `Posted replacement polls: **${posted}**`,
+        skipped.length ? `Skipped: ${skipped.join(", ")}` : "Skipped: none",
+      ].join("\n"))],
+    components: buildAdvanceMgmtRows(),
+  });
 }
 
 async function handleGameChannels(interaction: ButtonInteraction) {

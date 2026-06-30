@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { activeCheckRoutes } from "./modules/active-checks/active-checks.routes.js";
 import { boxScoreRoutes } from "./modules/box-score/box-score.routes.js";
 import { gameChannelRoutes } from "./modules/game-channels/game-channels.routes.js";
 import { highlightRoutes } from "./modules/highlights/highlights.routes.js";
@@ -18,6 +19,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
 
   await userRoutes(app);
+  await activeCheckRoutes(app);
   await setupRoutes(app);
   await teamOwnershipRoutes(app);
   await teamRequestRoutes(app);

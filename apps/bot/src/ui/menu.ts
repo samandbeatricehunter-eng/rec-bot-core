@@ -9,7 +9,6 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { WEEKLY_SCORES_CUSTOM_IDS } from "../flows/schedule-scores.js";
 
 /**
  * Central custom IDs for the REC menu system.
@@ -21,9 +20,12 @@ export const MENU_CUSTOM_IDS = {
   openTeams: "rec:menu:open_teams",
   schedule: "rec:menu:schedule",
   scheduleSelectTeam: "rec:schedule:select_team",
+  scheduleTeamSelect: "rec:schedule:team_select",
+  scheduleLeague: "rec:schedule:league",
   schedulePowerRankings: "rec:schedule:power_rankings",
   scheduleSos: "rec:schedule:sos",
   scheduleStats: "rec:schedule:stats",
+  scheduleStatsTeamSelect: "rec:schedule:stats_team_select",
   scheduleHistory: "rec:schedule:history",
   scheduleBack: "rec:schedule:back",
   makePurchase: "rec:menu:make_purchase",
@@ -47,13 +49,20 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtScheduleView: "rec:league_mgmt:schedule:view",
   leagueMgmtScheduleBack: "rec:league_mgmt:schedule:back",
   leagueMgmtAdvance: "rec:league_mgmt:advance",
+  leagueMgmtUploadScores: "rec:league_mgmt:advance:upload_scores",
   leagueMgmtAdvanceWeek: "rec:league_mgmt:advance:week",
   leagueMgmtActiveCheck: "rec:league_mgmt:advance:active_check",
+  leagueMgmtGotwPolls: "rec:league_mgmt:advance:gotw_polls",
   leagueMgmtSetGotw: "rec:league_mgmt:advance:set_gotw",
+  leagueMgmtRerunGotw: "rec:league_mgmt:advance:rerun_gotw",
   leagueMgmtGameChannels: "rec:league_mgmt:advance:game_channels",
   leagueMgmtSetWeek: "rec:league_mgmt:advance:set_week",
   leagueMgmtSetSeason: "rec:league_mgmt:advance:set_season",
   leagueMgmtEosActions: "rec:league_mgmt:advance:eos_actions",
+  leagueMgmtTroubleshoot: "rec:league_mgmt:advance:troubleshoot",
+  leagueMgmtTroubleshootSchedule: "rec:league_mgmt:advance:troubleshoot:schedule",
+  leagueMgmtTroubleshootEos: "rec:league_mgmt:advance:troubleshoot:eos",
+  leagueMgmtTroubleshootReverseTxn: "rec:league_mgmt:advance:troubleshoot:reverse_txn",
   leagueMgmtEosPayouts: "rec:league_mgmt:advance:eos_payouts",
   leagueMgmtEosAwards: "rec:league_mgmt:advance:eos_awards",
   leagueMgmtPotyTallies: "rec:league_mgmt:advance:poty_tallies",
@@ -88,6 +97,7 @@ export const MANAGE_WALLET_CUSTOM_IDS = {
   transferCustomModal: "rec:wallet:transfer_custom_modal",
   transferCustomAmountInput: "rec:wallet:transfer_custom_amount",
   transactions: "rec:wallet:transactions",
+  mainMenu: "rec:wallet:main_menu",
   back: "rec:wallet:back"
 } as const;
 
@@ -239,14 +249,13 @@ export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } 
       "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
     ]
     : [
-      "**Teams** - Link users to teams, unlink users, reset default teams, and edit relocated/custom team names.",
-      "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
-      "**Schedule** - Enter, review, and publicly post the league schedule.",
-      "**Advance** - Run weekly operations: advance week, active check, GOTW, game channels, EOS payouts, and POTY tallies.",
-      "**Settings** - Edit saved league/server setup values.",
-      "**First-Time Setup** - Create or rebuild a league setup. This can clear league data when rerun.",
+      "**Run the league in-game first.** Advance Madden/CFB before advancing REC so the new week, playoff bracket, scores, and schedule screenshots exist.",
+      "**Upload Scores / Weekly Scores** - Catch up missed game results and weekly scoreboard screenshots before using REC Advance.",
+      "**Schedule** - Upload, manually enter, or review schedules. Playoff schedules usually require advancing in-game first.",
+      "**Advance** - After in-game advance and score/schedule work, run REC advance tools: GOTW polls, game channels, active checks, EOS, and troubleshooting.",
+      "**Teams / Roles** - Link users to teams, edit custom teams, and manage REC Discord roles.",
+      "**Settings / First-Time Setup** - Update league/server setup. Rerunning first-time setup can rebuild league data.",
       "**Delete League** - Permanently delete this server's current league data.",
-      "**Roles** - Role management placeholder.",
     ];
 
   return new EmbedBuilder()
@@ -266,8 +275,7 @@ export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } =
   const sharedRows = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(LEAGUE_MGMT_BOX_SCORE_INBOX_ID).setLabel("Box Scores").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(WEEKLY_SCORES_CUSTOM_IDS.uploadOpen).setLabel("Upload Scores").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtRoles).setLabel("Roles").setStyle(ButtonStyle.Primary)
     ),
   ];
 
@@ -284,7 +292,9 @@ export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } =
     ...sharedRows,
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSchedule).setLabel("Schedule").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success)
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSettings).setLabel("Settings").setStyle(ButtonStyle.Success)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -292,7 +302,6 @@ export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } =
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtDeleteLeague).setLabel("Delete League").setStyle(ButtonStyle.Danger)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtRoles).setLabel("Roles").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
     )
   ];
@@ -684,8 +693,12 @@ export function buildScheduleEmbed(input: {
 export function buildScheduleRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSelectTeam).setLabel("Team Schedule").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleLeague).setLabel("League Schedule").setStyle(ButtonStyle.Primary),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedulePowerRankings).setLabel("Power Rankings").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSos).setLabel("SOS").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleSos).setLabel("SOS").setStyle(ButtonStyle.Danger)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleStats).setLabel("Stats").setStyle(ButtonStyle.Secondary),
@@ -747,7 +760,7 @@ export function buildManageWalletRows() {
       new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.transactions).setLabel("Transactions").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.mainMenu).setLabel("Main Menu").setStyle(ButtonStyle.Danger)
     )
   ];
 }
@@ -763,7 +776,7 @@ export function buildWalletTransferDirectionRows() {
   return [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Danger)
     )
   ];
 }
@@ -775,7 +788,7 @@ export function buildWalletTransferAmountRows(direction: "to_savings" | "from_sa
       new ButtonBuilder().setCustomId(`${MANAGE_WALLET_CUSTOM_IDS.transferCustom}:${direction}`).setLabel("Custom Amount").setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back to Menu").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(MANAGE_WALLET_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Danger)
     )
   ];
 }

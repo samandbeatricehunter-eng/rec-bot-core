@@ -150,7 +150,6 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
         .is("ended_at", null)
     : { data: [], error: null };
   if (assignments.error) throw new ApiError(500, "Failed to load team assignments for schedule.", assignments.error);
-  console.log(`[DEBUG listScheduleSeason] teamIds=${teamIds.length} assignments=${(assignments.data ?? []).length} leagueId=${context.leagueId}`);
   const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id]));
 
   const allUserIds = [...new Set([...userByTeam.values()].filter(Boolean))];

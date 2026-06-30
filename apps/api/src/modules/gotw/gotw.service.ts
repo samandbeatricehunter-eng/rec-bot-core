@@ -85,6 +85,28 @@ export async function getActiveGotwPolls(guildId: string, weekNumber: number) {
   return data ?? [];
 }
 
+export async function clearGotwPollsForWeek(guildId: string, weekNumber: number) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const { data, error } = await supabase
+    .from("rec_game_of_week_polls")
+    .select("id,discord_channel_id,discord_message_id,status")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber);
+  if (error) throw new ApiError(500, "Failed to load GOTW polls for cleanup.", error);
+
+  const ids = (data ?? []).map((poll) => poll.id).filter(Boolean);
+  if (ids.length) {
+    const deleted = await supabase
+      .from("rec_game_of_week_polls")
+      .delete()
+      .in("id", ids);
+    if (deleted.error) throw new ApiError(500, "Failed to clear GOTW poll records.", deleted.error);
+  }
+  return { cleared: ids.length, polls: data ?? [] };
+}
+
 /**
  * Settle the GOTW poll. winningTeamId is the ACTUAL game winner from the advance
  * results — not the poll vote counts. Voters who picked the winning team get a

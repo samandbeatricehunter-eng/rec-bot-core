@@ -286,6 +286,9 @@ export const recApi = {
   getActiveGotwPolls: (input: { guildId: string; weekNumber: number }) =>
     recFetch<{ polls: any[] }>("/v1/gotw/poll/active-all", { method: "POST", body: JSON.stringify(input) }),
 
+  clearGotwPollsForWeek: (input: { guildId: string; weekNumber: number }) =>
+    recFetch<{ cleared: number; polls: any[] }>("/v1/gotw/poll/clear-week", { method: "POST", body: JSON.stringify(input) }),
+
   settleGotwPoll: (input: {
     guildId: string; pollId: string; winningTeamId: string | null;
     voters: { discordId: string; userId?: string | null; selectedTeamId: string }[];
@@ -293,6 +296,30 @@ export const recApi = {
 
   getGotwGameResult: (input: { guildId: string; awayTeamId: string; homeTeamId: string; weekNumber: number }) =>
     recFetch<any>("/v1/gotw/poll/game-result", { method: "POST", body: JSON.stringify(input) }),
+
+  createActiveCheck: (input: {
+    guildId: string;
+    discordChannelId: string;
+    discordMessageId: string;
+    createdByDiscordId: string;
+    closesAt: string;
+  }) =>
+    recFetch<any>("/v1/active-checks/create", { method: "POST", body: JSON.stringify(input) }),
+
+  listOpenActiveChecks: () =>
+    recFetch<{ events: any[] }>("/v1/active-checks/open", { method: "POST", body: JSON.stringify({}) }),
+
+  settleActiveCheck: (input: { eventId: string; activeDiscordIds: string[]; kickMeDiscordIds: string[] }) =>
+    recFetch<any>("/v1/active-checks/settle", { method: "POST", body: JSON.stringify(input) }),
+
+  getActiveCheckReview: (eventId: string) =>
+    recFetch<any>("/v1/active-checks/review", { method: "POST", body: JSON.stringify({ eventId }) }),
+
+  keepActiveCheckUsers: (input: { eventId: string; discordIds: string[] }) =>
+    recFetch<any>("/v1/active-checks/keep", { method: "POST", body: JSON.stringify(input) }),
+
+  markActiveCheckBooted: (input: { eventId: string; discordIds: string[] }) =>
+    recFetch<any>("/v1/active-checks/booted", { method: "POST", body: JSON.stringify(input) }),
 
   createTeamLinkRequest: (input: { guildId: string; discordId: string; teamId: string }) =>
     recFetch<any>("/v1/team-requests/create", {

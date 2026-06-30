@@ -12,7 +12,7 @@ import {
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
-import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS } from "../ui/menu.js";
+import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type RosterConference, type RosterTeam } from "../ui/menu.js";
 
 export const SCHEDULE_MGMT_CUSTOM_IDS = {
   manualWeekSelect: "rec:schedule_manual:week",
@@ -74,7 +74,7 @@ type ScheduleViewSession = {
   seasonNumber: number;
   pageIndex: number;
   weeks: Array<{ weekNumber: number; phase?: string | null; games: any[] }>;
-  mode: "admin" | "post_setup";
+  mode: "admin" | "post_setup" | "public";
 };
 
 const scheduleViewSessions = new Map<string, ScheduleViewSession>();
@@ -140,11 +140,11 @@ function fmtPct(n: number) {
 
 function buildSosEmbed(data: any, viewerDiscordId: string): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle(`Strength of Schedule — Season ${data?.currentSeason ?? 1}`)
+    .setTitle(`Strength of Schedule - Season ${data?.currentSeason ?? 1}`)
     .setColor(0xe67e22);
 
   if (!data?.scheduleLogged) {
-    return embed.setDescription("No schedule has been logged for this season yet. Ask a commissioner to enter it from **League Mgmt → Schedule**.");
+    return embed.setDescription("No schedule has been logged for this season yet. Ask a commissioner to enter it from **League Mgmt > Schedule**.");
   }
 
   const teams: any[] = data.teams ?? [];
@@ -157,23 +157,23 @@ function buildSosEmbed(data: any, viewerDiscordId: string): EmbedBuilder {
   if (viewer) {
     header.push(
       "",
-      `**Your team — ${viewer.teamName}**`,
-      `SOS **${viewer.sosFull.toFixed(1)}** · Rank **${viewer.rank}/${data.totalTeams}** · Remaining **${viewer.sosRemaining.toFixed(1)}**`,
-      `${viewer.humanCount} human / ${viewer.cpuCount} CPU · opp record ${fmtPct(viewer.oppRecord)}`,
+      `**Your team - ${viewer.teamName}**`,
+      `SOS **${viewer.sosFull.toFixed(1)}** | Rank **${viewer.rank}/${data.totalTeams}** | Remaining **${viewer.sosRemaining.toFixed(1)}**`,
+      `${viewer.humanCount} human / ${viewer.cpuCount} CPU | opp record ${fmtPct(viewer.oppRecord)}`,
     );
   } else {
     header.push("", "_You're not linked to a team in this league, so only the league board is shown._");
   }
 
   const board = teams.map((t) => {
-    const mark = t.teamId === data.viewerTeamId ? "▶ " : "";
+    const mark = t.teamId === data.viewerTeamId ? "> " : "";
     const label = t.abbr ?? t.teamName;
-    const line = `\`${String(t.rank).padStart(2)}\` ${mark}${label} — **${t.sosFull.toFixed(1)}**  ·  ${t.humanCount}H/${t.cpuCount}C`;
+    const line = `\`${String(t.rank).padStart(2)}\` ${mark}${label} - **${t.sosFull.toFixed(1)}**  |  ${t.humanCount}H/${t.cpuCount}C`;
     return t.teamId === data.viewerTeamId ? `__${line}__` : line;
   });
 
   return embed.setDescription(
-    [header.join("\n"), "", "**League SOS (toughest → easiest)**", board.join("\n")].join("\n").slice(0, 4096),
+    [header.join("\n"), "", "**League SOS (toughest to easiest)**", board.join("\n")].join("\n").slice(0, 4096),
   );
 }
 
@@ -197,15 +197,15 @@ export async function handleScheduleSos(interaction: ButtonInteraction) {
 }
 
 function moveArrow(change: number | null): string {
-  if (change == null) return "•";       // new / no prior week
-  if (change > 0) return `▲${change}`;
-  if (change < 0) return `▼${Math.abs(change)}`;
-  return "—";
+  if (change == null) return "new";
+  if (change > 0) return `up ${change}`;
+  if (change < 0) return `down ${Math.abs(change)}`;
+  return "same";
 }
 
 function buildPowerRankingsEmbed(data: any, viewerTeamId: string | null): EmbedBuilder {
   const embed = new EmbedBuilder()
-    .setTitle(`Power Rankings — Season ${data?.currentSeason ?? 1}`)
+    .setTitle(`Power Rankings - Season ${data?.currentSeason ?? 1}`)
     .setColor(0x9b59b6);
 
   const teams: any[] = data?.teams ?? [];
@@ -214,13 +214,13 @@ function buildPowerRankingsEmbed(data: any, viewerTeamId: string | null): EmbedB
   }
 
   const header = data.hasPreviousWeek
-    ? "Record + point differential, with bonus weight for actually playing (posted box scores) and winning close H2H games. ▲/▼ = movement vs last week."
+    ? "Record + point differential, with bonus weight for actually playing (posted box scores) and winning close H2H games. Movement compares to last week."
     : "Record + point differential, with bonus weight for actually playing (posted box scores) and winning close H2H games. Movement appears after the first advance.";
 
   const board = teams.map((t) => {
-    const mark = t.teamId === viewerTeamId ? "▶ " : "";
+    const mark = t.teamId === viewerTeamId ? "> " : "";
     const label = t.abbr ?? t.teamName;
-    const line = `\`${String(t.rank).padStart(2)}\` ${mark}${label} — **${(t.score ?? 0).toFixed(3)}**  ${moveArrow(t.change)}`;
+    const line = `\`${String(t.rank).padStart(2)}\` ${mark}${label} - **${(t.score ?? 0).toFixed(3)}**  ${moveArrow(t.change)}`;
     return t.teamId === viewerTeamId ? `__${line}__` : line;
   });
 
@@ -244,6 +244,159 @@ export async function handleSchedulePowerRankings(interaction: ButtonInteraction
       components: buildScheduleRows(),
     });
   }
+}
+
+function linkedTeamsByConference(rawConferences: RosterConference[]) {
+  return normalizeRosterConferences(rawConferences)
+    .map((conference) => ({
+      conference: conference.conference,
+      teams: conference.divisions.flatMap((division) =>
+        division.teams
+          .filter((team) => Boolean(team.linkedDiscordId))
+          .map((team) => ({ ...team, division: team.division ?? division.label })),
+      ),
+    }))
+    .filter((conference) => conference.teams.length);
+}
+
+function buildLinkedTeamSelectRows(rawConferences: RosterConference[], customIdBase: string) {
+  const conferences = linkedTeamsByConference(rawConferences);
+  if (!conferences.length) {
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId(`${customIdBase}:none`)
+      .setPlaceholder("No linked user teams available")
+      .setMinValues(1)
+      .setMaxValues(1)
+      .setDisabled(true)
+      .addOptions(new StringSelectMenuOptionBuilder().setLabel("No linked teams").setValue("none"));
+    return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)];
+  }
+  return conferences.slice(0, 5).map((conference) => {
+    const options = conference.teams.slice(0, 25).map((team: RosterTeam) =>
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`${team.abbreviation ?? teamDisplayLabel(team as any)} - ${team.linkedName ?? "Linked user"}`.slice(0, 100))
+        .setDescription((team.division ?? conference.conference).slice(0, 100))
+        .setValue(team.linkedDiscordId!),
+    );
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(`${customIdBase}:${conference.conference}`)
+        .setPlaceholder(`${conference.conference} linked teams`)
+        .setMinValues(1)
+        .setMaxValues(1)
+        .addOptions(options),
+    );
+  });
+}
+
+async function loadLinkedTeamSelectPayload(guildId: string, title: string, description: string, customIdBase: string) {
+  const confData = await recApi.getLeagueConferences(guildId);
+  const conferences: RosterConference[] = confData?.conferences ?? [];
+  const rows = buildLinkedTeamSelectRows(conferences, customIdBase);
+  return {
+    embeds: [new EmbedBuilder().setTitle(title).setDescription(description).setColor(0x3498db)],
+    components: [
+      ...rows,
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
+      ),
+    ],
+  };
+}
+
+function fmtNumber(value: unknown) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n.toLocaleString("en-US") : "0";
+}
+
+function buildStatsEmbed(snapshot: any, requestedDiscordId: string) {
+  const display = snapshot?.display ?? {};
+  const team = snapshot?.team ?? {};
+  const seasonRecord = snapshot?.seasonRecord ?? {};
+  const seasonStats = snapshot?.seasonStats ?? {};
+  const identity = snapshot?.identity ?? snapshot?.currentIdentity ?? display?.identity ?? null;
+  const seasonBadges: any[] = snapshot?.seasonBadges ?? [];
+  const weeklyBadges: any[] = snapshot?.weeklyBadges ?? [];
+  const lines = [
+    `Coach: <@${requestedDiscordId}>`,
+    `Team: **${display.teamName ?? team.name ?? "Unlinked"}**`,
+    `Record: **${seasonRecord.text ?? "0-0"}** | PF ${fmtNumber(seasonRecord.pointsFor)} | PA ${fmtNumber(seasonRecord.pointsAgainst)} | Diff ${fmtNumber(seasonRecord.pointDifferential)}`,
+    `H2H: **${seasonRecord.text ?? "0-0"}**`,
+    `Identity: **${identity?.name ?? identity?.label ?? seasonStats.identity ?? "Not assigned"}**`,
+    "",
+    "**Current Season Stats**",
+    `Box scores uploaded: **${fmtNumber(seasonRecord.boxScoresUploaded ?? seasonStats.boxScoresUploaded)}**`,
+    `Active streak: **${seasonRecord.activeStreak ?? seasonStats.activeStreak ?? "None"}**`,
+    `GOTW voting: **${snapshot?.gotwGuessing ? `${snapshot.gotwGuessing.correct}/${snapshot.gotwGuessing.total} (${snapshot.gotwGuessing.accuracy}%)` : "No votes yet"}**`,
+    `GOTW H2H: **${snapshot?.gotwCompetition ? `${snapshot.gotwCompetition.wins}-${snapshot.gotwCompetition.losses}` : "No GOTW games yet"}**`,
+    "",
+    "**Active Badges**",
+    `Weekly: ${weeklyBadges.length ? weeklyBadges.map((badge) => badge.badgeName ?? badge.name ?? "Badge").slice(0, 8).join(", ") : "None"}`,
+    `Season: ${seasonBadges.length ? seasonBadges.map((badge) => badge.badgeName ?? badge.name ?? "Badge").slice(0, 8).join(", ") : "None"}`,
+  ];
+  return new EmbedBuilder()
+    .setTitle(`${display.teamName ?? team.name ?? "Team"} Stats`)
+    .setColor(0x2ecc71)
+    .setDescription(lines.join("\n").slice(0, 4096));
+}
+
+export async function startScheduleTeamSelect(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Team Schedule").setDescription("Open /menu inside a REC Discord server.")], components: buildScheduleRows() });
+  }
+  return interaction.editReply(await loadLinkedTeamSelectPayload(
+    interaction.guildId,
+    "Team Schedule",
+    "Select an active linked team to view that coach's current schedule.",
+    MENU_CUSTOM_IDS.scheduleTeamSelect,
+  ));
+}
+
+export async function handleScheduleTeamSelect(interaction: StringSelectMenuInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Team Schedule").setDescription("Guild context required.")], components: buildScheduleRows() });
+  const discordId = interaction.values[0];
+  const schedule = await recApi.getUserSchedule(discordId, interaction.guildId);
+  return interaction.editReply({
+    embeds: [buildScheduleEmbed({
+      leagueName: schedule?.league?.name ?? null,
+      teamName: schedule?.team?.name ?? null,
+      isLinked: Boolean(schedule?.isLinked),
+      hasLoggedSchedule: Boolean(schedule?.hasLoggedSchedule),
+      currentWeek: schedule?.league?.currentWeek ?? schedule?.league?.current_week ?? null,
+      games: schedule?.games ?? [],
+    })],
+    components: buildScheduleRows(),
+  });
+}
+
+export async function handleScheduleStats(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Stats").setDescription("Open /menu inside a REC Discord server.")], components: buildScheduleRows() });
+  const snapshot = await recApi.getUserSnapshot(interaction.user.id, interaction.guildId);
+  const selectPayload = await loadLinkedTeamSelectPayload(
+    interaction.guildId,
+    "Stats",
+    "Your current season stats are shown below. Use the dropdowns to view another active linked user team.",
+    MENU_CUSTOM_IDS.scheduleStatsTeamSelect,
+  );
+  return interaction.editReply({ embeds: [buildStatsEmbed(snapshot, interaction.user.id)], components: selectPayload.components });
+}
+
+export async function handleScheduleStatsTeamSelect(interaction: StringSelectMenuInteraction) {
+  await interaction.deferUpdate();
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Stats").setDescription("Guild context required.")], components: buildScheduleRows() });
+  const discordId = interaction.values[0];
+  const snapshot = await recApi.getUserSnapshot(discordId, interaction.guildId);
+  const selectPayload = await loadLinkedTeamSelectPayload(
+    interaction.guildId,
+    "Stats",
+    "Use the dropdowns to view another active linked user team.",
+    MENU_CUSTOM_IDS.scheduleStatsTeamSelect,
+  );
+  return interaction.editReply({ embeds: [buildStatsEmbed(snapshot, discordId)], components: selectPayload.components });
 }
 
 export async function startManualScheduleEntry(interaction: ButtonInteraction) {
@@ -423,6 +576,31 @@ export async function startScheduleViewer(interaction: ButtonInteraction) {
   }
 }
 
+export async function startPublicLeagueScheduleViewer(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading League Schedule...").setDescription("Fetching the full league schedule.")], components: [] });
+  try {
+    const result = await recApi.listScheduleSeason({ guildId: interaction.guildId });
+    const session: ScheduleViewSession = {
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      leagueName: result?.league?.name ?? null,
+      seasonNumber: Number(result?.league?.seasonNumber ?? 1),
+      pageIndex: 0,
+      weeks: result?.weeks ?? [],
+      mode: "public",
+    };
+    scheduleViewSessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+    return interaction.editReply(renderScheduleView(session));
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("League Schedule").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: buildScheduleRows(),
+    });
+  }
+}
+
 export async function handleScheduleViewPage(interaction: ButtonInteraction, delta: number) {
   const session = getScheduleViewSession(interaction);
   if (!session) return interaction.reply({ content: "Schedule view expired. Reopen League Mgmt > Schedule.", flags: MessageFlags.Ephemeral });
@@ -442,6 +620,9 @@ export async function handleScheduleViewBack(interaction: ButtonInteraction) {
   const session = getScheduleViewSession(interaction);
   if (session?.mode === "post_setup") return handlePostSetupScheduleFinish(interaction);
   if (interaction.inCachedGuild()) scheduleViewSessions.delete(sessionKey(interaction.guildId, interaction.user.id));
+  if (session?.mode === "public") {
+    return renderScheduleMenu(interaction);
+  }
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule")
@@ -689,10 +870,10 @@ function renderManualEntry(session: ManualScheduleSession) {
 
   return {
     embeds: [new EmbedBuilder()
-      .setTitle(session.mode === "post_setup" ? `League Setup: Enter Schedule — Week ${session.weekNumber}` : "Manual Schedule")
+      .setTitle(session.mode === "post_setup" ? `League Setup: Enter Schedule - Week ${session.weekNumber}` : "Manual Schedule")
       .setDescription(description.slice(0, 4096))
       .setColor(session.warnedIncomplete ? 0xf1c40f : 0x3498db)],
-    components: [...teamSelectRows(session), actionRows(session)],
+    components: [...teamSelectRows(session), ...actionRows(session)],
   };
 }
 
@@ -724,17 +905,21 @@ function teamSelectRows(session: ManualScheduleSession) {
 }
 
 function actionRows(session: ManualScheduleSession) {
-  const completeLabel = session.mode === "post_setup" ? "Finish Setup" : "Complete Schedule";
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup).setLabel("Next Matchup").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId(session.warnedIncomplete ? SCHEDULE_MGMT_CUSTOM_IDS.manualContinueNextWeek : SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek)
-      .setLabel(session.warnedIncomplete ? "Continue Next Week" : "Next Week")
-      .setStyle(session.warnedIncomplete ? ButtonStyle.Danger : ButtonStyle.Secondary)
-      .setDisabled(session.mode === "post_setup" && session.weekNumber >= POST_SETUP_MAX_WEEK),
-    new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualComplete).setLabel(completeLabel).setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualBack).setLabel("Back").setStyle(ButtonStyle.Secondary)
-  );
+  const completeLabel = session.mode === "post_setup" ? "Finish Setup" : "Complete Week";
+  return [
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualNextMatchup).setLabel("Next Matchup").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(session.warnedIncomplete ? SCHEDULE_MGMT_CUSTOM_IDS.manualContinueNextWeek : SCHEDULE_MGMT_CUSTOM_IDS.manualNextWeek)
+        .setLabel(session.warnedIncomplete ? "Continue Next Week" : "Next Week")
+        .setStyle(session.warnedIncomplete ? ButtonStyle.Danger : ButtonStyle.Success)
+        .setDisabled(session.mode === "post_setup" && session.weekNumber >= POST_SETUP_MAX_WEEK),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualComplete).setLabel(completeLabel).setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualBack).setLabel("Back").setStyle(ButtonStyle.Danger),
+    ),
+  ];
 }
 
 function scheduleBackRow() {
@@ -746,12 +931,17 @@ function scheduleBackRow() {
 function scheduleManagementRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleView).setLabel("View Schedule").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleManual).setLabel("Set Manually").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleView).setLabel("View Schedule").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back").setStyle(ButtonStyle.Secondary)
-    )
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Success),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
+    ),
   ];
 }
 
