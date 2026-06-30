@@ -176,6 +176,8 @@ export async function handleWeeklyScoresUploadOpen(interaction: ButtonInteractio
 
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const weekNumber = Math.max(1, Number(week?.league?.current_week ?? 1));
+  // Playoff rounds are a short slate, so a single screenshot covers the week.
+  const isPlayoff = weekNumber > 18;
 
   uploadSessions.set(key(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,
@@ -190,7 +192,9 @@ export async function handleWeeklyScoresUploadOpen(interaction: ButtonInteractio
       .setTitle(`Upload Week ${weekNumber} Scores`)
       .setColor(0x3498db)
       .setDescription([
-        `Post the **League Schedule** screenshot(s) for **Week ${weekNumber}** in this channel — attach **1 or 2 images** (top + bottom of the list) to a single message.`,
+        isPlayoff
+          ? `Post the **League Schedule** screenshot for **Week ${weekNumber}** in this channel — the playoff slate is short, so a **single screenshot** is enough.`
+          : `Post the **League Schedule** screenshot(s) for **Week ${weekNumber}** in this channel — attach **1 or 2 images** (top + bottom of the list) to a single message.`,
         "",
         "I'll read the final scores, match them to the schedule, and post a review to the Pending Payouts channel for approval.",
       ].join("\n"))],
