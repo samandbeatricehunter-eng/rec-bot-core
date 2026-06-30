@@ -324,6 +324,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    // Game-channel page flips are public and persistent (no menu session): route
+    // them before the session-touch guard so any player can use them anytime.
+    if (interaction.isButton() && interaction.customId.startsWith(GAME_CHANNEL_PAGE_PREFIX)) {
+      return handleGameChannelPage(interaction);
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.approvePrefix)) return handleWeeklyScoresApprove(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctOpenPrefix)) return handleWeeklyScoresCorrectOpen(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.cancelPrefix)) return handleWeeklyScoresCancel(interaction);
@@ -1052,12 +1058,6 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   }
   const created: string[] = [];
   const config = await recApi.getLeagueConfig(interaction.guildId).catch(() => null);
-  const identitiesPayload = await recApi.getLeagueIdentities(interaction.guildId).catch(() => null);
-  const identitiesByUserId = new Map<string, any>(
-    ((identitiesPayload?.identities ?? []) as any[])
-      .filter((identity) => identity.userId)
-      .map((identity) => [identity.userId, identity])
-  );
   const isPlayoff = currentWeek >= 19;
   const rulesLines = gameRulesLines(config?.draft ?? null, isPlayoff);
   const boxScoresMention = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the box scores channel";
@@ -1087,20 +1087,24 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       awayUserId: game.away_user_id ?? null,
       homeUserId: game.home_user_id ?? null,
     }).catch(() => undefined);
+    // Paginated, looping matchup embed (5 pages). Built from the game-channel
+    // matchup endpoint, which reconstructs everything from the channel id — so
+    // the page buttons keep working for any player, even after a bot restart.
+    const matchup = await recApi
+      .getGameChannelMatchup({ guildId: interaction.guildId, discordChannelId: ch.id })
+      .catch((err) => { console.error("[ERROR] Failed to load game channel matchup:", err?.message ?? err); return null; });
+    const fallbackEmbed = new EmbedBuilder().setTitle("Game Channel").setDescription([
+      "Play your game here and coordinate respectfully.",
+      "",
+      ...rulesLines,
+      "",
+      `After the game, post your box score screenshot in ${boxScoresMention} — not in this channel.`,
+      "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts."
+    ].join("\n"));
     await ch.send({
       content: `${game.away_discord_id ? `<@${game.away_discord_id}>` : away} VS ${game.home_discord_id ? `<@${game.home_discord_id}>` : home}`,
-      embeds: [
-        new EmbedBuilder().setTitle("Game Channel").setDescription([
-          "Play your game here and coordinate respectfully.",
-          "",
-          ...rulesLines,
-          "",
-          `After the game, post your box score screenshot in ${boxScoresMention} — not in this channel.`,
-          "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts."
-        ].join("\n")),
-        weeklyChallengesEmbed(),
-        ...buildMatchupIdentityEmbeds(game, identitiesByUserId)
-      ]
+      embeds: [matchup ? buildGameChannelPage(matchup, 0) : fallbackEmbed],
+      components: matchup ? [buildGameChannelNavRow(0)] : []
     }).catch(() => undefined);
   }
   if (created.length) {
@@ -1129,27 +1133,202 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   });
 }
 
-function buildMatchupIdentityEmbeds(game: any, identitiesByUserId: Map<string, any>) {
-  const identities = [game.away_user_id, game.home_user_id]
-    .map((userId: string | null | undefined) => userId ? identitiesByUserId.get(userId) : null)
-    .filter(Boolean);
-  if (!identities.length) return [];
+// ─── Game channel paginated matchup embed (5 looping pages) ──────────────────
+// Pages are rendered purely from the matchup payload returned by
+// recApi.getGameChannelMatchup, so any page can be (re)built on a button press.
+const GAME_CHANNEL_PAGE_PREFIX = "rec:gamech:page:";
+const GAME_CHANNEL_PAGE_COUNT = 5;
+const GAME_CHANNEL_PAGE_TITLES = ["Main Matchup", "Posting & Payouts", "Weekly Challenges", "Matchup Identities", "Matchup Breakdown"];
 
-  const lines = identities.map((identity: any) => {
-    const mention = identity.discordId ? `<@${identity.discordId}>` : identity.displayName ?? "Coach";
-    const evidence = (identity.evidence ?? []).slice(0, 2).map((line: string) => `- ${line}`).join("\n");
-    return [
-      `**${mention} - ${identity.identityLabel ?? "Unscouted Coach"}${identity.confidence ? ` (${identity.confidence}%)` : ""}**`,
-      identity.summary ?? "No scouting identity is available yet.",
-      evidence,
-    ].filter(Boolean).join("\n");
-  });
+function gcRankLabel(side: any) {
+  return side?.rank ? `#${side.rank}` : "Unranked";
+}
 
+function gcShortName(side: any) {
+  return String(side?.teamName ?? "Team").slice(0, 18);
+}
+
+function gcChannelMention(channelId: string | null | undefined, fallback: string) {
+  return channelId ? `<#${channelId}>` : fallback;
+}
+
+function gcNum(stats: any, pick: (s: any) => number, signed = false) {
+  if (!stats || !stats.gamesLogged) return "—";
+  const value = Math.round(pick(stats) * 10) / 10;
+  return signed && value > 0 ? `+${value}` : `${value}`;
+}
+
+// Fixed-width comparison table inside a code block so the two columns align.
+function gcStatTable(awayHead: string, homeHead: string, rows: Array<[string, string, string]>) {
+  const labelW = Math.max(11, ...rows.map((r) => r[0].length));
+  const colW = Math.max(awayHead.length, homeHead.length, ...rows.map((r) => Math.max(r[1].length, r[2].length)));
+  const pad = (s: string, w: number) => (s.length >= w ? s : s + " ".repeat(w - s.length));
+  const padStart = (s: string, w: number) => (s.length >= w ? s : " ".repeat(w - s.length) + s);
+  const header = `${pad("", labelW)}  ${padStart(awayHead, colW)}  ${padStart(homeHead, colW)}`;
+  const body = rows.map((r) => `${pad(r[0], labelW)}  ${padStart(r[1], colW)}  ${padStart(r[2], colW)}`);
+  return ["```", header, ...body, "```"].join("\n");
+}
+
+function gcPageMain(m: any) {
+  const away = m.away;
+  const home = m.home;
+  const awayHead = gcShortName(away);
+  const homeHead = gcShortName(home);
+  const ptDiff = (s: any) => Number(s?.pointsForAvg ?? 0) - Number(s?.pointsAgainstAvg ?? 0);
+  const table = gcStatTable(awayHead, homeHead, [
+    ["Record", away.record.text, home.record.text],
+    ["Pts/G", gcNum(away.stats, (s) => s.pointsForAvg), gcNum(home.stats, (s) => s.pointsForAvg)],
+    ["Pts Allowed", gcNum(away.stats, (s) => s.pointsAgainstAvg), gcNum(home.stats, (s) => s.pointsAgainstAvg)],
+    ["Avg Pt Diff", gcNum(away.stats, ptDiff, true), gcNum(home.stats, ptDiff, true)],
+    ["Pass Yds/G", gcNum(away.stats, (s) => s.passingYardsAvg), gcNum(home.stats, (s) => s.passingYardsAvg)],
+    ["Rush Yds/G", gcNum(away.stats, (s) => s.rushingYardsAvg), gcNum(home.stats, (s) => s.rushingYardsAvg)],
+    ["Turnover +/-", gcNum(away.stats, (s) => s.turnoverDifferential, true), gcNum(home.stats, (s) => s.turnoverDifferential, true)],
+  ]);
+  const rules = gameRulesLines(m.draft ?? null, m.isPlayoff);
+  const boxScores = gcChannelMention(m.routes?.boxScoresChannelId, "the box scores channel");
+  return new EmbedBuilder().setTitle("Game of the Week Matchup").setDescription([
+    `**${gcRankLabel(away)} ${away.teamName} (${away.record.text})**`,
+    "**vs**",
+    `**${gcRankLabel(home)} ${home.teamName} (${home.record.text})**`,
+    "",
+    "__Season Comparison__",
+    table,
+    ...rules,
+    "",
+    `After the game, post your box score screenshot in ${boxScores} — see the **Posting & Payouts** page for details.`,
+  ].join("\n").slice(0, 4096));
+}
+
+function gcPagePosting(m: any) {
+  const boxScores = gcChannelMention(m.routes?.boxScoresChannelId, "the box scores channel");
+  const streams = gcChannelMention(m.routes?.streamsChannelId, "the streams channel");
+  const highlights = gcChannelMention(m.routes?.highlightsChannelId, "the highlights channel");
+  return new EmbedBuilder().setTitle("Posting & Payouts").setDescription([
+    "__Box Score__",
+    `After the game, post your box score screenshot in ${boxScores} — **not** in this channel.`,
+    "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts.",
+    "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
+    "",
+    "__Stream Payout — $50/week__",
+    `Post your stream link or go Discord Live, then drop it in ${streams}. Worth **$50**, once per game week.`,
+    "",
+    "__Highlight Payout — $25 each__",
+    `Post your in-game highlights in ${highlights}. Each is worth **$25**, with up to **2 paid highlights per week**.`,
+    "Highlights also enter Play of the Year voting (regular season) for a shot at the season-end award.",
+  ].join("\n").slice(0, 4096));
+}
+
+function gcPageChallenges(_m: any) {
+  return weeklyChallengesEmbed();
+}
+
+function gcCoachIdentityBlock(side: any) {
+  const who = side.discordId ? `<@${side.discordId}>` : side.displayName ?? "Coach";
+  const identity = side.identity;
+  const label = identity?.label ?? "Unscouted Coach";
+  const conf = identity?.confidence ? ` (${identity.confidence}%)` : "";
+  const summary = identity?.summary ?? "Not enough approved box-score history to scout an identity yet.";
+  const evidence = (identity?.evidence ?? []).slice(0, 3).map((line: string) => `• ${line}`).join("\n");
+  const allTime = side.allTimeGameRecord;
+  const allTimeLine = allTime
+    ? `**All-Time (${allTime.label}):** ${allTime.text}${allTime.playoffText !== "0-0" ? ` • Playoffs ${allTime.playoffText}` : ""}${allTime.superbowlWins ? ` • ${allTime.superbowlWins}× SB` : ""}`
+    : null;
+  const fmtBadges = (badges: any[]) => badges.map((b) => (b.tier ? `${b.tier} ${b.label}` : b.label) + (b.earnedCount > 1 ? ` ×${b.earnedCount}` : "")).join(", ");
+  const weekly = side.weeklyBadges?.length ? `**Active badges:** ${fmtBadges(side.weeklyBadges)}` : "**Active badges:** none yet";
+  const season = side.seasonBadges?.length ? `**Season badges:** ${fmtBadges(side.seasonBadges)}` : null;
   return [
-    new EmbedBuilder()
-      .setTitle("Matchup Identities")
-      .setDescription(lines.join("\n\n").slice(0, 4096))
-  ];
+    `**${who} — ${label}${conf}**`,
+    summary,
+    allTimeLine,
+    weekly,
+    season,
+    evidence,
+  ].filter(Boolean).join("\n");
+}
+
+function gcPageIdentities(m: any) {
+  return new EmbedBuilder().setTitle("Matchup Identities").setDescription([
+    gcCoachIdentityBlock(m.away),
+    "",
+    gcCoachIdentityBlock(m.home),
+  ].join("\n").slice(0, 4096));
+}
+
+function gcEdge(label: string, m: any, pick: (s: any) => number, higherIsBetter = true) {
+  const a = m.away.stats;
+  const h = m.home.stats;
+  if (!a?.gamesLogged || !h?.gamesLogged) return null;
+  const av = Math.round(pick(a) * 10) / 10;
+  const hv = Math.round(pick(h) * 10) / 10;
+  const awayLeads = higherIsBetter ? av > hv : av < hv;
+  const homeLeads = higherIsBetter ? hv > av : hv < av;
+  const leader = awayLeads ? gcShortName(m.away) : homeLeads ? gcShortName(m.home) : "Even";
+  return `**${label}:** ${leader} (${av} vs ${hv})`;
+}
+
+function gcPageBreakdown(m: any) {
+  const edges = [
+    gcEdge("Passing", m, (s) => s.passingYardsAvg),
+    gcEdge("Rushing", m, (s) => s.rushingYardsAvg),
+    gcEdge("Scoring", m, (s) => s.pointsForAvg),
+    gcEdge("Defense (pts allowed)", m, (s) => s.pointsAgainstAvg, false),
+    gcEdge("Ball Security (TOs/G)", m, (s) => s.turnoversCommittedAvg, false),
+    gcEdge("Explosiveness (total yds/G)", m, (s) => s.totalYardsAvg),
+  ].filter(Boolean) as string[];
+
+  const body = edges.length
+    ? ["__Statistical Edges__", ...edges, ""]
+    : ["Not enough logged games on both sides to compare yet — check back once Week 1 box scores are in.", ""];
+
+  return new EmbedBuilder().setTitle("Matchup Breakdown").setDescription([
+    `**${gcShortName(m.away)}** — ${m.away.identity?.label ?? "Unscouted Coach"}`,
+    m.away.identity?.summary ?? "No scouting identity yet.",
+    "",
+    `**${gcShortName(m.home)}** — ${m.home.identity?.label ?? "Unscouted Coach"}`,
+    m.home.identity?.summary ?? "No scouting identity yet.",
+    "",
+    ...body,
+  ].join("\n").slice(0, 4096));
+}
+
+function buildGameChannelPage(m: any, page: number) {
+  const p = ((page % GAME_CHANNEL_PAGE_COUNT) + GAME_CHANNEL_PAGE_COUNT) % GAME_CHANNEL_PAGE_COUNT;
+  const builders = [gcPageMain, gcPagePosting, gcPageChallenges, gcPageIdentities, gcPageBreakdown];
+  const embed = builders[p](m);
+  return embed.setFooter({ text: `Page ${p + 1}/${GAME_CHANNEL_PAGE_COUNT} • ${GAME_CHANNEL_PAGE_TITLES[p]} • ${stageLabel(m.stage, m.week)}` });
+}
+
+function buildGameChannelNavRow(page: number) {
+  const p = ((page % GAME_CHANNEL_PAGE_COUNT) + GAME_CHANNEL_PAGE_COUNT) % GAME_CHANNEL_PAGE_COUNT;
+  const prev = (p + GAME_CHANNEL_PAGE_COUNT - 1) % GAME_CHANNEL_PAGE_COUNT;
+  const next = (p + 1) % GAME_CHANNEL_PAGE_COUNT;
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${GAME_CHANNEL_PAGE_PREFIX}${prev}`).setLabel("◀ Prev").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("rec:gamech:indicator").setLabel(`${p + 1}/${GAME_CHANNEL_PAGE_COUNT}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+    new ButtonBuilder().setCustomId(`${GAME_CHANNEL_PAGE_PREFIX}${next}`).setLabel("Next ▶").setStyle(ButtonStyle.Secondary),
+  );
+}
+
+// Public, restart-proof page flip: anyone in the game channel can page through.
+// Re-fetches the matchup by channel id (no menu session needed) so the data
+// stays current as box scores come in during the week.
+async function handleGameChannelPage(interaction: ButtonInteraction) {
+  const page = Number(interaction.customId.slice(GAME_CHANNEL_PAGE_PREFIX.length)) || 0;
+  await interaction.deferUpdate().catch(() => undefined);
+  if (!interaction.guildId) return;
+  const matchup = await recApi
+    .getGameChannelMatchup({ guildId: interaction.guildId, discordChannelId: interaction.channelId })
+    .catch(() => null);
+  if (!matchup) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Matchup").setDescription("Couldn't load matchup data right now. Try again in a moment.")],
+      components: [buildGameChannelNavRow(page)],
+    }).catch(() => undefined);
+  }
+  return interaction.editReply({
+    embeds: [buildGameChannelPage(matchup, page)],
+    components: [buildGameChannelNavRow(page)],
+  }).catch(() => undefined);
 }
 
 function stageFromWeekNumber(weekNumber: number) {

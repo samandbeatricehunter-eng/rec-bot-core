@@ -2,6 +2,16 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
+export async function getGameChannelByDiscordId(discordChannelId: string) {
+  const { data, error } = await supabase
+    .from("rec_game_channels")
+    .select("*")
+    .eq("discord_channel_id", discordChannelId)
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load game channel matchup record.", error);
+  return data ?? null;
+}
+
 export async function listTrackedGameChannelDiscordIds(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
