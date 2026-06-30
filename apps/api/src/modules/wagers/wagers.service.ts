@@ -3,7 +3,7 @@
 // funds), escrows the stake out of the wallet into holding, and stores a pending
 // wager whose payout the commissioner approves once the result is confirmed.
 
-import { WAGER_MARKET_BY_KEY, potentialPayout } from "@rec/shared";
+import { WAGER_MARKET_BY_KEY, parlayOdds, potentialPayout } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -460,6 +460,105 @@ export async function attachWagerAnnouncementMessage(input: { wagerId: string; c
   return { ok: true };
 }
 
+export type PlaceParlayInput = {
+  guildId: string;
+  discordId: string;
+  legs: Array<{ gameId: string; market: string; pick: string }>;
+  stake: number;
+};
+
+// A 3-leg parlay vs the house: single escrowed stake, combined (boosted) odds. All
+// legs must win; pushes drop out. Settles only once every leg's game is confirmed.
+export async function placeParlay(input: PlaceParlayInput) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const userId = await userIdFromDiscord(input.discordId);
+
+  const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
+  if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
+
+  if (!Array.isArray(input.legs) || input.legs.length !== 3) throw new ApiError(400, "A parlay needs exactly 3 picks.");
+  const gameMarketSeen = new Set<string>();
+  for (const leg of input.legs) {
+    const key = `${leg.gameId}:${leg.market}`;
+    if (gameMarketSeen.has(key)) throw new ApiError(400, "Each parlay leg must be a different game+market.");
+    gameMarketSeen.add(key);
+  }
+
+  const stake = Math.floor(Number(input.stake));
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
+  const balance = await walletBalance(userId);
+  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes $${stake} and you have $${balance}.`);
+
+  const prepared = [];
+  for (const leg of input.legs) {
+    const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, leg.gameId, leg.market, leg.pick, stake);
+    prepared.push({ gameId: leg.gameId, market: leg.market, pick: leg.pick, line: prep.line, odds: Number(prep.side.odds), label: `${prep.options.awayLabel} at ${prep.options.homeLabel} — ${prep.marketDef.label}: ${prep.side.label}` });
+  }
+
+  const combinedOdds = parlayOdds(prepared.map((l) => l.odds));
+  const payout = potentialPayout(stake, combinedOdds);
+
+  const insert = await supabase
+    .from("rec_wagers")
+    .insert({
+      league_id: leagueId, season_number: seasonNumber, week_number: weekNumber,
+      game_id: null, placed_by_user_id: userId, placed_by_discord_id: input.discordId,
+      wager_kind: "house", market: "parlay", pick: "parlay", line: null,
+      odds: combinedOdds, stake, potential_payout: payout, status: "pending", is_parlay: true,
+    })
+    .select("*")
+    .single();
+  if (insert.error) throw new ApiError(500, "Failed to place parlay.", insert.error);
+
+  const legRows = prepared.map((l) => ({ wager_id: insert.data.id, game_id: l.gameId, market: l.market, pick: l.pick, line: l.line, odds: l.odds }));
+  const legInsert = await supabase.from("rec_wager_legs").insert(legRows);
+  if (legInsert.error) {
+    await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
+    throw new ApiError(500, "Failed to save parlay legs.", legInsert.error);
+  }
+
+  const hold = await supabase.rpc("add_to_wallet", {
+    p_user_id: userId, p_amount: -stake, p_league_id: leagueId,
+    p_description: "Parlay hold (3-pick)", p_transaction_type: "wager_hold", p_source: "wager",
+    p_source_reference: { wagerId: insert.data.id },
+  });
+  if (hold.error) {
+    await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
+    throw new ApiError(500, "Failed to hold parlay funds.", hold.error);
+  }
+  await supabase.from("rec_wagers").update({ hold_ledger_id: hold.data }).eq("id", insert.data.id);
+
+  return {
+    wager: { ...insert.data, hold_ledger_id: hold.data },
+    legs: prepared.map((l) => l.label),
+    combinedOdds, stake, payout,
+    walletBalance: balance - stake,
+    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
+  };
+}
+
+// Resolve a parlay: returns null until every leg's game is confirmed, then 'lost'
+// (any leg lost), 'push' (all legs push), or 'won' with the recomputed payout
+// (surviving non-push legs).
+async function resolveParlay(leagueId: string, wagerId: string, stake: number): Promise<{ outcome: "won" | "lost" | "push"; payout: number } | null> {
+  const { data: legs } = await supabase.from("rec_wager_legs").select("*").eq("wager_id", wagerId);
+  if (!legs?.length) return null;
+  const results: Array<"won" | "lost" | "push"> = [];
+  for (const leg of legs) {
+    const outcome = await resolveOutcome(leagueId, { game_id: leg.game_id, market: leg.market, pick: leg.pick, line: leg.line, wager_kind: "house" });
+    if (outcome == null) return null; // a leg's game isn't confirmed yet
+    results.push(outcome);
+    await supabase.from("rec_wager_legs").update({ leg_result: outcome }).eq("id", leg.id);
+  }
+  if (results.some((r) => r === "lost")) return { outcome: "lost", payout: 0 };
+  const wonOdds = legs.filter((_, i) => results[i] === "won").map((l) => Number(l.odds));
+  if (!wonOdds.length) return { outcome: "push", payout: stake }; // all legs pushed
+  return { outcome: "won", payout: potentialPayout(stake, parlayOdds(wonOdds)) };
+}
+
 // Persist the Discord message ids of the pending-payout embed so it can be refreshed
 // when the game result lands and removed on cancel.
 export async function attachWagerPendingMessage(input: { wagerId: string; channelId: string; messageId: string }) {
@@ -623,6 +722,27 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
     return { ok: false, alreadyResolved: true, status: wager.status, wager };
   }
 
+  if (wager.is_parlay) {
+    const r = await resolveParlay(wager.league_id, wager.id, Number(wager.stake ?? 0));
+    if (!r) return { ok: false, notConfirmed: true, wager };
+    let credited = 0;
+    if (r.payout > 0) {
+      const credit = await supabase.rpc("add_to_wallet", {
+        p_user_id: wager.placed_by_user_id,
+        p_amount: r.payout,
+        p_league_id: wager.league_id,
+        p_description: r.outcome === "won" ? "Parlay payout (3-pick)" : "Parlay push refund",
+        p_transaction_type: r.outcome === "won" ? "wager_payout" : "wager_refund",
+        p_source: "wager",
+        p_source_reference: { wagerId: wager.id, outcome: r.outcome, parlay: true },
+      });
+      if (credit.error) throw new ApiError(500, "Failed to credit parlay payout.", credit.error);
+      credited = r.payout;
+    }
+    await supabase.from("rec_wagers").update({ status: r.outcome, settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", wager.id);
+    return { ok: true, outcome: r.outcome, credited, wager: { ...wager, status: r.outcome } };
+  }
+
   const outcome = await resolveOutcome(wager.league_id, wager);
   if (!outcome) {
     return { ok: false, notConfirmed: true, wager };
@@ -637,14 +757,16 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
 export async function listConfirmableWagers(leagueId: string) {
   const { data } = await supabase
     .from("rec_wagers")
-    .select("id,pending_channel_id,pending_message_id,game_id,market,pick,line,wager_kind")
+    .select("id,pending_channel_id,pending_message_id,game_id,market,pick,line,wager_kind,is_parlay,stake")
     .eq("league_id", leagueId)
     .eq("status", "pending")
     .not("pending_message_id", "is", null);
   const wagers: Array<{ id: string; channelId: string; messageId: string }> = [];
   for (const w of data ?? []) {
-    const outcome = await resolveOutcome(leagueId, w);
-    if (outcome != null && w.pending_channel_id && w.pending_message_id) {
+    const resolvable = w.is_parlay
+      ? (await resolveParlay(leagueId, w.id, Number(w.stake ?? 0))) != null
+      : (await resolveOutcome(leagueId, w)) != null;
+    if (resolvable && w.pending_channel_id && w.pending_message_id) {
       wagers.push({ id: w.id, channelId: w.pending_channel_id, messageId: w.pending_message_id });
     }
   }
@@ -684,8 +806,10 @@ export async function resolveWagersOnAdvance(leagueId: string, seasonNumber: num
       refundedMessages.push({ pendingChannelId: w.pending_channel_id, pendingMessageId: w.pending_message_id, announcementChannelId: w.announcement_channel_id, announcementMessageId: w.announcement_message_id });
       continue;
     }
-    const outcome = await resolveOutcome(leagueId, w);
-    if (outcome == null) {
+    const resolvable = w.is_parlay
+      ? (await resolveParlay(leagueId, w.id, Number(w.stake ?? 0))) != null
+      : (await resolveOutcome(leagueId, w)) != null;
+    if (!resolvable) {
       await refundWagerStake(w, "Wager refunded — results not logged before advance");
       await supabase.from("rec_wagers").update({ status: "refunded", settled_at: now, updated_at: now }).eq("id", w.id);
       refundedMessages.push({ pendingChannelId: w.pending_channel_id, pendingMessageId: w.pending_message_id, announcementChannelId: w.announcement_channel_id, announcementMessageId: w.announcement_message_id });

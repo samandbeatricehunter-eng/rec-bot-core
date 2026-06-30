@@ -131,6 +131,7 @@ import {
   handleWagerModeHouse,
   handleWagerModeOpen,
   handleWagerModeDirect,
+  handleWagerModeParlay,
   handleWagerCoachSelect,
   handleWagerGameSelect,
   handleWagerMarketSelect,
@@ -653,6 +654,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === WAGER_CUSTOM_IDS.modeHouse) return handleWagerModeHouse(interaction);
       if (interaction.customId === WAGER_CUSTOM_IDS.modeOpen) return handleWagerModeOpen(interaction);
       if (interaction.customId === WAGER_CUSTOM_IDS.modeDirect) return handleWagerModeDirect(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.modeParlay) return handleWagerModeParlay(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);

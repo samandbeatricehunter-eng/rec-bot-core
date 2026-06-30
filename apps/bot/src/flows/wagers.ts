@@ -23,6 +23,7 @@ export const WAGER_CUSTOM_IDS = {
   modeHouse: "rec:wager:mode_house",
   modeDirect: "rec:wager:mode_direct",
   modeOpen: "rec:wager:mode_open",
+  modeParlay: "rec:wager:mode_parlay",
   coachAfcSelect: "rec:wager:coach_afc",
   coachNfcSelect: "rec:wager:coach_nfc",
   gameSelect: "rec:wager:game",
@@ -37,12 +38,13 @@ export const WAGER_CUSTOM_IDS = {
   declinePrefix: "rec:wager:decline:", // + wagerId (direct challenge decline)
 } as const;
 
-type WagerMode = "house" | "peer_open" | "peer_direct";
+type WagerMode = "house" | "peer_open" | "peer_direct" | "parlay";
 
 type WagerSession = {
   mode: WagerMode;
   targetUserId: string | null;
   targetDiscordId: string | null;
+  parlayLegs: Array<{ gameId: string; market: string; pick: string; label: string }>;
   options: any | null;          // getWagerOptions payload for the selected game
   gameId: string | null;
   gameLabel: string | null;
@@ -61,7 +63,7 @@ const SESSION_TTL = 10 * 60 * 1000;
 function getSession(userId: string): WagerSession {
   const s = sessions.get(userId);
   if (s && Date.now() - s.at < SESSION_TTL) return s;
-  const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
+  const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, parlayLegs: [], options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
   sessions.set(userId, fresh);
   return fresh;
 }
@@ -102,8 +104,24 @@ export async function handlePlaceWager(interaction: ButtonInteraction) {
       new ButtonBuilder().setCustomId(WAGER_CUSTOM_IDS.modeHouse).setLabel("Bet the House").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(WAGER_CUSTOM_IDS.modeDirect).setLabel("Challenge a Coach").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(WAGER_CUSTOM_IDS.modeOpen).setLabel("Open Challenge").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(WAGER_CUSTOM_IDS.modeParlay).setLabel("3-Pick Parlay").setStyle(ButtonStyle.Secondary),
     )],
   });
+}
+
+export async function handleWagerModeParlay(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const session = getSession(interaction.user.id);
+  session.mode = "parlay";
+  session.parlayLegs = [];
+  session.at = Date.now();
+  try {
+    const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, "**3-Pick Parlay (Leg 1 of 3)** — pick the first game. All 3 legs must hit; payouts are boosted.");
+    return interaction.editReply({ embeds: payload.embeds, components: payload.components });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
 }
 
 async function buildGameSelectPayload(guildId: string, discordId: string, headline: string) {
@@ -278,6 +296,22 @@ export async function handleWagerSideSelect(interaction: StringSelectMenuInterac
   session.line = marketOption.line ?? null;
   session.at = Date.now();
 
+  // Parlay: capture this leg and advance to the next leg (or the stake once 3 are in).
+  if (session.mode === "parlay") {
+    session.parlayLegs.push({ gameId: session.gameId!, market: session.market!, pick: side.pick, label: `${session.gameLabel} — ${session.marketLabel}: ${side.label} (${americanFromDecimal(side.odds)})` });
+    if (session.parlayLegs.length < 3) {
+      await interaction.deferUpdate();
+      const payload = await buildGameSelectPayload(interaction.guildId!, interaction.user.id, `**Parlay (Leg ${session.parlayLegs.length + 1} of 3)** — picks so far:\n${session.parlayLegs.map((l, i) => `${i + 1}. ${l.label}`).join("\n")}`);
+      return interaction.editReply({ embeds: payload.embeds, components: payload.components });
+    }
+    const parlayModal = new ModalBuilder()
+      .setCustomId(WAGER_CUSTOM_IDS.stakeModal)
+      .setTitle("Parlay Stake")
+      .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeInput).setLabel("Parlay stake (all 3 legs)").setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("whole dollars, e.g. 100")));
+    return interaction.showModal(parlayModal);
+  }
+
   const modal = new ModalBuilder()
     .setCustomId(WAGER_CUSTOM_IDS.stakeModal)
     .setTitle("Enter Stake")
@@ -290,12 +324,20 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
   if (!interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
   const session = getSession(interaction.user.id);
-  if (!session.gameId || !session.market || !session.pick) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("Your wager session expired — restart from Place Wager.")], components: [] });
-  }
   const stake = parseInt(interaction.fields.getTextInputValue(WAGER_CUSTOM_IDS.stakeInput).replace(/[^0-9]/g, ""), 10);
   if (!Number.isFinite(stake) || stake <= 0) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("Enter a positive whole-dollar stake.")], components: [] });
+  }
+
+  if (session.mode === "parlay") {
+    if (session.parlayLegs.length !== 3) {
+      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(0xe74c3c).setDescription("Your parlay session expired — restart from Place Wager.")], components: [] });
+    }
+    return placeParlayAndPost(interaction, session, stake);
+  }
+
+  if (!session.gameId || !session.market || !session.pick) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("Your wager session expired — restart from Place Wager.")], components: [] });
   }
 
   if (session.mode === "house") return placeHouseAndPost(interaction, session, stake);
@@ -337,6 +379,55 @@ async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: W
         `$${result.wager.stake} was moved to holding. Wallet balance: **$${result.walletBalance}**.`,
         posted ? "Sent to Pending Payouts for settlement once results are confirmed." : "No Pending Payouts channel is configured, so settlement must be handled manually.",
       ].join("\n"))],
+    components: [],
+  });
+}
+
+async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
+  if (!interaction.inCachedGuild()) return;
+  let result: any;
+  try {
+    result = await recApi.placeParlay({ guildId: interaction.guildId, discordId: interaction.user.id, stake, legs: session.parlayLegs.map((l) => ({ gameId: l.gameId, market: l.market, pick: l.pick })) });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay Not Placed").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
+  const legs: string[] = result.legs ?? [];
+  sessions.delete(interaction.user.id);
+
+  let posted = false;
+  const channelId: string | null = result.pendingPayoutsChannelId ?? null;
+  if (channelId) {
+    const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
+    if (ch && ch.isTextBased() && !ch.isDMBased()) {
+      const embed = new EmbedBuilder()
+        .setTitle("Parlay — Pending Payout")
+        .setColor(0x3498db)
+        .addFields(
+          { name: "BETTOR", value: `<@${interaction.user.id}>`, inline: true },
+          { name: "LEGS (all must hit)", value: legs.map((l, i) => `${i + 1}. ${l}`).join("\n").slice(0, 1024), inline: false },
+          { name: "STAKE / TO WIN", value: `$${stake} → $${result.payout} (${americanFromDecimal(result.combinedOdds)})`, inline: true },
+          { name: "STATUS", value: "⏳ Awaiting all 3 results. **Approve** works once every leg's game is logged. **Cancel** refunds the held stake." },
+        )
+        .setFooter({ text: `Wager ${result.wager.id}` });
+      const msg = await (ch as TextChannel).send({ embeds: [embed], components: buildWagerReviewRows(result.wager.id) }).catch(() => null);
+      if (msg) {
+        posted = true;
+        await recApi.attachWagerPendingMessage({ wagerId: result.wager.id, channelId: ch.id, messageId: msg.id }).catch(() => undefined);
+      }
+    }
+  }
+
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("Parlay Placed ✅")
+      .setColor(0x2ecc71)
+      .setDescription([
+        legs.map((l, i) => `${i + 1}. ${l}`).join("\n"),
+        "",
+        `Stake: **$${stake}** → To win: **$${result.payout}** (${americanFromDecimal(result.combinedOdds)}, boosted).`,
+        `$${stake} moved to holding. Wallet: **$${result.walletBalance}**.`,
+        posted ? "Sent to Pending Payouts; settles once all 3 results are confirmed." : "No Pending Payouts channel is configured.",
+      ].join("\n").slice(0, 4096))],
     components: [],
   });
 }

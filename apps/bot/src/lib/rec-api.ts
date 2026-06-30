@@ -552,6 +552,8 @@ export const recApi = {
     recFetch<any>("/v1/wagers/confirmable", { method: "POST", body: JSON.stringify({ guildId }) }),
   placePeerWager: (input: { guildId: string; discordId: string; gameId: string; market: string; pick: string; stake: number; challengeType: "open" | "direct"; targetUserId?: string | null }) =>
     recFetch<any>("/v1/wagers/place-peer", { method: "POST", body: JSON.stringify(input) }),
+  placeParlay: (input: { guildId: string; discordId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string }> }) =>
+    recFetch<any>("/v1/wagers/place-parlay", { method: "POST", body: JSON.stringify(input) }),
   acceptPeerWager: (guildId: string, discordId: string, wagerId: string) =>
     recFetch<any>("/v1/wagers/accept-peer", { method: "POST", body: JSON.stringify({ guildId, discordId, wagerId }) }),
   declinePeerWager: (wagerId: string) =>

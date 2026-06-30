@@ -15,6 +15,7 @@ import {
   listConfirmableWagers,
   listWagerableGames,
   placeHouseWager,
+  placeParlay,
   placePeerWager,
   settleWager,
 } from "./wagers.service.js";
@@ -52,6 +53,21 @@ export async function wagerRoutes(app: FastifyInstance) {
         stake: z.number().int().positive(),
       }).parse(request.body);
       return reply.send(await placeHouseWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/place-parlay", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1),
+        stake: z.number().int().positive(),
+        legs: z.array(z.object({ gameId: z.string().uuid(), market: z.string().min(1), pick: z.string().min(1) })).length(3),
+      }).parse(request.body);
+      return reply.send(await placeParlay(body));
     } catch (error) {
       return sendError(reply, error);
     }
