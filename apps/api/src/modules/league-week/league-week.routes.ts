@@ -6,6 +6,7 @@ import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
 import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
+import { generateAdvanceDms } from "./advance-dm.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 
 const ViewLeagueWeekSchema = z.object({
@@ -205,6 +206,16 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         tzLabel: z.enum(SUPPORTED_TZ_LABELS as [string, ...string[]]),
       }).parse(request.body);
       return reply.send(await setNextAdvanceTime(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/advance-dms", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      return reply.send(await generateAdvanceDms(body));
     } catch (error) {
       return sendError(reply, error);
     }

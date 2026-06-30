@@ -199,6 +199,12 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
+  generateAdvanceDms: (input: { guildId: string }) =>
+    recFetch<any>("/v1/league-week/advance-dms", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   getDivisionWinnerOptions: (guildId: string) =>
     recFetch<any>("/v1/league-week/division-winner-options", {
       method: "POST",

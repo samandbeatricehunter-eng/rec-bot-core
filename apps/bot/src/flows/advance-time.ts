@@ -30,6 +30,13 @@ export const ADVANCE_TIME_CUSTOM_IDS = {
   backBtn: "rec:advance_time:back",
 } as const;
 
+// Final step of the advance flow: confirm sending per-coach "what changed for you"
+// Advance DMs. These buttons live on the commissioner's menu-session message.
+export const ADVANCE_DM_CUSTOM_IDS = {
+  send: "rec:advance_dm:send", // + :season:week (labels only; API uses the latest run)
+  skip: "rec:advance_dm:skip",
+} as const;
+
 const TZ_LABEL_TO_IANA: Record<string, string> = {
   EST: "America/New_York",
   CST: "America/Chicago",
@@ -526,7 +533,7 @@ function powerRankingsPublishLine(result: PowerRankingsPublishResult) {
   return "\n\nNo power rankings were ready to post.";
 }
 
-export async function handleAdvanceTimeSet(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+export async function handleAdvanceTimeSet(interaction: ButtonInteraction, _buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
   if (!isFullLeagueAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners or server admins can set the advance time.", flags: MessageFlags.Ephemeral });
@@ -581,13 +588,14 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
         announcementLine +
         headlinePublishLine(headlines) +
         powerRankingsPublishLine(powerRankings) +
-        (xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""),
+        (xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : "") +
+        advanceDmPromptLine(),
       )],
-    components: buildAdvanceRows(),
+    components: [buildAdvanceDmConfirmRow(session.completedSeasonNumber, session.completedWeekNumber)],
   });
 }
 
-export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, _buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
   const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
   const headline = session?.headline ?? "League advanced.";
@@ -601,12 +609,12 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, buil
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
-    components: buildAdvanceRows(),
+      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}${advanceDmPromptLine()}`)],
+    components: [buildAdvanceDmConfirmRow(session?.completedSeasonNumber ?? 0, session?.completedWeekNumber ?? 0)],
   });
 }
 
-export async function handleAdvanceTimeBack(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+export async function handleAdvanceTimeBack(interaction: ButtonInteraction, _buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
   const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
   const headline = session?.headline ?? "League advanced.";
@@ -620,7 +628,98 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, buil
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
+      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}${advanceDmPromptLine()}`)],
+    components: [buildAdvanceDmConfirmRow(session?.completedSeasonNumber ?? 0, session?.completedWeekNumber ?? 0)],
+  });
+}
+
+// ─── Advance DMs (final confirmation step) ──────────────────────────────────────
+
+function advanceDmPromptLine(): string {
+  return "\n\n**Final step:** send each active, linked coach a DM summarizing their transactions, payouts, badge changes, EOS progress, and power-ranking movement this advance — or skip.";
+}
+
+function buildAdvanceDmConfirmRow(season: number, week: number) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${ADVANCE_DM_CUSTOM_IDS.send}:${season}:${week}`).setLabel("Send Advance DMs").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${ADVANCE_DM_CUSTOM_IDS.skip}:${season}:${week}`).setLabel("Skip DMs").setStyle(ButtonStyle.Secondary),
+  );
+}
+
+function buildAdvanceDmEmbed(user: any, payload: any): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setTitle(`Week ${payload.fromWeek ?? "?"} Advance Summary`)
+    .setColor(0x3498db)
+    .setDescription(`Here's what changed for you this advance${payload.toWeek ? ` — the league is now on Week ${payload.toWeek}` : ""}.`);
+  const s = user.sections ?? {};
+  if (s.powerRanking) embed.addFields({ name: "📊 Power Ranking", value: String(s.powerRanking).slice(0, 1024) });
+  if (s.transactions) embed.addFields({ name: "💰 Transactions", value: String(s.transactions).slice(0, 1024) });
+  if (s.badges) embed.addFields({ name: "🏅 Badges", value: String(s.badges).slice(0, 1024) });
+  if (s.eosProgress) embed.addFields({ name: "📈 EOS Payout Progress", value: String(s.eosProgress).slice(0, 1024) });
+  return embed;
+}
+
+export async function handleAdvanceDmSend(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isFullLeagueAdminInteraction(interaction)) {
+    return interaction.reply({ content: "Only commissioners or server admins can send Advance DMs.", flags: MessageFlags.Ephemeral });
+  }
+  await interaction.deferUpdate();
+  await interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Sending Advance DMs…").setColor(0x3498db).setDescription("Generating per-coach summaries and delivering DMs.")],
+    components: [],
+  });
+
+  let payload: any;
+  try {
+    payload = await recApi.generateAdvanceDms({ guildId: interaction.guildId });
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Advance DMs Failed").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: buildAdvanceRows(),
+    });
+  }
+
+  const recipients: any[] = Array.isArray(payload?.users) ? payload.users : [];
+  if (!recipients.length) {
+    const why = payload?.reason === "no_linked_users"
+      ? "There are no active, linked coaches to DM."
+      : payload?.reason === "no_run"
+        ? "No completed advance was found to summarize."
+        : "There was nothing to send.";
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("No Advance DMs Sent").setColor(0x95a5a6).setDescription(why)],
+      components: buildAdvanceRows(),
+    });
+  }
+
+  let sent = 0;
+  let failed = 0;
+  for (const user of recipients) {
+    try {
+      const discordUser = await interaction.client.users.fetch(user.discordId);
+      await discordUser.send({ embeds: [buildAdvanceDmEmbed(user, payload)] });
+      sent += 1;
+    } catch {
+      failed += 1; // closed DMs / left server — don't abort the batch
+    }
+  }
+
+  const failLine = failed ? ` ${failed} could not be delivered (DMs closed or user left).` : "";
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("Advance DMs Sent ✅")
+      .setColor(0x2ecc71)
+      .setDescription(`Delivered **${sent}** Advance DM${sent === 1 ? "" : "s"} for Week ${payload.fromWeek ?? "?"}.${failLine}`)],
+    components: buildAdvanceRows(),
+  });
+}
+
+export async function handleAdvanceDmSkip(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Advance Complete").setColor(0x95a5a6).setDescription("Advance DMs were skipped. No DMs were sent for this advance.")],
     components: buildAdvanceRows(),
   });
 }

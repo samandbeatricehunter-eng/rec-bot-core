@@ -42,19 +42,9 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
       { tier: "D", threshold: 11, amount: 100, operator: "greater_or_equal" },
     ],
   },
-  { key: "qb_passing_yards", label: "QB Passing Yards", scope: "player", direction: "higher_is_better", statKey: "pass_yards", eligiblePositions: ["QB"], tiers: higher([["S", 6000, 200], ["A", 5500, 150], ["B", 5000, 100], ["C", 4000, 75], ["D", 3000, 50]]) },
-  { key: "qb_passing_tds", label: "QB Passing TDs", scope: "player", direction: "higher_is_better", statKey: "pass_tds", eligiblePositions: ["QB"], tiers: higher([["S", 60, 200], ["A", 50, 150], ["B", 40, 100], ["C", 35, 75], ["D", 30, 50]]) },
-  { key: "qb_rushing_yards", label: "QB Rushing Yards", scope: "player", direction: "higher_is_better", statKey: "rush_yards", eligiblePositions: ["QB"], tiers: higher([["S", 1000, 200], ["A", 750, 150], ["B", 500, 100], ["C", 350, 75], ["D", 200, 50]]) },
-  { key: "qb_rushing_tds", label: "QB Rushing TDs", scope: "player", direction: "higher_is_better", statKey: "rush_tds", eligiblePositions: ["QB"], tiers: higher([["S", 25, 200], ["A", 20, 150], ["B", 15, 100], ["C", 10, 75], ["D", 5, 50]]) },
-  { key: "qb_ball_security", label: "QB Ball Security Bonus", scope: "player", direction: "lower_is_better", statKey: "interceptions_thrown", eligiblePositions: ["QB"], minimums: { pass_attempts: 400 }, tiers: [{ tier: "S", threshold: 10, amount: 150, operator: "less_or_equal" }, { tier: "A", threshold: 15, amount: 100, operator: "less_or_equal" }, { tier: "B", threshold: 20, amount: 50, operator: "less_or_equal" }] },
-  { key: "qb_completion_pct", label: "QB Completion Percentage Bonus", scope: "player", direction: "higher_is_better", statKey: "completion_pct", eligiblePositions: ["QB"], minimums: { pass_attempts: 300 }, tiers: higher([["S", 75, 200], ["A", 70, 150], ["B", 65, 100], ["C", 60, 50]]) },
-  { key: "qb_sack_avoidance", label: "QB Sack Avoidance Bonus", scope: "player", direction: "lower_is_better", statKey: "sacks_taken", eligiblePositions: ["QB"], minimums: { pass_attempts: 400 }, tiers: lower([["S", 20, 150], ["A", 25, 100], ["B", 30, 50]]) },
-  { key: "skill_rushing_yards", label: "HB/FB/WR/TE Rushing Yards", scope: "player", direction: "higher_is_better", statKey: "rush_yards", eligiblePositions: ["HB", "FB", "WR", "TE", "RB"], tiers: higher([["S", 2500, 200], ["A", 2000, 150], ["B", 1500, 100], ["C", 1250, 75], ["D", 1000, 50]]) },
-  { key: "skill_rushing_tds", label: "HB/FB/WR/TE Rushing TDs", scope: "player", direction: "higher_is_better", statKey: "rush_tds", eligiblePositions: ["HB", "FB", "WR", "TE", "RB"], tiers: higher([["S", 25, 200], ["A", 20, 150], ["B", 17, 100], ["C", 14, 75], ["D", 10, 50]]) },
-  { key: "receiving_yards", label: "WR/TE/HB Receiving Yards", scope: "player", direction: "higher_is_better", statKey: "receiving_yards", eligiblePositions: ["WR", "TE", "HB", "RB"], tiers: higher([["S", 1800, 200], ["A", 1200, 150], ["B", 1000, 100], ["C", 850, 75], ["D", 750, 50]]) },
-  { key: "receiving_tds", label: "WR/TE/HB Receiving TDs", scope: "player", direction: "higher_is_better", statKey: "receiving_tds", eligiblePositions: ["WR", "TE", "HB", "RB"], tiers: higher([["S", 25, 200], ["A", 20, 150], ["B", 17, 100], ["C", 14, 75], ["D", 10, 50]]) },
-  { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "player", direction: "higher_is_better", statKey: "rush_attempts", eligiblePositions: ["HB", "FB", "RB"], tiers: higher([["S", 350, 150], ["A", 300, 100], ["B", 250, 50]]) },
-  { key: "receiver_volume", label: "Receiver Volume Bonus", scope: "player", direction: "higher_is_better", statKey: "receptions", eligiblePositions: ["WR", "TE", "HB", "RB"], tiers: higher([["S", 150, 150], ["A", 125, 100], ["B", 100, 50]]) },
+  // Player-stat EOS payouts were removed: per-player stats are no longer stored
+  // (box-score screenshot model is team-level only), so the league pays out solely
+  // on team-scope categories and the power-ranking position bonus above.
   { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 35, 200], ["A", 30, 150], ["B", 28, 100], ["C", 24, 75], ["D", 21, 50]]) },
   { key: "opp_ppg_allowed", label: "Opponent AVG PPG Defensive Bonus", scope: "team", direction: "lower_is_better", statKey: "points_allowed_per_game", tiers: lower([["S", 21, 200], ["A", 24, 150], ["B", 28, 100], ["C", 30, 75], ["D", 35, 50]]) },
   { key: "team_def_ints", label: "Total Team Defensive INTs", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", tiers: higher([["S", 30, 200], ["A", 20, 150], ["B", 17, 100], ["C", 15, 75], ["D", 12, 50]]) },
@@ -66,13 +56,26 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   { key: "def_red_zone_td_rate", label: "Defensive Red-Zone TD Rate Allowed", scope: "team", direction: "lower_is_better", statKey: "red_zone_td_rate_allowed", tiers: lower([["S", 40, 200], ["A", 45, 150], ["B", 50, 100], ["C", 55, 75], ["D", 60, 50]]) }
 ];
 
+function tierMatches(rule: RecPayoutTierRule, value: number): boolean {
+  if (rule.operator === "greater_or_equal") return value >= rule.threshold;
+  if (rule.operator === "less_than") return value < rule.threshold;
+  if (rule.operator === "less_or_equal") return value <= rule.threshold;
+  return false;
+}
+
 export function evaluatePayoutTier(value: number, tiers: RecPayoutTierRule[]) {
-  return tiers.find((rule) => {
-    if (rule.operator === "greater_or_equal") return value >= rule.threshold;
-    if (rule.operator === "less_than") return value < rule.threshold;
-    if (rule.operator === "less_or_equal") return value <= rule.threshold;
-    return false;
-  }) ?? null;
+  return tiers.find((rule) => tierMatches(rule, value)) ?? null;
+}
+
+// The next higher-paying tier a value has NOT yet reached, given that `tiers` is
+// ordered best-first (S → D). Returns null when the value already qualifies for
+// the top tier (nothing better to chase). When the value qualifies for no tier
+// yet, returns the easiest tier (last in the list) as the first target.
+export function nextPayoutTier(value: number, tiers: RecPayoutTierRule[]): RecPayoutTierRule | null {
+  const currentIdx = tiers.findIndex((rule) => tierMatches(rule, value));
+  if (currentIdx === 0) return null; // already at the best tier
+  if (currentIdx === -1) return tiers[tiers.length - 1] ?? null; // no tier yet → easiest target
+  return tiers[currentIdx - 1] ?? null;
 }
 
 export const REC_WEEKLY_CHALLENGE_PAYOUTS = { S: 50, A: 25, B: 10 } as const;

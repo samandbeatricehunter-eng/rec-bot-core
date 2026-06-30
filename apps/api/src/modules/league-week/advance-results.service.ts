@@ -5,6 +5,7 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
+import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
@@ -230,6 +231,18 @@ export async function completeAdvanceWeek(input: {
       console.error("[ERROR] issueSeasonTotalBadges failed after advance to playoffs (non-fatal):", err);
     });
   }
+
+  // Mark the advance run last, after badges/baselines settle, so its badge snapshot
+  // reflects end-of-week state and `advanced_at` anchors the next Advance DM window.
+  await recordAdvanceDmRun({
+    leagueId: context.leagueId,
+    seasonNumber,
+    fromWeek: currentWeek,
+    toWeek: input.nextWeekNumber,
+    advancedByDiscordId: input.advancedByDiscordId,
+  }).catch((err) => {
+    console.error("[ERROR] recordAdvanceDmRun failed after advance (non-fatal):", err);
+  });
 
   return advanceResult;
 }

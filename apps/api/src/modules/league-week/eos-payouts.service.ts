@@ -18,7 +18,7 @@ type EosPayoutItem = {
   metadata: Record<string, unknown>;
 };
 
-const TEAM_DEFINITIONS = REC_END_SEASON_PAYOUTS.filter((definition) => definition.scope === "team");
+export const TEAM_DEFINITIONS = REC_END_SEASON_PAYOUTS.filter((definition) => definition.scope === "team");
 const RANK_DEFINITION = REC_END_SEASON_PAYOUTS.find((definition) => definition.key === "power_ranking_position");
 
 function num(value: unknown) {
@@ -30,7 +30,7 @@ function jsonNum(raw: unknown, key: string) {
   return num((raw as Record<string, unknown>)[key]);
 }
 
-function evalTeamStat(statKey: string, rows: any[]) {
+export function evalTeamStat(statKey: string, rows: any[]) {
   const games = rows.length;
   const sum = (key: string) => rows.reduce((total, row) => total + num(row[key]), 0);
   const jsonSum = (sourceKey: string, key: string) => rows.reduce((total, row) => total + jsonNum(row[sourceKey], key), 0);
