@@ -60,3 +60,4 @@ export type RecGlobalRecord = {
 };
 export * from "./economy.js";
 export * from "./purchases.js";
+export * from "./wagers.js";
