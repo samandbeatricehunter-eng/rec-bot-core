@@ -17,6 +17,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { refreshConfirmableWagerEmbeds } from "./wagers.js";
 
 // ─── Weekly Scores: upload a League Schedule screenshot to pre-log final scores ──
 // The review is persisted server-side (rec_weekly_score_reviews) so it survives a
@@ -264,6 +265,7 @@ export async function handleWeeklyScoresApprove(interaction: ButtonInteraction) 
   await interaction.deferUpdate();
   try {
     const result = await recApi.approveWeeklyScoreReview({ reviewId, loggedByDiscordId: interaction.user.id });
+    if (interaction.inCachedGuild()) void refreshConfirmableWagerEmbeds(interaction.client, interaction.guildId);
     const base = interaction.message.embeds[0];
     const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Weekly Scores")).setColor(0x2ecc71);
     embed.spliceFields(0, embed.data.fields?.length ?? 0, {

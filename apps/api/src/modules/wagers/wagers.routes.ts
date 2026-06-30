@@ -8,6 +8,7 @@ import {
   attachWagerPendingMessage,
   cancelWager,
   getWagerResolvability,
+  listConfirmableWagers,
   listWagerableGames,
   placeHouseWager,
   settleWager,
@@ -76,6 +77,17 @@ export async function wagerRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const body = z.object({ wagerId: z.string().uuid() }).parse(request.body);
       return reply.send(await cancelWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/confirmable", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const context = await getCurrentLeagueContext(body.guildId);
+      return reply.send(await listConfirmableWagers(context.leagueId));
     } catch (error) {
       return sendError(reply, error);
     }

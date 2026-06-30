@@ -548,6 +548,8 @@ export const recApi = {
     recFetch<any>("/v1/wagers/cancel", { method: "POST", body: JSON.stringify({ wagerId }) }),
   getWagerResolvability: (guildId: string, wagerId: string) =>
     recFetch<any>("/v1/wagers/resolvability", { method: "POST", body: JSON.stringify({ guildId, wagerId }) }),
+  listConfirmableWagers: (guildId: string) =>
+    recFetch<any>("/v1/wagers/confirmable", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   saveManualScheduleGame: (input: {
     guildId: string;

@@ -18,6 +18,7 @@ import {
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
+import { refreshConfirmableWagerEmbeds } from "./wagers.js";
 
 // ─── Custom IDs ───────────────────────────────────────────────────────────────
 
@@ -495,6 +496,8 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
   try {
     const result = await recApi.reviewBoxScore({ submissionId, action: "approve", reviewedByDiscordId: interaction.user.id });
     if (interaction.inCachedGuild()) await postXfSeasonBadgeAnnouncements(interaction, result).catch(() => undefined);
+    // This game now has a confirmed result — flip any pending wager embeds on it.
+    if (interaction.inCachedGuild()) void refreshConfirmableWagerEmbeds(interaction.client, interaction.guildId);
     const paidPlayerList = formatPaidPlayers(result);
     const badgeBonusText = result.badgeBonusCount ? `, including ${result.badgeBonusCount} badge bonus(es)` : "";
     const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.`;

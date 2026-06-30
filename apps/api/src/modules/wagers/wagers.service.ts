@@ -329,6 +329,58 @@ export async function getWagerResolvability(leagueId: string, wagerId: string) {
   return { resolvable: outcome != null, outcome, wager };
 }
 
+// Credit the bettor (and peer counterparty) for a resolved outcome and close the row.
+// won → potential payout to the winner; push → stakes refunded; lost → house keeps.
+async function creditAndCloseWager(wager: any, outcome: "won" | "lost" | "push"): Promise<number> {
+  const now = new Date().toISOString();
+  let payoutLedgerId: string | null = null;
+  let credited = 0;
+  const isPeer = wager.wager_kind === "peer" && wager.accepted_by_user_id;
+
+  if (outcome === "push") {
+    // Refund both sides' stakes.
+    await refundWagerStake(wager, `Wager push refund — ${wager.market}`);
+    credited = Number(wager.stake ?? 0);
+  } else if (outcome === "won") {
+    // House bet: bettor wins their potential payout. Peer: winner takes the pot.
+    const winnerUserId = wager.placed_by_user_id;
+    const amount = isPeer ? Number(wager.stake ?? 0) * 2 : Number(wager.potential_payout ?? 0);
+    const credit = await supabase.rpc("add_to_wallet", {
+      p_user_id: winnerUserId,
+      p_amount: amount,
+      p_league_id: wager.league_id,
+      p_description: `Wager payout — ${wager.market}`,
+      p_transaction_type: "wager_payout",
+      p_source: "wager",
+      p_source_reference: { wagerId: wager.id, outcome },
+    });
+    if (credit.error) throw new ApiError(500, "Failed to credit wager payout.", credit.error);
+    payoutLedgerId = credit.data;
+    credited = amount;
+  } else if (isPeer) {
+    // Peer loss for the proposer means the accepter won the pot.
+    const amount = Number(wager.stake ?? 0) * 2;
+    const credit = await supabase.rpc("add_to_wallet", {
+      p_user_id: wager.accepted_by_user_id,
+      p_amount: amount,
+      p_league_id: wager.league_id,
+      p_description: `Wager payout — ${wager.market}`,
+      p_transaction_type: "wager_payout",
+      p_source: "wager",
+      p_source_reference: { wagerId: wager.id, outcome: "won-by-accepter" },
+    });
+    if (credit.error) throw new ApiError(500, "Failed to credit peer wager payout.", credit.error);
+    payoutLedgerId = credit.data;
+    credited = amount;
+  }
+
+  await supabase
+    .from("rec_wagers")
+    .update({ status: outcome, settled_at: now, payout_ledger_id: payoutLedgerId, updated_at: now })
+    .eq("id", wager.id);
+  return credited;
+}
+
 // Approve a wager payout — only succeeds once the game result is confirmed.
 export async function settleWager(input: { wagerId: string; reviewedByDiscordId: string }) {
   const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
@@ -343,35 +395,70 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
     return { ok: false, notConfirmed: true, wager };
   }
 
-  const now = new Date().toISOString();
-  let payoutLedgerId: string | null = null;
-  let credited = 0;
-
-  if (outcome === "won") {
-    credited = Number(wager.potential_payout ?? 0);
-  } else if (outcome === "push") {
-    credited = Number(wager.stake ?? 0);
-  }
-  if (credited > 0) {
-    const credit = await supabase.rpc("add_to_wallet", {
-      p_user_id: wager.placed_by_user_id,
-      p_amount: credited,
-      p_league_id: wager.league_id,
-      p_description: outcome === "won" ? `Wager payout — ${wager.market}` : `Wager push refund — ${wager.market}`,
-      p_transaction_type: outcome === "won" ? "wager_payout" : "wager_refund",
-      p_source: "wager",
-      p_source_reference: { wagerId: wager.id, outcome },
-    });
-    if (credit.error) throw new ApiError(500, "Failed to credit wager payout.", credit.error);
-    payoutLedgerId = credit.data;
-  }
-
-  await supabase
-    .from("rec_wagers")
-    .update({ status: outcome, settled_at: now, payout_ledger_id: payoutLedgerId, updated_at: now })
-    .eq("id", wager.id);
-
+  const credited = await creditAndCloseWager(wager, outcome);
   return { ok: true, outcome, credited, wager: { ...wager, status: outcome } };
+}
+
+// Pending wagers whose game result is now available — used to refresh their
+// pending-payout embeds to the "confirmed" state after a result is logged.
+export async function listConfirmableWagers(leagueId: string) {
+  const { data } = await supabase
+    .from("rec_wagers")
+    .select("id,pending_channel_id,pending_message_id,game_id,market,pick,line")
+    .eq("league_id", leagueId)
+    .eq("status", "pending")
+    .not("pending_message_id", "is", null);
+  const wagers: Array<{ id: string; channelId: string; messageId: string }> = [];
+  for (const w of data ?? []) {
+    const outcome = await resolveOutcome(leagueId, w);
+    if (outcome != null && w.pending_channel_id && w.pending_message_id) {
+      wagers.push({ id: w.id, channelId: w.pending_channel_id, messageId: w.pending_message_id });
+    }
+  }
+  return { wagers };
+}
+
+export async function listOpenWagersForWeek(leagueId: string, seasonNumber: number, weekNumber: number) {
+  const { data } = await supabase
+    .from("rec_wagers")
+    .select("id,placed_by_discord_id,market,stake,status,game_id")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .in("status", ["awaiting_accept", "pending", "confirmed"]);
+  return { wagers: data ?? [] };
+}
+
+// On advance, refund + close any open wager whose game has no logged result (and any
+// peer challenge that was never accepted). Resolved-but-unapproved wagers are left
+// for the commissioner to approve. Returns Discord message coords for cleanup.
+export async function resolveWagersOnAdvance(leagueId: string, seasonNumber: number, weekNumber: number) {
+  const { data } = await supabase
+    .from("rec_wagers")
+    .select("*")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .in("status", ["awaiting_accept", "pending", "confirmed"]);
+
+  const now = new Date().toISOString();
+  const refundedMessages: Array<{ pendingChannelId: string | null; pendingMessageId: string | null; announcementChannelId: string | null; announcementMessageId: string | null }> = [];
+
+  for (const w of data ?? []) {
+    if (w.status === "awaiting_accept") {
+      await refundWagerStake(w, "Wager expired — no opponent took it before advance");
+      await supabase.from("rec_wagers").update({ status: "refunded", settled_at: now, updated_at: now }).eq("id", w.id);
+      refundedMessages.push({ pendingChannelId: w.pending_channel_id, pendingMessageId: w.pending_message_id, announcementChannelId: w.announcement_channel_id, announcementMessageId: w.announcement_message_id });
+      continue;
+    }
+    const outcome = await resolveOutcome(leagueId, w);
+    if (outcome == null) {
+      await refundWagerStake(w, "Wager refunded — results not logged before advance");
+      await supabase.from("rec_wagers").update({ status: "refunded", settled_at: now, updated_at: now }).eq("id", w.id);
+      refundedMessages.push({ pendingChannelId: w.pending_channel_id, pendingMessageId: w.pending_message_id, announcementChannelId: w.announcement_channel_id, announcementMessageId: w.announcement_message_id });
+    }
+  }
+  return { refundedCount: refundedMessages.length, refundedMessages };
 }
 
 // Cancel a pending wager: refund the held stake and remove the wager.

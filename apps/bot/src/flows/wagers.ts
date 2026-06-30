@@ -303,6 +303,48 @@ export async function handleWagerApprove(interaction: ButtonInteraction) {
   return interaction.editReply({ embeds: [embed], components: [] });
 }
 
+// After a result is logged (box score / weekly scores / advance), flip any now-
+// resolvable pending wager embed to the "confirmed — approve enabled" state.
+export async function refreshConfirmableWagerEmbeds(client: any, guildId: string): Promise<void> {
+  let list: any;
+  try {
+    list = await recApi.listConfirmableWagers(guildId);
+  } catch {
+    return;
+  }
+  for (const w of list?.wagers ?? []) {
+    try {
+      const channel = await client.channels.fetch(w.channelId).catch(() => null);
+      if (!channel?.isTextBased?.()) continue;
+      const message = await channel.messages.fetch(w.messageId).catch(() => null);
+      if (!message?.embeds?.[0]) continue;
+      const embed = EmbedBuilder.from(message.embeds[0]).setColor(0x2ecc71);
+      const fields = embed.data.fields ?? [];
+      if (fields.length) {
+        embed.spliceFields(fields.length - 1, 1, { name: "STATUS", value: "✅ Results logged and confirmed — payout can be approved." });
+      }
+      await message.edit({ embeds: [embed] }).catch(() => undefined);
+    } catch { /* non-fatal per wager */ }
+  }
+}
+
+// Delete stale pending embeds / open-challenge announcements for wagers refunded on
+// advance.
+export async function deleteWagerCleanupMessages(client: any, cleanup: any): Promise<void> {
+  const messages: any[] = cleanup?.refundedMessages ?? [];
+  for (const m of messages) {
+    for (const [channelId, messageId] of [[m.pendingChannelId, m.pendingMessageId], [m.announcementChannelId, m.announcementMessageId]] as [string | null, string | null][]) {
+      if (!channelId || !messageId) continue;
+      try {
+        const channel = await client.channels.fetch(channelId).catch(() => null);
+        if (!channel?.isTextBased?.()) continue;
+        const message = await channel.messages.fetch(messageId).catch(() => null);
+        await message?.delete().catch(() => undefined);
+      } catch { /* non-fatal */ }
+    }
+  }
+}
+
 export async function handleWagerCancel(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners can cancel wagers.", flags: MessageFlags.Ephemeral });

@@ -17,6 +17,7 @@ import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { nextLeagueStage, stageLabel } from "../lib/league-stage.js";
 import { recApi } from "../lib/rec-api.js";
 import { enterAdvanceTimeStep } from "./advance-time.js";
+import { deleteWagerCleanupMessages, refreshConfirmableWagerEmbeds } from "./wagers.js";
 
 export const ADVANCE_WIZARD_CUSTOM_IDS = {
   homeWinPrefix: "rec:advance_wizard:home",
@@ -204,12 +205,22 @@ async function completeAdvanceFromSession(
     ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
     : "";
 
+  // Clean up wagers whose results were never logged (refunded server-side on advance).
+  const wagerCleanup = result?.wagerCleanup ?? { refundedCount: 0, refundedMessages: [] };
+  if (interaction.guild) {
+    void deleteWagerCleanupMessages(interaction.client, wagerCleanup);
+    void refreshConfirmableWagerEmbeds(interaction.client, session.guildId);
+  }
+  const wagerLine = wagerCleanup.refundedCount > 0
+    ? `\n\nRefunded **${wagerCleanup.refundedCount}** open wager${wagerCleanup.refundedCount === 1 ? "" : "s"} whose results weren't logged before advancing.`
+    : "";
+
   // Settle the GOTW poll for the week that just completed.
   if (interaction.guild) await settleGotwForWeek(interaction.guild, session.guildId, session.currentWeek).catch((err) => {
     console.error("[ERROR] GOTW settlement failed (non-fatal):", err);
   });
 
-  const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}`;
+  const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}${wagerLine}`;
   sessions.delete(sessionKey(session.guildId, session.userId));
   return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: session.currentWeek });
 }

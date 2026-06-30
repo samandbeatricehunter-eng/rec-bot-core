@@ -11,6 +11,7 @@ import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { convertSeasonBadgesToTrophies } from "../box-score-intelligence/season-trophies.service.js";
+import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 
@@ -256,7 +257,15 @@ export async function completeAdvanceWeek(input: {
     });
   }
 
-  return advanceResult;
+  // Refund + close any wager on the completed week whose result was never logged
+  // (and any peer challenge nobody took). Returns Discord message coords so the bot
+  // can delete the stale pending embeds / open-challenge announcements. Non-fatal.
+  const wagerCleanup = await resolveWagersOnAdvance(context.leagueId, seasonNumber, currentWeek).catch((err) => {
+    console.error("[ERROR] resolveWagersOnAdvance failed after advance (non-fatal):", err);
+    return { refundedCount: 0, refundedMessages: [] as any[] };
+  });
+
+  return { ...advanceResult, wagerCleanup };
 }
 
 export async function getDivisionWinnerOptions(guildId: string) {
