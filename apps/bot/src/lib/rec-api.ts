@@ -35,6 +35,8 @@ export const recApi = {
     recFetch<any>(REC_API_ROUTES.menuProfile(discordId, guildId)),
   getLeagueIdentities: (guildId: string) =>
     recFetch<any>(`/v1/guilds/${guildId}/identities`),
+  getLeagueCoaches: (guildId: string) =>
+    recFetch<any>(`/v1/guilds/${guildId}/coaches`),
   refreshBadgeBaselines: (guildId: string) =>
     recFetch<any>(`/v1/guilds/${guildId}/badges/refresh-baselines`, { method: "POST", body: JSON.stringify({}) }),
   getSeasonXfBadges: (guildId: string, seasonNumber?: number | null) =>
@@ -254,6 +256,12 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
+  projectEosPayouts: (input: { guildId: string }) =>
+    recFetch<any>("/v1/league-week/eos-payouts/project", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   reviewEosPayout: (input: { itemId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) =>
     recFetch<any>("/v1/league-week/eos-payouts/review", {
       method: "POST",
@@ -268,6 +276,18 @@ export const recApi = {
 
   issueEosPayoutBatch: (input: { batchId: string; reviewedByDiscordId: string }) =>
     recFetch<any>("/v1/league-week/eos-payouts/issue-batch", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  listReversibleTransactions: (input: { guildId: string; discordId: string }) =>
+    recFetch<any>("/v1/admin-economy/reversible-transactions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  reverseTransaction: (input: { guildId: string; discordId: string; ledgerId: string; requestedByDiscordId: string }) =>
+    recFetch<any>("/v1/admin-economy/reverse-transaction", {
       method: "POST",
       body: JSON.stringify(input),
     }),
@@ -320,6 +340,9 @@ export const recApi = {
 
   markActiveCheckBooted: (input: { eventId: string; discordIds: string[] }) =>
     recFetch<any>("/v1/active-checks/booted", { method: "POST", body: JSON.stringify(input) }),
+
+  markActiveCheckNeedsReview: (input: { eventId: string; reason: string }) =>
+    recFetch<any>("/v1/active-checks/needs-review", { method: "POST", body: JSON.stringify(input) }),
 
   createTeamLinkRequest: (input: { guildId: string; discordId: string; teamId: string }) =>
     recFetch<any>("/v1/team-requests/create", {

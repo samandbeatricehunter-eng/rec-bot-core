@@ -31,6 +31,10 @@ function getDefaultTeamByAbbreviation(game: string | null | undefined, abbreviat
   return getDefaultTeamCatalog(game).find((team) => normalizeAbbreviation(team.abbreviation) === normalized) ?? null;
 }
 
+function normalizeTeamText(value?: string | null) {
+  return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
   const catalog = getDefaultTeamCatalog(league.game);
@@ -119,13 +123,28 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
 
   if (existing.error) throw new ApiError(500, "Failed to look up existing team slot.", existing.error);
 
-  const fallback = getDefaultTeamByAbbreviation(league.game, replacementAbbr);
-  const replaced = existing.data ?? fallback;
+  const liveTeams = existing.data ? { data: [], error: null } : await supabase
+    .from("rec_teams")
+    .select("*")
+    .eq("league_id", league.id);
+  if (liveTeams.error) throw new ApiError(500, "Failed to load live league teams.", liveTeams.error);
+
+  const normalizedLookup = normalizeTeamText(input.replacementTeamAbbreviation);
+  const liveMatch = (liveTeams.data ?? []).find((team: any) =>
+    normalizeTeamText(team.abbreviation) === normalizedLookup ||
+    normalizeTeamText(team.original_abbreviation) === normalizedLookup ||
+    normalizeTeamText(team.display_abbr) === normalizedLookup ||
+    normalizeTeamText(team.name) === normalizedLookup,
+  );
+  const fallback = getDefaultTeamByAbbreviation(league.game, replacementAbbr)
+    ?? getDefaultTeamCatalog(league.game).find((team) => normalizeTeamText(team.name) === normalizedLookup)
+    ?? null;
+  const replaced = existing.data ?? liveMatch ?? fallback;
   if (!replaced) {
     throw new ApiError(400, league.game === "cfb_27" ? "Replacement CFB team abbreviation was not recognized in this league." : "Replacement NFL team abbreviation was not recognized.");
   }
 
-  const originalAbbreviation = existing.data?.original_abbreviation ?? existing.data?.abbreviation ?? fallback?.abbreviation ?? replacementAbbr;
+  const originalAbbreviation = existing.data?.original_abbreviation ?? existing.data?.abbreviation ?? liveMatch?.original_abbreviation ?? liveMatch?.abbreviation ?? fallback?.abbreviation ?? replacementAbbr;
 
   const updates = {
     name: input.customTeamName,
@@ -138,11 +157,12 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
   };
 
   let result;
-  if (existing.data) {
+  const existingSlot = existing.data ?? liveMatch;
+  if (existingSlot) {
     result = await supabase
       .from("rec_teams")
       .update(updates)
-      .eq("id", existing.data.id)
+      .eq("id", existingSlot.id)
       .select("*")
       .single();
   } else {

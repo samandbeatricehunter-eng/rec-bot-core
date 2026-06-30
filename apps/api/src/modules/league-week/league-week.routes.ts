@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
-import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
+import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
@@ -229,6 +229,16 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         requestedByDiscordId: z.string().min(1),
       }).parse(request.body);
       return reply.send(await prepareEosPayouts(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-payouts/project", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      return reply.send(await projectEosPayouts(body));
     } catch (error) {
       return sendError(reply, error);
     }

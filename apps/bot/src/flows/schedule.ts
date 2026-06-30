@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ChannelType,
   EmbedBuilder,
   MessageFlags,
   StringSelectMenuBuilder,
@@ -477,9 +478,10 @@ export async function handleManualScheduleNextMatchup(interaction: ButtonInterac
     return false;
   });
   if (saved) {
+    const channelNotice = await maybeCreateImmediateGameChannel(interaction, session, saved).catch(() => null);
     session.selectedTeamIds = [];
     session.warnedIncomplete = false;
-    session.notice = "Matchup saved. Select the next Away/Home pair.";
+    session.notice = ["Matchup saved. Select the next Away/Home pair.", channelNotice].filter(Boolean).join(" ");
   }
   return interaction.editReply(renderManualEntry(session));
 }
@@ -524,6 +526,7 @@ export async function handleManualScheduleComplete(interaction: ButtonInteractio
       return false;
     });
     if (!saved) return interaction.editReply(renderManualEntry(session));
+    await maybeCreateImmediateGameChannel(interaction, session, saved).catch(() => null);
   }
   manualScheduleSessions.delete(sessionKey(session.guildId, session.userId));
   if (session.mode === "post_setup") return handlePostSetupScheduleFinish(interaction);
@@ -596,6 +599,36 @@ export async function startPublicLeagueScheduleViewer(interaction: ButtonInterac
   } catch (err) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("League Schedule").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      components: buildScheduleRows(),
+    });
+  }
+}
+
+export async function startPreviousSeasonScheduleViewer(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  await interaction.deferUpdate();
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Schedule History...").setDescription("Fetching the previous season schedule, including playoff weeks if stored.")], components: [] });
+  try {
+    const current = await recApi.listScheduleSeason({ guildId: interaction.guildId });
+    const currentSeason = Number(current?.league?.seasonNumber ?? 1);
+    if (currentSeason <= 1) {
+      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Schedule History").setDescription("No previous REC season is available for this league yet.")], components: buildScheduleRows() });
+    }
+    const result = await recApi.listScheduleSeason({ guildId: interaction.guildId, seasonNumber: currentSeason - 1 });
+    const session: ScheduleViewSession = {
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      leagueName: `${result?.league?.name ?? "League"} History`,
+      seasonNumber: Number(result?.league?.seasonNumber ?? currentSeason - 1),
+      pageIndex: 0,
+      weeks: result?.weeks ?? [],
+      mode: "public",
+    };
+    scheduleViewSessions.set(sessionKey(interaction.guildId, interaction.user.id), session);
+    return interaction.editReply(renderScheduleView(session));
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Schedule History").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
       components: buildScheduleRows(),
     });
   }
@@ -802,7 +835,40 @@ async function saveSelectedMatchup(session: ManualScheduleSession, requestedByDi
     requestedByDiscordId,
   });
   session.games = result?.week?.games ?? [];
-  return true;
+  return result?.game ?? true;
+}
+
+async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, session: ManualScheduleSession, game: any) {
+  if (!interaction.inCachedGuild()) return null;
+  if (!game || Number(session.weekNumber) !== Number(session.currentWeek)) return null;
+  if (!game.away_user_id || !game.home_user_id) return null;
+  const config = await recApi.getEconomyConfig(session.guildId).catch(() => null);
+  const categoryId = config?.routes?.game_channels_category_id;
+  const category = categoryId ? await interaction.guild.channels.fetch(categoryId).catch(() => null) : null;
+  if (!category || category.type !== ChannelType.GuildCategory) return "No game channel category is configured.";
+  const away = teamDisplayName(game.away_team ?? session.teams.find((team) => team.id === game.away_team_id));
+  const home = teamDisplayName(game.home_team ?? session.teams.find((team) => team.id === game.home_team_id));
+  const name = `${away} vs ${home}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+  const channel = await interaction.guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id }).catch(() => null);
+  if (!channel?.isTextBased()) return "Game channel creation failed.";
+  await channel.lockPermissions().catch(() => undefined);
+  await recApi.registerGameChannel({
+    guildId: session.guildId,
+    gameId: game.id ?? null,
+    discordChannelId: channel.id,
+    seasonNumber: session.seasonNumber,
+    weekNumber: session.weekNumber,
+    awayTeamId: game.away_team_id ?? null,
+    homeTeamId: game.home_team_id ?? null,
+    awayUserId: game.away_user_id ?? null,
+    homeUserId: game.home_user_id ?? null,
+  }).catch(() => undefined);
+  await channel.send({
+    content: `<@${game.away_user_id}> <@${game.home_user_id}>`,
+    embeds: [new EmbedBuilder().setTitle("Game Channel").setDescription(`Current-week matchup added manually: **${away} at ${home}**.`)],
+    allowedMentions: { users: [game.away_user_id, game.home_user_id] },
+  }).catch(() => undefined);
+  return `Created game channel <#${channel.id}>.`;
 }
 
 function expectedGamesForWeek(session: ManualScheduleSession) {

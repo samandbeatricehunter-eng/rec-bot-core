@@ -234,3 +234,15 @@ export async function markActiveCheckBooted(input: { eventId: string; discordIds
   if (misses.error) throw new ApiError(500, "Failed to mark active-check users booted.", misses.error);
   return { updated: misses.data?.length ?? 0 };
 }
+
+export async function markActiveCheckNeedsReview(input: { eventId: string; reason: string }) {
+  const now = new Date().toISOString();
+  const result = await supabase
+    .from("rec_active_check_events")
+    .update({ status: "needs_review", closed_at: now, updated_at: now })
+    .eq("id", input.eventId)
+    .select("*")
+    .single();
+  if (result.error) throw new ApiError(500, "Failed to mark active check for manual review.", result.error);
+  return { event: result.data, reason: input.reason };
+}

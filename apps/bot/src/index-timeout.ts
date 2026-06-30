@@ -55,6 +55,7 @@ import {
   handleScheduleTeamSelect,
   handleSchedulePowerRankings,
   SCHEDULE_MGMT_CUSTOM_IDS,
+  startPreviousSeasonScheduleViewer,
   startPublicLeagueScheduleViewer,
   startScheduleTeamSelect,
   startManualScheduleEntry,
@@ -206,6 +207,8 @@ const roleMgmtSessions = new Map<string, {
   selectedUserIds: string[];
   page: number;
 }>();
+const eosProjectionSessions = new Map<string, { pages: any[]; page: number }>();
+const reverseTxnSessions = new Map<string, { discordId: string; transactions: any[] }>();
 const ADVANCE_CUSTOM_IDS = {
   gotwSelect: "rec:advance:gotw_select",
   gotwConfirm: "rec:advance:gotw_confirm",
@@ -219,6 +222,12 @@ const EOS_PAYOUT_CUSTOM_IDS = {
   issueBatchPrefix: "rec:eos_payouts:issue:",
   approveUserPrefix: "rec:eos:ap:",
   denyUserPrefix: "rec:eos:dn:"
+} as const;
+const TROUBLESHOOT_CUSTOM_IDS = {
+  eosPrev: "rec:trouble:eos:prev",
+  eosNext: "rec:trouble:eos:next",
+  reverseUserSelect: "rec:trouble:reverse:user",
+  reverseTxnSelect: "rec:trouble:reverse:txn",
 } as const;
 
 const CO_COMMISSIONER_ALLOWED_LEAGUE_MGMT_IDS = new Set<string>([
@@ -451,6 +460,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_REQUEST_CUSTOM_IDS.conferenceSelect) return handleTeamRequestConference(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
+      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.reverseUserSelect) return handleReverseTxnUserSelect(interaction);
+      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.reverseTxnSelect) return handleReverseTxnSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminWeekSelect) return handleBoxScoreAdminWeekSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminGameSelect) return handleBoxScoreAdminGameSelect(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
@@ -557,8 +568,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosActions) return handleEosActions(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshoot) return handleTroubleshootMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootSchedule) return handleLeagueMgmtSchedule(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootEos) return replyMenuPlaceholder(interaction, "EOS Projections", "EOS projection pages will calculate each active user's current projected EOS payouts.");
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn) return replyMenuPlaceholder(interaction, "Reverse Transaction", "Reverse Transaction will let commissioners select a linked user and reverse one of their last 24 transactions.");
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootEos) return handleEosProjections(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn) return handleReverseTransactionOpen(interaction);
+      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.eosPrev) return handleEosProjectionPage(interaction, -1);
+      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.eosNext) return handleEosProjectionPage(interaction, 1);
       if (interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix)) return handleIssueEosPayoutBatch(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosPayouts) return handleEosPayouts(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return replyMenuPlaceholder(interaction, "EOS Awards", "EOS Awards is intentionally a placeholder for now.");
@@ -591,6 +604,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.schedule) return renderScheduleMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleSelectTeam) return startScheduleTeamSelect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleLeague) return startPublicLeagueScheduleViewer(interaction);
+      if (interaction.customId === MENU_CUSTOM_IDS.scheduleHistory) return startPreviousSeasonScheduleViewer(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.schedulePowerRankings) return handleSchedulePowerRankings(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleSos) return handleScheduleSos(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.scheduleStats) return handleScheduleStats(interaction);
@@ -974,6 +988,152 @@ async function handleTroubleshootMenu(interaction: ButtonInteraction) {
   });
 }
 
+function formatMoney(n: unknown) {
+  return `$${Number(n ?? 0).toLocaleString("en-US")}`;
+}
+
+function groupProjectionPages(items: any[]) {
+  const byUser = new Map<string, any[]>();
+  for (const item of items ?? []) {
+    const key = item.payee_discord_id ?? item.user_id ?? "unknown";
+    const rows = byUser.get(key) ?? [];
+    rows.push(item);
+    byUser.set(key, rows);
+  }
+  return [...byUser.entries()].map(([key, rows]) => ({
+    key,
+    discordId: rows.find((row) => row.payee_discord_id)?.payee_discord_id ?? null,
+    userId: rows[0]?.user_id ?? null,
+    total: rows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
+    rows,
+  })).sort((a, b) => b.total - a.total);
+}
+
+function renderEosProjectionSession(session: { pages: any[]; page: number }) {
+  const page = session.pages[session.page] ?? null;
+  const totalPages = Math.max(1, session.pages.length);
+  const lines = page
+    ? [
+      `Coach: ${page.discordId ? `<@${page.discordId}>` : page.userId ?? "Unknown"}`,
+      `Projected total: **${formatMoney(page.total)}**`,
+      "",
+      ...page.rows.slice(0, 18).map((item: any) => `- **${formatMoney(item.amount)}** - ${item.payout_label}${item.qualified_tier ? ` (${item.qualified_tier})` : ""}`),
+    ]
+    : ["No projected EOS payouts were generated from current stats."];
+  return {
+    embeds: [new EmbedBuilder()
+      .setTitle("EOS Projections")
+      .setDescription(lines.join("\n").slice(0, 4096))
+      .setFooter({ text: `Page ${session.page + 1}/${totalPages}` })],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(TROUBLESHOOT_CUSTOM_IDS.eosPrev).setLabel("Previous").setStyle(ButtonStyle.Secondary).setDisabled(!session.pages.length),
+        new ButtonBuilder().setCustomId(TROUBLESHOOT_CUSTOM_IDS.eosNext).setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(!session.pages.length),
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshoot).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  };
+}
+
+async function handleEosProjections(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "view EOS projections");
+  await interaction.deferUpdate();
+  const result = await recApi.projectEosPayouts({ guildId: interaction.guildId });
+  const session = { pages: groupProjectionPages(result.items ?? []), page: 0 };
+  eosProjectionSessions.set(interaction.user.id, session);
+  return interaction.editReply(renderEosProjectionSession(session));
+}
+
+async function handleEosProjectionPage(interaction: ButtonInteraction, delta: number) {
+  const session = eosProjectionSessions.get(interaction.user.id);
+  if (!session) return interaction.reply({ content: "EOS projection view expired. Reopen Troubleshoot > EOS Projections.", flags: MessageFlags.Ephemeral });
+  const count = Math.max(1, session.pages.length);
+  session.page = (session.page + delta + count) % count;
+  return interaction.update(renderEosProjectionSession(session));
+}
+
+function formatTxnOption(txn: any) {
+  const amount = Number(txn.amount ?? 0);
+  const type = String(txn.transaction_type ?? "transaction").replaceAll("_", " ");
+  return `${amount >= 0 ? "+" : ""}$${amount} ${type}`.slice(0, 100);
+}
+
+async function handleReverseTransactionOpen(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "reverse transactions");
+  await interaction.deferUpdate();
+  const coaches = (await recApi.getLeagueCoaches(interaction.guildId).catch(() => null))?.coaches ?? [];
+  const linked = coaches.filter((coach: any) => coach.discordId).slice(0, 25);
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Reverse Transaction").setDescription("Select an active linked coach, then choose one of their last 24 league transactions to reverse.")],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(TROUBLESHOOT_CUSTOM_IDS.reverseUserSelect)
+          .setPlaceholder("Select linked coach")
+          .setDisabled(!linked.length)
+          .addOptions(...(linked.length ? linked.map((coach: any) => new StringSelectMenuOptionBuilder()
+            .setLabel(`${coach.teamAbbreviation ?? coach.teamName ?? "Team"} - ${coach.displayName ?? coach.discordId}`.slice(0, 100))
+            .setValue(coach.discordId)
+          ) : [new StringSelectMenuOptionBuilder().setLabel("No linked coaches").setValue("none")])),
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshoot).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+async function handleReverseTxnUserSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const discordId = interaction.values[0];
+  if (!discordId || discordId === "none") return interaction.reply({ content: "No coach selected.", flags: MessageFlags.Ephemeral });
+  await interaction.deferUpdate();
+  const result = await recApi.listReversibleTransactions({ guildId: interaction.guildId, discordId });
+  const transactions = (result.transactions ?? []).filter((txn: any) => txn.reversible).slice(0, 24);
+  reverseTxnSessions.set(interaction.user.id, { discordId, transactions });
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Reverse Transaction").setDescription(`Selected <@${discordId}>. Choose one transaction to reverse.`)],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(TROUBLESHOOT_CUSTOM_IDS.reverseTxnSelect)
+          .setPlaceholder("Select transaction")
+          .setDisabled(!transactions.length)
+          .addOptions(...(transactions.length ? transactions.map((txn: any) => new StringSelectMenuOptionBuilder()
+            .setLabel(formatTxnOption(txn))
+            .setDescription(String(txn.description ?? txn.source ?? "No description").slice(0, 100))
+            .setValue(txn.id)
+          ) : [new StringSelectMenuOptionBuilder().setLabel("No reversible transactions").setValue("none")])),
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+async function handleReverseTxnSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const session = reverseTxnSessions.get(interaction.user.id);
+  const ledgerId = interaction.values[0];
+  if (!session || !ledgerId || ledgerId === "none") return interaction.reply({ content: "Transaction selection expired.", flags: MessageFlags.Ephemeral });
+  await interaction.deferUpdate();
+  const result = await recApi.reverseTransaction({ guildId: interaction.guildId, discordId: session.discordId, ledgerId, requestedByDiscordId: interaction.user.id });
+  reverseTxnSessions.delete(interaction.user.id);
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("Transaction Reversed")
+      .setDescription(`Posted a compensating transaction for <@${session.discordId}>: **${formatMoney(result.amount)}**.`)],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshoot).setLabel("Back").setStyle(ButtonStyle.Secondary),
+    )],
+  });
+}
+
 function buildEosActionsRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -1097,9 +1257,19 @@ async function settleActiveCheckPoll(input: { eventId: string; guildId: string; 
   if (!guild) return;
   const routes = await getRouteChannels(input.guildId);
   const pollChannel = await guild.channels.fetch(input.channelId).catch(() => null);
-  if (!pollChannel?.isTextBased()) return;
+  const commissionerChannelId = routes.commissioner_office_channel_id ?? routes.commissionerOfficeChannelId;
+  const commissionerChannel = commissionerChannelId ? await guild.channels.fetch(commissionerChannelId).catch(() => null) : null;
+  if (!pollChannel?.isTextBased()) {
+    await recApi.markActiveCheckNeedsReview({ eventId: input.eventId, reason: "Poll channel was not fetchable." }).catch(() => undefined);
+    if (commissionerChannel?.isTextBased()) await commissionerChannel.send({ embeds: [new EmbedBuilder().setTitle("Active Check Needs Review").setDescription("The persisted active-check poll channel could not be fetched after restart. Review Discord manually before booting users.")] }).catch(() => undefined);
+    return;
+  }
   const message = await pollChannel.messages.fetch(input.messageId).catch(() => null);
-  if (!message?.poll) return;
+  if (!message?.poll) {
+    await recApi.markActiveCheckNeedsReview({ eventId: input.eventId, reason: "Poll message was not fetchable." }).catch(() => undefined);
+    if (commissionerChannel?.isTextBased()) await commissionerChannel.send({ embeds: [new EmbedBuilder().setTitle("Active Check Needs Review").setDescription("The persisted active-check poll message could not be fetched after restart. Review Discord manually before booting users.")] }).catch(() => undefined);
+    return;
+  }
 
   const poll = await (message.poll as any).end().catch(() => message.poll as any);
   const activeAnswer = poll.answers?.get(1);
@@ -1110,8 +1280,6 @@ async function settleActiveCheckPoll(input: { eventId: string; guildId: string; 
   const kickMeDiscordIds = [...(kickVoters?.values() ?? [])].map((user: any) => user.id);
   const review = await recApi.settleActiveCheck({ eventId: input.eventId, activeDiscordIds, kickMeDiscordIds });
 
-  const commissionerChannelId = routes.commissioner_office_channel_id ?? routes.commissionerOfficeChannelId;
-  const commissionerChannel = commissionerChannelId ? await guild.channels.fetch(commissionerChannelId).catch(() => null) : null;
   if (!commissionerChannel?.isTextBased()) return;
   await commissionerChannel.send(buildActiveCheckReviewPayload(input.eventId, review.inactive ?? [], review.kickMe ?? []));
 }

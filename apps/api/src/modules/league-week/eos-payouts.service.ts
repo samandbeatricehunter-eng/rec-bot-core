@@ -188,6 +188,24 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
   };
 }
 
+export async function projectEosPayouts(input: { guildId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const items = [...await buildPowerRankItems(context.leagueId, seasonNumber), ...await buildTeamStatItems(context.leagueId, seasonNumber)];
+  const withDiscord = await attachPayeeDiscordIds(items);
+  const totalAmount = withDiscord.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  return {
+    league: {
+      id: context.leagueId,
+      seasonNumber,
+      currentWeek: Number(context.rec_leagues.current_week ?? 1),
+      seasonStage: context.rec_leagues.season_stage ?? "regular_season",
+    },
+    items: withDiscord,
+    totalAmount,
+  };
+}
+
 async function attachPayeeDiscordIds(items: any[]): Promise<any[]> {
   const userIds = [...new Set(items.map((item) => item.user_id).filter(Boolean))];
   if (!userIds.length) return items.map((item) => ({ ...item, payee_discord_id: null }));

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { createActiveCheckEvent, getActiveCheckReview, keepActiveCheckUsers, listOpenActiveCheckEvents, markActiveCheckBooted, settleActiveCheckEvent } from "./active-checks.service.js";
+import { createActiveCheckEvent, getActiveCheckReview, keepActiveCheckUsers, listOpenActiveCheckEvents, markActiveCheckBooted, markActiveCheckNeedsReview, settleActiveCheckEvent } from "./active-checks.service.js";
 
 export async function activeCheckRoutes(app: FastifyInstance) {
   app.post("/v1/active-checks/create", async (request, reply) => {
@@ -75,6 +75,16 @@ export async function activeCheckRoutes(app: FastifyInstance) {
         discordIds: z.array(z.string()).default([]),
       }).parse(request.body);
       return reply.send(await markActiveCheckBooted(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/active-checks/needs-review", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ eventId: z.string().uuid(), reason: z.string().min(1) }).parse(request.body);
+      return reply.send(await markActiveCheckNeedsReview(body));
     } catch (error) {
       return sendError(reply, error);
     }

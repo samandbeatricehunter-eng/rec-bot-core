@@ -702,6 +702,9 @@ export function buildScheduleRows() {
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleStats).setLabel("Stats").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleHistory).setLabel("History").setStyle(ButtonStyle.Secondary),
+    ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.scheduleBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary),
     ),
   ];
