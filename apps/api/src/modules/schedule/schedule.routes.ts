@@ -114,7 +114,8 @@ export async function scheduleRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const input = z.object({
         guildId: z.string().min(1),
-        weekNumber: z.number().int().min(1).max(18),
+        // Allow playoff weeks (19–22), not just the regular season.
+        weekNumber: z.number().int().min(1).max(22),
         imageUrls: z.array(z.string().url()).min(1).max(2),
       }).parse(request.body);
       return reply.send(await previewScheduleImport(input));
