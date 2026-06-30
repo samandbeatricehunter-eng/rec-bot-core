@@ -1061,6 +1061,10 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   const isPlayoff = currentWeek >= 19;
   const rulesLines = gameRulesLines(config?.draft ?? null, isPlayoff);
   const boxScoresMention = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the box scores channel";
+  // Create + register every channel first, then fetch all matchups in ONE batched
+  // call (the league-wide identity/power-ranking/config work is computed once for
+  // the whole week instead of once per channel), then post the intro messages.
+  const pending: Array<{ ch: any; game: any; away: string; home: string }> = [];
   for (const game of h2h) {
     const away = teamDisplay(game.away_team);
     const home = teamDisplay(game.home_team);
@@ -1087,12 +1091,18 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       awayUserId: game.away_user_id ?? null,
       homeUserId: game.home_user_id ?? null,
     }).catch(() => undefined);
-    // Paginated, looping matchup embed (5 pages). Built from the game-channel
-    // matchup endpoint, which reconstructs everything from the channel id — so
-    // the page buttons keep working for any player, even after a bot restart.
-    const matchup = await recApi
-      .getGameChannelMatchup({ guildId: interaction.guildId, discordChannelId: ch.id })
-      .catch((err) => { console.error("[ERROR] Failed to load game channel matchup:", err?.message ?? err); return null; });
+    pending.push({ ch, game, away, home });
+  }
+
+  // One batched fetch for all matchups, keyed by channel id. Page-flip buttons
+  // later re-fetch a single channel on demand via getGameChannelMatchup.
+  const matchupMap = await recApi
+    .getGameChannelMatchups({ guildId: interaction.guildId })
+    .then((r) => r?.matchups ?? {})
+    .catch((err) => { console.error("[ERROR] Failed to load game channel matchups:", err?.message ?? err); return {} as Record<string, any>; });
+
+  for (const { ch, game, away, home } of pending) {
+    const matchup = matchupMap[ch.id] ?? null;
     const fallbackEmbed = new EmbedBuilder().setTitle("Game Channel").setDescription([
       "Play your game here and coordinate respectfully.",
       "",

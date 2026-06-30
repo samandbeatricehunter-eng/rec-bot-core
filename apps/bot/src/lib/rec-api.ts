@@ -485,6 +485,9 @@ export const recApi = {
   getGameChannelMatchup: (input: { guildId: string; discordChannelId: string }) =>
     recFetch<any>("/v1/game-channels/matchup", { method: "POST", body: JSON.stringify(input) }),
 
+  getGameChannelMatchups: (input: { guildId: string }) =>
+    recFetch<{ matchups: Record<string, any> }>("/v1/game-channels/matchups", { method: "POST", body: JSON.stringify(input) }),
+
   createPurchaseRequest: (input: { guildId: string; discordId: string; purchaseType: string; details: Record<string, unknown> }) =>
     recFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify(input) }),
   reviewPurchase: (input: { purchaseId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) =>
