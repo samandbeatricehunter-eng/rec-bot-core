@@ -10,7 +10,6 @@ Canonical detailed map: `docs/menu-map.md`.
 - My Wallet
 - Purchase
 - Wager
-- Stream
 - Box Score & Scoring Summary
 - User Profiles
 - League Mgmt
@@ -26,4 +25,4 @@ Canonical detailed map: `docs/menu-map.md`.
 - Delete League
 - Roles
 
-Schedule and Advance are temporary rebuild placeholders. Store, wager, screenshots, team requests, role management, and schedule subfeatures are also placeholders.
+Schedule and Advance are temporary rebuild placeholders. Store, wager, screenshots, team requests, role management, and schedule subfeatures are also placeholders. Stream payouts are triggered by posting a link in the configured streams channel.

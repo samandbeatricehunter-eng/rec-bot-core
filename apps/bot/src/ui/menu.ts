@@ -146,8 +146,7 @@ export function buildLeagueMenuEmbed(input: {
   leagueSeasonPointDifferential?: number;
   userStreakText?: string;
   globalRecordText?: string;
-  globalPlayoffText?: string;
-  globalSuperbowlText?: string;
+  globalChampionships?: number;
   globalPointDifferential?: number;
   gameGlobalLabel?: string | null;
   gameGlobalRecordText?: string | null;
@@ -180,6 +179,7 @@ export function buildLeagueMenuEmbed(input: {
     ? [
       `**Global (${input.gameGlobalLabel}):** ${input.gameGlobalRecordText ?? "0-0-0"} | PD: ${input.gameGlobalPointDifferential ?? 0}`,
       `Playoffs: ${input.gameGlobalPlayoffText ?? "0-0"} | Super Bowls: ${input.gameGlobalSuperbowlText ?? "0-0"}`,
+      `**All Games:** ${input.globalRecordText ?? "0-0-0"} | Championships: ${input.globalChampionships ?? 0}`,
     ].join("\n")
     : "";
 
@@ -195,7 +195,6 @@ export function buildLeagueMenuEmbed(input: {
     "**My Wallet** - Review balances, transfer to/from savings, and view transactions.",
     "**Purchase** - Purchase tools will unlock after league purchase settings are built.",
     "**Wager** - Wager tools will be built last.",
-    "**Stream** - Submit a stream for commissioner payout review.",
     "**Profiles** - View linked users and team snapshots.",
     ...(input.canManageLeague ? ["**League Mgmt** - Commissioner-only league operations."] : [])
   ].join("\n");
@@ -227,7 +226,6 @@ export function buildLeagueMenuRows(canManageLeague: boolean, isLinkedToTeam = t
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Wager").setStyle(ButtonStyle.Success)
   );
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.stream).setLabel("Stream").setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("Profiles").setStyle(ButtonStyle.Danger),
     ...(canManageLeague ? [new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)] : [])
   );

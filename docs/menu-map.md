@@ -22,9 +22,6 @@ Status: **[built]** = working workflow, **[placeholder]** = intentionally visibl
 │  └─ Transactions                    [built]
 ├─ Purchase                           [placeholder]
 ├─ Wager                              [placeholder]
-├─ Stream                             [built]
-│  ├─ Public stream post              [built]
-│  └─ Discord Live payout review      [built]
 ├─ Box Score & Scoring Summary        [placeholder]
 ├─ User Profiles                      [built]
 └─ League Mgmt                        [built admin shell]
@@ -59,5 +56,6 @@ Status: **[built]** = working workflow, **[placeholder]** = intentionally visibl
 
 - Removed the legacy HQ dropdown (`buildMainMenuRows`) and orphaned Commissioner Tools select tree.
 - Removed orphaned UI modules for league week, EOS rows, weekly challenges, power rankings, score review IDs, and baseline import snapshots.
+- Removed the Stream button from `/menu`; stream payout review now starts when a user posts a link in the configured streams channel.
 - Kept small API compatibility routes for currently reachable flows: rosters/conferences, server route config, league week view/set, stream post/review.
 - No destructive table-drop migration was added; schema cleanup should wait until the rebuilt feature surface is stable.

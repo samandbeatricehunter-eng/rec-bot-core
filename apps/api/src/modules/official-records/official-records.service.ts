@@ -162,6 +162,30 @@ function recordRowFromTotals(totals: RecordTotals, extra: Record<string, unknown
   };
 }
 
+function allGamesRecordRowFromTotals(totals: RecordTotals, championshipWins: number, extra: Record<string, unknown> = {}) {
+  return {
+    ...recordRowFromTotals(totals, extra),
+    playoff_wins: 0,
+    playoff_losses: 0,
+    superbowl_wins: championshipWins,
+    superbowl_losses: 0,
+  };
+}
+
+function hasAnyRecordStat(totals: RecordTotals) {
+  return totals.gamesPlayed > 0
+    || totals.wins > 0
+    || totals.losses > 0
+    || totals.ties > 0
+    || totals.playoffWins > 0
+    || totals.playoffLosses > 0
+    || totals.superbowlWins > 0
+    || totals.superbowlLosses > 0
+    || totals.pointsFor > 0
+    || totals.pointsAgainst > 0
+    || totals.pointDifferential !== 0;
+}
+
 async function loadOfficialResultsForLeagueSeason(leagueId: string, seasonNumber: number) {
   const { data, error } = await supabase
     .from("rec_game_results")
@@ -197,6 +221,19 @@ async function loadLeagueGamesMap(leagueIds: string[]) {
   const { data, error } = await supabase.from("rec_leagues").select("id,game").in("id", leagueIds);
   if (error) throw error;
   return new Map((data ?? []).map((row) => [row.id, String(row.game ?? "madden_26")]));
+}
+
+async function loadManualChampionshipCredits(userIds: string[]) {
+  if (!userIds.length) return [];
+  const { data, error } = await supabase
+    .from("rec_manual_championship_credits")
+    .select("user_id,game,championship_count")
+    .in("user_id", userIds);
+  if (error) {
+    if ((error as any).code === "42P01") return [];
+    throw error;
+  }
+  return data ?? [];
 }
 
 export async function rebuildSeasonOfficialRecords(leagueId: string, seasonNumber: number) {
@@ -259,15 +296,25 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
     : { data: [], error: null };
   if (legacyBaselines.error) throw legacyBaselines.error;
   const baselineByUser = new Map((legacyBaselines.data ?? []).map((row) => [row.user_id, row.global_record]));
+  const manualCredits = await loadManualChampionshipCredits([...affectedUsers]);
+  const manualCreditsByUser = new Map<string, Array<{ game: string | null; championship_count: number }>>();
+  for (const row of manualCredits) {
+    const rows = manualCreditsByUser.get(row.user_id) ?? [];
+    rows.push({ game: row.game ?? null, championship_count: Number(row.championship_count ?? 0) });
+    manualCreditsByUser.set(row.user_id, rows);
+  }
 
   for (const userId of affectedUsers) {
     const userResults = results.filter((row) => row.home_user_id === userId || row.away_user_id === userId);
     const boxScoreTotals = aggregateResultsForUser(userId, userResults);
     const baseline = baselineFromLegacyJson(baselineByUser.get(userId) as Record<string, unknown>);
     const allGames = mergeRecordTotals(baseline, boxScoreTotals);
+    const userManualCredits = manualCreditsByUser.get(userId) ?? [];
+    const manualChampionships = userManualCredits.reduce((sum, row) => sum + Number(row.championship_count ?? 0), 0);
+    const allGamesChampionships = allGames.superbowlWins + manualChampionships;
 
     await supabase.from("rec_global_user_records").upsert(
-      recordRowFromTotals(allGames, { user_id: userId }),
+      allGamesRecordRowFromTotals(allGames, allGamesChampionships, { user_id: userId }),
       { onConflict: "user_id" },
     );
 
@@ -285,7 +332,11 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
       // to box-score-only (which previously erased the seeded baseline).
       const boxTotals = byGame.get(game) ?? emptyRecordTotals();
       const totals = game === "madden_26" ? mergeRecordTotals(baseline, boxTotals) : boxTotals;
-      if (totals.gamesPlayed === 0) {
+      const manualGameChampionships = userManualCredits
+        .filter((row) => row.game === game)
+        .reduce((sum, row) => sum + Number(row.championship_count ?? 0), 0);
+      totals.superbowlWins += manualGameChampionships;
+      if (!hasAnyRecordStat(totals)) {
         await supabase.from("rec_global_user_game_records").delete().eq("user_id", userId).eq("game", game);
         continue;
       }

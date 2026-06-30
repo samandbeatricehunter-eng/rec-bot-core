@@ -1371,8 +1371,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       gotwStatus,
       gotwVotingRecordText: gotwVotingRecord ? `${gotwVotingRecord.correct}-${gotwVotingRecord.total - gotwVotingRecord.correct} (${gotwVotingRecord.accuracy}%)` : "No votes yet",
       globalRecordText: recordText(globalRecord),
-      globalPlayoffText: playoffText(globalRecord),
-      globalSuperbowlText: superbowlText(globalRecord),
+      globalChampionships: Number(globalRecord?.superbowl_wins ?? 0),
       globalPointDifferential: globalRecord?.point_differential ?? 0,
       gameGlobalRecord: league?.id
         ? buildGameGlobalRecordDisplay(gameGlobalRecord, leagueGame)

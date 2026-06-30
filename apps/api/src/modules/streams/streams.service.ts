@@ -55,9 +55,20 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
 
-  // One stream payout per user per game week: any existing review that's pending,
-  // approved, or issued blocks additional payout embeds for the same week.
-  const alreadyPaid = await supabase
+  // A coach can only have one pending stream payout at a time across the league.
+  // Issued/denied reviews no longer block a later weekly stream submission.
+  const alreadyPending = await supabase
+    .from("rec_stream_payout_reviews")
+    .select("id")
+    .eq("league_id", context.leagueId)
+    .eq("user_id", account.user_id)
+    .eq("status", "pending")
+    .limit(1);
+
+  if (alreadyPending.error) throw new ApiError(500, "Failed to check pending stream payouts.", alreadyPending.error);
+
+  // Keep same-week idempotency for payouts that were already approved or issued.
+  const alreadyPaidThisWeek = await supabase
     .from("rec_stream_payout_reviews")
     .select("id")
     .eq("league_id", context.leagueId)
@@ -67,7 +78,7 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     .in("status", ["pending", "approved", "issued"])
     .limit(1);
 
-  if (alreadyPaid.error) throw new ApiError(500, "Failed to check stream payout status.", alreadyPaid.error);
+  if (alreadyPaidThisWeek.error) throw new ApiError(500, "Failed to check stream payout status.", alreadyPaidThisWeek.error);
 
   const streamLog = await supabase
     .from("rec_stream_compliance_logs")
@@ -95,7 +106,11 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
 
   if (streamLog.error) throw new ApiError(500, "Failed to record stream post.", streamLog.error);
 
-  if ((alreadyPaid.data ?? []).length > 0) {
+  if ((alreadyPending.data ?? []).length > 0) {
+    return { recorded: true, alreadyPending: true, streamLog: streamLog.data };
+  }
+
+  if ((alreadyPaidThisWeek.data ?? []).length > 0) {
     return { recorded: true, alreadyPaid: true, streamLog: streamLog.data };
   }
 

@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction, type TextChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type ButtonInteraction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction, type TextChannel } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
 import { buildStreamLinkModal, buildStreamRows, STREAM_CUSTOM_IDS } from "../ui/menu.js";
 
@@ -71,6 +71,63 @@ async function postPendingReview(interaction: StringSelectMenuInteraction | Moda
     )],
     allowedMentions: { roles: [streamResult.commissionerRoleId, streamResult.compCommitteeRoleId].filter(Boolean) }
   }).catch(() => undefined);
+}
+
+async function postPendingReviewFromMessage(message: Message, streamResult: any, link: string, matchup: any) {
+  if (!message.guild || !streamResult?.needsReview || !streamResult.pendingPayoutsChannelId) return;
+  const channel = await message.guild.channels.fetch(streamResult.pendingPayoutsChannelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+  const mentions = [streamResult.commissionerRoleId, streamResult.compCommitteeRoleId].filter(Boolean).map((id: string) => `<@&${id}>`).join(" ");
+  const matchupLine = boldUserTeam(matchup) ?? "Stream post";
+  await channel.send({
+    content: [mentions || null, link].filter(Boolean).join("\n"),
+    embeds: [new EmbedBuilder()
+      .setTitle("STREAM PAYOUT REVIEW")
+      .setDescription([
+        `## ${matchupLine}`,
+        "",
+        `<@${message.author.id}> posted a stream link.`,
+        `Stream link: ${link}`,
+        "Approve to issue the **$50** stream payout if they did stream their game. Otherwise, deny the request."
+      ].join("\n"))],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`rec:stream_review:approve:${streamResult.review?.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`rec:stream_review:deny:${streamResult.review?.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
+    )],
+    allowedMentions: { roles: [streamResult.commissionerRoleId, streamResult.compCommitteeRoleId].filter(Boolean) }
+  }).catch(() => undefined);
+}
+
+function firstLink(content: string) {
+  return content.match(/https?:\/\/\S+/i)?.[0] ?? null;
+}
+
+export async function handleStreamChannelMessage(message: Message) {
+  if (!message.guildId || message.author.bot) return false;
+  const link = firstLink(message.content);
+  if (!link) return false;
+
+  const config = await recApi.getEconomyConfig(message.guildId).catch(() => null);
+  if (message.channelId !== config?.routes?.streams_channel_id) return false;
+
+  const schedule = await recApi.getUserSchedule(message.author.id, message.guildId).catch(() => null);
+  const matchup = schedule?.isLinked ? scheduleMatchup(schedule) : null;
+  const streamResult = await recApi.recordStreamPost({
+    guildId: message.guildId,
+    discordId: message.author.id,
+    discordChannelId: message.channelId,
+    discordMessageId: message.id,
+    messageUrl: link,
+    content: message.content,
+    service: "link",
+    submissionType: "link"
+  }).catch((error) => {
+    console.warn("Failed to record stream channel post", { guildId: message.guildId, channelId: message.channelId, messageId: message.id, error });
+    return null;
+  });
+
+  await postPendingReviewFromMessage(message, streamResult, link, matchup);
+  return true;
 }
 
 export async function handleStreamMenu(interaction: ButtonInteraction) {

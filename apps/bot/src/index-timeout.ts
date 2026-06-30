@@ -120,7 +120,7 @@ import {
 } from "./handlers/wallet.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
 import { handlePurchaseButton, handlePurchaseModal, handlePurchaseSelect, openPurchaseStore } from "./flows/purchases.js";
-import { handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
+import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import {
   BOX_SCORE_CUSTOM_IDS,
   handleBoxScoreApprove,
@@ -632,6 +632,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+  if (await handleStreamChannelMessage(message).catch(() => false)) return;
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
   if (await handleWeeklyScoresUploadMessage(message).catch(() => false)) return;
   if (await handleScheduleImportUploadMessage(message).catch(() => false)) return;
@@ -2009,14 +2010,14 @@ async function handleStreamReviewButton(interaction: any) {
     const sourceChannel = await interaction.guild.channels.fetch(result.streamLog.discord_channel_id).catch(() => null);
     if (sourceChannel?.isTextBased()) {
       const sourceMessage = await sourceChannel.messages.fetch(result.streamLog.discord_message_id).catch(() => null);
-      await sourceMessage?.react("✅").catch(() => undefined);
+      await sourceMessage?.react("\u2705").catch(() => undefined);
     }
   }
   // DM the streamer that their payout was issued.
   if (result.updated && action === "approve" && result.streamerDiscordId) {
     const amount = result.amount ?? 50;
     const streamer = await interaction.client.users.fetch(result.streamerDiscordId).catch(() => null);
-    await streamer?.send(`You've been paid **$${amount}** for streaming your game this week. Thanks for streaming! 📺`).catch(() => undefined);
+    await streamer?.send(`You've been paid **$${amount}** for streaming your game this week. Thanks for streaming!`).catch(() => undefined);
   }
   if (result.updated && interaction.message?.editable) {
     await appendReviewActionToMessage(interaction, action === "approve" ? "Applied" : "Denied");
