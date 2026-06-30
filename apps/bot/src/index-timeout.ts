@@ -128,12 +128,19 @@ import {
 import {
   WAGER_CUSTOM_IDS,
   handlePlaceWager,
+  handleWagerModeHouse,
+  handleWagerModeOpen,
+  handleWagerModeDirect,
+  handleWagerCoachSelect,
   handleWagerGameSelect,
   handleWagerMarketSelect,
   handleWagerSideSelect,
   handleWagerStakeModal,
   handleWagerApprove,
   handleWagerCancel,
+  handleWagerTake,
+  handleWagerAccept,
+  handleWagerDecline,
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
 import { handlePurchaseButton, handlePurchaseModal, handlePurchaseSelect, openPurchaseStore } from "./flows/purchases.js";
@@ -413,9 +420,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
 
-    // Wager payout reviews live on public pending-payouts messages (no menu session).
+    // Wager payout reviews + peer challenge accept/take/decline live on public
+    // messages (pending-payouts / announcements), so route them before the guard.
     if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.approvePrefix)) return handleWagerApprove(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.cancelPrefix)) return handleWagerCancel(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.takePrefix)) return handleWagerTake(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.acceptPrefix)) return handleWagerAccept(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.declinePrefix)) return handleWagerDecline(interaction);
 
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
@@ -497,6 +508,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseSelect(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.coachAfcSelect || interaction.customId === WAGER_CUSTOM_IDS.coachNfcSelect) return handleWagerCoachSelect(interaction);
       if (interaction.customId === WAGER_CUSTOM_IDS.gameSelect) return handleWagerGameSelect(interaction);
       if (interaction.customId === WAGER_CUSTOM_IDS.marketSelect) return handleWagerMarketSelect(interaction);
       if (interaction.customId === WAGER_CUSTOM_IDS.sideSelect) return handleWagerSideSelect(interaction);
@@ -638,6 +650,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseButton(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.modeHouse) return handleWagerModeHouse(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.modeOpen) return handleWagerModeOpen(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.modeDirect) return handleWagerModeDirect(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);

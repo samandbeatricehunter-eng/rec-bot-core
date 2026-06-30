@@ -550,6 +550,16 @@ export const recApi = {
     recFetch<any>("/v1/wagers/resolvability", { method: "POST", body: JSON.stringify({ guildId, wagerId }) }),
   listConfirmableWagers: (guildId: string) =>
     recFetch<any>("/v1/wagers/confirmable", { method: "POST", body: JSON.stringify({ guildId }) }),
+  placePeerWager: (input: { guildId: string; discordId: string; gameId: string; market: string; pick: string; stake: number; challengeType: "open" | "direct"; targetUserId?: string | null }) =>
+    recFetch<any>("/v1/wagers/place-peer", { method: "POST", body: JSON.stringify(input) }),
+  acceptPeerWager: (guildId: string, discordId: string, wagerId: string) =>
+    recFetch<any>("/v1/wagers/accept-peer", { method: "POST", body: JSON.stringify({ guildId, discordId, wagerId }) }),
+  declinePeerWager: (wagerId: string) =>
+    recFetch<any>("/v1/wagers/decline-peer", { method: "POST", body: JSON.stringify({ wagerId }) }),
+  listChallengeableCoaches: (guildId: string, discordId: string) =>
+    recFetch<any>("/v1/wagers/challengeable-coaches", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
+  attachWagerAnnouncementMessage: (input: { wagerId: string; channelId: string; messageId: string }) =>
+    recFetch<any>("/v1/wagers/attach-announcement", { method: "POST", body: JSON.stringify(input) }),
 
   saveManualScheduleGame: (input: {
     guildId: string;

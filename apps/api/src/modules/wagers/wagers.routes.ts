@@ -5,12 +5,17 @@ import { sendError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getGameWagerOptions } from "./odds.service.js";
 import {
+  acceptPeerWager,
+  attachWagerAnnouncementMessage,
   attachWagerPendingMessage,
   cancelWager,
+  declinePeerWager,
   getWagerResolvability,
+  listChallengeableCoaches,
   listConfirmableWagers,
   listWagerableGames,
   placeHouseWager,
+  placePeerWager,
   settleWager,
 } from "./wagers.service.js";
 
@@ -47,6 +52,65 @@ export async function wagerRoutes(app: FastifyInstance) {
         stake: z.number().int().positive(),
       }).parse(request.body);
       return reply.send(await placeHouseWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/place-peer", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1),
+        gameId: z.string().uuid(),
+        market: z.string().min(1),
+        pick: z.string().min(1),
+        stake: z.number().int().positive(),
+        challengeType: z.enum(["open", "direct"]),
+        targetUserId: z.string().uuid().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await placePeerWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/accept-peer", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), wagerId: z.string().uuid() }).parse(request.body);
+      return reply.send(await acceptPeerWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/decline-peer", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ wagerId: z.string().uuid() }).parse(request.body);
+      return reply.send(await declinePeerWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/challengeable-coaches", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
+      return reply.send(await listChallengeableCoaches(body.guildId, body.discordId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/attach-announcement", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ wagerId: z.string().uuid(), channelId: z.string().min(1), messageId: z.string().min(1) }).parse(request.body);
+      return reply.send(await attachWagerAnnouncementMessage(body));
     } catch (error) {
       return sendError(reply, error);
     }

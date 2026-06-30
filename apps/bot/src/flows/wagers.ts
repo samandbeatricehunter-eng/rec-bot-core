@@ -17,8 +17,14 @@ import {
 import { americanFromDecimal } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
 export const WAGER_CUSTOM_IDS = {
+  modeHouse: "rec:wager:mode_house",
+  modeDirect: "rec:wager:mode_direct",
+  modeOpen: "rec:wager:mode_open",
+  coachAfcSelect: "rec:wager:coach_afc",
+  coachNfcSelect: "rec:wager:coach_nfc",
   gameSelect: "rec:wager:game",
   marketSelect: "rec:wager:market",
   sideSelect: "rec:wager:side",
@@ -26,9 +32,17 @@ export const WAGER_CUSTOM_IDS = {
   stakeInput: "rec:wager:stake_input",
   approvePrefix: "rec:wager:approve:", // + wagerId (pending-payout review)
   cancelPrefix: "rec:wager:void:",     // + wagerId (pending-payout review)
+  takePrefix: "rec:wager:take:",       // + wagerId (open challenge accept)
+  acceptPrefix: "rec:wager:accept:",   // + wagerId (direct challenge accept)
+  declinePrefix: "rec:wager:decline:", // + wagerId (direct challenge decline)
 } as const;
 
+type WagerMode = "house" | "peer_open" | "peer_direct";
+
 type WagerSession = {
+  mode: WagerMode;
+  targetUserId: string | null;
+  targetDiscordId: string | null;
   options: any | null;          // getWagerOptions payload for the selected game
   gameId: string | null;
   gameLabel: string | null;
@@ -47,7 +61,7 @@ const SESSION_TTL = 10 * 60 * 1000;
 function getSession(userId: string): WagerSession {
   const s = sessions.get(userId);
   if (s && Date.now() - s.at < SESSION_TTL) return s;
-  const fresh: WagerSession = { options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
+  const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
   sessions.set(userId, fresh);
   return fresh;
 }
@@ -69,42 +83,123 @@ function userError(err: unknown): string {
 export async function handlePlaceWager(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
-
-  let payload: any;
-  try {
-    payload = await recApi.listWagerGames(interaction.guildId, interaction.user.id);
-  } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
-  }
-  const games: any[] = payload?.games ?? [];
-  if (!games.length) {
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xf1c40f).setDescription("There are no games you can bet on this week (your own game is excluded, and a schedule must be logged).")],
-      components: [],
-    });
-  }
-
   sessions.delete(interaction.user.id);
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId(WAGER_CUSTOM_IDS.gameSelect)
-    .setPlaceholder("Pick a game to bet on")
-    .addOptions(games.slice(0, 25).map((g) =>
-      new StringSelectMenuOptionBuilder()
-        .setLabel(`${g.awayLabel} at ${g.homeLabel}`.slice(0, 100))
-        .setValue(g.gameId)
-        .setDescription(g.humanInvolved ? "Human game — full markets" : "CPU game — score markets only")));
 
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Place a Wager")
       .setColor(0x3498db)
       .setDescription([
-        `**Week ${payload.weekNumber}** — bet the house on a game below.`,
+        "Pick how you want to bet:",
         "",
-        "House lines are auto-set from power rankings and season stats. **Moneyline ties lose** regardless of pick. You can't bet your own game, can only bet **one CPU game** per week, and can't place the same game+market twice.",
+        "**Bet the House** — auto-set lines on this week's games.",
+        "**Challenge a Coach** — send a head-to-head wager to a specific coach.",
+        "**Open Challenge** — post a wager to the league; any coach can take the other side.",
+        "",
+        "You can't bet your own game. **Moneyline ties lose** house bets (peer ties refund). You can only bet **one CPU game** per week and can't place the same game+market twice.",
       ].join("\n"))],
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(WAGER_CUSTOM_IDS.modeHouse).setLabel("Bet the House").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(WAGER_CUSTOM_IDS.modeDirect).setLabel("Challenge a Coach").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(WAGER_CUSTOM_IDS.modeOpen).setLabel("Open Challenge").setStyle(ButtonStyle.Primary),
+    )],
   });
+}
+
+async function buildGameSelectPayload(guildId: string, discordId: string, headline: string) {
+  const payload = await recApi.listWagerGames(guildId, discordId);
+  const games: any[] = payload?.games ?? [];
+  if (!games.length) {
+    return { empty: true, embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xf1c40f).setDescription("There are no games you can bet on this week (your own game is excluded, and a schedule must be logged).")], components: [] };
+  }
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(WAGER_CUSTOM_IDS.gameSelect)
+    .setPlaceholder("Pick a game")
+    .addOptions(games.slice(0, 25).map((g) =>
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`${g.awayLabel} at ${g.homeLabel}`.slice(0, 100))
+        .setValue(g.gameId)
+        .setDescription(g.humanInvolved ? "Human game — full markets" : "CPU game — score markets only")));
+  return { empty: false, embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0x3498db).setDescription(headline)], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] };
+}
+
+export async function handleWagerModeHouse(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const session = getSession(interaction.user.id);
+  session.mode = "house";
+  session.at = Date.now();
+  try {
+    const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, "**Bet the House** — pick a game.");
+    return interaction.editReply({ embeds: payload.embeds, components: payload.components });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
+}
+
+export async function handleWagerModeOpen(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const session = getSession(interaction.user.id);
+  session.mode = "peer_open";
+  session.at = Date.now();
+  try {
+    const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, "**Open Challenge** — pick the game your wager is on. Any coach can take the other side.");
+    return interaction.editReply({ embeds: payload.embeds, components: payload.components });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
+}
+
+export async function handleWagerModeDirect(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const session = getSession(interaction.user.id);
+  session.mode = "peer_direct";
+  session.at = Date.now();
+
+  let payload: any;
+  try {
+    payload = await recApi.listChallengeableCoaches(interaction.guildId, interaction.user.id);
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
+  const coaches: any[] = payload?.coaches ?? [];
+  if (!coaches.length) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xf1c40f).setDescription("There are no other active linked coaches to challenge.")], components: [] });
+  }
+  const buildConf = (conf: "AFC" | "NFC", customId: string) => {
+    const list = coaches.filter((c) => c.conference === conf).slice(0, 25);
+    const menu = new StringSelectMenuBuilder().setCustomId(customId).setPlaceholder(`${conf} coaches`).setDisabled(list.length === 0);
+    menu.addOptions(list.length
+      ? list.map((c) => new StringSelectMenuOptionBuilder().setLabel(`${c.teamAbbr}`.slice(0, 100)).setValue(`${c.userId}:${c.discordId ?? ""}`).setDescription("Challenge this coach"))
+      : [new StringSelectMenuOptionBuilder().setLabel(`No ${conf} coaches`).setValue("none")]);
+    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+  };
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0x3498db).setDescription("Pick the coach you want to challenge.")],
+    components: [buildConf("AFC", WAGER_CUSTOM_IDS.coachAfcSelect), buildConf("NFC", WAGER_CUSTOM_IDS.coachNfcSelect)],
+  });
+}
+
+export async function handleWagerCoachSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const session = getSession(interaction.user.id);
+  const [userId, discordId] = (interaction.values[0] ?? "").split(":");
+  if (!userId || userId === "none") {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription("Pick a valid coach.")], components: [] });
+  }
+  session.mode = "peer_direct";
+  session.targetUserId = userId;
+  session.targetDiscordId = discordId || null;
+  session.at = Date.now();
+  try {
+    const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, `**Direct Challenge** — pick the game to wager on${discordId ? ` against <@${discordId}>` : ""}.`);
+    return interaction.editReply({ embeds: payload.embeds, components: payload.components });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
 }
 
 export async function handleWagerGameSelect(interaction: StringSelectMenuInteraction) {
@@ -203,15 +298,20 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("Enter a positive whole-dollar stake.")], components: [] });
   }
 
+  if (session.mode === "house") return placeHouseAndPost(interaction, session, stake);
+  return proposePeerAndPost(interaction, session, stake);
+}
+
+async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
+  if (!interaction.inCachedGuild()) return;
   let result: any;
   try {
-    result = await recApi.placeHouseWager({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: session.gameId, market: session.market, pick: session.pick, stake });
+    result = await recApi.placeHouseWager({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: session.gameId!, market: session.market!, pick: session.pick!, stake });
   } catch (err) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Placed").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
   }
   sessions.delete(interaction.user.id);
 
-  // Post the pending-payout embed to the pending-payouts channel.
   let posted = false;
   const channelId: string | null = result.pendingPayoutsChannelId ?? null;
   if (channelId) {
@@ -239,6 +339,133 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
       ].join("\n"))],
     components: [],
   });
+}
+
+async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
+  if (!interaction.inCachedGuild()) return;
+  const challengeType = session.mode === "peer_direct" ? "direct" : "open";
+  let result: any;
+  try {
+    result = await recApi.placePeerWager({
+      guildId: interaction.guildId, discordId: interaction.user.id, gameId: session.gameId!, market: session.market!, pick: session.pick!, stake,
+      challengeType, targetUserId: session.targetUserId,
+    });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Sent").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
+  const targetDiscordId = session.targetDiscordId;
+  sessions.delete(interaction.user.id);
+
+  // Post the challenge to the announcements channel.
+  let posted = false;
+  const channel = await getAnnouncementsChannel(interaction.guild, (await recApi.getEconomyConfig(interaction.guildId).catch(() => null))?.routes ?? {}).catch(() => null);
+  if (channel && "send" in channel && channel.isTextBased()) {
+    const isDirect = challengeType === "direct";
+    const content = isDirect && targetDiscordId ? `<@${targetDiscordId}>` : "@everyone";
+    const rows = isDirect
+      ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.acceptPrefix}${result.wager.id}`).setLabel("Accept").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.declinePrefix}${result.wager.id}`).setLabel("Decline").setStyle(ButtonStyle.Danger))]
+      : [new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.takePrefix}${result.wager.id}`).setLabel("Take Wager").setStyle(ButtonStyle.Success))];
+    const msg = await (channel as TextChannel).send({
+      content,
+      embeds: [buildPeerChallengeEmbed(result, interaction.user.id, targetDiscordId, isDirect)],
+      components: rows,
+      allowedMentions: isDirect && targetDiscordId ? { users: [targetDiscordId] } : { parse: ["everyone"] },
+    }).catch(() => null);
+    if (msg) {
+      posted = true;
+      await recApi.attachWagerAnnouncementMessage({ wagerId: result.wager.id, channelId: channel.id, messageId: msg.id }).catch(() => undefined);
+    }
+  }
+
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("Challenge Sent ✅")
+      .setColor(0x2ecc71)
+      .setDescription([
+        `**${result.gameLabel}**`,
+        `Your pick — ${result.marketLabel}: **${result.proposerPickLabel}**`,
+        `Stake: **$${result.stake}** → Pot pays **$${result.payout}** to the winner.`,
+        "",
+        `$${result.stake} was moved to holding. Wallet balance: **$${result.walletBalance}**.`,
+        posted ? (challengeType === "direct" ? "Sent to the coach to accept or decline." : "Posted as an open challenge for any coach to take.") : "No announcements channel is configured, so the challenge couldn't be posted.",
+      ].join("\n"))],
+    components: [],
+  });
+}
+
+function buildPeerChallengeEmbed(result: any, proposerDiscordId: string, targetDiscordId: string | null, isDirect: boolean): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle(isDirect ? "Head-to-Head Challenge" : "Open Wager Challenge")
+    .setColor(0x9b59b6)
+    .addFields(
+      { name: "FROM", value: `<@${proposerDiscordId}>`, inline: true },
+      ...(isDirect && targetDiscordId ? [{ name: "TO", value: `<@${targetDiscordId}>`, inline: true }] : []),
+      { name: "GAME", value: result.gameLabel ?? "—", inline: false },
+      { name: "PROPOSER TAKES", value: `${result.marketLabel}: **${result.proposerPickLabel}**`, inline: false },
+      { name: "YOU'D TAKE", value: `The other side of ${result.marketLabel}.`, inline: false },
+      { name: "STAKE / POT", value: `$${result.stake} each → winner takes **$${result.payout}**`, inline: false },
+    )
+    .setFooter({ text: isDirect ? "Accept to lock it in." : "Click Take Wager to take the other side." });
+}
+
+async function acceptPeerAndPost(interaction: ButtonInteraction, wagerId: string) {
+  if (!interaction.inCachedGuild()) return;
+  let result: any;
+  try {
+    result = await recApi.acceptPeerWager(interaction.guildId, interaction.user.id, wagerId);
+  } catch (err) {
+    return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral });
+  }
+  const w = result.wager;
+
+  // Update the announcement embed: remove buttons, show it's locked.
+  const base = interaction.message.embeds[0];
+  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Wager")).setColor(0x2ecc71);
+  embed.addFields({ name: "ACCEPTED", value: `<@${interaction.user.id}> took the other side. Sent to Pending Payouts.` });
+  await interaction.editReply({ embeds: [embed], components: [] }).catch(() => undefined);
+
+  // Post the pending-payout embed.
+  const channelId: string | null = result.pendingPayoutsChannelId ?? null;
+  if (channelId) {
+    const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
+    if (ch && ch.isTextBased() && !ch.isDMBased()) {
+      const payload = {
+        wager: w,
+        gameLabel: w.game_label ?? embed.data.fields?.find((f) => f.name === "GAME")?.value ?? "—",
+        marketLabel: w.market,
+        sideLabel: `${w.placed_by_discord_id ? `<@${w.placed_by_discord_id}>` : "Proposer"} vs <@${interaction.user.id}>`,
+      };
+      const msg = await (ch as TextChannel).send({ embeds: [buildWagerPendingEmbed(payload, false)], components: buildWagerReviewRows(w.id) }).catch(() => null);
+      if (msg) await recApi.attachWagerPendingMessage({ wagerId: w.id, channelId: ch.id, messageId: msg.id }).catch(() => undefined);
+    }
+  }
+}
+
+export async function handleWagerTake(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  return acceptPeerAndPost(interaction, interaction.customId.slice(WAGER_CUSTOM_IDS.takePrefix.length));
+}
+
+export async function handleWagerAccept(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  return acceptPeerAndPost(interaction, interaction.customId.slice(WAGER_CUSTOM_IDS.acceptPrefix.length));
+}
+
+export async function handleWagerDecline(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const wagerId = interaction.customId.slice(WAGER_CUSTOM_IDS.declinePrefix.length);
+  try {
+    await recApi.declinePeerWager(wagerId);
+  } catch (err) {
+    return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral });
+  }
+  await interaction.message.delete().catch(() => undefined);
 }
 
 // ─── Pending-payout embed + commissioner review ────────────────────────────────

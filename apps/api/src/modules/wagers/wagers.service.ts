@@ -229,6 +229,237 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   };
 }
 
+// Shared placement validation + line/odds resolution for house and peer wagers.
+async function prepareSingleWager(guildId: string, userId: string, leagueId: string, weekNumber: number, gameId: string, market: string, pick: string, stake: number) {
+  if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
+  const marketDef = WAGER_MARKET_BY_KEY.get(market);
+  if (!marketDef) throw new ApiError(400, "Unknown wager market.");
+
+  const { data: game, error: gameErr } = await supabase
+    .from("rec_games")
+    .select("id,week_number,home_team_id,away_team_id")
+    .eq("league_id", leagueId)
+    .eq("id", gameId)
+    .maybeSingle();
+  if (gameErr) throw new ApiError(500, "Failed to load the game.", gameErr);
+  if (!game) throw new ApiError(404, "That game isn't on the schedule.");
+  if (Number(game.week_number) !== weekNumber) throw new ApiError(400, "You can only wager on this week's games.");
+
+  const myTeamId = await activeTeamId(leagueId, userId);
+  if (myTeamId && (game.home_team_id === myTeamId || game.away_team_id === myTeamId)) {
+    throw new ApiError(400, "You can't bet on your own game.");
+  }
+
+  const options = await getGameWagerOptions(guildId, gameId);
+  if (marketDef.requiresBoxScore && !options.humanInvolved) {
+    throw new ApiError(400, "That market is only available on games with a human coach (box score).");
+  }
+  const marketOption = options.markets.find((m) => m.market === market);
+  if (!marketOption) throw new ApiError(400, "That market isn't available for this game.");
+  const side = marketOption.sides.find((s) => s.pick === pick);
+  if (!side) throw new ApiError(400, "Invalid pick for this market.");
+
+  let line: number | null = marketOption.line;
+  if (marketDef.kind === "spread") {
+    const isHome = pick === options.homeTeamId;
+    line = isHome ? -(marketOption.line ?? 0) : (marketOption.line ?? 0);
+  } else if (marketDef.kind === "moneyline") {
+    line = null;
+  }
+
+  const balance = await walletBalance(userId);
+  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes $${stake} and you have $${balance}.`);
+  return { game, options, marketDef, marketOption, side, line, balance };
+}
+
+export type PlacePeerWagerInput = {
+  guildId: string;
+  discordId: string;
+  gameId: string;
+  market: string;
+  pick: string;
+  stake: number;
+  challengeType: "open" | "direct";
+  targetUserId?: string | null;
+};
+
+// Propose a peer wager: escrow the proposer's stake and leave it awaiting an opponent
+// who takes the opposite side. Even-money pot — winner takes 2× the stake.
+export async function placePeerWager(input: PlacePeerWagerInput) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const userId = await userIdFromDiscord(input.discordId);
+
+  const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
+  if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
+
+  const stake = Math.floor(Number(input.stake));
+  const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, input.gameId, input.market, input.pick, stake);
+
+  if (input.challengeType === "direct") {
+    if (!input.targetUserId) throw new ApiError(400, "Pick a coach to challenge.");
+    if (input.targetUserId === userId) throw new ApiError(400, "You can't challenge yourself.");
+  }
+
+  const payout = stake * 2;
+  const insert = await supabase
+    .from("rec_wagers")
+    .insert({
+      league_id: leagueId,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      game_id: input.gameId,
+      placed_by_user_id: userId,
+      placed_by_discord_id: input.discordId,
+      wager_kind: "peer",
+      challenge_type: input.challengeType,
+      counterparty_user_id: input.challengeType === "direct" ? input.targetUserId : null,
+      market: input.market,
+      pick: input.pick,
+      line: prep.line,
+      odds: 2,
+      stake,
+      potential_payout: payout,
+      status: "awaiting_accept",
+    })
+    .select("*")
+    .single();
+  if (insert.error) {
+    if (insert.error.code === "23505") throw new ApiError(409, "You already have this exact wager (same game and market) this week.");
+    throw new ApiError(500, "Failed to propose wager.", insert.error);
+  }
+
+  const hold = await supabase.rpc("add_to_wallet", {
+    p_user_id: userId,
+    p_amount: -stake,
+    p_league_id: leagueId,
+    p_description: `Peer wager hold — ${prep.marketDef.label}`,
+    p_transaction_type: "wager_hold",
+    p_source: "wager",
+    p_source_reference: { wagerId: insert.data.id },
+  });
+  if (hold.error) {
+    await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
+    throw new ApiError(500, "Failed to hold wager funds.", hold.error);
+  }
+  await supabase.from("rec_wagers").update({ hold_ledger_id: hold.data }).eq("id", insert.data.id);
+
+  return {
+    wager: { ...insert.data, hold_ledger_id: hold.data },
+    proposerPickLabel: prep.side.label,
+    marketLabel: prep.marketDef.label,
+    gameLabel: `${prep.options.awayLabel} at ${prep.options.homeLabel}`,
+    stake,
+    payout,
+    walletBalance: prep.balance - stake,
+    announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null,
+    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
+  };
+}
+
+// A user takes the opposite side of an open/direct peer wager.
+export async function acceptPeerWager(input: { guildId: string; discordId: string; wagerId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const accepterId = await userIdFromDiscord(input.discordId);
+
+  const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (!wager || wager.status !== "awaiting_accept") throw new ApiError(409, "This wager is no longer open to accept.");
+  if (wager.placed_by_user_id === accepterId) throw new ApiError(400, "You can't take your own wager.");
+  if (wager.challenge_type === "direct" && wager.counterparty_user_id && wager.counterparty_user_id !== accepterId) {
+    throw new ApiError(400, "This direct challenge was sent to a specific coach.");
+  }
+
+  // Accepter can't be playing in the wagered game either.
+  const myTeamId = await activeTeamId(leagueId, accepterId);
+  if (myTeamId && wager.game_id) {
+    const { data: g } = await supabase.from("rec_games").select("home_team_id,away_team_id").eq("id", wager.game_id).maybeSingle();
+    if (g && (g.home_team_id === myTeamId || g.away_team_id === myTeamId)) {
+      throw new ApiError(400, "You can't take a wager on your own game.");
+    }
+  }
+
+  const stake = Number(wager.stake ?? 0);
+  const balance = await walletBalance(accepterId);
+  if (balance < stake) throw new ApiError(400, `Insufficient funds. This wager stakes $${stake} and you have $${balance}.`);
+
+  const hold = await supabase.rpc("add_to_wallet", {
+    p_user_id: accepterId,
+    p_amount: -stake,
+    p_league_id: leagueId,
+    p_description: `Peer wager hold — ${wager.market}`,
+    p_transaction_type: "wager_hold",
+    p_source: "wager",
+    p_source_reference: { wagerId: wager.id, accepter: true },
+  });
+  if (hold.error) throw new ApiError(500, "Failed to hold wager funds.", hold.error);
+
+  const updated = await supabase
+    .from("rec_wagers")
+    .update({ accepted_by_user_id: accepterId, accepted_by_discord_id: input.discordId, status: "pending", updated_at: new Date().toISOString() })
+    .eq("id", wager.id)
+    .eq("status", "awaiting_accept")
+    .select("*")
+    .single();
+  if (updated.error) {
+    // Lost the race — refund the hold.
+    await supabase.rpc("add_to_wallet", { p_user_id: accepterId, p_amount: stake, p_league_id: leagueId, p_description: "Peer wager hold reversed", p_transaction_type: "wager_refund", p_source: "wager", p_source_reference: { wagerId: wager.id } });
+    throw new ApiError(409, "Someone else just took this wager.");
+  }
+
+  return {
+    wager: updated.data,
+    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
+  };
+}
+
+export async function declinePeerWager(input: { wagerId: string }) {
+  const { data: wager } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
+  if (!wager || wager.status !== "awaiting_accept") return { ok: false };
+  await refundWagerStake(wager, "Peer wager declined — refund");
+  await supabase.from("rec_wagers").delete().eq("id", wager.id);
+  return { ok: true, announcementChannelId: wager.announcement_channel_id, announcementMessageId: wager.announcement_message_id };
+}
+
+// Active linked coaches (for the direct-challenge opponent picker), split by conference.
+export async function listChallengeableCoaches(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const leagueId = context.leagueId;
+  const me = await userIdFromDiscord(discordId).catch(() => null);
+  const { data } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,team_id,rec_teams(name,abbreviation,display_abbr,conference),rec_users(rec_discord_accounts(discord_id))")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  const coaches = (data ?? [])
+    .filter((a: any) => a.user_id && a.user_id !== me)
+    .map((a: any) => {
+      const acc = a.rec_users?.rec_discord_accounts;
+      const discord = Array.isArray(acc) ? acc[0]?.discord_id : acc?.discord_id;
+      const team = a.rec_teams;
+      return {
+        userId: a.user_id,
+        discordId: discord ?? null,
+        teamAbbr: teamAbbr(team),
+        conference: String(team?.conference ?? "").toUpperCase().includes("AFC") ? "AFC" : "NFC",
+      };
+    });
+  return { coaches };
+}
+
+export async function attachWagerAnnouncementMessage(input: { wagerId: string; channelId: string; messageId: string }) {
+  const { error } = await supabase
+    .from("rec_wagers")
+    .update({ announcement_channel_id: input.channelId, announcement_message_id: input.messageId, updated_at: new Date().toISOString() })
+    .eq("id", input.wagerId);
+  if (error) throw new ApiError(500, "Failed to store wager announcement message.", error);
+  return { ok: true };
+}
+
 // Persist the Discord message ids of the pending-payout embed so it can be refreshed
 // when the game result lands and removed on cancel.
 export async function attachWagerPendingMessage(input: { wagerId: string; channelId: string; messageId: string }) {
@@ -283,7 +514,7 @@ async function loadTeamGameStat(leagueId: string, gameId: string, statKey: strin
 
 // Decide win/lose/push for a single (market, pick, line) against a confirmed result.
 // Returns null when the result needed isn't available yet.
-async function resolveOutcome(leagueId: string, wager: { game_id: string | null; market: string; pick: string; line: number | null }): Promise<"won" | "lost" | "push" | null> {
+async function resolveOutcome(leagueId: string, wager: { game_id: string | null; market: string; pick: string; line: number | null; wager_kind?: string | null }): Promise<"won" | "lost" | "push" | null> {
   if (!wager.game_id) return null;
   const def = WAGER_MARKET_BY_KEY.get(wager.market);
   if (!def) return null;
@@ -294,7 +525,9 @@ async function resolveOutcome(leagueId: string, wager: { game_id: string | null;
   const isTie = result.is_tie || homeScore === awayScore;
 
   if (def.kind === "moneyline") {
-    if (isTie) return "lost"; // house rule: a tie loses the moneyline regardless of pick
+    // House rule: a tie loses the moneyline regardless of pick. Peer wagers push a
+    // tie (neither side's team won) so both coaches get refunded.
+    if (isTie) return wager.wager_kind === "peer" ? "push" : "lost";
     return result.winning_team_id === wager.pick ? "won" : "lost";
   }
 
@@ -404,7 +637,7 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
 export async function listConfirmableWagers(leagueId: string) {
   const { data } = await supabase
     .from("rec_wagers")
-    .select("id,pending_channel_id,pending_message_id,game_id,market,pick,line")
+    .select("id,pending_channel_id,pending_message_id,game_id,market,pick,line,wager_kind")
     .eq("league_id", leagueId)
     .eq("status", "pending")
     .not("pending_message_id", "is", null);
