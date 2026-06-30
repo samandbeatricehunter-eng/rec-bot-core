@@ -85,6 +85,7 @@ import {
   handleAdvanceDmSkip,
   handleHeadlinesNav,
 } from "./flows/advance-time.js";
+import { handleEosAwards, recoverOpenEosAwardPolls } from "./flows/eos-awards.js";
 import { stageLabel } from "./lib/league-stage.js";
 import {
   TEAM_REQUEST_CUSTOM_IDS,
@@ -314,6 +315,7 @@ client.once("clientReady", async () => {
   }
   await registerCommandsForVisibleGuilds();
   await recoverOpenActiveChecks();
+  await recoverOpenEosAwardPolls(client, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
 });
 
 client.on("error", (error) => {
@@ -574,7 +576,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.eosNext) return handleEosProjectionPage(interaction, 1);
       if (interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix)) return handleIssueEosPayoutBatch(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosPayouts) return handleEosPayouts(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return replyMenuPlaceholder(interaction, "EOS Awards", "EOS Awards is intentionally a placeholder for now.");
+      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return handleEosAwards(interaction, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtPotyTallies) return handlePotyTallies(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSettings) return handleLeagueMgmtSettings(interaction);

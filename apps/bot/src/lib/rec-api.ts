@@ -280,6 +280,24 @@ export const recApi = {
       body: JSON.stringify(input),
     }),
 
+  prepareEosAwardNominees: (input: { guildId: string }) =>
+    recFetch<any>("/v1/league-week/eos-awards/prepare", { method: "POST", body: JSON.stringify(input) }),
+
+  recordEosAwardPoll: (input: { guildId: string; categoryKey: string; discordChannelId: string; discordMessageId: string; closesAt: string; nominees: any[] }) =>
+    recFetch<any>("/v1/league-week/eos-awards/record-poll", { method: "POST", body: JSON.stringify(input) }),
+
+  listOpenEosAwardPolls: () =>
+    recFetch<{ polls: any[] }>("/v1/league-week/eos-awards/open", { method: "POST", body: JSON.stringify({}) }),
+
+  cancelOpenEosAwardPolls: (input: { guildId: string }) =>
+    recFetch<{ cancelled: any[] }>("/v1/league-week/eos-awards/cancel-open", { method: "POST", body: JSON.stringify(input) }),
+
+  settleEosAwardPoll: (input: { pollId: string; voteCounts: Record<string, number>; discordMessageId?: string | null }) =>
+    recFetch<any>("/v1/league-week/eos-awards/settle", { method: "POST", body: JSON.stringify(input) }),
+
+  listSettledEosAwards: (input: { guildId: string; seasonNumber?: number | null }) =>
+    recFetch<any>("/v1/league-week/eos-awards/settled", { method: "POST", body: JSON.stringify(input) }),
+
   listReversibleTransactions: (input: { guildId: string; discordId: string }) =>
     recFetch<any>("/v1/admin-economy/reversible-transactions", {
       method: "POST",

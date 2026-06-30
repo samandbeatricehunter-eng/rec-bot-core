@@ -407,10 +407,13 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
     interaction.customId === TEAM_LINK_CUSTOM_IDS.teamSelect
   ) {
     if (value === "CUSTOM_TEAM") {
-      await interaction.reply({
-        content: "Custom team replacement will be added in the next team-linking pass.",
-        ephemeral: true
+      const { buildCustomTeamModal } = await import("../ui/team-options.js");
+      customTeamPendingSessions.set(interaction.user.id, {
+        guildId: interaction.guildId,
+        conference: draft.conference,
+        linkUser: false,
       });
+      await interaction.showModal(buildCustomTeamModal(draft.conference));
       return;
     }
 
@@ -1049,7 +1052,7 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
         embeds: [
           new EmbedBuilder()
             .setTitle("Custom Team Saved")
-            .setDescription(`**${displayName}** (${newAbbr}) is set for the **${replacedAbbr}** slot.\n\nTeam data updated — imports will map to this team. Any existing coach link is preserved; no relinking needed. You can link a coach anytime from User/Team Linking.`)
+            .setDescription(`**${displayName}** (${newAbbr}) is set for the **${replacedAbbr}** slot.\n\nTeam data updated - imports will map to this team. Any existing coach link is preserved; no relinking needed. You can link a coach anytime from User/Team Linking.`)
         ],
         components: pending.returnToLeagueTeams ? buildLeagueMgmtTeamsPanel().components : [buildNavigationRow({ includeAdminPanel: true })]
       });

@@ -5,6 +5,7 @@ import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
 import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
+import { cancelOpenEosAwardPolls, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
@@ -293,6 +294,72 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         reviewedByDiscordId: z.string().min(1),
       }).parse(request.body);
       return reply.send(await issueEosPayoutBatch(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/prepare", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      return reply.send(await prepareEosAwardNominees(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/record-poll", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        categoryKey: z.string().min(1),
+        discordChannelId: z.string().min(1),
+        discordMessageId: z.string().min(1),
+        closesAt: z.string().min(1),
+        nominees: z.array(z.any()),
+      }).parse(request.body);
+      return reply.send(await recordEosAwardPoll(body as any));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/open", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await listOpenEosAwardPolls());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/cancel-open", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      return reply.send(await cancelOpenEosAwardPolls(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/settle", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ pollId: z.string().uuid(), voteCounts: z.record(z.string(), z.number()), discordMessageId: z.string().optional().nullable() }).parse(request.body);
+      return reply.send(await settleEosAwardPoll(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/settled", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), seasonNumber: z.number().int().optional().nullable() }).parse(request.body);
+      return reply.send(await listSettledEosAwards(body));
     } catch (error) {
       return sendError(reply, error);
     }

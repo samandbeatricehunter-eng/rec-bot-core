@@ -211,9 +211,9 @@ export function buildOpenTeamSelectRow(conference: string, openTeams: TeamLinkTe
         ...(conference === "AFC" || conference === "NFC"
           ? [
               new StringSelectMenuOptionBuilder()
-                .setLabel("Custom Team")
+                .setLabel("Custom / Team Builder")
                 .setValue("CUSTOM_TEAM")
-                .setDescription("Custom team replacement flow will be added next.")
+                .setDescription("Register or update a relocated, custom, or Team Builder team.")
             ]
           : [])
       )
@@ -231,7 +231,7 @@ export function buildSimpleTeamLinkPanel(teams: TeamLinkTeamOption[] = [...AFC_T
     embeds: [
       new EmbedBuilder()
         .setTitle("Link User to Team")
-        .setDescription("Select a conference to view available teams.\n\nUse **Add / Edit Custom Team** to register or update a relocated/custom team's data (city, name, abbreviation) without linking or relinking a coach. Works for unmanned teams and already-linked teams — any existing coach link is preserved.")
+        .setDescription("Select a conference to view available teams.\n\nUse **Add / Edit Custom Team** to register or update a relocated, custom, or Team Builder team's data without linking or relinking a coach. Works for unmanned teams and already-linked teams - any existing coach link is preserved.")
     ],
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -285,7 +285,7 @@ export function buildLeagueMgmtTeamsPanel() {
 
 export function buildPostSetupTeamLinkingPanel(franchiseYearOne: boolean) {
   const continueLabel = franchiseYearOne ? "Continue to Schedule Review" : "Continue to Schedule Setup";
-  const skipLabel = franchiseYearOne ? "Skip Linking — Review Schedule" : "Skip Linking — Set Up Schedule";
+  const skipLabel = franchiseYearOne ? "Skip Linking - Review Schedule" : "Skip Linking - Set Up Schedule";
   const footerNote = franchiseYearOne
     ? "When you are ready, review each regular-season week (18 pages)."
     : "When you are ready, enter the schedule manually or finish setup.";
@@ -626,28 +626,28 @@ export function buildUserSelectionPanel(
 export function buildCustomTeamModal(conference?: string) {
   const modal = new ModalBuilder()
     .setCustomId(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:${conference ?? "GEN"}`)
-    .setTitle(conference ? `Register Custom ${conference} Team` : "Register Custom Team");
+    .setTitle(conference ? `Register ${conference} Custom Team` : "Register Custom Team");
 
   const replaceInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamReplaceInput)
-    .setLabel("Original team abbreviation to replace")
+    .setLabel("Existing team slot to replace")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder("e.g. NO, BAL, DAL");
+    .setPlaceholder("e.g. DAL, Alabama, Oregon");
 
   const cityInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamCityInput)
-    .setLabel("New team city")
+    .setLabel("New school or city")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder("e.g. San Diego");
+    .setPlaceholder("e.g. San Diego or Coastal Carolina");
 
   const nickInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNickInput)
-    .setLabel("New team name")
+    .setLabel("New mascot or team name")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder("e.g. Chargers");
+    .setPlaceholder("e.g. Chargers or Chanticleers");
 
   const abbrInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput)
