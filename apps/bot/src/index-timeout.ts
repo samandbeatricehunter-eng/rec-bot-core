@@ -347,6 +347,19 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctModalPrefix)) return handleWeeklyScoresCorrectModal(interaction);
 
+    // Box score payout reviews live on public pending-payouts messages with no menu
+    // session, so route them before the session-touch guard (otherwise the guard
+    // expires the window, deleting the embed without ever issuing the payout). The
+    // pull-inbox versions share these custom IDs and route here harmlessly too.
+    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctOpenPrefix)) return handleBoxScoreCorrectionsOpen(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctCancelPrefix)) return handleBoxScoreCorrectionsCancel(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
+    if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
+
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       await expireWindow(interaction);
