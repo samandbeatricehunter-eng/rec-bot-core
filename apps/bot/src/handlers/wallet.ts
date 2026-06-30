@@ -1,4 +1,4 @@
-import { EmbedBuilder, MessageFlags, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { EmbedBuilder, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
 import {
   buildManageWalletRows,
@@ -28,13 +28,6 @@ function formatTransactionLine(transaction: any) {
   const type = String(transaction?.transaction_type ?? "transaction").replaceAll("_", " ");
   const reason = transaction?.description ?? transaction?.source ?? "No reason provided";
   return `**${sign}$${amount}** - ${type}\n${formatRecDateTime(transaction?.created_at)} - ${reason}`;
-}
-
-export async function handlePlaceWager(interaction: ButtonInteraction) {
-  return interaction.reply({
-    embeds: [new EmbedBuilder().setTitle("Wager").setDescription("Wager tools are not active yet. This workflow will be built after the purchase workflow.")],
-    flags: MessageFlags.Ephemeral
-  });
 }
 
 async function buildManageWalletPayload(userId: string, guildId: string | undefined) {

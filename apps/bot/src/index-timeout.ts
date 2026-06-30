@@ -123,9 +123,18 @@ import {
   handleWalletTransferAll,
   handleWalletTransferDirection,
   handleWalletTransferOpen,
-  handlePlaceWager,
   handleWalletPendingPurchases
 } from "./handlers/wallet.js";
+import {
+  WAGER_CUSTOM_IDS,
+  handlePlaceWager,
+  handleWagerGameSelect,
+  handleWagerMarketSelect,
+  handleWagerSideSelect,
+  handleWagerStakeModal,
+  handleWagerApprove,
+  handleWagerCancel,
+} from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
 import { handlePurchaseButton, handlePurchaseModal, handlePurchaseSelect, openPurchaseStore } from "./flows/purchases.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
@@ -404,6 +413,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
 
+    // Wager payout reviews live on public pending-payouts messages (no menu session).
+    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.approvePrefix)) return handleWagerApprove(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(WAGER_CUSTOM_IDS.cancelPrefix)) return handleWagerCancel(interaction);
+
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       await expireWindow(interaction);
@@ -484,6 +497,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseSelect(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.gameSelect) return handleWagerGameSelect(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.marketSelect) return handleWagerMarketSelect(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.sideSelect) return handleWagerSideSelect(interaction);
     }
 
     if (interaction.isButton()) {
@@ -695,6 +711,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(ADVANCE_WIZARD_CUSTOM_IDS.scoreModalPrefix)) return handleAdvanceWizardScoreModal(interaction, buildAdvanceMgmtRows);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction);
+      if (interaction.customId === WAGER_CUSTOM_IDS.stakeModal) return handleWagerStakeModal(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseModal(interaction);
     }
   } catch (error) {

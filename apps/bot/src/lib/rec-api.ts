@@ -533,6 +533,22 @@ export const recApi = {
   getPowerRankings: (guildId: string, discordId?: string | null, completedWeekNumber?: number | null) =>
     recFetch<any>("/v1/schedule/power-rankings", { method: "POST", body: JSON.stringify({ guildId, discordId, completedWeekNumber }) }),
 
+  // ─── Wagers ───
+  listWagerGames: (guildId: string, discordId: string) =>
+    recFetch<any>("/v1/wagers/games", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
+  getWagerOptions: (guildId: string, gameId: string) =>
+    recFetch<any>("/v1/wagers/options", { method: "POST", body: JSON.stringify({ guildId, gameId }) }),
+  placeHouseWager: (input: { guildId: string; discordId: string; gameId: string; market: string; pick: string; stake: number }) =>
+    recFetch<any>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
+  attachWagerPendingMessage: (input: { wagerId: string; channelId: string; messageId: string }) =>
+    recFetch<any>("/v1/wagers/attach-message", { method: "POST", body: JSON.stringify(input) }),
+  settleWager: (wagerId: string, reviewedByDiscordId: string) =>
+    recFetch<any>("/v1/wagers/settle", { method: "POST", body: JSON.stringify({ wagerId, reviewedByDiscordId }) }),
+  cancelWager: (wagerId: string) =>
+    recFetch<any>("/v1/wagers/cancel", { method: "POST", body: JSON.stringify({ wagerId }) }),
+  getWagerResolvability: (guildId: string, wagerId: string) =>
+    recFetch<any>("/v1/wagers/resolvability", { method: "POST", body: JSON.stringify({ guildId, wagerId }) }),
+
   saveManualScheduleGame: (input: {
     guildId: string;
     seasonNumber?: number | null;

@@ -15,6 +15,7 @@ import { streamRoutes } from "./modules/streams/streams.routes.js";
 import { teamOwnershipRoutes } from "./modules/team-ownership/team-ownership.routes.js";
 import { teamRequestRoutes } from "./modules/team-requests/team-requests.routes.js";
 import { userRoutes } from "./modules/users/user.routes.js";
+import { wagerRoutes } from "./modules/wagers/wagers.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
@@ -35,4 +36,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await highlightRoutes(app);
   await gotwRoutes(app);
   await purchaseRoutes(app);
+  await wagerRoutes(app);
 }
