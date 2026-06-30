@@ -855,7 +855,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     .eq("league_id", league.id)
     .eq("season_id", seasonId)
     .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-    .lte("week_number", 18);
+    .lte("week_number", 22);
   if (gamesError) throw new ApiError(500, "Failed to load schedule", gamesError);
 
   const hasLoggedSchedule = (scheduledGames ?? []).length > 0;
@@ -913,7 +913,9 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   const gamesByWeek = new Map<number, any>();
   for (const game of scheduledGames ?? []) {
     const weekNumber = Number(game.week_number ?? 0);
-    if (weekNumber >= 1 && weekNumber <= 18) gamesByWeek.set(weekNumber, game);
+    // Include playoff weeks (19–22) too, so the current-week matchup resolves in
+    // the postseason. The `games` array below stays regular-season only.
+    if (weekNumber >= 1 && weekNumber <= 22) gamesByWeek.set(weekNumber, game);
   }
 
   function resolveGameUserId(game: any, side: "home" | "away") {
@@ -985,6 +987,29 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     });
   }
 
+  // Current-week matchup, resolved from any week INCLUDING the playoffs (the
+  // `games` array above is regular-season only). Consumers like the stream
+  // header need the active matchup even in weeks 19–22.
+  const currentWeekNum = Number(league.current_week ?? 0);
+  const currentGame = gamesByWeek.get(currentWeekNum) ?? null;
+  let currentMatchup: any = null;
+  if (currentGame) {
+    const homeUserId = resolveGameUserId(currentGame, "home");
+    const awayUserId = resolveGameUserId(currentGame, "away");
+    currentMatchup = {
+      weekNumber: currentWeekNum,
+      phase: currentGame.phase ?? null,
+      homeTeamId: currentGame.home_team_id,
+      awayTeamId: currentGame.away_team_id,
+      homeTeamName: formatTeamDisplayName(currentGame.home_team) ?? teamName(currentGame, "home"),
+      awayTeamName: formatTeamDisplayName(currentGame.away_team) ?? teamName(currentGame, "away"),
+      homeLabel: sideLabel(currentGame, "home"),
+      awayLabel: sideLabel(currentGame, "away"),
+      isHome: currentGame.home_team_id === teamId,
+      isH2h: Boolean(homeUserId && awayUserId),
+    };
+  }
+
   const teamRow = (assignment.data as any)?.team ?? null;
   return {
     isLinked: true,
@@ -996,6 +1021,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     },
     team: teamRow ? { ...teamRow, name: formatTeamDisplayName(teamRow) ?? teamRow.name } : null,
     games,
+    currentMatchup,
   };
 }
 

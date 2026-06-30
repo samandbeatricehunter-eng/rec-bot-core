@@ -10,7 +10,11 @@ function serviceLabel(service: string) {
 
 function scheduleMatchup(schedule: any) {
   const leagueWeek = Number(schedule?.league?.current_week ?? 0);
-  const game = (schedule?.games ?? []).find((row: any) => Number(row.weekNumber ?? 0) === leagueWeek) ?? (schedule?.games ?? [])[0];
+  // Prefer the server-computed current matchup (resolves playoff weeks too).
+  // Fall back to the regular-season games array by current week — but never to
+  // games[0], which would mislabel the stream with Week 1's matchup.
+  const game = schedule?.currentMatchup
+    ?? (schedule?.games ?? []).find((row: any) => Number(row.weekNumber ?? 0) === leagueWeek);
   if (!game) return null;
   return {
     weekNumber: game.weekNumber ?? leagueWeek,
