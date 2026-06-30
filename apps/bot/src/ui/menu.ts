@@ -32,7 +32,6 @@ export const MENU_CUSTOM_IDS = {
   viewUserProfiles: "rec:menu:view_user_profiles",
   stream: "rec:menu:stream",
   streamBack: "rec:stream:back",
-  uploadScoringSummary: "rec:menu:upload_scoring_summary",
   helpRules: "rec:menu:help_rules",
   leagueMgmt: "rec:menu:league_mgmt",
   requestTeam: "rec:teams:request",
@@ -249,13 +248,13 @@ export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } 
       "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
     ]
     : [
-      "**Run the league in-game first.** Advance Madden/CFB before advancing REC so the new week, playoff bracket, scores, and schedule screenshots exist.",
-      "**Upload Scores / Weekly Scores** - Catch up missed game results and weekly scoreboard screenshots before using REC Advance.",
-      "**Schedule** - Upload, manually enter, or review schedules. Playoff schedules usually require advancing in-game first.",
-      "**Advance** - After in-game advance and score/schedule work, run REC advance tools: GOTW polls, game channels, active checks, EOS, and troubleshooting.",
-      "**Teams / Roles** - Link users to teams, edit custom teams, and manage REC Discord roles.",
-      "**Settings / First-Time Setup** - Update league/server setup. Rerunning first-time setup can rebuild league data.",
-      "**Delete League** - Permanently delete this server's current league data.",
+      "**New here?** Run your game in-game first (advance Madden/CFB), then come back to upload scores and advance REC — that order keeps the new week, scores, playoff bracket, and schedule screenshots ready to import.",
+      "",
+      "**Teams / Roles** — Link coaches to teams, edit relocated/custom teams, reset defaults, and manage REC Discord roles.",
+      "**Schedule** — Upload a schedule screenshot, enter it manually, or review the current schedule. Playoff schedules usually need an in-game advance first.",
+      "**Advance** — Run the weekly REC advance: upload scores, GOTW polls, game channels, active checks, EOS payouts/awards, power rankings, and Advance DMs.",
+      "**Settings** — Update league & server configuration (channels, economy, rules, activity requirements).",
+      "**First-Time Setup / Delete League** — Re-run initial setup (can rebuild league data) or permanently delete this server's league.",
     ];
 
   return new EmbedBuilder()
@@ -295,13 +294,11 @@ export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } =
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Advance").setStyle(ButtonStyle.Success)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSettings).setLabel("Settings").setStyle(ButtonStyle.Success)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup).setLabel("First-Time Setup").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtDeleteLeague).setLabel("Delete League").setStyle(ButtonStyle.Danger)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSettings).setLabel("Settings").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Back to Menu").setStyle(ButtonStyle.Secondary)
     )
   ];

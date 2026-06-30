@@ -627,7 +627,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.uploadScoringSummary) return replyMenuPlaceholder(interaction, "Scoring Summary", "Scoring summary uploads are not active yet. Box score uploads are currently used for game results, stats, and payout review.");
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.cancel) return handleBoxScoreCancel(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submissionsOpen) return handleBoxScoreSubmissions(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminCancel) return handleBoxScoreAdminCancel(interaction);

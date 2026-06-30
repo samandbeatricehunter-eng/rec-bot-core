@@ -12,7 +12,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
-import { teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
+import { teamDisplayAbbr, teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type RosterConference, type RosterTeam } from "../ui/menu.js";
 
 export const SCHEDULE_MGMT_CUSTOM_IDS = {
@@ -884,7 +884,7 @@ function expectedGamesForWeek(session: ManualScheduleSession) {
 }
 
 function displayTeam(team: ManualTeam | any) {
-  return teamDisplayLabel(team);
+  return teamDisplayAbbr(team);
 }
 
 function conferenceOf(team: ManualTeam) {
@@ -1023,7 +1023,7 @@ function formatViewWeekLabel(weekNumber: number) {
 function formatScheduleParticipant(team: any, discordId?: string | null) {
   if (discordId) return `<@${discordId}>`;
   if (!team) return "Unassigned";
-  return teamDisplayName(team);
+  return teamDisplayAbbr(team);
 }
 
 function buildPostSetupWeekEmbed(session: ScheduleViewSession) {
