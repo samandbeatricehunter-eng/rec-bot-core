@@ -176,6 +176,7 @@ const menuSessions = new ExpiringSessionStore<true>();
 const serverSetupChannelSessions = new Map<string, string>();
 const ADVANCE_CUSTOM_IDS = {
   gotwSelect: "rec:advance:gotw_select",
+  gotwConfirm: "rec:advance:gotw_confirm",
   regularWeekSelect: "rec:advance:regular_week_select",
   stageSelect: "rec:advance:stage_select",
   seasonSelect: "rec:advance:season_select",
@@ -475,6 +476,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek) return startAdvanceWeekWizard(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtActiveCheck) return handleActiveCheck(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetGotw) return handleSetGotw(interaction);
+      if (interaction.customId.startsWith(`${ADVANCE_CUSTOM_IDS.gotwConfirm}:`)) return handleGotwConfirm(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtGameChannels) return handleGameChannels(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetWeek) return handleSetWeek(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetSeason) return handleSetSeason(interaction);
@@ -873,6 +875,12 @@ function teamDisplay(team: any) {
   return team.display_abbr ?? team.abbreviation ?? team.name ?? "Team";
 }
 
+// Nickname only (no city) — used for game channel names, e.g. "frost-bite-vs-cowboys".
+function teamNick(team: any) {
+  if (!team) return "TBD";
+  return team.display_nick ?? team.name ?? team.display_abbr ?? team.abbreviation ?? "Team";
+}
+
 async function currentSchedule(interaction: ButtonInteraction) {
   const week = await recApi.viewLeagueWeek(interaction.guildId!);
   const seasonNumber = Number(week?.league?.season_number ?? week?.league?.display_season_number ?? 1);
@@ -918,8 +926,41 @@ async function handleSetGotw(interaction: ButtonInteraction) {
 async function handleGotwSelect(interaction: any) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set GOTW");
+  // Selecting a matchup does NOT post immediately. Discord only fires this
+  // interaction when the selected value changes, so re-picking the same option
+  // would silently do nothing. We render an explicit Confirm step instead, which
+  // also guards against accidentally publishing an @everyone poll.
   await interaction.deferUpdate();
   const selectedGameId = interaction.values[0];
+  const { currentWeek, stage, games } = await currentSchedule(interaction as any);
+  const game = games.find((g: any) => g.id === selectedGameId);
+  if (!game) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("That matchup is no longer available. Reopen **Set GOTW** and try again.")], components: buildAdvanceMgmtRows() });
+  }
+  const awayLabel = teamDisplay(game.away_team);
+  const homeLabel = teamDisplay(game.home_team);
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Confirm Game of the Week").setDescription([
+      `**${awayLabel} at ${homeLabel}**`,
+      stageLabel(stage, currentWeek),
+      "",
+      "Confirming posts an @everyone poll to the voting polls channel asking members to pick the winner.",
+    ].join("\n"))],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${ADVANCE_CUSTOM_IDS.gotwConfirm}:${selectedGameId}`).setLabel("Confirm & Post GOTW").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetGotw).setLabel("Pick Different Matchup").setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back").setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+async function handleGotwConfirm(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set GOTW");
+  await interaction.deferUpdate();
+  const selectedGameId = interaction.customId.slice(`${ADVANCE_CUSTOM_IDS.gotwConfirm}:`.length);
   const { currentWeek, stage, games } = await currentSchedule(interaction as any);
   const game = games.find((g: any) => g.id === selectedGameId);
   const routes = await getRouteChannels(interaction.guildId);
@@ -1023,7 +1064,8 @@ async function handleGameChannels(interaction: ButtonInteraction) {
   for (const game of h2h) {
     const away = teamDisplay(game.away_team);
     const home = teamDisplay(game.home_team);
-    const name = `${away} vs ${home}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+    // Channel title is team nicknames only (no city), e.g. "frost-bite-vs-cowboys".
+    const name = `${teamNick(game.away_team)} vs ${teamNick(game.home_team)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
     const ch = await interaction.guild.channels.create({
       name,
       type: ChannelType.GuildText,
