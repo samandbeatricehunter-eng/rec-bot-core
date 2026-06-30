@@ -21,6 +21,13 @@ import { getPendingPayoutsChannel } from "./schedule-scores.js";
 // abbreviations and MATCHUP nicknames are matched to league teams server-side.
 
 const MAX_IMPORT_WEEK = 18;
+// One-week mode can import any week including the playoffs; the wizard still
+// walks the regular season only (1–18).
+const MAX_SINGLE_IMPORT_WEEK = 22;
+const PLAYOFF_WEEK_LABELS = ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
+function importWeekLabel(week: number) {
+  return week <= 18 ? `Week ${week}` : `Week ${week} — ${PLAYOFF_WEEK_LABELS[week - 19] ?? "Playoffs"}`;
+}
 
 export const SCHEDULE_IMPORT_CUSTOM_IDS = {
   weekSelect: "rec:sched_import:week",
@@ -119,7 +126,7 @@ export async function startScheduleImportOneWeek(interaction: ButtonInteraction,
   const select = new StringSelectMenuBuilder()
     .setCustomId(SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect)
     .setPlaceholder("Select the week to import")
-    .addOptions(Array.from({ length: MAX_IMPORT_WEEK }, (_, i) => new StringSelectMenuOptionBuilder().setLabel(`Week ${i + 1}`).setValue(String(i + 1))));
+    .addOptions(Array.from({ length: MAX_SINGLE_IMPORT_WEEK }, (_, i) => new StringSelectMenuOptionBuilder().setLabel(importWeekLabel(i + 1)).setValue(String(i + 1))));
   return interaction.update({
     embeds: [new EmbedBuilder().setTitle("Upload One Week").setDescription("Pick the week you're importing, then upload its schedule screenshot(s).")],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), ...buildScheduleRows()],
@@ -131,7 +138,7 @@ export async function handleScheduleImportWeekSelect(interaction: StringSelectMe
   if (!isFullLeagueAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners can import the schedule.", flags: MessageFlags.Ephemeral });
   }
-  const weekNumber = Math.max(1, Math.min(MAX_IMPORT_WEEK, Number(interaction.values[0] ?? 1)));
+  const weekNumber = Math.max(1, Math.min(MAX_SINGLE_IMPORT_WEEK, Number(interaction.values[0] ?? 1)));
   sessions.set(key(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,
     userId: interaction.user.id,

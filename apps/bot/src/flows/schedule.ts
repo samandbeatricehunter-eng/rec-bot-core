@@ -624,7 +624,15 @@ async function saveSelectedMatchup(session: ManualScheduleSession, requestedByDi
 }
 
 function expectedGamesForWeek(session: ManualScheduleSession) {
-  return Math.floor(session.teams.length / 2);
+  // Playoff rounds have a fixed number of games per conference; everything else
+  // is a full slate (one game per pair of teams).
+  switch (session.weekNumber) {
+    case 19: return 6; // Wild Card: 3 AFC + 3 NFC
+    case 20: return 4; // Divisional: 2 AFC + 2 NFC
+    case 21: return 2; // Conference Championship: 1 AFC + 1 NFC
+    case 22: return 1; // Super Bowl
+    default: return Math.floor(session.teams.length / 2);
+  }
 }
 
 function displayTeam(team: ManualTeam | any) {

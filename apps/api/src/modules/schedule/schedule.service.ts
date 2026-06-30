@@ -59,12 +59,23 @@ type SaveManualScheduleGameInput = {
 };
 
 function phaseForWeek(weekNumber: number) {
-  if (weekNumber <= 18) return "regular_season";
-  if (weekNumber === 19) return "wild_card";
-  if (weekNumber === 20) return "divisional";
-  if (weekNumber === 21) return "conference_championship";
-  if (weekNumber === 22) return "super_bowl";
-  return "postseason";
+  // rec_games.phase is the rec_league_phase enum, which only distinguishes
+  // regular_season vs playoffs. The specific playoff round (wild card,
+  // divisional, conference championship, super bowl) is carried by week_number
+  // (19–22) and rec_leagues.season_stage — not by this column.
+  return weekNumber <= 18 ? "regular_season" : "playoffs";
+}
+
+// Expected number of games in a given week. Playoff rounds have a fixed slate
+// per conference; the regular season is a full slate (one game per team pair).
+function expectedGamesForWeek(weekNumber: number, teamCount: number) {
+  switch (weekNumber) {
+    case 19: return 6; // Wild Card: 3 AFC + 3 NFC
+    case 20: return 4; // Divisional: 2 AFC + 2 NFC
+    case 21: return 2; // Conference Championship: 1 AFC + 1 NFC
+    case 22: return 1; // Super Bowl
+    default: return Math.floor(teamCount / 2);
+  }
 }
 
 function assertWeekSlot(input: { weekNumber: number; slotNumber?: number }) {
@@ -486,7 +497,6 @@ export async function replaceScheduleWeek(input: {
   requestedByDiscordId?: string | null;
 }) {
   assertWeekSlot({ weekNumber: input.weekNumber });
-  if (input.weekNumber > 18) throw new ApiError(400, "Screenshot schedule imports are limited to regular-season weeks 1–18.");
 
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
@@ -589,7 +599,6 @@ export async function previewScheduleImport(input: {
   imageUrls: string[];
 }): Promise<ScheduleImportPreview> {
   assertWeekSlot({ weekNumber: input.weekNumber });
-  if (input.weekNumber > 18) throw new ApiError(400, "Screenshot schedule imports are limited to regular-season weeks 1–18.");
 
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
@@ -637,7 +646,7 @@ export async function previewScheduleImport(input: {
   return {
     seasonNumber,
     weekNumber: input.weekNumber,
-    expectedGames: Math.floor(teams.length / 2),
+    expectedGames: expectedGamesForWeek(input.weekNumber, teams.length),
     games,
     matchedCount: games.filter((g) => g.matched).length,
     warnings: parsed.warnings,
