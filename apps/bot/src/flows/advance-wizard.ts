@@ -215,7 +215,17 @@ async function completeAdvanceFromSession(
 }
 
 async function settleGotwForWeek(guild: Guild, guildId: string, weekNumber: number) {
-  const poll = await recApi.getActiveGotwPoll({ guildId, weekNumber }).catch(() => null);
+  // Settle every open poll for the week — the postseason posts one per playoff
+  // game, so there can be multiple. (Regular season is just a single poll.)
+  const polls = await recApi.getActiveGotwPolls({ guildId, weekNumber }).then((r) => r?.polls ?? []).catch(() => []);
+  for (const poll of polls as any[]) {
+    await settleSingleGotwPoll(guild, guildId, weekNumber, poll).catch((err) => {
+      console.error("[ERROR] GOTW poll settlement failed (non-fatal):", err);
+    });
+  }
+}
+
+async function settleSingleGotwPoll(guild: Guild, guildId: string, weekNumber: number, poll: any) {
   if (!poll?.id || !poll.discord_channel_id || !poll.discord_message_id) return;
 
   // Fetch the Discord message that holds the native poll.

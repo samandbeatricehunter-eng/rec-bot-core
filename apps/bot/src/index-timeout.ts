@@ -962,18 +962,15 @@ async function handleGotwSelect(interaction: any) {
   });
 }
 
-async function handleGotwConfirm(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set GOTW");
-  await interaction.deferUpdate();
-  const selectedGameId = interaction.customId.slice(`${ADVANCE_CUSTOM_IDS.gotwConfirm}:`.length);
-  const { currentWeek, stage, games } = await currentSchedule(interaction as any);
-  const game = games.find((g: any) => g.id === selectedGameId);
-  const routes = await getRouteChannels(interaction.guildId);
-  const channel = await getVotingPollsChannel(interaction.guild, routes);
-  if (!game || !channel) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceMgmtRows() });
-  }
+// Posts one native Discord GOTW poll (away vs home) to the voting-polls channel
+// and records it so the advance can settle it. Shared by the manual Set GOTW
+// flow and the postseason auto-create. Returns true on success.
+async function postGotwPollForGame(args: { guildId: string; channel: any; game: any; weekNumber: number }): Promise<boolean> {
+  const { guildId, channel, game, weekNumber } = args;
+  const gameId = game.id;
+  const awayTeamId = game.away_team?.id ?? game.away_team_id;
+  const homeTeamId = game.home_team?.id ?? game.home_team_id;
+  if (!gameId || !awayTeamId || !homeTeamId) return false;
   const awayLabel = teamDisplay(game.away_team).slice(0, 55);
   const homeLabel = teamDisplay(game.home_team).slice(0, 55);
   const pollDurationHours = 8;
@@ -990,22 +987,42 @@ async function handleGotwConfirm(interaction: ButtonInteraction) {
       allow_multiselect: false,
     },
     allowedMentions: { parse: ["everyone"] },
-  } as any);
+  } as any).catch((err: unknown) => { console.error("[ERROR] Failed to post GOTW poll:", err); return null; });
+  if (!pollMsg) return false;
   // Create DB record so the advance can settle this poll and pay out correct guessers.
   await recApi.createGotwPoll({
-    guildId: interaction.guildId,
-    gameId: selectedGameId,
-    awayTeamId: game.away_team?.id ?? game.away_team_id,
-    homeTeamId: game.home_team?.id ?? game.home_team_id,
+    guildId,
+    gameId,
+    awayTeamId,
+    homeTeamId,
     awayUserId: game.away_user_id ?? null,
     homeUserId: game.home_user_id ?? null,
     awayTeamName: awayLabel,
     homeTeamName: homeLabel,
     discordChannelId: channel.id,
     discordMessageId: pollMsg.id,
-    weekNumber: currentWeek,
+    weekNumber,
     expiresAt,
   }).catch((err: unknown) => console.error("[ERROR] Failed to create GOTW poll record (non-fatal):", err));
+  return true;
+}
+
+async function handleGotwConfirm(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set GOTW");
+  await interaction.deferUpdate();
+  const selectedGameId = interaction.customId.slice(`${ADVANCE_CUSTOM_IDS.gotwConfirm}:`.length);
+  const { currentWeek, stage, games } = await currentSchedule(interaction as any);
+  const game = games.find((g: any) => g.id === selectedGameId);
+  const routes = await getRouteChannels(interaction.guildId);
+  const channel = await getVotingPollsChannel(interaction.guild, routes);
+  if (!game || !channel) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceMgmtRows() });
+  }
+  const posted = await postGotwPollForGame({ guildId: interaction.guildId, channel, game, weekNumber: currentWeek });
+  if (!posted) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceMgmtRows() });
+  }
   return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Posted").setDescription(`Posted GOTW poll to the voting polls channel for ${stageLabel(stage, currentWeek)}.`)], components: buildAdvanceMgmtRows() });
 }
 
@@ -1134,10 +1151,29 @@ async function handleGameChannels(interaction: ButtonInteraction) {
       }).catch(() => undefined);
     }
   }
+
+  // Postseason: every playoff matchup is a Game of the Week, so auto-post a GOTW
+  // poll per H2H game to the voting-polls channel. Idempotent — skips games that
+  // already have an open poll, so re-running Game Channels won't double-post.
+  let gotwPostedCount = 0;
+  if (isPlayoff && h2h.length) {
+    const votingChannel = await getVotingPollsChannel(interaction.guild, routes);
+    if (votingChannel) {
+      const existing = await recApi.getActiveGotwPolls({ guildId: interaction.guildId, weekNumber: currentWeek }).then((r) => r?.polls ?? []).catch(() => []);
+      const polledGameIds = new Set((existing as any[]).map((p) => p.game_id).filter(Boolean));
+      for (const game of h2h) {
+        if (!game.id || polledGameIds.has(game.id)) continue;
+        const posted = await postGotwPollForGame({ guildId: interaction.guildId, channel: votingChannel, game, weekNumber: currentWeek });
+        if (posted) gotwPostedCount += 1;
+      }
+    }
+  }
+
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Game Channels").setDescription([
       deletedCount > 0 ? `Removed ${deletedCount} previous game channel${deletedCount === 1 ? "" : "s"}.` : "No previous game channels were found in the category.",
-      created.length ? `Created:\n${created.join("\n")}` : "No H2H game channels were created."
+      created.length ? `Created:\n${created.join("\n")}` : "No H2H game channels were created.",
+      isPlayoff ? (gotwPostedCount > 0 ? `Posted ${gotwPostedCount} playoff GOTW poll${gotwPostedCount === 1 ? "" : "s"} to the voting polls channel.` : "No new playoff GOTW polls were posted (already posted, or no voting polls channel).") : null
     ].filter(Boolean).join("\n\n"))],
     components: buildAdvanceMgmtRows()
   });

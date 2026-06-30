@@ -252,6 +252,9 @@ export const recApi = {
   getActiveGotwPoll: (input: { guildId: string; weekNumber: number }) =>
     recFetch<any>("/v1/gotw/poll/active", { method: "POST", body: JSON.stringify(input) }),
 
+  getActiveGotwPolls: (input: { guildId: string; weekNumber: number }) =>
+    recFetch<{ polls: any[] }>("/v1/gotw/poll/active-all", { method: "POST", body: JSON.stringify(input) }),
+
   settleGotwPoll: (input: {
     guildId: string; pollId: string; winningTeamId: string | null;
     voters: { discordId: string; userId?: string | null; selectedTeamId: string }[];

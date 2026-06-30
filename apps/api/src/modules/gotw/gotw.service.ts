@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 
 const GOTW_CORRECT_GUESS_PAYOUT = 25;
 
@@ -62,6 +63,26 @@ export async function getActiveGotwPoll(guildId: string, weekNumber: number) {
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to load active GOTW poll.", error);
   return data;
+}
+
+/**
+ * All open GOTW polls for a week. The postseason posts one poll per playoff
+ * game, so settlement must handle multiple polls — not just the single
+ * regular-season GOTW.
+ */
+export async function getActiveGotwPolls(guildId: string, weekNumber: number) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const { data, error } = await supabase
+    .from("rec_game_of_week_polls")
+    .select("*")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .eq("status", "open")
+    .order("created_at", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load active GOTW polls.", error);
+  return data ?? [];
 }
 
 /**
@@ -183,6 +204,11 @@ export async function settleGotwPoll(input: {
 /**
  * Looks up the actual game result for a GOTW matchup by team IDs + week.
  * Returns the winning_team_id (null on tie or not yet played).
+ *
+ * GOTW payouts are gated on an approved BOX SCORE result: only results sourced
+ * from a submitted box score count. A game with only a commissioner-advance
+ * result (no box score) returns null here, so settlement issues no payouts —
+ * consistent with the league's "no box score, no payout" rule.
  */
 export async function getGotwGameResult(input: {
   guildId: string;
@@ -195,13 +221,14 @@ export async function getGotwGameResult(input: {
 
   const { data } = await supabase
     .from("rec_game_results")
-    .select("winning_team_id, is_tie")
+    .select("winning_team_id, is_tie, source")
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", input.weekNumber)
     .eq("away_team_id", input.awayTeamId)
     .eq("home_team_id", input.homeTeamId)
-    .maybeSingle();
+    .in("source", [...OFFICIAL_RESULT_SOURCES])
+    .limit(1);
 
-  return data ?? null;
+  return data?.[0] ?? null;
 }
