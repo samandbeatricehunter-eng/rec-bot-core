@@ -545,9 +545,14 @@ export async function acceptCounter(input: { guildId: string; discordId: string;
   };
 }
 
-export async function declineCounter(input: { counterWagerId: string }) {
+export async function declineCounter(input: { discordId: string; counterWagerId: string }) {
   const { data: counter } = await supabase.from("rec_wagers").select("*").eq("id", input.counterWagerId).maybeSingle();
   if (!counter || counter.status !== "awaiting_accept") return { ok: false };
+  // Only the original poster (the counter's counterparty) may deny it.
+  const decliner = await userIdFromDiscord(input.discordId).catch(() => null);
+  if (counter.counterparty_user_id && decliner && counter.counterparty_user_id !== decliner) {
+    throw new ApiError(403, "Only the original poster can respond to this counter.");
+  }
   await refundWagerStake(counter, "Counter declined — refund");
   await supabase.from("rec_wagers").delete().eq("id", counter.id);
   return { ok: true, counterByDiscordId: counter.placed_by_discord_id };

@@ -142,7 +142,7 @@ export async function wagerRoutes(app: FastifyInstance) {
   app.post("/v1/wagers/counter/decline", async (request, reply) => {
     try {
       requireInternalApiKey(request);
-      const body = z.object({ counterWagerId: z.string().uuid() }).parse(request.body);
+      const body = z.object({ discordId: z.string().min(1), counterWagerId: z.string().uuid() }).parse(request.body);
       return reply.send(await declineCounter(body));
     } catch (error) {
       return sendError(reply, error);

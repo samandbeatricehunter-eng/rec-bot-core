@@ -564,8 +564,8 @@ export const recApi = {
     recFetch<any>("/v1/wagers/counter/place", { method: "POST", body: JSON.stringify(input) }),
   acceptCounter: (guildId: string, discordId: string, counterWagerId: string) =>
     recFetch<any>("/v1/wagers/counter/accept", { method: "POST", body: JSON.stringify({ guildId, discordId, counterWagerId }) }),
-  declineCounter: (counterWagerId: string) =>
-    recFetch<any>("/v1/wagers/counter/decline", { method: "POST", body: JSON.stringify({ counterWagerId }) }),
+  declineCounter: (discordId: string, counterWagerId: string) =>
+    recFetch<any>("/v1/wagers/counter/decline", { method: "POST", body: JSON.stringify({ discordId, counterWagerId }) }),
   listChallengeableCoaches: (guildId: string, discordId: string) =>
     recFetch<any>("/v1/wagers/challengeable-coaches", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
   attachWagerAnnouncementMessage: (input: { wagerId: string; channelId: string; messageId: string }) =>

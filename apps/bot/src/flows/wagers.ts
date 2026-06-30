@@ -592,28 +592,40 @@ async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: W
   }
   sessions.delete(interaction.user.id);
 
-  // DM the original poster with Accept / Deny (no re-counter).
+  const posterDiscordId: string | null = result.proposerDiscordId ?? null;
+  const counterEmbed = new EmbedBuilder()
+    .setTitle("Counter-Offer to Your Wager")
+    .setColor(0x9b59b6)
+    .setDescription([
+      `<@${interaction.user.id}> countered your **${result.gameLabel}** wager.`,
+      "",
+      `Their pick — ${result.marketLabel}: **${result.counterPickLabel}**`,
+      `Stake: **$${result.stake} each** → winner takes **$${result.payout}**.`,
+      "",
+      "Accept to lock it in (you take the other side), or Deny to keep your original offer open.",
+    ].join("\n"));
+  const counterRows = buildCounterResponseRows(interaction.guildId!, posterDiscordId ?? "", result.counterWager.id);
+
+  // Prefer a DM; fall back to a poster-tagged announcement message if DMs are closed.
   let delivered = false;
-  if (result.proposerDiscordId) {
-    const poster = await interaction.client.users.fetch(result.proposerDiscordId).catch(() => null);
+  let where = "";
+  if (posterDiscordId) {
+    const poster = await interaction.client.users.fetch(posterDiscordId).catch(() => null);
     if (poster) {
-      const dm = await poster.send({
-        embeds: [new EmbedBuilder()
-          .setTitle("Counter-Offer to Your Wager")
-          .setColor(0x9b59b6)
-          .setDescription([
-            `<@${interaction.user.id}> countered your **${result.gameLabel}** wager.`,
-            "",
-            `Their pick — ${result.marketLabel}: **${result.counterPickLabel}**`,
-            `Stake: **$${result.stake} each** → winner takes **$${result.payout}**.`,
-            "",
-            "Accept to lock it in (you take the other side), or Deny to keep your original offer open.",
-          ].join("\n"))],
-        components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterAcceptPrefix}${interaction.guildId}:${result.counterWager.id}`).setLabel("Accept Counter").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterDenyPrefix}${result.counterWager.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger))],
-      }).catch(() => null);
-      delivered = !!dm;
+      const dm = await poster.send({ embeds: [counterEmbed], components: counterRows }).catch(() => null);
+      if (dm) { delivered = true; where = "DMed"; }
+    }
+    if (!delivered) {
+      const channel = await getAnnouncementsChannel(interaction.guild, (await recApi.getEconomyConfig(interaction.guildId).catch(() => null))?.routes ?? {}).catch(() => null);
+      if (channel && "send" in channel && channel.isTextBased()) {
+        const msg = await (channel as TextChannel).send({
+          content: `<@${posterDiscordId}>`,
+          embeds: [counterEmbed],
+          components: counterRows,
+          allowedMentions: { users: [posterDiscordId] },
+        }).catch(() => null);
+        if (msg) { delivered = true; where = "posted to announcements"; }
+      }
     }
   }
 
@@ -624,19 +636,34 @@ async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: W
       .setDescription([
         `Your counter — ${result.marketLabel}: **${result.counterPickLabel}** for **$${result.stake}**.`,
         `$${result.stake} moved to holding.`,
-        delivered ? "The poster was DMed to accept or deny." : "Couldn't DM the poster (their DMs may be closed) — they'll need to be reached another way.",
+        delivered ? `The poster was notified (${where}) to accept or deny.` : "Couldn't reach the poster — they'll be refunded if the counter isn't accepted before the next advance.",
       ].join("\n"))],
     components: [],
   });
 }
 
+// Accept/Deny buttons for a counter — only the original poster may use them. The
+// guild + poster id are encoded so the buttons work in a DM (no guild context) and
+// can be gated when posted publicly to the announcements channel.
+function buildCounterResponseRows(guildId: string, posterDiscordId: string, counterWagerId: string) {
+  return [new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterAcceptPrefix}${guildId}:${posterDiscordId}:${counterWagerId}`).setLabel("Accept Counter").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterDenyPrefix}${guildId}:${posterDiscordId}:${counterWagerId}`).setLabel("Deny").setStyle(ButtonStyle.Danger))];
+}
+
+function parseCounterButton(rest: string): { guildId: string; posterDiscordId: string; counterWagerId: string } {
+  const parts = rest.split(":");
+  if (parts.length >= 3) return { guildId: parts[0], posterDiscordId: parts[1], counterWagerId: parts.slice(2).join(":") };
+  if (parts.length === 2) return { guildId: parts[0], posterDiscordId: "", counterWagerId: parts[1] }; // legacy
+  return { guildId: "", posterDiscordId: "", counterWagerId: rest };
+}
+
 export async function handleCounterAccept(interaction: ButtonInteraction) {
+  const { guildId, posterDiscordId, counterWagerId } = parseCounterButton(interaction.customId.slice(WAGER_CUSTOM_IDS.counterAcceptPrefix.length));
+  if (posterDiscordId && interaction.user.id !== posterDiscordId) {
+    return interaction.reply({ content: `Only <@${posterDiscordId}> can respond to this counter.`, flags: MessageFlags.Ephemeral });
+  }
   await interaction.deferUpdate();
-  // The DM button encodes the guild since DM interactions carry no guild context.
-  const rest = interaction.customId.slice(WAGER_CUSTOM_IDS.counterAcceptPrefix.length);
-  const sep = rest.indexOf(":");
-  const guildId = sep >= 0 ? rest.slice(0, sep) : (interaction.guildId ?? "");
-  const counterWagerId = sep >= 0 ? rest.slice(sep + 1) : rest;
   let result: any;
   try {
     result = await recApi.acceptCounter(guildId, interaction.user.id, counterWagerId);
@@ -681,10 +708,13 @@ export async function handleCounterAccept(interaction: ButtonInteraction) {
 }
 
 export async function handleCounterDeny(interaction: ButtonInteraction) {
+  const { posterDiscordId, counterWagerId } = parseCounterButton(interaction.customId.slice(WAGER_CUSTOM_IDS.counterDenyPrefix.length));
+  if (posterDiscordId && interaction.user.id !== posterDiscordId) {
+    return interaction.reply({ content: `Only <@${posterDiscordId}> can respond to this counter.`, flags: MessageFlags.Ephemeral });
+  }
   await interaction.deferUpdate();
-  const counterWagerId = interaction.customId.slice(WAGER_CUSTOM_IDS.counterDenyPrefix.length);
   try {
-    await recApi.declineCounter(counterWagerId);
+    await recApi.declineCounter(interaction.user.id, counterWagerId);
   } catch (err) {
     return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }
