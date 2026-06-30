@@ -5,11 +5,15 @@ import { sendError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getGameWagerOptions } from "./odds.service.js";
 import {
+  acceptCounter,
   acceptPeerWager,
   attachWagerAnnouncementMessage,
   attachWagerPendingMessage,
   cancelWager,
+  declineCounter,
   declinePeerWager,
+  getPeerWagerForCounter,
+  placeCounterWager,
   getWagerResolvability,
   listChallengeableCoaches,
   listConfirmableWagers,
@@ -97,6 +101,49 @@ export async function wagerRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), wagerId: z.string().uuid() }).parse(request.body);
       return reply.send(await acceptPeerWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/counter/options", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), wagerId: z.string().uuid() }).parse(request.body);
+      return reply.send(await getPeerWagerForCounter(body.guildId, body.wagerId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/counter/place", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1), discordId: z.string().min(1), originalWagerId: z.string().uuid(),
+        market: z.string().min(1), pick: z.string().min(1), stake: z.number().int().positive(),
+      }).parse(request.body);
+      return reply.send(await placeCounterWager(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/counter/accept", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), counterWagerId: z.string().uuid() }).parse(request.body);
+      return reply.send(await acceptCounter(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/counter/decline", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ counterWagerId: z.string().uuid() }).parse(request.body);
+      return reply.send(await declineCounter(body));
     } catch (error) {
       return sendError(reply, error);
     }

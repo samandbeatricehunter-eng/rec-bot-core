@@ -416,6 +416,143 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
   };
 }
 
+// Load an open peer wager's game options so a counter-er can pick new terms.
+export async function getPeerWagerForCounter(guildId: string, wagerId: string) {
+  const { data: wager } = await supabase.from("rec_wagers").select("*").eq("id", wagerId).maybeSingle();
+  if (!wager || wager.status !== "awaiting_accept") throw new ApiError(409, "This wager is no longer open.");
+  if (!wager.game_id) throw new ApiError(400, "This wager has no game to counter.");
+  const options = await getGameWagerOptions(guildId, wager.game_id);
+  return {
+    originalWagerId: wager.id,
+    proposerUserId: wager.placed_by_user_id,
+    proposerDiscordId: wager.placed_by_discord_id,
+    proposerStake: Number(wager.stake ?? 0),
+    gameId: wager.game_id,
+    options,
+  };
+}
+
+export type PlaceCounterInput = { guildId: string; discordId: string; originalWagerId: string; market: string; pick: string; stake: number };
+
+// A counter-offer: the counter-er escrows their stake and proposes new terms to the
+// original poster (delivered via DM). It's its own awaiting_accept wager linked back
+// to the original.
+export async function placeCounterWager(input: PlaceCounterInput) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const counterUserId = await userIdFromDiscord(input.discordId);
+
+  const { data: original } = await supabase.from("rec_wagers").select("*").eq("id", input.originalWagerId).maybeSingle();
+  if (!original || original.status !== "awaiting_accept") throw new ApiError(409, "That wager is no longer open to counter.");
+  if (original.placed_by_user_id === counterUserId) throw new ApiError(400, "You can't counter your own wager.");
+
+  const stake = Math.floor(Number(input.stake));
+  const prep = await prepareSingleWager(input.guildId, counterUserId, leagueId, weekNumber, original.game_id, input.market, input.pick, stake);
+
+  const insert = await supabase
+    .from("rec_wagers")
+    .insert({
+      league_id: leagueId, season_number: seasonNumber, week_number: weekNumber,
+      game_id: original.game_id, placed_by_user_id: counterUserId, placed_by_discord_id: input.discordId,
+      wager_kind: "peer", challenge_type: "counter", counterparty_user_id: original.placed_by_user_id,
+      countered_from_wager_id: original.id,
+      market: input.market, pick: input.pick, line: prep.line, odds: 2,
+      stake, potential_payout: stake * 2, status: "awaiting_accept",
+    })
+    .select("*")
+    .single();
+  if (insert.error) throw new ApiError(500, "Failed to create counter.", insert.error);
+
+  const hold = await supabase.rpc("add_to_wallet", {
+    p_user_id: counterUserId, p_amount: -stake, p_league_id: leagueId,
+    p_description: `Peer counter hold — ${prep.marketDef.label}`, p_transaction_type: "wager_hold", p_source: "wager",
+    p_source_reference: { wagerId: insert.data.id },
+  });
+  if (hold.error) {
+    await supabase.from("rec_wagers").delete().eq("id", insert.data.id);
+    throw new ApiError(500, "Failed to hold counter funds.", hold.error);
+  }
+  await supabase.from("rec_wagers").update({ hold_ledger_id: hold.data }).eq("id", insert.data.id);
+
+  return {
+    counterWager: insert.data,
+    proposerDiscordId: original.placed_by_discord_id,
+    counterPickLabel: prep.side.label,
+    marketLabel: prep.marketDef.label,
+    gameLabel: `${prep.options.awayLabel} at ${prep.options.homeLabel}`,
+    stake,
+    payout: stake * 2,
+  };
+}
+
+// The original poster accepts a counter: refund their original hold, escrow the
+// counter stake, lock the counter as the live wager, and close the original.
+export async function acceptCounter(input: { guildId: string; discordId: string; counterWagerId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const leagueId = context.leagueId;
+  const proposerUserId = await userIdFromDiscord(input.discordId);
+
+  const { data: counter } = await supabase.from("rec_wagers").select("*").eq("id", input.counterWagerId).maybeSingle();
+  if (!counter || counter.status !== "awaiting_accept") throw new ApiError(409, "This counter is no longer pending.");
+  if (counter.counterparty_user_id !== proposerUserId) throw new ApiError(403, "Only the original poster can accept this counter.");
+
+  const { data: original } = counter.countered_from_wager_id
+    ? await supabase.from("rec_wagers").select("*").eq("id", counter.countered_from_wager_id).maybeSingle()
+    : { data: null };
+
+  const counterStake = Number(counter.stake ?? 0);
+  const originalStake = Number(original?.stake ?? 0);
+  const balance = await walletBalance(proposerUserId);
+  if (balance + originalStake < counterStake) {
+    throw new ApiError(400, `You need $${counterStake} to take this counter and only have $${balance + originalStake} available.`);
+  }
+
+  // Refund + close the original offer.
+  let originalAnnouncement: { channelId: string | null; messageId: string | null } = { channelId: null, messageId: null };
+  if (original && ["awaiting_accept"].includes(original.status)) {
+    await refundWagerStake(original, "Original offer closed — counter accepted");
+    originalAnnouncement = { channelId: original.announcement_channel_id, messageId: original.announcement_message_id };
+    await supabase.from("rec_wagers").delete().eq("id", original.id);
+  }
+
+  // Escrow the proposer's counter stake and lock the counter.
+  const hold = await supabase.rpc("add_to_wallet", {
+    p_user_id: proposerUserId, p_amount: -counterStake, p_league_id: leagueId,
+    p_description: `Peer counter accepted — ${counter.market}`, p_transaction_type: "wager_hold", p_source: "wager",
+    p_source_reference: { wagerId: counter.id, accepter: true },
+  });
+  if (hold.error) throw new ApiError(500, "Failed to hold counter funds.", hold.error);
+
+  const updated = await supabase
+    .from("rec_wagers")
+    .update({ accepted_by_user_id: proposerUserId, accepted_by_discord_id: input.discordId, status: "pending", updated_at: new Date().toISOString() })
+    .eq("id", counter.id)
+    .eq("status", "awaiting_accept")
+    .select("*")
+    .single();
+  if (updated.error) {
+    await supabase.rpc("add_to_wallet", { p_user_id: proposerUserId, p_amount: counterStake, p_league_id: leagueId, p_description: "Counter hold reversed", p_transaction_type: "wager_refund", p_source: "wager", p_source_reference: { wagerId: counter.id } });
+    throw new ApiError(409, "This counter was already resolved.");
+  }
+
+  return {
+    wager: updated.data,
+    originalAnnouncementChannelId: originalAnnouncement.channelId,
+    originalAnnouncementMessageId: originalAnnouncement.messageId,
+    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
+  };
+}
+
+export async function declineCounter(input: { counterWagerId: string }) {
+  const { data: counter } = await supabase.from("rec_wagers").select("*").eq("id", input.counterWagerId).maybeSingle();
+  if (!counter || counter.status !== "awaiting_accept") return { ok: false };
+  await refundWagerStake(counter, "Counter declined — refund");
+  await supabase.from("rec_wagers").delete().eq("id", counter.id);
+  return { ok: true, counterByDiscordId: counter.placed_by_discord_id };
+}
+
 export async function declinePeerWager(input: { wagerId: string }) {
   const { data: wager } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
   if (!wager || wager.status !== "awaiting_accept") return { ok: false };

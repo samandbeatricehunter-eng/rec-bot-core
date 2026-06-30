@@ -33,17 +33,19 @@ export const WAGER_CUSTOM_IDS = {
   stakeInput: "rec:wager:stake_input",
   approvePrefix: "rec:wager:approve:", // + wagerId (pending-payout review)
   cancelPrefix: "rec:wager:void:",     // + wagerId (pending-payout review)
-  takePrefix: "rec:wager:take:",       // + wagerId (open challenge accept)
-  acceptPrefix: "rec:wager:accept:",   // + wagerId (direct challenge accept)
-  declinePrefix: "rec:wager:decline:", // + wagerId (direct challenge decline)
+  acceptPrefix: "rec:wager:accept:",   // + wagerId (accept an open/direct challenge as-is)
+  counterPrefix: "rec:wager:counter:", // + wagerId (counter a challenge)
+  counterAcceptPrefix: "rec:wager:counter_ok:",   // + counterWagerId (poster accepts a counter, in DM)
+  counterDenyPrefix: "rec:wager:counter_no:",      // + counterWagerId (poster denies a counter, in DM)
 } as const;
 
-type WagerMode = "house" | "peer_open" | "peer_direct" | "parlay";
+type WagerMode = "house" | "peer_open" | "peer_direct" | "parlay" | "counter";
 
 type WagerSession = {
   mode: WagerMode;
   targetUserId: string | null;
   targetDiscordId: string | null;
+  counterOriginalId: string | null;
   parlayLegs: Array<{ gameId: string; market: string; pick: string; label: string }>;
   options: any | null;          // getWagerOptions payload for the selected game
   gameId: string | null;
@@ -63,7 +65,7 @@ const SESSION_TTL = 10 * 60 * 1000;
 function getSession(userId: string): WagerSession {
   const s = sessions.get(userId);
   if (s && Date.now() - s.at < SESSION_TTL) return s;
-  const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, parlayLegs: [], options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
+  const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, counterOriginalId: null, parlayLegs: [], options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
   sessions.set(userId, fresh);
   return fresh;
 }
@@ -341,6 +343,7 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
   }
 
   if (session.mode === "house") return placeHouseAndPost(interaction, session, stake);
+  if (session.mode === "counter") return placeCounterAndDM(interaction, session, stake);
   return proposePeerAndPost(interaction, session, stake);
 }
 
@@ -453,12 +456,9 @@ async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: 
   if (channel && "send" in channel && channel.isTextBased()) {
     const isDirect = challengeType === "direct";
     const content = isDirect && targetDiscordId ? `<@${targetDiscordId}>` : "@everyone";
-    const rows = isDirect
-      ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.acceptPrefix}${result.wager.id}`).setLabel("Accept").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.declinePrefix}${result.wager.id}`).setLabel("Decline").setStyle(ButtonStyle.Danger))]
-      : [new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.takePrefix}${result.wager.id}`).setLabel("Take Wager").setStyle(ButtonStyle.Success))];
+    const rows = [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.acceptPrefix}${result.wager.id}`).setLabel("Accept").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterPrefix}${result.wager.id}`).setLabel("Counter").setStyle(ButtonStyle.Primary))];
     const msg = await (channel as TextChannel).send({
       content,
       embeds: [buildPeerChallengeEmbed(result, interaction.user.id, targetDiscordId, isDirect)],
@@ -535,28 +535,163 @@ async function acceptPeerAndPost(interaction: ButtonInteraction, wagerId: string
   }
 }
 
-export async function handleWagerTake(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  await interaction.deferUpdate();
-  return acceptPeerAndPost(interaction, interaction.customId.slice(WAGER_CUSTOM_IDS.takePrefix.length));
-}
-
 export async function handleWagerAccept(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
   return acceptPeerAndPost(interaction, interaction.customId.slice(WAGER_CUSTOM_IDS.acceptPrefix.length));
 }
 
-export async function handleWagerDecline(interaction: ButtonInteraction) {
+// ─── Counter-offers ─────────────────────────────────────────────────────────────
+
+// "Counter" on a challenge → an ephemeral flow where the counter-er sets new terms on
+// the same game (market → side → stake). On submit, the original poster is DMed.
+export async function handleWagerCounter(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
-  await interaction.deferUpdate();
-  const wagerId = interaction.customId.slice(WAGER_CUSTOM_IDS.declinePrefix.length);
+  const wagerId = interaction.customId.slice(WAGER_CUSTOM_IDS.counterPrefix.length);
+  let summary: any;
   try {
-    await recApi.declinePeerWager(wagerId);
+    summary = await recApi.getPeerWagerForCounter(interaction.guildId, wagerId);
   } catch (err) {
-    return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: userError(err), flags: MessageFlags.Ephemeral });
   }
-  await interaction.message.delete().catch(() => undefined);
+  if (summary.proposerDiscordId && summary.proposerDiscordId === interaction.user.id) {
+    return interaction.reply({ content: "You can't counter your own wager.", flags: MessageFlags.Ephemeral });
+  }
+
+  const session = getSession(interaction.user.id);
+  session.mode = "counter";
+  session.counterOriginalId = wagerId;
+  session.options = summary.options;
+  session.gameId = summary.gameId;
+  session.gameLabel = `${summary.options.awayLabel} at ${summary.options.homeLabel}`;
+  session.market = session.marketLabel = session.pick = session.sideLabel = null;
+  session.at = Date.now();
+
+  const marketMenu = new StringSelectMenuBuilder()
+    .setCustomId(WAGER_CUSTOM_IDS.marketSelect)
+    .setPlaceholder("Pick a market for your counter")
+    .addOptions((summary.options.markets ?? []).slice(0, 25).map((m: any) =>
+      new StringSelectMenuOptionBuilder().setLabel(m.label.slice(0, 100)).setValue(m.market).setDescription(m.line != null ? `Line: ${m.line}${m.unit ? ` ${m.unit}` : ""}` : "Winner")));
+
+  return interaction.reply({
+    flags: MessageFlags.Ephemeral,
+    embeds: [new EmbedBuilder().setTitle("Counter the Wager").setColor(0x9b59b6).setDescription(`${session.gameLabel}\n\nPick your side and stake. The poster will get a DM to accept or deny your counter.`)],
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(marketMenu)],
+  });
+}
+
+async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
+  if (!interaction.inCachedGuild() || !session.counterOriginalId || !session.gameId || !session.market || !session.pick) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter").setColor(0xe74c3c).setDescription("Your counter session expired — click Counter again.")], components: [] });
+  }
+  let result: any;
+  try {
+    result = await recApi.placeCounterWager({ guildId: interaction.guildId, discordId: interaction.user.id, originalWagerId: session.counterOriginalId, market: session.market, pick: session.pick, stake });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter Not Sent").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+  }
+  sessions.delete(interaction.user.id);
+
+  // DM the original poster with Accept / Deny (no re-counter).
+  let delivered = false;
+  if (result.proposerDiscordId) {
+    const poster = await interaction.client.users.fetch(result.proposerDiscordId).catch(() => null);
+    if (poster) {
+      const dm = await poster.send({
+        embeds: [new EmbedBuilder()
+          .setTitle("Counter-Offer to Your Wager")
+          .setColor(0x9b59b6)
+          .setDescription([
+            `<@${interaction.user.id}> countered your **${result.gameLabel}** wager.`,
+            "",
+            `Their pick — ${result.marketLabel}: **${result.counterPickLabel}**`,
+            `Stake: **$${result.stake} each** → winner takes **$${result.payout}**.`,
+            "",
+            "Accept to lock it in (you take the other side), or Deny to keep your original offer open.",
+          ].join("\n"))],
+        components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterAcceptPrefix}${interaction.guildId}:${result.counterWager.id}`).setLabel("Accept Counter").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(`${WAGER_CUSTOM_IDS.counterDenyPrefix}${result.counterWager.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger))],
+      }).catch(() => null);
+      delivered = !!dm;
+    }
+  }
+
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("Counter Sent ✅")
+      .setColor(0x2ecc71)
+      .setDescription([
+        `Your counter — ${result.marketLabel}: **${result.counterPickLabel}** for **$${result.stake}**.`,
+        `$${result.stake} moved to holding.`,
+        delivered ? "The poster was DMed to accept or deny." : "Couldn't DM the poster (their DMs may be closed) — they'll need to be reached another way.",
+      ].join("\n"))],
+    components: [],
+  });
+}
+
+export async function handleCounterAccept(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  // The DM button encodes the guild since DM interactions carry no guild context.
+  const rest = interaction.customId.slice(WAGER_CUSTOM_IDS.counterAcceptPrefix.length);
+  const sep = rest.indexOf(":");
+  const guildId = sep >= 0 ? rest.slice(0, sep) : (interaction.guildId ?? "");
+  const counterWagerId = sep >= 0 ? rest.slice(sep + 1) : rest;
+  let result: any;
+  try {
+    result = await recApi.acceptCounter(guildId, interaction.user.id, counterWagerId);
+  } catch (err) {
+    return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+  const w = result.wager;
+
+  // Close the original announcement.
+  if (result.originalAnnouncementChannelId && result.originalAnnouncementMessageId) {
+    const ch = await interaction.client.channels.fetch(result.originalAnnouncementChannelId).catch(() => null);
+    if (ch?.isTextBased?.()) {
+      const msg = await (ch as any).messages.fetch(result.originalAnnouncementMessageId).catch(() => null);
+      if (msg?.embeds?.[0]) {
+        const embed = EmbedBuilder.from(msg.embeds[0]).setColor(0x2ecc71);
+        embed.addFields({ name: "SETTLED VIA COUNTER", value: `Countered terms accepted. Sent to Pending Payouts.` });
+        await msg.edit({ embeds: [embed], components: [] }).catch(() => undefined);
+      }
+    }
+  }
+
+  // Update the DM and post the pending-payout embed.
+  const base = interaction.message.embeds[0];
+  const dmEmbed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(0x2ecc71);
+  dmEmbed.addFields({ name: "ACCEPTED", value: "You accepted the counter. Sent to Pending Payouts." });
+  await interaction.editReply({ embeds: [dmEmbed], components: [] }).catch(() => undefined);
+
+  const channelId: string | null = result.pendingPayoutsChannelId ?? null;
+  if (channelId) {
+    const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
+    if (ch?.isTextBased?.() && !(ch as any).isDMBased?.()) {
+      const payload = {
+        wager: w,
+        gameLabel: "—",
+        marketLabel: w.market,
+        sideLabel: `${w.placed_by_discord_id ? `<@${w.placed_by_discord_id}>` : "Counter-er"} vs <@${interaction.user.id}>`,
+      };
+      const msg = await (ch as TextChannel).send({ embeds: [buildWagerPendingEmbed(payload, false)], components: buildWagerReviewRows(w.id) }).catch(() => null);
+      if (msg) await recApi.attachWagerPendingMessage({ wagerId: w.id, channelId: ch.id, messageId: msg.id }).catch(() => undefined);
+    }
+  }
+}
+
+export async function handleCounterDeny(interaction: ButtonInteraction) {
+  await interaction.deferUpdate();
+  const counterWagerId = interaction.customId.slice(WAGER_CUSTOM_IDS.counterDenyPrefix.length);
+  try {
+    await recApi.declineCounter(counterWagerId);
+  } catch (err) {
+    return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+  const base = interaction.message.embeds[0];
+  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(0x95a5a6);
+  embed.addFields({ name: "DENIED", value: "You denied the counter. Your original offer stays open." });
+  await interaction.editReply({ embeds: [embed], components: [] }).catch(() => undefined);
 }
 
 // ─── Pending-payout embed + commissioner review ────────────────────────────────
