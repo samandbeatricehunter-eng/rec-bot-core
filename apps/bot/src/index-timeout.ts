@@ -1,9 +1,10 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction } from "./lib/admin.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getVotingPollsChannel } from "./lib/route-channels.js";
+import { REC_MANAGED_ROLES, ensureRecBaseRoles } from "./lib/role-sync.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import { DEV_TIER_EMOJIS } from "./lib/tier-emojis.js";
 import {
@@ -177,6 +178,33 @@ const client = new Client({
 client.setMaxListeners(50);
 const menuSessions = new ExpiringSessionStore<true>();
 const serverSetupChannelSessions = new Map<string, string>();
+type RoleMgmtRoleKey = keyof typeof REC_MANAGED_ROLES;
+type RoleMgmtAction = "add" | "remove";
+const ROLE_MGMT_CUSTOM_IDS = {
+  roleSelect: "rec:roles:role",
+  actionSelect: "rec:roles:action",
+  userSelect: "rec:roles:users",
+  prev: "rec:roles:prev",
+  next: "rec:roles:next",
+  confirm: "rec:roles:confirm",
+  back: "rec:roles:back",
+} as const;
+const ACTIVE_CHECK_CUSTOM_IDS = {
+  bootPrefix: "rec:active_check:boot:",
+  editPrefix: "rec:active_check:edit:",
+  editSelectPrefix: "rec:active_check:edit_select:",
+} as const;
+const roleMgmtSessions = new Map<string, {
+  roleKey?: RoleMgmtRoleKey;
+  action?: RoleMgmtAction;
+  selectedUserIds: string[];
+  page: number;
+}>();
+const activeCheckBootSessions = new Map<string, {
+  guildId: string;
+  inactive: Array<{ discordId: string; teamId: string; label: string }>;
+  kickMe: Array<{ discordId: string; teamId: string; label: string }>;
+}>();
 const ADVANCE_CUSTOM_IDS = {
   gotwSelect: "rec:advance:gotw_select",
   gotwConfirm: "rec:advance:gotw_confirm",
@@ -372,6 +400,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isStringSelectMenu()) {
       const { TEAM_LINK_CUSTOM_IDS } = await import("./ui/team-options.js");
       if (
+        interaction.customId === ROLE_MGMT_CUSTOM_IDS.roleSelect ||
+        interaction.customId === ROLE_MGMT_CUSTOM_IDS.actionSelect ||
+        interaction.customId === ROLE_MGMT_CUSTOM_IDS.userSelect
+      ) return handleRoleMgmtSelect(interaction);
+      if (interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.editSelectPrefix)) return handleActiveCheckEditSelect(interaction);
+      if (
         interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleConferenceSelect ||
         interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleAfcTeamSelect ||
         interaction.customId === TEAM_LINK_CUSTOM_IDS.simpleNfcTeamSelect ||
@@ -523,6 +557,16 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup) return handleLeagueMgmtFirstTimeSetup(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtDeleteLeague) return handleLeagueMgmtDeleteLeague(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtRoles) return handleLeagueMgmtRoles(interaction);
+      if (
+        interaction.customId === ROLE_MGMT_CUSTOM_IDS.prev ||
+        interaction.customId === ROLE_MGMT_CUSTOM_IDS.next ||
+        interaction.customId === ROLE_MGMT_CUSTOM_IDS.confirm ||
+        interaction.customId === ROLE_MGMT_CUSTOM_IDS.back
+      ) return handleRoleMgmtButton(interaction);
+      if (
+        interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.bootPrefix) ||
+        interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.editPrefix)
+      ) return handleActiveCheckReviewButton(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtBack) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotPrev) return handleSnapshotPageNav(interaction, -1);
       if (interaction.customId === ROSTERS_CUSTOM_IDS.snapshotNext) return handleSnapshotPageNav(interaction, +1);
@@ -889,21 +933,151 @@ async function handleActiveCheck(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run active checks");
   await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting Active Check...").setDescription("Finding the announcements channel and preparing the active-check prompt.")], components: [] });
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting Active Check...").setDescription("Finding the voting channel and preparing the active-check poll.")], components: [] });
   const routes = await getRouteChannels(interaction.guildId);
-  const channel = await getAnnouncementsChannel(interaction.guild, routes);
+  const channel = await getVotingPollsChannel(interaction.guild, routes);
   if (!channel) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check").setDescription("No announcements channel is configured.")], components: buildAdvanceMgmtRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check").setDescription("No voting polls channel is configured.")], components: buildAdvanceMgmtRows() });
   }
-  await channel.send({
-    content: "@everyone",
-    embeds: [new EmbedBuilder().setTitle("Active Check").setDescription("You have 24 hours to respond: **Yes, I'm Active.**")],
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId("rec:active_check:yes").setLabel("Yes, I'm Active").setStyle(ButtonStyle.Success)
-    )],
+  const pollMessage = await channel.send({
+    content: "@everyone Active check: you have 24 hours to respond to this poll or risk being removed from the league.",
+    poll: {
+      question: { text: "REC Active Check" },
+      answers: [
+        { poll_media: { text: "I'm Active" } },
+        { poll_media: { text: "Kick Me" } },
+      ],
+      duration: 24,
+      allow_multiselect: false,
+    },
     allowedMentions: { parse: ["everyone"] }
+  } as any);
+
+  setTimeout(() => {
+    settleActiveCheckPoll({
+      guildId: interaction.guildId!,
+      channelId: pollMessage.channelId,
+      messageId: pollMessage.id,
+    }).catch((error) => console.error("[ERROR] Active check settlement failed:", error));
+  }, 24 * 60 * 60 * 1000);
+
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check Posted").setDescription("The native Discord poll has been posted to the voting polls channel for 24 hours.")], components: buildAdvanceMgmtRows() });
+}
+
+async function settleActiveCheckPoll(input: { guildId: string; channelId: string; messageId: string }) {
+  const guild = await client.guilds.fetch(input.guildId).catch(() => null);
+  if (!guild) return;
+  const routes = await getRouteChannels(input.guildId);
+  const pollChannel = await guild.channels.fetch(input.channelId).catch(() => null);
+  if (!pollChannel?.isTextBased()) return;
+  const message = await pollChannel.messages.fetch(input.messageId).catch(() => null);
+  if (!message?.poll) return;
+
+  const poll = await (message.poll as any).end().catch(() => message.poll as any);
+  const activeAnswer = poll.answers?.get(1);
+  const kickAnswer = poll.answers?.get(2);
+  const activeVoters = activeAnswer ? await activeAnswer.fetchVoters().catch(() => null) : null;
+  const kickVoters = kickAnswer ? await kickAnswer.fetchVoters().catch(() => null) : null;
+  const activeDiscordIds = new Set([...(activeVoters?.values() ?? [])].map((user: any) => user.id));
+  const kickDiscordIds = new Set([...(kickVoters?.values() ?? [])].map((user: any) => user.id));
+
+  const linked = await recApi.getLinkedUsersTeams(input.guildId).then((r) => r.linked ?? []).catch(() => []);
+  const linkedUsers = linked
+    .map((row: any) => ({
+      discordId: row.discordId,
+      teamId: row.team?.id,
+      label: `${row.team?.abbreviation ?? row.team?.name ?? "Team"} - <@${row.discordId}>`,
+    }))
+    .filter((row: any) => row.discordId && row.teamId);
+
+  const inactive = linkedUsers.filter((row: any) => !activeDiscordIds.has(row.discordId) && !kickDiscordIds.has(row.discordId));
+  const kickMe = linkedUsers.filter((row: any) => kickDiscordIds.has(row.discordId));
+  const sessionId = input.messageId;
+  activeCheckBootSessions.set(sessionId, { guildId: input.guildId, inactive, kickMe });
+
+  const commissionerChannelId = routes.commissioner_office_channel_id ?? routes.commissionerOfficeChannelId;
+  const commissionerChannel = commissionerChannelId ? await guild.channels.fetch(commissionerChannelId).catch(() => null) : null;
+  if (!commissionerChannel?.isTextBased()) return;
+  await commissionerChannel.send(buildActiveCheckReviewPayload(sessionId, inactive, kickMe));
+}
+
+function listActiveCheckRows(rows: Array<{ label: string }>) {
+  return rows.length ? rows.slice(0, 20).map((row) => `- ${row.label}`).join("\n") : "None";
+}
+
+function buildActiveCheckReviewPayload(sessionId: string, inactive: Array<{ label: string }>, kickMe: Array<{ label: string }>) {
+  const bootCount = inactive.length + kickMe.length;
+  return {
+    embeds: [new EmbedBuilder()
+      .setTitle("Active Check Results")
+      .setDescription([
+        "**No response:**",
+        listActiveCheckRows(inactive),
+        "",
+        "**Asked to be removed:**",
+        listActiveCheckRows(kickMe),
+      ].join("\n"))],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.bootPrefix}${sessionId}`).setLabel(`Boot Listed (${bootCount})`).setStyle(ButtonStyle.Danger).setDisabled(bootCount === 0),
+        new ButtonBuilder().setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editPrefix}${sessionId}`).setLabel("Edit Boot List").setStyle(ButtonStyle.Secondary).setDisabled(bootCount === 0),
+      )
+    ],
+  };
+}
+
+async function handleActiveCheckReviewButton(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "review active checks");
+  const isBoot = interaction.customId.startsWith(ACTIVE_CHECK_CUSTOM_IDS.bootPrefix);
+  const sessionId = interaction.customId.slice((isBoot ? ACTIVE_CHECK_CUSTOM_IDS.bootPrefix : ACTIVE_CHECK_CUSTOM_IDS.editPrefix).length);
+  const session = activeCheckBootSessions.get(sessionId);
+  if (!session) return interaction.reply({ content: "Active check review expired.", flags: MessageFlags.Ephemeral });
+
+  if (!isBoot) {
+    const candidates = [...session.inactive, ...session.kickMe].slice(0, 25);
+    return interaction.reply({
+      embeds: [new EmbedBuilder().setTitle("Edit Boot List").setDescription("Select users to keep. They will be removed from the boot list.")],
+      components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${ACTIVE_CHECK_CUSTOM_IDS.editSelectPrefix}${sessionId}`)
+          .setPlaceholder("Select users to keep")
+          .setMinValues(1)
+          .setMaxValues(candidates.length)
+          .addOptions(...candidates.map((row) =>
+            new StringSelectMenuOptionBuilder().setLabel(row.label.replace(/<@|>/g, "").slice(0, 100)).setValue(row.discordId)
+          ))
+      )],
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  await interaction.deferUpdate();
+  const bootList = [...session.inactive, ...session.kickMe];
+  let unlinked = 0;
+  for (const row of bootList) {
+    await recApi.unlinkTeam({ guildId: session.guildId, teamId: row.teamId, requestedByDiscordId: interaction.user.id })
+      .then(() => { unlinked += 1; })
+      .catch(() => undefined);
+  }
+  activeCheckBootSessions.delete(sessionId);
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Active Check Boot Complete").setDescription(`Unlinked **${unlinked}** team user(s).`)],
+    components: [],
   });
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check Posted").setDescription("The active-check prompt has been posted in announcements. Members can click **Yes, I'm Active** for the next 24 hours.")], components: buildAdvanceMgmtRows() });
+}
+
+async function handleActiveCheckEditSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "edit active check boot lists");
+  const sessionId = interaction.customId.slice(ACTIVE_CHECK_CUSTOM_IDS.editSelectPrefix.length);
+  const session = activeCheckBootSessions.get(sessionId);
+  if (!session) return interaction.reply({ content: "Active check review expired.", flags: MessageFlags.Ephemeral });
+  const keep = new Set(interaction.values);
+  session.inactive = session.inactive.filter((row) => !keep.has(row.discordId));
+  session.kickMe = session.kickMe.filter((row) => !keep.has(row.discordId));
+  activeCheckBootSessions.set(sessionId, session);
+  await interaction.update({ content: "Boot list updated.", embeds: [], components: [] });
 }
 
 function teamDisplay(team: any) {
@@ -1859,11 +2033,161 @@ async function handleLeagueMgmtFirstTimeSetup(interaction: ButtonInteraction) {
   return interaction.showModal(buildSetupDangerModal("league_setup"));
 }
 
+async function getRoleMgmtMembers(interaction: ButtonInteraction | StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return [];
+  const members = await interaction.guild.members.fetch().catch(() => interaction.guild.members.cache);
+  return [...members.values()]
+    .filter((member) => !member.user.bot)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+async function buildRoleMgmtPanel(interaction: ButtonInteraction | StringSelectMenuInteraction) {
+  const session = roleMgmtSessions.get(interaction.user.id) ?? { selectedUserIds: [], page: 0 };
+  const members = await getRoleMgmtMembers(interaction);
+  const totalPages = Math.max(1, Math.ceil(members.length / 25));
+  session.page = Math.max(0, Math.min(session.page, totalPages - 1));
+  roleMgmtSessions.set(interaction.user.id, session);
+
+  const start = session.page * 25;
+  const pageMembers = members.slice(start, start + 25);
+  const roleName = session.roleKey ? REC_MANAGED_ROLES[session.roleKey].name : "Not selected";
+  const actionLabel = session.action === "add" ? "Add role" : session.action === "remove" ? "Remove role" : "Not selected";
+
+  const rows: Array<ActionRowBuilder<StringSelectMenuBuilder> | ActionRowBuilder<ButtonBuilder>> = [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(ROLE_MGMT_CUSTOM_IDS.roleSelect)
+        .setPlaceholder("Select REC role")
+        .addOptions(
+          new StringSelectMenuOptionBuilder().setLabel(REC_MANAGED_ROLES.member.name).setValue("member").setDefault(session.roleKey === "member"),
+          new StringSelectMenuOptionBuilder().setLabel(REC_MANAGED_ROLES.compCommittee.name).setValue("compCommittee").setDefault(session.roleKey === "compCommittee"),
+          new StringSelectMenuOptionBuilder().setLabel(REC_MANAGED_ROLES.commissioner.name).setValue("commissioner").setDefault(session.roleKey === "commissioner"),
+        )
+    ),
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(ROLE_MGMT_CUSTOM_IDS.actionSelect)
+        .setPlaceholder("Add or remove")
+        .addOptions(
+          new StringSelectMenuOptionBuilder().setLabel("Add Role").setValue("add").setDefault(session.action === "add"),
+          new StringSelectMenuOptionBuilder().setLabel("Remove Role").setValue("remove").setDefault(session.action === "remove"),
+        )
+    ),
+  ];
+
+  if (pageMembers.length) {
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(ROLE_MGMT_CUSTOM_IDS.userSelect)
+        .setPlaceholder(`Select users (${start + 1}-${start + pageMembers.length} of ${members.length})`)
+        .setMinValues(1)
+        .setMaxValues(pageMembers.length)
+        .addOptions(...pageMembers.map((member) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(member.displayName.slice(0, 100))
+            .setDescription(member.user.username.slice(0, 100))
+            .setValue(member.id)
+            .setDefault(session.selectedUserIds.includes(member.id))
+        ))
+    ));
+  }
+
+  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(ROLE_MGMT_CUSTOM_IDS.prev).setLabel("Prev").setStyle(ButtonStyle.Secondary).setDisabled(session.page <= 0),
+    new ButtonBuilder().setCustomId(ROLE_MGMT_CUSTOM_IDS.next).setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(session.page >= totalPages - 1),
+    new ButtonBuilder().setCustomId(ROLE_MGMT_CUSTOM_IDS.confirm).setLabel("Confirm").setStyle(ButtonStyle.Success).setDisabled(!session.roleKey || !session.action || !session.selectedUserIds.length),
+    new ButtonBuilder().setCustomId(ROLE_MGMT_CUSTOM_IDS.back).setLabel("Back").setStyle(ButtonStyle.Danger),
+  ));
+
+  return {
+    embeds: [new EmbedBuilder()
+      .setTitle("League Roles")
+      .setDescription([
+        `Role: **${roleName}**`,
+        `Action: **${actionLabel}**`,
+        `Selected users: **${session.selectedUserIds.length}**`,
+        `Page: **${session.page + 1}/${totalPages}**`,
+      ].join("\n"))],
+    components: rows,
+  };
+}
+
 async function handleLeagueMgmtRoles(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league roles");
   }
-  return replyMenuPlaceholder(interaction, "Roles", "Role management is not active yet. For now, assign Commissioner, Co Commissioner, and member roles directly in Discord or through League Mgmt > Teams where team links are managed.");
+  roleMgmtSessions.set(interaction.user.id, { selectedUserIds: [], page: 0 });
+  return interaction.update(await buildRoleMgmtPanel(interaction));
+}
+
+async function handleRoleMgmtSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "manage league roles");
+  await interaction.deferUpdate();
+  const session = roleMgmtSessions.get(interaction.user.id) ?? { selectedUserIds: [], page: 0 };
+  if (interaction.customId === ROLE_MGMT_CUSTOM_IDS.roleSelect) {
+    session.roleKey = interaction.values[0] as RoleMgmtRoleKey;
+  } else if (interaction.customId === ROLE_MGMT_CUSTOM_IDS.actionSelect) {
+    session.action = interaction.values[0] as RoleMgmtAction;
+  } else if (interaction.customId === ROLE_MGMT_CUSTOM_IDS.userSelect) {
+    const visible = new Set<string>(interaction.values);
+    const members = await getRoleMgmtMembers(interaction);
+    const pageIds = new Set(members.slice(session.page * 25, session.page * 25 + 25).map((member) => member.id));
+    session.selectedUserIds = [
+      ...session.selectedUserIds.filter((id) => !pageIds.has(id)),
+      ...visible,
+    ];
+  }
+  roleMgmtSessions.set(interaction.user.id, session);
+  return interaction.editReply(await buildRoleMgmtPanel(interaction));
+}
+
+async function handleRoleMgmtButton(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "manage league roles");
+  await interaction.deferUpdate();
+  const session = roleMgmtSessions.get(interaction.user.id) ?? { selectedUserIds: [], page: 0 };
+
+  if (interaction.customId === ROLE_MGMT_CUSTOM_IDS.back) {
+    roleMgmtSessions.delete(interaction.user.id);
+    return interaction.editReply(buildAdminPanelPayload(interaction));
+  }
+
+  if (interaction.customId === ROLE_MGMT_CUSTOM_IDS.prev) session.page -= 1;
+  if (interaction.customId === ROLE_MGMT_CUSTOM_IDS.next) session.page += 1;
+
+  if (interaction.customId !== ROLE_MGMT_CUSTOM_IDS.confirm) {
+    roleMgmtSessions.set(interaction.user.id, session);
+    return interaction.editReply(await buildRoleMgmtPanel(interaction));
+  }
+
+  if (!session.roleKey || !session.action || !session.selectedUserIds.length) {
+    roleMgmtSessions.set(interaction.user.id, session);
+    return interaction.editReply(await buildRoleMgmtPanel(interaction));
+  }
+
+  const roles = await ensureRecBaseRoles(interaction.guild);
+  const role = session.roleKey === "member" ? roles.member : session.roleKey === "compCommittee" ? roles.compCommittee : roles.commissioner;
+  let changed = 0;
+  for (const userId of session.selectedUserIds) {
+    const member = await interaction.guild.members.fetch(userId).catch(() => null);
+    if (!member) continue;
+    if (session.action === "add") {
+      await member.roles.add(role, `REC League Mgmt Roles by ${interaction.user.tag}`).catch(() => undefined);
+      changed += 1;
+    } else {
+      await member.roles.remove(role, `REC League Mgmt Roles by ${interaction.user.tag}`).catch(() => undefined);
+      changed += 1;
+    }
+  }
+
+  roleMgmtSessions.delete(interaction.user.id);
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("League Roles Updated")
+      .setDescription(`${session.action === "add" ? "Added" : "Removed"} **${role.name}** for **${changed}** user(s).`)],
+    components: buildAdminPanelRows(),
+  });
 }
 
 async function handleLeagueMgmtDeleteLeague(interaction: ButtonInteraction) {
@@ -1929,6 +2253,7 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
   if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
 
   try {
+    const { getRecRouteChannel } = await import("@rec/shared");
     const { SERVER_SETUP_CUSTOM_IDS } = await import("./ui/server-setup-admin.js");
     const channelId = interaction.fields.getTextInputValue(SERVER_SETUP_CUSTOM_IDS.channelIdInput).trim();
     const channelType = serverSetupChannelSessions.get(interaction.user.id);
@@ -1940,26 +2265,12 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
       });
     }
 
-    const channelTypeToApiField: Record<string, string> = {
-      commissioner_office: "commissionerOfficeChannelId",
-      announcements: "announcementsChannelId",
-      headlines: "headlinesChannelId",
-      power_rankings: "powerRankingsChannelId",
-      voting_polls: "votingPollsChannelId",
-      streams: "streamsChannelId",
-      highlights: "highlightsChannelId",
-      pending_payouts: "pendingPayoutsChannelId",
-      pending_purchases: "pendingPurchasesChannelId",
-      box_scores: "boxScoresChannelId",
-      game_channels_category: "gameChannelsCategoryId"
-    };
-
-    const apiField = channelTypeToApiField[channelType];
-    if (!apiField) {
+    const routeChannel = getRecRouteChannel(channelType);
+    if (!routeChannel) {
       return interaction.reply({ content: `Unknown channel type: ${channelType}`, flags: MessageFlags.Ephemeral });
     }
 
-    await recApi.setEconomyConfig({ guildId: interaction.guildId, [apiField]: channelId });
+    await recApi.setEconomyConfig({ guildId: interaction.guildId, [routeChannel.inputField]: channelId });
 
     serverSetupChannelSessions.delete(interaction.user.id);
 

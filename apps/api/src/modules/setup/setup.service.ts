@@ -1,3 +1,4 @@
+import { REC_ROUTE_CHANNELS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -31,16 +32,16 @@ function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput 
   };
 }
 
-function buildCfbSettings(input: CreateLeagueInput) {
-  return {
-    recruitingRestrictions: input.recruitingRestrictions ?? null,
-    coachCarouselEnabled: input.coachCarouselEnabled ?? true,
-    stadiumPulseEnabled: input.stadiumPulseEnabled ?? true,
-  };
-}
-
 function preserveWhenOmitted<T>(value: T | undefined, existing: T | null | undefined) {
   return value === undefined ? existing ?? null : value;
+}
+
+function buildRoutePayload(input: Record<string, unknown>, existing: Record<string, unknown> = {}) {
+  const payload: Record<string, unknown> = {};
+  for (const config of Object.values(REC_ROUTE_CHANNELS)) {
+    payload[config.dbField] = preserveWhenOmitted(input[config.inputField], existing[config.dbField]);
+  }
+  return payload;
 }
 
 /**
@@ -171,13 +172,13 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     roster_type: input.leagueType,
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
+    recruiting_restrictions: input.game === "cfb_27" ? input.recruitingRestrictions ?? null : null,
     transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
     coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
     conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
     home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
     stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
     team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
-    cfb_settings: input.game === "cfb_27" ? buildCfbSettings(input) : {},
 
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
@@ -344,16 +345,7 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
     scheduling_channel_id: preserveWhenOmitted(input.schedulingChannelId, existing.scheduling_channel_id),
     media_channel_id: preserveWhenOmitted(input.mediaChannelId, existing.media_channel_id),
     rules_channel_id: preserveWhenOmitted(input.rulesChannelId, existing.rules_channel_id),
-    announcements_channel_id: preserveWhenOmitted(input.announcementsChannelId, existing.announcements_channel_id),
-    headlines_channel_id: preserveWhenOmitted(input.headlinesChannelId, existing.headlines_channel_id),
-    power_rankings_channel_id: preserveWhenOmitted(input.powerRankingsChannelId, existing.power_rankings_channel_id),
-    streams_channel_id: preserveWhenOmitted(input.streamsChannelId, existing.streams_channel_id),
-    highlights_channel_id: preserveWhenOmitted(input.highlightsChannelId, existing.highlights_channel_id),
-    pending_payouts_channel_id: preserveWhenOmitted(input.pendingPayoutsChannelId, existing.pending_payouts_channel_id),
-    pending_purchases_channel_id: preserveWhenOmitted(input.pendingPurchasesChannelId, existing.pending_purchases_channel_id),
-    game_channels_category_id: preserveWhenOmitted(input.gameChannelsCategoryId, existing.game_channels_category_id),
-    commissioner_office_channel_id: preserveWhenOmitted(input.commissionerOfficeChannelId, existing.commissioner_office_channel_id),
-    voting_polls_channel_id: preserveWhenOmitted(input.votingPollsChannelId, existing.voting_polls_channel_id)
+    ...buildRoutePayload(input, existing)
   };
 
   const routes = existingRoutes.data
@@ -395,13 +387,13 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     roster_type: input.leagueType,
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
+    recruiting_restrictions: input.game === "cfb_27" ? input.recruitingRestrictions ?? null : null,
     transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
     coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
     conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
     home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
     stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
     team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
-    cfb_settings: input.game === "cfb_27" ? buildCfbSettings(input) : {},
     coin_economy_enabled: input.coinEconomyEnabled,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
@@ -491,7 +483,6 @@ export async function getLeagueConfigAsDraft(guildId: string) {
   ]);
   if (league.error) throw new ApiError(500, "Failed to load league", league.error);
   const c = config.data ?? {};
-  const cfbSettings = c.cfb_settings && typeof c.cfb_settings === "object" && !Array.isArray(c.cfb_settings) ? c.cfb_settings : {};
   const r = context.routes ?? {};
   const draft = {
     name: league.data.name ?? "League",
@@ -501,7 +492,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     dynastyType: c.dynasty_type ?? "real",
     recruitingDifficulty: c.recruiting_difficulty ?? "normal",
     transferPortalEnabled: c.transfer_portal_enabled ?? true,
-    recruitingRestrictions: typeof cfbSettings.recruitingRestrictions === "string" ? cfbSettings.recruitingRestrictions : "",
+    recruitingRestrictions: c.recruiting_restrictions ?? "",
     coachCarouselEnabled: c.coach_carousel_enabled ?? true,
     conferenceRealignment: c.conference_realignment ?? "locked",
     homeFieldAdvantageEnabled: c.home_field_advantage_enabled ?? true,

@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { getDefaultNflSeasonLabelForGame, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, type MaddenAttributeCode, type MaddenAttributeDropdownGroupKey, type MaddenLeagueGame } from "@rec/shared";
+import { REC_ROUTE_CHANNELS, getDefaultNflSeasonLabelForGame, MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, type MaddenAttributeCode, type MaddenAttributeDropdownGroupKey, type MaddenLeagueGame } from "@rec/shared";
 import { buildNavigationRow, NAV_CUSTOM_IDS } from "./navigation.js";
 
 export const LEAGUE_SETUP_CUSTOM_IDS = {
@@ -1232,18 +1232,13 @@ export function buildFeatureDecisionWindow(draft: LeagueSetupDraft) {
 }
 
 export const LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS = {
-  commissioner_office: { label: "Commissioner Office", field: "commissionerOfficeChannelId" },
-  announcements: { label: "Announcements", field: "announcementsChannelId" },
-  headlines: { label: "Headlines", field: "headlinesChannelId" },
-  power_rankings: { label: "Power Rankings", field: "powerRankingsChannelId" },
-  voting_polls: { label: "Voting Polls", field: "votingPollsChannelId" },
-  streams: { label: "Streams", field: "streamsChannelId" },
-  highlights: { label: "Highlights", field: "highlightsChannelId" },
-  box_scores: { label: "Box Scores", field: "boxScoresChannelId" },
-  pending_payouts: { label: "Pending Payouts", field: "pendingPayoutsChannelId" },
-  pending_purchases: { label: "Pending Purchases", field: "pendingPurchasesChannelId" },
-  game_channels_category: { label: "Game Channels Category", field: "gameChannelsCategoryId" }
-} as const;
+  ...Object.fromEntries(
+    Object.entries(REC_ROUTE_CHANNELS).map(([key, config]) => [
+      key,
+      { label: config.label, field: config.inputField },
+    ])
+  ),
+} as Record<keyof typeof REC_ROUTE_CHANNELS, { label: string; field: string }>;
 
 function formatChannelValue(value?: string | null) {
   return value ? `<#${value}> (${value})` : "Not set";

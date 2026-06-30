@@ -1,3 +1,4 @@
+import { REC_ROUTE_CHANNELS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -24,6 +25,12 @@ function compactDefined(input: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
 }
 
+function routePayload(input: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.values(REC_ROUTE_CHANNELS).map((config) => [config.dbField, input[config.inputField]])
+  );
+}
+
 export async function getServerConfig(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   return {
@@ -37,17 +44,7 @@ export async function setServerConfig(input: SetServerConfigInput) {
   const context = await getCurrentLeagueContext(input.guildId);
   const updatePayload = compactDefined({
     pending_economy_channel_id: input.pendingEconomyChannelId,
-    pending_payouts_channel_id: input.pendingPayoutsChannelId,
-    pending_purchases_channel_id: input.pendingPurchasesChannelId,
-    box_scores_channel_id: input.boxScoresChannelId,
-    headlines_channel_id: input.headlinesChannelId,
-    power_rankings_channel_id: input.powerRankingsChannelId,
-    game_channels_category_id: input.gameChannelsCategoryId,
-    commissioner_office_channel_id: input.commissionerOfficeChannelId,
-    streams_channel_id: input.streamsChannelId,
-    highlights_channel_id: input.highlightsChannelId,
-    announcements_channel_id: input.announcementsChannelId,
-    voting_polls_channel_id: input.votingPollsChannelId,
+    ...routePayload(input),
     commissioner_role_id: input.commissionerRoleId,
     comp_committee_role_id: input.compCommitteeRoleId
   });

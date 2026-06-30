@@ -263,23 +263,34 @@ export async function handleTeamRequestApprove(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   const requestId = parseRequestId(interaction.customId, TEAM_REQUEST_CUSTOM_IDS.approvePrefix);
   try {
-    const request = await recApi.approveTeamLinkRequest({ requestId, reviewerDiscordId: interaction.user.id });
-    const teamName = request.teamName ?? "Team";
+    await recApi.approveTeamLinkRequest({ requestId, reviewerDiscordId: interaction.user.id });
+    const result = await recApi.completeTeamLinkRequest({
+      requestId,
+      authority: "member",
+      reviewerDiscordId: interaction.user.id,
+    });
+    const request = result.request;
+    const team = result.link?.team;
+    const teamDisplayName = formatTeamDisplayName(team) ?? team?.name ?? "Team";
+
+    if (interaction.guild) {
+      await ensureRecBaseRoles(interaction.guild);
+      const member = await interaction.guild.members.fetch(request.requester_discord_id).catch(() => null);
+      if (member) {
+        await syncMemberForTeam({
+          member,
+          teamName: team?.name ?? "Team",
+          authority: "member",
+          team,
+        }).catch(() => undefined);
+      }
+    }
     const embed = new EmbedBuilder()
       .setTitle("Team Link Request — Approved")
       .setDescription([
-        `<@${request.requester_discord_id}> requested **${teamName}**.`,
-        "",
-        "Select the role this coach should receive:",
+        `<@${interaction.user.id}> linked <@${request.requester_discord_id}> to **${teamDisplayName}** as **member**.`,
       ].join("\n"));
-    const roleRows = [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${TEAM_REQUEST_CUSTOM_IDS.rolePrefix}:member:${requestId}`).setLabel("Member").setStyle(ButtonStyle.Primary),
-        new ButtonBuilder().setCustomId(`${TEAM_REQUEST_CUSTOM_IDS.rolePrefix}:co_commissioner:${requestId}`).setLabel("Co-Commissioner").setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder().setCustomId(`${TEAM_REQUEST_CUSTOM_IDS.rolePrefix}:commissioner:${requestId}`).setLabel("Commissioner").setStyle(ButtonStyle.Success),
-      ),
-    ];
-    await updateReviewMessage(interaction, request, embed, roleRows);
+    await updateReviewMessage(interaction, request, embed, []);
   } catch (error) {
     await interaction.followUp({ content: error instanceof Error ? error.message : String(error), ephemeral: true }).catch(() => undefined);
   }

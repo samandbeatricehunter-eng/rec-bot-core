@@ -1,4 +1,5 @@
 import { ActionRowBuilder, EmbedBuilder, ModalBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { REC_ROUTE_CHANNELS, getRecRouteChannel } from "@rec/shared";
 
 export const SERVER_SETUP_CUSTOM_IDS = {
   selectChannelType: "rec:server_setup:select_channel_type",
@@ -6,36 +7,18 @@ export const SERVER_SETUP_CUSTOM_IDS = {
   channelIdInput: "rec:server_setup:channel_id_input"
 } as const;
 
-export const CHANNEL_TYPE_OPTIONS = {
-  commissioner_office: "Commissioner Office",
-  announcements: "Announcements",
-  headlines: "Headlines",
-  power_rankings: "Power Rankings",
-  voting_polls: "Voting Polls",
-  streams: "Streams",
-  highlights: "Highlights",
-  pending_payouts: "Pending Payouts",
-  pending_purchases: "Pending Purchases",
-  box_scores: "Box Scores",
-  game_channels_category: "Game Channels Category"
-} as const;
+export const CHANNEL_TYPE_OPTIONS = Object.fromEntries(
+  Object.entries(REC_ROUTE_CHANNELS).map(([key, config]) => [key, config.label])
+) as Record<keyof typeof REC_ROUTE_CHANNELS, string>;
 
 export function buildServerSetupPanel() {
   const select = new StringSelectMenuBuilder()
     .setCustomId(SERVER_SETUP_CUSTOM_IDS.selectChannelType)
     .setPlaceholder("Select a channel or category to assign")
     .addOptions(
-      new StringSelectMenuOptionBuilder().setLabel("Commissioner Office").setValue("commissioner_office"),
-      new StringSelectMenuOptionBuilder().setLabel("Announcements").setValue("announcements"),
-      new StringSelectMenuOptionBuilder().setLabel("Headlines").setValue("headlines"),
-      new StringSelectMenuOptionBuilder().setLabel("Power Rankings").setValue("power_rankings"),
-      new StringSelectMenuOptionBuilder().setLabel("Voting Polls").setValue("voting_polls"),
-      new StringSelectMenuOptionBuilder().setLabel("Streams").setValue("streams"),
-      new StringSelectMenuOptionBuilder().setLabel("Highlights").setValue("highlights"),
-      new StringSelectMenuOptionBuilder().setLabel("Pending Payouts").setValue("pending_payouts"),
-      new StringSelectMenuOptionBuilder().setLabel("Pending Purchases").setValue("pending_purchases"),
-      new StringSelectMenuOptionBuilder().setLabel("Box Scores").setValue("box_scores"),
-      new StringSelectMenuOptionBuilder().setLabel("Game Channels Category").setValue("game_channels_category")
+      ...Object.entries(REC_ROUTE_CHANNELS).map(([key, config]) =>
+        new StringSelectMenuOptionBuilder().setLabel(config.label).setValue(key)
+      )
     );
 
   return {
@@ -51,7 +34,7 @@ export function buildServerSetupPanel() {
 export function buildChannelIdModal(channelType: string) {
   const modal = new ModalBuilder()
     .setCustomId(SERVER_SETUP_CUSTOM_IDS.channelIdModal)
-    .setTitle(`Assign ${CHANNEL_TYPE_OPTIONS[channelType as keyof typeof CHANNEL_TYPE_OPTIONS] || "Channel"}`);
+    .setTitle(`Assign ${getRecRouteChannel(channelType)?.label ?? "Channel"}`);
 
   const idInput = new TextInputBuilder()
     .setCustomId(SERVER_SETUP_CUSTOM_IDS.channelIdInput)

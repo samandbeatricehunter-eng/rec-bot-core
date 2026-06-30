@@ -1,4 +1,4 @@
-import { AFC_TEAMS, CFB_27_TEAMS, NFC_TEAMS, getTeamByAbbreviation } from "@rec/shared";
+import { AFC_TEAMS, CFB_27_TEAMS, NFC_TEAMS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -20,6 +20,15 @@ function defaultTeamResetDescription(game?: string | null) {
   if (game === "cfb_27") return "default College Football 27 teams";
   if (game === "madden_27") return "default Madden NFL 27 teams";
   return "default Madden NFL 26 teams";
+}
+
+function normalizeAbbreviation(value: string) {
+  return value.trim().toUpperCase();
+}
+
+function getDefaultTeamByAbbreviation(game: string | null | undefined, abbreviation: string) {
+  const normalized = normalizeAbbreviation(abbreviation);
+  return getDefaultTeamCatalog(game).find((team) => normalizeAbbreviation(team.abbreviation) === normalized) ?? null;
 }
 
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {
@@ -98,18 +107,25 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
 
 export async function createCustomTeamReplacement(input: CustomTeamReplacementInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
-  const replaced = getTeamByAbbreviation(input.replacementTeamAbbreviation);
-  if (!replaced) throw new ApiError(400, "Replacement NFL team abbreviation was not recognized.");
+  const replacementAbbr = normalizeAbbreviation(input.replacementTeamAbbreviation);
 
-  // Find the existing rec_teams row for this NFL slot (by original abbreviation)
   const existing = await supabase
     .from("rec_teams")
-    .select("id")
+    .select("*")
     .eq("league_id", league.id)
-    .eq("abbreviation", replaced.abbreviation)
+    .or(`abbreviation.eq.${replacementAbbr},original_abbreviation.eq.${replacementAbbr},display_abbr.eq.${replacementAbbr}`)
+    .limit(1)
     .maybeSingle();
 
   if (existing.error) throw new ApiError(500, "Failed to look up existing team slot.", existing.error);
+
+  const fallback = getDefaultTeamByAbbreviation(league.game, replacementAbbr);
+  const replaced = existing.data ?? fallback;
+  if (!replaced) {
+    throw new ApiError(400, league.game === "cfb_27" ? "Replacement CFB team abbreviation was not recognized in this league." : "Replacement NFL team abbreviation was not recognized.");
+  }
+
+  const originalAbbreviation = existing.data?.original_abbreviation ?? existing.data?.abbreviation ?? fallback?.abbreviation ?? replacementAbbr;
 
   const updates = {
     name: input.customTeamName,
@@ -117,7 +133,7 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     display_nick: input.customDisplayNick ?? null,
     display_abbr: input.customDisplayAbbr ?? null,
     is_relocated: true,
-    original_abbreviation: replaced.abbreviation,
+    original_abbreviation: originalAbbreviation,
     updated_at: new Date().toISOString()
   };
 
@@ -135,7 +151,7 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
       .from("rec_teams")
       .insert({
         league_id: league.id,
-        abbreviation: replaced.abbreviation,
+        abbreviation: fallback?.abbreviation ?? replacementAbbr,
         conference: replaced.conference,
         division: replaced.division,
         source: "manual_admin_entry" as any,
@@ -151,7 +167,7 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     action: "team.custom_replacement.registered",
     entityType: "rec_teams",
     entityId: result.data.id,
-    newValue: { guildId: input.guildId, leagueId: league.id, customTeamName: input.customTeamName, replacedAbbr: replaced.abbreviation, displayAbbr: input.customDisplayAbbr },
+    newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, customTeamName: input.customTeamName, replacedAbbr: originalAbbreviation, displayAbbr: input.customDisplayAbbr },
     reason: "Custom/relocated team registered through Team Ownership setup.",
     source: "manual_admin_entry"
   });
