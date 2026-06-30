@@ -80,6 +80,9 @@ function scoreFor(a: Agg): number {
 }
 
 type RankedTeam = { teamId: string; score: number; rank: number };
+type ComputePowerRankingsOptions = {
+  completedWeekNumber?: number | null;
+};
 
 async function rankTeams(leagueId: string, seasonNumber: number): Promise<RankedTeam[]> {
   const teamsRes = await supabase.from("rec_teams").select("id").eq("league_id", leagueId);
@@ -118,18 +121,39 @@ export async function snapshotPowerRankings(leagueId: string, seasonNumber: numb
   if (error) throw new ApiError(500, "Failed to write power-ranking snapshot.", error);
 }
 
-export async function computePowerRankings(guildId: string, viewerDiscordId?: string | null) {
+async function loadSnapshotRankings(leagueId: string, seasonNumber: number, weekNumber: number): Promise<RankedTeam[] | null> {
+  const { data, error } = await supabase
+    .from("rec_power_ranking_snapshots")
+    .select("team_id,rank,score")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .order("rank", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load power-ranking snapshot.", error);
+  if (!data?.length) return null;
+  return data.map((row: any) => ({ teamId: row.team_id, rank: Number(row.rank), score: Number(row.score ?? 0) }));
+}
+
+export async function computePowerRankings(guildId: string, viewerDiscordId?: string | null, options: ComputePowerRankingsOptions = {}) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const currentSeason = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  const completedWeekNumber = options.completedWeekNumber ?? null;
+  const ranked = completedWeekNumber
+    ? (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(leagueId, currentSeason)
+    : await rankTeams(leagueId, currentSeason);
 
-  const [teamsRes, assignmentsRes, ranked, prevSnap] = await Promise.all([
+  const prevSnapQuery = supabase
+    .from("rec_power_ranking_snapshots")
+    .select("week_number,team_id,rank")
+    .eq("league_id", leagueId)
+    .eq("season_number", currentSeason)
+    .order("week_number", { ascending: false });
+  const [teamsRes, assignmentsRes, prevSnap] = await Promise.all([
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
-    rankTeams(leagueId, currentSeason),
-    // Most recent snapshot week for this season (the "previous week").
-    supabase.from("rec_power_ranking_snapshots").select("week_number,team_id,rank").eq("league_id", leagueId).eq("season_number", currentSeason).order("week_number", { ascending: false }),
+    completedWeekNumber ? prevSnapQuery.lt("week_number", completedWeekNumber) : prevSnapQuery,
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
   if (assignmentsRes.error) throw new ApiError(500, "Failed to load assignments for power rankings.", assignmentsRes.error);
@@ -178,7 +202,9 @@ export async function computePowerRankings(guildId: string, viewerDiscordId?: st
     league: { id: leagueId, name: context.rec_leagues.name ?? null },
     currentSeason,
     currentWeek,
+    completedWeekNumber,
     hasPreviousWeek: latestWeek != null,
+    previousWeekNumber: latestWeek,
     totalTeams: teams.length,
     viewerTeamId,
     teams,

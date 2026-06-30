@@ -253,6 +253,7 @@ export type LeagueSetupDraft = {
   commissionerOfficeChannelId?: string | null;
   announcementsChannelId?: string | null;
   headlinesChannelId?: string | null;
+  powerRankingsChannelId?: string | null;
   votingPollsChannelId?: string | null;
   streamsChannelId?: string | null;
   highlightsChannelId?: string | null;
@@ -410,6 +411,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     commissionerOfficeChannelId: null,
     announcementsChannelId: null,
     headlinesChannelId: null,
+    powerRankingsChannelId: null,
     votingPollsChannelId: null,
     streamsChannelId: null,
     highlightsChannelId: null,
@@ -1233,6 +1235,7 @@ export const LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS = {
   commissioner_office: { label: "Commissioner Office", field: "commissionerOfficeChannelId" },
   announcements: { label: "Announcements", field: "announcementsChannelId" },
   headlines: { label: "Headlines", field: "headlinesChannelId" },
+  power_rankings: { label: "Power Rankings", field: "powerRankingsChannelId" },
   voting_polls: { label: "Voting Polls", field: "votingPollsChannelId" },
   streams: { label: "Streams", field: "streamsChannelId" },
   highlights: { label: "Highlights", field: "highlightsChannelId" },

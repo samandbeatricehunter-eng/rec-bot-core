@@ -77,8 +77,9 @@ export async function scheduleRoutes(app: FastifyInstance) {
       const input = z.object({
         guildId: z.string().min(1),
         discordId: z.string().optional().nullable(),
+        completedWeekNumber: z.number().int().positive().optional().nullable(),
       }).parse(request.body);
-      return reply.send(await computePowerRankings(input.guildId, input.discordId ?? null));
+      return reply.send(await computePowerRankings(input.guildId, input.discordId ?? null, { completedWeekNumber: input.completedWeekNumber ?? null }));
     } catch (error) {
       return sendError(reply, error);
     }

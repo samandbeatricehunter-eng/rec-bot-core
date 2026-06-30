@@ -13,7 +13,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
-import { getAnnouncementsChannel, getHeadlinesChannel } from "../lib/route-channels.js";
+import { getAnnouncementsChannel, getHeadlinesChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 
 // Final step of the advance flow: set (or skip) the next scheduled advance time.
@@ -386,6 +386,13 @@ type HeadlinePublishResult = {
   accessible: boolean;
 };
 
+type PowerRankingsPublishResult = {
+  posted: boolean;
+  configured: boolean;
+  accessible: boolean;
+  count: number;
+};
+
 async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession): Promise<HeadlinePublishResult> {
   try {
     const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
@@ -461,6 +468,64 @@ function headlinePublishLine(result: HeadlinePublishResult) {
   return "\n\nNo new game headlines were ready to post.";
 }
 
+function formatPowerRankingMovement(change: number | null | undefined) {
+  if (change == null) return "new";
+  if (change > 0) return `up ${change}`;
+  if (change < 0) return `down ${Math.abs(change)}`;
+  return "same";
+}
+
+function buildPowerRankingsEmbed(rankings: any, session: AdvanceTimeSession) {
+  const teams: any[] = Array.isArray(rankings?.teams) ? rankings.teams : [];
+  const lines = teams.slice(0, 32).map((team) => {
+    const humanMarker = team.isHuman ? " *" : "";
+    return `#${team.rank} ${team.teamName}${humanMarker} - ${formatPowerRankingMovement(team.change)} (${Number(team.score ?? 0).toFixed(3)})`;
+  });
+  const topHalf = lines.slice(0, 16).join("\n") || "No rankings available.";
+  const bottomHalf = lines.slice(16).join("\n");
+  const embed = new EmbedBuilder()
+    .setTitle(`Power Rankings - Season ${session.completedSeasonNumber}, Week ${session.completedWeekNumber}`)
+    .setColor(0x9b59b6)
+    .setDescription(rankings?.hasPreviousWeek ? "Movement is compared to the previous completed week." : "First snapshot for this season.")
+    .addFields({ name: "Rankings", value: topHalf.slice(0, 1024), inline: false });
+  if (bottomHalf) embed.addFields({ name: "Continued", value: bottomHalf.slice(0, 1024), inline: false });
+  embed.setFooter({ text: "* = linked user team" });
+  return embed;
+}
+
+async function publishPowerRankings(guild: Guild, session: AdvanceTimeSession): Promise<PowerRankingsPublishResult> {
+  if (session.completedWeekNumber < 1 || session.completedWeekNumber > 22) {
+    return { posted: false, configured: true, accessible: true, count: 0 };
+  }
+  try {
+    const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
+    const channelId = cfg?.routes?.power_rankings_channel_id ?? null;
+    if (!channelId) return { posted: false, configured: false, accessible: false, count: 0 };
+    const channel = await getPowerRankingsChannel(guild, cfg?.routes ?? {});
+    if (!channel) return { posted: false, configured: true, accessible: false, count: 0 };
+
+    const rankings = await recApi.getPowerRankings(session.guildId, null, session.completedWeekNumber);
+    const teams: any[] = Array.isArray(rankings?.teams) ? rankings.teams : [];
+    if (!teams.length) return { posted: false, configured: true, accessible: true, count: 0 };
+    await channel.send({
+      content: "@everyone",
+      embeds: [buildPowerRankingsEmbed(rankings, session)],
+      allowedMentions: { parse: ["everyone"] },
+    });
+    return { posted: true, configured: true, accessible: true, count: teams.length };
+  } catch (error) {
+    console.error("[ERROR] Failed to publish power rankings (non-fatal):", error);
+    return { posted: false, configured: true, accessible: true, count: 0 };
+  }
+}
+
+function powerRankingsPublishLine(result: PowerRankingsPublishResult) {
+  if (result.posted) return `\n\nPosted power rankings for **${result.count}** team${result.count === 1 ? "" : "s"}.`;
+  if (!result.configured) return "\n\nNo power rankings channel is configured, so rankings were not posted.";
+  if (!result.accessible) return "\n\nA power rankings channel is configured, but I couldn't access it. Check the bot's channel permissions.";
+  return "\n\nNo power rankings were ready to post.";
+}
+
 export async function handleAdvanceTimeSet(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return;
   if (!isFullLeagueAdminInteraction(interaction)) {
@@ -500,6 +565,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
 
   const headlines = await publishAdvanceHeadlines(interaction.guild, session);
+  const powerRankings = await publishPowerRankings(interaction.guild, session);
   const announced = await announceAdvance(interaction.guild, session.guildId, session.headline, result.epochSeconds);
   const xfPosted = await publishSeasonXfSummary(interaction.guild, session);
   const announcementLine = announced
@@ -514,6 +580,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, build
         `${session.headline}\n\n**Next advance** (<t:${result.epochSeconds}:R>):\n${formatAllZones(result.epochSeconds)}` +
         announcementLine +
         headlinePublishLine(headlines) +
+        powerRankingsPublishLine(powerRankings) +
         (xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""),
       )],
     components: buildAdvanceRows(),
@@ -527,13 +594,14 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, buil
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
   const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
+  const powerRankings = session ? await publishPowerRankings(interaction.guild, session) : { posted: false, configured: true, accessible: true, count: 0 };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   const xfPosted = session ? await publishSeasonXfSummary(interaction.guild, session) : 0;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
+      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
     components: buildAdvanceRows(),
   });
 }
@@ -545,13 +613,14 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, buil
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
   const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
+  const powerRankings = session ? await publishPowerRankings(interaction.guild, session) : { posted: false, configured: true, accessible: true, count: 0 };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
   const xfPosted = session ? await publishSeasonXfSummary(interaction.guild, session) : 0;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(0x95a5a6)
-      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
+      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}`)],
     components: buildAdvanceRows(),
   });
 }

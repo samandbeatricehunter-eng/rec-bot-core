@@ -128,6 +128,7 @@ export const recApi = {
     pendingPurchasesChannelId?: string;
     boxScoresChannelId?: string;
     headlinesChannelId?: string;
+    powerRankingsChannelId?: string;
     gameChannelsCategoryId?: string;
     commissionerOfficeChannelId?: string;
     streamsChannelId?: string;
@@ -237,6 +238,24 @@ export const recApi = {
 
   markAdvanceStoryPosted: (input: { guildId: string; storyId: string; channelId: string; messageId: string }) =>
     recFetch<any>("/v1/league-week/advance-stories/posted", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  prepareEosPayouts: (input: { guildId: string; requestedByDiscordId: string }) =>
+    recFetch<any>("/v1/league-week/eos-payouts/prepare", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  reviewEosPayout: (input: { itemId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) =>
+    recFetch<any>("/v1/league-week/eos-payouts/review", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  issueEosPayoutBatch: (input: { batchId: string; reviewedByDiscordId: string }) =>
+    recFetch<any>("/v1/league-week/eos-payouts/issue-batch", {
       method: "POST",
       body: JSON.stringify(input),
     }),
@@ -431,8 +450,8 @@ export const recApi = {
   getLeagueSos: (guildId: string, discordId: string) =>
     recFetch<any>("/v1/schedule/sos", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
 
-  getPowerRankings: (guildId: string, discordId: string) =>
-    recFetch<any>("/v1/schedule/power-rankings", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
+  getPowerRankings: (guildId: string, discordId?: string | null, completedWeekNumber?: number | null) =>
+    recFetch<any>("/v1/schedule/power-rankings", { method: "POST", body: JSON.stringify({ guildId, discordId, completedWeekNumber }) }),
 
   saveManualScheduleGame: (input: {
     guildId: string;

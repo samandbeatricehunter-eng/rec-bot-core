@@ -28,6 +28,20 @@ const lower = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRule
 export const REC_EOS_MINIMUM_ACTIVE_LINKED_USERS = 0;
 
 export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
+  {
+    key: "power_ranking_position",
+    label: "Power Ranking Position Bonus",
+    scope: "ranking",
+    direction: "lower_is_better",
+    statKey: "power_rank",
+    tiers: [
+      { tier: "S", threshold: 1, amount: 1000, operator: "less_or_equal" },
+      { tier: "A", threshold: 2, amount: 750, operator: "less_or_equal" },
+      { tier: "B", threshold: 5, amount: 500, operator: "less_or_equal" },
+      { tier: "C", threshold: 10, amount: 250, operator: "less_or_equal" },
+      { tier: "D", threshold: 11, amount: 100, operator: "greater_or_equal" },
+    ],
+  },
   { key: "qb_passing_yards", label: "QB Passing Yards", scope: "player", direction: "higher_is_better", statKey: "pass_yards", eligiblePositions: ["QB"], tiers: higher([["S", 6000, 200], ["A", 5500, 150], ["B", 5000, 100], ["C", 4000, 75], ["D", 3000, 50]]) },
   { key: "qb_passing_tds", label: "QB Passing TDs", scope: "player", direction: "higher_is_better", statKey: "pass_tds", eligiblePositions: ["QB"], tiers: higher([["S", 60, 200], ["A", 50, 150], ["B", 40, 100], ["C", 35, 75], ["D", 30, 50]]) },
   { key: "qb_rushing_yards", label: "QB Rushing Yards", scope: "player", direction: "higher_is_better", statKey: "rush_yards", eligiblePositions: ["QB"], tiers: higher([["S", 1000, 200], ["A", 750, 150], ["B", 500, 100], ["C", 350, 75], ["D", 200, 50]]) },

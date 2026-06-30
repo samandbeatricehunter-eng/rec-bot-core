@@ -4,6 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
+import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, reviewEosPayoutItem } from "./eos-payouts.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 
@@ -204,6 +205,57 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         tzLabel: z.enum(SUPPORTED_TZ_LABELS as [string, ...string[]]),
       }).parse(request.body);
       return reply.send(await setNextAdvanceTime(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-payouts/prepare", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        requestedByDiscordId: z.string().min(1),
+      }).parse(request.body);
+      return reply.send(await prepareEosPayouts(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-payouts/list", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ batchId: z.string().uuid() }).parse(request.body);
+      return reply.send(await listEosPayoutBatch(body.batchId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-payouts/review", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        itemId: z.string().uuid(),
+        action: z.enum(["approve", "deny"]),
+        reviewedByDiscordId: z.string().min(1),
+        deniedReason: z.string().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await reviewEosPayoutItem(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-payouts/issue-batch", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        batchId: z.string().uuid(),
+        reviewedByDiscordId: z.string().min(1),
+      }).parse(request.body);
+      return reply.send(await issueEosPayoutBatch(body));
     } catch (error) {
       return sendError(reply, error);
     }

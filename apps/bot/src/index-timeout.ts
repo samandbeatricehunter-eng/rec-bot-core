@@ -183,6 +183,9 @@ const ADVANCE_CUSTOM_IDS = {
   seasonManualModal: "rec:advance:season_manual_modal",
   seasonManualInput: "rec:advance:season_manual_input"
 } as const;
+const EOS_PAYOUT_CUSTOM_IDS = {
+  issueBatchPrefix: "rec:eos_payouts:issue:"
+} as const;
 
 const CO_COMMISSIONER_ALLOWED_LEAGUE_MGMT_IDS = new Set<string>([
   MENU_CUSTOM_IDS.leagueMgmt,
@@ -487,6 +490,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetWeek) return handleSetWeek(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetSeason) return handleSetSeason(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosActions) return handleEosActions(interaction);
+      if (interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix)) return handleIssueEosPayoutBatch(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosPayouts) return handleEosPayouts(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return replyMenuPlaceholder(interaction, "EOS Awards", "EOS Awards is intentionally a placeholder for now.");
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtPotyTallies) return handlePotyTallies(interaction);
@@ -1597,12 +1601,76 @@ function weeklyChallengesEmbed() {
 
 async function handleEosPayouts(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS payouts");
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
   const currentWeek = Number(week?.league?.current_week ?? 1);
   if (currentWeek < 19 || currentWeek > 22) {
     return interaction.reply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts").setDescription("EOS payouts cannot be issued until the active regular season concludes. They are available from Wild Card through Super Bowl week.")], flags: MessageFlags.Ephemeral });
   }
-  return interaction.reply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts").setDescription("EOS payout calculation needs the final payout tier spec before it can issue pending payout ledgers. The button is now gated to the correct postseason window.")], flags: MessageFlags.Ephemeral });
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const result = await recApi.prepareEosPayouts({ guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+  const items: any[] = result?.items ?? [];
+  const pending = items.filter((item) => item.status === "pending").length;
+  const issued = items.filter((item) => item.status === "issued").length;
+  const total = Number(result?.totalAmount ?? 0);
+  const byCategory = new Map<string, { count: number; amount: number }>();
+  for (const item of items) {
+    const key = String(item.payout_category ?? "other");
+    const row = byCategory.get(key) ?? { count: 0, amount: 0 };
+    row.count += 1;
+    row.amount += Number(item.amount ?? 0);
+    byCategory.set(key, row);
+  }
+  const categoryLines = [...byCategory.entries()].map(([key, row]) => `${key}: **${row.count}** item${row.count === 1 ? "" : "s"} / **$${row.amount}**`);
+  const batchId = result?.batch?.id ? String(result.batch.id) : null;
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle("EOS Payouts Prepared")
+      .setColor(0x2ecc71)
+      .setDescription([
+        `Season **${result?.batch?.season_number ?? week?.league?.season_number ?? 1}** EOS payout batch is ready.`,
+        "",
+        `Pending review items: **${pending}**`,
+        `Issued items: **${issued}**`,
+        `Total generated amount: **$${total}**`,
+        "",
+        categoryLines.length ? categoryLines.join("\n") : "No qualifying EOS payouts were generated.",
+        "",
+        "This engine uses final regular-season power rankings and approved box-score team stats. Player-level stat imports are not required."
+      ].join("\n"))],
+    components: batchId && pending > 0
+      ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix}${batchId}`).setLabel("Issue Pending EOS Payouts").setStyle(ButtonStyle.Success),
+          new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        )]
+      : [new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("Back").setStyle(ButtonStyle.Secondary),
+        )],
+  });
+}
+
+async function handleIssueEosPayoutBatch(interaction: ButtonInteraction) {
+  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "issue EOS payouts");
+  const batchId = interaction.customId.slice(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix.length);
+  if (!batchId) return interaction.reply({ content: "EOS payout batch was missing.", flags: MessageFlags.Ephemeral });
+  await interaction.deferUpdate();
+  const result = await recApi.issueEosPayoutBatch({ batchId, reviewedByDiscordId: interaction.user.id });
+  const failed: any[] = result?.failed ?? [];
+  const issuedCount = Number(result?.issuedCount ?? 0);
+  const remainingPending = (result?.items ?? []).filter((item: any) => item.status === "pending").length;
+  return interaction.editReply({
+    embeds: [new EmbedBuilder()
+      .setTitle(failed.length ? "EOS Payouts Partially Issued" : "EOS Payouts Issued")
+      .setColor(failed.length ? 0xf1c40f : 0x2ecc71)
+      .setDescription([
+        `Issued **${issuedCount}** pending EOS payout${issuedCount === 1 ? "" : "s"}.`,
+        `Remaining pending: **${remainingPending}**`,
+        failed.length ? `Failed: **${failed.length}** item${failed.length === 1 ? "" : "s"}. Check API logs for details.` : "No failures reported."
+      ].join("\n"))],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("Back").setStyle(ButtonStyle.Secondary),
+    )],
+  });
 }
 
 async function handlePotyTallies(interaction: ButtonInteraction) {
@@ -1733,6 +1801,7 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
       commissioner_office: "commissionerOfficeChannelId",
       announcements: "announcementsChannelId",
       headlines: "headlinesChannelId",
+      power_rankings: "powerRankingsChannelId",
       voting_polls: "votingPollsChannelId",
       streams: "streamsChannelId",
       highlights: "highlightsChannelId",

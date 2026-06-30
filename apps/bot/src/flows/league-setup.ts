@@ -644,6 +644,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
         commissionerOfficeChannelId: draft.commissionerOfficeChannelId ?? undefined,
         announcementsChannelId: draft.announcementsChannelId ?? undefined,
         headlinesChannelId: draft.headlinesChannelId ?? undefined,
+        powerRankingsChannelId: draft.powerRankingsChannelId ?? undefined,
         votingPollsChannelId: draft.votingPollsChannelId ?? undefined,
         streamsChannelId: draft.streamsChannelId ?? undefined,
         highlightsChannelId: draft.highlightsChannelId ?? undefined,
