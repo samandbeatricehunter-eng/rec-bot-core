@@ -1328,12 +1328,16 @@ function gameRulesLines(draft: any, isPlayoff: boolean): string[] {
   if (!draft || req == null) streamText = "Follow this week's league streaming requirements.";
   else if (req === "disabled") streamText = "Not required.";
   else {
-    const reqLabel = req === "required" ? "Required" : "Recommended";
+    // "Required" streams are mandatory ("must"); "Recommended" streams are
+    // encouraged but optional ("should").
+    const isRequired = req === "required";
+    const reqLabel = isRequired ? "Required" : "Recommended";
+    const verb = isRequired ? "must" : "should";
     const sideLabel =
-      side === "home" ? "the home team must stream"
-      : side === "away" ? "the away team must stream"
-      : side === "both" ? "both teams must stream"
-      : "at least one team must stream";
+      side === "home" ? `the home team ${verb} stream`
+      : side === "away" ? `the away team ${verb} stream`
+      : side === "both" ? `both teams ${verb} stream`
+      : `at least one team ${verb} stream`;
     streamText = `${reqLabel} — ${sideLabel}.`;
   }
 
