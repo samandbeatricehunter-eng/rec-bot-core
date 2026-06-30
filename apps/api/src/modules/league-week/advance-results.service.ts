@@ -10,6 +10,7 @@ import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
+import { convertSeasonBadgesToTrophies } from "../box-score-intelligence/season-trophies.service.js";
 import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 
@@ -243,6 +244,17 @@ export async function completeAdvanceWeek(input: {
   }).catch((err) => {
     console.error("[ERROR] recordAdvanceDmRun failed after advance (non-fatal):", err);
   });
+
+  // Season end (advancing out of the Super Bowl into the offseason): convert every
+  // active coach's season badges into permanent Career Trophies, then wipe their
+  // weekly + season badges for next season. Runs after recordAdvanceDmRun so the
+  // offseason DM snapshot still reflects this season's badges. Non-fatal.
+  const currentStage = String(context.rec_leagues.season_stage ?? "");
+  if (currentStage === "super_bowl" && input.nextSeasonStage === "coach_hiring") {
+    await convertSeasonBadgesToTrophies(context.leagueId, seasonNumber).catch((err) => {
+      console.error("[ERROR] convertSeasonBadgesToTrophies failed after advance (non-fatal):", err);
+    });
+  }
 
   return advanceResult;
 }

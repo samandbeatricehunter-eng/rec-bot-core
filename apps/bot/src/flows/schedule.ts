@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS } from "../ui/menu.js";
 
 export const SCHEDULE_MGMT_CUSTOM_IDS = {
@@ -636,9 +637,7 @@ function expectedGamesForWeek(session: ManualScheduleSession) {
 }
 
 function displayTeam(team: ManualTeam | any) {
-  const abbr = team?.display_abbr ?? team?.abbreviation;
-  if (team?.display_city || team?.display_nick) return `${team.display_city ?? ""} ${team.display_nick ?? team.name}`.trim();
-  return abbr ? `${abbr} - ${team?.name ?? "Team"}` : team?.name ?? "Team";
+  return teamDisplayLabel(team);
 }
 
 function conferenceOf(team: ManualTeam) {
@@ -767,8 +766,8 @@ function formatViewWeekLabel(weekNumber: number) {
 
 function formatScheduleParticipant(team: any, discordId?: string | null) {
   if (discordId) return `<@${discordId}>`;
-  if (team?.display_city || team?.display_nick) return `${team.display_city ?? ""} ${team.display_nick ?? team.name}`.trim();
-  return team?.display_abbr ?? team?.abbreviation ?? team?.name ?? "Unassigned";
+  if (!team) return "Unassigned";
+  return teamDisplayName(team);
 }
 
 function buildPostSetupWeekEmbed(session: ScheduleViewSession) {

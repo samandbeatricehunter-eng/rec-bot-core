@@ -235,6 +235,18 @@ function buildIdentityEmbed(payload: any, page: number) {
       ].join(" | ")
     : "No approved season box-score stats logged yet.";
 
+  const trophies: any[] = Array.isArray(identity.careerTrophies) ? identity.careerTrophies : [];
+  const trophyLines = trophies.slice(0, 12).map((t) => {
+    const count = Number(t.seasonsEarned ?? 1);
+    const suffix = count > 1 ? ` ×${count}` : "";
+    const desc = t.description ? ` — ${t.description}` : "";
+    return `${formatTierEmojiPrefix(t.tier)}**${t.label}**${desc}${suffix}`;
+  });
+  if (trophies.length > 12) trophyLines.push(`…and ${trophies.length - 12} more`);
+  const trophyBlock = trophyLines.length
+    ? ["", "**Career Trophies**", trophyLines.join("\n")].join("\n")
+    : null;
+
   const parts = [
     `Coach: **${coach}**`,
     `Team: **${identity.teamName ?? "Unassigned"}**`,
@@ -245,6 +257,7 @@ function buildIdentityEmbed(payload: any, page: number) {
     "**Season Snapshot**",
     statLine,
     evidence ? ["", "**Why This Identity**", evidence].join("\n") : null,
+    trophyBlock,
   ].filter(Boolean).join("\n");
 
   return {

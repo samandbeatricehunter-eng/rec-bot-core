@@ -114,7 +114,7 @@ export async function listScheduleWeek(guildId: string, weekNumber: number, seas
   const seasonId = await resolveSeasonId(context.leagueId, selectedSeason);
   const { data, error } = await supabase
     .from("rec_games")
-    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr)")
+    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
     .eq("league_id", context.leagueId)
     .eq("season_id", seasonId)
     .eq("week_number", weekNumber)

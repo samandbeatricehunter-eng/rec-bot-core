@@ -6,6 +6,7 @@ import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.se
 import { rebuildOfficialGlobalRecords } from "../official-records/official-records.service.js";
 import { recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
+import { loadLeagueCareerTrophies } from "../box-score-intelligence/season-trophies.service.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -503,6 +504,8 @@ export async function getLeagueUserIdentities(guildId: string) {
     badgesByUser.set(badge.user_id, rows);
   }
 
+  const trophiesByUser = await loadLeagueCareerTrophies(leagueId);
+
   const identities = await Promise.all((assignments ?? []).map(async (assignment: any) => {
     const discordAccounts = assignment.rec_users?.rec_discord_accounts;
     const discordAcc = Array.isArray(discordAccounts) ? discordAccounts[0] : discordAccounts;
@@ -517,6 +520,7 @@ export async function getLeagueUserIdentities(guildId: string) {
       displayName: assignment.rec_users?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
       teamName: formatTeamDisplayName(assignment.rec_teams) ?? assignment.rec_teams?.name ?? null,
       seasonStats,
+      careerTrophies: assignment.user_id ? trophiesByUser.get(assignment.user_id) ?? [] : [],
       ...identity,
     };
   }));
