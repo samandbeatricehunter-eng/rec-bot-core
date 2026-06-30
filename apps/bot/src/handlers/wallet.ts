@@ -178,10 +178,3 @@ export async function handleWalletPendingPurchases(interaction: ButtonInteractio
   });
 }
 
-export async function handleWalletMakePurchase(interaction: ButtonInteraction) {
-  await interaction.deferUpdate();
-  await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Make a Purchase").setDescription("Purchase tools will be built after League Mgmt > Settings > Purchases is complete.")],
-    components: buildManageWalletRows()
-  });
-}
