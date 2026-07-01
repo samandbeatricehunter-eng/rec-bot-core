@@ -1,3 +1,4 @@
+import { isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -12,7 +13,7 @@ import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intell
 import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { convertSeasonBadgesToTrophies } from "../box-score-intelligence/season-trophies.service.js";
 import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
-import { nextLeagueStage, stageHasScheduledGames } from "./league-stage.util.js";
+import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 
 type AdvanceGameResultInput = {
@@ -23,8 +24,16 @@ type AdvanceGameResultInput = {
   awayScore?: number | null;
 };
 
-function phaseForWeek(weekNumber: number) {
-  if (weekNumber <= 18) return "regular_season";
+function phaseForWeek(weekNumber: number, game: string | null) {
+  if (isRegularSeasonWeek(weekNumber, game)) return "regular_season";
+  if (game === "cfb_27") {
+    if (weekNumber === 13) return "cfp_first_round";
+    if (weekNumber === 14) return "cfp_quarterfinals";
+    if (weekNumber === 15) return "cfp_semifinals";
+    if (weekNumber === 16) return "cfp_bye_week";
+    if (weekNumber === 17) return "national_championship";
+    return "postseason";
+  }
   if (weekNumber === 19) return "wild_card";
   if (weekNumber === 20) return "divisional";
   if (weekNumber === 21) return "conference_championship";
@@ -48,7 +57,7 @@ export async function getAdvanceWeekGames(guildId: string) {
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
 
-  if (!stageHasScheduledGames(currentStage)) {
+  if (!stageHasScheduledGames(currentStage, context.rec_leagues.game)) {
     return {
       league: context.rec_leagues,
       seasonNumber,
@@ -164,7 +173,7 @@ export async function completeAdvanceWeek(input: {
         league_id: context.leagueId,
         season_number: seasonNumber,
         week_number: game.data.week_number ?? currentWeek,
-        game_type: game.data.phase ?? phaseForWeek(currentWeek),
+        game_type: game.data.phase ?? phaseForWeek(currentWeek, context.rec_leagues.game),
         external_game_id: game.data.external_game_id ?? null,
         home_team_id: game.data.home_team_id,
         away_team_id: game.data.away_team_id,
@@ -179,7 +188,7 @@ export async function completeAdvanceWeek(input: {
         is_user_h2h: Boolean(game.data.home_user_id && game.data.away_user_id),
         is_cpu_game: !(game.data.home_user_id && game.data.away_user_id),
         is_tie: isTie,
-        is_playoff: (game.data.week_number ?? currentWeek) > 18,
+        is_playoff: !isRegularSeasonWeek(game.data.week_number ?? currentWeek, context.rec_leagues.game),
         source: "commissioner_advance",
         records_apply_key: recordsApplyKey,
         updated_at: now,

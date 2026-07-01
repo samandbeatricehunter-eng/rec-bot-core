@@ -1,3 +1,4 @@
+import { regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -60,13 +61,13 @@ async function linkedTeams(leagueId: string) {
   })).filter((row) => row.userId && row.teamId);
 }
 
-async function statsByUser(leagueId: string, seasonNumber: number) {
+async function statsByUser(leagueId: string, seasonNumber: number, game: string | null) {
   const stats = await supabase
     .from("rec_team_game_stats")
     .select("*")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
-    .lte("week_number", 18)
+    .lte("week_number", regularSeasonWeeks(game))
     .not("user_id", "is", null);
   if (stats.error) throw new ApiError(500, "Failed to load EOS award stats.", stats.error);
   const byUser = new Map<string, any[]>();
@@ -78,13 +79,13 @@ async function statsByUser(leagueId: string, seasonNumber: number) {
   return byUser;
 }
 
-async function resultAggByTeam(leagueId: string, seasonNumber: number) {
+async function resultAggByTeam(leagueId: string, seasonNumber: number, game: string | null) {
   const results = await supabase
     .from("rec_game_results")
     .select("home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,winning_team_id,losing_team_id,is_tie,source")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
-    .lte("week_number", 18);
+    .lte("week_number", regularSeasonWeeks(game));
   if (results.error) throw new ApiError(500, "Failed to load EOS award results.", results.error);
   const map = new Map<string, { wins: number; losses: number; ties: number; pf: number; pa: number; close: number }>();
   const get = (teamId: string) => {
@@ -131,8 +132,8 @@ export async function prepareEosAwardNominees(input: { guildId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const linked = await linkedTeams(context.leagueId);
-  const stats = await statsByUser(context.leagueId, seasonNumber);
-  const results = await resultAggByTeam(context.leagueId, seasonNumber);
+  const stats = await statsByUser(context.leagueId, seasonNumber, context.rec_leagues.game);
+  const results = await resultAggByTeam(context.leagueId, seasonNumber, context.rec_leagues.game);
 
   const base = linked.map((row) => ({ userId: row.userId, discordId: row.discordId, teamId: row.teamId, teamName: row.teamName }));
   const byUserMetric = (fn: (rows: any[]) => { metric: number; detail: string }) => {

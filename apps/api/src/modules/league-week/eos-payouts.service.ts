@@ -1,4 +1,4 @@
-import { REC_END_SEASON_PAYOUTS, evaluatePayoutTier } from "@rec/shared";
+import { REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -155,9 +155,9 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number): Promi
 
 export async function prepareEosPayouts(input: { guildId: string; requestedByDiscordId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
-  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
-  if (currentWeek < 19 || currentWeek > 22) {
-    throw new ApiError(400, "EOS payouts are available from Wild Card through Super Bowl week.");
+  const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
+  if (!isEosPayoutEligibleStage(currentStage, context.rec_leagues.game)) {
+    throw new ApiError(400, "EOS payouts are only available during the postseason (after the regular season ends, through the championship game).");
   }
   const seasonNumber = resolveSeasonNumber(context);
   const batch = await loadOrCreateBatch(context.leagueId, seasonNumber, input.requestedByDiscordId);

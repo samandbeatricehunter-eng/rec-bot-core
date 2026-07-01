@@ -41,6 +41,7 @@ type WizardGame = {
 type AdvanceWizardSession = {
   guildId: string;
   userId: string;
+  game: string | null;
   seasonNumber: number;
   currentWeek: number;
   currentStage: string;
@@ -78,7 +79,7 @@ function renderWizardStep(session: AdvanceWizardSession) {
   const embed = new EmbedBuilder()
     .setTitle(`Advance Week — Game ${session.gameIndex + 1} of ${session.pendingGames.length}`)
     .setDescription([
-      `Logging results for **${stageLabel(session.currentStage, session.currentWeek)}** before advancing to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.`,
+      `Logging results for **${stageLabel(session.currentStage, session.currentWeek, session.game)}** before advancing to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber, session.game)}**.`,
       "",
       `**Away:** ${game.awayTeamName}`,
       `**Home:** ${game.homeTeamName}`,
@@ -142,7 +143,7 @@ function renderDivisionWinnerStep(session: AdvanceWizardSession) {
     embeds: [new EmbedBuilder()
       .setTitle(`Division Winners - ${session.divisionIndex + 1} of ${session.divisions.length}`)
       .setDescription([
-        `Select the **${division.label}** winner before advancing to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.`,
+        `Select the **${division.label}** winner before advancing to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber, session.game)}**.`,
         "",
         selectedLines.length ? selectedLines.join("\n") : "No division winners selected yet.",
       ].join("\n"))],
@@ -220,7 +221,7 @@ async function completeAdvanceFromSession(
     console.error("[ERROR] GOTW settlement failed (non-fatal):", err);
   });
 
-  const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber)}**.${interestLine}${wagerLine}`;
+  const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek, session.game)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber, session.game)}**.${interestLine}${wagerLine}`;
   sessions.delete(sessionKey(session.guildId, session.userId));
   return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: session.currentWeek });
 }
@@ -292,7 +293,8 @@ export async function startAdvanceWeekWizard(interaction: ButtonInteraction, bui
   const payload = await recApi.getAdvanceWeekGames(interaction.guildId);
   const currentWeek = Number(payload.currentWeek ?? 1);
   const currentStage = String(payload.currentStage ?? "regular_season");
-  const next = nextLeagueStage(currentWeek, currentStage);
+  const game = payload.league?.game ?? null;
+  const next = nextLeagueStage(currentWeek, currentStage, game);
   const pendingGames: WizardGame[] = (payload.gamesNeedingInput ?? []).map((game: any) => ({
     gameId: game.gameId,
     homeTeamName: game.homeTeamName,
@@ -304,6 +306,7 @@ export async function startAdvanceWeekWizard(interaction: ButtonInteraction, bui
   const session: AdvanceWizardSession = {
     guildId: interaction.guildId,
     userId: interaction.user.id,
+    game,
     seasonNumber: Number(payload.seasonNumber ?? 1),
     currentWeek,
     currentStage,

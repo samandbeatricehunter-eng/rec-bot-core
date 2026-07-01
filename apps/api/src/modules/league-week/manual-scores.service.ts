@@ -1,3 +1,4 @@
+import { isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -138,7 +139,7 @@ export async function recordManualGameResult(input: {
     league_id: context.leagueId,
     season_number: seasonNumber,
     week_number: weekNumber,
-    game_type: game.data.phase ?? (weekNumber <= 18 ? "regular_season" : "postseason"),
+    game_type: game.data.phase ?? (isRegularSeasonWeek(weekNumber, context.rec_leagues.game) ? "regular_season" : "postseason"),
     external_game_id: game.data.external_game_id ?? null,
     home_team_id: homeTeamId,
     away_team_id: awayTeamId,
@@ -153,7 +154,7 @@ export async function recordManualGameResult(input: {
     is_user_h2h: Boolean(game.data.home_user_id && game.data.away_user_id),
     is_cpu_game: !(game.data.home_user_id && game.data.away_user_id),
     is_tie: isTie,
-    is_playoff: weekNumber > 18,
+    is_playoff: !isRegularSeasonWeek(weekNumber, context.rec_leagues.game),
     source: MANUAL_SOURCE,
     records_apply_key: `manual:${context.leagueId}:${seasonNumber}:${weekNumber}:${homeTeamId}:${awayTeamId}`,
     created_at: now,
