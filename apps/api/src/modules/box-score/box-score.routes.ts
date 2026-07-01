@@ -4,7 +4,6 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import {
   correctBoxScoreSubmission,
-  createBoxScoreSubmission,
   getBoxScoreSubmission,
   getBoxScoreUploadEligibility,
   listScheduledGamesForWeek,
@@ -13,6 +12,7 @@ import {
   reviewBoxScore,
   updateBoxScoreLedgerMessage,
 } from "./box-score.service.js";
+import { getBoxScoreSubmissionJob, startBoxScoreSubmissionJob } from "./box-score-jobs.js";
 
 const ParseSchema = z.object({
   guildId: z.string().min(1),
@@ -63,11 +63,24 @@ export async function boxScoreRoutes(app: FastifyInstance) {
     }
   });
 
-  // Confirm parsed data → persist as pending + create commissioner inbox entry
+  // Start an OCR job → parse + persist happen in the background. Returns a jobId
+  // immediately so the bot's request never has to wait out the (up to a minute+)
+  // OCR run. The bot polls /v1/box-score/job for the result.
   app.post("/v1/box-score/submit", async (request, reply) => {
     try {
       requireInternalApiKey(request);
-      return reply.send(await createBoxScoreSubmission(SubmitSchema.parse(request.body)));
+      return reply.send(startBoxScoreSubmissionJob(SubmitSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Poll a box-score OCR job started by /v1/box-score/submit.
+  app.post("/v1/box-score/job", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { jobId } = z.object({ jobId: z.string().uuid() }).parse(request.body);
+      return reply.send(getBoxScoreSubmissionJob(jobId));
     } catch (error) {
       return sendError(reply, error);
     }

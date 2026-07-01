@@ -163,6 +163,40 @@ function userFacingError(err: unknown): string {
   return message;
 }
 
+// ─── Background OCR job polling ────────────────────────────────────────────────
+// submitBoxScore now returns a jobId immediately; the API runs OCR in the
+// background. We poll until it finishes so the submit request never times out.
+
+const BOX_SCORE_POLL_INTERVAL_MS = 2_500;
+const BOX_SCORE_POLL_MAX_MS = 180_000; // OCR can queue behind other submissions
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// Kick off a submission and wait for the OCR job to finish. Resolves with the
+// parsed payout result, or throws an Error whose message is safe to show the user.
+async function submitAndAwaitBoxScore(input: Parameters<typeof recApi.submitBoxScore>[0]): Promise<any> {
+  const started = await recApi.submitBoxScore(input);
+  if (!started?.jobId) throw new Error("Box score could not be queued for processing. Please try again.");
+
+  const deadline = Date.now() + BOX_SCORE_POLL_MAX_MS;
+  for (;;) {
+    await sleep(BOX_SCORE_POLL_INTERVAL_MS);
+    let job: any;
+    try {
+      job = await recApi.getBoxScoreJob(started.jobId);
+    } catch {
+      // Transient network/API hiccup — keep polling until the deadline.
+      if (Date.now() > deadline) throw new Error("Box score processing timed out. Please re-upload your screenshot.");
+      continue;
+    }
+    if (job?.status === "done") return job.result;
+    if (job?.status === "failed") throw new Error(job.error || "Box score processing failed.");
+    if (job?.status === "not_found") throw new Error("Box score processing was interrupted. Please re-upload your screenshot.");
+    if (Date.now() > deadline) throw new Error("Box score is taking longer than expected. Please re-upload your screenshot in a moment.");
+    // status === "processing" → keep polling
+  }
+}
+
 async function deleteMessages(channel: TextChannel, ids: string[]) {
   for (const id of ids) {
     await channel.messages.delete(id).catch(() => undefined);
@@ -314,7 +348,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
   try {
     // OCR misses no longer block: any unread field is flagged with "?" on the
     // pending payout, and a commissioner can repair it via Corrections.
-    const result = await recApi.submitBoxScore({
+    const result = await submitAndAwaitBoxScore({
       guildId: session.guildId,
       discordId: session.userId,
       imageUrls: images,
@@ -375,7 +409,7 @@ async function advanceExchange(ex: Exchange) {
 
   // Parse (stateless — no DB write yet).
   const working = await ex.channel.send({
-    embeds: [new EmbedBuilder().setTitle("Reading box score…").setDescription("Running OCR on your screenshot. This can take 15–30 seconds.")],
+    embeds: [new EmbedBuilder().setTitle("Reading box score…").setDescription("Running OCR on your screenshot. This can take up to a minute or two, especially when others are submitting at the same time.")],
   }).catch(() => null);
   if (working) ex.botMessageIds.push(working.id);
 
@@ -384,7 +418,7 @@ async function advanceExchange(ex: Exchange) {
   // runs the OCR and applies the same self-serve validation the preview used to.
   let result: any;
   try {
-    result = await recApi.submitBoxScore({
+    result = await submitAndAwaitBoxScore({
       guildId: ex.guildId,
       discordId: ex.userId,
       imageUrls: ex.imageUrls,

@@ -482,8 +482,13 @@ export const recApi = {
     weekNumber?: number | null;
     expectedGameId?: string | null;
     commissionerSubmission?: boolean | null;
-  }) =>
-    recFetch<any>("/v1/box-score/submit", { method: "POST", body: JSON.stringify(input) }),
+  }): Promise<{ jobId: string; status: string }> =>
+    recFetch<{ jobId: string; status: string }>("/v1/box-score/submit", { method: "POST", body: JSON.stringify(input) }),
+
+  // Poll a background OCR job started by submitBoxScore. Returns { status } while
+  // processing, then { status: "done", result } or { status: "failed", error }.
+  getBoxScoreJob: (jobId: string) =>
+    recFetch<any>("/v1/box-score/job", { method: "POST", body: JSON.stringify({ jobId }) }),
 
   reviewBoxScore: (input: {
     submissionId: string;
