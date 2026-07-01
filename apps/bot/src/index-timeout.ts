@@ -157,6 +157,15 @@ import {
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
 import { handlePurchaseButton, handlePurchaseModal, handlePurchaseSelect, openPurchaseStore } from "./flows/purchases.js";
+import {
+  LEGENDS_CUSTOM_IDS,
+  handleLegendAvailableSelect,
+  handleLegendBackToBrowse,
+  handleLegendConfirmPurchase,
+  handleLegendDetailNav,
+  handleLegendGroupSelect,
+  handleLegendPageButton,
+} from "./flows/legends.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import {
   BOX_SCORE_CUSTOM_IDS,
@@ -535,6 +544,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseSelect(interaction);
+      if (interaction.customId === LEGENDS_CUSTOM_IDS.groupSelect) return handleLegendGroupSelect(interaction);
+      if (interaction.customId === LEGENDS_CUSTOM_IDS.availableSelect) return handleLegendAvailableSelect(interaction);
     }
 
     if (interaction.isButton()) {
@@ -672,6 +683,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewPostPublicly) return handleScheduleViewPostPublicly(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseButton(interaction);
+      if (interaction.customId.startsWith(LEGENDS_CUSTOM_IDS.pagePrefix)) return handleLegendPageButton(interaction);
+      if (interaction.customId === LEGENDS_CUSTOM_IDS.detailPrev || interaction.customId === LEGENDS_CUSTOM_IDS.detailNext) return handleLegendDetailNav(interaction);
+      if (interaction.customId === LEGENDS_CUSTOM_IDS.backToBrowse) return handleLegendBackToBrowse(interaction);
+      if (interaction.customId === LEGENDS_CUSTOM_IDS.confirmPurchase) return handleLegendConfirmPurchase(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);

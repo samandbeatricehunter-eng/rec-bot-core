@@ -582,6 +582,14 @@ export const recApi = {
   attachWagerAnnouncementMessage: (input: { wagerId: string; channelId: string; messageId: string }) =>
     recFetch<any>("/v1/wagers/attach-announcement", { method: "POST", body: JSON.stringify(input) }),
 
+  // ─── Legends ───
+  listLegendCatalog: () =>
+    recFetch<any>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({}) }),
+  listLegendAvailability: (guildId: string) =>
+    recFetch<any>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
+  purchaseLegend: (input: { guildId: string; discordId: string; legendId: string }) =>
+    recFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify(input) }),
+
   saveManualScheduleGame: (input: {
     guildId: string;
     seasonNumber?: number | null;

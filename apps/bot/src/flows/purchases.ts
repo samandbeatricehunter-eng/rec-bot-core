@@ -21,6 +21,9 @@ import {
   REC_ATTRIBUTE_POINT_PRICE,
   REC_CONTRACT_PRICE,
   REC_CONTRACT_VARIANT_LABELS,
+  REC_CUSTOM_PLAYER_PACKAGE_LABELS,
+  REC_CUSTOM_PLAYER_PACKAGE_POINTS,
+  REC_CUSTOM_PLAYER_PACKAGE_PRICE,
   REC_DEFENSE_POSITIONS,
   REC_DEV_TIER_LABELS,
   REC_DEV_UPGRADE_PRICE,
@@ -30,12 +33,14 @@ import {
   type MaddenAttributeDropdownGroupKey,
   type RecAttributeAllocation,
   type RecContractVariant,
+  type RecCustomPlayerPackage,
   type RecDevTier,
   type RecPurchaseType,
 } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { NAV_CUSTOM_IDS } from "../ui/navigation.js";
+import { openLegendsBrowse } from "./legends.js";
 
 // All custom IDs share this prefix so the main dispatcher can route them with one line per
 // interaction-type block.
@@ -45,6 +50,7 @@ export const PURCHASE_CUSTOM_IDS = {
   contractSelect: "rec:purchase:contractvariant",
   sideSelect: "rec:purchase:side",
   positionSelect: "rec:purchase:position",
+  packageSelect: "rec:purchase:package",
   nameModal: "rec:purchase:namemodal",
   submit: "rec:purchase:submit",
   cancel: "rec:purchase:cancel",
@@ -57,13 +63,17 @@ export const PURCHASE_CUSTOM_IDS = {
 } as const;
 
 // Store types: the simple request-and-approve player types plus Attribute points.
-const STORE_TYPES: RecPurchaseType[] = ["age_reset", "dev_upgrade", "contract", "player_trait", "attribute"];
+// "legend" hands off to the dedicated Legends browse flow instead of the generic
+// side/position/name chain below — it's listed here so it shows up in the same menu.
+const STORE_TYPES: RecPurchaseType[] = ["age_reset", "dev_upgrade", "contract", "player_trait", "attribute", "custom_player", "legend"];
 const TYPE_ENABLED_FLAG: Record<string, keyof any> = {
   age_reset: "ageResetsEnabled",
   dev_upgrade: "devUpgradesEnabled",
   contract: "contractAdjustmentPurchasesEnabled",
   player_trait: "playerTraitPurchasesEnabled",
   attribute: "attributePurchasesEnabled",
+  custom_player: "customPlayersEnabled",
+  legend: "legendsEnabled",
 };
 const MAX_ATTRS_PER_PURCHASE = 5;
 
@@ -79,6 +89,7 @@ function staticPriceLabel(type: RecPurchaseType): string {
   if (type === "dev_upgrade") return "from $250";
   if (type === "contract") return "$500";
   if (type === "attribute") return "$100/pt core, $50/pt non-core";
+  if (type === "custom_player") return "from $250";
   return `$${priceForPurchase(type, {})}`;
 }
 
@@ -262,7 +273,28 @@ export async function handlePurchaseSelect(interaction: StringSelectMenuInteract
 
   if (id === PURCHASE_CUSTOM_IDS.typeSelect) {
     const purchaseType = value as RecPurchaseType;
+    if (purchaseType === "legend") {
+      purchaseSessions.delete(interaction.user.id);
+      return openLegendsBrowse(interaction);
+    }
     purchaseSessions.set(interaction.user.id, { purchaseType, details: {} });
+    if (purchaseType === "custom_player") {
+      return interaction.update({
+        embeds: [stepEmbed("Custom Player", "Choose a package (determines total attribute points to allocate).")],
+        components: [
+          new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+            new StringSelectMenuBuilder().setCustomId(PURCHASE_CUSTOM_IDS.packageSelect).setPlaceholder("Package").addOptions(
+              ...(Object.keys(REC_CUSTOM_PLAYER_PACKAGE_LABELS) as RecCustomPlayerPackage[]).map((pkg) =>
+                new StringSelectMenuOptionBuilder()
+                  .setLabel(`${REC_CUSTOM_PLAYER_PACKAGE_LABELS[pkg]} ($${REC_CUSTOM_PLAYER_PACKAGE_PRICE[pkg]})`)
+                  .setValue(pkg)
+                  .setDescription(`${REC_CUSTOM_PLAYER_PACKAGE_POINTS[pkg]} attribute points`))
+            )
+          ),
+          cancelRow(),
+        ],
+      });
+    }
     if (purchaseType === "dev_upgrade") {
       return interaction.update({
         embeds: [stepEmbed("Dev Upgrade", "Choose the development tier to upgrade the player into (one tier per purchase).")],
@@ -323,6 +355,10 @@ export async function handlePurchaseSelect(interaction: StringSelectMenuInteract
   if (id === PURCHASE_CUSTOM_IDS.contractSelect) {
     draft.details.variant = value as RecContractVariant;
     return interaction.update({ embeds: [stepEmbed("Contract", "Which side of the ball is the player on?")], components: sideSelectComponents() });
+  }
+  if (id === PURCHASE_CUSTOM_IDS.packageSelect) {
+    draft.details.package = value as RecCustomPlayerPackage;
+    return interaction.update({ embeds: [stepEmbed("Custom Player", "Which side of the ball is the player on?")], components: sideSelectComponents() });
   }
   if (id === PURCHASE_CUSTOM_IDS.sideSelect) {
     draft.details.side = value;
@@ -406,6 +442,7 @@ function confirmEmbed(draft: PurchaseDraft) {
   if (draft.purchaseType === "dev_upgrade") lines.push(`**Upgrade to:** ${REC_DEV_TIER_LABELS[d.targetTier as RecDevTier]}`);
   if (draft.purchaseType === "contract") lines.push(`**Adjustment:** ${REC_CONTRACT_VARIANT_LABELS[d.variant as RecContractVariant]}`);
   if (draft.purchaseType === "attribute") lines.push(`**Upgrades:** ${formatAllocations(d.allocations as RecAttributeAllocation[] | undefined)}`);
+  if (draft.purchaseType === "custom_player") lines.push(`**Package:** ${REC_CUSTOM_PLAYER_PACKAGE_LABELS[d.package as RecCustomPlayerPackage]} (${REC_CUSTOM_PLAYER_PACKAGE_POINTS[d.package as RecCustomPlayerPackage]} pts)`);
   lines.push(`**Player:** ${d.playerName} (${String(d.position)}, ${d.side === "defense" ? "Defense" : "Offense"})`);
   if (draft.purchaseType === "player_trait") lines.push(`**Trait change:** ${d.traitChange}`);
   lines.push("", `**Cost:** $${draftPrice(draft)}`, "", "Submitting deducts the cost now and sends the request for commissioner approval. Denied requests are refunded.");
@@ -509,6 +546,8 @@ function pendingEmbed(purchase: any, buyerDiscordId: string) {
   if (type === "dev_upgrade" && d.targetTier) lines.push(`**Upgrade to:** ${REC_DEV_TIER_LABELS[d.targetTier as RecDevTier] ?? d.targetTier}`);
   if (type === "contract" && d.variant) lines.push(`**Adjustment:** ${REC_CONTRACT_VARIANT_LABELS[d.variant as RecContractVariant] ?? d.variant}`);
   if (type === "attribute") lines.push(`**Upgrades:** ${formatAllocations(d.allocations as RecAttributeAllocation[] | undefined)}`);
+  if (type === "custom_player" && d.package) lines.push(`**Package:** ${REC_CUSTOM_PLAYER_PACKAGE_LABELS[d.package as RecCustomPlayerPackage] ?? d.package}`);
+  if (type === "legend" && d.name) lines.push(`**Legend:** ${d.name} (${d.position ?? "—"})`);
   if (d.playerName) lines.push(`**Player:** ${d.playerName}${d.position ? ` (${d.position})` : ""}`);
   if (type === "player_trait" && d.traitChange) lines.push(`**Trait change:** ${d.traitChange}`);
   lines.push(`**Cost:** $${purchase.cost ?? 0}`);
