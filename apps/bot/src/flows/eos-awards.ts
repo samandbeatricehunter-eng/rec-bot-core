@@ -14,6 +14,26 @@ function awardAnswerLabel(nominee: any) {
   return String(nominee.teamName ?? "Team").slice(0, 55);
 }
 
+function pointDifferentialLabel(pd: number) {
+  return pd > 0 ? `+${pd}` : String(pd);
+}
+
+function buildNomineeStatsEmbed(award: { label: string; nominees: any[] }, seasonNumber: number | null | undefined) {
+  const lines = award.nominees.map((nominee) => {
+    const handle = nominee.discordId ? ` (<@${nominee.discordId}>)` : "";
+    return [
+      `**${nominee.teamName ?? "Team"}**${handle}`,
+      `Record: ${nominee.record ?? "0-0"}  |  Point Diff: ${pointDifferentialLabel(Number(nominee.pointDifferential ?? 0))}`,
+      `Score: ${nominee.detail ?? "No data"}`,
+    ].join("\n");
+  });
+  return new EmbedBuilder()
+    .setTitle(`${award.label} — Nominee Stats`)
+    .setColor(COLORS.info)
+    .setDescription(lines.length ? lines.join("\n\n") : "No nominees.")
+    .setFooter({ text: `Season ${seasonNumber ?? ""}`.trim() });
+}
+
 function replyFullAdminOnly(interaction: ButtonInteraction, action: string) {
   const content = `Only Commissioners, Co-Commissioners, League Managers, or Discord Administrators can ${action}.`;
   if (interaction.deferred || interaction.replied) {
@@ -59,6 +79,7 @@ export async function handleEosAwards(interaction: ButtonInteraction, context: E
       skipped.push(`${award.label}: no nominees`);
       continue;
     }
+    await channel.send({ embeds: [buildNomineeStatsEmbed(award, prepared.league?.seasonNumber)] }).catch(() => undefined);
     const msg = await channel.send({
       content: "@everyone",
       poll: {
