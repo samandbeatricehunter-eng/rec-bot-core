@@ -40,7 +40,7 @@ const sessions = new Map<string, ManualScoreSession>();
 const sessionKey = (guildId: string, userId: string) => `${guildId}:${userId}`;
 
 function replyAdminOnly(interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction) {
-  const content = "Only Commissioners, Co-Commissioners, League Managers, or Discord Administrators can enter manual scores.";
+  const content = "Only Commissioners, League Managers, or Discord Administrators can enter manual scores.";
   return interaction.reply({ content, ephemeral: true });
 }
 
