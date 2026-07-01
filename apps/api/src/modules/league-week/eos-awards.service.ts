@@ -6,12 +6,12 @@ import { resolveSeasonNumber } from "../league-context/season.service.js";
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 
 export const EOS_AWARD_DEFINITIONS = [
-  { key: "mvp", label: "MVP", amount: 1000, limit: 4 },
-  { key: "best_passing_game", label: "Best Passing Game", amount: 200, limit: 4 },
-  { key: "best_rushing_game", label: "Best Rushing Game", amount: 200, limit: 4 },
-  { key: "best_defense", label: "Best Defense", amount: 200, limit: 4 },
-  { key: "best_user_skills", label: "Best User Skills", amount: 350, limit: 8 },
-  { key: "most_heart", label: "Most Heart", amount: 500, limit: 4 },
+  { key: "mvp", label: "MVP", amount: 1000, limit: 10 },
+  { key: "best_passing_game", label: "Best Passing Game", amount: 200, limit: 10 },
+  { key: "best_rushing_game", label: "Best Rushing Game", amount: 200, limit: 10 },
+  { key: "best_defense", label: "Best Defense", amount: 200, limit: 10 },
+  { key: "best_user_skills", label: "Best User Skills", amount: 350, limit: 10 },
+  { key: "most_heart", label: "Most Heart", amount: 500, limit: 10 },
 ] as const;
 
 type AwardKey = (typeof EOS_AWARD_DEFINITIONS)[number]["key"];
@@ -30,14 +30,16 @@ function num(value: unknown) {
 
 function teamName(team: any) {
   if (!team) return "Team";
-  if (team.display_city || team.display_nick) return `${team.display_city ?? ""} ${team.display_nick ?? team.name}`.trim();
-  return team.display_abbr ?? team.abbreviation ?? team.name ?? "Team";
+  if (team.is_relocated && (team.display_city || team.display_nick)) {
+    return `${team.display_city ?? ""} ${team.display_nick ?? ""}`.trim() || (team.name ?? "Team");
+  }
+  return team.name ?? team.display_abbr ?? team.abbreviation ?? "Team";
 }
 
 async function linkedTeams(leagueId: string) {
   const assignments = await supabase
     .from("rec_team_assignments")
-    .select("user_id,team_id,team:rec_teams(id,name,abbreviation,display_abbr,display_city,display_nick)")
+    .select("user_id,team_id,team:rec_teams(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
@@ -121,7 +123,6 @@ function sumRows(rows: any[], key: string) {
 function rankNominees(base: Array<Omit<Nominee, "metric" | "detail">>, metrics: Map<string, { metric: number; detail: string }>, limit: number) {
   return base
     .map((row) => ({ ...row, metric: metrics.get(row.userId)?.metric ?? metrics.get(row.teamId)?.metric ?? 0, detail: metrics.get(row.userId)?.detail ?? metrics.get(row.teamId)?.detail ?? "No data" }))
-    .filter((row) => row.metric > 0)
     .sort((a, b) => b.metric - a.metric || a.teamName.localeCompare(b.teamName))
     .slice(0, limit);
 }

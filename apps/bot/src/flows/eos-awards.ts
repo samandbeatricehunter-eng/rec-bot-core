@@ -9,7 +9,7 @@ type EosAwardFlowContext = {
 };
 
 function awardAnswerLabel(nominee: any) {
-  return `${nominee.teamName}${nominee.discordId ? ` - @${nominee.discordId}` : ""}`.slice(0, 55);
+  return String(nominee.teamName ?? "Team").slice(0, 55);
 }
 
 function replyFullAdminOnly(interaction: ButtonInteraction, action: string) {
