@@ -7,6 +7,7 @@ import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, lis
 import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
 import { cancelOpenEosAwardPolls, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
+import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 
@@ -131,6 +132,32 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { reviewId } = z.object({ reviewId: z.string().uuid() }).parse(request.body);
       return reply.send(await cancelWeeklyScoreReview(reviewId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/manual-scores/games", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(1).max(22).optional().nullable() }).parse(request.body);
+      return reply.send(await listManualScoreGames(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/manual-scores/record", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        gameId: z.string().uuid(),
+        outcome: z.enum(["home", "away", "tie"]),
+        homeScore: z.number().int().min(0).max(200).optional().nullable(),
+        awayScore: z.number().int().min(0).max(200).optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await recordManualGameResult(body));
     } catch (error) {
       return sendError(reply, error);
     }

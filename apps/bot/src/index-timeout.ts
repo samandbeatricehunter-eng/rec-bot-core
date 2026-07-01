@@ -180,6 +180,15 @@ import {
   handleWeeklyScoresCorrectModal,
 } from "./flows/schedule-scores.js";
 import {
+  MANUAL_SCORES_CUSTOM_IDS,
+  handleManualScoresOpen,
+  handleManualScoresWeekSelect,
+  handleManualScoresGameSelect,
+  handleManualScoresOutcome,
+  handleManualScoresScoreModal,
+  handleManualScoresAnother,
+} from "./flows/manual-scores.js";
+import {
   SCHEDULE_IMPORT_CUSTOM_IDS,
   startScheduleImportWizard,
   startScheduleImportOneWeek,
@@ -503,6 +512,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.reverseTxnSelect) return handleReverseTxnSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminWeekSelect) return handleBoxScoreAdminWeekSelect(interaction);
       if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminGameSelect) return handleBoxScoreAdminGameSelect(interaction);
+      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.weekSelect) return handleManualScoresWeekSelect(interaction);
+      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.gameSelect) return handleManualScoresGameSelect(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
@@ -677,6 +688,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.approvePrefix)) return handleWeeklyScoresApprove(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctOpenPrefix)) return handleWeeklyScoresCorrectOpen(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.cancelPrefix)) return handleWeeklyScoresCancel(interaction);
+      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.open) return handleManualScoresOpen(interaction);
+      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.cancel) return handleLeagueMgmtUploadScores(interaction);
+      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.homeWinPrefix)) return handleManualScoresOutcome(interaction, "home", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.homeWinPrefix.length));
+      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.awayWinPrefix)) return handleManualScoresOutcome(interaction, "away", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.awayWinPrefix.length));
+      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.tiePrefix)) return handleManualScoresOutcome(interaction, "tie", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.tiePrefix.length));
+      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix)) return handleManualScoresAnother(interaction, Number(interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix.length)));
       if (interaction.customId.startsWith(SCHEDULE_IMPORT_CUSTOM_IDS.savePrefix)) return handleScheduleImportSave(interaction);
       if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.cancel) return handleScheduleImportCancel(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
@@ -730,6 +747,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctModalPrefix)) return handleWeeklyScoresCorrectModal(interaction);
       if (interaction.customId.startsWith(ADVANCE_WIZARD_CUSTOM_IDS.scoreModalPrefix)) return handleAdvanceWizardScoreModal(interaction, buildAdvanceMgmtRows);
+      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix)) {
+        const [outcome, gameId] = interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix.length).split(":");
+        return handleManualScoresScoreModal(interaction, outcome as "home" | "away" | "tie", gameId);
+      }
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseModal(interaction);
@@ -970,14 +991,18 @@ async function handleLeagueMgmtUploadScores(interaction: ButtonInteraction) {
         "Use these tools after the in-game week has been advanced enough for the needed screenshots to exist.",
         "",
         "**Box Scores** - submit or review individual game box scores on behalf of users.",
-        "**Weekly Scores** - upload weekly scoreboard screenshots for the current week."
+        "**Weekly Scores** - upload weekly scoreboard screenshots for the current week.",
+        "**Manual Scores** - type in a game's result by hand when a screenshot isn't available (full score, or just W/L/T)."
       ].join("\n"))],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.submissionsOpen).setLabel("Box Scores").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(WEEKLY_SCORES_CUSTOM_IDS.uploadOpen).setLabel("Weekly Scores").setStyle(ButtonStyle.Primary),
       ),
-      ...buildAdvanceBackRows(),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(MANUAL_SCORES_CUSTOM_IDS.open).setLabel("Manual Scores").setStyle(ButtonStyle.Danger),
+        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Danger),
+      ),
     ],
   });
 }

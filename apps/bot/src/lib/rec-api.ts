@@ -189,6 +189,12 @@ export const recApi = {
   cancelWeeklyScoreReview: (reviewId: string) =>
     recFetch<any>("/v1/league-week/weekly-scores/review/cancel", { method: "POST", body: JSON.stringify({ reviewId }) }),
 
+  listManualScoreGames: (input: { guildId: string; weekNumber?: number | null }) =>
+    recFetch<any>("/v1/league-week/manual-scores/games", { method: "POST", body: JSON.stringify(input) }),
+
+  recordManualGameResult: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null }) =>
+    recFetch<any>("/v1/league-week/manual-scores/record", { method: "POST", body: JSON.stringify(input) }),
+
   completeAdvanceWeek: (input: {
     guildId: string;
     nextWeekNumber: number;

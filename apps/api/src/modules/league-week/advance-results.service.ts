@@ -35,7 +35,8 @@ function phaseForWeek(weekNumber: number) {
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 // Sources that already settle a game so the advance wizard doesn't re-ask for it.
 // schedule_screenshot = scores pre-logged from a League Schedule screenshot upload.
-const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot"];
+// manual = scores/outcomes entered via the Manual Scores tool.
+const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot", "manual"];
 const BADGE_LABELS = new Map(
   [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label]),
 );
