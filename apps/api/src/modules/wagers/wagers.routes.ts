@@ -55,6 +55,7 @@ export async function wagerRoutes(app: FastifyInstance) {
         market: z.string().min(1),
         pick: z.string().min(1),
         stake: z.number().int().positive(),
+        customLine: z.number().min(-10).max(10).nullable().optional(),
       }).parse(request.body);
       return reply.send(await placeHouseWager(body));
     } catch (error) {
@@ -69,7 +70,12 @@ export async function wagerRoutes(app: FastifyInstance) {
         guildId: z.string().min(1),
         discordId: z.string().min(1),
         stake: z.number().int().positive(),
-        legs: z.array(z.object({ gameId: z.string().uuid(), market: z.string().min(1), pick: z.string().min(1) })).length(3),
+        legs: z.array(z.object({
+          gameId: z.string().uuid(),
+          market: z.string().min(1),
+          pick: z.string().min(1),
+          customLine: z.number().min(-10).max(10).nullable().optional(),
+        })).min(2).max(3),
       }).parse(request.body);
       return reply.send(await placeParlay(body));
     } catch (error) {
@@ -89,6 +95,7 @@ export async function wagerRoutes(app: FastifyInstance) {
         stake: z.number().int().positive(),
         challengeType: z.enum(["open", "direct"]),
         targetUserId: z.string().uuid().optional().nullable(),
+        customLine: z.number().min(-10).max(10).nullable().optional(),
       }).parse(request.body);
       return reply.send(await placePeerWager(body));
     } catch (error) {
@@ -122,6 +129,7 @@ export async function wagerRoutes(app: FastifyInstance) {
       const body = z.object({
         guildId: z.string().min(1), discordId: z.string().min(1), originalWagerId: z.string().uuid(),
         market: z.string().min(1), pick: z.string().min(1), stake: z.number().int().positive(),
+        customLine: z.number().min(-10).max(10).nullable().optional(),
       }).parse(request.body);
       return reply.send(await placeCounterWager(body));
     } catch (error) {

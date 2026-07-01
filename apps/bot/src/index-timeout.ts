@@ -144,6 +144,9 @@ import {
   handleWagerGameSelect,
   handleWagerMarketSelect,
   handleWagerSideSelect,
+  handleWagerParlayPickSelect,
+  handleWagerParlayAddGame,
+  handleWagerParlayPlace,
   handleWagerStakeModal,
   handleWagerApprove,
   handleWagerCancel,
@@ -444,6 +447,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.gameSelect) return handleWagerGameSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.marketSelect) return handleWagerMarketSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.sideSelect) return handleWagerSideSelect(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.parlayPickSelect) return handleWagerParlayPickSelect(interaction);
+    if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.parlayAddGame) return handleWagerParlayAddGame(interaction);
+    if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.parlayPlace) return handleWagerParlayPlace(interaction);
     if (interaction.isModalSubmit() && interaction.customId === WAGER_CUSTOM_IDS.stakeModal) return handleWagerStakeModal(interaction);
 
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {

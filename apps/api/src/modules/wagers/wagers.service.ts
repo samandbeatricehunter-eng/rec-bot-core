@@ -15,6 +15,21 @@ function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string |
   return (team.display_abbr ?? "").trim() || (team.abbreviation ?? "").trim() || (team.name ?? "").trim() || "TBD";
 }
 
+const CUSTOM_SPREAD_MIN = -10;
+const CUSTOM_SPREAD_MAX = 10;
+
+// A custom spread applies directly to the bettor's chosen side (no sign flip — the
+// number they enter is their line), clamped to the house's allowed range. Odds stay
+// the standard spread price; only the line moves.
+function resolveCustomLine(kind: string, offeredLine: number | null, customLine: number | null | undefined): number | null {
+  if (customLine == null) return offeredLine;
+  if (kind !== "spread") throw new ApiError(400, "Custom lines are only available on spread wagers.");
+  if (!Number.isFinite(customLine) || customLine < CUSTOM_SPREAD_MIN || customLine > CUSTOM_SPREAD_MAX) {
+    throw new ApiError(400, `Custom spread must be between ${CUSTOM_SPREAD_MIN} and +${CUSTOM_SPREAD_MAX}.`);
+  }
+  return Math.round(customLine * 2) / 2; // nearest half-point
+}
+
 async function userIdFromDiscord(discordId: string): Promise<string> {
   const { data, error } = await supabase
     .from("rec_discord_accounts")
@@ -93,6 +108,7 @@ export type PlaceHouseWagerInput = {
   market: string;
   pick: string;
   stake: number;
+  customLine?: number | null;
 };
 
 export async function placeHouseWager(input: PlaceHouseWagerInput) {
@@ -150,6 +166,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   } else if (marketDef.kind === "moneyline") {
     line = null;
   }
+  line = resolveCustomLine(marketDef.kind, line, input.customLine);
 
   // Weekly cap: at most one non-human (CPU) game wagered per week.
   if (!options.humanInvolved) {
@@ -230,7 +247,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
 }
 
 // Shared placement validation + line/odds resolution for house and peer wagers.
-async function prepareSingleWager(guildId: string, userId: string, leagueId: string, weekNumber: number, gameId: string, market: string, pick: string, stake: number) {
+async function prepareSingleWager(guildId: string, userId: string, leagueId: string, weekNumber: number, gameId: string, market: string, pick: string, stake: number, customLine?: number | null) {
   if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
   const marketDef = WAGER_MARKET_BY_KEY.get(market);
   if (!marketDef) throw new ApiError(400, "Unknown wager market.");
@@ -266,6 +283,7 @@ async function prepareSingleWager(guildId: string, userId: string, leagueId: str
   } else if (marketDef.kind === "moneyline") {
     line = null;
   }
+  line = resolveCustomLine(marketDef.kind, line, customLine);
 
   const balance = await walletBalance(userId);
   if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes $${stake} and you have $${balance}.`);
@@ -281,6 +299,7 @@ export type PlacePeerWagerInput = {
   stake: number;
   challengeType: "open" | "direct";
   targetUserId?: string | null;
+  customLine?: number | null;
 };
 
 // Propose a peer wager: escrow the proposer's stake and leave it awaiting an opponent
@@ -296,7 +315,7 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
 
   const stake = Math.floor(Number(input.stake));
-  const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, input.gameId, input.market, input.pick, stake);
+  const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, input.gameId, input.market, input.pick, stake, input.customLine);
 
   if (input.challengeType === "direct") {
     if (!input.targetUserId) throw new ApiError(400, "Pick a coach to challenge.");
@@ -432,7 +451,7 @@ export async function getPeerWagerForCounter(guildId: string, wagerId: string) {
   };
 }
 
-export type PlaceCounterInput = { guildId: string; discordId: string; originalWagerId: string; market: string; pick: string; stake: number };
+export type PlaceCounterInput = { guildId: string; discordId: string; originalWagerId: string; market: string; pick: string; stake: number; customLine?: number | null };
 
 // A counter-offer: the counter-er escrows their stake and proposes new terms to the
 // original poster (delivered via DM). It's its own awaiting_accept wager linked back
@@ -449,7 +468,7 @@ export async function placeCounterWager(input: PlaceCounterInput) {
   if (original.placed_by_user_id === counterUserId) throw new ApiError(400, "You can't counter your own wager.");
 
   const stake = Math.floor(Number(input.stake));
-  const prep = await prepareSingleWager(input.guildId, counterUserId, leagueId, weekNumber, original.game_id, input.market, input.pick, stake);
+  const prep = await prepareSingleWager(input.guildId, counterUserId, leagueId, weekNumber, original.game_id, input.market, input.pick, stake, input.customLine);
 
   const insert = await supabase
     .from("rec_wagers")
@@ -605,12 +624,12 @@ export async function attachWagerAnnouncementMessage(input: { wagerId: string; c
 export type PlaceParlayInput = {
   guildId: string;
   discordId: string;
-  legs: Array<{ gameId: string; market: string; pick: string }>;
+  legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }>;
   stake: number;
 };
 
-// A 3-leg parlay vs the house: single escrowed stake, combined (boosted) odds. All
-// legs must win; pushes drop out. Settles only once every leg's game is confirmed.
+// A 2- or 3-leg parlay vs the house: single escrowed stake, combined (boosted) odds.
+// All legs must win; pushes drop out. Settles only once every leg's game is confirmed.
 export async function placeParlay(input: PlaceParlayInput) {
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
@@ -621,7 +640,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
   if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
 
-  if (!Array.isArray(input.legs) || input.legs.length !== 3) throw new ApiError(400, "A parlay needs exactly 3 picks.");
+  if (!Array.isArray(input.legs) || input.legs.length < 2 || input.legs.length > 3) throw new ApiError(400, "A parlay needs 2 or 3 picks.");
   const gameMarketSeen = new Set<string>();
   for (const leg of input.legs) {
     const key = `${leg.gameId}:${leg.market}`;
@@ -636,8 +655,8 @@ export async function placeParlay(input: PlaceParlayInput) {
 
   const prepared = [];
   for (const leg of input.legs) {
-    const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, leg.gameId, leg.market, leg.pick, stake);
-    prepared.push({ gameId: leg.gameId, market: leg.market, pick: leg.pick, line: prep.line, odds: Number(prep.side.odds), label: `${prep.options.awayLabel} at ${prep.options.homeLabel} — ${prep.marketDef.label}: ${prep.side.label}` });
+    const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, leg.gameId, leg.market, leg.pick, stake, leg.customLine);
+    prepared.push({ gameId: leg.gameId, market: leg.market, pick: leg.pick, line: prep.line, odds: Number(prep.side.odds), label: `${prep.options.awayLabel} at ${prep.options.homeLabel} — ${prep.marketDef.label}: ${prep.side.label}${prep.line != null && prep.marketDef.kind === "spread" ? ` (line ${prep.line > 0 ? "+" : ""}${prep.line})` : ""}` });
   }
 
   const combinedOdds = parlayOdds(prepared.map((l) => l.odds));
@@ -664,7 +683,7 @@ export async function placeParlay(input: PlaceParlayInput) {
 
   const hold = await supabase.rpc("add_to_wallet", {
     p_user_id: userId, p_amount: -stake, p_league_id: leagueId,
-    p_description: "Parlay hold (3-pick)", p_transaction_type: "wager_hold", p_source: "wager",
+    p_description: `Parlay hold (${input.legs.length}-pick)`, p_transaction_type: "wager_hold", p_source: "wager",
     p_source_reference: { wagerId: insert.data.id },
   });
   if (hold.error) {
