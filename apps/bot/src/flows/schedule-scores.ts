@@ -15,7 +15,8 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
-import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { refreshConfirmableWagerEmbeds } from "./wagers.js";
 
@@ -69,20 +70,6 @@ function getUploadSession(guildId: string, userId: string): UploadSession | null
     return null;
   }
   return s;
-}
-
-function userFacingError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const apiError = message.match(/^REC API request failed:\s*\d+\s+(\{.*\})$/s);
-  if (apiError?.[1]) {
-    try {
-      const parsed = JSON.parse(apiError[1]) as { error?: unknown };
-      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
-    } catch {
-      /* fall through */
-    }
-  }
-  return message;
 }
 
 // Resolve the league's Pending Payouts channel (where screenshot reviews are posted
@@ -171,7 +158,7 @@ function buildCorrectionGameRows(review: ReviewData) {
 
 export async function handleWeeklyScoresUploadOpen(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) {
+  if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners or server admins can log weekly scores.", flags: MessageFlags.Ephemeral });
   }
 
@@ -254,7 +241,7 @@ export async function handleWeeklyScoresUploadMessage(message: Message): Promise
 // ─── Review actions (reviewId carried in the button/select customId) ─────────────
 
 function adminGate(interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction): boolean {
-  return isFullLeagueAdminInteraction(interaction);
+  return isDiscordAdminInteraction(interaction);
 }
 
 export async function handleWeeklyScoresApprove(interaction: ButtonInteraction) {

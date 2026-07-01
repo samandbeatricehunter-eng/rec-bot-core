@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Channe
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction } from "./lib/admin.js";
+import { userFacingError } from "./lib/errors.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getVotingPollsChannel } from "./lib/route-channels.js";
 import { REC_MANAGED_ROLES, ensureRecBaseRoles } from "./lib/role-sync.js";
@@ -2649,7 +2650,7 @@ async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
     });
   } catch (error) {
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Delete Failed").setColor(0xe74c3c).setDescription(error instanceof Error ? error.message : String(error))],
+      embeds: [new EmbedBuilder().setTitle("Delete Failed").setColor(0xe74c3c).setDescription(userFacingError(error))],
       components: buildAdminPanelRows()
     });
   }
@@ -2711,7 +2712,7 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
   } catch (error) {
     console.error("[ERROR] Server setup channel assignment failed:", error);
     await interaction.reply({
-      content: `Error assigning channel: ${error instanceof Error ? error.message : String(error)}`,
+      content: `Error assigning channel: ${userFacingError(error)}`,
       flags: MessageFlags.Ephemeral
     });
   }

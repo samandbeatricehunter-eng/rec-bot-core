@@ -10,6 +10,7 @@ import {
 } from "discord.js";
 import type { RecTeamAuthority } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { ensureRecBaseRoles, formatTeamDisplayName, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildMaddenTeamsRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type MaddenTeamsPage, type RosterConference } from "../ui/menu.js";
@@ -231,7 +232,7 @@ export async function handleTeamRequestSelect(interaction: StringSelectMenuInter
     });
   } catch (error) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Request Failed").setDescription(error instanceof Error ? error.message : String(error))],
+      embeds: [new EmbedBuilder().setTitle("Request Failed").setDescription(userFacingError(error))],
       components: buildMaddenTeamsRows("NFC"),
     });
   }
@@ -292,7 +293,7 @@ export async function handleTeamRequestApprove(interaction: ButtonInteraction) {
       ].join("\n"));
     await updateReviewMessage(interaction, request, embed, []);
   } catch (error) {
-    await interaction.followUp({ content: error instanceof Error ? error.message : String(error), ephemeral: true }).catch(() => undefined);
+    await interaction.followUp({ content: userFacingError(error), ephemeral: true }).catch(() => undefined);
   }
 }
 
@@ -309,7 +310,7 @@ export async function handleTeamRequestReject(interaction: ButtonInteraction) {
       .setDescription(`Request from <@${request.requester_discord_id}> was rejected by <@${interaction.user.id}>.`);
     await updateReviewMessage(interaction, request, embed, []);
   } catch (error) {
-    await interaction.followUp({ content: error instanceof Error ? error.message : String(error), ephemeral: true }).catch(() => undefined);
+    await interaction.followUp({ content: userFacingError(error), ephemeral: true }).catch(() => undefined);
   }
 }
 
@@ -354,6 +355,6 @@ export async function handleTeamRequestRole(interaction: ButtonInteraction) {
 
     await updateReviewMessage(interaction, request, embed, []);
   } catch (error) {
-    await interaction.followUp({ content: error instanceof Error ? error.message : String(error), ephemeral: true }).catch(() => undefined);
+    await interaction.followUp({ content: userFacingError(error), ephemeral: true }).catch(() => undefined);
   }
 }

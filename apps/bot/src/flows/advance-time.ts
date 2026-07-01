@@ -12,6 +12,7 @@ import {
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel, getHeadlinesChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
@@ -564,7 +565,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, _buil
     // Keep the picker open so the commissioner can adjust and retry.
     const step = renderStep(session);
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Couldn't set advance time").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Couldn't set advance time").setColor(0xe74c3c).setDescription(userFacingError(err))],
       components: step.components,
     });
   }
@@ -675,7 +676,7 @@ export async function handleAdvanceDmSend(interaction: ButtonInteraction, buildA
     payload = await recApi.generateAdvanceDms({ guildId: interaction.guildId });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Advance DMs Failed").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Advance DMs Failed").setColor(0xe74c3c).setDescription(userFacingError(err))],
       components: buildAdvanceRows(),
     });
   }

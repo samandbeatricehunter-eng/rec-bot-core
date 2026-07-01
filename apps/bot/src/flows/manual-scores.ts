@@ -12,7 +12,8 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
-import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 
 export const MANUAL_SCORES_CUSTOM_IDS = {
@@ -40,7 +41,7 @@ const sessions = new Map<string, ManualScoreSession>();
 const sessionKey = (guildId: string, userId: string) => `${guildId}:${userId}`;
 
 function replyAdminOnly(interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction) {
-  const content = "Only Commissioners, League Managers, or Discord Administrators can enter manual scores.";
+  const content = "Only Commissioners, Co-Commissioners, League Managers, or Discord Administrators can enter manual scores.";
   return interaction.reply({ content, ephemeral: true });
 }
 
@@ -67,7 +68,7 @@ function buildWeekRows(currentWeek: number) {
 }
 
 export async function handleManualScoresOpen(interaction: ButtonInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyAdminOnly(interaction);
+  if (!isDiscordAdminInteraction(interaction)) return replyAdminOnly(interaction);
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
 
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
@@ -127,7 +128,7 @@ async function renderGameSelect(guildId: string, weekNumber: number) {
 }
 
 export async function handleManualScoresWeekSelect(interaction: StringSelectMenuInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyAdminOnly(interaction);
+  if (!isDiscordAdminInteraction(interaction)) return replyAdminOnly(interaction);
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
   const weekNumber = Number(interaction.values[0] ?? 1);
   await interaction.deferUpdate();
@@ -135,7 +136,7 @@ export async function handleManualScoresWeekSelect(interaction: StringSelectMenu
     return interaction.editReply(await renderGameSelect(interaction.guildId, weekNumber));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }
@@ -153,7 +154,7 @@ function buildOutcomeRows(gameId: string, homeName: string, awayName: string) {
 }
 
 export async function handleManualScoresGameSelect(interaction: StringSelectMenuInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyAdminOnly(interaction);
+  if (!isDiscordAdminInteraction(interaction)) return replyAdminOnly(interaction);
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
   const [weekRaw, gameId] = String(interaction.values[0] ?? "").split(":");
   const weekNumber = Number(weekRaw ?? 1);
@@ -180,14 +181,14 @@ export async function handleManualScoresGameSelect(interaction: StringSelectMenu
     });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }
 }
 
 export async function handleManualScoresOutcome(interaction: ButtonInteraction, outcome: "home" | "away" | "tie", gameId: string) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyAdminOnly(interaction);
+  if (!isDiscordAdminInteraction(interaction)) return replyAdminOnly(interaction);
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
   const session = sessions.get(sessionKey(interaction.guildId, interaction.user.id));
   const homeLabel = session?.gameId === gameId ? session.homeName : "Home team";
@@ -215,7 +216,7 @@ function parseScore(raw: string): number | null {
 }
 
 export async function handleManualScoresScoreModal(interaction: ModalSubmitInteraction, outcome: "home" | "away" | "tie", gameId: string) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyAdminOnly(interaction);
+  if (!isDiscordAdminInteraction(interaction)) return replyAdminOnly(interaction);
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
   await interaction.deferUpdate();
 
@@ -243,21 +244,21 @@ export async function handleManualScoresScoreModal(interaction: ModalSubmitInter
     });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }
 }
 
 export async function handleManualScoresAnother(interaction: ButtonInteraction, weekNumber: number) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyAdminOnly(interaction);
+  if (!isDiscordAdminInteraction(interaction)) return replyAdminOnly(interaction);
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
   await interaction.deferUpdate();
   try {
     return interaction.editReply(await renderGameSelect(interaction.guildId, weekNumber));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }

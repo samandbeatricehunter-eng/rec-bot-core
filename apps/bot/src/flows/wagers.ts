@@ -16,6 +16,7 @@ import {
 } from "discord.js";
 import { americanFromDecimal, CONFERENCE_ORDER } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { userFacingError as userError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
@@ -72,18 +73,6 @@ function getSession(userId: string): WagerSession {
   const fresh: WagerSession = { mode: "house", targetUserId: null, targetDiscordId: null, counterOriginalId: null, parlayLegs: [], options: null, gameId: null, gameLabel: null, market: null, marketLabel: null, pick: null, sideLabel: null, odds: null, line: null, at: Date.now() };
   sessions.set(userId, fresh);
   return fresh;
-}
-
-function userError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const m = message.match(/^REC API request failed:\s*\d+\s+(\{.*\})$/s);
-  if (m?.[1]) {
-    try {
-      const parsed = JSON.parse(m[1]) as { error?: unknown };
-      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
-    } catch { /* fall through */ }
-  }
-  return message;
 }
 
 // ─── Placement flow (in the player's /menu session) ────────────────────────────

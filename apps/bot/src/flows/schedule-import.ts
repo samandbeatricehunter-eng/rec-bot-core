@@ -12,6 +12,7 @@ import {
   type TextChannel,
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getPendingPayoutsChannel } from "./schedule-scores.js";
 
@@ -68,20 +69,6 @@ function getSession(guildId: string, userId: string): ImportSession | null {
     return null;
   }
   return s;
-}
-
-function userFacingError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const apiError = message.match(/^REC API request failed:\s*\d+\s+(\{.*\})$/s);
-  if (apiError?.[1]) {
-    try {
-      const parsed = JSON.parse(apiError[1]) as { error?: unknown };
-      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
-    } catch {
-      /* fall through */
-    }
-  }
-  return message;
 }
 
 function uploadPrompt(weekNumber: number, mode: "wizard" | "one_week") {

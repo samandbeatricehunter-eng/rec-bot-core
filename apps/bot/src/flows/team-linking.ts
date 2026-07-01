@@ -2,6 +2,7 @@ import { ButtonInteraction, EmbedBuilder, Interaction, ModalSubmitInteraction, S
 import type { RecTeamAuthority } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { ensureRecBaseRoles, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildNavigationRow } from "../ui/navigation.js";
 import {
@@ -639,7 +640,7 @@ export async function handleLeagueTeamsResetDefaults(interaction: Extract<Intera
     });
   } catch (error) {
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Reset Failed").setDescription(error instanceof Error ? error.message : String(error))],
+      embeds: [new EmbedBuilder().setTitle("Reset Failed").setDescription(userFacingError(error))],
       components: buildLeagueMgmtTeamsPanel().components
     });
   }
@@ -679,7 +680,7 @@ export async function handleLeagueTeamsConfirmUnlink(interaction: Extract<Intera
     });
   } catch (error) {
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Unlink Failed").setDescription(error instanceof Error ? error.message : String(error))],
+      embeds: [new EmbedBuilder().setTitle("Unlink Failed").setDescription(userFacingError(error))],
       components: buildLeagueMgmtTeamsPanel().components
     });
   }
@@ -765,7 +766,7 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
         } catch (error) {
           console.error("[ERROR] Failed to unlink team:", error);
           await interaction.editReply({
-            content: `Failed to unlink: ${error instanceof Error ? error.message : String(error)}`,
+            content: `Failed to unlink: ${userFacingError(error)}`,
             components: []
           });
           return;
@@ -904,7 +905,7 @@ export async function handleSimpleTeamLinkUserSelect(interaction: Extract<Intera
   } catch (error) {
     console.error("[ERROR] Simple team link user select failed:", error);
     await interaction.reply({
-      content: `Error: ${error instanceof Error ? error.message : String(error)}`,
+      content: `Error: ${userFacingError(error)}`,
       ephemeral: true
     });
     simpleTeamLinkSessions.delete(interaction.user.id);
@@ -982,7 +983,7 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
   } catch (error) {
     console.error("[ERROR] Simple team link role select failed:", error);
     await interaction.editReply({
-      content: `Error linking user: ${error instanceof Error ? error.message : String(error)}`,
+      content: `Error linking user: ${userFacingError(error)}`,
       components: []
     });
     simpleTeamLinkSessions.delete(interaction.user.id);
@@ -1079,7 +1080,7 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
     console.error("[ERROR] Custom team modal submission failed:", error);
     customTeamPendingSessions.delete(interaction.user.id);
     await interaction.editReply({
-      content: `Failed to register custom team: ${error instanceof Error ? error.message : String(error)}`,
+      content: `Failed to register custom team: ${userFacingError(error)}`,
       components: []
     });
   }
@@ -1141,7 +1142,7 @@ export async function handleClearAllTeamLinks(interaction: Extract<Interaction, 
   } catch (error) {
     console.error("[ERROR] Clear all team links failed:", error);
     await interaction.reply({
-      content: `Error clearing links: ${error instanceof Error ? error.message : String(error)}`,
+      content: `Error clearing links: ${userFacingError(error)}`,
       ephemeral: true
     });
   }

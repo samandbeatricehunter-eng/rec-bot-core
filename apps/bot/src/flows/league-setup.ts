@@ -1,5 +1,6 @@
 import { EmbedBuilder, MessageFlags, type Interaction, type ModalSubmitInteraction } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { ensureRecBaseRoles } from "../lib/role-sync.js";
@@ -578,10 +579,7 @@ function formatLeagueSetupSaveError(error: unknown) {
   if (message.includes("AbortError") || message.includes("timed out")) {
     return "Saving timed out while contacting the REC API. Check that the API is running, then try again.";
   }
-  if (message.includes("REC API request failed")) {
-    return `Saving failed: ${message.slice(0, 900)}`;
-  }
-  return `Saving failed: ${message.slice(0, 900)}`;
+  return `Saving failed: ${userFacingError(error).slice(0, 900)}`;
 }
 
 function formatDefaultScheduleSeedResult(result: { seeded?: boolean; reason?: string; gameCount?: number } | null | undefined) {

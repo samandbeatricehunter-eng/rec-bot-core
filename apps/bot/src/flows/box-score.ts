@@ -16,6 +16,7 @@ import {
   type TextChannel,
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
 import { refreshConfirmableWagerEmbeds } from "./wagers.js";
@@ -147,20 +148,6 @@ async function getGuildRoutes(guildId: string): Promise<any | null> {
 
 function prettifyKey(k: string): string {
   return k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function userFacingError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  const apiError = message.match(/^REC API request failed:\s*\d+\s+(\{.*\})$/s);
-  if (apiError?.[1]) {
-    try {
-      const parsed = JSON.parse(apiError[1]) as { error?: unknown };
-      if (typeof parsed.error === "string" && parsed.error.trim()) return parsed.error.trim();
-    } catch {
-      // Fall through to the original message if the API did not return JSON.
-    }
-  }
-  return message;
 }
 
 // ─── Background OCR job polling ────────────────────────────────────────────────
