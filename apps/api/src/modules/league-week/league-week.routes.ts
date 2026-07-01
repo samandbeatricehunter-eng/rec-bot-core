@@ -348,7 +348,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/eos-awards/settle", async (request, reply) => {
     try {
       requireInternalApiKey(request);
-      const body = z.object({ pollId: z.string().uuid(), voteCounts: z.record(z.string(), z.number()), discordMessageId: z.string().optional().nullable() }).parse(request.body);
+      const body = z.object({ pollId: z.string().uuid(), voteCounts: z.record(z.string(), z.number()), voterDiscordIds: z.record(z.string(), z.array(z.string())).optional(), discordMessageId: z.string().optional().nullable() }).parse(request.body);
       return reply.send(await settleEosAwardPoll(body));
     } catch (error) {
       return sendError(reply, error);

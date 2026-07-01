@@ -251,7 +251,14 @@ export async function cancelOpenEosAwardPolls(input: { guildId: string }) {
   return { cancelled: existing.data ?? [] };
 }
 
-export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Record<string, number>; discordMessageId?: string | null }) {
+/**
+ * Tiebreaker: every nominee is expected to vote for themselves, which produces
+ * artificial N-way ties (e.g. 7 nominees, 7 self-votes, 1-1-1-1-1-1-1) that don't
+ * reflect actual outside support. Rank by vote count with each nominee's own
+ * self-vote discounted; if outside votes are still tied, fall back to the
+ * underlying season-stat metric used to build the nominee list.
+ */
+export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Record<string, number>; voterDiscordIds?: Record<string, string[]>; discordMessageId?: string | null }) {
   const poll = await supabase.from("rec_eos_award_polls").select("*").eq("id", input.pollId).maybeSingle();
   if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
   if (!poll.data) throw new ApiError(404, "EOS award poll not found.");
@@ -261,15 +268,26 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
     return { poll: poll.data, skipped: true, reason: "message_mismatch" };
   }
   const nominees = Array.isArray(poll.data.nominee_payloads) ? poll.data.nominee_payloads : [];
-  let winner = nominees[0] ?? null;
-  let winnerVotes = -1;
-  nominees.forEach((nominee: any, index: number) => {
-    const votes = Number(input.voteCounts[String(index)] ?? 0);
-    if (votes > winnerVotes) {
-      winner = nominee;
-      winnerVotes = votes;
-    }
+  if (!nominees.length) throw new ApiError(400, "EOS award poll has no nominees.");
+
+  const voterDiscordIds = input.voterDiscordIds ?? {};
+  const scored: Array<{ nominee: any; netVotes: number }> = nominees.map((nominee: any, index: number) => {
+    const rawVotes = Number(input.voteCounts[String(index)] ?? 0);
+    const voters = voterDiscordIds[String(index)] ?? [];
+    const selfVoted = Boolean(nominee.discordId) && voters.includes(nominee.discordId);
+    return { nominee, netVotes: selfVoted ? Math.max(0, rawVotes - 1) : rawVotes };
   });
+
+  const topNetVotes = Math.max(...scored.map((row) => row.netVotes));
+  const netTied = scored.filter((row) => row.netVotes === topNetVotes);
+  const tiebreakerNeeded = netTied.length > 1;
+
+  let finalists = netTied;
+  if (tiebreakerNeeded) {
+    const topMetric = Math.max(...netTied.map((row) => Number(row.nominee.metric ?? 0)));
+    finalists = netTied.filter((row) => Number(row.nominee.metric ?? 0) === topMetric);
+  }
+  const winner = finalists[0]?.nominee ?? null;
   if (!winner?.userId) throw new ApiError(400, "EOS award poll has no nominees.");
   const amount = Number(poll.data.award_amount ?? 200);
   const ledger = await supabase.rpc("add_to_wallet", {
@@ -291,13 +309,15 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
       settled_at: new Date().toISOString(),
       paid_ledger_id: ledger.data,
       vote_counts: input.voteCounts,
+      tiebreaker_needed: tiebreakerNeeded,
+      tied_candidate_ids: tiebreakerNeeded ? netTied.map((row) => row.nominee.userId) : null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", poll.data.id)
     .select("*")
     .single();
   if (updated.error) throw new ApiError(500, "Failed to settle EOS award poll.", updated.error);
-  return { poll: updated.data, winner, amount, votes: winnerVotes };
+  return { poll: updated.data, winner, amount, votes: topNetVotes, tiebreakerNeeded };
 }
 
 export async function listSettledEosAwards(input: { guildId: string; seasonNumber?: number | null }) {

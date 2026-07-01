@@ -123,13 +123,15 @@ async function settleEosAwardPoll(client: Client, context: EosAwardFlowContext, 
   if (!message?.poll) return;
   const poll = await (message.poll as any).end().catch(() => message.poll as any);
   const voteCounts: Record<string, number> = {};
+  const voterDiscordIds: Record<string, string[]> = {};
   for (let index = 0; index < 10; index += 1) {
     const answer = poll.answers?.get(index + 1);
     if (!answer) continue;
     const voters = await answer.fetchVoters().catch(() => null);
     voteCounts[String(index)] = voters?.size ?? 0;
+    voterDiscordIds[String(index)] = voters ? [...voters.values()].map((voter: any) => voter.id) : [];
   }
-  const settled = await recApi.settleEosAwardPoll({ pollId: input.pollId, voteCounts, discordMessageId: input.messageId });
+  const settled = await recApi.settleEosAwardPoll({ pollId: input.pollId, voteCounts, voterDiscordIds, discordMessageId: input.messageId });
   if (!settled?.alreadySettled && !settled?.skipped) await maybePostSeasonAwardsAnnouncement(guild, context, input.guildId);
 }
 

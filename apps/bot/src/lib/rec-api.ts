@@ -292,7 +292,7 @@ export const recApi = {
   cancelOpenEosAwardPolls: (input: { guildId: string }) =>
     recFetch<{ cancelled: any[] }>("/v1/league-week/eos-awards/cancel-open", { method: "POST", body: JSON.stringify(input) }),
 
-  settleEosAwardPoll: (input: { pollId: string; voteCounts: Record<string, number>; discordMessageId?: string | null }) =>
+  settleEosAwardPoll: (input: { pollId: string; voteCounts: Record<string, number>; voterDiscordIds?: Record<string, string[]>; discordMessageId?: string | null }) =>
     recFetch<any>("/v1/league-week/eos-awards/settle", { method: "POST", body: JSON.stringify(input) }),
 
   listSettledEosAwards: (input: { guildId: string; seasonNumber?: number | null }) =>
