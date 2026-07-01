@@ -16,6 +16,13 @@ export const EOS_AWARD_DEFINITIONS = [
 ] as const;
 
 type AwardKey = (typeof EOS_AWARD_DEFINITIONS)[number]["key"];
+
+// CFB doesn't have an NFL-style "MVP" — the closest real-world equivalent is the
+// Heisman Trophy. Every other award category keeps its default label for now.
+function awardLabel(key: AwardKey, game: string | null): string {
+  if (key === "mvp" && game === "cfb_27") return "Heisman Trophy Winner";
+  return EOS_AWARD_DEFINITIONS.find((award) => award.key === key)?.label ?? key;
+}
 type Nominee = {
   userId: string;
   discordId: string | null;
@@ -172,7 +179,7 @@ export async function prepareEosAwardNominees(input: { guildId: string }) {
     else if (definition.key === "best_defense") nominees = rankNominees(base, defense, definition.limit);
     else if (definition.key === "best_user_skills") nominees = rankNominees(base, defense, definition.limit);
     else nominees = rankNominees(base, close, definition.limit);
-    return { ...definition, nominees };
+    return { ...definition, label: awardLabel(definition.key, context.rec_leagues.game), nominees };
   });
 
   return { league: { id: context.leagueId, seasonNumber, currentWeek: Number(context.rec_leagues.current_week ?? 1) }, awards };
@@ -190,14 +197,15 @@ export async function recordEosAwardPoll(input: {
   const seasonNumber = resolveSeasonNumber(context);
   const definition = EOS_AWARD_DEFINITIONS.find((award) => award.key === input.categoryKey);
   if (!definition) throw new ApiError(400, "Unknown EOS award category.");
+  const label = awardLabel(definition.key, context.rec_leagues.game);
   const row = await supabase
     .from("rec_eos_award_polls")
     .upsert({
       league_id: context.leagueId,
       season_number: seasonNumber,
       category_key: definition.key,
-      category_label: definition.label,
-      category_description: definition.label,
+      category_label: label,
+      category_description: label,
       award_amount: definition.amount,
       nominee_user_ids: input.nominees.map((nominee) => nominee.userId),
       nominee_payloads: input.nominees,

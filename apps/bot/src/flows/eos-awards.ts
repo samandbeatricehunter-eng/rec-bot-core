@@ -1,4 +1,5 @@
 import { EmbedBuilder, MessageFlags, type ActionRowBuilder, type ButtonBuilder, type ButtonInteraction, type Client, type Guild } from "discord.js";
+import { isEosPayoutEligibleStage } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
@@ -24,6 +25,11 @@ function replyFullAdminOnly(interaction: ButtonInteraction, action: string) {
 export async function handleEosAwards(interaction: ButtonInteraction, context: EosAwardFlowContext) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS awards");
+  const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
+  const currentStage = String(week?.league?.season_stage ?? "regular_season");
+  if (!isEosPayoutEligibleStage(currentStage, week?.league?.game ?? null)) {
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle("EOS Awards").setDescription("EOS Award polls are only available during the postseason (after the regular season ends, through the championship game).")], flags: MessageFlags.Ephemeral });
+  }
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting EOS Award Polls...").setDescription("Building award nominees from season stats, results, and linked user teams.")], components: [] });
   const routes = await context.loadRouteChannels(interaction.guildId);

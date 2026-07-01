@@ -42,12 +42,12 @@ export const REC_RULE_SECTIONS = [
   },
   {
     key: "editable_server_rules",
-    label: "Editable Server Rule Text",
-    description: "Text admins can customize later without changing locked options.",
+    label: "What's Locked vs. Server-Specific",
+    description: "How REC's rule set is layered.",
     lines: [
-      "Scheduling, Activity & Sportsmanship long-form rule text can be server-customized.",
-      "Rules channel references and announcement wording can be server-customized.",
-      "Locked global REC rules and league setup option sets should not be freely edited."
+      "Global Locked Rules and League Setup Rules apply the same way in every REC league.",
+      "Scheduling, Activity & Sportsmanship reflects this server's active settings.",
+      "Locked global REC rules and league setup option sets are not editable — they come from REC and your league's setup choices."
     ]
   }
 ] as const;
@@ -57,7 +57,7 @@ export function buildRulesPanel(sectionKey = "global_locked") {
   return {
     embeds: [
       new EmbedBuilder()
-        .setTitle(`View / Edit Rules — ${section.label}`)
+        .setTitle(`Rules — ${section.label}`)
         .setDescription([section.description, "", ...section.lines.map((line) => `• ${line}`)].join("\n"))
     ],
     components: [

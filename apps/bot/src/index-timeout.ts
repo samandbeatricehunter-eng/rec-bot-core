@@ -7,6 +7,7 @@ import { userFacingError } from "./lib/errors.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getVotingPollsChannel } from "./lib/route-channels.js";
 import { GAME_CHANNEL_PAGE_PREFIX, gameRulesLines, handleGameChannelPage, buildGameChannelPage, buildGameChannelNavRow } from "./flows/game-channel-pages.js";
+import { isEosPayoutEligibleStage } from "@rec/shared";
 import { REC_MANAGED_ROLES, ensureRecBaseRoles } from "./lib/role-sync.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import {
@@ -2163,9 +2164,9 @@ async function handlePotyTallies(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run POTY tallies");
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
-  const currentWeek = Number(week?.league?.current_week ?? 1);
-  if (currentWeek < 19 || currentWeek > 22) {
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription("POTY Tallies are available from Wild Card through Super Bowl week.")], flags: MessageFlags.Ephemeral });
+  const currentStage = String(week?.league?.season_stage ?? "regular_season");
+  if (!isEosPayoutEligibleStage(currentStage, week?.league?.game ?? null)) {
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription("POTY Tallies are only available during the postseason (after the regular season ends, through the championship game).")], flags: MessageFlags.Ephemeral });
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Running POTY Tallies...").setDescription("Fetching eligible highlights, counting category reactions, and preparing payout reviews for any unpaid winners.")] });
