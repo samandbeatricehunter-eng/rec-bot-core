@@ -37,6 +37,7 @@ import { handlePlayerIdentities, handlePlayerIdentityBack, handlePlayerIdentityN
 import {
   handleManualScheduleBack,
   handleManualScheduleComplete,
+  handleManualScheduleConferenceSelect,
   handleManualScheduleNextMatchup,
   handleManualScheduleNextWeek,
   handleManualScheduleTeamSelect,
@@ -133,6 +134,7 @@ import {
   handleWagerModeDirect,
   handleWagerModeParlay,
   handleWagerCoachSelect,
+  handleWagerCoachConferenceSelect,
   handleWagerGameSelect,
   handleWagerMarketSelect,
   handleWagerSideSelect,
@@ -444,7 +446,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.modeOpen) return handleWagerModeOpen(interaction);
     if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.modeDirect) return handleWagerModeDirect(interaction);
     if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.modeParlay) return handleWagerModeParlay(interaction);
-    if (interaction.isStringSelectMenu() && (interaction.customId === WAGER_CUSTOM_IDS.coachAfcSelect || interaction.customId === WAGER_CUSTOM_IDS.coachNfcSelect)) return handleWagerCoachSelect(interaction);
+    if (interaction.isStringSelectMenu() && (interaction.customId === WAGER_CUSTOM_IDS.coachAfcSelect || interaction.customId === WAGER_CUSTOM_IDS.coachNfcSelect || interaction.customId === WAGER_CUSTOM_IDS.coachSelect)) return handleWagerCoachSelect(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.coachConferenceSelect) return handleWagerCoachConferenceSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.gameSelect) return handleWagerGameSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.marketSelect) return handleWagerMarketSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === WAGER_CUSTOM_IDS.sideSelect) return handleWagerSideSelect(interaction);
@@ -523,7 +526,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
       if (interaction.customId.startsWith(ADVANCE_WIZARD_CUSTOM_IDS.divisionWinnerSelectPrefix)) return handleAdvanceWizardDivisionWinnerSelect(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualWeekSelect) return handleManualScheduleWeekSelect(interaction);
-      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect) return handleManualScheduleTeamSelect(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualTeamSelect) return handleManualScheduleTeamSelect(interaction);
+      if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualConferenceSelect) return handleManualScheduleConferenceSelect(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.gotwSelect) return handleGotwSelect(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.regularWeekSelect || interaction.customId === ADVANCE_CUSTOM_IDS.stageSelect) return handleSetWeekSelect(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonSelect) return handleSetSeasonSelect(interaction);

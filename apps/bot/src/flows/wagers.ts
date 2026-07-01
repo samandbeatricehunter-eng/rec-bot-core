@@ -14,7 +14,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
-import { americanFromDecimal } from "@rec/shared";
+import { americanFromDecimal, CONFERENCE_ORDER } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
@@ -26,6 +26,8 @@ export const WAGER_CUSTOM_IDS = {
   modeParlay: "rec:wager:mode_parlay",
   coachAfcSelect: "rec:wager:coach_afc",
   coachNfcSelect: "rec:wager:coach_nfc",
+  coachConferenceSelect: "rec:wager:coach_conf",
+  coachSelect: "rec:wager:coach",
   gameSelect: "rec:wager:game",
   marketSelect: "rec:wager:market",
   sideSelect: "rec:wager:side",
@@ -57,6 +59,8 @@ type WagerSession = {
   odds: number | null;
   line: number | null;
   at: number;
+  coachOptions?: any[] | null;
+  selectedCoachConference?: string | null;
 };
 
 const sessions = new Map<string, WagerSession>();
@@ -171,6 +175,48 @@ export async function handleWagerModeOpen(interaction: ButtonInteraction) {
   }
 }
 
+function buildCoachPickerPayload(coaches: any[], session: WagerSession) {
+  const confs = [...new Set(coaches.map((c) => String(c.conference ?? "Other")))]
+    .sort((a, b) => (CONFERENCE_ORDER.indexOf(a) + 1 || 99) - (CONFERENCE_ORDER.indexOf(b) + 1 || 99));
+  const isNflLayout = confs.length <= 2 && confs.every((conf) => conf === "AFC" || conf === "NFC");
+  const embed = new EmbedBuilder().setTitle("Challenge a Coach").setColor(0x3498db).setDescription("Pick the coach you want to challenge.");
+
+  if (isNflLayout) {
+    const buildConf = (conf: "AFC" | "NFC", customId: string) => {
+      const list = coaches.filter((c) => c.conference === conf).slice(0, 25);
+      const menu = new StringSelectMenuBuilder().setCustomId(customId).setPlaceholder(`${conf} coaches`).setDisabled(list.length === 0);
+      menu.addOptions(list.length
+        ? list.map((c) => new StringSelectMenuOptionBuilder().setLabel(`${c.teamAbbr}`.slice(0, 100)).setValue(`${c.userId}:${c.discordId ?? ""}`).setDescription("Challenge this coach"))
+        : [new StringSelectMenuOptionBuilder().setLabel(`No ${conf} coaches`).setValue("none")]);
+      return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+    };
+    return { embeds: [embed], components: [buildConf("AFC", WAGER_CUSTOM_IDS.coachAfcSelect), buildConf("NFC", WAGER_CUSTOM_IDS.coachNfcSelect)] };
+  }
+
+  // More than two conferences (CFB, or any league with a non-NFL conference set): too many
+  // teams to fit side-by-side dropdowns, so pick a conference first, then a coach within it.
+  const selectedConference = confs.includes(session.selectedCoachConference ?? "") ? session.selectedCoachConference! : confs[0];
+  const conferenceMenu = new StringSelectMenuBuilder()
+    .setCustomId(WAGER_CUSTOM_IDS.coachConferenceSelect)
+    .setPlaceholder("Select conference")
+    .addOptions(confs.slice(0, 25).map((conf) =>
+      new StringSelectMenuOptionBuilder().setLabel(conf.slice(0, 100)).setValue(conf).setDefault(conf === selectedConference)));
+
+  const list = coaches.filter((c) => c.conference === selectedConference).slice(0, 25);
+  const coachMenu = new StringSelectMenuBuilder().setCustomId(WAGER_CUSTOM_IDS.coachSelect).setPlaceholder(`${selectedConference} coaches`).setDisabled(list.length === 0);
+  coachMenu.addOptions(list.length
+    ? list.map((c) => new StringSelectMenuOptionBuilder().setLabel(`${c.teamAbbr}`.slice(0, 100)).setValue(`${c.userId}:${c.discordId ?? ""}`).setDescription("Challenge this coach"))
+    : [new StringSelectMenuOptionBuilder().setLabel(`No ${selectedConference} coaches`).setValue("none")]);
+
+  return {
+    embeds: [embed],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(conferenceMenu),
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(coachMenu),
+    ],
+  };
+}
+
 export async function handleWagerModeDirect(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
@@ -188,18 +234,21 @@ export async function handleWagerModeDirect(interaction: ButtonInteraction) {
   if (!coaches.length) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xf1c40f).setDescription("There are no other active linked coaches to challenge.")], components: [] });
   }
-  const buildConf = (conf: "AFC" | "NFC", customId: string) => {
-    const list = coaches.filter((c) => c.conference === conf).slice(0, 25);
-    const menu = new StringSelectMenuBuilder().setCustomId(customId).setPlaceholder(`${conf} coaches`).setDisabled(list.length === 0);
-    menu.addOptions(list.length
-      ? list.map((c) => new StringSelectMenuOptionBuilder().setLabel(`${c.teamAbbr}`.slice(0, 100)).setValue(`${c.userId}:${c.discordId ?? ""}`).setDescription("Challenge this coach"))
-      : [new StringSelectMenuOptionBuilder().setLabel(`No ${conf} coaches`).setValue("none")]);
-    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-  };
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0x3498db).setDescription("Pick the coach you want to challenge.")],
-    components: [buildConf("AFC", WAGER_CUSTOM_IDS.coachAfcSelect), buildConf("NFC", WAGER_CUSTOM_IDS.coachNfcSelect)],
-  });
+  session.coachOptions = coaches;
+  session.selectedCoachConference = null;
+  return interaction.editReply(buildCoachPickerPayload(coaches, session));
+}
+
+export async function handleWagerCoachConferenceSelect(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const session = getSession(interaction.user.id);
+  const coaches: any[] = session.coachOptions ?? [];
+  if (!coaches.length) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription("This selection expired. Reopen Place a Wager > Challenge a Coach.")], components: [] });
+  }
+  session.selectedCoachConference = interaction.values[0] ?? null;
+  return interaction.editReply(buildCoachPickerPayload(coaches, session));
 }
 
 export async function handleWagerCoachSelect(interaction: StringSelectMenuInteraction) {

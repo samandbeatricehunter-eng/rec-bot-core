@@ -9,6 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
+import { canonicalConferenceName, CONFERENCE_ORDER } from "@rec/shared";
 
 /**
  * Central custom IDs for the REC menu system.
@@ -440,23 +441,11 @@ function maddenTeamLine(team: RosterTeam) {
   return `${teamText} (${record})${coach}`;
 }
 
-// Relocated/custom teams sometimes come back with a blank conference and a division like "NFC East".
-// Re-bucket every team into NFC/AFC (inferring from the division text when the conference is blank)
-// so the grid always renders exactly the two real conferences — no empty/duplicate groups.
+// Re-bucket every team into its real conference so the grid always renders exactly the
+// conferences actually present — no empty/duplicate groups.
 export function normalizeRosterConferences(conferences: RosterConference[]): RosterConference[] {
-  const conferenceOrder = ["NFC", "AFC", "ACC", "American", "Big Ten", "Big 12", "C-USA", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "Independents", "Other"];
-  const canonicalConferenceNames = new Map(conferenceOrder.map((conference) => [conference.toUpperCase(), conference]));
-  const inferConf = (confName: string, divisionText: string) => {
-    const raw = String(confName ?? "").trim();
-    const c = raw.toUpperCase();
-    const canonical = canonicalConferenceNames.get(c);
-    if (canonical) return canonical;
-    if (raw) return raw;
-    const text = String(divisionText ?? "").toUpperCase();
-    if (text.includes("AFC")) return "AFC";
-    if (text.includes("NFC")) return "NFC";
-    return "Other";
-  };
+  const conferenceOrder = CONFERENCE_ORDER;
+  const inferConf = canonicalConferenceName;
   const divisionOrder = ["East", "North", "South", "West"];
   const normalizeDivisionLabel = (value: string, conference: string) => {
     const cleaned = String(value || "Other")

@@ -14,11 +14,14 @@ import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { teamDisplayAbbr, teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type RosterConference, type RosterTeam } from "../ui/menu.js";
+import { canonicalConferenceName, CONFERENCE_ORDER } from "@rec/shared";
 
 export const SCHEDULE_MGMT_CUSTOM_IDS = {
   manualWeekSelect: "rec:schedule_manual:week",
   manualAfcSelect: "rec:schedule_manual:afc",
   manualNfcSelect: "rec:schedule_manual:nfc",
+  manualConferenceSelect: "rec:schedule_manual:conference",
+  manualTeamSelect: "rec:schedule_manual:team",
   manualNextMatchup: "rec:schedule_manual:next_matchup",
   manualNextWeek: "rec:schedule_manual:next_week",
   manualContinueNextWeek: "rec:schedule_manual:continue_next_week",
@@ -59,6 +62,7 @@ type ManualScheduleSession = {
   weekNumber: number;
   teams: ManualTeam[];
   selectedTeamIds: string[];
+  selectedConference?: string | null;
   games: any[];
   warnedIncomplete: boolean;
   notice?: string | null;
@@ -465,6 +469,13 @@ export async function handleManualScheduleTeamSelect(interaction: StringSelectMe
   session.notice = session.selectedTeamIds.length === 2
     ? "Selection ready. The first team is Away and the second team is Home."
     : "Select one more team. The first selected team is Away; the second selected team is Home.";
+  return interaction.update(renderManualEntry(session));
+}
+
+export async function handleManualScheduleConferenceSelect(interaction: StringSelectMenuInteraction) {
+  const session = getManualSession(interaction);
+  if (!session) return interaction.reply({ content: "Manual schedule session expired. Reopen League Mgmt > Schedule.", flags: MessageFlags.Ephemeral });
+  session.selectedConference = interaction.values[0] ?? null;
   return interaction.update(renderManualEntry(session));
 }
 
@@ -888,12 +899,13 @@ function displayTeam(team: ManualTeam | any) {
 }
 
 function conferenceOf(team: ManualTeam) {
-  const conf = String(team.conference ?? "").toUpperCase();
-  if (conf === "AFC" || conf === "NFC") return conf;
-  const division = String(team.division ?? "").toUpperCase();
-  if (division.includes("AFC")) return "AFC";
-  if (division.includes("NFC")) return "NFC";
-  return "Other";
+  return canonicalConferenceName(team.conference, team.division);
+}
+
+// Distinct conferences present among a team pool, in the shared canonical order.
+function conferencesPresent(teams: ManualTeam[]): string[] {
+  const present = new Set(teams.map((team) => conferenceOf(team)));
+  return [...present].sort((a, b) => (CONFERENCE_ORDER.indexOf(a) + 1 || 99) - (CONFERENCE_ORDER.indexOf(b) + 1 || 99));
 }
 
 function renderManualWeekPicker(session: ManualScheduleSession) {
@@ -946,27 +958,62 @@ function renderManualEntry(session: ManualScheduleSession) {
 function teamSelectRows(session: ManualScheduleSession) {
   const used = new Set(session.games.flatMap((game: any) => [game.away_team_id, game.home_team_id]).filter(Boolean));
   const availableTeams = session.teams.filter((team) => !used.has(team.id) && !session.selectedTeamIds.includes(team.id));
-  const buildSelect = (conference: "AFC" | "NFC", customId: string) => {
-    const teams = availableTeams.filter((team) => conferenceOf(team) === conference).slice(0, 25);
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId(customId)
-      .setPlaceholder(`${conference} teams`)
-      .setMinValues(1)
-      .setMaxValues(Math.min(2, Math.max(1, teams.length)))
-      .setDisabled(session.selectedTeamIds.length >= 2 || teams.length === 0);
-    if (teams.length) {
-      menu.addOptions(teams.map((team) => new StringSelectMenuOptionBuilder()
-        .setLabel(displayTeam(team).slice(0, 100))
-        .setValue(team.id)
-        .setDescription((team.division ?? conference).slice(0, 100))));
-    } else {
-      menu.addOptions(new StringSelectMenuOptionBuilder().setLabel(`No ${conference} teams available`).setValue(`none-${conference}`));
-    }
-    return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
-  };
+  const confs = conferencesPresent(session.teams);
+  const isNflLayout = confs.length <= 2 && confs.every((conf) => conf === "AFC" || conf === "NFC");
+
+  if (isNflLayout) {
+    const buildSelect = (conference: "AFC" | "NFC", customId: string) => {
+      const teams = availableTeams.filter((team) => conferenceOf(team) === conference).slice(0, 25);
+      const menu = new StringSelectMenuBuilder()
+        .setCustomId(customId)
+        .setPlaceholder(`${conference} teams`)
+        .setMinValues(1)
+        .setMaxValues(Math.min(2, Math.max(1, teams.length)))
+        .setDisabled(session.selectedTeamIds.length >= 2 || teams.length === 0);
+      if (teams.length) {
+        menu.addOptions(teams.map((team) => new StringSelectMenuOptionBuilder()
+          .setLabel(displayTeam(team).slice(0, 100))
+          .setValue(team.id)
+          .setDescription((team.division ?? conference).slice(0, 100))));
+      } else {
+        menu.addOptions(new StringSelectMenuOptionBuilder().setLabel(`No ${conference} teams available`).setValue(`none-${conference}`));
+      }
+      return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu);
+    };
+    return [
+      buildSelect("AFC", SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect),
+      buildSelect("NFC", SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect),
+    ];
+  }
+
+  // Non-NFL (CFB, or any league with more than two conferences): too many teams to fit
+  // two side-by-side dropdowns, so pick a conference first, then a team within it.
+  const selectedConference = confs.includes(session.selectedConference ?? "") ? session.selectedConference! : confs[0];
+  const conferenceMenu = new StringSelectMenuBuilder()
+    .setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualConferenceSelect)
+    .setPlaceholder("Select conference")
+    .addOptions(confs.slice(0, 25).map((conf) =>
+      new StringSelectMenuOptionBuilder().setLabel(conf.slice(0, 100)).setValue(conf).setDefault(conf === selectedConference)));
+
+  const teams = availableTeams.filter((team) => conferenceOf(team) === selectedConference).slice(0, 25);
+  const teamMenu = new StringSelectMenuBuilder()
+    .setCustomId(SCHEDULE_MGMT_CUSTOM_IDS.manualTeamSelect)
+    .setPlaceholder(`${selectedConference} teams`)
+    .setMinValues(1)
+    .setMaxValues(Math.min(2, Math.max(1, teams.length)))
+    .setDisabled(session.selectedTeamIds.length >= 2 || teams.length === 0);
+  if (teams.length) {
+    teamMenu.addOptions(teams.map((team) => new StringSelectMenuOptionBuilder()
+      .setLabel(displayTeam(team).slice(0, 100))
+      .setValue(team.id)
+      .setDescription((team.division ?? selectedConference).slice(0, 100))));
+  } else {
+    teamMenu.addOptions(new StringSelectMenuOptionBuilder().setLabel(`No ${selectedConference} teams available`).setValue(`none-${selectedConference}`));
+  }
+
   return [
-    buildSelect("AFC", SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect),
-    buildSelect("NFC", SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect),
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(conferenceMenu),
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(teamMenu),
   ];
 }
 

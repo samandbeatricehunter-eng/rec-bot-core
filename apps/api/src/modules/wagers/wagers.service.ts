@@ -3,7 +3,7 @@
 // funds), escrows the stake out of the wallet into holding, and stores a pending
 // wager whose payout the commissioner approves once the result is confirmed.
 
-import { WAGER_MARKET_BY_KEY, parlayOdds, potentialPayout } from "@rec/shared";
+import { canonicalConferenceName, WAGER_MARKET_BY_KEY, parlayOdds, potentialPayout } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -573,7 +573,7 @@ export async function listChallengeableCoaches(guildId: string, discordId: strin
   const me = await userIdFromDiscord(discordId).catch(() => null);
   const { data } = await supabase
     .from("rec_team_assignments")
-    .select("user_id,team_id,rec_teams(name,abbreviation,display_abbr,conference),rec_users(rec_discord_accounts(discord_id))")
+    .select("user_id,team_id,rec_teams(name,abbreviation,display_abbr,conference,division),rec_users(rec_discord_accounts(discord_id))")
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
@@ -587,7 +587,7 @@ export async function listChallengeableCoaches(guildId: string, discordId: strin
         userId: a.user_id,
         discordId: discord ?? null,
         teamAbbr: teamAbbr(team),
-        conference: String(team?.conference ?? "").toUpperCase().includes("AFC") ? "AFC" : "NFC",
+        conference: canonicalConferenceName(team?.conference, team?.division),
       };
     });
   return { coaches };
