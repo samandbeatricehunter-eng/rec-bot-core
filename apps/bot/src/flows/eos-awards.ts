@@ -56,9 +56,9 @@ export async function handleEosAwards(interaction: ButtonInteraction, context: E
       content: "@everyone",
       poll: {
         question: { text: `${award.label} - Season ${prepared.league?.seasonNumber ?? ""}`.slice(0, 300) },
-        answers: nominees.map((nominee: any) => ({ poll_media: { text: awardAnswerLabel(nominee) } })),
+        answers: nominees.map((nominee: any) => ({ text: awardAnswerLabel(nominee) })),
         duration: 24,
-        allow_multiselect: false,
+        allowMultiselect: false,
       },
       allowedMentions: { parse: ["everyone"] },
     } as any).catch(() => null);

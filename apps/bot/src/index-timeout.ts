@@ -1240,11 +1240,11 @@ async function handleActiveCheck(interaction: ButtonInteraction) {
     poll: {
       question: { text: "REC Active Check" },
       answers: [
-        { poll_media: { text: "I'm Active" } },
-        { poll_media: { text: "Kick Me" } },
+        { text: "I'm Active" },
+        { text: "Kick Me" },
       ],
       duration: 24,
-      allow_multiselect: false,
+      allowMultiselect: false,
     },
     allowedMentions: { parse: ["everyone"] }
   } as any);
@@ -1514,11 +1514,11 @@ async function postGotwPollForGame(args: { guildId: string; channel: any; game: 
     poll: {
       question: { text: `Who will win this week's GOTW? ${awayLabel} at ${homeLabel}`.slice(0, 300) },
       answers: [
-        { poll_media: { text: awayLabel } },  // answer_id 1 = away
-        { poll_media: { text: homeLabel } },  // answer_id 2 = home
+        { text: awayLabel },  // answer_id 1 = away
+        { text: homeLabel },  // answer_id 2 = home
       ],
       duration: pollDurationHours,
-      allow_multiselect: false,
+      allowMultiselect: false,
     },
     allowedMentions: { parse: ["everyone"] },
   } as any).catch((err: unknown) => { console.error("[ERROR] Failed to post GOTW poll:", err); return null; });
