@@ -32,13 +32,13 @@ export async function convertSeasonBadgesToTrophies(
   }
 
   const seen = new Set<string>();
-  let usersConverted = 0;
-  let trophiesCreated = 0;
+  const uniqueUserIds = (assignments ?? [])
+    .map((row) => row.user_id)
+    .filter((userId): userId is string => Boolean(userId) && !seen.has(userId!) && seen.add(userId!) != null);
 
-  for (const { user_id: userId } of assignments ?? []) {
-    if (!userId || seen.has(userId)) continue;
-    seen.add(userId);
-
+  // Each coach's trophy conversion is an independent persist-then-wipe sequence —
+  // the internal ordering/safety per coach is preserved, but coaches run in parallel.
+  const results = await Promise.all(uniqueUserIds.map(async (userId): Promise<{ converted: boolean; trophies: number }> => {
     const { data: seasonRows, error: rowsError } = await supabase
       .from("rec_badge_ownership")
       .select("badge_key,tier")
@@ -48,8 +48,11 @@ export async function convertSeasonBadgesToTrophies(
       .eq("badge_scope", "season");
     if (rowsError) {
       console.error("[ERROR] convertSeasonBadgesToTrophies: failed to load season badges:", rowsError);
-      continue;
+      return { converted: false, trophies: 0 };
     }
+
+    let converted = false;
+    let trophies = 0;
 
     // Persist trophies first. If this fails, skip the wipe so nothing is lost and
     // the next advance can retry (the upsert is idempotent on the unique key).
@@ -68,10 +71,10 @@ export async function convertSeasonBadgesToTrophies(
         .upsert(trophyRows, { onConflict: "league_id,user_id,badge_key,tier,season_number", ignoreDuplicates: true });
       if (upsertError) {
         console.error("[ERROR] convertSeasonBadgesToTrophies: trophy upsert failed (skipping wipe):", upsertError);
-        continue;
+        return { converted: false, trophies: 0 };
       }
-      trophiesCreated += trophyRows.length;
-      usersConverted += 1;
+      trophies = trophyRows.length;
+      converted = true;
     }
 
     // Reset: wipe this season's weekly + season ownership now that trophies are saved.
@@ -83,9 +86,14 @@ export async function convertSeasonBadgesToTrophies(
       .eq("season", season)
       .in("badge_scope", ["weekly", "season"]);
     if (wipeError) console.error("[ERROR] convertSeasonBadgesToTrophies: badge wipe failed:", wipeError);
-  }
 
-  return { usersConverted, trophiesCreated };
+    return { converted, trophies };
+  }));
+
+  return {
+    usersConverted: results.filter((r) => r.converted).length,
+    trophiesCreated: results.reduce((sum, r) => sum + r.trophies, 0),
+  };
 }
 
 export type CareerTrophy = {

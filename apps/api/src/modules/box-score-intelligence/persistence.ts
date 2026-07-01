@@ -83,8 +83,8 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
     });
   }
 
-  // Per-team profile + per-user badge recompute.
-  for (const g of games) {
+  // Per-team profile + per-user badge recompute — both teams are independent, run in parallel.
+  await Promise.all(games.map(async (g) => {
     if (gameId) {
       const profile = computeGameProfile(g, leagueGame);
       await supabase.from("rec_game_profiles").insert({
@@ -103,7 +103,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
       });
     }
     if (g.userId) await recomputeUserBadges(g, leagueGame);
-  }
+  }));
 }
 
 type RecomputeUserBadgeInput = {
@@ -330,18 +330,24 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
 
   const seen = new Set<string>();
   const leagueGame = await loadLeagueGame(leagueId);
-  for (const assignment of assignments ?? []) {
-    if (!assignment.user_id || seen.has(assignment.user_id)) continue;
+  const uniqueAssignments = (assignments ?? []).filter((assignment) => {
+    if (!assignment.user_id || seen.has(assignment.user_id)) return false;
     seen.add(assignment.user_id);
-    await recomputeUserBadgeOwnership({
+    return true;
+  });
+
+  // Each coach's badge recompute is fully independent — run them in parallel
+  // instead of one at a time (this was the single biggest N+1 in the codebase).
+  await Promise.all(uniqueAssignments.map((assignment) =>
+    recomputeUserBadgeOwnership({
       leagueId,
-      userId: assignment.user_id,
+      userId: assignment.user_id!,
       teamId: assignment.team_id ?? null,
       season,
       leagueGame,
       current: null,
-    });
-  }
+    })
+  ));
 
   return { usersUpdated: seen.size };
 }
@@ -379,22 +385,23 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
   const now = new Date().toISOString();
   const leagueGame = await loadLeagueGame(leagueId);
 
-  for (const { user_id: userId, team_id: teamId } of assignments) {
+  // Each coach's season-total badge check is independent — run them in parallel.
+  await Promise.all(assignments.map(async ({ user_id: userId, team_id: teamId }) => {
     const { data: rows } = await supabase
       .from("rec_team_game_stats")
       .select("*")
       .eq("league_id", leagueId)
       .eq("user_id", userId);
 
-    if (!rows?.length) continue;
+    if (!rows?.length) return;
 
     const allGames = rows.map((r) => rowToGameStats(r as TeamGameStatsRow));
     const seasonGames = allGames.filter((g) => g.season === season);
-    if (!seasonGames.length) continue;
+    if (!seasonGames.length) return;
 
     const seasonTotals = seasonTotalsFromGames(seasonGames);
     const qualified = qualifySeasonBadges(seasonTotals, leagueGame);
-    if (!qualified.length) continue;
+    if (!qualified.length) return;
 
     const badgeRows = qualified.map((b) => ({
       league_id: leagueId,
@@ -413,11 +420,9 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
     }));
 
     // Upsert so re-running at season end is safe and doesn't duplicate.
-    await supabase
+    const { error } = await supabase
       .from("rec_badge_ownership")
-      .upsert(badgeRows, { onConflict: "league_id,user_id,badge_key,badge_scope,season" })
-      .then(({ error }) => {
-        if (error) console.error("[ERROR] issueSeasonTotalBadges upsert failed:", error);
-      });
-  }
+      .upsert(badgeRows, { onConflict: "league_id,user_id,badge_key,badge_scope,season" });
+    if (error) console.error("[ERROR] issueSeasonTotalBadges upsert failed:", error);
+  }));
 }

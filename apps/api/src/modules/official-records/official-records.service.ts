@@ -245,12 +245,12 @@ export async function rebuildSeasonOfficialRecords(leagueId: string, seasonNumbe
   }
 
   const now = new Date().toISOString();
-  for (const userId of userIds) {
-    const totals = aggregateResultsForUser(userId, results);
-    await supabase.from("rec_season_user_records").upsert(
-      recordRowFromTotals(totals, { league_id: leagueId, season_number: seasonNumber, user_id: userId }),
-      { onConflict: "league_id,season_number,user_id" },
-    );
+  const rows = [...userIds].map((userId) =>
+    recordRowFromTotals(aggregateResultsForUser(userId, results), { league_id: leagueId, season_number: seasonNumber, user_id: userId }),
+  );
+  if (rows.length) {
+    const { error: upsertError } = await supabase.from("rec_season_user_records").upsert(rows, { onConflict: "league_id,season_number,user_id" });
+    if (upsertError) throw upsertError;
   }
 
   return { usersUpdated: userIds.size, updatedAt: now };
@@ -264,12 +264,12 @@ export async function rebuildLeagueOfficialRecords(leagueId: string) {
     if (row.away_user_id) userIds.add(row.away_user_id);
   }
 
-  for (const userId of userIds) {
-    const totals = aggregateResultsForUser(userId, results);
-    await supabase.from("rec_league_user_records").upsert(
-      recordRowFromTotals(totals, { league_id: leagueId, user_id: userId }),
-      { onConflict: "league_id,user_id" },
-    );
+  const rows = [...userIds].map((userId) =>
+    recordRowFromTotals(aggregateResultsForUser(userId, results), { league_id: leagueId, user_id: userId }),
+  );
+  if (rows.length) {
+    const { error: upsertError } = await supabase.from("rec_league_user_records").upsert(rows, { onConflict: "league_id,user_id" });
+    if (upsertError) throw upsertError;
   }
 
   return { usersUpdated: userIds.size };
@@ -304,6 +304,10 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
     manualCreditsByUser.set(row.user_id, rows);
   }
 
+  const globalRows: any[] = [];
+  const gameRowsByGame = new Map<string, any[]>();
+  const deleteUserIdsByGame = new Map<string, string[]>();
+
   for (const userId of affectedUsers) {
     const userResults = results.filter((row) => row.home_user_id === userId || row.away_user_id === userId);
     const boxScoreTotals = aggregateResultsForUser(userId, userResults);
@@ -313,10 +317,7 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
     const manualChampionships = userManualCredits.reduce((sum, row) => sum + Number(row.championship_count ?? 0), 0);
     const allGamesChampionships = allGames.superbowlWins + manualChampionships;
 
-    await supabase.from("rec_global_user_records").upsert(
-      allGamesRecordRowFromTotals(allGames, allGamesChampionships, { user_id: userId }),
-      { onConflict: "user_id" },
-    );
+    globalRows.push(allGamesRecordRowFromTotals(allGames, allGamesChampionships, { user_id: userId }));
 
     const byGame = new Map<string, RecordTotals>();
     for (const row of userResults) {
@@ -337,14 +338,30 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
         .reduce((sum, row) => sum + Number(row.championship_count ?? 0), 0);
       totals.superbowlWins += manualGameChampionships;
       if (!hasAnyRecordStat(totals)) {
-        await supabase.from("rec_global_user_game_records").delete().eq("user_id", userId).eq("game", game);
+        const ids = deleteUserIdsByGame.get(game) ?? [];
+        ids.push(userId);
+        deleteUserIdsByGame.set(game, ids);
         continue;
       }
-      await supabase.from("rec_global_user_game_records").upsert(
-        recordRowFromTotals(totals, { user_id: userId, game }),
-        { onConflict: "user_id,game" },
-      );
+      const rows = gameRowsByGame.get(game) ?? [];
+      rows.push(recordRowFromTotals(totals, { user_id: userId, game }));
+      gameRowsByGame.set(game, rows);
     }
+  }
+
+  if (globalRows.length) {
+    const { error: globalError } = await supabase.from("rec_global_user_records").upsert(globalRows, { onConflict: "user_id" });
+    if (globalError) throw globalError;
+  }
+  for (const [game, rows] of gameRowsByGame.entries()) {
+    if (!rows.length) continue;
+    const { error: gameError } = await supabase.from("rec_global_user_game_records").upsert(rows, { onConflict: "user_id,game" });
+    if (gameError) throw gameError;
+  }
+  for (const [game, userIdsToDelete] of deleteUserIdsByGame.entries()) {
+    if (!userIdsToDelete.length) continue;
+    const { error: deleteError } = await supabase.from("rec_global_user_game_records").delete().eq("game", game).in("user_id", userIdsToDelete);
+    if (deleteError) throw deleteError;
   }
 
   return { usersUpdated: affectedUsers.size };

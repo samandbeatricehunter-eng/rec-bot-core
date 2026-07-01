@@ -98,25 +98,26 @@ export async function rebuildSeasonDisplayRecords(leagueId: string, seasonNumber
   for (const row of displayRows) ingestResultRow(aggregate, row);
 
   const now = new Date().toISOString();
-  for (const [userId, stats] of aggregate.entries()) {
-    const gamesPlayed = stats.wins + stats.losses + stats.ties;
-    await supabase.from("rec_season_user_display_records").upsert(
-      {
-        league_id: leagueId,
-        season_number: seasonNumber,
-        user_id: userId,
-        team_id: stats.teamId,
-        wins: stats.wins,
-        losses: stats.losses,
-        ties: stats.ties,
-        points_for: stats.pointsFor,
-        points_against: stats.pointsAgainst,
-        point_differential: stats.pointsFor - stats.pointsAgainst,
-        games_played: gamesPlayed,
-        updated_at: now,
-      },
-      { onConflict: "league_id,season_number,user_id" },
-    );
+  const rows = [...aggregate.entries()].map(([userId, stats]) => ({
+    league_id: leagueId,
+    season_number: seasonNumber,
+    user_id: userId,
+    team_id: stats.teamId,
+    wins: stats.wins,
+    losses: stats.losses,
+    ties: stats.ties,
+    points_for: stats.pointsFor,
+    points_against: stats.pointsAgainst,
+    point_differential: stats.pointsFor - stats.pointsAgainst,
+    games_played: stats.wins + stats.losses + stats.ties,
+    updated_at: now,
+  }));
+
+  if (rows.length) {
+    const { error: upsertError } = await supabase
+      .from("rec_season_user_display_records")
+      .upsert(rows, { onConflict: "league_id,season_number,user_id" });
+    if (upsertError) throw upsertError;
   }
 
   return { usersUpdated: aggregate.size };

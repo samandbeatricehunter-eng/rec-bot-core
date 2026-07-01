@@ -248,9 +248,9 @@ export async function reviewEosPayoutsForUser(input: {
     .eq("status", "pending");
   if (pending.error) throw new ApiError(500, "Failed to load EOS payout items for coach.", pending.error);
 
-  const processed: any[] = [];
-  const failed: any[] = [];
-  for (const item of pending.data ?? []) {
+  // Each item touches a distinct row and a distinct wallet-ledger idempotency key
+  // (itemId-scoped), so reviewing a coach's items is safe to run in parallel.
+  const outcomes = await Promise.all((pending.data ?? []).map(async (item) => {
     try {
       const result = await reviewEosPayoutItem({
         itemId: item.id,
@@ -258,11 +258,13 @@ export async function reviewEosPayoutsForUser(input: {
         reviewedByDiscordId: input.reviewedByDiscordId,
         deniedReason: input.deniedReason,
       });
-      if (result.updated) processed.push(result.item);
+      return result.updated ? { ok: true as const, item: result.item } : null;
     } catch (error) {
-      failed.push({ itemId: item.id, error: error instanceof Error ? error.message : String(error) });
+      return { ok: false as const, itemId: item.id, error: error instanceof Error ? error.message : String(error) };
     }
-  }
+  }));
+  const processed = outcomes.filter((o): o is { ok: true; item: any } => o?.ok === true).map((o) => o.item);
+  const failed = outcomes.filter((o): o is { ok: false; itemId: string; error: string } => o?.ok === false);
 
   const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.userId).maybeSingle();
   const totalAmount = processed.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
@@ -324,16 +326,18 @@ export async function reviewEosPayoutItem(input: { itemId: string; action: "appr
 export async function issueEosPayoutBatch(input: { batchId: string; reviewedByDiscordId: string }) {
   const batch = await listEosPayoutBatch(input.batchId);
   const pending = batch.items.filter((item: any) => item.status === "pending");
-  const issued = [];
-  const failed = [];
-  for (const item of pending) {
+  // Each item touches a distinct row and a distinct wallet-ledger idempotency key
+  // (itemId-scoped), so issuing a whole batch is safe to run in parallel.
+  const outcomes = await Promise.all(pending.map(async (item: any) => {
     try {
       const result = await reviewEosPayoutItem({ itemId: item.id, action: "approve", reviewedByDiscordId: input.reviewedByDiscordId });
-      issued.push(result.item);
+      return { ok: true as const, item: result.item };
     } catch (error) {
-      failed.push({ itemId: item.id, error: error instanceof Error ? error.message : String(error) });
+      return { ok: false as const, itemId: item.id, error: error instanceof Error ? error.message : String(error) };
     }
-  }
+  }));
+  const issued = outcomes.filter((o) => o.ok).map((o: any) => o.item);
+  const failed = outcomes.filter((o) => !o.ok);
   const refreshed = await listEosPayoutBatch(input.batchId);
   const issuedItems = await attachPayeeDiscordIds(issued);
   const stillPending = refreshed.items.filter((item: any) => item.status === "pending").length;
