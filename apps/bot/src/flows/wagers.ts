@@ -17,6 +17,7 @@ import {
 import { americanFromDecimal, CONFERENCE_ORDER } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError as userError } from "../lib/errors.js";
+import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
@@ -85,7 +86,7 @@ export async function handlePlaceWager(interaction: ButtonInteraction) {
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Place a Wager")
-      .setColor(0x3498db)
+      .setColor(COLORS.info)
       .setDescription([
         "Pick how you want to bet:",
         "",
@@ -115,7 +116,7 @@ export async function handleWagerModeParlay(interaction: ButtonInteraction) {
     const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, "**3-Pick Parlay (Leg 1 of 3)** — pick the first game. All 3 legs must hit; payouts are boosted.");
     return interaction.editReply({ embeds: payload.embeds, components: payload.components });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
 }
 
@@ -123,7 +124,7 @@ async function buildGameSelectPayload(guildId: string, discordId: string, headli
   const payload = await recApi.listWagerGames(guildId, discordId);
   const games: any[] = payload?.games ?? [];
   if (!games.length) {
-    return { empty: true, embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xf1c40f).setDescription("There are no games you can bet on this week (your own game is excluded, and a schedule must be logged).")], components: [] };
+    return { empty: true, embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(COLORS.warning).setDescription("There are no games you can bet on this week (your own game is excluded, and a schedule must be logged).")], components: [] };
   }
   const menu = new StringSelectMenuBuilder()
     .setCustomId(WAGER_CUSTOM_IDS.gameSelect)
@@ -133,7 +134,7 @@ async function buildGameSelectPayload(guildId: string, discordId: string, headli
         .setLabel(`${g.awayLabel} at ${g.homeLabel}`.slice(0, 100))
         .setValue(g.gameId)
         .setDescription(g.humanInvolved ? "Human game — full markets" : "CPU game — score markets only")));
-  return { empty: false, embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0x3498db).setDescription(headline)], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] };
+  return { empty: false, embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(COLORS.info).setDescription(headline)], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] };
 }
 
 export async function handleWagerModeHouse(interaction: ButtonInteraction) {
@@ -146,7 +147,7 @@ export async function handleWagerModeHouse(interaction: ButtonInteraction) {
     const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, "**Bet the House** — pick a game.");
     return interaction.editReply({ embeds: payload.embeds, components: payload.components });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
 }
 
@@ -160,7 +161,7 @@ export async function handleWagerModeOpen(interaction: ButtonInteraction) {
     const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, "**Open Challenge** — pick the game your wager is on. Any coach can take the other side.");
     return interaction.editReply({ embeds: payload.embeds, components: payload.components });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
 }
 
@@ -168,7 +169,7 @@ function buildCoachPickerPayload(coaches: any[], session: WagerSession) {
   const confs = [...new Set(coaches.map((c) => String(c.conference ?? "Other")))]
     .sort((a, b) => (CONFERENCE_ORDER.indexOf(a) + 1 || 99) - (CONFERENCE_ORDER.indexOf(b) + 1 || 99));
   const isNflLayout = confs.length <= 2 && confs.every((conf) => conf === "AFC" || conf === "NFC");
-  const embed = new EmbedBuilder().setTitle("Challenge a Coach").setColor(0x3498db).setDescription("Pick the coach you want to challenge.");
+  const embed = new EmbedBuilder().setTitle("Challenge a Coach").setColor(COLORS.info).setDescription("Pick the coach you want to challenge.");
 
   if (isNflLayout) {
     const buildConf = (conf: "AFC" | "NFC", customId: string) => {
@@ -217,11 +218,11 @@ export async function handleWagerModeDirect(interaction: ButtonInteraction) {
   try {
     payload = await recApi.listChallengeableCoaches(interaction.guildId, interaction.user.id);
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
   const coaches: any[] = payload?.coaches ?? [];
   if (!coaches.length) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xf1c40f).setDescription("There are no other active linked coaches to challenge.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(COLORS.warning).setDescription("There are no other active linked coaches to challenge.")], components: [] });
   }
   session.coachOptions = coaches;
   session.selectedCoachConference = null;
@@ -234,7 +235,7 @@ export async function handleWagerCoachConferenceSelect(interaction: StringSelect
   const session = getSession(interaction.user.id);
   const coaches: any[] = session.coachOptions ?? [];
   if (!coaches.length) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription("This selection expired. Reopen Place a Wager > Challenge a Coach.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(COLORS.error).setDescription("This selection expired. Reopen Place a Wager > Challenge a Coach.")], components: [] });
   }
   session.selectedCoachConference = interaction.values[0] ?? null;
   return interaction.editReply(buildCoachPickerPayload(coaches, session));
@@ -246,7 +247,7 @@ export async function handleWagerCoachSelect(interaction: StringSelectMenuIntera
   const session = getSession(interaction.user.id);
   const [userId, discordId] = (interaction.values[0] ?? "").split(":");
   if (!userId || userId === "none") {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription("Pick a valid coach.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(COLORS.error).setDescription("Pick a valid coach.")], components: [] });
   }
   session.mode = "peer_direct";
   session.targetUserId = userId;
@@ -256,7 +257,7 @@ export async function handleWagerCoachSelect(interaction: StringSelectMenuIntera
     const payload = await buildGameSelectPayload(interaction.guildId, interaction.user.id, `**Direct Challenge** — pick the game to wager on${discordId ? ` against <@${discordId}>` : ""}.`);
     return interaction.editReply({ embeds: payload.embeds, components: payload.components });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Challenge a Coach").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
 }
 
@@ -270,7 +271,7 @@ export async function handleWagerGameSelect(interaction: StringSelectMenuInterac
   try {
     options = await recApi.getWagerOptions(interaction.guildId, gameId);
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
   session.options = options;
   session.gameId = gameId;
@@ -288,7 +289,7 @@ export async function handleWagerGameSelect(interaction: StringSelectMenuInterac
         .setDescription(m.line != null ? `Line: ${m.line}${m.unit ? ` ${m.unit}` : ""}` : "Winner")));
 
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle(`Wager — ${session.gameLabel}`).setColor(0x3498db).setDescription("Choose a market.")],
+    embeds: [new EmbedBuilder().setTitle(`Wager — ${session.gameLabel}`).setColor(COLORS.info).setDescription("Choose a market.")],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(marketMenu)],
   });
 }
@@ -300,7 +301,7 @@ export async function handleWagerMarketSelect(interaction: StringSelectMenuInter
   const market = interaction.values[0];
   const marketOption = (session.options?.markets ?? []).find((m: any) => m.market === market);
   if (!session.options || !marketOption) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("That market is no longer available — restart from Place Wager.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription("That market is no longer available — restart from Place Wager.")], components: [] });
   }
   session.market = market;
   session.marketLabel = marketOption.label;
@@ -316,7 +317,7 @@ export async function handleWagerMarketSelect(interaction: StringSelectMenuInter
         .setDescription(`Decimal odds ${Number(s.odds).toFixed(2)}`)));
 
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle(`Wager — ${session.marketLabel}`).setColor(0x3498db).setDescription(`${session.gameLabel}\n\nChoose your side, then enter a stake.`)],
+    embeds: [new EmbedBuilder().setTitle(`Wager — ${session.marketLabel}`).setColor(COLORS.info).setDescription(`${session.gameLabel}\n\nChoose your side, then enter a stake.`)],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(sideMenu)],
   });
 }
@@ -328,7 +329,7 @@ export async function handleWagerSideSelect(interaction: StringSelectMenuInterac
   const side = marketOption?.sides?.[Number(interaction.values[0])];
   if (!side) {
     await interaction.deferUpdate();
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("That side is no longer available — restart from Place Wager.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription("That side is no longer available — restart from Place Wager.")], components: [] });
   }
   session.pick = side.pick;
   session.sideLabel = side.label;
@@ -366,18 +367,18 @@ export async function handleWagerStakeModal(interaction: ModalSubmitInteraction)
   const session = getSession(interaction.user.id);
   const stake = parseInt(interaction.fields.getTextInputValue(WAGER_CUSTOM_IDS.stakeInput).replace(/[^0-9]/g, ""), 10);
   if (!Number.isFinite(stake) || stake <= 0) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("Enter a positive whole-dollar stake.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription("Enter a positive whole-dollar stake.")], components: [] });
   }
 
   if (session.mode === "parlay") {
     if (session.parlayLegs.length !== 3) {
-      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(0xe74c3c).setDescription("Your parlay session expired — restart from Place Wager.")], components: [] });
+      return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(COLORS.error).setDescription("Your parlay session expired — restart from Place Wager.")], components: [] });
     }
     return placeParlayAndPost(interaction, session, stake);
   }
 
   if (!session.gameId || !session.market || !session.pick) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(0xe74c3c).setDescription("Your wager session expired — restart from Place Wager.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager").setColor(COLORS.error).setDescription("Your wager session expired — restart from Place Wager.")], components: [] });
   }
 
   if (session.mode === "house") return placeHouseAndPost(interaction, session, stake);
@@ -391,7 +392,7 @@ async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: W
   try {
     result = await recApi.placeHouseWager({ guildId: interaction.guildId, discordId: interaction.user.id, gameId: session.gameId!, market: session.market!, pick: session.pick!, stake });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Placed").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Placed").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
   sessions.delete(interaction.user.id);
 
@@ -411,7 +412,7 @@ async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: W
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Wager Placed ✅")
-      .setColor(0x2ecc71)
+      .setColor(COLORS.success)
       .setDescription([
         `**${result.gameLabel}**`,
         `${result.marketLabel}: **${result.sideLabel}** (${americanFromDecimal(result.odds)})`,
@@ -430,7 +431,7 @@ async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: 
   try {
     result = await recApi.placeParlay({ guildId: interaction.guildId, discordId: interaction.user.id, stake, legs: session.parlayLegs.map((l) => ({ gameId: l.gameId, market: l.market, pick: l.pick })) });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay Not Placed").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay Not Placed").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
   const legs: string[] = result.legs ?? [];
   sessions.delete(interaction.user.id);
@@ -442,7 +443,7 @@ async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: 
     if (ch && ch.isTextBased() && !ch.isDMBased()) {
       const embed = new EmbedBuilder()
         .setTitle("Parlay — Pending Payout")
-        .setColor(0x3498db)
+        .setColor(COLORS.info)
         .addFields(
           { name: "BETTOR", value: `<@${interaction.user.id}>`, inline: true },
           { name: "LEGS (all must hit)", value: legs.map((l, i) => `${i + 1}. ${l}`).join("\n").slice(0, 1024), inline: false },
@@ -461,7 +462,7 @@ async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: 
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Parlay Placed ✅")
-      .setColor(0x2ecc71)
+      .setColor(COLORS.success)
       .setDescription([
         legs.map((l, i) => `${i + 1}. ${l}`).join("\n"),
         "",
@@ -483,7 +484,7 @@ async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: 
       challengeType, targetUserId: session.targetUserId,
     });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Sent").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Wager Not Sent").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
   const targetDiscordId = session.targetDiscordId;
   sessions.delete(interaction.user.id);
@@ -512,7 +513,7 @@ async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: 
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Challenge Sent ✅")
-      .setColor(0x2ecc71)
+      .setColor(COLORS.success)
       .setDescription([
         `**${result.gameLabel}**`,
         `Your pick — ${result.marketLabel}: **${result.proposerPickLabel}**`,
@@ -528,7 +529,7 @@ async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: 
 function buildPeerChallengeEmbed(result: any, proposerDiscordId: string, targetDiscordId: string | null, isDirect: boolean): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(isDirect ? "Head-to-Head Challenge" : "Open Wager Challenge")
-    .setColor(0x9b59b6)
+    .setColor(COLORS.purple)
     .addFields(
       { name: "FROM", value: `<@${proposerDiscordId}>`, inline: true },
       ...(isDirect && targetDiscordId ? [{ name: "TO", value: `<@${targetDiscordId}>`, inline: true }] : []),
@@ -552,7 +553,7 @@ async function acceptPeerAndPost(interaction: ButtonInteraction, wagerId: string
 
   // Update the announcement embed: remove buttons, show it's locked.
   const base = interaction.message.embeds[0];
-  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Wager")).setColor(0x2ecc71);
+  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Wager")).setColor(COLORS.success);
   embed.addFields({ name: "ACCEPTED", value: `<@${interaction.user.id}> took the other side. Sent to Pending Payouts.` });
   await interaction.editReply({ embeds: [embed], components: [] }).catch(() => undefined);
 
@@ -613,27 +614,27 @@ export async function handleWagerCounter(interaction: ButtonInteraction) {
 
   return interaction.reply({
     flags: MessageFlags.Ephemeral,
-    embeds: [new EmbedBuilder().setTitle("Counter the Wager").setColor(0x9b59b6).setDescription(`${session.gameLabel}\n\nPick your side and stake. The poster will get a DM to accept or deny your counter.`)],
+    embeds: [new EmbedBuilder().setTitle("Counter the Wager").setColor(COLORS.purple).setDescription(`${session.gameLabel}\n\nPick your side and stake. The poster will get a DM to accept or deny your counter.`)],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(marketMenu)],
   });
 }
 
 async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: WagerSession, stake: number) {
   if (!interaction.inCachedGuild() || !session.counterOriginalId || !session.gameId || !session.market || !session.pick) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter").setColor(0xe74c3c).setDescription("Your counter session expired — click Counter again.")], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter").setColor(COLORS.error).setDescription("Your counter session expired — click Counter again.")], components: [] });
   }
   let result: any;
   try {
     result = await recApi.placeCounterWager({ guildId: interaction.guildId, discordId: interaction.user.id, originalWagerId: session.counterOriginalId, market: session.market, pick: session.pick, stake });
   } catch (err) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter Not Sent").setColor(0xe74c3c).setDescription(userError(err))], components: [] });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Counter Not Sent").setColor(COLORS.error).setDescription(userError(err))], components: [] });
   }
   sessions.delete(interaction.user.id);
 
   const posterDiscordId: string | null = result.proposerDiscordId ?? null;
   const counterEmbed = new EmbedBuilder()
     .setTitle("Counter-Offer to Your Wager")
-    .setColor(0x9b59b6)
+    .setColor(COLORS.purple)
     .setDescription([
       `<@${interaction.user.id}> countered your **${result.gameLabel}** wager.`,
       "",
@@ -670,7 +671,7 @@ async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: W
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Counter Sent ✅")
-      .setColor(0x2ecc71)
+      .setColor(COLORS.success)
       .setDescription([
         `Your counter — ${result.marketLabel}: **${result.counterPickLabel}** for **$${result.stake}**.`,
         `$${result.stake} moved to holding.`,
@@ -716,7 +717,7 @@ export async function handleCounterAccept(interaction: ButtonInteraction) {
     if (ch?.isTextBased?.()) {
       const msg = await (ch as any).messages.fetch(result.originalAnnouncementMessageId).catch(() => null);
       if (msg?.embeds?.[0]) {
-        const embed = EmbedBuilder.from(msg.embeds[0]).setColor(0x2ecc71);
+        const embed = EmbedBuilder.from(msg.embeds[0]).setColor(COLORS.success);
         embed.addFields({ name: "SETTLED VIA COUNTER", value: `Countered terms accepted. Sent to Pending Payouts.` });
         await msg.edit({ embeds: [embed], components: [] }).catch(() => undefined);
       }
@@ -725,7 +726,7 @@ export async function handleCounterAccept(interaction: ButtonInteraction) {
 
   // Update the DM and post the pending-payout embed.
   const base = interaction.message.embeds[0];
-  const dmEmbed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(0x2ecc71);
+  const dmEmbed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(COLORS.success);
   dmEmbed.addFields({ name: "ACCEPTED", value: "You accepted the counter. Sent to Pending Payouts." });
   await interaction.editReply({ embeds: [dmEmbed], components: [] }).catch(() => undefined);
 
@@ -757,7 +758,7 @@ export async function handleCounterDeny(interaction: ButtonInteraction) {
     return interaction.followUp({ content: userError(err), flags: MessageFlags.Ephemeral }).catch(() => undefined);
   }
   const base = interaction.message.embeds[0];
-  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(0x95a5a6);
+  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(COLORS.neutral);
   embed.addFields({ name: "DENIED", value: "You denied the counter. Your original offer stays open." });
   await interaction.editReply({ embeds: [embed], components: [] }).catch(() => undefined);
 }
@@ -839,7 +840,7 @@ export async function refreshConfirmableWagerEmbeds(client: any, guildId: string
       if (!channel?.isTextBased?.()) continue;
       const message = await channel.messages.fetch(w.messageId).catch(() => null);
       if (!message?.embeds?.[0]) continue;
-      const embed = EmbedBuilder.from(message.embeds[0]).setColor(0x2ecc71);
+      const embed = EmbedBuilder.from(message.embeds[0]).setColor(COLORS.success);
       const fields = embed.data.fields ?? [];
       if (fields.length) {
         embed.spliceFields(fields.length - 1, 1, { name: "STATUS", value: "✅ Results logged and confirmed — payout can be approved." });

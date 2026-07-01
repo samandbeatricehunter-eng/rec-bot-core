@@ -17,6 +17,7 @@ import {
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
+import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
 import { refreshConfirmableWagerEmbeds } from "./wagers.js";
@@ -246,7 +247,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
           content: `<@${message.author.id}>`,
           embeds: [new EmbedBuilder()
             .setTitle("Box Score Not Accepted")
-            .setColor(0xe74c3c)
+            .setColor(COLORS.error)
             .setDescription("You aren't linked to a team in this league. Open **/menu → Teams → Request Team** first.")],
         }).catch(() => undefined);
         return;
@@ -256,7 +257,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
           content: `<@${message.author.id}>`,
           embeds: [new EmbedBuilder()
             .setTitle("Box Score Not Accepted")
-            .setColor(0xe74c3c)
+            .setColor(COLORS.error)
             .setDescription(`You don't have a scheduled game in Week ${eligibility.weekNumber}. Box scores are only accepted when your team has an H2H or CPU matchup this week.`)],
         }).catch(() => undefined);
         return;
@@ -266,7 +267,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
         content: `<@${message.author.id}>`,
         embeds: [new EmbedBuilder()
           .setTitle("Box Score Check Failed")
-          .setColor(0xe74c3c)
+          .setColor(COLORS.error)
           .setDescription(userFacingError(err))],
       }).catch(() => undefined);
       return;
@@ -323,7 +324,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
     await message.delete().catch(() => undefined);
     await channel.send({
       content: `<@${message.author.id}>`,
-      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xe74c3c).setDescription("Upload exactly one box score image for commissioner submissions.")],
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(COLORS.error).setDescription("Upload exactly one box score image for commissioner submissions.")],
     }).catch(() => undefined);
     return true;
   }
@@ -371,7 +372,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
     await working?.edit({
       embeds: [new EmbedBuilder()
         .setTitle("Box Score Submitted")
-        .setColor(0x2ecc71)
+        .setColor(COLORS.success)
         .setDescription(posted
           ? `Parsed ${session.gameLabel} and sent it to Pending Payouts for commissioner approval.`
           : `Parsed ${session.gameLabel}, but no Pending Payouts channel is configured.`)],
@@ -380,7 +381,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
   } catch (err) {
     await message.delete().catch(() => undefined);
     await working?.edit({
-      embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(COLORS.error).setDescription(userFacingError(err))],
     }).catch(() => undefined);
   }
   return true;
@@ -420,7 +421,7 @@ async function advanceExchange(ex: Exchange) {
       content: `<@${ex.userId}>`,
       embeds: [new EmbedBuilder()
         .setTitle("Box Score Submission Failed")
-        .setColor(0xe74c3c)
+        .setColor(COLORS.error)
         .setDescription(userFacingError(err))],
     }).catch(() => undefined);
     return;
@@ -469,7 +470,7 @@ async function advanceExchange(ex: Exchange) {
       content: roleId ? `<@&${roleId}>` : undefined,
       embeds: [new EmbedBuilder()
         .setTitle("⚠️ Box score flagged for review")
-        .setColor(0xf1c40f)
+        .setColor(COLORS.warning)
         .setDescription(
           `<@${ex.userId}>'s box score couldn't be auto-verified:\n\n${reasons.map((r) => `• ${r}`).join("\n")}\n\n` +
           "A commissioner should confirm this matchup before approving the payout."
@@ -528,7 +529,7 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
       if (ledgerChannel?.isTextBased()) {
         const ledgerMessage = await ledgerChannel.messages.fetch(result.ledgerMessageId).catch(() => null);
         if (ledgerMessage?.embeds[0]) {
-          const ledgerEmbed = EmbedBuilder.from(ledgerMessage.embeds[0]).setColor(0x2ecc71);
+          const ledgerEmbed = EmbedBuilder.from(ledgerMessage.embeds[0]).setColor(COLORS.success);
           ledgerEmbed.addFields({ name: "STATUS", value: statusValue });
           await ledgerMessage?.edit({ embeds: [ledgerEmbed], components: [] }).catch(() => undefined);
         }
@@ -544,12 +545,12 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
     }
 
     const base = interaction.message.embeds[0];
-    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0x2ecc71);
+    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(COLORS.success);
     embed.addFields({ name: "STATUS", value: statusValue });
     return interaction.editReply({ embeds: [embed], components: [] });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Error").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Error").setColor(COLORS.error).setDescription(err instanceof Error ? err.message : String(err))],
       components: [],
     });
   }
@@ -573,7 +574,7 @@ async function postXfSeasonBadgeAnnouncements(interaction: ButtonInteraction, re
       content: "@everyone",
       embeds: [new EmbedBuilder()
         .setTitle("XF Season Badge Earned")
-        .setColor(0xffd700)
+        .setColor(COLORS.gold)
         .setDescription([
           `${userMention} acquired **${event.badgeLabel ?? event.badge_key ?? "a season badge"}** at **XF** level.`,
           "",
@@ -624,12 +625,12 @@ export async function handleBoxScoreDenySubmit(interaction: ModalSubmitInteracti
   try {
     await recApi.reviewBoxScore({ submissionId, action: "deny", reviewedByDiscordId: interaction.user.id, deniedReason: reason });
     const base = interaction.message?.embeds?.[0];
-    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(0xe74c3c);
+    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Box Score")).setColor(COLORS.error);
     embed.addFields({ name: "STATUS", value: `⛔ Denied by <@${interaction.user.id}>${reason ? ` — ${reason}` : ""}.` });
     return interaction.editReply({ embeds: [embed], components: [] });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Error").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Error").setColor(COLORS.error).setDescription(err instanceof Error ? err.message : String(err))],
       components: [],
     });
   }
@@ -907,7 +908,7 @@ export async function handleBoxScoreAdminWeekSelect(interaction: StringSelectMen
     const games = result?.games ?? [];
     if (!games.length) {
       return interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xf1c40f).setDescription(`No scheduled games are logged for Week ${weekNumber}. Upload the schedule first, then try again.`)],
+        embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(COLORS.warning).setDescription(`No scheduled games are logged for Week ${weekNumber}. Upload the schedule first, then try again.`)],
         components: [buildAdminCancelRow()],
       });
     }
@@ -917,7 +918,7 @@ export async function handleBoxScoreAdminWeekSelect(interaction: StringSelectMen
     });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(COLORS.error).setDescription(err instanceof Error ? err.message : String(err))],
       components: [buildAdminCancelRow()],
     });
   }
@@ -1020,7 +1021,7 @@ function buildPayoutReviewEmbed(result: any): EmbedBuilder {
 
   const embed = new EmbedBuilder()
     .setTitle("Box Score — Pending Approval")
-    .setColor(0x3498db)
+    .setColor(COLORS.info)
     .addFields(
       { name: "GAME", value: `**${result.team1Abbr ?? "?"}** ${result.team1Score ?? "?"} – ${result.team2Score ?? "?"} **${result.team2Abbr ?? "?"}** — Week ${result.weekNumber ?? "?"}`, inline: false },
       { name: "QUARTER SCORES", value: qText.slice(0, 512), inline: false },
@@ -1029,7 +1030,7 @@ function buildPayoutReviewEmbed(result: any): EmbedBuilder {
       { name: "SUBMITTED BY", value: `<@${result.submittedByDiscordId}>`, inline: true },
     );
   if (result?.flagged && (result.flagReasons ?? []).length) {
-    embed.setColor(0xf1c40f);
+    embed.setColor(COLORS.warning);
     embed.addFields({ name: "⚠️ FLAGGED", value: (result.flagReasons as string[]).map((r) => `• ${r}`).join("\n").slice(0, 1024), inline: false });
   } else if (!result?.gameMatched) {
     embed.addFields({ name: "⚠️ NOTICE", value: "Could not auto-match to a scheduled game. You can still approve.", inline: false });
@@ -1158,7 +1159,7 @@ export async function handleBoxScoreAdminAnother(interaction: ButtonInteraction)
     const games = result?.games ?? [];
     if (!games.length) {
       return interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xf1c40f).setDescription(`No remaining scheduled games found for Week ${weekNumber}.`)],
+        embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(COLORS.warning).setDescription(`No remaining scheduled games found for Week ${weekNumber}.`)],
         components: [buildAdminCancelRow()],
       });
     }
@@ -1168,7 +1169,7 @@ export async function handleBoxScoreAdminAnother(interaction: ButtonInteraction)
     });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(0xe74c3c).setDescription(err instanceof Error ? err.message : String(err))],
+      embeds: [new EmbedBuilder().setTitle("Box Score Submissions").setColor(COLORS.error).setDescription(err instanceof Error ? err.message : String(err))],
       components: [buildAdminCancelRow()],
     });
   }

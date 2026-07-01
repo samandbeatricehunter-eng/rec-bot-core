@@ -10,6 +10,7 @@ import {
   TextInputStyle
 } from "discord.js";
 import { canonicalConferenceName, CONFERENCE_ORDER } from "@rec/shared";
+import { COLORS } from "../lib/colors.js";
 
 /**
  * Central custom IDs for the REC menu system.
@@ -312,7 +313,7 @@ export function buildDeleteLeagueWarningPayload(leagueName: string) {
     embeds: [
       new EmbedBuilder()
         .setTitle("WARNING: Delete League Data - Permanent")
-        .setColor(0xe74c3c)
+        .setColor(COLORS.error)
         .setDescription([
           `This will **permanently erase** the league **${leagueName}** from REC. This cannot be undone.`,
           "",

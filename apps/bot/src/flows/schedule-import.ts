@@ -13,6 +13,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
+import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getPendingPayoutsChannel } from "./schedule-scores.js";
 
@@ -74,7 +75,7 @@ function getSession(guildId: string, userId: string): ImportSession | null {
 function uploadPrompt(weekNumber: number, mode: "wizard" | "one_week") {
   return new EmbedBuilder()
     .setTitle(`${mode === "wizard" ? "Schedule Wizard" : "Upload One Week"} — Week ${weekNumber}`)
-    .setColor(0x3498db)
+    .setColor(COLORS.info)
     .setDescription([
       `Post the **League Schedule** screenshot(s) for **Week ${weekNumber}** in this channel — attach **1 or 2 images** (top + bottom of the list) to a single message.`,
       "",
@@ -209,13 +210,13 @@ export async function handleScheduleImportUploadMessage(message: Message): Promi
     const target = payoutsChannel ?? channel;
     await target.send({ embeds: [buildReviewEmbed(session)], components: buildReviewRows(session) }).catch(() => null);
     if (payoutsChannel && payoutsChannel.id !== channel.id) {
-      await working?.edit({ embeds: [new EmbedBuilder().setTitle("Schedule Import").setColor(0x2ecc71).setDescription(`Parsed Week ${session.weekNumber} — review sent to <#${payoutsChannel.id}>.`)] }).catch(() => undefined);
+      await working?.edit({ embeds: [new EmbedBuilder().setTitle("Schedule Import").setColor(COLORS.success).setDescription(`Parsed Week ${session.weekNumber} — review sent to <#${payoutsChannel.id}>.`)] }).catch(() => undefined);
     } else {
       await working?.delete().catch(() => undefined);
     }
   } catch (err) {
     await message.delete().catch(() => undefined);
-    await working?.edit({ embeds: [new EmbedBuilder().setTitle("Couldn't read schedule").setColor(0xe74c3c).setDescription(userFacingError(err))] }).catch(() => undefined);
+    await working?.edit({ embeds: [new EmbedBuilder().setTitle("Couldn't read schedule").setColor(COLORS.error).setDescription(userFacingError(err))] }).catch(() => undefined);
     sessions.delete(key(session.guildId, session.userId));
   }
   return true;
@@ -250,7 +251,7 @@ export async function handleScheduleImportSave(interaction: ButtonInteraction) {
   }
 
   const savedWeek = session.weekNumber;
-  const savedEmbed = buildReviewEmbed(session).setColor(0x2ecc71);
+  const savedEmbed = buildReviewEmbed(session).setColor(COLORS.success);
   savedEmbed.spliceFields(0, 1, { name: "SAVED ✅", value: `Saved **${matched.length}** matchup${matched.length === 1 ? "" : "s"} for Week ${savedWeek}.`, inline: false });
   await interaction.editReply({ embeds: [savedEmbed], components: [] });
 
@@ -273,7 +274,7 @@ export async function handleScheduleImportSave(interaction: ButtonInteraction) {
   } else {
     sessions.delete(key(session.guildId, session.userId));
     await promptTarget?.send({
-      embeds: [new EmbedBuilder().setTitle("Schedule Import Complete").setColor(0x2ecc71).setDescription(session.mode === "wizard" ? "All weeks imported. Review with **View Schedule**." : `Week ${savedWeek} saved. Review with **View Schedule**.`)],
+      embeds: [new EmbedBuilder().setTitle("Schedule Import Complete").setColor(COLORS.success).setDescription(session.mode === "wizard" ? "All weeks imported. Review with **View Schedule**." : `Week ${savedWeek} saved. Review with **View Schedule**.`)],
     }).catch(() => undefined);
   }
 }
@@ -281,5 +282,5 @@ export async function handleScheduleImportSave(interaction: ButtonInteraction) {
 export async function handleScheduleImportCancel(interaction: ButtonInteraction) {
   if (interaction.inCachedGuild()) sessions.delete(key(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Schedule Import").setColor(0x95a5a6).setDescription("Import cancelled.")], components: [] }).catch(() => undefined);
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Schedule Import").setColor(COLORS.neutral).setDescription("Import cancelled.")], components: [] }).catch(() => undefined);
 }

@@ -11,6 +11,7 @@ import {
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { teamDisplayAbbr, teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
@@ -126,7 +127,7 @@ export async function renderScheduleMenu(interaction: ButtonInteraction) {
     return interaction.editReply({
       embeds: [new EmbedBuilder()
         .setTitle("Schedule")
-        .setColor(0xe74c3c)
+        .setColor(COLORS.error)
         .setDescription(userFacingError(error))],
       components: buildScheduleRows()
     });
@@ -147,7 +148,7 @@ function fmtPct(n: number) {
 function buildSosEmbed(data: any, viewerDiscordId: string): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(`Strength of Schedule - Season ${data?.currentSeason ?? 1}`)
-    .setColor(0xe67e22);
+    .setColor(COLORS.orange);
 
   if (!data?.scheduleLogged) {
     return embed.setDescription("No schedule has been logged for this season yet. Ask a commissioner to enter it from **League Mgmt > Schedule**.");
@@ -196,7 +197,7 @@ export async function handleScheduleSos(interaction: ButtonInteraction) {
     return interaction.editReply({ embeds: [buildSosEmbed(data, interaction.user.id)], components: buildScheduleRows() });
   } catch (error) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Strength of Schedule").setColor(0xe74c3c).setDescription(userFacingError(error))],
+      embeds: [new EmbedBuilder().setTitle("Strength of Schedule").setColor(COLORS.error).setDescription(userFacingError(error))],
       components: buildScheduleRows(),
     });
   }
@@ -212,7 +213,7 @@ function moveArrow(change: number | null): string {
 function buildPowerRankingsEmbed(data: any, viewerTeamId: string | null): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(`Power Rankings - Season ${data?.currentSeason ?? 1}`)
-    .setColor(0x9b59b6);
+    .setColor(COLORS.purple);
 
   const teams: any[] = data?.teams ?? [];
   if (!teams.length) {
@@ -246,7 +247,7 @@ export async function handleSchedulePowerRankings(interaction: ButtonInteraction
     return interaction.editReply({ embeds: [buildPowerRankingsEmbed(data, data?.viewerTeamId ?? null)], components: buildScheduleRows() });
   } catch (error) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Power Rankings").setColor(0xe74c3c).setDescription(userFacingError(error))],
+      embeds: [new EmbedBuilder().setTitle("Power Rankings").setColor(COLORS.error).setDescription(userFacingError(error))],
       components: buildScheduleRows(),
     });
   }
@@ -300,7 +301,7 @@ async function loadLinkedTeamSelectPayload(guildId: string, title: string, descr
   const conferences: RosterConference[] = confData?.conferences ?? [];
   const rows = buildLinkedTeamSelectRows(conferences, customIdBase);
   return {
-    embeds: [new EmbedBuilder().setTitle(title).setDescription(description).setColor(0x3498db)],
+    embeds: [new EmbedBuilder().setTitle(title).setDescription(description).setColor(COLORS.info)],
     components: [
       ...rows,
       new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -343,7 +344,7 @@ function buildStatsEmbed(snapshot: any, requestedDiscordId: string) {
   ];
   return new EmbedBuilder()
     .setTitle(`${display.teamName ?? team.name ?? "Team"} Stats`)
-    .setColor(0x2ecc71)
+    .setColor(COLORS.success)
     .setDescription(lines.join("\n").slice(0, 4096));
 }
 
@@ -439,7 +440,7 @@ export async function startManualScheduleEntry(interaction: ButtonInteraction) {
     return interaction.editReply(renderManualWeekPicker(session));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Schedule").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Schedule").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [scheduleBackRow()],
     });
   }
@@ -585,7 +586,7 @@ export async function startScheduleViewer(interaction: ButtonInteraction) {
     return interaction.editReply(renderScheduleView(session));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("View Schedule").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("View Schedule").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [scheduleBackRow()],
     });
   }
@@ -610,7 +611,7 @@ export async function startPublicLeagueScheduleViewer(interaction: ButtonInterac
     return interaction.editReply(renderScheduleView(session));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("League Schedule").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("League Schedule").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: buildScheduleRows(),
     });
   }
@@ -640,7 +641,7 @@ export async function startPreviousSeasonScheduleViewer(interaction: ButtonInter
     return interaction.editReply(renderScheduleView(session));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Schedule History").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Schedule History").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: buildScheduleRows(),
     });
   }
@@ -742,7 +743,7 @@ async function loadPostSetupScheduleReview(interaction: ButtonInteraction) {
     return interaction.editReply(renderPostSetupScheduleView(session));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Schedule Review").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Schedule Review").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish).setLabel("Finish Setup").setStyle(ButtonStyle.Success)
@@ -791,7 +792,7 @@ export async function startPostSetupManualScheduleEntry(interaction: ButtonInter
     return interaction.editReply(renderManualEntry(session));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Enter Schedule").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Enter Schedule").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId(POST_SETUP_SCHEDULE_CUSTOM_IDS.finish).setLabel("Finish Setup").setStyle(ButtonStyle.Success)

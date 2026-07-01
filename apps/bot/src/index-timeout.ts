@@ -2,6 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, Channe
 import { env } from "./config/env.js";
 import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction } from "./lib/admin.js";
+import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getVotingPollsChannel } from "./lib/route-channels.js";
@@ -2257,7 +2258,7 @@ async function postEosReviewEmbeds(interaction: ButtonInteraction, result: any) 
     await channel.send({
       embeds: [new EmbedBuilder()
         .setTitle("EOS PAYOUT REVIEW")
-        .setColor(0xf1c40f)
+        .setColor(COLORS.warning)
         .setDescription([
           `Coach: ${coach}`,
           `Season: **${result.batch.season_number}**`,
@@ -2316,7 +2317,7 @@ async function handleEosPayouts(interaction: ButtonInteraction) {
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("EOS Payouts Prepared")
-      .setColor(0x2ecc71)
+      .setColor(COLORS.success)
       .setDescription([
         `Season **${result?.batch?.season_number ?? week?.league?.season_number ?? 1}** EOS payout batch is ready.`,
         "",
@@ -2641,7 +2642,7 @@ async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
     const result = await recApi.deleteLeagueData({ guildId: interaction.guildId, requestedByDiscordId: interaction.user.id, confirmationText });
     const rows = result?.result?.rows_deleted ?? 0;
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("League Data Deleted").setColor(0x2ecc71).setDescription([
+      embeds: [new EmbedBuilder().setTitle("League Data Deleted").setColor(COLORS.success).setDescription([
         `**${result?.leagueName ?? "The league"}** has been permanently erased (${rows} row${rows === 1 ? "" : "s"} removed across league tables).`,
         "",
         "Run the League Setup Wizard to set up a new league for this server."
@@ -2650,7 +2651,7 @@ async function handleDeleteLeagueModal(interaction: ModalSubmitInteraction) {
     });
   } catch (error) {
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Delete Failed").setColor(0xe74c3c).setDescription(userFacingError(error))],
+      embeds: [new EmbedBuilder().setTitle("Delete Failed").setColor(COLORS.error).setDescription(userFacingError(error))],
       components: buildAdminPanelRows()
     });
   }

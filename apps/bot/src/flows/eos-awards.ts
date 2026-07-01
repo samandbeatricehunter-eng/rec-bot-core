@@ -1,5 +1,6 @@
 import { EmbedBuilder, MessageFlags, type ActionRowBuilder, type ButtonBuilder, type ButtonInteraction, type Client, type Guild } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
+import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel, getVotingPollsChannel } from "../lib/route-channels.js";
 
@@ -151,7 +152,7 @@ async function maybePostSeasonAwardsAnnouncement(guild: Guild, context: EosAward
   });
   await channel.send({
     content: "@everyone",
-    embeds: [new EmbedBuilder().setTitle("Season Awards").setDescription(lines.join("\n")).setColor(0xf1c40f)],
+    embeds: [new EmbedBuilder().setTitle("Season Awards").setDescription(lines.join("\n")).setColor(COLORS.warning)],
     allowedMentions: { parse: ["everyone", "users"] },
   }).catch(() => undefined);
 }

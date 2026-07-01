@@ -14,6 +14,7 @@ import {
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
+import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 
 export const MANUAL_SCORES_CUSTOM_IDS = {
@@ -94,7 +95,7 @@ async function renderGameSelect(guildId: string, weekNumber: number) {
   const games = result?.games ?? [];
   if (!games.length) {
     return {
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xf1c40f).setDescription(
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(COLORS.warning).setDescription(
         result?.lockedCount
           ? `Every scheduled game for Week ${weekNumber} already has a box score submission.`
           : `No scheduled games are logged for Week ${weekNumber}. Import the schedule first, then try again.`,
@@ -136,7 +137,7 @@ export async function handleManualScoresWeekSelect(interaction: StringSelectMenu
     return interaction.editReply(await renderGameSelect(interaction.guildId, weekNumber));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }
@@ -164,7 +165,7 @@ export async function handleManualScoresGameSelect(interaction: StringSelectMenu
     const game = (result?.games ?? []).find((g: any) => g.gameId === gameId);
     if (!game) {
       return interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription("That game is no longer available — it may already have a box score now.")],
+        embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(COLORS.error).setDescription("That game is no longer available — it may already have a box score now.")],
         components: [buildCancelRow()],
       });
     }
@@ -181,7 +182,7 @@ export async function handleManualScoresGameSelect(interaction: StringSelectMenu
     });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }
@@ -231,7 +232,7 @@ export async function handleManualScoresScoreModal(interaction: ModalSubmitInter
       : settled.isTie ? `**${settled.awayName}** tied **${settled.homeName}** (no final score recorded)`
       : `**${settled.outcome === "home" ? settled.homeName : settled.awayName}** won (no final score recorded)`;
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0x2ecc71).setDescription([
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(COLORS.success).setDescription([
         `Week ${settled.weekNumber} logged.`,
         scoreLine,
       ].join("\n"))],
@@ -244,7 +245,7 @@ export async function handleManualScoresScoreModal(interaction: ModalSubmitInter
     });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }
@@ -258,7 +259,7 @@ export async function handleManualScoresAnother(interaction: ButtonInteraction, 
     return interaction.editReply(await renderGameSelect(interaction.guildId, weekNumber));
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Manual Scores").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: [buildCancelRow()],
     });
   }

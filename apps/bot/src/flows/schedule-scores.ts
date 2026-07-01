@@ -17,6 +17,7 @@ import {
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
+import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { refreshConfirmableWagerEmbeds } from "./wagers.js";
 
@@ -178,7 +179,7 @@ export async function handleWeeklyScoresUploadOpen(interaction: ButtonInteractio
   return interaction.reply({
     embeds: [new EmbedBuilder()
       .setTitle(`Upload Week ${weekNumber} Scores`)
-      .setColor(0x3498db)
+      .setColor(COLORS.info)
       .setDescription([
         isPlayoff
           ? `Post the **League Schedule** screenshot for **Week ${weekNumber}** in this channel — the playoff slate is short, so a **single screenshot** is enough.`
@@ -225,14 +226,14 @@ export async function handleWeeklyScoresUploadMessage(message: Message): Promise
     await target.send({ embeds: [buildReviewEmbed(review)], components: buildReviewRows(review.reviewId) }).catch(() => null);
 
     if (payoutsChannel && payoutsChannel.id !== channel.id) {
-      await working?.edit({ embeds: [new EmbedBuilder().setTitle("Weekly Scores").setColor(0x2ecc71).setDescription(`Parsed Week ${review.weekNumber} — review sent to <#${payoutsChannel.id}> for approval.`)] }).catch(() => undefined);
+      await working?.edit({ embeds: [new EmbedBuilder().setTitle("Weekly Scores").setColor(COLORS.success).setDescription(`Parsed Week ${review.weekNumber} — review sent to <#${payoutsChannel.id}> for approval.`)] }).catch(() => undefined);
     } else {
       await working?.delete().catch(() => undefined);
     }
   } catch (err) {
     await message.delete().catch(() => undefined);
     await working?.edit({
-      embeds: [new EmbedBuilder().setTitle("Couldn't read scores").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Couldn't read scores").setColor(COLORS.error).setDescription(userFacingError(err))],
     }).catch(() => undefined);
   }
   return true;
@@ -254,7 +255,7 @@ export async function handleWeeklyScoresApprove(interaction: ButtonInteraction) 
     const result = await recApi.approveWeeklyScoreReview({ reviewId, loggedByDiscordId: interaction.user.id });
     if (interaction.inCachedGuild()) void refreshConfirmableWagerEmbeds(interaction.client, interaction.guildId);
     const base = interaction.message.embeds[0];
-    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Weekly Scores")).setColor(0x2ecc71);
+    const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Weekly Scores")).setColor(COLORS.success);
     embed.spliceFields(0, embed.data.fields?.length ?? 0, {
       name: "LOGGED ✅",
       value: `Pre-logged **${result.logged}** result${result.logged === 1 ? "" : "s"} for Week ${result.weekNumber}${result.skipped ? ` (skipped ${result.skipped}: box-scored or still unread)` : ""}. Advancing the week needs no manual entry for these games.`,
@@ -274,7 +275,7 @@ export async function handleWeeklyScoresCancel(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   await recApi.cancelWeeklyScoreReview(reviewId).catch(() => undefined);
   const base = interaction.message.embeds[0];
-  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Weekly Scores")).setColor(0x95a5a6);
+  const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Weekly Scores")).setColor(COLORS.neutral);
   return interaction.editReply({ embeds: [embed], components: [] }).catch(() => undefined);
 }
 

@@ -13,6 +13,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
+import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel, getHeadlinesChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
@@ -170,7 +171,7 @@ function renderStep(session: AdvanceTimeSession) {
 
   const embed = new EmbedBuilder()
     .setTitle("Set Next Advance Time")
-    .setColor(0x3498db)
+    .setColor(COLORS.info)
     .setDescription(
       `${session.headline}\n\n` +
       "Pick when the **next advance** happens, then press **Set Time** to save and announce it — or **Skip** to set no time.\n\n" +
@@ -291,7 +292,7 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
     }
     await channel.send({
       content: "@everyone",
-      embeds: [new EmbedBuilder().setTitle("📣 League Advanced").setColor(0x2ecc71).setDescription(lines.join("\n"))],
+      embeds: [new EmbedBuilder().setTitle("📣 League Advanced").setColor(COLORS.success).setDescription(lines.join("\n"))],
       allowedMentions: { parse: ["everyone"] },
     });
     return true;
@@ -334,7 +335,7 @@ async function publishSeasonXfSummary(guild: Guild, session: AdvanceTimeSession)
       content: "@everyone",
       embeds: [new EmbedBuilder()
         .setTitle(`Season ${session.completedSeasonNumber} XF Badge Class`)
-        .setColor(0xffd700)
+        .setColor(COLORS.gold)
         .setDescription(lines.join("\n\n").slice(0, 4096))],
       allowedMentions: { parse: ["everyone", "users"] },
     });
@@ -366,7 +367,7 @@ function buildStoryEmbed(story: any, page: number, total: number, season: number
 
   const embed = new EmbedBuilder()
     .setTitle(`📰 Season ${season}, Week ${week} Headlines`)
-    .setColor(0xf1c40f)
+    .setColor(COLORS.warning)
     .addFields({ name: story.headline ?? "Game Story", value: String(story.body ?? "Game story generated from the approved box score.").slice(0, 1024) });
 
   if (notes.length) embed.addFields({ name: "Key Notes", value: notes.slice(0, 3).join("\n").slice(0, 1024) });
@@ -493,7 +494,7 @@ function buildPowerRankingsEmbed(rankings: any, session: AdvanceTimeSession) {
   const bottomHalf = lines.slice(16).join("\n");
   const embed = new EmbedBuilder()
     .setTitle(`Power Rankings - Season ${session.completedSeasonNumber}, Week ${session.completedWeekNumber}`)
-    .setColor(0x9b59b6)
+    .setColor(COLORS.purple)
     .setDescription(rankings?.hasPreviousWeek ? "Movement is compared to the previous completed week." : "First snapshot for this season.")
     .addFields({ name: "Rankings", value: topHalf.slice(0, 1024), inline: false });
   if (bottomHalf) embed.addFields({ name: "Continued", value: bottomHalf.slice(0, 1024), inline: false });
@@ -565,7 +566,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, _buil
     // Keep the picker open so the commissioner can adjust and retry.
     const step = renderStep(session);
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Couldn't set advance time").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Couldn't set advance time").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: step.components,
     });
   }
@@ -583,7 +584,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, _buil
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Next Advance Time Set ✅")
-      .setColor(0x2ecc71)
+      .setColor(COLORS.success)
       .setDescription(
         `${session.headline}\n\n**Next advance** (<t:${result.epochSeconds}:R>):\n${formatAllZones(result.epochSeconds)}` +
         announcementLine +
@@ -609,7 +610,7 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, _bui
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
-      .setColor(0x95a5a6)
+      .setColor(COLORS.neutral)
       .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}${advanceDmPromptLine()}`)],
     components: [buildAdvanceDmConfirmRow(session?.completedSeasonNumber ?? 0, session?.completedWeekNumber ?? 0)],
   });
@@ -628,7 +629,7 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, _bui
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
-      .setColor(0x95a5a6)
+      .setColor(COLORS.neutral)
       .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}${advanceDmPromptLine()}`)],
     components: [buildAdvanceDmConfirmRow(session?.completedSeasonNumber ?? 0, session?.completedWeekNumber ?? 0)],
   });
@@ -650,7 +651,7 @@ function buildAdvanceDmConfirmRow(season: number, week: number) {
 function buildAdvanceDmEmbed(user: any, payload: any): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setTitle(`Week ${payload.fromWeek ?? "?"} Advance Summary`)
-    .setColor(0x3498db)
+    .setColor(COLORS.info)
     .setDescription(`Here's what changed for you this advance${payload.toWeek ? ` — the league is now on Week ${payload.toWeek}` : ""}.`);
   const s = user.sections ?? {};
   if (s.powerRanking) embed.addFields({ name: "📊 Power Ranking", value: String(s.powerRanking).slice(0, 1024) });
@@ -667,7 +668,7 @@ export async function handleAdvanceDmSend(interaction: ButtonInteraction, buildA
   }
   await interaction.deferUpdate();
   await interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Sending Advance DMs…").setColor(0x3498db).setDescription("Generating per-coach summaries and delivering DMs.")],
+    embeds: [new EmbedBuilder().setTitle("Sending Advance DMs…").setColor(COLORS.info).setDescription("Generating per-coach summaries and delivering DMs.")],
     components: [],
   });
 
@@ -676,7 +677,7 @@ export async function handleAdvanceDmSend(interaction: ButtonInteraction, buildA
     payload = await recApi.generateAdvanceDms({ guildId: interaction.guildId });
   } catch (err) {
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Advance DMs Failed").setColor(0xe74c3c).setDescription(userFacingError(err))],
+      embeds: [new EmbedBuilder().setTitle("Advance DMs Failed").setColor(COLORS.error).setDescription(userFacingError(err))],
       components: buildAdvanceRows(),
     });
   }
@@ -689,7 +690,7 @@ export async function handleAdvanceDmSend(interaction: ButtonInteraction, buildA
         ? "No completed advance was found to summarize."
         : "There was nothing to send.";
     return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("No Advance DMs Sent").setColor(0x95a5a6).setDescription(why)],
+      embeds: [new EmbedBuilder().setTitle("No Advance DMs Sent").setColor(COLORS.neutral).setDescription(why)],
       components: buildAdvanceRows(),
     });
   }
@@ -710,7 +711,7 @@ export async function handleAdvanceDmSend(interaction: ButtonInteraction, buildA
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Advance DMs Sent ✅")
-      .setColor(0x2ecc71)
+      .setColor(COLORS.success)
       .setDescription(`Delivered **${sent}** Advance DM${sent === 1 ? "" : "s"} for Week ${payload.fromWeek ?? "?"}.${failLine}`)],
     components: buildAdvanceRows(),
   });
@@ -720,7 +721,7 @@ export async function handleAdvanceDmSkip(interaction: ButtonInteraction, buildA
   if (!interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Advance Complete").setColor(0x95a5a6).setDescription("Advance DMs were skipped. No DMs were sent for this advance.")],
+    embeds: [new EmbedBuilder().setTitle("Advance Complete").setColor(COLORS.neutral).setDescription("Advance DMs were skipped. No DMs were sent for this advance.")],
     components: buildAdvanceRows(),
   });
 }
