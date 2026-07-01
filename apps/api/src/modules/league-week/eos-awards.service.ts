@@ -28,6 +28,8 @@ type Nominee = {
   discordId: string | null;
   teamId: string;
   teamName: string;
+  record: string;
+  pointDifferential: number;
   metric: number;
   detail: string;
 };
@@ -142,7 +144,14 @@ export async function prepareEosAwardNominees(input: { guildId: string }) {
   const stats = await statsByUser(context.leagueId, seasonNumber, context.rec_leagues.game);
   const results = await resultAggByTeam(context.leagueId, seasonNumber, context.rec_leagues.game);
 
-  const base = linked.map((row) => ({ userId: row.userId, discordId: row.discordId, teamId: row.teamId, teamName: row.teamName }));
+  // Record + point differential are shown alongside every award's category-specific
+  // score, regardless of which stat that award ranks on.
+  const base = linked.map((row) => {
+    const agg = results.get(row.teamId) ?? { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, close: 0 };
+    const record = `${agg.wins}-${agg.losses}${agg.ties ? `-${agg.ties}` : ""}`;
+    const pointDifferential = agg.pf - agg.pa;
+    return { userId: row.userId, discordId: row.discordId, teamId: row.teamId, teamName: row.teamName, record, pointDifferential };
+  });
   const byUserMetric = (fn: (rows: any[]) => { metric: number; detail: string }) => {
     const map = new Map<string, { metric: number; detail: string }>();
     for (const row of base) map.set(row.userId, fn(stats.get(row.userId) ?? []));
