@@ -85,9 +85,11 @@ type ComputePowerRankingsOptions = {
 };
 
 async function rankTeams(leagueId: string, seasonNumber: number): Promise<RankedTeam[]> {
-  const teamsRes = await supabase.from("rec_teams").select("id").eq("league_id", leagueId);
+  const [teamsRes, aggs] = await Promise.all([
+    supabase.from("rec_teams").select("id").eq("league_id", leagueId),
+    aggregateTeams(leagueId, seasonNumber),
+  ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
-  const aggs = await aggregateTeams(leagueId, seasonNumber);
   const rows = (teamsRes.data ?? []).map((t) => {
     const a = aggs.get(t.id) ?? emptyAgg();
     return { teamId: t.id, agg: a, score: scoreFor(a) };

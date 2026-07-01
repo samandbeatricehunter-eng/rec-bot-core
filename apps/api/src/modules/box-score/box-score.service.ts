@@ -1011,22 +1011,23 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   if (!sub) throw new ApiError(404, "Pending submission not found.");
 
   if (input.action === "deny") {
-    await supabase
-      .from("rec_box_score_submissions")
-      .update({
-        status: "denied",
-        reviewed_by_discord_id: input.reviewedByDiscordId,
-        reviewed_at: new Date().toISOString(),
-        denied_reason: input.deniedReason ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.submissionId);
-
-    await supabase
-      .from("rec_commissioners_inbox")
-      .update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: new Date().toISOString(), review_reason: input.deniedReason ?? null })
-      .eq("source_table", "rec_box_score_submissions")
-      .eq("source_id", input.submissionId);
+    await Promise.all([
+      supabase
+        .from("rec_box_score_submissions")
+        .update({
+          status: "denied",
+          reviewed_by_discord_id: input.reviewedByDiscordId,
+          reviewed_at: new Date().toISOString(),
+          denied_reason: input.deniedReason ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", input.submissionId),
+      supabase
+        .from("rec_commissioners_inbox")
+        .update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: new Date().toISOString(), review_reason: input.deniedReason ?? null })
+        .eq("source_table", "rec_box_score_submissions")
+        .eq("source_id", input.submissionId),
+    ]);
 
     return { ok: true, action: "denied" as const };
   }
@@ -1160,23 +1161,24 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     });
   }
 
-  const submissionUpdate = await supabase
-    .from("rec_box_score_submissions")
-    .update({
-      status: "approved",
-      reviewed_by_discord_id: input.reviewedByDiscordId,
-      reviewed_at: now,
-      payout_issued: true,
-      updated_at: now,
-    })
-    .eq("id", input.submissionId);
+  const [submissionUpdate, inboxUpdate] = await Promise.all([
+    supabase
+      .from("rec_box_score_submissions")
+      .update({
+        status: "approved",
+        reviewed_by_discord_id: input.reviewedByDiscordId,
+        reviewed_at: now,
+        payout_issued: true,
+        updated_at: now,
+      })
+      .eq("id", input.submissionId),
+    supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
+      .eq("source_table", "rec_box_score_submissions")
+      .eq("source_id", input.submissionId),
+  ]);
   if (submissionUpdate.error) throw new ApiError(500, "Failed to mark box score submission approved.", submissionUpdate.error);
-
-  const inboxUpdate = await supabase
-    .from("rec_commissioners_inbox")
-    .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
-    .eq("source_table", "rec_box_score_submissions")
-    .eq("source_id", input.submissionId);
   if (inboxUpdate.error) throw new ApiError(500, "Failed to update box score commissioner inbox item.", inboxUpdate.error);
 
   // Approval confirms the parse — promote any fuzzy-matched labels to aliases.
@@ -1403,15 +1405,17 @@ async function clearStalePendingForGame(gameId: string): Promise<string[]> {
 
   const pendingIds = pendingRows.map((r) => r.id);
   const now = new Date().toISOString();
-  await supabase
-    .from("rec_box_score_submissions")
-    .update({ status: "denied", reviewed_at: now, denied_reason: "Superseded by a newer submission for this game.", updated_at: now })
-    .in("id", pendingIds);
-  await supabase
-    .from("rec_commissioners_inbox")
-    .update({ status: "denied", reviewed_at: now, review_reason: "Superseded by a newer submission for this game." })
-    .eq("source_table", "rec_box_score_submissions")
-    .in("source_id", pendingIds);
+  await Promise.all([
+    supabase
+      .from("rec_box_score_submissions")
+      .update({ status: "denied", reviewed_at: now, denied_reason: "Superseded by a newer submission for this game.", updated_at: now })
+      .in("id", pendingIds),
+    supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "denied", reviewed_at: now, review_reason: "Superseded by a newer submission for this game." })
+      .eq("source_table", "rec_box_score_submissions")
+      .in("source_id", pendingIds),
+  ]);
 
   return pendingRows
     .map((r) => r.ledger_discord_message_id as string | null)

@@ -1,3 +1,4 @@
+import { regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -853,24 +854,24 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
 
   const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
   const seasonId = await resolveSeasonId(league.id, seasonNumber);
-  const { data: scheduledGames, error: gamesError } = await supabase
-    .from("rec_games")
-    .select("id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
-    .eq("league_id", league.id)
-    .eq("season_id", seasonId)
-    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-    .lte("week_number", 22);
+  const [{ data: scheduledGames, error: gamesError }, { data: gameResults, error: resultsError }] = await Promise.all([
+    supabase
+      .from("rec_games")
+      .select("id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
+      .eq("league_id", league.id)
+      .eq("season_id", seasonId)
+      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+      .lte("week_number", 22),
+    supabase
+      .from("rec_game_results")
+      .select("week_number,season_number,home_team_id,away_team_id,home_score,away_score,winning_user_id")
+      .eq("league_id", league.id)
+      .eq("season_number", seasonNumber)
+      .lte("week_number", regularSeasonWeeks(league.game))
+      .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`),
+  ]);
   if (gamesError) throw new ApiError(500, "Failed to load schedule", gamesError);
-
   const hasLoggedSchedule = (scheduledGames ?? []).length > 0;
-
-  const { data: gameResults, error: resultsError } = await supabase
-    .from("rec_game_results")
-    .select("week_number,season_number,home_team_id,away_team_id,home_score,away_score,winning_user_id")
-    .eq("league_id", league.id)
-    .eq("season_number", seasonNumber)
-    .lte("week_number", 18)
-    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
   if (resultsError) throw new ApiError(500, "Failed to load schedule results", resultsError);
   const resultsByMatchup = new Map(
     (gameResults ?? []).map((result: any) => [

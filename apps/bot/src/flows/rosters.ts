@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 import {
   buildMaddenTeamsEmbed,
@@ -17,8 +18,13 @@ type MainMenuPayloadBuilder = (userId: string, guildId: string | null, isAdmin: 
 type SnapshotSession = { targetDiscordId: string; targetDisplayName: string; currentPage: number };
 type IdentitySession = { currentPage: number };
 
-const snapshotSessions = new Map<string, SnapshotSession>();
-const identitySessions = new Map<string, IdentitySession>();
+const snapshotSessions = new ExpiringSessionStore<SnapshotSession>();
+const identitySessions = new ExpiringSessionStore<IdentitySession>();
+
+export function cleanupRosterSessions() {
+  snapshotSessions.cleanup();
+  identitySessions.cleanup();
+}
 
 export async function renderTeamsMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();

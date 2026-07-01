@@ -204,35 +204,34 @@ export async function completeAdvanceWeek(input: {
     seasonNumber,
   });
 
-  // The previously-scheduled advance just happened, so clear it. A fresh time is
-  // set by the next-advance step (or left null if the commissioner skips).
-  await supabase
-    .from("rec_leagues")
-    .update({ next_advance_at: null, next_advance_timezone: null })
-    .eq("id", context.leagueId)
-    .then(({ error }) => {
-      if (error) console.error("[ERROR] Failed to clear next_advance_at on advance (non-fatal):", error);
-    });
-
-  // The completed week's weekly-score review is now stale — clear it. Non-fatal.
-  await clearWeeklyScoreReviewsForWeek(context.leagueId, seasonNumber, currentWeek).catch((err) => {
-    console.error("[ERROR] clearWeeklyScoreReviewsForWeek failed after advance (non-fatal):", err);
-  });
-
-  // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
-  await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
-    console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);
-  });
-
-  await recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber).catch((err) => {
-    console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance (non-fatal):", err);
-  });
-
-  // Snapshot power rankings for the week that just completed, so next week can
-  // show movement. Non-fatal.
-  await snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek).catch((err) => {
-    console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
-  });
+  // Five independent, non-fatal cleanup/rebuild steps — none feed data into another,
+  // so run them in parallel instead of one after another.
+  await Promise.all([
+    // The previously-scheduled advance just happened, so clear it. A fresh time is
+    // set by the next-advance step (or left null if the commissioner skips).
+    supabase
+      .from("rec_leagues")
+      .update({ next_advance_at: null, next_advance_timezone: null })
+      .eq("id", context.leagueId)
+      .then(({ error }) => {
+        if (error) console.error("[ERROR] Failed to clear next_advance_at on advance (non-fatal):", error);
+      }),
+    // The completed week's weekly-score review is now stale — clear it.
+    clearWeeklyScoreReviewsForWeek(context.leagueId, seasonNumber, currentWeek).catch((err) => {
+      console.error("[ERROR] clearWeeklyScoreReviewsForWeek failed after advance (non-fatal):", err);
+    }),
+    // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
+    rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
+      console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);
+    }),
+    recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber).catch((err) => {
+      console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance (non-fatal):", err);
+    }),
+    // Snapshot power rankings for the week that just completed, so next week can show movement.
+    snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek).catch((err) => {
+      console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
+    }),
+  ]);
 
   // When the regular season ends (next stage is a playoff stage), issue the
   // season-total badges (Winning Season, Ball Control Season, etc.) for every

@@ -33,7 +33,7 @@ import {
   LEAGUE_SETUP_CUSTOM_IDS,
   type LeagueSetupDraft,
 } from "./ui/league-setup.js";
-import { handlePlayerIdentities, handlePlayerIdentityBack, handlePlayerIdentityNav, handlePostOpenTeams, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
+import { cleanupRosterSessions, handlePlayerIdentities, handlePlayerIdentityBack, handlePlayerIdentityNav, handlePostOpenTeams, handleSnapshotConferenceSelect, handleSnapshotPageNav, handleSnapshotTeamSelect, handleTeamsPage, renderTeamsMenu, renderUserSnapshotPicker } from "./flows/rosters.js";
 import {
   handleManualScheduleBack,
   handleManualScheduleComplete,
@@ -237,7 +237,7 @@ const roleMgmtSessions = new Map<string, {
   selectedUserIds: string[];
   page: number;
 }>();
-const eosProjectionSessions = new Map<string, { pages: any[]; page: number }>();
+const eosProjectionSessions = new ExpiringSessionStore<{ pages: any[]; page: number }>();
 const reverseTxnSessions = new Map<string, { discordId: string; transactions: any[] }>();
 const ADVANCE_CUSTOM_IDS = {
   gotwSelect: "rec:advance:gotw_select",
@@ -295,6 +295,8 @@ function replyFullAdminOnly(interaction: { reply: (options: any) => Promise<any>
 setInterval(() => {
   menuSessions.cleanup();
   leagueSetupSessions.cleanup();
+  eosProjectionSessions.cleanup();
+  cleanupRosterSessions();
   sweepBoxScoreExchanges();
 }, 60_000).unref();
 
