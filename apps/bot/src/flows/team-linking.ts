@@ -267,32 +267,6 @@ export async function renderTeamLinkPanel(interaction: Extract<Interaction, { is
   await interaction.update(buildTeamLinkPanelPayload());
 }
 
-export async function handleViewLinkedUsersTeams(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
-
-  await interaction.deferUpdate();
-  const result = await recApi.getLinkedUsersTeams(interaction.guildId);
-  const rows = (result.linked ?? []).slice(0, 25).map((row: any) => {
-    const authority = String(row.notes ?? "Authority: member").replace("Authority: ", "");
-    const userLabel = row.discordId ? `<@${row.discordId}>` : row.user?.display_name ?? row.user_id;
-    const teamDisplay = row.team?.abbreviation ?? row.team?.name ?? "Unknown Team";
-    return `• **${teamDisplay}** → ${userLabel} (${authority})`;
-  });
-
-  await interaction.editReply({
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("Linked Users / Teams")
-        .setDescription([
-          `League: **${result.league.name}**`,
-          "",
-          rows.length > 0 ? rows.join("\n") : "No active team links found."
-        ].join("\n"))
-    ],
-    components: buildTeamLinkHomeRows()
-  });
-}
-
 export async function handleViewOpenTeams(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
 
@@ -479,24 +453,6 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
       components: buildTeamLinkHomeRows()
     });
   }
-}
-
-export async function startSimpleTeamLink(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
-
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can manage team links.", ephemeral: true });
-    return;
-  }
-
-  // Ensure default 32 NFL teams exist for this league
-  const openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
-  if (!openTeamsResult.openTeams || openTeamsResult.openTeams.length === 0) {
-    await recApi.createDefaultTeams(interaction.guildId);
-  }
-
-  const { buildSimpleTeamLinkPanel } = await import("../ui/team-options.js");
-  await interaction.update(buildSimpleTeamLinkPanel());
 }
 
 export async function renderLeagueMgmtTeams(interaction: Extract<Interaction, { isButton(): boolean }>) {
