@@ -1,4 +1,4 @@
-import { GuildMember, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { GuildMember, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 
 type AdminInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 
@@ -50,4 +50,11 @@ export function isCoCommissionerInteraction(interaction: AdminInteraction): bool
 
 export function isDiscordAdminInteraction(interaction: AdminInteraction): boolean {
   return isFullLeagueAdminInteraction(interaction) || isCoCommissionerInteraction(interaction);
+}
+
+export function replyFullAdminOnly(interaction: { reply: (options: any) => Promise<any> }, action: string) {
+  return interaction.reply({
+    content: `Only commissioners or server admins can ${action}.`,
+    flags: MessageFlags.Ephemeral,
+  });
 }

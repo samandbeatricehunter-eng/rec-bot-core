@@ -1,4 +1,5 @@
 import type { Guild, TextChannel } from "discord.js";
+import { recApi } from "./rec-api.js";
 
 type ServerRoutes = {
   announcements_channel_id?: string | null;
@@ -6,6 +7,11 @@ type ServerRoutes = {
   power_rankings_channel_id?: string | null;
   voting_polls_channel_id?: string | null;
 };
+
+export async function getRouteChannels(guildId: string): Promise<Record<string, any>> {
+  const cfg = await recApi.getEconomyConfig(guildId).catch(() => null);
+  return cfg?.routes ?? {};
+}
 
 export async function fetchRoutedTextChannel(guild: Guild, channelId?: string | null) {
   if (!channelId) return null;
