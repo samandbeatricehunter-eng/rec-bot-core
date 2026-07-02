@@ -247,7 +247,9 @@ async function settleSingleGotwPoll(guild: Guild, guildId: string, weekNumber: n
   if (!message?.poll) return;
 
   // End the Discord poll so vote counts are frozen and fetchVoters works.
-  const endedPoll = await message.poll.end().catch(() => message.poll);
+  // Poll#end() resolves to the updated Message, not a Poll — unwrap .poll from it.
+  const ended = await message.poll.end().catch(() => null);
+  const endedPoll = ended?.poll ?? message.poll;
 
   // Collect who voted for which team.
   // answer_id 1 = away team, answer_id 2 = home team (the order we inserted them).

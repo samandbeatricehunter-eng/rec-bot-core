@@ -105,7 +105,9 @@ async function settleActiveCheckPoll(client: Client, input: { eventId: string; g
     return;
   }
 
-  const poll = await (message.poll as any).end().catch(() => message.poll as any);
+  // Poll#end() resolves to the updated Message, not a Poll — unwrap .poll from it.
+  const ended = await (message.poll as any).end().catch(() => null);
+  const poll = ended?.poll ?? message.poll;
   const activeAnswer = poll.answers?.get(1);
   const kickAnswer = poll.answers?.get(2);
   const activeVoters = activeAnswer ? await activeAnswer.fetchVoters().catch(() => null) : null;

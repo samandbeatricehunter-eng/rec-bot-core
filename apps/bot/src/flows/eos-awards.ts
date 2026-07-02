@@ -149,7 +149,11 @@ async function settleEosAwardPoll(client: Client, context: EosAwardFlowContext, 
   if (!channel?.isTextBased()) return;
   const message = await channel.messages.fetch(input.messageId).catch(() => null);
   if (!message?.poll) return;
-  const poll = await (message.poll as any).end().catch(() => message.poll as any);
+  // Poll#end() resolves to the updated Message, not a Poll — unwrap .poll from it.
+  // If ending fails (e.g. Discord already auto-expired it), the already-fetched
+  // message.poll reflects the same final results.
+  const ended = await (message.poll as any).end().catch(() => null);
+  const poll = ended?.poll ?? message.poll;
   const voteCounts: Record<string, number> = {};
   const voterDiscordIds: Record<string, string[]> = {};
   for (let index = 0; index < 10; index += 1) {

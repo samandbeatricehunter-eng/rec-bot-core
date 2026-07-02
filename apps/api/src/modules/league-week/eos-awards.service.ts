@@ -270,11 +270,13 @@ export async function cancelOpenEosAwardPolls(input: { guildId: string }) {
 }
 
 /**
- * Tiebreaker: every nominee is expected to vote for themselves, which produces
- * artificial N-way ties (e.g. 7 nominees, 7 self-votes, 1-1-1-1-1-1-1) that don't
- * reflect actual outside support. Rank by vote count with each nominee's own
- * self-vote discounted; if outside votes are still tied, fall back to the
- * underlying season-stat metric used to build the nominee list.
+ * Votes decide the winner. Raw vote count is the primary ranking — a self-vote is
+ * still a real vote and must not be zeroed out of contention. Ties are broken in
+ * two stages, both scoped to *only* the tied nominees: first by vote count with
+ * each nominee's own self-vote discounted (rewards outside support when several
+ * nominees are tied on raw votes, e.g. everyone got exactly their own self-vote),
+ * then — if still tied — by the underlying season-stat metric used to build the
+ * nominee list. Stats never override an outright vote leader.
  */
 export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Record<string, number>; voterDiscordIds?: Record<string, string[]>; discordMessageId?: string | null }) {
   const poll = await supabase.from("rec_eos_award_polls").select("*").eq("id", input.pollId).maybeSingle();
@@ -289,21 +291,26 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
   if (!nominees.length) throw new ApiError(400, "EOS award poll has no nominees.");
 
   const voterDiscordIds = input.voterDiscordIds ?? {};
-  const scored: Array<{ nominee: any; netVotes: number }> = nominees.map((nominee: any, index: number) => {
+  const scored: Array<{ nominee: any; rawVotes: number; netVotes: number }> = nominees.map((nominee: any, index: number) => {
     const rawVotes = Number(input.voteCounts[String(index)] ?? 0);
     const voters = voterDiscordIds[String(index)] ?? [];
     const selfVoted = Boolean(nominee.discordId) && voters.includes(nominee.discordId);
-    return { nominee, netVotes: selfVoted ? Math.max(0, rawVotes - 1) : rawVotes };
+    return { nominee, rawVotes, netVotes: selfVoted ? Math.max(0, rawVotes - 1) : rawVotes };
   });
 
-  const topNetVotes = Math.max(...scored.map((row) => row.netVotes));
-  const netTied = scored.filter((row) => row.netVotes === topNetVotes);
-  const tiebreakerNeeded = netTied.length > 1;
+  const topRawVotes = Math.max(...scored.map((row) => row.rawVotes));
+  const rawTied = scored.filter((row) => row.rawVotes === topRawVotes);
+  let finalists = rawTied;
+  let tiebreakerNeeded = finalists.length > 1;
 
-  let finalists = netTied;
   if (tiebreakerNeeded) {
-    const topMetric = Math.max(...netTied.map((row) => Number(row.nominee.metric ?? 0)));
-    finalists = netTied.filter((row) => Number(row.nominee.metric ?? 0) === topMetric);
+    const topNetVotes = Math.max(...finalists.map((row) => row.netVotes));
+    finalists = finalists.filter((row) => row.netVotes === topNetVotes);
+    tiebreakerNeeded = finalists.length > 1;
+  }
+  if (tiebreakerNeeded) {
+    const topMetric = Math.max(...finalists.map((row) => Number(row.nominee.metric ?? 0)));
+    finalists = finalists.filter((row) => Number(row.nominee.metric ?? 0) === topMetric);
   }
   const winner = finalists[0]?.nominee ?? null;
   if (!winner?.userId) throw new ApiError(400, "EOS award poll has no nominees.");
@@ -328,14 +335,14 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
       paid_ledger_id: ledger.data,
       vote_counts: input.voteCounts,
       tiebreaker_needed: tiebreakerNeeded,
-      tied_candidate_ids: tiebreakerNeeded ? netTied.map((row) => row.nominee.userId) : null,
+      tied_candidate_ids: tiebreakerNeeded ? rawTied.map((row) => row.nominee.userId) : null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", poll.data.id)
     .select("*")
     .single();
   if (updated.error) throw new ApiError(500, "Failed to settle EOS award poll.", updated.error);
-  return { poll: updated.data, winner, amount, votes: topNetVotes, tiebreakerNeeded };
+  return { poll: updated.data, winner, amount, votes: topRawVotes, tiebreakerNeeded };
 }
 
 export async function listSettledEosAwards(input: { guildId: string; seasonNumber?: number | null }) {
