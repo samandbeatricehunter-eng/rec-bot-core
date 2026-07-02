@@ -1,3 +1,4 @@
+import { isCfb, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 
 // Every source a game result can legitimately be logged from — box-score OCR,
@@ -71,12 +72,12 @@ export function mergeRecordTotals(base: RecordTotals, delta: RecordTotals): Reco
   };
 }
 
-function isPlayoffWeek(weekNumber: number | null | undefined) {
-  return Number(weekNumber ?? 0) > 18;
+function isPlayoffWeek(weekNumber: number | null | undefined, game: LeagueGame) {
+  return Number(weekNumber ?? 0) > regularSeasonWeeks(game);
 }
 
-function isSuperBowlWeek(weekNumber: number | null | undefined) {
-  return Number(weekNumber ?? 0) >= 22;
+function isSuperBowlWeek(weekNumber: number | null | undefined, game: LeagueGame) {
+  return Number(weekNumber ?? 0) >= (isCfb(game) ? 17 : 22);
 }
 
 function applyGameResult(
@@ -90,6 +91,7 @@ function applyGameResult(
     week_number?: number | null;
     is_tie?: boolean | null;
   },
+  game: LeagueGame = null,
 ) {
   const homeScore = Number(row.home_score ?? 0);
   const awayScore = Number(row.away_score ?? 0);
@@ -102,9 +104,13 @@ function applyGameResult(
   const isTie = row.is_tie === true || homeScore === awayScore;
   const isWin = !isTie && pointsFor > pointsAgainst;
   const isLoss = !isTie && pointsFor < pointsAgainst;
-  const playoff = isPlayoffWeek(row.week_number);
-  const superBowl = isSuperBowlWeek(row.week_number);
+  const playoff = isPlayoffWeek(row.week_number, game);
+  const superBowl = isSuperBowlWeek(row.week_number, game);
 
+  // Lifetime/all-games totals are inclusive of everything (regular + postseason);
+  // playoff_wins/superbowl_wins are an additional breakdown, not a separate bucket.
+  // Season-scoped callers that want regular-season-only records pre-filter their
+  // input rows instead of relying on this function to split them.
   totals.gamesPlayed += 1;
   totals.pointsFor += pointsFor;
   totals.pointsAgainst += pointsAgainst;
@@ -137,9 +143,10 @@ function aggregateResultsForUser(
     week_number?: number | null;
     is_tie?: boolean | null;
   }>,
+  game: LeagueGame = null,
 ): RecordTotals {
   const totals = emptyRecordTotals();
-  for (const row of rows) applyGameResult(totals, userId, row);
+  for (const row of rows) applyGameResult(totals, userId, row, game);
   return totals;
 }
 
@@ -239,18 +246,39 @@ async function loadManualChampionshipCredits(userIds: string[]) {
   return data ?? [];
 }
 
+async function loadLeagueGame(leagueId: string): Promise<LeagueGame> {
+  const { data, error } = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
+  if (error) throw error;
+  return (data?.game as LeagueGame) ?? "madden_26";
+}
+
 export async function rebuildSeasonOfficialRecords(leagueId: string, seasonNumber: number) {
-  const results = await loadOfficialResultsForLeagueSeason(leagueId, seasonNumber);
+  const [results, game] = await Promise.all([
+    loadOfficialResultsForLeagueSeason(leagueId, seasonNumber),
+    loadLeagueGame(leagueId),
+  ]);
   const userIds = new Set<string>();
   for (const row of results) {
     if (row.home_user_id) userIds.add(row.home_user_id);
     if (row.away_user_id) userIds.add(row.away_user_id);
   }
+  // Season record wins/losses are regular-season-only (playoffs shown separately via
+  // their own playoff_wins/playoff_losses columns, computed from the full result set).
+  const regularSeasonResults = results.filter((row) => !isPlayoffWeek(row.week_number, game));
 
   const now = new Date().toISOString();
-  const rows = [...userIds].map((userId) =>
-    recordRowFromTotals(aggregateResultsForUser(userId, results), { league_id: leagueId, season_number: seasonNumber, user_id: userId }),
-  );
+  const rows = [...userIds].map((userId) => {
+    const regularTotals = aggregateResultsForUser(userId, regularSeasonResults, game);
+    const fullTotals = aggregateResultsForUser(userId, results, game);
+    const totals: RecordTotals = {
+      ...regularTotals,
+      playoffWins: fullTotals.playoffWins,
+      playoffLosses: fullTotals.playoffLosses,
+      superbowlWins: fullTotals.superbowlWins,
+      superbowlLosses: fullTotals.superbowlLosses,
+    };
+    return recordRowFromTotals(totals, { league_id: leagueId, season_number: seasonNumber, user_id: userId });
+  });
   if (rows.length) {
     const { error: upsertError } = await supabase.from("rec_season_user_records").upsert(rows, { onConflict: "league_id,season_number,user_id" });
     if (upsertError) throw upsertError;
@@ -260,7 +288,10 @@ export async function rebuildSeasonOfficialRecords(leagueId: string, seasonNumbe
 }
 
 export async function rebuildLeagueOfficialRecords(leagueId: string) {
-  const results = await loadOfficialResultsForLeague(leagueId);
+  const [results, game] = await Promise.all([
+    loadOfficialResultsForLeague(leagueId),
+    loadLeagueGame(leagueId),
+  ]);
   const userIds = new Set<string>();
   for (const row of results) {
     if (row.home_user_id) userIds.add(row.home_user_id);
@@ -268,7 +299,7 @@ export async function rebuildLeagueOfficialRecords(leagueId: string) {
   }
 
   const rows = [...userIds].map((userId) =>
-    recordRowFromTotals(aggregateResultsForUser(userId, results), { league_id: leagueId, user_id: userId }),
+    recordRowFromTotals(aggregateResultsForUser(userId, results, game), { league_id: leagueId, user_id: userId }),
   );
   if (rows.length) {
     const { error: upsertError } = await supabase.from("rec_league_user_records").upsert(rows, { onConflict: "league_id,user_id" });
@@ -313,7 +344,10 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
 
   for (const userId of affectedUsers) {
     const userResults = results.filter((row) => row.home_user_id === userId || row.away_user_id === userId);
-    const boxScoreTotals = aggregateResultsForUser(userId, userResults);
+    // Spans every league the user has ever played in, so playoff/superbowl detection
+    // must use each row's own league game, not a single shared one.
+    const boxScoreTotals = emptyRecordTotals();
+    for (const row of userResults) applyGameResult(boxScoreTotals, userId, row, leagueGameById.get(row.league_id) ?? null);
     const baseline = baselineFromLegacyJson(baselineByUser.get(userId) as Record<string, unknown>);
     const allGames = mergeRecordTotals(baseline, boxScoreTotals);
     const userManualCredits = manualCreditsByUser.get(userId) ?? [];
@@ -326,7 +360,7 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
     for (const row of userResults) {
       const game = leagueGameById.get(row.league_id) ?? "madden_26";
       const current = byGame.get(game) ?? emptyRecordTotals();
-      applyGameResult(current, userId, row);
+      applyGameResult(current, userId, row, game);
       byGame.set(game, current);
     }
 

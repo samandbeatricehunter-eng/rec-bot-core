@@ -1,3 +1,4 @@
+import { regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { DISPLAY_ADVANCE_SOURCE, OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 
@@ -84,16 +85,25 @@ function mergeDisplayResults(rows: GameResultRow[]) {
 }
 
 export async function rebuildSeasonDisplayRecords(leagueId: string, seasonNumber: number) {
-  const { data: results, error } = await supabase
-    .from("rec_game_results")
-    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,winning_user_id,is_tie,source,week_number")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .in("source", [...OFFICIAL_RESULT_SOURCES, DISPLAY_ADVANCE_SOURCE]);
+  const [{ data: results, error }, { data: leagueRow, error: leagueError }] = await Promise.all([
+    supabase
+      .from("rec_game_results")
+      .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,winning_user_id,is_tie,source,week_number")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .in("source", [...OFFICIAL_RESULT_SOURCES, DISPLAY_ADVANCE_SOURCE]),
+    supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle(),
+  ]);
 
   if (error) throw error;
+  if (leagueError) throw leagueError;
 
-  const displayRows = mergeDisplayResults(results ?? []);
+  const game = (leagueRow?.game as LeagueGame) ?? "madden_26";
+  const lastRegularWeek = regularSeasonWeeks(game);
+  // Team Record is regular-season-only — postseason games don't count toward it.
+  const regularSeasonResults = (results ?? []).filter((row) => Number(row.week_number ?? 0) <= lastRegularWeek);
+
+  const displayRows = mergeDisplayResults(regularSeasonResults);
   const aggregate = new Map<string, { wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number; teamId: string | null }>();
   for (const row of displayRows) ingestResultRow(aggregate, row);
 

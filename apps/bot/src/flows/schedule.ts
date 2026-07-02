@@ -345,11 +345,11 @@ function buildStatsEmbed(snapshot: any, requestedDiscordId: string) {
 export async function startScheduleTeamSelect(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   if (!interaction.guildId) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Team Schedule").setDescription("Open /menu inside a REC Discord server.")], components: buildScheduleRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Other Teams").setDescription("Open /menu inside a REC Discord server.")], components: buildScheduleRows() });
   }
   return interaction.editReply(await loadLinkedTeamSelectPayload(
     interaction.guildId,
-    "Team Schedule",
+    "View Other Teams",
     "Select an active linked team to view that coach's current schedule.",
     MENU_CUSTOM_IDS.scheduleTeamSelect,
   ));
@@ -357,7 +357,7 @@ export async function startScheduleTeamSelect(interaction: ButtonInteraction) {
 
 export async function handleScheduleTeamSelect(interaction: StringSelectMenuInteraction) {
   await interaction.deferUpdate();
-  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Team Schedule").setDescription("Guild context required.")], components: buildScheduleRows() });
+  if (!interaction.guildId) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("View Other Teams").setDescription("Guild context required.")], components: buildScheduleRows() });
   const discordId = interaction.values[0];
   const schedule = await recApi.getUserSchedule(discordId, interaction.guildId);
   return interaction.editReply({
