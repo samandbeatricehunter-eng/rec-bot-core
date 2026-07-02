@@ -1,6 +1,9 @@
 import { supabase } from "../../lib/supabase.js";
 
-export const OFFICIAL_RESULT_SOURCES = ["box_score", "box_score_screenshot"] as const;
+// Every source a game result can legitimately be logged from — box-score OCR,
+// schedule-screenshot import (weekly scores), and manual commissioner entry are
+// all equally final results and must count toward records/W-L the same way.
+export const OFFICIAL_RESULT_SOURCES = ["box_score", "box_score_screenshot", "schedule_screenshot", "manual"] as const;
 export const DISPLAY_ADVANCE_SOURCE = "commissioner_advance";
 
 export type RecordTotals = {
