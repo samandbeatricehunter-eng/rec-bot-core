@@ -10,6 +10,24 @@ import { GAME_CHANNEL_PAGE_PREFIX, handleGameChannelPage } from "./flows/game-ch
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
 import { GOTW_CUSTOM_IDS, handleGotwConfirm, handleGotwPollsMenu, handleGotwSelect, handleRerunGotwPolls, handleSetGotw } from "./flows/gotw.js";
 import { handleGameChannels } from "./flows/game-channels.js";
+import {
+  EOS_PAYOUT_CUSTOM_IDS,
+  TROUBLESHOOT_EOS_CUSTOM_IDS,
+  eosProjectionSessions,
+  handleEosPayouts,
+  handleEosProjectionPage,
+  handleEosProjections,
+  handleIssueEosPayoutBatch,
+  handleReviewEosUserPayouts,
+} from "./flows/eos-payouts.js";
+import {
+  ADVANCE_CUSTOM_IDS,
+  handleSetSeason,
+  handleSetSeasonManual,
+  handleSetSeasonSelect,
+  handleSetWeek,
+  handleSetWeekSelect,
+} from "./flows/set-week-season.js";
 import { isEosPayoutEligibleStage } from "@rec/shared";
 import { REC_MANAGED_ROLES, ensureRecBaseRoles } from "./lib/role-sync.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
@@ -93,7 +111,6 @@ import {
   handleHeadlinesNav,
 } from "./flows/advance-time.js";
 import { handleEosAwards, recoverOpenEosAwardPolls } from "./flows/eos-awards.js";
-import { stageLabel } from "./lib/league-stage.js";
 import {
   TEAM_REQUEST_CUSTOM_IDS,
   handleTeamRequestApprove,
@@ -249,23 +266,8 @@ const roleMgmtSessions = new Map<string, {
   selectedUserIds: string[];
   page: number;
 }>();
-const eosProjectionSessions = new ExpiringSessionStore<{ pages: any[]; page: number }>();
 const reverseTxnSessions = new Map<string, { discordId: string; transactions: any[] }>();
-const ADVANCE_CUSTOM_IDS = {
-  regularWeekSelect: "rec:advance:regular_week_select",
-  stageSelect: "rec:advance:stage_select",
-  seasonSelect: "rec:advance:season_select",
-  seasonManualModal: "rec:advance:season_manual_modal",
-  seasonManualInput: "rec:advance:season_manual_input"
-} as const;
-const EOS_PAYOUT_CUSTOM_IDS = {
-  issueBatchPrefix: "rec:eos_payouts:issue:",
-  approveUserPrefix: "rec:eos:ap:",
-  denyUserPrefix: "rec:eos:dn:"
-} as const;
 const TROUBLESHOOT_CUSTOM_IDS = {
-  eosPrev: "rec:trouble:eos:prev",
-  eosNext: "rec:trouble:eos:next",
   reverseUserSelect: "rec:trouble:reverse:user",
   reverseTxnSelect: "rec:trouble:reverse:txn",
 } as const;
@@ -537,8 +539,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualTeamSelect) return handleManualScheduleTeamSelect(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualConferenceSelect) return handleManualScheduleConferenceSelect(interaction);
       if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId === ADVANCE_CUSTOM_IDS.regularWeekSelect || interaction.customId === ADVANCE_CUSTOM_IDS.stageSelect) return handleSetWeekSelect(interaction);
-      if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonSelect) return handleSetSeasonSelect(interaction);
+      if (interaction.customId === ADVANCE_CUSTOM_IDS.regularWeekSelect || interaction.customId === ADVANCE_CUSTOM_IDS.stageSelect) return handleSetWeekSelect(interaction, buildAdvanceMgmtRows);
+      if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonSelect) return handleSetSeasonSelect(interaction, buildAdvanceMgmtRows);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
@@ -634,8 +636,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootSchedule) return handleLeagueMgmtSchedule(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootEos) return handleEosProjections(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTroubleshootReverseTxn) return handleReverseTransactionOpen(interaction);
-      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.eosPrev) return handleEosProjectionPage(interaction, -1);
-      if (interaction.customId === TROUBLESHOOT_CUSTOM_IDS.eosNext) return handleEosProjectionPage(interaction, 1);
+      if (interaction.customId === TROUBLESHOOT_EOS_CUSTOM_IDS.eosPrev) return handleEosProjectionPage(interaction, -1);
+      if (interaction.customId === TROUBLESHOOT_EOS_CUSTOM_IDS.eosNext) return handleEosProjectionPage(interaction, 1);
       if (interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix)) return handleIssueEosPayoutBatch(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosPayouts) return handleEosPayouts(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return handleEosAwards(interaction, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
@@ -770,7 +772,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         return handleManualScoresScoreModal(interaction, outcome as "home" | "away" | "tie", gameId);
       }
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
-      if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction);
+      if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction, buildAdvanceMgmtRows);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseModal(interaction);
     }
   } catch (error) {
@@ -1054,69 +1056,6 @@ function formatMoney(n: unknown) {
   return `$${Number(n ?? 0).toLocaleString("en-US")}`;
 }
 
-function groupProjectionPages(items: any[]) {
-  const byUser = new Map<string, any[]>();
-  for (const item of items ?? []) {
-    const key = item.payee_discord_id ?? item.user_id ?? "unknown";
-    const rows = byUser.get(key) ?? [];
-    rows.push(item);
-    byUser.set(key, rows);
-  }
-  return [...byUser.entries()].map(([key, rows]) => ({
-    key,
-    discordId: rows.find((row) => row.payee_discord_id)?.payee_discord_id ?? null,
-    userId: rows[0]?.user_id ?? null,
-    total: rows.reduce((sum, row) => sum + Number(row.amount ?? 0), 0),
-    rows,
-  })).sort((a, b) => b.total - a.total);
-}
-
-function renderEosProjectionSession(session: { pages: any[]; page: number }) {
-  const page = session.pages[session.page] ?? null;
-  const totalPages = Math.max(1, session.pages.length);
-  const lines = page
-    ? [
-      `Coach: ${page.discordId ? `<@${page.discordId}>` : page.userId ?? "Unknown"}`,
-      `Projected total: **${formatMoney(page.total)}**`,
-      "",
-      ...page.rows.slice(0, 18).map((item: any) => `- **${formatMoney(item.amount)}** - ${item.payout_label}${item.qualified_tier ? ` (${item.qualified_tier})` : ""}`),
-    ]
-    : ["No projected EOS payouts were generated from current stats."];
-  return {
-    embeds: [new EmbedBuilder()
-      .setTitle("EOS Projections")
-      .setDescription(lines.join("\n").slice(0, 4096))
-      .setFooter({ text: `Page ${session.page + 1}/${totalPages}` })],
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(TROUBLESHOOT_CUSTOM_IDS.eosPrev).setLabel("Previous").setStyle(ButtonStyle.Secondary).setDisabled(!session.pages.length),
-        new ButtonBuilder().setCustomId(TROUBLESHOOT_CUSTOM_IDS.eosNext).setLabel("Next").setStyle(ButtonStyle.Secondary).setDisabled(!session.pages.length),
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTroubleshoot).setLabel("Back").setStyle(ButtonStyle.Secondary),
-      ),
-    ],
-  };
-}
-
-async function handleEosProjections(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "view EOS projections");
-  await interaction.deferUpdate();
-  const result = await recApi.projectEosPayouts({ guildId: interaction.guildId });
-  const session = { pages: groupProjectionPages(result.items ?? []), page: 0 };
-  eosProjectionSessions.set(interaction.user.id, session);
-  return interaction.editReply(renderEosProjectionSession(session));
-}
-
-async function handleEosProjectionPage(interaction: ButtonInteraction, delta: number) {
-  const session = eosProjectionSessions.get(interaction.user.id);
-  if (!session) return interaction.reply({ content: "EOS projection view expired. Reopen Troubleshoot > EOS Projections.", flags: MessageFlags.Ephemeral });
-  const count = Math.max(1, session.pages.length);
-  session.page = (session.page + delta + count) % count;
-  return interaction.update(renderEosProjectionSession(session));
-}
-
 function formatTxnOption(txn: any) {
   const amount = Number(txn.amount ?? 0);
   const type = String(txn.transaction_type ?? "transaction").replaceAll("_", " ");
@@ -1242,353 +1181,6 @@ function buildUnlinkedTeamNotice(profile: any) {
   }
 
   return "You are registered in REC but not linked to a team in this league yet. Open **Teams** below to select an open team. Once approved, you'll be added to this league's roster.";
-}
-
-function stageFromWeekNumber(weekNumber: number) {
-  if (weekNumber <= 18) return "regular_season";
-  if (weekNumber === 19) return "wild_card";
-  if (weekNumber === 20) return "divisional";
-  if (weekNumber === 21) return "conference_championship";
-  if (weekNumber === 22) return "super_bowl";
-  return "regular_season";
-}
-
-function buildSetWeekRows() {
-  const regularOptions = Array.from({ length: 18 }, (_, idx) => {
-    const week = idx + 1;
-    return new StringSelectMenuOptionBuilder().setLabel(`Week ${week}`).setValue(`regular:${week}`);
-  });
-  const stageOptions = [
-    ["Wild Card", "wild_card:19"],
-    ["Divisional", "divisional:20"],
-    ["Conference Championship", "conference_championship:21"],
-    ["Super Bowl", "super_bowl:22"],
-    ["Coach Hiring", "coach_hiring:1"],
-    ["Final Re-Signing", "final_resigning:1"],
-    ["Free Agency", "free_agency:1"],
-    ["Draft", "draft:1"],
-    ["Training Camp", "preseason_training_camp:1"],
-  ].map(([label, value]) => new StringSelectMenuOptionBuilder().setLabel(label).setValue(value));
-
-  return [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(ADVANCE_CUSTOM_IDS.regularWeekSelect)
-        .setPlaceholder("Select regular season week")
-        .addOptions(regularOptions)
-    ),
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(ADVANCE_CUSTOM_IDS.stageSelect)
-        .setPlaceholder("Select postseason or offseason stage")
-        .addOptions(stageOptions)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary)
-    )
-  ];
-}
-
-async function handleSetWeek(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
-  return interaction.update({
-    embeds: [new EmbedBuilder()
-      .setTitle("Set Week")
-      .setDescription("Choose a regular season week, postseason week, or offseason stage. Regular season weeks use Week 1-18; postseason and offseason stages are listed separately.")],
-    components: buildSetWeekRows()
-  });
-}
-
-function formatSavingsInterestSummary(result: any) {
-  const interest = result?.savingsInterest;
-  if (!interest?.applied || Number(interest.usersCredited ?? 0) <= 0) return "";
-  const usersCredited = Number(interest.usersCredited ?? 0);
-  const totalInterest = Number(interest.totalInterest ?? 0);
-  return `\n\nSavings interest credited: **$${totalInterest}** across **${usersCredited}** user${usersCredited === 1 ? "" : "s"} (3.5%, floored).`;
-}
-
-async function handleSetWeekSelect(interaction: any) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
-  await interaction.deferUpdate();
-  const [rawStage, rawWeek] = String(interaction.values[0] ?? "regular:1").split(":");
-  const weekNumber = Math.max(1, Number(rawWeek) || 1);
-  const seasonStage = rawStage === "regular" ? stageFromWeekNumber(weekNumber) : rawStage;
-  const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Week Set").setDescription(`League is now set to **${stageLabel(seasonStage, weekNumber)}**.${formatSavingsInterestSummary(result)}`)],
-    components: buildAdvanceMgmtRows()
-  });
-}
-
-function buildSetSeasonRows() {
-  const options = Array.from({ length: 24 }, (_, idx) => {
-    const season = idx + 1;
-    return new StringSelectMenuOptionBuilder().setLabel(`Season ${season}`).setValue(String(season));
-  });
-  options.push(new StringSelectMenuOptionBuilder().setLabel("Manual Season Number").setValue("manual").setDescription("Enter season 25 or higher."));
-  return [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-      new StringSelectMenuBuilder()
-        .setCustomId(ADVANCE_CUSTOM_IDS.seasonSelect)
-        .setPlaceholder("Select season")
-        .addOptions(options)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary)
-    )
-  ];
-}
-
-async function handleSetSeason(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league season");
-  return interaction.update({
-    embeds: [new EmbedBuilder()
-      .setTitle("Set Season")
-      .setDescription("Select seasons 1-24, or choose Manual Season Number for season 25 or higher.")],
-    components: buildSetSeasonRows()
-  });
-}
-
-async function handleSetSeasonSelect(interaction: any) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league season");
-  const selected = String(interaction.values[0] ?? "");
-  if (selected === "manual") {
-    return interaction.showModal(new ModalBuilder()
-      .setCustomId(ADVANCE_CUSTOM_IDS.seasonManualModal)
-      .setTitle("Set Season")
-      .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(ADVANCE_CUSTOM_IDS.seasonManualInput)
-          .setLabel("Season number")
-          .setPlaceholder("25")
-          .setStyle(TextInputStyle.Short)
-          .setRequired(true)
-          .setMinLength(1)
-          .setMaxLength(3)
-      )));
-  }
-  await interaction.deferUpdate();
-  await updateLeagueSeason(interaction.guildId, Number(selected));
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Season Set").setDescription(`League season is now **Season ${Number(selected)}**.`)],
-    components: buildAdvanceMgmtRows()
-  });
-}
-
-async function handleSetSeasonManual(interaction: ModalSubmitInteraction) {
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league season");
-  const seasonNumber = Number(interaction.fields.getTextInputValue(ADVANCE_CUSTOM_IDS.seasonManualInput));
-  if (!Number.isInteger(seasonNumber) || seasonNumber < 25) {
-    return interaction.reply({ content: "Manual season number must be 25 or higher.", flags: MessageFlags.Ephemeral });
-  }
-  await interaction.deferUpdate();
-  await updateLeagueSeason(interaction.guildId, seasonNumber);
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Season Set").setDescription(`League season is now **Season ${seasonNumber}**.`)],
-    components: buildAdvanceMgmtRows()
-  });
-}
-
-async function updateLeagueSeason(guildId: string, seasonNumber: number) {
-  const current = await recApi.viewLeagueWeek(guildId);
-  const weekNumber = Number(current?.league?.current_week ?? 1);
-  const seasonStage = String(current?.league?.season_stage ?? current?.league?.current_phase ?? stageFromWeekNumber(weekNumber));
-  return recApi.setLeagueWeek({ guildId, weekNumber, seasonStage, seasonNumber });
-}
-
-function eosPayoutLine(item: any) {
-  const tier = item.qualified_tier ? ` [${item.qualified_tier}]` : "";
-  const value = item.qualified_value != null ? ` (${item.qualified_value})` : "";
-  return `- **$${Number(item.amount ?? 0)}** - ${item.payout_label}${tier}${value}`;
-}
-
-function eosUserGroups(items: any[]) {
-  const groups = new Map<string, any[]>();
-  for (const item of items) {
-    if (item.status !== "pending" || !item.user_id) continue;
-    const rows = groups.get(item.user_id) ?? [];
-    rows.push(item);
-    groups.set(item.user_id, rows);
-  }
-  return groups;
-}
-
-async function postEosReviewEmbeds(interaction: ButtonInteraction, result: any) {
-  if (!interaction.guild || !result?.pendingPayoutsChannelId || !result?.batch?.id) return 0;
-  const channel = await interaction.guild.channels.fetch(result.pendingPayoutsChannelId).catch(() => null);
-  if (!channel?.isTextBased() || !("send" in channel)) return 0;
-  let posted = 0;
-  for (const [userId, items] of eosUserGroups(result.items ?? [])) {
-    const total = items.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
-    const payeeDiscordId = items.find((item) => item.payee_discord_id)?.payee_discord_id ?? null;
-    const coach = payeeDiscordId ? `<@${payeeDiscordId}>` : `REC user ${userId}`;
-    const lines = items.map(eosPayoutLine);
-    await channel.send({
-      embeds: [new EmbedBuilder()
-        .setTitle("EOS PAYOUT REVIEW")
-        .setColor(COLORS.warning)
-        .setDescription([
-          `Coach: ${coach}`,
-          `Season: **${result.batch.season_number}**`,
-          `Total pending: **$${total}**`,
-          "",
-          lines.join("\n").slice(0, 3000),
-        ].join("\n"))],
-      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${EOS_PAYOUT_CUSTOM_IDS.approveUserPrefix}${result.batch.id}:${userId}`).setLabel("Approve & Pay").setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(`${EOS_PAYOUT_CUSTOM_IDS.denyUserPrefix}${result.batch.id}:${userId}`).setLabel("Deny").setStyle(ButtonStyle.Danger),
-      )],
-      allowedMentions: { users: payeeDiscordId ? [payeeDiscordId] : [] },
-    }).catch(() => undefined);
-    posted += 1;
-  }
-  return posted;
-}
-
-async function dmEosPayoutResult(interaction: ButtonInteraction, result: any) {
-  if (!result?.payeeDiscordId || result.action !== "approve" || Number(result.totalAmount ?? 0) <= 0) return;
-  const user = await interaction.client.users.fetch(result.payeeDiscordId).catch(() => null);
-  if (!user) return;
-  const lines = (result.items ?? []).map(eosPayoutLine);
-  await user.send([
-    `Your EOS payouts were approved for **$${Number(result.totalAmount ?? 0)}**.`,
-    "",
-    lines.join("\n").slice(0, 1800),
-  ].join("\n")).catch(() => undefined);
-}
-
-async function handleEosPayouts(interaction: ButtonInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS payouts");
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-  const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
-  const currentWeek = Number(week?.league?.current_week ?? 1);
-  if (currentWeek < 19 || currentWeek > 22) {
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts").setDescription("EOS payouts cannot be issued until the active regular season concludes. They are available from Wild Card through Super Bowl week.")], flags: MessageFlags.Ephemeral });
-  }
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await recApi.prepareEosPayouts({ guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
-  const items: any[] = result?.items ?? [];
-  const pending = items.filter((item) => item.status === "pending").length;
-  const issued = items.filter((item) => item.status === "issued").length;
-  const total = Number(result?.totalAmount ?? 0);
-  const byCategory = new Map<string, { count: number; amount: number }>();
-  for (const item of items) {
-    const key = String(item.payout_category ?? "other");
-    const row = byCategory.get(key) ?? { count: 0, amount: 0 };
-    row.count += 1;
-    row.amount += Number(item.amount ?? 0);
-    byCategory.set(key, row);
-  }
-  const categoryLines = [...byCategory.entries()].map(([key, row]) => `${key}: **${row.count}** item${row.count === 1 ? "" : "s"} / **$${row.amount}**`);
-  const batchId = result?.batch?.id ? String(result.batch.id) : null;
-  const reviewEmbedsPosted = pending > 0 ? await postEosReviewEmbeds(interaction, result) : 0;
-  return interaction.editReply({
-    embeds: [new EmbedBuilder()
-      .setTitle("EOS Payouts Prepared")
-      .setColor(COLORS.success)
-      .setDescription([
-        `Season **${result?.batch?.season_number ?? week?.league?.season_number ?? 1}** EOS payout batch is ready.`,
-        "",
-        `Pending review items: **${pending}**`,
-        `Issued items: **${issued}**`,
-        `Total generated amount: **$${total}**`,
-        `Review embeds posted: **${reviewEmbedsPosted}**`,
-        "",
-        categoryLines.length ? categoryLines.join("\n") : "No qualifying EOS payouts were generated.",
-        "",
-        "This engine uses final regular-season power rankings and approved box-score team stats. Player-level stat imports are not required."
-      ].join("\n"))],
-    components: batchId && pending > 0
-      ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix}${batchId}`).setLabel("Issue Pending EOS Payouts").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("Back").setStyle(ButtonStyle.Secondary),
-        )]
-      : [new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("Back").setStyle(ButtonStyle.Secondary),
-        )],
-  });
-}
-
-async function handleReviewEosUserPayouts(interaction: ButtonInteraction, action: "approve" | "deny") {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, `${action} EOS payouts`);
-  const prefix = action === "approve" ? EOS_PAYOUT_CUSTOM_IDS.approveUserPrefix : EOS_PAYOUT_CUSTOM_IDS.denyUserPrefix;
-  const [batchId, userId] = interaction.customId.slice(prefix.length).split(":");
-  if (!batchId || !userId) return interaction.reply({ content: "EOS payout review payload was missing.", flags: MessageFlags.Ephemeral });
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await recApi.reviewEosPayoutsForUser({
-    batchId,
-    userId,
-    action,
-    reviewedByDiscordId: interaction.user.id,
-    deniedReason: action === "deny" ? "Denied by commissioner review." : null,
-  });
-  await dmEosPayoutResult(interaction, result);
-  if (interaction.message?.editable) {
-    const embeds = interaction.message.embeds.map((embed: any) => {
-      const builder = EmbedBuilder.from(embed);
-      const current = embed.description ?? "";
-      builder.setDescription([current, "", `**${action === "approve" ? "Approved and paid" : "Denied"} by <@${interaction.user.id}>**`].join("\n"));
-      builder.setColor(action === "approve" ? 0x2ecc71 : 0xe74c3c);
-      return builder;
-    });
-    await interaction.message.edit({ embeds, components: [] }).catch(() => undefined);
-  }
-  const failed: any[] = result?.failed ?? [];
-  return interaction.editReply({
-    embeds: [new EmbedBuilder()
-      .setTitle(action === "approve" ? "EOS Payouts Approved" : "EOS Payouts Denied")
-      .setColor(action === "approve" ? 0x2ecc71 : 0xe74c3c)
-      .setDescription([
-        `Processed **${result?.items?.length ?? 0}** payout item${(result?.items?.length ?? 0) === 1 ? "" : "s"}.`,
-        `Total: **$${Number(result?.totalAmount ?? 0)}**`,
-        failed.length ? `Failed: **${failed.length}** item${failed.length === 1 ? "" : "s"}.` : "No failures reported.",
-      ].join("\n"))],
-  });
-}
-
-async function handleIssueEosPayoutBatch(interaction: ButtonInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "issue EOS payouts");
-  const batchId = interaction.customId.slice(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix.length);
-  if (!batchId) return interaction.reply({ content: "EOS payout batch was missing.", flags: MessageFlags.Ephemeral });
-  await interaction.deferUpdate();
-  const result = await recApi.issueEosPayoutBatch({ batchId, reviewedByDiscordId: interaction.user.id });
-  const failed: any[] = result?.failed ?? [];
-  const issuedCount = Number(result?.issuedCount ?? 0);
-  const remainingPending = (result?.items ?? []).filter((item: any) => item.status === "pending").length;
-  const issuedByDiscord = new Map<string, any[]>();
-  for (const item of result?.issuedItems ?? []) {
-    if (!item.payee_discord_id) continue;
-    const rows = issuedByDiscord.get(item.payee_discord_id) ?? [];
-    rows.push(item);
-    issuedByDiscord.set(item.payee_discord_id, rows);
-  }
-  for (const [discordId, rows] of issuedByDiscord.entries()) {
-    const user = await interaction.client.users.fetch(discordId).catch(() => null);
-    const totalForUser = rows.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
-    await user?.send([
-      `Your EOS payouts were issued for **$${totalForUser}**.`,
-      "",
-      rows.map(eosPayoutLine).join("\n").slice(0, 1800),
-    ].join("\n")).catch(() => undefined);
-  }
-  return interaction.editReply({
-    embeds: [new EmbedBuilder()
-      .setTitle(failed.length ? "EOS Payouts Partially Issued" : "EOS Payouts Issued")
-      .setColor(failed.length ? 0xf1c40f : 0x2ecc71)
-      .setDescription([
-        `Issued **${issuedCount}** pending EOS payout${issuedCount === 1 ? "" : "s"}.`,
-        `Remaining pending: **${remainingPending}**`,
-        failed.length ? `Failed: **${failed.length}** item${failed.length === 1 ? "" : "s"}. Check API logs for details.` : "No failures reported."
-      ].join("\n"))],
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosActions).setLabel("Back").setStyle(ButtonStyle.Secondary),
-    )],
-  });
 }
 
 async function handlePotyTallies(interaction: ButtonInteraction) {
