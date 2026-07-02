@@ -50,7 +50,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
   if (error) throw error;
   if (!rows || rows.length === 0) return;
 
-  const games = rows.map((r) => rowToGameStats(r as TeamGameStatsRow));
+  const games = rows.map((r) => rowToGameStats(r as TeamGameStatsRow, leagueGame));
   const teamIds = [...new Set(rows.map((r) => r.team_id).filter((t): t is string => !!t))];
   const nameById = await loadTeamNames(teamIds);
 
@@ -284,7 +284,7 @@ async function recomputeSingleUserBadges(current: GameStats, leagueGame: string)
   if (statsResult.error) throw statsResult.error;
   if (previousSeasonResult.error) throw previousSeasonResult.error;
 
-  const allGames = (statsResult.data ?? []).map((r) => rowToGameStats(r as TeamGameStatsRow));
+  const allGames = (statsResult.data ?? []).map((r) => rowToGameStats(r as TeamGameStatsRow, leagueGame));
   const careerRecordOverride = toCareerRecordOverride(recordResult.data);
   const previousSeasonBadges = new Map((previousSeasonResult.data ?? []).map((row) => [row.badge_key, row as PreviousSeasonBadge]));
 
@@ -364,7 +364,7 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
 
   const gamesByUser = new Map<string, GameStats[]>();
   for (const row of statsResult.data ?? []) {
-    const g = rowToGameStats(row as TeamGameStatsRow);
+    const g = rowToGameStats(row as TeamGameStatsRow, leagueGame);
     if (!g.userId) continue;
     const list = gamesByUser.get(g.userId) ?? [];
     list.push(g);
@@ -454,7 +454,7 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
 
   const gamesByUser = new Map<string, GameStats[]>();
   for (const row of statsRows ?? []) {
-    const g = rowToGameStats(row as TeamGameStatsRow);
+    const g = rowToGameStats(row as TeamGameStatsRow, leagueGame);
     if (!g.userId) continue;
     const list = gamesByUser.get(g.userId) ?? [];
     list.push(g);

@@ -11,6 +11,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
+import { isCfb, regularSeasonWeeks } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -18,17 +19,28 @@ import { recApi } from "../lib/rec-api.js";
 import { getPendingPayoutsChannel } from "./schedule-scores.js";
 
 // ─── Schedule import: parse a League Schedule screenshot into a week's matchups ──
-// Wizard mode walks Weeks 1–18; one-week mode does a single chosen week. Both share
-// the upload → preview → review → save (replaceScheduleWeek) loop. The RESULT-column
-// abbreviations and MATCHUP nicknames are matched to league teams server-side.
+// Wizard mode walks the full regular season; one-week mode does a single chosen
+// week. Both share the upload → preview → review → save (replaceScheduleWeek)
+// loop. The RESULT-column abbreviations and MATCHUP nicknames are matched to
+// league teams server-side. Bounds/labels are game-aware (CFB: 12 regular weeks +
+// 5-week postseason; Madden: 18 regular weeks + 4-week postseason) — the OCR
+// layout parsing itself is still Madden-shaped pending real CFB screenshot samples.
+const CFB_POSTSEASON_LABELS = ["CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "Bye Week", "National Championship"];
+const NFL_POSTSEASON_LABELS = ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
 
-const MAX_IMPORT_WEEK = 18;
-// One-week mode can import any week including the playoffs; the wizard still
-// walks the regular season only (1–18).
-const MAX_SINGLE_IMPORT_WEEK = 22;
-const PLAYOFF_WEEK_LABELS = ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
-function importWeekLabel(week: number) {
-  return week <= 18 ? `Week ${week}` : `Week ${week} — ${PLAYOFF_WEEK_LABELS[week - 19] ?? "Playoffs"}`;
+function maxImportWeek(game: string | null): number {
+  return regularSeasonWeeks(game ?? null);
+}
+// One-week mode can import any week including the postseason; the wizard still
+// walks the regular season only.
+function maxSingleImportWeek(game: string | null): number {
+  return isCfb(game) ? 17 : 22;
+}
+function importWeekLabel(week: number, game: string | null) {
+  const lastRegularWeek = regularSeasonWeeks(game ?? null);
+  if (week <= lastRegularWeek) return `Week ${week}`;
+  const labels = isCfb(game) ? CFB_POSTSEASON_LABELS : NFL_POSTSEASON_LABELS;
+  return `Week ${week} — ${labels[week - lastRegularWeek - 1] ?? "Postseason"}`;
 }
 
 export const SCHEDULE_IMPORT_CUSTOM_IDS = {
@@ -49,6 +61,7 @@ type ImportSession = {
   guildId: string;
   userId: string;
   channelId: string;
+  game: string | null;
   mode: "wizard" | "one_week";
   weekNumber: number;
   phase: "awaiting_upload" | "review";
@@ -90,10 +103,12 @@ export async function startScheduleImportWizard(interaction: ButtonInteraction, 
   if (!isFullLeagueAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners or server admins can import the schedule.", flags: MessageFlags.Ephemeral });
   }
+  const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   sessions.set(key(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,
     userId: interaction.user.id,
     channelId: interaction.channelId,
+    game: week?.league?.game ?? null,
     mode: "wizard",
     weekNumber: 1,
     phase: "awaiting_upload",
@@ -111,10 +126,12 @@ export async function startScheduleImportOneWeek(interaction: ButtonInteraction,
     return interaction.reply({ content: "Only commissioners or server admins can import the schedule.", flags: MessageFlags.Ephemeral });
   }
   sessions.delete(key(interaction.guildId, interaction.user.id));
+  const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
+  const game: string | null = week?.league?.game ?? null;
   const select = new StringSelectMenuBuilder()
     .setCustomId(SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect)
     .setPlaceholder("Select the week to import")
-    .addOptions(Array.from({ length: MAX_SINGLE_IMPORT_WEEK }, (_, i) => new StringSelectMenuOptionBuilder().setLabel(importWeekLabel(i + 1)).setValue(String(i + 1))));
+    .addOptions(Array.from({ length: maxSingleImportWeek(game) }, (_, i) => new StringSelectMenuOptionBuilder().setLabel(importWeekLabel(i + 1, game)).setValue(String(i + 1))));
   return interaction.update({
     embeds: [new EmbedBuilder().setTitle("Upload One Week").setDescription("Pick the week you're importing, then upload its schedule screenshot(s).")],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), ...buildScheduleRows()],
@@ -126,11 +143,14 @@ export async function handleScheduleImportWeekSelect(interaction: StringSelectMe
   if (!isFullLeagueAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only commissioners can import the schedule.", flags: MessageFlags.Ephemeral });
   }
-  const weekNumber = Math.max(1, Math.min(MAX_SINGLE_IMPORT_WEEK, Number(interaction.values[0] ?? 1)));
+  const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
+  const game: string | null = week?.league?.game ?? null;
+  const weekNumber = Math.max(1, Math.min(maxSingleImportWeek(game), Number(interaction.values[0] ?? 1)));
   sessions.set(key(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,
     userId: interaction.user.id,
     channelId: interaction.channelId,
+    game,
     mode: "one_week",
     weekNumber,
     phase: "awaiting_upload",
@@ -165,7 +185,7 @@ function buildReviewEmbed(session: ImportSession): EmbedBuilder {
 }
 
 function buildReviewRows(session: ImportSession) {
-  const last = session.mode === "wizard" && session.weekNumber >= MAX_IMPORT_WEEK;
+  const last = session.mode === "wizard" && session.weekNumber >= maxImportWeek(session.game);
   const saveLabel = session.mode === "wizard" ? (last ? "Save & Finish" : "Save & Next Week") : "Save Week";
   const matched = session.games.filter((g) => g.matched).length;
   return [
@@ -261,8 +281,8 @@ export async function handleScheduleImportSave(interaction: ButtonInteraction) {
   const uploadChannel = await interaction.client.channels.fetch(session.channelId).catch(() => null);
   const promptTarget = uploadChannel?.isTextBased() && !uploadChannel.isDMBased() ? (uploadChannel as TextChannel) : null;
 
-  // Wizard: advance to the next week (or finish at 18).
-  if (session.mode === "wizard" && savedWeek < MAX_IMPORT_WEEK) {
+  // Wizard: advance to the next week (or finish at the end of the regular season).
+  if (session.mode === "wizard" && savedWeek < maxImportWeek(session.game)) {
     session.weekNumber = savedWeek + 1;
     session.phase = "awaiting_upload";
     session.games = [];

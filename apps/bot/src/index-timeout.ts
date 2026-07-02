@@ -73,7 +73,6 @@ import {
   handlePostSetupScheduleViewPage,
   POST_SETUP_SCHEDULE_CUSTOM_IDS,
   renderScheduleMenu,
-  renderSchedulePlaceholder,
   handleScheduleSos,
   handleScheduleStats,
   handleScheduleStatsTeamSelect,
@@ -875,13 +874,6 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
   await interaction.update(buildAdminPanelPayload(interaction));
 }
 
-async function replyMenuPlaceholder(interaction: ButtonInteraction, title: string, description: string) {
-  return interaction.reply({
-    embeds: [new EmbedBuilder().setTitle(title).setDescription(description)],
-    flags: MessageFlags.Ephemeral
-  });
-}
-
 async function handleLeagueMgmtTeams(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
     return interaction.reply({ content: "Only authorized admins can manage league teams.", flags: MessageFlags.Ephemeral });
@@ -1153,14 +1145,14 @@ function buildEosActionsRows() {
 async function handleEosActions(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS actions");
   const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
-  const currentWeek = Number(week?.league?.current_week ?? 1);
-  const gated = currentWeek < 19 || currentWeek > 22;
+  const currentStage = String(week?.league?.season_stage ?? "regular_season");
+  const gated = !isEosPayoutEligibleStage(currentStage, week?.league?.game ?? null);
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("EOS Actions")
       .setDescription([
         gated
-          ? "**Postseason action gates are active.** You can open this menu now, but payout/POTY workflows unlock from Week 19 through Week 22."
+          ? "**Postseason action gates are active.** You can open this menu now, but payout/POTY workflows unlock once the postseason begins."
           : "**Postseason action gates are open.**",
         "",
         "**Payouts** issues end-of-season stat/award payouts for review.",

@@ -4,6 +4,7 @@
 // live in the offensive_stats/defensive_stats JSONB as strings, so they're parsed
 // here rather than read from dedicated columns.
 
+import { isCfb, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { qualifyWeeklyBadges, type QualifiedBadge } from "./badge-rules.js";
 import { type GameStats, returnYards } from "./types.js";
 
@@ -47,7 +48,7 @@ const num = (v: unknown): number => {
 
 const jsonNum = (j: Record<string, string | number> | null, key: string): number => num(j?.[key]);
 
-export function rowToGameStats(row: TeamGameStatsRow): GameStats {
+export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): GameStats {
   const pointsFor = num(row.points_for);
   const pointsAgainst = num(row.points_against);
   const pass = num(row.off_pass_yards);
@@ -81,8 +82,10 @@ export function rowToGameStats(row: TeamGameStatsRow): GameStats {
     pointsFor,
     pointsAgainst,
     margin: pointsFor - pointsAgainst,
-    isPlayoff: week > 18,
-    isSuperBowl: week >= 22,
+    // "SuperBowl" here means the season's final championship game — week 22 for
+    // NFL-style games (madden_26/27), week 17 (national_championship) for CFB.
+    isPlayoff: week > regularSeasonWeeks(game),
+    isSuperBowl: week >= (isCfb(game) ? 17 : 22),
 
     passingYards: pass,
     rushingYards: rush,

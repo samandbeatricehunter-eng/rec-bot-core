@@ -102,6 +102,7 @@ export async function listScheduleTeams(guildId: string) {
       id: context.leagueId,
       seasonNumber: Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1),
       currentWeek: Number(context.rec_leagues.current_week ?? 1),
+      game: context.rec_leagues.game ?? null,
     },
     teams: data ?? [],
   };

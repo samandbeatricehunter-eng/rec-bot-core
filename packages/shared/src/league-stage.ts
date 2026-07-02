@@ -6,13 +6,18 @@
 
 export type LeagueGame = "madden_26" | "madden_27" | "cfb_27" | string | null | undefined;
 
-function isCfb(game: LeagueGame) {
+export function isCfb(game: LeagueGame) {
   return game === "cfb_27";
 }
 
 /** Last week number of the regular season for this game. */
 export function regularSeasonWeeks(game: LeagueGame): number {
   return isCfb(game) ? 12 : 18;
+}
+
+/** Last week number of the whole season (regular season + postseason) for this game. */
+export function maxSeasonWeek(game: LeagueGame): number {
+  return isCfb(game) ? 17 : 22;
 }
 
 /** Stages where the league plays scheduled games that may need commissioner advance input. */

@@ -6,8 +6,10 @@ import {
   MessageFlags,
   type ButtonInteraction,
 } from "discord.js";
+import { isEosPayoutEligibleStage } from "@rec/shared";
 import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
 import { COLORS } from "../lib/colors.js";
+import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { MENU_CUSTOM_IDS } from "../ui/menu.js";
@@ -78,7 +80,12 @@ export async function handleEosProjections(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "view EOS projections");
   await interaction.deferUpdate();
-  const result = await recApi.projectEosPayouts({ guildId: interaction.guildId });
+  let result: any;
+  try {
+    result = await recApi.projectEosPayouts({ guildId: interaction.guildId });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Projections").setColor(COLORS.error).setDescription(userFacingError(err))], components: [] });
+  }
   const session = { pages: groupProjectionPages(result.items ?? []), page: 0 };
   eosProjectionSessions.set(interaction.user.id, session);
   return interaction.editReply(renderEosProjectionSession(session));
@@ -157,12 +164,17 @@ export async function handleEosPayouts(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "run EOS payouts");
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
-  const currentWeek = Number(week?.league?.current_week ?? 1);
-  if (currentWeek < 19 || currentWeek > 22) {
-    return interaction.reply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts").setDescription("EOS payouts cannot be issued until the active regular season concludes. They are available from Wild Card through Super Bowl week.")], flags: MessageFlags.Ephemeral });
+  const currentStage = String(week?.league?.season_stage ?? "regular_season");
+  if (!isEosPayoutEligibleStage(currentStage, week?.league?.game ?? null)) {
+    return interaction.reply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts").setDescription("EOS payouts cannot be issued until the active regular season concludes. They are available from the start of the postseason through the championship game.")], flags: MessageFlags.Ephemeral });
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await recApi.prepareEosPayouts({ guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+  let result: any;
+  try {
+    result = await recApi.prepareEosPayouts({ guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payouts Failed").setColor(COLORS.error).setDescription(userFacingError(err))] });
+  }
   const items: any[] = result?.items ?? [];
   const pending = items.filter((item) => item.status === "pending").length;
   const issued = items.filter((item) => item.status === "issued").length;
@@ -211,13 +223,18 @@ export async function handleReviewEosUserPayouts(interaction: ButtonInteraction,
   const [batchId, userId] = interaction.customId.slice(prefix.length).split(":");
   if (!batchId || !userId) return interaction.reply({ content: "EOS payout review payload was missing.", flags: MessageFlags.Ephemeral });
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const result = await recApi.reviewEosPayoutsForUser({
-    batchId,
-    userId,
-    action,
-    reviewedByDiscordId: interaction.user.id,
-    deniedReason: action === "deny" ? "Denied by commissioner review." : null,
-  });
+  let result: any;
+  try {
+    result = await recApi.reviewEosPayoutsForUser({
+      batchId,
+      userId,
+      action,
+      reviewedByDiscordId: interaction.user.id,
+      deniedReason: action === "deny" ? "Denied by commissioner review." : null,
+    });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle(`EOS Payouts ${action === "approve" ? "Approval" : "Denial"} Failed`).setColor(COLORS.error).setDescription(userFacingError(err))] });
+  }
   await dmEosPayoutResult(interaction, result);
   if (interaction.message?.editable) {
     const embeds = interaction.message.embeds.map((embed: any) => {
@@ -247,7 +264,12 @@ export async function handleIssueEosPayoutBatch(interaction: ButtonInteraction) 
   const batchId = interaction.customId.slice(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix.length);
   if (!batchId) return interaction.reply({ content: "EOS payout batch was missing.", flags: MessageFlags.Ephemeral });
   await interaction.deferUpdate();
-  const result = await recApi.issueEosPayoutBatch({ batchId, reviewedByDiscordId: interaction.user.id });
+  let result: any;
+  try {
+    result = await recApi.issueEosPayoutBatch({ batchId, reviewedByDiscordId: interaction.user.id });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Payout Issue Failed").setColor(COLORS.error).setDescription(userFacingError(err))], components: [] });
+  }
   const failed: any[] = result?.failed ?? [];
   const issuedCount = Number(result?.issuedCount ?? 0);
   const remainingPending = (result?.items ?? []).filter((item: any) => item.status === "pending").length;

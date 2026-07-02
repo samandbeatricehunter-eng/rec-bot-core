@@ -16,7 +16,7 @@ import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { teamDisplayAbbr, teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type RosterConference, type RosterTeam } from "../ui/menu.js";
-import { canonicalConferenceName, CONFERENCE_ORDER } from "@rec/shared";
+import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, regularSeasonWeeks } from "@rec/shared";
 
 export const SCHEDULE_MGMT_CUSTOM_IDS = {
   manualWeekSelect: "rec:schedule_manual:week",
@@ -61,6 +61,7 @@ type ManualScheduleSession = {
   userId: string;
   seasonNumber: number;
   currentWeek: number;
+  game: string | null;
   weekNumber: number;
   teams: ManualTeam[];
   selectedTeamIds: string[];
@@ -132,13 +133,6 @@ export async function renderScheduleMenu(interaction: ButtonInteraction) {
       components: buildScheduleRows()
     });
   }
-}
-
-export async function renderSchedulePlaceholder(interaction: ButtonInteraction, title: string, description: string) {
-  return interaction.reply({
-    embeds: [new EmbedBuilder().setTitle(title).setDescription(description)],
-    ephemeral: true
-  });
 }
 
 function fmtPct(n: number) {
@@ -428,6 +422,7 @@ export async function startManualScheduleEntry(interaction: ButtonInteraction) {
       userId: interaction.user.id,
       seasonNumber: Number(data?.league?.seasonNumber ?? 1),
       currentWeek: Number(data?.league?.currentWeek ?? 1),
+      game: data?.league?.game ?? null,
       weekNumber: 1,
       teams,
       selectedTeamIds: [],
@@ -779,6 +774,7 @@ export async function startPostSetupManualScheduleEntry(interaction: ButtonInter
       userId: interaction.user.id,
       seasonNumber: Number(data?.league?.seasonNumber ?? 1),
       currentWeek: Number(data?.league?.currentWeek ?? 1),
+      game: data?.league?.game ?? null,
       weekNumber: 1,
       teams,
       selectedTeamIds: [],
@@ -885,6 +881,18 @@ async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, s
 }
 
 function expectedGamesForWeek(session: ManualScheduleSession) {
+  if (isCfb(session.game)) {
+    // 12-team CFP: 4 first-round games, 4 quarterfinals, 2 semifinals, a bye week
+    // (zero games), then the national championship.
+    switch (session.weekNumber) {
+      case 13: return 4; // CFP First Round
+      case 14: return 4; // CFP Quarterfinals
+      case 15: return 2; // CFP Semifinals
+      case 16: return 0; // Bye Week
+      case 17: return 1; // National Championship
+      default: return Math.floor(session.teams.length / 2);
+    }
+  }
   // Playoff rounds have a fixed number of games per conference; everything else
   // is a full slate (one game per pair of teams).
   switch (session.weekNumber) {
@@ -910,11 +918,20 @@ function conferencesPresent(teams: ManualTeam[]): string[] {
   return [...present].sort((a, b) => (CONFERENCE_ORDER.indexOf(a) + 1 || 99) - (CONFERENCE_ORDER.indexOf(b) + 1 || 99));
 }
 
+function manualWeekLabel(session: ManualScheduleSession, week: number): string {
+  const lastRegularWeek = regularSeasonWeeks(session.game ?? null);
+  if (week <= lastRegularWeek) return `Week ${week}`;
+  const postseasonLabels = isCfb(session.game)
+    ? ["CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "Bye Week", "National Championship"]
+    : ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
+  return postseasonLabels[week - lastRegularWeek - 1] ?? `Week ${week}`;
+}
+
 function renderManualWeekPicker(session: ManualScheduleSession) {
-  const options = Array.from({ length: 22 }, (_, idx) => {
+  const totalWeeks = isCfb(session.game) ? 17 : 22;
+  const options = Array.from({ length: totalWeeks }, (_, idx) => {
     const week = idx + 1;
-    const label = week <= 18 ? `Week ${week}` : ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"][week - 19] ?? `Week ${week}`;
-    return new StringSelectMenuOptionBuilder().setLabel(label).setValue(String(week));
+    return new StringSelectMenuOptionBuilder().setLabel(manualWeekLabel(session, week)).setValue(String(week));
   });
   return {
     embeds: [new EmbedBuilder()
@@ -937,8 +954,9 @@ function renderManualEntry(session: ManualScheduleSession) {
     return `${idx + 1}. ${away} at ${home}`;
   });
   const expected = expectedGamesForWeek(session);
+  const weekLabel = manualWeekLabel(session, session.weekNumber);
   const description = [
-    `Week ${session.weekNumber} manual entry`,
+    `${weekLabel} manual entry`,
     "",
     "**Selection order matters:** first selected team is Away, second selected team is Home.",
     selected.length ? selected.join("\n") : "No teams selected for the next matchup.",
@@ -950,7 +968,7 @@ function renderManualEntry(session: ManualScheduleSession) {
 
   return {
     embeds: [new EmbedBuilder()
-      .setTitle(session.mode === "post_setup" ? `League Setup: Enter Schedule - Week ${session.weekNumber}` : "Manual Schedule")
+      .setTitle(session.mode === "post_setup" ? `League Setup: Enter Schedule - ${weekLabel}` : "Manual Schedule")
       .setDescription(description.slice(0, 4096))
       .setColor(session.warnedIncomplete ? 0xf1c40f : 0x3498db)],
     components: [...teamSelectRows(session), ...actionRows(session)],

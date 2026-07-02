@@ -13,6 +13,8 @@ import {
   type ModalSubmitInteraction,
 } from "discord.js";
 import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
+import { COLORS } from "../lib/colors.js";
+import { userFacingError } from "../lib/errors.js";
 import { stageLabel } from "../lib/league-stage.js";
 import { recApi } from "../lib/rec-api.js";
 import { MENU_CUSTOM_IDS } from "../ui/menu.js";
@@ -96,7 +98,12 @@ export async function handleSetWeekSelect(interaction: any, buildAdvanceMgmtRows
   const [rawStage, rawWeek] = String(interaction.values[0] ?? "regular:1").split(":");
   const weekNumber = Math.max(1, Number(rawWeek) || 1);
   const seasonStage = rawStage === "regular" ? stageFromWeekNumber(weekNumber) : rawStage;
-  const result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
+  let result: any;
+  try {
+    result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set Week Failed").setColor(COLORS.error).setDescription(userFacingError(err))], components: buildAdvanceMgmtRows() });
+  }
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Week Set").setDescription(`League is now set to **${stageLabel(seasonStage, weekNumber)}**.${formatSavingsInterestSummary(result)}`)],
     components: buildAdvanceMgmtRows()
@@ -160,7 +167,11 @@ export async function handleSetSeasonSelect(interaction: any, buildAdvanceMgmtRo
       )));
   }
   await interaction.deferUpdate();
-  await updateLeagueSeason(interaction.guildId, Number(selected));
+  try {
+    await updateLeagueSeason(interaction.guildId, Number(selected));
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set Season Failed").setColor(COLORS.error).setDescription(userFacingError(err))], components: buildAdvanceMgmtRows() });
+  }
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Season Set").setDescription(`League season is now **Season ${Number(selected)}**.`)],
     components: buildAdvanceMgmtRows()
@@ -175,7 +186,11 @@ export async function handleSetSeasonManual(interaction: ModalSubmitInteraction,
     return interaction.reply({ content: "Manual season number must be 25 or higher.", flags: MessageFlags.Ephemeral });
   }
   await interaction.deferUpdate();
-  await updateLeagueSeason(interaction.guildId, seasonNumber);
+  try {
+    await updateLeagueSeason(interaction.guildId, seasonNumber);
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set Season Failed").setColor(COLORS.error).setDescription(userFacingError(err))], components: buildAdvanceMgmtRows() });
+  }
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Season Set").setDescription(`League season is now **Season ${seasonNumber}**.`)],
     components: buildAdvanceMgmtRows()
