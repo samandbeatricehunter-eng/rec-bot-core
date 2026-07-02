@@ -587,7 +587,7 @@ export const recApi = {
     recFetch<any>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({}) }),
   listLegendAvailability: (guildId: string) =>
     recFetch<any>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
-  purchaseLegend: (input: { guildId: string; discordId: string; legendId: string }) =>
+  purchaseLegend: (input: { guildId: string; discordId: string; legendId: string; replacePlayerRequest?: string | null }) =>
     recFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify(input) }),
 
   saveManualScheduleGame: (input: {

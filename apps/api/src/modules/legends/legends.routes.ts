@@ -31,6 +31,7 @@ export async function legendRoutes(app: FastifyInstance) {
         guildId: z.string().min(1),
         discordId: z.string().min(1),
         legendId: z.string().uuid(),
+        replacePlayerRequest: z.string().max(80).optional().nullable(),
       }).parse(request.body);
       return reply.send(await createLegendPurchaseRequest(body));
     } catch (error) {

@@ -11,9 +11,13 @@ import {
   ButtonStyle,
   EmbedBuilder,
   MessageFlags,
+  ModalBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   type ButtonInteraction,
+  type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
@@ -31,6 +35,8 @@ export const LEGENDS_CUSTOM_IDS = {
   availableSelect: "rec:legend:avail",
   confirmPurchase: "rec:legend:confirm",
   backToBrowse: "rec:legend:back_browse",
+  replaceModal: "rec:legend:replace_modal",
+  replaceInput: "rec:legend:replace_input",
 } as const;
 
 // Must match PURCHASE_CUSTOM_IDS.approvePrefix/denyPrefix in flows/purchases.ts — kept
@@ -309,12 +315,44 @@ export async function handleLegendConfirmPurchase(interaction: ButtonInteraction
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Legends").setColor(COLORS.error).setDescription(`${legend.name} has already been purchased in this league.`)], components: [backRow()] });
   }
 
+  return interaction.showModal(new ModalBuilder()
+    .setCustomId(LEGENDS_CUSTOM_IDS.replaceModal)
+    .setTitle(`Confirm — ${legend.name}`.slice(0, 45))
+    .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(
+      new TextInputBuilder()
+        .setCustomId(LEGENDS_CUSTOM_IDS.replaceInput)
+        .setLabel("Player to replace (optional)")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false)
+        .setMaxLength(80)
+        .setPlaceholder("Leave blank to replace your lowest-OVR player at this position"))));
+}
+
+export async function handleLegendReplaceModalSubmit(interaction: ModalSubmitInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  const session = getSession(interaction.user.id);
+  if (!session || session.view !== "detail" || !session.group) {
+    await interaction.deferUpdate();
+    return interaction.editReply({ embeds: [expiredEmbed()], components: [backRow()] });
+  }
+  const list = groupLegends(session);
+  const legend = list[session.legendIndex];
+  if (!legend) {
+    await interaction.deferUpdate();
+    return interaction.editReply({ embeds: [expiredEmbed()], components: [backRow()] });
+  }
+  if (session.soldIds.has(legend.id)) {
+    await interaction.deferUpdate();
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Legends").setColor(COLORS.error).setDescription(`${legend.name} has already been purchased in this league.`)], components: [backRow()] });
+  }
+  const replacePlayerRequest = interaction.fields.getTextInputValue(LEGENDS_CUSTOM_IDS.replaceInput).trim() || null;
+
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Submitting Purchase...").setDescription(`Requesting **${legend.name}** ($${REC_LEGEND_PRICE}).`)], components: [] });
 
   let result: any;
   try {
-    result = await recApi.purchaseLegend({ guildId: interaction.guildId, discordId: interaction.user.id, legendId: legend.id });
+    result = await recApi.purchaseLegend({ guildId: interaction.guildId, discordId: interaction.user.id, legendId: legend.id, replacePlayerRequest });
   } catch (err) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Purchase Failed").setColor(COLORS.error).setDescription(userError(err))], components: [backRow()] });
   }
@@ -343,7 +381,10 @@ export async function handleLegendConfirmPurchase(interaction: ButtonInteraction
       .setDescription([
         `**${legend.name}** (${legend.position}) — $${result.price ?? REC_LEGEND_PRICE} deducted. Wallet: **$${result.walletBalance}**.`,
         "",
-        "Once a commissioner approves, they'll install the legend on your roster in-game, replacing your lowest-OVR player at that position.",
+        replacePlayerRequest
+          ? `Once a commissioner approves, they'll install the legend in-game, replacing **${replacePlayerRequest}** as you requested.`
+          : "Once a commissioner approves, they'll install the legend in-game, replacing your lowest-OVR player at this position.",
+        "The legend is installed on a 7-year contract at the lowest contract value (if the salary cap is on).",
         posted ? "Sent to Pending Purchases for review." : "No Pending Purchases channel is configured — ask a commissioner to review it.",
       ].join("\n"))],
     components: [backRow()],
@@ -369,7 +410,10 @@ function buildLegendPendingEmbed(purchase: any, buyerDiscordId: string): EmbedBu
       "",
       `**Cost:** $${purchase.cost ?? REC_LEGEND_PRICE}`,
       "",
-      "Once approved, install this legend on the buyer's roster in-game, replacing their lowest-OVR player at this position.",
+      d.replacePlayerRequest
+        ? `**Replace:** ${d.replacePlayerRequest} (buyer's request)`
+        : "**Replace:** the buyer's lowest-OVR player at this position (no specific request made).",
+      "**Contract:** install on a 7-year deal at the lowest contract value (if the salary cap is on).",
     ].filter(Boolean).join("\n"));
 
   embed.addFields(

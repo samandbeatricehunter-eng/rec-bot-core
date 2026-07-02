@@ -182,6 +182,7 @@ import {
   handleLegendDetailNav,
   handleLegendGroupSelect,
   handleLegendPageButton,
+  handleLegendReplaceModalSubmit,
 } from "./flows/legends.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import {
@@ -774,6 +775,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction, buildAdvanceMgmtRows);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseModal(interaction);
+      if (interaction.customId === LEGENDS_CUSTOM_IDS.replaceModal) return handleLegendReplaceModalSubmit(interaction);
     }
   } catch (error) {
     await safeInteractionError(interaction, error);

@@ -55,7 +55,7 @@ async function purchasingTeam(leagueId: string, discordId: string): Promise<{ te
   return { teamId: assignment.data?.team_id ?? null, teamName: team?.name ?? team?.display_abbr ?? team?.abbreviation ?? null };
 }
 
-export async function createLegendPurchaseRequest(input: { guildId: string; discordId: string; legendId: string }) {
+export async function createLegendPurchaseRequest(input: { guildId: string; discordId: string; legendId: string; replacePlayerRequest?: string | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
 
   const legend = await supabase.from("rec_legend_catalog").select("*").eq("id", input.legendId).maybeSingle();
@@ -85,6 +85,9 @@ export async function createLegendPurchaseRequest(input: { guildId: string; disc
     attributes: legend.data.attributes,
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,
+    // Buyer's requested replacement player, if any. When blank, the installing
+    // admin defaults to replacing the roster's lowest-OVR player at this position.
+    replacePlayerRequest: input.replacePlayerRequest?.trim() || null,
   };
 
   return createPurchaseRequest({ guildId: input.guildId, discordId: input.discordId, purchaseType: "legend", details });
