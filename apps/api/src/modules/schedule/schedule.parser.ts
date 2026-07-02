@@ -2,10 +2,9 @@ import Tesseract from "tesseract.js";
 import {
   fetchImageBuffer,
   flattenPageWords,
-  getWorker,
   groupIntoRows,
   preprocessImage,
-  withOcrLock,
+  recognizeWithPool,
   type NormalizedWord,
   type PreprocessVariant,
 } from "../box-score/box-score.parser.js";
@@ -82,9 +81,8 @@ function extractWords(page: Tesseract.Page, width: number, height: number): Norm
 }
 
 async function extractWordsForVariant(buffer: Buffer, variant: PreprocessVariant): Promise<NormalizedWord[]> {
-  const worker = await getWorker();
   const { processed, width, height } = await preprocessImage(buffer, variant);
-  const result = await withOcrLock(() => worker.recognize(processed, undefined, { blocks: true }));
+  const result = await recognizeWithPool(processed, undefined, { blocks: true });
   return extractWords(result.data, width, height);
 }
 

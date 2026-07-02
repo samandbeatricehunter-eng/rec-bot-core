@@ -1,31 +1,42 @@
 import Tesseract from "tesseract.js";
 
-// Singleton worker — initialized once, reused across requests.
-let _worker: Tesseract.Worker | null = null;
-let _workerInitializing: Promise<Tesseract.Worker> | null = null;
-let _ocrChain: Promise<unknown> = Promise.resolve();
+// Pooled Tesseract workers behind a Scheduler — recognizeWithPool() dispatches to
+// whichever worker is free, so concurrent box-score uploads across leagues run OCR
+// in parallel (bounded by pool size) instead of serializing one-at-a-time behind a
+// single worker. Pool size is intentionally small: each worker is a real Tesseract
+// process/thread, so this trades memory for throughput.
+const OCR_POOL_SIZE = Number(process.env.OCR_WORKER_POOL_SIZE ?? 3);
 
-export function withOcrLock<T>(fn: () => Promise<T>): Promise<T> {
-  const run = _ocrChain.then(fn, fn);
-  _ocrChain = run.then(() => undefined, () => undefined);
-  return run;
+let _scheduler: Tesseract.Scheduler | null = null;
+let _schedulerInitializing: Promise<Tesseract.Scheduler> | null = null;
+
+async function getScheduler(): Promise<Tesseract.Scheduler> {
+  if (_scheduler) return _scheduler;
+  if (_schedulerInitializing) return _schedulerInitializing;
+  _schedulerInitializing = (async () => {
+    const scheduler = Tesseract.createScheduler();
+    const workers = await Promise.all(
+      Array.from({ length: Math.max(1, OCR_POOL_SIZE) }, () => Tesseract.createWorker("eng")),
+    );
+    for (const worker of workers) scheduler.addWorker(worker);
+    _scheduler = scheduler;
+    _schedulerInitializing = null;
+    return scheduler;
+  })();
+  return _schedulerInitializing;
 }
 
-export async function getWorker(): Promise<Tesseract.Worker> {
-  if (_worker) return _worker;
-  if (_workerInitializing) return _workerInitializing;
-  _workerInitializing = Tesseract.createWorker("eng").then((w) => {
-    _worker = w;
-    _workerInitializing = null;
-    return w;
-  });
-  return _workerInitializing;
+export async function recognizeWithPool(
+  ...args: Parameters<Tesseract.Worker["recognize"]>
+): Promise<Tesseract.RecognizeResult> {
+  const scheduler = await getScheduler();
+  return scheduler.addJob("recognize", ...args);
 }
 
 export async function terminateTesseractWorker() {
-  if (_worker) {
-    await _worker.terminate();
-    _worker = null;
+  if (_scheduler) {
+    await _scheduler.terminate();
+    _scheduler = null;
   }
 }
 

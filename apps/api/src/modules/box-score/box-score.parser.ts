@@ -35,12 +35,11 @@ import {
   ALL_STAT_KEYS,
   STATS_Y_MIN,
   computeMissingRequired,
-  getWorker,
   hasBothSides,
   hasIncompleteRequiredCell,
   hasValue,
+  recognizeWithPool,
   terminateTesseractWorker,
-  withOcrLock,
   type LabelAliases,
   type NormalizedWord,
   type ParsedBoxScore,
@@ -49,7 +48,7 @@ import {
 } from "./box-score.parser.types.js";
 
 // ─── Re-exports: OCR worker lifecycle ───────────────────────────────────────
-export { withOcrLock, getWorker, terminateTesseractWorker, flattenPageWords, preprocessImage, groupIntoRows };
+export { recognizeWithPool, terminateTesseractWorker, flattenPageWords, preprocessImage, groupIntoRows };
 
 // ─── Re-exports: shared types ───────────────────────────────────────────────
 export type {

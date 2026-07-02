@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import Tesseract, { type Page as TesseractPage } from "tesseract.js";
-import { getWorker, withOcrLock, LEFT_VAL_X_MAX, RIGHT_VAL_X_MIN, type NormalizedWord } from "./box-score.parser.types.js";
+import { recognizeWithPool, LEFT_VAL_X_MAX, RIGHT_VAL_X_MIN, type NormalizedWord } from "./box-score.parser.types.js";
 import { statZoneMinY } from "./box-score.parser.stats.js";
 
 // ─── Image preprocessing ─────────────────────────────────────────────────────
@@ -67,8 +67,7 @@ export function flattenPageWords(page: TesseractPage): Tesseract.Word[] {
 
 export async function extractNormalizedWords(buffer: Buffer, variant: PreprocessVariant = "default"): Promise<{ words: NormalizedWord[]; width: number; height: number }> {
   const { processed, width, height } = await preprocessImage(buffer, variant);
-  const worker = await getWorker();
-  const result = await withOcrLock(() => worker.recognize(processed, undefined, { blocks: true }));
+  const result = await recognizeWithPool(processed, undefined, { blocks: true });
 
   const rawWords = flattenPageWords(result.data);
 
@@ -215,7 +214,6 @@ export async function extractRightColumnWords(buffer: Buffer): Promise<Normalize
   const cropWidth = Math.max(1, Math.round(actualWidth * RIGHT_COL_CROP_FRAC));
   const cropLeft = actualWidth - cropWidth;
 
-  const worker = await getWorker();
   const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft"];
   const allWords: NormalizedWord[] = [];
 
@@ -224,7 +222,7 @@ export async function extractRightColumnWords(buffer: Buffer): Promise<Normalize
       .extract({ left: cropLeft, top: 0, width: cropWidth, height: actualHeight })
       .toBuffer();
     const processed = await preprocessColumnCrop(crop, cropWidth, actualHeight, variant);
-    const result = await withOcrLock(() => worker.recognize(processed, undefined, { blocks: true }));
+    const result = await recognizeWithPool(processed, undefined, { blocks: true });
     allWords.push(...mapRightCropWords(flattenPageWords(result.data), cropWidth * 2, actualHeight * 2));
   }
 
@@ -243,13 +241,12 @@ export async function extractLeftColumnWords(buffer: Buffer): Promise<Normalized
   const actualHeight = resizedMeta.height ?? 1080;
   const cropWidth = Math.max(1, Math.round(actualWidth * LEFT_COL_CROP_FRAC));
 
-  const worker = await getWorker();
   const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft"];
   const allWords: NormalizedWord[] = [];
 
   for (const variant of variants) {
     const processed = await preprocessLeftCrop(resized, cropWidth, actualHeight, variant);
-    const result = await withOcrLock(() => worker.recognize(processed, undefined, { blocks: true }));
+    const result = await recognizeWithPool(processed, undefined, { blocks: true });
     allWords.push(...mapLeftCropWords(flattenPageWords(result.data), cropWidth * 2, actualHeight * 2));
   }
 
