@@ -128,10 +128,13 @@ export async function startScheduleImportOneWeek(interaction: ButtonInteraction,
   sessions.delete(key(interaction.guildId, interaction.user.id));
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const game: string | null = week?.league?.game ?? null;
+  // CFB's bye week has zero scheduled games — no screenshot to import, so skip it.
+  const weekOptions = Array.from({ length: maxSingleImportWeek(game) }, (_, i) => i + 1)
+    .filter((w) => !(isCfb(game) && w === 16));
   const select = new StringSelectMenuBuilder()
     .setCustomId(SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect)
     .setPlaceholder("Select the week to import")
-    .addOptions(Array.from({ length: maxSingleImportWeek(game) }, (_, i) => new StringSelectMenuOptionBuilder().setLabel(importWeekLabel(i + 1, game)).setValue(String(i + 1))));
+    .addOptions(weekOptions.map((w) => new StringSelectMenuOptionBuilder().setLabel(importWeekLabel(w, game)).setValue(String(w))));
   return interaction.update({
     embeds: [new EmbedBuilder().setTitle("Upload One Week").setDescription("Pick the week you're importing, then upload its schedule screenshot(s).")],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select), ...buildScheduleRows()],

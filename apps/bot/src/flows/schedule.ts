@@ -929,10 +929,10 @@ function manualWeekLabel(session: ManualScheduleSession, week: number): string {
 
 function renderManualWeekPicker(session: ManualScheduleSession) {
   const totalWeeks = isCfb(session.game) ? 17 : 22;
-  const options = Array.from({ length: totalWeeks }, (_, idx) => {
-    const week = idx + 1;
-    return new StringSelectMenuOptionBuilder().setLabel(manualWeekLabel(session, week)).setValue(String(week));
-  });
+  // CFB's bye week has zero scheduled games — nothing to manually enter, so skip it.
+  const options = Array.from({ length: totalWeeks }, (_, idx) => idx + 1)
+    .filter((week) => !(isCfb(session.game) && week === 16))
+    .map((week) => new StringSelectMenuOptionBuilder().setLabel(manualWeekLabel(session, week)).setValue(String(week)));
   return {
     embeds: [new EmbedBuilder()
       .setTitle("Manual Schedule")

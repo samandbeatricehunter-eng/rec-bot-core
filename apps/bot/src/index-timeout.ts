@@ -1,6 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
-import { registerApplicationCommands, registerGuildCommands } from "./commands.js";
+import { registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction, replyFullAdminOnly } from "./lib/admin.js";
 import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
@@ -1522,8 +1522,11 @@ async function handleStreamReviewButton(interaction: any) {
   }
 }
 
-await registerApplicationCommands().catch((error) => {
-  console.error("Failed to register Discord application commands before startup", error);
-});
+// Guild-scoped commands are registered on `clientReady` (registerCommandsForVisibleGuilds,
+// covers every guild the bot is already in) and on `guildCreate` (newly joined guilds) — both
+// instant. Global registration is a separate, deliberate one-time action (`pnpm --filter
+// @rec/bot register`), not run automatically here: registering both scopes for every guild
+// on every startup made Discord show "/menu" twice in every server (global + guild commands
+// with the same name don't dedupe in Discord's UI).
 
 await client.login(env.DISCORD_TOKEN);
