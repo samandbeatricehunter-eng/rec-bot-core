@@ -1,9 +1,17 @@
 import type { FastifyInstance } from "fastify";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { CreateLeagueSchema, RegisterServerSchema, UpdateServerRoutesSchema } from "./setup.schemas.js";
+import { CreateLeagueSchema, GetLeagueTeamConferencesSchema, RegisterServerSchema, UpdateServerRoutesSchema, UpdateTeamConferenceSchema } from "./setup.schemas.js";
 import { createLeagueForServer } from "./setup-season.service.js";
-import { registerServer, updateServerRoutes, getLeagueConfigAsDraft, updateLeagueConfig, deleteLeagueData } from "./setup.service.js";
+import {
+  registerServer,
+  updateServerRoutes,
+  getLeagueConfigAsDraft,
+  updateLeagueConfig,
+  deleteLeagueData,
+  getLeagueTeamConferences,
+  updateTeamConference
+} from "./setup.service.js";
 
 export async function setupRoutes(app: FastifyInstance) {
   app.post("/v1/setup/server/register", async (request, reply) => {
@@ -55,6 +63,25 @@ export async function setupRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await deleteLeagueData(request.body as any));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/setup/league/teams/conferences", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const input = GetLeagueTeamConferencesSchema.parse(request.body);
+      return reply.send(await getLeagueTeamConferences(input.guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/setup/league/teams/conference", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      return reply.send(await updateTeamConference(UpdateTeamConferenceSchema.parse(request.body)));
     } catch (error) {
       return sendError(reply, error);
     }

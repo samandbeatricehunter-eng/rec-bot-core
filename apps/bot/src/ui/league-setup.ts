@@ -93,7 +93,16 @@ export {
   buildCfbToggleWindow,
   buildInjuryPolicyWindow,
   buildPlayCallNumberWindow,
-  buildRoleWindow
+  buildRoleWindow,
+  buildFranchiseSettingsWindow,
+  buildAssistSettingsWindow,
+  buildCoachModeSettingsWindow,
+  COACH_MODE_SUB_SETTINGS,
+  buildConferenceAssignmentsWindow,
+  buildConferenceGroupWindow,
+  buildConferenceTargetWindow,
+  conferenceGroupBrowseCustomId,
+  conferenceAssignTargetCustomId
 } from "./league-setup-gameplay.js";
 
 export {

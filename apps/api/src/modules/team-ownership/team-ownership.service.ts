@@ -42,7 +42,7 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     league_id: league.id,
     name: team.name,
     abbreviation: team.abbreviation,
-    conference: team.conference,
+    conference: input.conferenceOverrides?.[normalizeAbbreviation(team.abbreviation)] ?? team.conference,
     division: team.division,
     source: "manual_admin_entry"
   }));

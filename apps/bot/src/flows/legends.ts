@@ -85,7 +85,7 @@ type LegendRow = {
   id: string; name: string; position: string; position_group: "offense" | "defense";
   est_ovr: number; height: string | null; weight: number | null; hand: string | null;
   jersey_number: number | null; dev_trait: string | null; archetype: string | null;
-  build_note: string | null; attributes: Record<string, number>;
+  build_note: string | null; college: string | null; attributes: Record<string, number>;
 };
 
 type LegendSession = {
@@ -96,6 +96,8 @@ type LegendSession = {
   group: string | null;
   legendIndex: number;
   at: number;
+  // Campus Legends (CFB) always carry a college; Madden Legends never do.
+  isCfb: boolean;
 };
 
 const sessions = new Map<string, LegendSession>();
@@ -130,7 +132,7 @@ export async function openLegendsBrowse(interaction: ButtonInteraction | StringS
   let catalog: any, availability: any;
   try {
     [catalog, availability] = await Promise.all([
-      recApi.listLegendCatalog(),
+      recApi.listLegendCatalog(interaction.guildId),
       recApi.listLegendAvailability(interaction.guildId),
     ]);
   } catch (err) {
@@ -139,7 +141,8 @@ export async function openLegendsBrowse(interaction: ButtonInteraction | StringS
 
   const legends: LegendRow[] = catalog?.legends ?? [];
   const soldIds = new Set<string>(availability?.soldLegendIds ?? []);
-  sessions.set(interaction.user.id, { legends, soldIds, view: "browse", side: "offense", group: null, legendIndex: 0, at: Date.now() });
+  const isCfb = legends.some((l) => Boolean(l.college));
+  sessions.set(interaction.user.id, { legends, soldIds, view: "browse", side: "offense", group: null, legendIndex: 0, at: Date.now(), isCfb });
   return interaction.editReply(buildBrowsePayload(sessions.get(interaction.user.id)!));
 }
 
@@ -165,9 +168,10 @@ function buildBrowsePayload(session: LegendSession) {
     .setPlaceholder("Select a position group for full details")
     .addOptions(ALL_GROUPS.map((pos) => new StringSelectMenuOptionBuilder().setLabel(pos).setValue(pos)));
 
+  const storeName = session.isCfb ? "Campus Legends" : "Legends";
   return {
     embeds: [new EmbedBuilder()
-      .setTitle(`Legends — ${side === "offense" ? "Offense" : "Defense"} (Page ${side === "offense" ? 1 : 2} of 2)`)
+      .setTitle(`${storeName} — ${side === "offense" ? "Offense" : "Defense"} (Page ${side === "offense" ? 1 : 2} of 2)`)
       .setColor(COLORS.purple)
       .setDescription([`$${REC_LEGEND_PRICE} each. ~~Struck-through~~ names are already purchased in this league.`, "", ...lines].join("\n"))],
     components: [pageRow, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(groupMenu), backRow()],
@@ -201,6 +205,7 @@ function buildDetailPayload(session: LegendSession) {
     .setDescription([
       sold ? "**SOLD — already purchased in this league.**" : `**$${REC_LEGEND_PRICE}** — available for purchase.`,
       "",
+      legend.college ? `College: ${legend.college}` : "",
       `Height: ${legend.height ?? "—"}  |  Weight: ${legend.weight ?? "—"}  |  Hand: ${legend.hand ?? "—"}`,
       `Dev Trait: ${legend.dev_trait ?? "—"}  |  Archetype: ${legend.archetype ?? "—"}`,
       legend.build_note ? `_${legend.build_note}_` : "",
@@ -403,6 +408,7 @@ function buildLegendPendingEmbed(purchase: any, buyerDiscordId: string): EmbedBu
     .setDescription([
       `**Buyer:** <@${buyerDiscordId}>`,
       `**Team:** ${d.purchasingTeamName ?? "Unknown"}`,
+      d.college ? `**College:** ${d.college}` : "",
       `**Position:** ${d.position ?? "—"}  |  **Est. OVR:** ${d.estOvr ?? "—"}`,
       `**Height/Weight:** ${d.height ?? "—"} / ${d.weight ?? "—"}  |  **Hand:** ${d.hand ?? "—"}  |  **Jersey:** ${d.jerseyNumber ?? "—"}`,
       `**Dev Trait:** ${d.devTrait ?? "—"}  |  **Archetype:** ${d.archetype ?? "—"}`,

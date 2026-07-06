@@ -8,7 +8,8 @@ export async function legendRoutes(app: FastifyInstance) {
   app.post("/v1/legends/catalog", async (request, reply) => {
     try {
       requireInternalApiKey(request);
-      return reply.send(await listLegendCatalog());
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      return reply.send(await listLegendCatalog(body.guildId));
     } catch (error) {
       return sendError(reply, error);
     }

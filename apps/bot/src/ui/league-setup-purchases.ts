@@ -333,9 +333,13 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
   const enabled = Boolean(draft[config.enabledKey]);
   // CFB calls these "Custom Recruits" rather than "Custom Players".
   const isCfbRecruits = draft.game === "cfb_27" && draft.step === "custom_players";
-  const title = isCfbRecruits ? "Custom Recruits" : config.title;
+  // CFB calls Legends "Campus Legends" and it's a plain toggle — no season/all-time caps.
+  const isCfbCampusLegends = draft.game === "cfb_27" && draft.step === "legends";
+  const title = isCfbRecruits ? "Custom Recruits" : isCfbCampusLegends ? "Campus Legends" : config.title;
   const description = isCfbRecruits
     ? "Custom Recruits: Allows users to purchase and create custom recruits added to the recruiting pool and reserved for their program. Recruits are built using template archetypes and a range of 'creation points' based on how much the user spends when purchasing the recruit package."
+    : isCfbCampusLegends
+    ? "Campus Legends: Allows users to purchase college football legends to be added to their program instantly."
     : config.description;
   const embed = new EmbedBuilder()
     .setTitle(`League Setup: ${title}`)
@@ -345,7 +349,7 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
       description,
       "",
       `Current Selection: **${enabled ? "Activated" : "Deactivated"}**`,
-      formatPurchaseCapSummary(draft, draft.step)
+      isCfbCampusLegends ? "" : formatPurchaseCapSummary(draft, draft.step)
     ].filter(Boolean).join("\n"));
 
   const components: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [
@@ -382,7 +386,7 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
           .setDisabled(draft.coreAttributes.length === 0)
       )
     );
-  } else if (config.seasonCapKey) {
+  } else if (config.seasonCapKey && !isCfbCampusLegends) {
     components.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
@@ -531,6 +535,9 @@ export function formatPurchaseCapsReview(draft: LeagueSetupDraft) {
   for (const [step, config] of Object.entries(PURCHASE_FEATURE_STEPS) as Array<[PurchaseFeatureStep, typeof PURCHASE_FEATURE_STEPS[PurchaseFeatureStep]]>) {
     const enabled = Boolean(draft[config.enabledKey]);
     if (!enabled) continue;
+    // Campus Legends (CFB) is a plain toggle with no caps — already reported as its own
+    // Features line by the review screens, so skip it here.
+    if (draft.game === "cfb_27" && step === "legends") continue;
     if (step === "attribute_purchases") {
       lines.push(`Attributes: default core ${draft.coreAttributePurchasesSeasonCap === 0 ? "unlimited" : `${draft.coreAttributePurchasesSeasonCap} pts`}/season, non-core ${draft.nonCoreAttributePurchasesSeasonCap === 0 ? "unlimited" : `${draft.nonCoreAttributePurchasesSeasonCap} pts`}/season, ${draft.coreAttributes.length} core attrs (${Object.keys(draft.coreAttributeCapOverrides ?? {}).length} overrides)`);
       continue;

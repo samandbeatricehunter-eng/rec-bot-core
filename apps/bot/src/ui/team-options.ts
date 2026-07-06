@@ -623,7 +623,7 @@ export function buildUserSelectionPanel(
   };
 }
 
-export function buildCustomTeamModal(conference?: string) {
+export function buildCustomTeamModal(conference?: string, isCfb?: boolean) {
   const modal = new ModalBuilder()
     .setCustomId(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:${conference ?? "GEN"}`)
     .setTitle(conference ? `Register ${conference} Custom Team` : "Register Custom Team");
@@ -635,19 +635,21 @@ export function buildCustomTeamModal(conference?: string) {
     .setRequired(true)
     .setPlaceholder("e.g. DAL, Alabama, Oregon");
 
+  // CFB team identity is University Name + Team Name (e.g. "Texas Longhorns", "Alabama Crimson
+  // Tide") — city/state don't matter there, unlike Madden's City + Mascot convention.
   const cityInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamCityInput)
-    .setLabel("New school or city")
+    .setLabel(isCfb ? "University name" : "New school or city")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder("e.g. San Diego or Coastal Carolina");
+    .setPlaceholder(isCfb ? "e.g. Texas or Coastal Carolina" : "e.g. San Diego or Coastal Carolina");
 
   const nickInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNickInput)
-    .setLabel("New mascot or team name")
+    .setLabel(isCfb ? "Team name (mascot)" : "New mascot or team name")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder("e.g. Chargers or Chanticleers");
+    .setPlaceholder(isCfb ? "e.g. Longhorns or Chanticleers" : "e.g. Chargers or Chanticleers");
 
   const abbrInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput)

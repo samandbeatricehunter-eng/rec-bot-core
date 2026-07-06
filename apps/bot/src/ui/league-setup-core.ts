@@ -30,6 +30,28 @@ export function buildGameSelectWindow(draft: LeagueSetupDraft, notice?: string) 
 }
 
 export function buildLeagueTypeWindow(draft: LeagueSetupDraft) {
+  if (draft.game === "cfb_27") {
+    const embed = baseEmbed("CFB Setup: Active Rosters", draft)
+      .setDescription([
+        `League: **${draft.name}**`,
+        "",
+        "Should rosters actively update to track real-world changes?",
+        "",
+        "• **On** — player ratings and styles evolve to reflect real-life changes over time.",
+        "• **Off** — rosters stay static once set."
+      ].join("\n"));
+    return {
+      embeds: [embed],
+      components: [
+        selectRow(LEAGUE_SETUP_CUSTOM_IDS.activeRosters, "Active Rosters enabled?", [
+          option("On", "yes"),
+          option("Off", "no")
+        ]),
+        buildNavigationRow()
+      ]
+    };
+  }
+
   return {
     embeds: [baseEmbed("League Setup: League Type", draft)],
     components: [

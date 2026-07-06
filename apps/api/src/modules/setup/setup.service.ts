@@ -18,7 +18,6 @@ function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput 
     ...input,
     dynastyType,
     teamBuilderAllowed: dynastyType === "mixed",
-    legendsEnabled: false,
     ageResetsEnabled: false,
     contractAdjustmentPurchasesEnabled: false,
     legendsSeasonCap: 0,
@@ -172,7 +171,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     roster_type: input.leagueType,
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
-    recruiting_restrictions: input.game === "cfb_27" ? input.recruitingRestrictions ?? null : null,
+    active_rosters_enabled: input.game === "cfb_27" ? input.activeRostersEnabled : null,
     transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
     coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
     conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
@@ -249,6 +248,23 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     abilities_enabled: input.abilitiesEnabled,
     wear_and_tear_enabled: input.wearAndTearEnabled,
 
+    coach_firing_policy: input.coachFiringPolicy,
+    preorder_bonuses_enabled: input.preorderBonusesEnabled,
+    coach_mode_enabled: input.coachModeEnabled,
+    coach_mode_auto_pass_enabled: input.coachModeAutoPassEnabled,
+    coach_mode_auto_snap_enabled: input.coachModeAutoSnapEnabled,
+    coach_mode_coach_suggestions_enabled: input.coachModeCoachSuggestionsEnabled,
+    coach_mode_recruit_flipping_enabled: input.game === "cfb_27" ? input.coachModeRecruitFlippingEnabled : null,
+    coach_mode_auto_recruiting_enabled: input.game === "cfb_27" ? input.coachModeAutoRecruitingEnabled : null,
+    coach_mode_auto_progress_players_enabled: input.game === "cfb_27" ? input.coachModeAutoProgressPlayersEnabled : null,
+    coach_mode_user_auto_progression_enabled: input.game === "cfb_27" ? input.coachModeUserAutoProgressionEnabled : null,
+    coach_mode_cpu_manage_budget_enabled: input.game === "cfb_27" ? input.coachModeCpuManageBudgetEnabled : null,
+    coach_mode_cpu_manage_staff_enabled: input.game === "cfb_27" ? input.coachModeCpuManageStaffEnabled : null,
+    coach_mode_cpu_manage_facilities_enabled: input.game === "cfb_27" ? input.coachModeCpuManageFacilitiesEnabled : null,
+    ball_hawk: input.ballHawk,
+    heat_seeker: input.heatSeeker,
+    switch_assist: input.switchAssist,
+
     offensive_play_call_limits_enabled: input.offensivePlayCallLimitsEnabled,
     offensive_play_call_limit: input.offensivePlayCallLimit ?? null,
     offensive_play_call_cooldown: input.offensivePlayCallCooldown ?? null,
@@ -302,6 +318,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
   const defaultTeams = await createDefaultTeamsForGuild({
     guildId: input.guildId,
     requestedByDiscordId: input.requestedByDiscordId ?? null,
+    conferenceOverrides: input.game === "cfb_27" ? input.conferenceAssignments : undefined,
   });
 
   return {
@@ -387,7 +404,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     roster_type: input.leagueType,
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
-    recruiting_restrictions: input.game === "cfb_27" ? input.recruitingRestrictions ?? null : null,
+    active_rosters_enabled: input.game === "cfb_27" ? input.activeRostersEnabled : null,
     transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
     coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
     conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
@@ -455,6 +472,22 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     trade_deadline_enabled: input.tradeDeadlineEnabled,
     abilities_enabled: input.abilitiesEnabled,
     wear_and_tear_enabled: input.wearAndTearEnabled,
+    coach_firing_policy: input.coachFiringPolicy,
+    preorder_bonuses_enabled: input.preorderBonusesEnabled,
+    coach_mode_enabled: input.coachModeEnabled,
+    coach_mode_auto_pass_enabled: input.coachModeAutoPassEnabled,
+    coach_mode_auto_snap_enabled: input.coachModeAutoSnapEnabled,
+    coach_mode_coach_suggestions_enabled: input.coachModeCoachSuggestionsEnabled,
+    coach_mode_recruit_flipping_enabled: input.game === "cfb_27" ? input.coachModeRecruitFlippingEnabled : null,
+    coach_mode_auto_recruiting_enabled: input.game === "cfb_27" ? input.coachModeAutoRecruitingEnabled : null,
+    coach_mode_auto_progress_players_enabled: input.game === "cfb_27" ? input.coachModeAutoProgressPlayersEnabled : null,
+    coach_mode_user_auto_progression_enabled: input.game === "cfb_27" ? input.coachModeUserAutoProgressionEnabled : null,
+    coach_mode_cpu_manage_budget_enabled: input.game === "cfb_27" ? input.coachModeCpuManageBudgetEnabled : null,
+    coach_mode_cpu_manage_staff_enabled: input.game === "cfb_27" ? input.coachModeCpuManageStaffEnabled : null,
+    coach_mode_cpu_manage_facilities_enabled: input.game === "cfb_27" ? input.coachModeCpuManageFacilitiesEnabled : null,
+    ball_hawk: input.ballHawk,
+    heat_seeker: input.heatSeeker,
+    switch_assist: input.switchAssist,
     offensive_play_call_limits_enabled: input.offensivePlayCallLimitsEnabled,
     offensive_play_call_limit: input.offensivePlayCallLimit ?? null,
     offensive_play_call_cooldown: input.offensivePlayCallCooldown ?? null,
@@ -489,12 +522,13 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     game: league.data.game ?? "madden_26",
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
+    activeRostersEnabled: c.active_rosters_enabled ?? true,
     dynastyType: c.dynasty_type ?? "real",
     recruitingDifficulty: c.recruiting_difficulty ?? "normal",
     transferPortalEnabled: c.transfer_portal_enabled ?? true,
-    recruitingRestrictions: c.recruiting_restrictions ?? "",
     coachCarouselEnabled: c.coach_carousel_enabled ?? true,
     conferenceRealignment: c.conference_realignment ?? "locked",
+    conferenceAssignments: {},
     homeFieldAdvantageEnabled: c.home_field_advantage_enabled ?? true,
     stadiumPulseEnabled: c.stadium_pulse_enabled ?? true,
     teamBuilderAllowed: c.team_builder_allowed ?? (c.dynasty_type === "mixed"),
@@ -558,6 +592,22 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     tradeDeadlineEnabled: c.trade_deadline_enabled ?? false,
     abilitiesEnabled: c.abilities_enabled ?? true,
     wearAndTearEnabled: c.wear_and_tear_enabled ?? true,
+    coachFiringPolicy: c.coach_firing_policy ?? "on",
+    preorderBonusesEnabled: c.preorder_bonuses_enabled ?? true,
+    coachModeEnabled: c.coach_mode_enabled ?? false,
+    coachModeAutoPassEnabled: c.coach_mode_auto_pass_enabled ?? false,
+    coachModeAutoSnapEnabled: c.coach_mode_auto_snap_enabled ?? false,
+    coachModeCoachSuggestionsEnabled: c.coach_mode_coach_suggestions_enabled ?? false,
+    coachModeRecruitFlippingEnabled: c.coach_mode_recruit_flipping_enabled ?? false,
+    coachModeAutoRecruitingEnabled: c.coach_mode_auto_recruiting_enabled ?? false,
+    coachModeAutoProgressPlayersEnabled: c.coach_mode_auto_progress_players_enabled ?? false,
+    coachModeUserAutoProgressionEnabled: c.coach_mode_user_auto_progression_enabled ?? false,
+    coachModeCpuManageBudgetEnabled: c.coach_mode_cpu_manage_budget_enabled ?? false,
+    coachModeCpuManageStaffEnabled: c.coach_mode_cpu_manage_staff_enabled ?? false,
+    coachModeCpuManageFacilitiesEnabled: c.coach_mode_cpu_manage_facilities_enabled ?? false,
+    ballHawk: c.ball_hawk ?? "keep_individual",
+    heatSeeker: c.heat_seeker ?? "keep_individual",
+    switchAssist: c.switch_assist ?? "keep_individual",
     offensivePlayCallLimitsEnabled: c.offensive_play_call_limits_enabled ?? false,
     offensivePlayCallLimit: c.offensive_play_call_limit ?? null,
     offensivePlayCallCooldownEnabled: !!c.offensive_play_call_cooldown,
@@ -584,6 +634,36 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     editMode: true
   };
   return { draft };
+}
+
+/**
+ * Current conference for every team on the guild's league — used to seed the CFB conference
+ * assignment editor with live data instead of the static default catalog once a league exists.
+ */
+export async function getLeagueTeamConferences(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { data, error } = await supabase
+    .from("rec_teams")
+    .select("abbreviation,name,conference")
+    .eq("league_id", context.leagueId);
+  if (error) throw new ApiError(500, "Failed to load team conferences", error);
+  return { teams: data ?? [] };
+}
+
+/**
+ * Updates a single team's conference. Used by the CFB conference-assignment editor when editing
+ * an existing league (new leagues apply overrides at team-creation time instead, see
+ * createDefaultTeamsForGuild's conferenceOverrides param).
+ */
+export async function updateTeamConference(input: { guildId: string; abbreviation: string; conference: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const { error } = await supabase
+    .from("rec_teams")
+    .update({ conference: input.conference })
+    .eq("league_id", context.leagueId)
+    .eq("abbreviation", input.abbreviation);
+  if (error) throw new ApiError(500, "Failed to update team conference", error);
+  return { ok: true };
 }
 
 /**

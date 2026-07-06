@@ -30,15 +30,18 @@ export const CreateLeagueSchema = z.object({
 
   game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
+  // CFB 27 only: replaces the League Type question.
+  activeRostersEnabled: z.boolean().default(true),
 
   dynastyType: z.enum(["real", "mixed"]).default("real"),
   recruitingDifficulty: z.enum(["easy", "normal", "hard"]).default("normal"),
   transferPortalEnabled: z.boolean().default(true),
-  recruitingRestrictions: z.string().optional().nullable(),
   coachCarouselEnabled: z.boolean().default(true),
   homeFieldAdvantageEnabled: z.boolean().default(true),
   stadiumPulseEnabled: z.boolean().default(true),
   conferenceRealignment: z.enum(["allowed", "locked"]).default("locked"),
+  // Team abbreviation -> conference override, applied when seeding default teams (CFB 27 only).
+  conferenceAssignments: z.record(z.string()).default({}),
   teamBuilderAllowed: z.boolean().default(false),
 
   seasonNumber: z.number().int().min(1).default(1),
@@ -131,6 +134,25 @@ export const CreateLeagueSchema = z.object({
   abilitiesEnabled: z.boolean().default(true),
   wearAndTearEnabled: z.boolean().default(true),
 
+  // Franchise settings (shared across Madden and CFB).
+  coachFiringPolicy: z.enum(["off", "on", "cpu_only"]).default("on"),
+  preorderBonusesEnabled: z.boolean().default(true),
+  coachModeEnabled: z.boolean().default(false),
+  coachModeAutoPassEnabled: z.boolean().default(false),
+  coachModeAutoSnapEnabled: z.boolean().default(false),
+  coachModeCoachSuggestionsEnabled: z.boolean().default(false),
+  // Coach Mode sub-toggles below only apply when game === "cfb_27".
+  coachModeRecruitFlippingEnabled: z.boolean().default(false),
+  coachModeAutoRecruitingEnabled: z.boolean().default(false),
+  coachModeAutoProgressPlayersEnabled: z.boolean().default(false),
+  coachModeUserAutoProgressionEnabled: z.boolean().default(false),
+  coachModeCpuManageBudgetEnabled: z.boolean().default(false),
+  coachModeCpuManageStaffEnabled: z.boolean().default(false),
+  coachModeCpuManageFacilitiesEnabled: z.boolean().default(false),
+  ballHawk: z.enum(["on", "off", "keep_individual"]).default("keep_individual"),
+  heatSeeker: z.enum(["on", "off", "keep_individual"]).default("keep_individual"),
+  switchAssist: z.enum(["on", "off", "keep_individual"]).default("keep_individual"),
+
   offensivePlayCallLimitsEnabled: z.boolean().default(false),
   offensivePlayCallLimit: z.number().int().min(1).max(50).optional().nullable(),
   offensivePlayCallCooldownEnabled: z.boolean().default(false),
@@ -176,6 +198,18 @@ export const UpdateServerRoutesSchema = z.object({
   votingPollsChannelId: z.string().optional().nullable()
 });
 
+export const GetLeagueTeamConferencesSchema = z.object({
+  guildId: z.string().min(1)
+});
+
+export const UpdateTeamConferenceSchema = z.object({
+  guildId: z.string().min(1),
+  abbreviation: z.string().min(1),
+  conference: z.string().min(1)
+});
+
 export type RegisterServerInput = z.infer<typeof RegisterServerSchema>;
 export type CreateLeagueInput = z.infer<typeof CreateLeagueSchema>;
 export type UpdateServerRoutesInput = z.infer<typeof UpdateServerRoutesSchema>;
+export type GetLeagueTeamConferencesInput = z.infer<typeof GetLeagueTeamConferencesSchema>;
+export type UpdateTeamConferenceInput = z.infer<typeof UpdateTeamConferenceSchema>;

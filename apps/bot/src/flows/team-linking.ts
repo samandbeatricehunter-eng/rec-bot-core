@@ -152,6 +152,13 @@ async function getEligibleGuildUsers(interaction: ButtonInteraction | StringSele
   return guildUsers.filter((user) => !linkedDiscordIds.has(user.discordId));
 }
 
+// Used to pick CFB-appropriate labels (University Name / Team Name) vs Madden's City/Mascot
+// when opening the custom-team modal. getOpenTeams already returns the league row cheaply.
+async function isCfbLeague(guildId: string) {
+  const result = await recApi.getOpenTeams(guildId).catch(() => null);
+  return result?.league?.game === "cfb_27";
+}
+
 async function loadLeagueConferences(guildId: string) {
   let confData = await recApi.getLeagueConferences(guildId).catch(() => null);
   let conferences = confData?.conferences ?? [];
@@ -383,12 +390,13 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
   ) {
     if (value === "CUSTOM_TEAM") {
       const { buildCustomTeamModal } = await import("../ui/team-options.js");
+      const isCfb = await isCfbLeague(interaction.guildId);
       customTeamPendingSessions.set(interaction.user.id, {
         guildId: interaction.guildId,
         conference: draft.conference,
         linkUser: false,
       });
-      await interaction.showModal(buildCustomTeamModal(draft.conference));
+      await interaction.showModal(buildCustomTeamModal(draft.conference, isCfb));
       return;
     }
 
@@ -692,8 +700,9 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     // showModal requires an unacknowledged interaction — must branch before deferUpdate
     if (selectedValue === "CUSTOM_TEAM") {
       const { buildCustomTeamModal } = await import("../ui/team-options.js");
+      const isCfb = await isCfbLeague(interaction.guildId);
       customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference, linkUser: true });
-      await interaction.showModal(buildCustomTeamModal(conference));
+      await interaction.showModal(buildCustomTeamModal(conference, isCfb));
       return;
     }
 
@@ -951,8 +960,9 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
 export async function handleCustomTeamNoLink(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
   const { buildCustomTeamModal } = await import("../ui/team-options.js");
+  const isCfb = await isCfbLeague(interaction.guildId);
   customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, linkUser: false });
-  await interaction.showModal(buildCustomTeamModal());
+  await interaction.showModal(buildCustomTeamModal(undefined, isCfb));
 }
 
 export async function handleCustomTeamModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {

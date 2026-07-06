@@ -46,3 +46,15 @@ export function yesNo(value: boolean) {
 export function fmt(value: string) {
   return value.replaceAll("_", " ");
 }
+
+const CFB_DIFFICULTY_LABELS: Record<string, string> = {
+  rookie: "Freshman",
+  pro: "Varsity",
+  all_pro: "All-American",
+  all_madden: "Heisman",
+  custom: "Custom"
+};
+
+export function formatDifficultyLabel(value: string, isCfb: boolean) {
+  return isCfb ? CFB_DIFFICULTY_LABELS[value] ?? fmt(value) : fmt(value);
+}

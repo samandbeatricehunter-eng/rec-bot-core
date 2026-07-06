@@ -9,10 +9,13 @@ import { createPurchaseRequest } from "../purchases/purchases.service.js";
 
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"];
 
-export async function listLegendCatalog() {
+export async function listLegendCatalog(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const gameScope = context.rec_leagues?.game === "cfb_27" ? "cfb_27" : "madden";
   const { data, error } = await supabase
     .from("rec_legend_catalog")
-    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,attributes")
+    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,attributes")
+    .eq("game_scope", gameScope)
     .order("position_group", { ascending: true })
     .order("position", { ascending: true })
     .order("name", { ascending: true });
@@ -82,6 +85,7 @@ export async function createLegendPurchaseRequest(input: { guildId: string; disc
     devTrait: legend.data.dev_trait,
     archetype: legend.data.archetype,
     buildNote: legend.data.build_note,
+    college: legend.data.college,
     attributes: legend.data.attributes,
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,

@@ -70,6 +70,18 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  getLeagueTeamConferences: (guildId: string) =>
+    recFetch<{ teams: Array<{ abbreviation: string; name: string; conference: string }> }>(
+      "/v1/setup/league/teams/conferences",
+      { method: "POST", body: JSON.stringify({ guildId }) }
+    ),
+
+  updateTeamConference: (input: { guildId: string; abbreviation: string; conference: string }) =>
+    recFetch<any>("/v1/setup/league/teams/conference", {
+      method: "POST",
+      body: JSON.stringify(input)
+    }),
+
   createDefaultTeams: (guildId: string, requestedByDiscordId?: string) =>
     recFetch<any>(REC_API_ROUTES.createDefaultTeams, {
       method: "POST",
@@ -583,8 +595,8 @@ export const recApi = {
     recFetch<any>("/v1/wagers/attach-announcement", { method: "POST", body: JSON.stringify(input) }),
 
   // ─── Legends ───
-  listLegendCatalog: () =>
-    recFetch<any>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({}) }),
+  listLegendCatalog: (guildId: string) =>
+    recFetch<any>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listLegendAvailability: (guildId: string) =>
     recFetch<any>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
   purchaseLegend: (input: { guildId: string; discordId: string; legendId: string; replacePlayerRequest?: string | null }) =>
