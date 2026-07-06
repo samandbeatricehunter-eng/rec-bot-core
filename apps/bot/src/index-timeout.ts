@@ -545,6 +545,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
+      if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
+      if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignTargetSelect}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseSelect(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.groupSelect) return handleLegendGroupSelect(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.availableSelect) return handleLegendAvailableSelect(interaction);
@@ -577,6 +579,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideOpen ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideDone ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignDone ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachModeSettingsDone ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapOpenPrefix}:`) ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)
       ) return handleLeagueSetupButton(interaction);
