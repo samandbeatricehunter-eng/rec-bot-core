@@ -668,7 +668,7 @@ export function buildCustomTeamModal(conference?: string, isCfb?: boolean) {
   return modal;
 }
 
-export function buildEditTeamModal(teamName: string) {
+export function buildEditTeamModal(teamName: string, isCfb?: boolean) {
   return new ModalBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.editTeamModal)
     .setTitle(`Edit ${teamName}`.slice(0, 45))
@@ -685,18 +685,18 @@ export function buildEditTeamModal(teamName: string) {
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamCityInput)
-          .setLabel("New team city")
+          .setLabel(isCfb ? "University name" : "New team city")
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setPlaceholder("e.g. San Diego")
+          .setPlaceholder(isCfb ? "e.g. Texas" : "e.g. San Diego")
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNickInput)
-          .setLabel("New team name")
+          .setLabel(isCfb ? "Team name (mascot)" : "New team name")
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setPlaceholder("e.g. Chargers")
+          .setPlaceholder(isCfb ? "e.g. Longhorns" : "e.g. Chargers")
       )
     );
 }

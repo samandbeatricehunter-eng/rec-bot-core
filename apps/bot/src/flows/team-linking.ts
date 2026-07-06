@@ -585,7 +585,8 @@ export async function handleLeagueTeamsEditTeamSelect(interaction: Extract<Inter
     returnToLeagueTeams: true,
     linkUser: false
   });
-  return interaction.showModal(buildEditTeamModal(team.name ?? team.abbreviation));
+  const isCfb = await isCfbLeague(interaction.guildId);
+  return interaction.showModal(buildEditTeamModal(team.name ?? team.abbreviation, isCfb));
 }
 
 export async function handleLeagueTeamsResetDefaults(interaction: Extract<Interaction, { isButton(): boolean }>) {
