@@ -10,7 +10,7 @@ import {
 import { CFB_27_TEAMS, CONFERENCE_ORDER } from "@rec/shared";
 import { buildNavigationRow } from "./navigation.js";
 import { LEAGUE_SETUP_CUSTOM_IDS, type LeagueSetupDraft } from "./league-setup-types.js";
-import { baseEmbed, formatDifficultyLabel, option, selectRow, yesNoOptions } from "./league-setup-shared.js";
+import { baseEmbed, boolText, fmt, formatDifficultyLabel, option, selectRow, yesNoOptions } from "./league-setup-shared.js";
 
 export function buildDifficultyWindow(draft: LeagueSetupDraft) {
   const isCfb = draft.game === "cfb_27";
@@ -216,11 +216,27 @@ function franchiseOrDynastyLabel(draft: LeagueSetupDraft) {
 }
 
 export function buildFranchiseSettingsWindow(draft: LeagueSetupDraft) {
+  const embed = baseEmbed(`Gameplay: ${franchiseOrDynastyLabel(draft)} Settings`, draft)
+    .setDescription([
+      `League: **${draft.name}**`,
+      "",
+      "Pick answers for both settings below, then press Continue.",
+      "",
+      `Coach Firing: **${fmt(draft.coachFiringPolicy)}**`,
+      `Preorder Bonuses: **${boolText(draft.preorderBonusesEnabled)}**`
+    ].join("\n"));
+
   return {
-    embeds: [baseEmbed(`Gameplay: ${franchiseOrDynastyLabel(draft)} Settings`, draft)],
+    embeds: [embed],
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.coachFiringPolicy, "Coach Firing", threeWayOptions("Off", "On", "CPU Only", "cpu_only", "Only CPU-controlled coaches can be fired.")),
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.preorderBonuses, "Preorder Bonuses", yesNoOptions()),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.franchiseSettingsDone)
+          .setLabel(draft.editMode ? "Save & Continue" : "Continue")
+          .setStyle(ButtonStyle.Success)
+      ),
       buildNavigationRow()
     ]
   };
@@ -231,12 +247,29 @@ function assistOptions() {
 }
 
 export function buildAssistSettingsWindow(draft: LeagueSetupDraft) {
+  const embed = baseEmbed("Gameplay: Assist Settings", draft)
+    .setDescription([
+      `League: **${draft.name}**`,
+      "",
+      "Pick answers for all three settings below, then press Continue.",
+      "",
+      `Ball Hawk: **${fmt(draft.ballHawk)}**`,
+      `Heat Seeker: **${fmt(draft.heatSeeker)}**`,
+      `Switch Assist: **${fmt(draft.switchAssist)}**`
+    ].join("\n"));
+
   return {
-    embeds: [baseEmbed("Gameplay: Assist Settings", draft)],
+    embeds: [embed],
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.ballHawk, "Ball Hawk", assistOptions()),
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.heatSeeker, "Heat Seeker", assistOptions()),
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.switchAssist, "Switch Assist", assistOptions()),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.assistSettingsDone)
+          .setLabel(draft.editMode ? "Save & Continue" : "Continue")
+          .setStyle(ButtonStyle.Success)
+      ),
       buildNavigationRow()
     ]
   };

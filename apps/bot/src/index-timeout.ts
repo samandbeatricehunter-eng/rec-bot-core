@@ -582,6 +582,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachModeSettingsDone ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.franchiseSettingsDone ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.assistSettingsDone ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapOpenPrefix}:`) ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)
       ) return handleLeagueSetupButton(interaction);

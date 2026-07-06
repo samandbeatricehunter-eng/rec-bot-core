@@ -31,6 +31,8 @@ import {
   setLeagueSetupServerChannel,
   LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS,
   buildCoachModeSettingsWindow,
+  buildFranchiseSettingsWindow,
+  buildAssistSettingsWindow,
   buildConferenceAssignmentsWindow,
   buildConferenceGroupWindow,
   buildConferenceTargetWindow,
@@ -114,6 +116,44 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
       }
     }
     return interaction.update(buildCoachModeSettingsWindow(draft));
+  }
+
+  // Franchise/Dynasty Settings: two independent questions on one screen — record the answer
+  // and re-render the same screen instead of auto-advancing (the "Continue" button advances).
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachFiringPolicy || interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.preorderBonuses) {
+    if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.coachFiringPolicy) draft.coachFiringPolicy = value as LeagueSetupDraft["coachFiringPolicy"];
+    else draft.preorderBonusesEnabled = value === "yes";
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    if (draft.editMode && interaction.guildId) {
+      try {
+        await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+      } catch (err) {
+        console.error("[ERROR] Failed to save franchise setting:", err);
+      }
+    }
+    return interaction.update(buildFranchiseSettingsWindow(draft));
+  }
+
+  // Assist Settings: three independent questions on one screen — same "don't auto-advance" pattern.
+  if (
+    interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.ballHawk ||
+    interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.heatSeeker ||
+    interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.switchAssist
+  ) {
+    if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.ballHawk) draft.ballHawk = value as LeagueSetupDraft["ballHawk"];
+    else if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.heatSeeker) draft.heatSeeker = value as LeagueSetupDraft["heatSeeker"];
+    else draft.switchAssist = value as LeagueSetupDraft["switchAssist"];
+    applyLeagueSetupDependencies(draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    if (draft.editMode && interaction.guildId) {
+      try {
+        await recApi.updateLeagueConfig({ ...applyLeagueSetupDependencies(draft), guildId: interaction.guildId, requestedByDiscordId: interaction.user.id });
+      } catch (err) {
+        console.error("[ERROR] Failed to save assist setting:", err);
+      }
+    }
+    return interaction.update(buildAssistSettingsWindow(draft));
   }
 
   // Conference Assignments (CFB): picking a team within a conference opens the target-conference picker.
@@ -311,12 +351,7 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveLimit: draft.defensivePlayCallLimit = Number(value); break;
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldownEnabled: draft.defensivePlayCallCooldownEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.defensiveCooldown: draft.defensivePlayCallCooldown = Number(value); break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachFiringPolicy: draft.coachFiringPolicy = value as LeagueSetupDraft["coachFiringPolicy"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.preorderBonuses: draft.preorderBonusesEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.coachModeEnabled: draft.coachModeEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.ballHawk: draft.ballHawk = value as LeagueSetupDraft["ballHawk"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.heatSeeker: draft.heatSeeker = value as LeagueSetupDraft["heatSeeker"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.switchAssist: draft.switchAssist = value as LeagueSetupDraft["switchAssist"]; break;
   }
 
   // In edit mode: save the change to DB immediately, then return to the settings picker
@@ -514,9 +549,35 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
       await saveDraftEditIfNeeded(interaction, draft);
       draft.step = "settings_picker";
       leagueSetupSessions.set(interaction.user.id, draft);
-      return interaction.update(buildSettingsPickerWindow(draft, "franchise"));
+      return interaction.update(buildSettingsPickerWindow(draft, draft.game === "cfb_27" ? "dynasty" : "franchise"));
     }
     draft.step = getNextLeagueSetupStep("coach_mode_settings", draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.franchiseSettingsDone) {
+    applyLeagueSetupDependencies(draft);
+    if (draft.editMode) {
+      await saveDraftEditIfNeeded(interaction, draft);
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, draft.game === "cfb_27" ? "dynasty" : "franchise"));
+    }
+    draft.step = getNextLeagueSetupStep("franchise_settings", draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.assistSettingsDone) {
+    applyLeagueSetupDependencies(draft);
+    if (draft.editMode) {
+      await saveDraftEditIfNeeded(interaction, draft);
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, draft.game === "cfb_27" ? "dynasty" : "franchise"));
+    }
+    draft.step = getNextLeagueSetupStep("assist_settings", draft);
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
   }

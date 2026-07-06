@@ -91,6 +91,8 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   coachModeEnabled: "rec:league_setup:coach_mode_enabled",
   coachModeSettingSelect: "rec:league_setup:coach_mode_setting_select",
   coachModeSettingsDone: "rec:league_setup:coach_mode_settings_done",
+  franchiseSettingsDone: "rec:league_setup:franchise_settings_done",
+  assistSettingsDone: "rec:league_setup:assist_settings_done",
   ballHawk: "rec:league_setup:ball_hawk",
   heatSeeker: "rec:league_setup:heat_seeker",
   switchAssist: "rec:league_setup:switch_assist"
