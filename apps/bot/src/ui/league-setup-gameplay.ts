@@ -297,6 +297,10 @@ function effectiveConference(draft: LeagueSetupDraft, team: { abbreviation: stri
   return draft.conferenceAssignments[team.abbreviation] ?? team.conference;
 }
 
+function cfbTeamDisplayName(team: { name: string; mascot: string }) {
+  return `${team.name} ${team.mascot}`;
+}
+
 export function conferenceGroupBrowseCustomId(conference: string) {
   return `${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix}:${encodeURIComponent(conference)}`;
 }
@@ -357,7 +361,7 @@ export function buildConferenceGroupWindow(draft: LeagueSetupDraft, conference: 
       selectRow(
         conferenceGroupBrowseCustomId(conference),
         `${conference} — pick a team to move`,
-        teams.map((team) => option(team.name, team.abbreviation))
+        teams.map((team) => option(cfbTeamDisplayName(team), team.abbreviation))
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel).setLabel("Back to Conferences").setStyle(ButtonStyle.Secondary)
@@ -371,7 +375,7 @@ export function buildConferenceTargetWindow(draft: LeagueSetupDraft, abbreviatio
   const team = CFB_27_TEAMS.find((t) => t.abbreviation === abbreviation);
   const current = team ? effectiveConference(draft, team) : "Unknown";
   const embed = new EmbedBuilder()
-    .setTitle(`CFB Setup: Move ${team?.name ?? abbreviation}`)
+    .setTitle(`CFB Setup: Move ${team ? cfbTeamDisplayName(team) : abbreviation}`)
     .setDescription([`League: **${draft.name}**`, "", `Currently in **${current}**. Select the new conference.`].join("\n"));
 
   return {

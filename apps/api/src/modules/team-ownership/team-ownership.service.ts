@@ -1,4 +1,4 @@
-import { AFC_TEAMS, CFB_27_TEAMS, NFC_TEAMS } from "@rec/shared";
+import { AFC_TEAMS, CFB_27_TEAMS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -37,6 +37,7 @@ function normalizeTeamText(value?: string | null) {
 
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
+  const isCfb = league.game === "cfb_27";
   const catalog = getDefaultTeamCatalog(league.game);
   const rows = catalog.map((team) => ({
     league_id: league.id,
@@ -44,6 +45,10 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     abbreviation: team.abbreviation,
     conference: input.conferenceOverrides?.[normalizeAbbreviation(team.abbreviation)] ?? team.conference,
     division: team.division,
+    // CFB's real display identity is "University + Mascot" (e.g. "Texas Longhorns"); Madden's
+    // `name` already carries the full "City Mascot" combo, so leave its display fields null.
+    display_city: isCfb ? team.name : null,
+    display_nick: isCfb ? (team as CfbTeamOption).mascot : null,
     source: "manual_admin_entry"
   }));
 
@@ -74,6 +79,7 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
 
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
+  const isCfb = league.game === "cfb_27";
   const catalog = getDefaultTeamCatalog(league.game);
   const rows = catalog.map((team) => ({
     league_id: league.id,
@@ -81,8 +87,8 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
     abbreviation: team.abbreviation,
     conference: team.conference,
     division: team.division,
-    display_city: null,
-    display_nick: null,
+    display_city: isCfb ? team.name : null,
+    display_nick: isCfb ? (team as CfbTeamOption).mascot : null,
     display_abbr: null,
     is_relocated: false,
     original_abbreviation: null,
