@@ -100,6 +100,12 @@ type LegendSession = {
   isCfb: boolean;
 };
 
+// Ratings are close estimates, not guaranteed exact — shown on the browse screen, the detail
+// screen, and the pending-purchase embed so both the buyer and the installing commissioner see it.
+const LEGEND_RATINGS_DISCLAIMER =
+  "Attribute ratings are close projections, not guaranteed exact — they may be adjusted slightly when installed in-game to hit the target OVR. " +
+  "The player's identity and core skills are the last thing touched, if at all; other attributes are reduced first so the player's build stays true to their real profile.";
+
 const sessions = new Map<string, LegendSession>();
 const SESSION_TTL = 15 * 60 * 1000;
 
@@ -173,7 +179,7 @@ function buildBrowsePayload(session: LegendSession) {
     embeds: [new EmbedBuilder()
       .setTitle(`${storeName} — ${side === "offense" ? "Offense" : "Defense"} (Page ${side === "offense" ? 1 : 2} of 2)`)
       .setColor(COLORS.purple)
-      .setDescription([`$${REC_LEGEND_PRICE} each. ~~Struck-through~~ names are already purchased in this league.`, "", ...lines].join("\n"))],
+      .setDescription([`$${REC_LEGEND_PRICE} each. ~~Struck-through~~ names are already purchased in this league.`, "", `_${LEGEND_RATINGS_DISCLAIMER}_`, "", ...lines].join("\n"))],
     components: [pageRow, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(groupMenu), backRow()],
   };
 }
@@ -209,8 +215,10 @@ function buildDetailPayload(session: LegendSession) {
       `Height: ${legend.height ?? "—"}  |  Weight: ${legend.weight ?? "—"}  |  Hand: ${legend.hand ?? "—"}`,
       `Dev Trait: ${legend.dev_trait ?? "—"}  |  Archetype: ${legend.archetype ?? "—"}`,
       legend.build_note ? `_${legend.build_note}_` : "",
+      "",
+      `_${LEGEND_RATINGS_DISCLAIMER}_`,
     ].filter(Boolean).join("\n"))
-    .setFooter({ text: `Legend ${session.legendIndex + 1} of ${list.length} — ${session.group}. Attribute values are estimates, subject to slight change to hit 88 OVR.` });
+    .setFooter({ text: `Legend ${session.legendIndex + 1} of ${list.length} — ${session.group}` });
 
   for (const group of ATTRIBUTE_GROUPS) {
     const value = group.keys.map((k) => `${k}: ${legend.attributes?.[k] ?? "—"}`).join("\n");
@@ -420,11 +428,13 @@ function buildLegendPendingEmbed(purchase: any, buyerDiscordId: string): EmbedBu
         ? `**Replace:** ${d.replacePlayerRequest} (buyer's request)`
         : "**Replace:** the buyer's lowest-OVR player at this position (no specific request made).",
       "**Contract:** install on a 7-year deal at the lowest contract value (if the salary cap is on).",
+      "",
+      `_${LEGEND_RATINGS_DISCLAIMER}_`,
     ].filter(Boolean).join("\n"));
 
   embed.addFields(
     { name: "Attributes (Madden edit order)", value: primary.slice(0, 1024), inline: true },
     { name: "Additional Attributes", value: secondary.slice(0, 1024), inline: true });
-  embed.setFooter({ text: `Purchase ${purchase.id} — attribute values are estimates, subject to slight change to hit 88 OVR.` });
+  embed.setFooter({ text: `Purchase ${purchase.id}` });
   return embed;
 }
