@@ -116,12 +116,12 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
     content: message.content || mediaAttachments(message)[0]?.url || null,
   }).catch((error) => ({ recorded: false, reason: error instanceof Error ? error.message : String(error) }));
 
-  // Posted outside an active season (before regular-season Wk 1 or after the Super
-  // Bowl) — highlights aren't accepted, so remove it and tell the user.
+  // Posted outside an active season (before regular-season Wk 1 or after the
+  // championship game) — highlights aren't accepted, so remove it and tell the user.
   if (result?.accepted === false) {
     await message.delete().catch(() => undefined);
     const notice = await message.channel.send({
-      content: `<@${message.author.id}> ${result.reason ?? "Highlights are only accepted during an active season (regular-season Week 1 through the Super Bowl)."}`,
+      content: `<@${message.author.id}> ${result.reason ?? "Highlights are only accepted during an active season (regular-season Week 1 through the championship game)."}`,
       allowedMentions: { users: [message.author.id] },
     }).catch(() => null);
     if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 12_000);
@@ -136,8 +136,8 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
     return true;
   }
 
-  // Voting emojis only preload during the regular season (Wk 1–18). In the
-  // postseason the payout is still logged, but POTY voting has already concluded.
+  // Voting emojis only preload during the regular season. In the postseason
+  // the payout is still logged, but POTY voting has already concluded.
   if (result.preloadEmojis !== false) {
     for (const emoji of Object.values(HIGHLIGHT_VOTE_EMOJIS)) {
       await message.react(emojiResolvable(emoji)).catch(() => undefined);

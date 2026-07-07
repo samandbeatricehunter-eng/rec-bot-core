@@ -1,3 +1,4 @@
+import { isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
@@ -152,7 +153,7 @@ function buildMatchupPayload(
     season: ctx.season,
     week: Number(row.week_number ?? ctx.league.current_week ?? 1),
     stage: ctx.league.season_stage ?? "regular_season",
-    isPlayoff: Number(row.week_number ?? 0) >= 19,
+    isPlayoff: !isRegularSeasonWeek(Number(row.week_number ?? 0), ctx.game),
     draft: ctx.draft,
     routes: {
       boxScoresChannelId: ctx.routes.box_scores_channel_id ?? null,

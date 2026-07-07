@@ -100,3 +100,38 @@ export function stageLabel(stage: string, week: number, game: LeagueGame = null)
 export function isRegularSeasonWeek(weekNumber: number, game: LeagueGame): boolean {
   return weekNumber <= regularSeasonWeeks(game);
 }
+
+/** The final season_stage before the offseason pipeline begins — "super_bowl" for NFL, "national_championship" for CFB. */
+export function terminalSeasonStage(game: LeagueGame): string {
+  return isCfb(game) ? "national_championship" : "super_bowl";
+}
+
+/** True if this season_stage is the terminal (championship) stage for this game. */
+export function isTerminalSeasonStage(seasonStage: string, game: LeagueGame): boolean {
+  return String(seasonStage ?? "") === terminalSeasonStage(game);
+}
+
+/** True if weekNumber is the championship week (last week of the whole season) for this game. */
+export function isChampionshipWeek(weekNumber: number | null | undefined, game: LeagueGame): boolean {
+  return Number(weekNumber ?? 0) >= maxSeasonWeek(game);
+}
+
+/**
+ * The canonical season_stage for a given week number, inferred purely from the week/game
+ * (the week<->stage mapping is fixed for postseason weeks). Useful for display code that
+ * only has a week number on hand (e.g. schedule views), not the live rec_leagues.season_stage.
+ */
+export function stageForWeek(weekNumber: number, game: LeagueGame): string {
+  if (isRegularSeasonWeek(weekNumber, game)) return "regular_season";
+  if (isCfb(game)) {
+    if (weekNumber === 13) return "cfp_first_round";
+    if (weekNumber === 14) return "cfp_quarterfinals";
+    if (weekNumber === 15) return "cfp_semifinals";
+    if (weekNumber === 16) return "cfp_bye_week";
+    return "national_championship";
+  }
+  if (weekNumber === 19) return "wild_card";
+  if (weekNumber === 20) return "divisional";
+  if (weekNumber === 21) return "conference_championship";
+  return "super_bowl";
+}

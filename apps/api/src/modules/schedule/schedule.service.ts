@@ -1,6 +1,10 @@
 import {
   DEFAULT_NFL_SEASON_BY_GAME,
   getDefaultNflScheduleForGame,
+  isCfb,
+  isRegularSeasonWeek,
+  maxSeasonWeek,
+  type LeagueGame,
   type MaddenLeagueGame,
   type NflScheduleGame,
 } from "@rec/shared";
@@ -58,17 +62,28 @@ type SaveManualScheduleGameInput = {
   requestedByDiscordId?: string | null;
 };
 
-function phaseForWeek(weekNumber: number) {
+function phaseForWeek(weekNumber: number, game: LeagueGame) {
   // rec_games.phase is the rec_league_phase enum, which only distinguishes
   // regular_season vs playoffs. The specific playoff round (wild card,
-  // divisional, conference championship, super bowl) is carried by week_number
-  // (19–22) and rec_leagues.season_stage — not by this column.
-  return weekNumber <= 18 ? "regular_season" : "playoffs";
+  // divisional, conference championship, super bowl / CFP round, national
+  // championship) is carried by week_number and rec_leagues.season_stage —
+  // not by this column.
+  return isRegularSeasonWeek(weekNumber, game) ? "regular_season" : "playoffs";
 }
 
-// Expected number of games in a given week. Playoff rounds have a fixed slate
-// per conference; the regular season is a full slate (one game per team pair).
-function expectedGamesForWeek(weekNumber: number, teamCount: number) {
+// Expected number of games in a given week. Playoff rounds have a fixed slate;
+// the regular season is a full slate (one game per team pair).
+function expectedGamesForWeek(weekNumber: number, game: LeagueGame, teamCount: number) {
+  if (isCfb(game)) {
+    switch (weekNumber) {
+      case 13: return 4; // CFP First Round (seeds 5-12; top 4 seeds bye)
+      case 14: return 4; // CFP Quarterfinals
+      case 15: return 2; // CFP Semifinals
+      case 16: return 0; // Bye week — no games scheduled
+      case 17: return 1; // National Championship
+      default: return Math.floor(teamCount / 2);
+    }
+  }
   switch (weekNumber) {
     case 19: return 6; // Wild Card: 3 AFC + 3 NFC
     case 20: return 4; // Divisional: 2 AFC + 2 NFC
@@ -78,12 +93,15 @@ function expectedGamesForWeek(weekNumber: number, teamCount: number) {
   }
 }
 
-function assertWeekSlot(input: { weekNumber: number; slotNumber?: number }) {
-  if (!Number.isInteger(input.weekNumber) || input.weekNumber < 1 || input.weekNumber > 22) {
-    throw new ApiError(400, "Week must be between 1 and 22.");
+function assertWeekSlot(input: { weekNumber: number; slotNumber?: number }, game: LeagueGame) {
+  const lastWeek = maxSeasonWeek(game);
+  if (!Number.isInteger(input.weekNumber) || input.weekNumber < 1 || input.weekNumber > lastWeek) {
+    throw new ApiError(400, `Week must be between 1 and ${lastWeek}.`);
   }
-  if (input.slotNumber != null && (!Number.isInteger(input.slotNumber) || input.slotNumber < 1 || input.slotNumber > 32)) {
-    throw new ApiError(400, "Matchup slot must be between 1 and 32.");
+  // CFB's larger 136-team catalog can produce a fuller weekly slate than Madden's 32 teams.
+  const maxSlot = isCfb(game) ? 100 : 32;
+  if (input.slotNumber != null && (!Number.isInteger(input.slotNumber) || input.slotNumber < 1 || input.slotNumber > maxSlot)) {
+    throw new ApiError(400, `Matchup slot must be between 1 and ${maxSlot}.`);
   }
 }
 
@@ -109,8 +127,8 @@ export async function listScheduleTeams(guildId: string) {
 }
 
 export async function listScheduleWeek(guildId: string, weekNumber: number, seasonNumber?: number | null) {
-  assertWeekSlot({ weekNumber });
   const context = await getCurrentLeagueContext(guildId);
+  assertWeekSlot({ weekNumber }, context.rec_leagues.game);
   const selectedSeason = resolveSeasonNumber(context, seasonNumber);
   const seasonId = await resolveSeasonId(context.leagueId, selectedSeason);
   const { data, error } = await supabase
@@ -178,12 +196,13 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
       name: context.rec_leagues.name ?? null,
       seasonNumber: selectedSeason,
       currentWeek: Number(context.rec_leagues.current_week ?? 1),
+      game: context.rec_leagues.game ?? null,
     },
-    weeks: Array.from({ length: 22 }, (_, idx) => {
+    weeks: Array.from({ length: maxSeasonWeek(context.rec_leagues.game) }, (_, idx) => {
       const weekNumber = idx + 1;
       return {
         weekNumber,
-        phase: phaseForWeek(weekNumber),
+        phase: phaseForWeek(weekNumber, context.rec_leagues.game),
         games: games.filter((game: any) => Number(game.week_number) === weekNumber),
       };
     }),
@@ -191,10 +210,10 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
 }
 
 export async function saveManualScheduleGame(input: SaveManualScheduleGameInput) {
-  assertWeekSlot(input);
   if (input.awayTeamId === input.homeTeamId) throw new ApiError(400, "Away and home teams must be different.");
 
   const context = await getCurrentLeagueContext(input.guildId);
+  assertWeekSlot(input, context.rec_leagues.game);
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
@@ -233,7 +252,7 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
     league_id: leagueId,
     season_id: seasonId,
     week_number: input.weekNumber,
-    phase: phaseForWeek(input.weekNumber),
+    phase: phaseForWeek(input.weekNumber, context.rec_leagues.game),
     external_game_id: externalGameId,
     away_team_id: input.awayTeamId,
     home_team_id: input.homeTeamId,
@@ -321,6 +340,7 @@ async function insertScheduleGames(input: {
   seasonNumber: number;
   games: ParsedScheduleMatchup[];
   weekNumber: number;
+  leagueGame: LeagueGame;
   externalGameIdForSlot: (slotNumber: number) => string;
   requestedByDiscordId?: string | null;
   auditAction: string;
@@ -332,7 +352,7 @@ async function insertScheduleGames(input: {
     league_id: input.leagueId,
     season_id: input.seasonId,
     week_number: input.weekNumber,
-    phase: phaseForWeek(input.weekNumber),
+    phase: phaseForWeek(input.weekNumber, input.leagueGame),
     external_game_id: input.externalGameIdForSlot(game.slotNumber),
     away_team_id: game.awayTeamId,
     home_team_id: game.homeTeamId,
@@ -456,6 +476,7 @@ export async function seedDefaultScheduleForGuild(input: {
       seasonId,
       seasonNumber,
       weekNumber,
+      leagueGame: game,
       games: gamesByWeek.get(weekNumber)!,
       externalGameIdForSlot: (slotNumber) => defaultExternalGameId(leagueId, seasonNumber, weekNumber, slotNumber),
       requestedByDiscordId: input.requestedByDiscordId,
@@ -496,9 +517,8 @@ export async function replaceScheduleWeek(input: {
   games: Array<{ awayTeamId: string; homeTeamId: string }>;
   requestedByDiscordId?: string | null;
 }) {
-  assertWeekSlot({ weekNumber: input.weekNumber });
-
   const context = await getCurrentLeagueContext(input.guildId);
+  assertWeekSlot({ weekNumber: input.weekNumber }, context.rec_leagues.game);
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
@@ -530,6 +550,7 @@ export async function replaceScheduleWeek(input: {
     seasonId,
     seasonNumber,
     weekNumber: input.weekNumber,
+    leagueGame: context.rec_leagues.game,
     games: parsedGames,
     externalGameIdForSlot: (slotNumber) => parsedExternalGameId(leagueId, seasonNumber, input.weekNumber, slotNumber),
     requestedByDiscordId: input.requestedByDiscordId,
@@ -598,9 +619,8 @@ export async function previewScheduleImport(input: {
   weekNumber: number;
   imageUrls: string[];
 }): Promise<ScheduleImportPreview> {
-  assertWeekSlot({ weekNumber: input.weekNumber });
-
   const context = await getCurrentLeagueContext(input.guildId);
+  assertWeekSlot({ weekNumber: input.weekNumber }, context.rec_leagues.game);
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context);
 
@@ -646,7 +666,7 @@ export async function previewScheduleImport(input: {
   return {
     seasonNumber,
     weekNumber: input.weekNumber,
-    expectedGames: expectedGamesForWeek(input.weekNumber, teams.length),
+    expectedGames: expectedGamesForWeek(input.weekNumber, context.rec_leagues.game, teams.length),
     games,
     matchedCount: games.filter((g) => g.matched).length,
     warnings: parsed.warnings,

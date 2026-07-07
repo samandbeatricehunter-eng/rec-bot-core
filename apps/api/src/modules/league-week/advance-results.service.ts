@@ -1,4 +1,4 @@
-import { isRegularSeasonWeek } from "@rec/shared";
+import { isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -236,7 +236,7 @@ export async function completeAdvanceWeek(input: {
   // When the regular season ends (next stage is a playoff stage), issue the
   // season-total badges (Winning Season, Ball Control Season, etc.) for every
   // active user. These are only valid once the full season is in the books.
-  const playoffStages = new Set(["wild_card", "divisional", "conference_championship", "super_bowl", "postseason"]);
+  const playoffStages = postseasonPayoutStages(context.rec_leagues.game);
   if (playoffStages.has(input.nextSeasonStage)) {
     await issueSeasonTotalBadges(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] issueSeasonTotalBadges failed after advance to playoffs (non-fatal):", err);
@@ -260,7 +260,7 @@ export async function completeAdvanceWeek(input: {
   // weekly + season badges for next season. Runs after recordAdvanceDmRun so the
   // offseason DM snapshot still reflects this season's badges. Non-fatal.
   const currentStage = String(context.rec_leagues.season_stage ?? "");
-  if (currentStage === "super_bowl" && input.nextSeasonStage === "coach_hiring") {
+  if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && input.nextSeasonStage === "coach_hiring") {
     await convertSeasonBadgesToTrophies(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] convertSeasonBadgesToTrophies failed after advance (non-fatal):", err);
     });

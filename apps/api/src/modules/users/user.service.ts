@@ -953,7 +953,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   }
 
   const games = [];
-  for (let week = 1; week <= 18; week += 1) {
+  for (let week = 1; week <= regularSeasonWeeks(league.game); week += 1) {
     const game = gamesByWeek.get(week);
     if (!game) {
       games.push({

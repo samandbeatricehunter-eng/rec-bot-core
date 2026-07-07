@@ -1,3 +1,4 @@
+import { postseasonPayoutStages } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -21,12 +22,22 @@ type LeagueAdvanceContext = {
   };
 };
 
+// A single league only ever produces stage names from one game's postseason set
+// (Madden's wild_card…super_bowl or CFB's cfp_first_round…national_championship),
+// so combining both sets into one order list is safe — index comparisons stay
+// internally consistent as long as each game's own stages are in chronological order.
+const STAGE_ORDER = [
+  "preseason_training_camp", "preseason", "regular_season",
+  ...postseasonPayoutStages(null),
+  ...postseasonPayoutStages("cfb_27"),
+  "offseason",
+];
+
 function isForwardAdvance(input: Pick<LeagueAdvanceContext, "previousWeek" | "previousStage" | "nextWeek" | "nextStage">) {
   if (input.nextWeek > input.previousWeek) return true;
   if (input.nextWeek < input.previousWeek) return false;
-  const order = ["preseason_training_camp", "preseason", "regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "offseason"];
-  const previousIndex = order.indexOf(input.previousStage);
-  const nextIndex = order.indexOf(input.nextStage);
+  const previousIndex = STAGE_ORDER.indexOf(input.previousStage);
+  const nextIndex = STAGE_ORDER.indexOf(input.nextStage);
   if (previousIndex === -1 || nextIndex === -1) return input.nextStage !== input.previousStage;
   return nextIndex > previousIndex;
 }

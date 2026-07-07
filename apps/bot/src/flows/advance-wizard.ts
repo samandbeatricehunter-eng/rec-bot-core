@@ -223,7 +223,7 @@ async function completeAdvanceFromSession(
 
   const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek, session.game)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber, session.game)}**.${interestLine}${wagerLine}`;
   sessions.delete(sessionKey(session.guildId, session.userId));
-  return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: session.currentWeek });
+  return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: session.currentWeek, game: session.game });
 }
 
 async function settleGotwForWeek(guild: Guild, guildId: string, weekNumber: number) {

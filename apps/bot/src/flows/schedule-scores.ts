@@ -15,6 +15,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
+import { isRegularSeasonWeek } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -166,7 +167,7 @@ export async function handleWeeklyScoresUploadOpen(interaction: ButtonInteractio
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const weekNumber = Math.max(1, Number(week?.league?.current_week ?? 1));
   // Playoff rounds are a short slate, so a single screenshot covers the week.
-  const isPlayoff = weekNumber > 18;
+  const isPlayoff = !isRegularSeasonWeek(weekNumber, week?.league?.game ?? null);
 
   uploadSessions.set(key(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,

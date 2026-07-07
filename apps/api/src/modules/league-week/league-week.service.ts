@@ -1,3 +1,4 @@
+import { regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -24,7 +25,9 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   const previousWeek = Number(context.rec_leagues.current_week ?? 1);
   const previousStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
   const previousSeasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
-  const highlightAwardsDue = previousWeek === 18 && previousStage === "regular_season" && input.weekNumber === 19 && input.seasonStage === "wild_card";
+  const highlightAwardsDue = previousStage === "regular_season"
+    && previousWeek === regularSeasonWeeks(context.rec_leagues.game)
+    && input.seasonStage !== "regular_season";
   const payload = {
     current_week: input.weekNumber,
     season_stage: input.seasonStage,

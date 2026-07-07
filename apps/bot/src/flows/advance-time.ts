@@ -11,6 +11,7 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
+import { maxSeasonWeek, regularSeasonWeeks } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -57,6 +58,7 @@ type AdvanceTimeSession = {
   headline: string;
   completedSeasonNumber: number;
   completedWeekNumber: number;
+  game: string | null;
   selectedDate: string | null; // YYYY-MM-DD in the selected timezone
   selectedTz: string;
   selectedHour: number | null; // 0–23
@@ -232,7 +234,7 @@ function renderStep(session: AdvanceTimeSession) {
 export async function enterAdvanceTimeStep(
   interaction: ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction,
   headline: string,
-  completed: { seasonNumber: number; weekNumber: number },
+  completed: { seasonNumber: number; weekNumber: number; game?: string | null },
 ) {
   if (!interaction.inCachedGuild()) return;
   const session: AdvanceTimeSession = {
@@ -241,6 +243,7 @@ export async function enterAdvanceTimeStep(
     headline,
     completedSeasonNumber: completed.seasonNumber,
     completedWeekNumber: completed.weekNumber,
+    game: completed.game ?? null,
     selectedDate: null,
     selectedTz: DEFAULT_TZ,
     selectedHour: null,
@@ -302,7 +305,7 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
 }
 
 async function publishSeasonXfSummary(guild: Guild, session: AdvanceTimeSession): Promise<number> {
-  if (session.completedWeekNumber !== 18) return 0;
+  if (session.completedWeekNumber !== regularSeasonWeeks(session.game)) return 0;
   try {
     const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
     const channel = await getAnnouncementsChannel(guild, cfg?.routes ?? {});
@@ -503,7 +506,7 @@ function buildPowerRankingsEmbed(rankings: any, session: AdvanceTimeSession) {
 }
 
 async function publishPowerRankings(guild: Guild, session: AdvanceTimeSession): Promise<PowerRankingsPublishResult> {
-  if (session.completedWeekNumber < 1 || session.completedWeekNumber > 22) {
+  if (session.completedWeekNumber < 1 || session.completedWeekNumber > maxSeasonWeek(session.game)) {
     return { posted: false, configured: true, accessible: true, count: 0 };
   }
   try {

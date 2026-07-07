@@ -1,4 +1,4 @@
-import { evaluatePayoutTier, nextPayoutTier, type RecEndSeasonPayoutDefinition } from "@rec/shared";
+import { evaluatePayoutTier, isRegularSeasonWeek, nextPayoutTier, type RecEndSeasonPayoutDefinition } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
@@ -153,8 +153,8 @@ export async function generateAdvanceDms(input: { guildId: string }): Promise<Ad
     rankByTeam.set(team.teamId, { rank: team.rank, prevRank: team.prevRank ?? null, change: team.change ?? null });
   }
 
-  // EOS team-stat progress only applies to regular-season advances (into wk 2–18).
-  const eosApplicable = toWeek >= 2 && toWeek <= 18;
+  // EOS team-stat progress only applies to regular-season advances.
+  const eosApplicable = toWeek >= 2 && isRegularSeasonWeek(toWeek, context.rec_leagues.game);
   const statsByUser = eosApplicable ? await loadTeamStatsByUser(leagueId, seasonNumber, fromWeek, userIds) : new Map();
 
   const users: AdvanceDmUser[] = [];

@@ -748,7 +748,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
 
     const wantsLinking = draft.linkTeamsAfterSetup;
     leagueSetupSessions.delete(interaction.user.id);
-    markPostSetupActive(interaction.user.id, interaction.guildId, draft.seedDefaultSchedule === true);
+    markPostSetupActive(interaction.user.id, interaction.guildId, draft.seedDefaultSchedule === true, draft.game);
     const franchiseYearOne = draft.seedDefaultSchedule === true;
     const scheduleStepLabel = franchiseYearOne ? "review the Week 1–18 schedule" : "enter or skip the schedule setup";
 

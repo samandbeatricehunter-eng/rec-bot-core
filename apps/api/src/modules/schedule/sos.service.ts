@@ -1,3 +1,4 @@
+import { regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -16,7 +17,6 @@ const PRIOR_WEIGHT = 3;      // prior-season "pseudo-games" (small; fades as gam
 const K_M = 0.2;             // momentum (recent form) weight
 const QUALITY_MIN = 0.5;
 const QUALITY_MAX = 1.5;
-const REGULAR_SEASON_WEEKS = 18;
 
 // Recent-form adjustment from a team's current streak: 0 until a 2-game streak,
 // ramping linearly to ±1 at a 5+ game streak. Positive = hot (win streak),
@@ -179,7 +179,7 @@ export async function computeLeagueSos(guildId: string, viewerDiscordId?: string
       .select("week_number,home_team_id,away_team_id")
       .eq("league_id", leagueId)
       .eq("season_id", seasonId)
-      .lte("week_number", REGULAR_SEASON_WEEKS),
+      .lte("week_number", regularSeasonWeeks(context.rec_leagues.game)),
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for SOS.", teamsRes.error);
   if (assignmentsRes.error) throw new ApiError(500, "Failed to load assignments for SOS.", assignmentsRes.error);

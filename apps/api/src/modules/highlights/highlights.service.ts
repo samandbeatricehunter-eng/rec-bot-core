@@ -1,3 +1,4 @@
+import { isRegularSeasonWeek, maxSeasonWeek, postseasonPayoutStages, regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -65,16 +66,17 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
 
   // Highlights are only accepted during an active season: regular-season Week 1
-  // through the Super Bowl. Voting emojis preload only in the regular season
-  // (Wk 1–18); in the postseason the payout is logged but POTY voting is closed.
-  const postseasonStages = ["wild_card", "divisional", "conference_championship", "super_bowl"];
-  const isRegularSeason = seasonStage === "regular_season" && weekNumber >= 1 && weekNumber <= 18;
-  const isPostseason = postseasonStages.includes(seasonStage) || (weekNumber >= 19 && weekNumber <= 22);
+  // through the championship game. Voting emojis preload only in the regular
+  // season; in the postseason the payout is logged but POTY voting is closed.
+  const game = context.rec_leagues.game;
+  const postseasonStages = postseasonPayoutStages(game);
+  const isRegularSeason = seasonStage === "regular_season" && weekNumber >= 1 && isRegularSeasonWeek(weekNumber, game);
+  const isPostseason = postseasonStages.has(seasonStage) || (weekNumber > regularSeasonWeeks(game) && weekNumber <= maxSeasonWeek(game));
   if (!isRegularSeason && !isPostseason) {
     return {
       recorded: false,
       accepted: false,
-      reason: "Highlights are only accepted during an active season — regular-season Week 1 through the Super Bowl.",
+      reason: "Highlights are only accepted during an active season — regular-season Week 1 through the championship game.",
     };
   }
   const preloadEmojis = isRegularSeason;

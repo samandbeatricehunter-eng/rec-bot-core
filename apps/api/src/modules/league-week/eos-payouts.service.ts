@@ -1,4 +1,4 @@
-import { REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage } from "@rec/shared";
+import { REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -111,13 +111,13 @@ async function buildPowerRankItems(leagueId: string, seasonNumber: number): Prom
     }));
 }
 
-async function buildTeamStatItems(leagueId: string, seasonNumber: number): Promise<EosPayoutItem[]> {
+async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: LeagueGame): Promise<EosPayoutItem[]> {
   const stats = await supabase
     .from("rec_team_game_stats")
     .select("*")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
-    .lte("week_number", 18)
+    .lte("week_number", regularSeasonWeeks(game))
     .not("user_id", "is", null);
   if (stats.error) throw new ApiError(500, "Failed to load EOS team stats.", stats.error);
 
@@ -169,7 +169,7 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
     .limit(1);
   if (existingIssued.error) throw new ApiError(500, "Failed to check existing EOS payout items.", existingIssued.error);
 
-  const items = [...await buildPowerRankItems(context.leagueId, seasonNumber), ...await buildTeamStatItems(context.leagueId, seasonNumber)];
+  const items = [...await buildPowerRankItems(context.leagueId, seasonNumber), ...await buildTeamStatItems(context.leagueId, seasonNumber, context.rec_leagues.game)];
   if (!(existingIssued.data ?? []).length) {
     await supabase.from("rec_eos_payout_items").delete().eq("batch_id", batch.id).eq("status", "pending");
     if (items.length) {
@@ -191,7 +191,7 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
 export async function projectEosPayouts(input: { guildId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
-  const items = [...await buildPowerRankItems(context.leagueId, seasonNumber), ...await buildTeamStatItems(context.leagueId, seasonNumber)];
+  const items = [...await buildPowerRankItems(context.leagueId, seasonNumber), ...await buildTeamStatItems(context.leagueId, seasonNumber, context.rec_leagues.game)];
   const withDiscord = await attachPayeeDiscordIds(items);
   const totalAmount = withDiscord.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   return {

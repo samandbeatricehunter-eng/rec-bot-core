@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { isChampionshipWeek, isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -1050,6 +1051,8 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
 
   // Write game result if we have matched teams and scores
   if (sub.home_team_id && sub.away_team_id && sub.home_score != null && sub.away_score != null) {
+    const league = await supabase.from("rec_leagues").select("game").eq("id", sub.league_id).maybeSingle();
+    const game = league.data?.game ?? null;
     const isTie = sub.home_score === sub.away_score;
     const losingUserId = isTie
       ? null
@@ -1077,8 +1080,8 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
         is_user_h2h: Boolean(sub.home_user_id && sub.away_user_id),
         is_cpu_game: !(sub.home_user_id && sub.away_user_id),
         is_tie: isTie,
-        is_playoff: Number(sub.week_number ?? 0) > 18,
-        is_super_bowl: Number(sub.week_number ?? 0) >= 22,
+        is_playoff: !isRegularSeasonWeek(Number(sub.week_number ?? 0), game),
+        is_super_bowl: isChampionshipWeek(sub.week_number, game),
         source: "box_score_screenshot",
         records_apply_key: recordsApplyKey,
         created_at: now,

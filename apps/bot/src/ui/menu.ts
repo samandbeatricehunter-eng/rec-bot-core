@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { canonicalConferenceName, CONFERENCE_ORDER } from "@rec/shared";
+import { canonicalConferenceName, CONFERENCE_ORDER, isRegularSeasonWeek, stageForWeek, stageLabel } from "@rec/shared";
 import { COLORS } from "../lib/colors.js";
 
 /**
@@ -594,18 +594,10 @@ export type TeamScheduleGame = {
   line?: string | null;
 };
 
-function formatScheduleStage(phase?: string | null, weekNumber?: number | null) {
-  const normalized = String(phase ?? "regular_season");
-  if (normalized === "regular_season") return `Week ${weekNumber ?? "?"}`;
-  if (normalized === "wild_card") return "Wild Card";
-  if (normalized === "divisional") return "Divisional";
-  if (normalized === "conference_championship") return "Conference Championship";
-  if (normalized === "super_bowl") return "Super Bowl";
-  return normalized
-    .split("_")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ") || `Week ${weekNumber ?? "?"}`;
+function formatScheduleStage(weekNumber: number | null | undefined, game: string | null) {
+  if (weekNumber == null) return "Week ?";
+  if (isRegularSeasonWeek(weekNumber, game)) return `Week ${weekNumber}`;
+  return stageLabel(stageForWeek(weekNumber, game), weekNumber, game);
 }
 
 function formatScheduleTeam(name?: string | null, lost?: boolean) {
@@ -613,11 +605,7 @@ function formatScheduleTeam(name?: string | null, lost?: boolean) {
   return lost ? `~~${label}~~` : label;
 }
 
-function formatScheduleLine(game: TeamScheduleGame) {
-  return formatScheduleLineForWeek(game, null);
-}
-
-function formatScheduleLineForWeek(game: TeamScheduleGame, currentWeek?: number | null) {
+function formatScheduleLineForWeek(game: TeamScheduleGame, currentWeek: number | null | undefined, leagueGame: string | null) {
   if (game.line) return game.line;
   if (game.isBye) return `Week ${game.weekNumber ?? "?"}: BYE`;
   const completed = Boolean(game.isCompleted && game.homeScore != null && game.awayScore != null);
@@ -628,7 +616,7 @@ function formatScheduleLineForWeek(game: TeamScheduleGame, currentWeek?: number 
     const mine = Number(game.isHome ? game.homeScore : game.awayScore);
     const theirs = Number(game.isHome ? game.awayScore : game.homeScore);
     const result = mine > theirs ? "W" : mine < theirs ? "L" : "T";
-    return `${formatScheduleStage(game.phase, game.weekNumber)}: ~~${prefix} ${opponent}~~ ${game.awayScore}-${game.homeScore} **${result}**`;
+    return `${formatScheduleStage(game.weekNumber, leagueGame)}: ~~${prefix} ${opponent}~~ ${game.awayScore}-${game.homeScore} **${result}**`;
   }
   const homeLost = completed && Number(game.homeScore) < Number(game.awayScore);
   const awayLost = completed && Number(game.awayScore) < Number(game.homeScore);
@@ -636,7 +624,7 @@ function formatScheduleLineForWeek(game: TeamScheduleGame, currentWeek?: number 
   const away = formatScheduleTeam(game.awayLabel ?? game.awayTeamName, awayLost);
   const home = formatScheduleTeam(game.homeLabel ?? game.homeTeamName, homeLost);
   const scorePart = completed ? ` (${game.awayScore}-${game.homeScore})` : "";
-  return `${formatScheduleStage(game.phase, game.weekNumber)}: ${away} VS ${home}${scorePart}`;
+  return `${formatScheduleStage(game.weekNumber, leagueGame)}: ${away} VS ${home}${scorePart}`;
 }
 
 export function buildScheduleEmbed(input: {
@@ -646,6 +634,7 @@ export function buildScheduleEmbed(input: {
   hasLoggedSchedule?: boolean;
   currentWeek?: number | null;
   games?: TeamScheduleGame[];
+  game?: string | null;
 }) {
   const embed = new EmbedBuilder().setTitle(input.teamName ? `${input.teamName} Schedule` : "Schedule");
 
@@ -668,7 +657,7 @@ export function buildScheduleEmbed(input: {
 
   const games = input.games ?? [];
   const scheduleText = games.length
-    ? games.map((game) => formatScheduleLineForWeek(game, input.currentWeek)).join("\n")
+    ? games.map((game) => formatScheduleLineForWeek(game, input.currentWeek, input.game ?? null)).join("\n")
     : "No schedule entries found for your team.";
 
   return embed.setDescription([
