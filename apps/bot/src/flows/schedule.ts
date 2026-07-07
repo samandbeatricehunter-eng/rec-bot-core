@@ -205,10 +205,10 @@ export async function handleScheduleSos(interaction: ButtonInteraction) {
 }
 
 function moveArrow(change: number | null): string {
-  if (change == null) return "new";
-  if (change > 0) return `up ${change}`;
-  if (change < 0) return `down ${Math.abs(change)}`;
-  return "same";
+  if (change == null) return "NEW";
+  if (change > 0) return `+${change}`;
+  if (change < 0) return `${change}`;
+  return "–";
 }
 
 function buildPowerRankingsEmbed(data: any, viewerTeamId: string | null): EmbedBuilder {
@@ -228,7 +228,7 @@ function buildPowerRankingsEmbed(data: any, viewerTeamId: string | null): EmbedB
   const board = teams.map((t) => {
     const mark = t.teamId === viewerTeamId ? "> " : "";
     const label = t.abbr ?? t.teamName;
-    const line = `\`${String(t.rank).padStart(2)}\` ${mark}${label} - **${(t.score ?? 0).toFixed(3)}**  ${moveArrow(t.change)}`;
+    const line = `(${moveArrow(t.change)}) \`${String(t.rank).padStart(2)}\` ${mark}${label} - **${(t.score ?? 0).toFixed(3)}**`;
     return t.teamId === viewerTeamId ? `__${line}__` : line;
   });
 

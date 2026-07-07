@@ -31,8 +31,9 @@ export function seasonTotalsFromGames(games: GameStats[]): SeasonTotals {
     pointsAgainst: sum(games, (g) => g.pointsAgainst),
     seasonRedZoneOffPct: Math.round(avg(games.map((g) => g.redZoneOffensivePct))),
     opponentSeasonRedZoneOffPct: Math.round(avg(games.map((g) => g.opponentRedZoneOffensivePct))),
-    // Division standings aren't tracked in box scores; championship is inferable
-    // from a Super Bowl win. wonDivision is left to a future standings hook.
+    // Not derivable from a single user's games alone — division standings need every
+    // team's record. issueSeasonTotalBadges (persistence.ts) overrides this with a
+    // real league-wide computation for Madden leagues; CFB has no division structure.
     wonDivision: false,
     wonChampionship: games.some((g) => g.isSuperBowl && g.won),
   };

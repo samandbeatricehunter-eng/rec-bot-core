@@ -350,7 +350,7 @@ async function writePrelogResults(
     await rebuildSeasonDisplayRecords(leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] rebuildSeasonDisplayRecords failed after weekly score prelog (non-fatal):", err);
     });
-    await snapshotPowerRankings(leagueId, seasonNumber, weekNumber).catch((err) => {
+    await snapshotPowerRankings(leagueId, seasonNumber, weekNumber, leagueGame).catch((err) => {
       console.error("[ERROR] snapshotPowerRankings failed after weekly score prelog (non-fatal):", err);
     });
   }

@@ -485,14 +485,14 @@ export function normalizeRosterConferences(conferences: RosterConference[]): Ros
     }));
 }
 
-export type MaddenTeamsPage = string;
+export type TeamsMenuPage = string;
 
 function defaultTeamsPage(rawConferences: RosterConference[]) {
   const conferences = normalizeRosterConferences(rawConferences);
   return conferences.find((c) => c.conference === "NFC")?.conference ?? conferences[0]?.conference ?? "Teams";
 }
 
-export function buildMaddenTeamsEmbed(rawConferences: RosterConference[], page: MaddenTeamsPage = defaultTeamsPage(rawConferences)) {
+export function buildTeamsMenuEmbed(rawConferences: RosterConference[], page: TeamsMenuPage = defaultTeamsPage(rawConferences)) {
   const conferences = normalizeRosterConferences(rawConferences);
   const conf = conferences.find((c) => c.conference === page) ?? conferences.find((c) => c.conference === "NFC" || c.conference === "AFC") ?? conferences[0];
   const embed = new EmbedBuilder()
@@ -510,12 +510,12 @@ export function buildMaddenTeamsEmbed(rawConferences: RosterConference[], page: 
   return embed;
 }
 
-export function buildMaddenTeamsRows(page: MaddenTeamsPage = "NFC", rawConferences?: RosterConference[]) {
+export function buildTeamsMenuRows(page: TeamsMenuPage = "NFC", rawConferences?: RosterConference[]) {
   const conferences = rawConferences ? normalizeRosterConferences(rawConferences) : [];
   const conferenceNames = conferences.map((conference) => conference.conference);
   const isNflLayout = conferenceNames.length <= 2 && conferenceNames.every((conference) => conference === "NFC" || conference === "AFC");
   if (!rawConferences || isNflLayout) {
-    const nextPage: MaddenTeamsPage = page === "NFC" ? "AFC" : "NFC";
+    const nextPage: TeamsMenuPage = page === "NFC" ? "AFC" : "NFC";
     return [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${MENU_CUSTOM_IDS.teamsPage}:${nextPage}`).setLabel(nextPage).setStyle(nextPage === "AFC" ? ButtonStyle.Danger : ButtonStyle.Primary),

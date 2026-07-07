@@ -168,7 +168,7 @@ export async function recordManualGameResult(input: {
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
     console.error("[ERROR] rebuildSeasonDisplayRecords failed after manual score entry (non-fatal):", err);
   });
-  await snapshotPowerRankings(context.leagueId, seasonNumber, weekNumber).catch((err) => {
+  await snapshotPowerRankings(context.leagueId, seasonNumber, weekNumber, context.rec_leagues.game).catch((err) => {
     console.error("[ERROR] snapshotPowerRankings failed after manual score entry (non-fatal):", err);
   });
 

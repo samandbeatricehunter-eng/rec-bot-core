@@ -4,14 +4,14 @@ import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 import {
-  buildMaddenTeamsEmbed,
-  buildMaddenTeamsRows,
+  buildTeamsMenuEmbed,
+  buildTeamsMenuRows,
   buildOpenTeamsEmbeds,
   buildSnapshotConferenceSelectRows,
   buildSnapshotTeamSelectRows,
   MENU_CUSTOM_IDS,
   ROSTERS_CUSTOM_IDS,
-  type MaddenTeamsPage
+  type TeamsMenuPage
 } from "../ui/menu.js";
 
 type MainMenuPayloadBuilder = (userId: string, guildId: string | null, isAdmin: boolean) => Promise<any>;
@@ -30,20 +30,20 @@ export async function renderTeamsMenu(interaction: ButtonInteraction) {
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Teams...").setDescription("Fetching league teams, linked users, and open team slots.")], components: [] });
   if (!interaction.guildId) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildMaddenTeamsRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildTeamsMenuRows() });
   }
 
   const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
   const conferences: any[] = confData?.conferences ?? [];
   const hasTeams = conferences.some((c) => (c.divisions ?? []).some((d: any) => (d.teams ?? []).length));
   if (!hasTeams) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("No teams found for this league yet.")], components: buildMaddenTeamsRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("No teams found for this league yet.")], components: buildTeamsMenuRows() });
   }
 
   const page = conferences.some((conference) => conference.conference === "NFC") ? "NFC" : String(conferences[0]?.conference ?? "Teams");
   return interaction.editReply({
-    embeds: [buildMaddenTeamsEmbed(conferences, page)],
-    components: buildMaddenTeamsRows(page, conferences)
+    embeds: [buildTeamsMenuEmbed(conferences, page)],
+    components: buildTeamsMenuRows(page, conferences)
   });
 }
 
@@ -51,14 +51,14 @@ export async function handleTeamsPage(interaction: ButtonInteraction | StringSel
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Teams...").setDescription("Switching conferences and refreshing linked/open teams.")], components: [] });
   if (!interaction.guildId) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildMaddenTeamsRows("NFC") });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Teams").setDescription("Must be run inside a league server.")], components: buildTeamsMenuRows("NFC") });
   }
   const page = interaction.isStringSelectMenu() ? interaction.values[0] ?? "NFC" : interaction.customId.slice(`${MENU_CUSTOM_IDS.teamsPage}:`.length) || "NFC";
   const confData = await recApi.getLeagueConferences(interaction.guildId).catch(() => null);
   const conferences: any[] = confData?.conferences ?? [];
   return interaction.editReply({
-    embeds: [buildMaddenTeamsEmbed(conferences, page as MaddenTeamsPage)],
-    components: buildMaddenTeamsRows(page as MaddenTeamsPage, conferences)
+    embeds: [buildTeamsMenuEmbed(conferences, page as TeamsMenuPage)],
+    components: buildTeamsMenuRows(page as TeamsMenuPage, conferences)
   });
 }
 

@@ -229,7 +229,7 @@ export async function completeAdvanceWeek(input: {
       console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance (non-fatal):", err);
     }),
     // Snapshot power rankings for the week that just completed, so next week can show movement.
-    snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek).catch((err) => {
+    snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek, context.rec_leagues.game).catch((err) => {
       console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
     }),
   ]);

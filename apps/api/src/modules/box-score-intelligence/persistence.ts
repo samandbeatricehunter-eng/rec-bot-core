@@ -328,6 +328,70 @@ async function loadLeagueGame(leagueId: string): Promise<string> {
   return String(leagueResult.data?.game ?? "madden_26");
 }
 
+/**
+ * Madden-only: the team with the best regular-season record in each conference/division
+ * (rec_teams.conference + division, e.g. "AFC North") is that division's champion.
+ * CFB has no equivalent sub-conference division structure, so callers should skip this
+ * entirely for CFB leagues (the division_champion badge itself is also Madden-only).
+ * Ties broken by point differential, then fewer losses.
+ */
+async function computeDivisionChampions(leagueId: string, season: number): Promise<Set<string>> {
+  const [teamsRes, resultsRes] = await Promise.all([
+    supabase.from("rec_teams").select("id,conference,division").eq("league_id", leagueId),
+    supabase
+      .from("rec_game_results")
+      .select("home_team_id,away_team_id,winning_team_id,is_tie,home_score,away_score")
+      .eq("league_id", leagueId)
+      .eq("season_number", season)
+      .eq("is_playoff", false),
+  ]);
+  if (teamsRes.error || resultsRes.error || !teamsRes.data?.length) return new Set();
+
+  type Standing = { wins: number; losses: number; ties: number; pointDiff: number };
+  const standings = new Map<string, Standing>();
+  const get = (teamId: string) => {
+    let s = standings.get(teamId);
+    if (!s) { s = { wins: 0, losses: 0, ties: 0, pointDiff: 0 }; standings.set(teamId, s); }
+    return s;
+  };
+  for (const row of resultsRes.data ?? []) {
+    const home = row.home_team_id, away = row.away_team_id;
+    const homeScore = Number(row.home_score ?? 0), awayScore = Number(row.away_score ?? 0);
+    if (home) get(home).pointDiff += homeScore - awayScore;
+    if (away) get(away).pointDiff += awayScore - homeScore;
+    if (row.is_tie) {
+      if (home) get(home).ties++;
+      if (away) get(away).ties++;
+      continue;
+    }
+    if (row.winning_team_id === home && home) get(home).wins++;
+    else if (home) get(home).losses++;
+    if (row.winning_team_id === away && away) get(away).wins++;
+    else if (away) get(away).losses++;
+  }
+
+  const byDivision = new Map<string, { teamId: string; standing: Standing }[]>();
+  for (const team of teamsRes.data ?? []) {
+    if (!team.conference || !team.division) continue;
+    const key = `${team.conference}:${team.division}`;
+    const list = byDivision.get(key) ?? [];
+    list.push({ teamId: team.id, standing: standings.get(team.id) ?? { wins: 0, losses: 0, ties: 0, pointDiff: 0 } });
+    byDivision.set(key, list);
+  }
+
+  const champions = new Set<string>();
+  for (const teams of byDivision.values()) {
+    if (!teams.length) continue;
+    const best = teams.reduce((top, cur) =>
+      cur.standing.wins !== top.standing.wins ? (cur.standing.wins > top.standing.wins ? cur : top)
+      : cur.standing.pointDiff !== top.standing.pointDiff ? (cur.standing.pointDiff > top.standing.pointDiff ? cur : top)
+      : cur.standing.losses < top.standing.losses ? cur : top
+    );
+    champions.add(best.teamId);
+  }
+  return champions;
+}
+
 // ─── Whole-league batch recompute (advance / catch-up) ────────────────────────────
 // One flat set of reads and writes for the entire league's roster, instead of one
 // round-trip per coach — this is the hot path on every advance, so it needs to stay
@@ -441,6 +505,7 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
   const userIds = [...new Set(assignments.map((a) => a.user_id).filter((id): id is string => Boolean(id)))];
   const now = new Date().toISOString();
   const leagueGame = await loadLeagueGame(leagueId);
+  const divisionChampionTeamIds = leagueGame === "cfb_27" ? new Set<string>() : await computeDivisionChampions(leagueId, season);
 
   const { data: statsRows, error: statsError } = await supabase
     .from("rec_team_game_stats")
@@ -466,7 +531,7 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
     if (!userId) continue;
     const seasonGames = (gamesByUser.get(userId) ?? []).filter((g) => g.season === season);
     if (!seasonGames.length) continue;
-    const seasonTotals = seasonTotalsFromGames(seasonGames);
+    const seasonTotals = { ...seasonTotalsFromGames(seasonGames), wonDivision: divisionChampionTeamIds.has(teamId) };
     const qualified = qualifySeasonBadges(seasonTotals, leagueGame);
     if (!qualified.length) continue;
     badgeRows.push(...qualified.map((b) => ({

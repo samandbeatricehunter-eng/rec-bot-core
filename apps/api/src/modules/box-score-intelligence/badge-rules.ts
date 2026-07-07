@@ -27,6 +27,9 @@ export interface BadgeDef<T> {
 }
 
 const CFB_27_ONLY = ["cfb_27"];
+// Division standings only exist for Madden's AFC/NFC divisional structure — CFB
+// conferences don't have an equivalent sub-division, so this badge doesn't apply there.
+const MADDEN_ONLY = ["madden_26", "madden_27"];
 
 // ─── Weekly badges (30) — qualified from a single uploaded game ────────────────
 
@@ -95,7 +98,7 @@ export const SEASON_BADGES: BadgeDef<SeasonTotals>[] = [
   { key: "offensive_standard", label: "Offensive Standard", description: "Scored 35+ points per game this season", qualifies: (s) => s.gamesPlayed > 0 && s.pointsFor / s.gamesPlayed >= 35 },
   { key: "return_threat", label: "Return Threat", description: "2,000+ return yards this season", qualifies: (s) => s.returnYards >= 2000 },
   { key: "two_point_identity", label: "Two-Point Identity", description: "10+ two-point conversions this season", qualifies: (s) => s.twoPointConversions >= 10 },
-  { key: "division_champion", label: "Division Champion", description: "Won the division title", qualifies: (s) => s.wonDivision },
+  { key: "division_champion", label: "Division Champion", description: "Won the division title", games: MADDEN_ONLY, qualifies: (s) => s.wonDivision },
   { key: "super_bowl_champion", label: "League Champion", description: "Won the championship", qualifies: (s) => s.wonChampionship },
   { key: "bowl_eligible", label: "Bowl Eligible", description: "Won 6+ games this season", games: CFB_27_ONLY, qualifies: (s) => s.wins >= 6 },
   { key: "conference_contender", label: "Conference Contender", description: "Won 8+ games this season", games: CFB_27_ONLY, qualifies: (s) => s.wins >= 8 },

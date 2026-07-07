@@ -481,17 +481,17 @@ function headlinePublishLine(result: HeadlinePublishResult) {
 }
 
 function formatPowerRankingMovement(change: number | null | undefined) {
-  if (change == null) return "new";
-  if (change > 0) return `up ${change}`;
-  if (change < 0) return `down ${Math.abs(change)}`;
-  return "same";
+  if (change == null) return "NEW";
+  if (change > 0) return `+${change}`;
+  if (change < 0) return `${change}`;
+  return "–";
 }
 
 function buildPowerRankingsEmbed(rankings: any, session: AdvanceTimeSession) {
   const teams: any[] = Array.isArray(rankings?.teams) ? rankings.teams : [];
   const lines = teams.slice(0, 32).map((team) => {
     const humanMarker = team.isHuman ? " *" : "";
-    return `#${team.rank} ${team.teamName}${humanMarker} - ${formatPowerRankingMovement(team.change)} (${Number(team.score ?? 0).toFixed(3)})`;
+    return `(${formatPowerRankingMovement(team.change)}) ${team.rank}. ${team.teamName}${humanMarker} (${Number(team.score ?? 0).toFixed(3)})`;
   });
   const topHalf = lines.slice(0, 16).join("\n") || "No rankings available.";
   const bottomHalf = lines.slice(16).join("\n");

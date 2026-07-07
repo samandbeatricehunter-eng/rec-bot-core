@@ -847,9 +847,7 @@ function buildCounterResponseRows(guildId: string, posterDiscordId: string, coun
 
 function parseCounterButton(rest: string): { guildId: string; posterDiscordId: string; counterWagerId: string } {
   const parts = rest.split(":");
-  if (parts.length >= 3) return { guildId: parts[0], posterDiscordId: parts[1], counterWagerId: parts.slice(2).join(":") };
-  if (parts.length === 2) return { guildId: parts[0], posterDiscordId: "", counterWagerId: parts[1] }; // legacy
-  return { guildId: "", posterDiscordId: "", counterWagerId: rest };
+  return { guildId: parts[0], posterDiscordId: parts[1], counterWagerId: parts.slice(2).join(":") };
 }
 
 export async function handleCounterAccept(interaction: ButtonInteraction) {

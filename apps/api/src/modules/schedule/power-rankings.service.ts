@@ -1,3 +1,4 @@
+import { isCfb, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -84,15 +85,32 @@ type ComputePowerRankingsOptions = {
   completedWeekNumber?: number | null;
 };
 
-async function rankTeams(leagueId: string, seasonNumber: number): Promise<RankedTeam[]> {
+async function rankTeams(leagueId: string, seasonNumber: number, game: LeagueGame = null): Promise<RankedTeam[]> {
   const [teamsRes, aggs] = await Promise.all([
     supabase.from("rec_teams").select("id").eq("league_id", leagueId),
     aggregateTeams(leagueId, seasonNumber),
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
-  const rows = (teamsRes.data ?? []).map((t) => {
-    const a = aggs.get(t.id) ?? emptyAgg();
-    return { teamId: t.id, agg: a, score: scoreFor(a) };
+
+  // CFB leagues can have 100+ CPU-only teams across conferences that would swamp the
+  // rankings with noise; only rank the user-controlled teams there, regardless of
+  // conference. Madden leagues (typically fully human-controlled) keep ranking every team.
+  let teamIds = (teamsRes.data ?? []).map((t) => t.id);
+  if (isCfb(game)) {
+    const assignments = await supabase
+      .from("rec_team_assignments")
+      .select("team_id")
+      .eq("league_id", leagueId)
+      .eq("assignment_status", "active")
+      .is("ended_at", null);
+    if (assignments.error) throw new ApiError(500, "Failed to load team assignments for power rankings.", assignments.error);
+    const humanTeamIds = new Set((assignments.data ?? []).map((r) => r.team_id));
+    teamIds = teamIds.filter((id) => humanTeamIds.has(id));
+  }
+
+  const rows = teamIds.map((id) => {
+    const a = aggs.get(id) ?? emptyAgg();
+    return { teamId: id, agg: a, score: scoreFor(a) };
   });
   rows.sort((x, y) =>
     y.score - x.score ||
@@ -104,8 +122,8 @@ async function rankTeams(leagueId: string, seasonNumber: number): Promise<Ranked
 
 // Store the current rankings for `weekNumber` (called at each advance for the
 // week that just completed) so movement can be shown next week.
-export async function snapshotPowerRankings(leagueId: string, seasonNumber: number, weekNumber: number) {
-  const ranked = await rankTeams(leagueId, seasonNumber);
+export async function snapshotPowerRankings(leagueId: string, seasonNumber: number, weekNumber: number, game: LeagueGame = null) {
+  const ranked = await rankTeams(leagueId, seasonNumber, game);
   if (!ranked.length) return;
   const now = new Date().toISOString();
   const rows = ranked.map((r) => ({
@@ -142,9 +160,10 @@ export async function computePowerRankings(guildId: string, viewerDiscordId?: st
   const currentSeason = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const completedWeekNumber = options.completedWeekNumber ?? null;
+  const leagueGame = context.rec_leagues.game;
   const ranked = completedWeekNumber
-    ? (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(leagueId, currentSeason)
-    : await rankTeams(leagueId, currentSeason);
+    ? (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(leagueId, currentSeason, leagueGame)
+    : await rankTeams(leagueId, currentSeason, leagueGame);
 
   const prevSnapQuery = supabase
     .from("rec_power_ranking_snapshots")

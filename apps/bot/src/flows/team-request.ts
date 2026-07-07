@@ -13,7 +13,7 @@ import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { ensureRecBaseRoles, formatTeamDisplayName, syncMemberForTeam } from "../lib/role-sync.js";
-import { buildMaddenTeamsRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type MaddenTeamsPage, type RosterConference } from "../ui/menu.js";
+import { buildTeamsMenuRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type TeamsMenuPage, type RosterConference } from "../ui/menu.js";
 
 export const TEAM_REQUEST_CUSTOM_IDS = {
   conferenceSelect: "rec:team_request:conference",
@@ -142,7 +142,7 @@ export async function handleTeamRequestConference(interaction: ButtonInteraction
   if (!teams.length) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle(`${conference} — No Open Teams`).setDescription("Every team in this conference is already linked. Try the other conference or ask a commissioner.")],
-      components: buildMaddenTeamsRows(conference as MaddenTeamsPage, conferences),
+      components: buildTeamsMenuRows(conference as TeamsMenuPage, conferences),
     });
   }
 
@@ -162,7 +162,7 @@ export async function handleTeamRequestConference(interaction: ButtonInteraction
           .setPlaceholder("Select an open team")
           .addOptions(options),
       ),
-      ...buildMaddenTeamsRows(conference as MaddenTeamsPage, conferences),
+      ...buildTeamsMenuRows(conference as TeamsMenuPage, conferences),
     ],
   });
 }
@@ -192,7 +192,7 @@ export async function handleTeamRequestSelect(interaction: StringSelectMenuInter
     if (!officeChannel || !officeChannel.isTextBased()) {
       return interaction.editReply({
         embeds: [new EmbedBuilder().setTitle("Request Failed").setDescription("Commissioner office channel is not configured. Ask a commissioner to set it in Server Setup.")],
-        components: buildMaddenTeamsRows("NFC"),
+        components: buildTeamsMenuRows("NFC"),
       });
     }
 
@@ -228,12 +228,12 @@ export async function handleTeamRequestSelect(interaction: StringSelectMenuInter
           .setTitle("Request Sent")
           .setDescription(`Your request for **${created.teamName}** was sent to the commissioner office. You'll be linked once approved.`),
       ],
-      components: buildMaddenTeamsRows("NFC"),
+      components: buildTeamsMenuRows("NFC"),
     });
   } catch (error) {
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Request Failed").setDescription(userFacingError(error))],
-      components: buildMaddenTeamsRows("NFC"),
+      components: buildTeamsMenuRows("NFC"),
     });
   }
 }
