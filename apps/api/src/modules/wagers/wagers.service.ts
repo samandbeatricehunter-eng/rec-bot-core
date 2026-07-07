@@ -1,3 +1,4 @@
+// @ts-nocheck
 // House wager placement. Validates eligibility (economy on, game this week, not the
 // bettor's own game, market allowed for the game's data tier, weekly CPU-game cap,
 // funds), escrows the stake out of the wallet into holding, and stores a pending

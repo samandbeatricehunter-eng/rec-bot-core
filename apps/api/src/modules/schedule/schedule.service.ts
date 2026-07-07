@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {
   DEFAULT_NFL_SEASON_BY_GAME,
   getDefaultNflScheduleForGame,

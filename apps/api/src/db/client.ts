@@ -6,12 +6,19 @@ import * as schema from "./schema.js";
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
 
-export function getDrizzleDb() {
+export function getPgPool() {
   if (!env.REC_DATABASE_URL) {
-    throw new Error("REC_DATABASE_URL is required before using the Drizzle database client.");
+    throw new Error("REC_DATABASE_URL is required before using the API database client.");
   }
   if (!pool) {
     pool = new Pool({ connectionString: env.REC_DATABASE_URL });
+  }
+  return pool;
+}
+
+export function getDrizzleDb() {
+  if (!db) {
+    const pool = getPgPool();
     db = drizzle(pool, { schema });
   }
   return db!;

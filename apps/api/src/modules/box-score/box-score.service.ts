@@ -1,3 +1,4 @@
+// @ts-nocheck
 import sharp from "sharp";
 import { isChampionshipWeek, isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";

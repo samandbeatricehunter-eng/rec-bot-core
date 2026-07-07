@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isCfb, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";

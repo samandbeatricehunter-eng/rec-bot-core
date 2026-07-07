@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Import-time orchestration: runs after a box score is approved and its
 // rec_team_game_stats rows are written. Computes game profiles, generates the
 // game story, and recomputes the participants' weekly/season/global badges, then

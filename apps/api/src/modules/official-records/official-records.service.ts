@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isCfb, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 

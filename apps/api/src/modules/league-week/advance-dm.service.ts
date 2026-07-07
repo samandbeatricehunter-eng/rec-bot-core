@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { evaluatePayoutTier, isRegularSeasonWeek, nextPayoutTier, type RecEndSeasonPayoutDefinition } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";

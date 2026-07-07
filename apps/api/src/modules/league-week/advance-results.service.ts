@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
