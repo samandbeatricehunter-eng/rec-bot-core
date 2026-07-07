@@ -283,7 +283,7 @@ async function writePrelogResults(
 ): Promise<{ logged: number; skipped: number }> {
   const now = new Date().toISOString();
   const league = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
-  const game = league.data?.game ?? null;
+  const leagueGame = league.data?.game ?? null;
   const scheduled = await loadScheduledGamesWithTeams(leagueId, seasonId, weekNumber);
   const byId = new Map((scheduled as any[]).map((g) => [String(g.id), g]));
   const boxScored = await boxScoreGameIds(leagueId, seasonNumber, weekNumber);
@@ -316,9 +316,10 @@ async function writePrelogResults(
     const homeWon = g.homeScore > g.awayScore;
     rows.push({
       league_id: leagueId,
+      game_id: game.id,
       season_number: seasonNumber,
       week_number: weekNumber,
-      game_type: isRegularSeasonWeek(weekNumber, game) ? "regular_season" : "postseason",
+      game_type: isRegularSeasonWeek(weekNumber, leagueGame) ? "regular_season" : "postseason",
       external_game_id: game.external_game_id ?? null,
       home_team_id: game.home_team_id,
       away_team_id: game.away_team_id,
@@ -333,7 +334,7 @@ async function writePrelogResults(
       is_user_h2h: Boolean(homeUserId && awayUserId),
       is_cpu_game: !(homeUserId && awayUserId),
       is_tie: isTie,
-      is_playoff: !isRegularSeasonWeek(weekNumber, game),
+      is_playoff: !isRegularSeasonWeek(weekNumber, leagueGame),
       source: SCHEDULE_SOURCE,
       records_apply_key: `schedule:${leagueId}:${seasonNumber}:${weekNumber}:${game.home_team_id}:${game.away_team_id}`,
       created_at: now,

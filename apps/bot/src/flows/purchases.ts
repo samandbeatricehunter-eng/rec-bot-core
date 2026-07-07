@@ -488,6 +488,7 @@ export async function handlePurchaseButton(interaction: ButtonInteraction) {
 }
 
 async function submitPurchase(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   const draft = purchaseSessions.get(interaction.user.id);
   if (!draft) return interaction.update({ embeds: [stepEmbed("Store", "This purchase session expired. Reopen the Store.")], components: [backRow()] });
   await interaction.deferUpdate();
@@ -495,7 +496,7 @@ async function submitPurchase(interaction: ButtonInteraction) {
 
   try {
     const result = await recApi.createPurchaseRequest({
-      guildId: interaction.guildId!,
+      guildId: interaction.guildId,
       discordId: interaction.user.id,
       purchaseType: draft.purchaseType,
       details: draft.details,

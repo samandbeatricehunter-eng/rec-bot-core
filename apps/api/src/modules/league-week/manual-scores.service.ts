@@ -137,6 +137,7 @@ export async function recordManualGameResult(input: {
 
   const row = {
     league_id: context.leagueId,
+    game_id: game.data.id,
     season_number: seasonNumber,
     week_number: weekNumber,
     game_type: game.data.phase ?? (isRegularSeasonWeek(weekNumber, context.rec_leagues.game) ? "regular_season" : "postseason"),

@@ -27,7 +27,6 @@ import { refreshConfirmableWagerEmbeds } from "./wagers.js";
 export const BOX_SCORE_CUSTOM_IDS = {
   submitConfirm: "rec:box_score:submit_confirm",
   cancel: "rec:box_score:cancel",
-  inboxOpen: "rec:league_mgmt:box_score_inbox",
   submissionsOpen: "rec:league_mgmt:box_score_inbox",
   adminWeekSelect: "rec:box_score_admin:week",
   adminGameSelect: "rec:box_score_admin:game",
@@ -846,37 +845,7 @@ export async function handleBoxScoreCorrectionsCancel(interaction: ButtonInterac
   return interaction.editReply({ components: buildPayoutReviewRows(submissionId) });
 }
 
-// ─── Commissioner review (on the Pending Payouts embed or the pull inbox) ──────
-
-export async function handleBoxScoreInbox(interaction: ButtonInteraction) {
-  if (!isDiscordAdminInteraction(interaction)) {
-    return interaction.reply({ content: "Only commissioners can access the box score inbox.", flags: MessageFlags.Ephemeral });
-  }
-  if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
-
-  await interaction.deferUpdate();
-  try {
-    const { submissions } = await recApi.listPendingBoxScores(interaction.guildId);
-
-    if (submissions.length === 0) {
-      return interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Box Score Inbox").setDescription("No pending box score submissions.")],
-        components: [buildInboxBackRow()],
-      });
-    }
-
-    const first = submissions[0];
-    return interaction.editReply({
-      embeds: [buildInboxItemEmbed(first, submissions.length)],
-      components: buildInboxReviewRows(first.id),
-    });
-  } catch (err) {
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Error").setDescription(err instanceof Error ? err.message : String(err))],
-      components: [buildInboxBackRow()],
-    });
-  }
-}
+// ─── Commissioner review (on the Pending Payouts embed) ────────────────────────
 
 export async function handleBoxScoreSubmissions(interaction: ButtonInteraction) {
   if (!isDiscordAdminInteraction(interaction)) {
@@ -1041,25 +1010,6 @@ function buildPayoutReviewEmbed(result: any): EmbedBuilder {
   return embed;
 }
 
-function buildInboxItemEmbed(sub: any, totalPending: number): EmbedBuilder {
-  const quarterScores = sub.quarter_scores as { team1: number[]; team2: number[] } | null;
-  const quarterText = quarterScores
-    ? `${sub.team1_abbr ?? "T1"}: ${quarterScores.team1.join(" | ")}\n${sub.team2_abbr ?? "T2"}: ${quarterScores.team2.join(" | ")}`
-    : "*Not available*";
-
-  const embed = new EmbedBuilder()
-    .setTitle(`Box Score Inbox (${totalPending} pending)`)
-    .addFields(
-      { name: "GAME", value: `**${sub.team1_abbr ?? "?"}** ${sub.home_score ?? "?"} – ${sub.away_score ?? "?"} **${sub.team2_abbr ?? "?"}** — Week ${sub.week_number ?? "?"}`, inline: false },
-      { name: "QUARTER SCORES", value: quarterText.slice(0, 512), inline: false },
-      { name: "KEY STATS  (T1 / T2)", value: statLines(sub.team_stats, 10).slice(0, 1024), inline: false },
-      { name: "SUBMITTED BY", value: `<@${sub.submitted_by_discord_id}>`, inline: true },
-    )
-    .setFooter({ text: `ID: ${sub.id}` });
-  if (sub.image_storage_url) embed.setImage(String(sub.image_storage_url));
-  return embed;
-}
-
 // ─── Component builders ───────────────────────────────────────────────────────
 
 function buildPayoutReviewRows(submissionId: string) {
@@ -1068,17 +1018,6 @@ function buildPayoutReviewRows(submissionId: string) {
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.approvePrefix}${submissionId}`).setLabel("Approve").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.denyModalPrefix}${submissionId}`).setLabel("Deny").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctOpenPrefix}${submissionId}`).setLabel("Corrections").setStyle(ButtonStyle.Primary),
-    ),
-  ];
-}
-
-function buildInboxReviewRows(submissionId: string) {
-  return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.approvePrefix}${submissionId}`).setLabel("Approve").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.denyModalPrefix}${submissionId}`).setLabel("Deny").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctOpenPrefix}${submissionId}`).setLabel("Corrections").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.inboxBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary),
     ),
   ];
 }

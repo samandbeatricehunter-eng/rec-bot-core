@@ -25,7 +25,11 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
       .insert({ user_id: userId, discord_id: input.discordId, username: input.discordId, global_name: input.discordId })
       .select("user_id")
       .single();
-    if (createdAccount.error) throw new ApiError(500, "Failed to link Discord account.", createdAccount.error);
+    if (createdAccount.error) {
+      // Roll back the just-created rec_users row rather than leaving it orphaned with no linked account.
+      await supabase.from("rec_users").delete().eq("id", userId);
+      throw new ApiError(500, "Failed to link Discord account.", createdAccount.error);
+    }
   }
 
   const existingAssignment = await supabase

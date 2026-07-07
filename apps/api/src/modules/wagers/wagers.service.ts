@@ -743,7 +743,6 @@ async function loadGameResult(leagueId: string, gameId: string): Promise<GameRes
     .eq("game_id", gameId)
     .maybeSingle();
   if (data && data.home_score != null && data.away_score != null) return data as GameResult;
-  // Some results are keyed without game_id; fall back to a team-pair lookup.
   return null;
 }
 

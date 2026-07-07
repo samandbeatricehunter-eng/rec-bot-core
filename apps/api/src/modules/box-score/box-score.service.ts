@@ -1074,6 +1074,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     const { error: resultError } = await supabase.from("rec_game_results").upsert(
       {
         league_id: sub.league_id,
+        game_id: sub.game_id ?? null,
         season_number: sub.season_number,
         week_number: sub.week_number,
         game_type: sub.phase ?? "regular_season",

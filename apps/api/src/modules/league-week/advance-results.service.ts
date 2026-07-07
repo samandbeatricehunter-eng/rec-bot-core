@@ -171,6 +171,7 @@ export async function completeAdvanceWeek(input: {
     await supabase.from("rec_game_results").upsert(
       {
         league_id: context.leagueId,
+        game_id: game.data.id,
         season_number: seasonNumber,
         week_number: game.data.week_number ?? currentWeek,
         game_type: game.data.phase ?? phaseForWeek(currentWeek, context.rec_leagues.game),

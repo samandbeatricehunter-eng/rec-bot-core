@@ -202,7 +202,6 @@ import {
   handleBoxScoreCorrectionsMatchupSelect,
   handleBoxScoreCorrectionsModal,
   handleBoxScoreCorrectionsCancel,
-  handleBoxScoreInbox,
   handleBoxScoreSubmitConfirm,
   sweepBoxScoreExchanges,
 } from "./flows/box-score.js";
@@ -726,7 +725,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.teamsPostOpen) return handlePostOpenTeams(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.requestTeam) return startTeamRequestFlow(interaction);
-      if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.conferenceSelect}:`)) return handleTeamRequestConference(interaction);
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.approvePrefix}:`)) return handleTeamRequestApprove(interaction);
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.rejectPrefix}:`)) return handleTeamRequestReject(interaction);
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.rolePrefix}:`)) return handleTeamRequestRole(interaction);
