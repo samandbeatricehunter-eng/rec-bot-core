@@ -15,6 +15,7 @@ import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { teamDisplayAbbr, teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
+import { teamNick } from "./gotw.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type RosterConference, type RosterTeam } from "../ui/menu.js";
 import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, isRegularSeasonWeek, maxSeasonWeek, regularSeasonWeeks, stageForWeek, stageLabel } from "@rec/shared";
 
@@ -877,9 +878,13 @@ async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, s
   const categoryId = config?.routes?.game_channels_category_id;
   const category = categoryId ? await interaction.guild.channels.fetch(categoryId).catch(() => null) : null;
   if (!category || category.type !== ChannelType.GuildCategory) return "No game channel category is configured.";
-  const away = teamDisplayName(game.away_team ?? session.teams.find((team) => team.id === game.away_team_id));
-  const home = teamDisplayName(game.home_team ?? session.teams.find((team) => team.id === game.home_team_id));
-  const name = `${away} vs ${home}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+  const awayTeam = game.away_team ?? session.teams.find((team) => team.id === game.away_team_id);
+  const homeTeam = game.home_team ?? session.teams.find((team) => team.id === game.home_team_id);
+  const away = teamDisplayName(awayTeam);
+  const home = teamDisplayName(homeTeam);
+  // Channel name is nickname only (no city/school), matching the bulk weekly game-channel
+  // creation flow in game-channels.ts — e.g. "buckeyes-vs-wolverines", not the full team name.
+  const name = `${teamNick(awayTeam)} vs ${teamNick(homeTeam)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
   const channel = await interaction.guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id }).catch(() => null);
   if (!channel?.isTextBased()) return "Game channel creation failed.";
   await channel.lockPermissions().catch(() => undefined);
