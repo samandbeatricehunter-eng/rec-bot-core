@@ -208,14 +208,10 @@ export function buildOpenTeamSelectRow(conference: string, openTeams: TeamLinkTe
             .setLabel(team.name.slice(0, 100))
             .setValue(String(team.id ?? team.abbreviation))
         ),
-        ...(conference === "AFC" || conference === "NFC"
-          ? [
-              new StringSelectMenuOptionBuilder()
-                .setLabel("Custom / Team Builder")
-                .setValue("CUSTOM_TEAM")
-                .setDescription("Register or update a relocated, custom, or Team Builder team.")
-            ]
-          : [])
+        new StringSelectMenuOptionBuilder()
+          .setLabel("Custom / Team Builder")
+          .setValue("CUSTOM_TEAM")
+          .setDescription("Register or update a relocated, custom, or Team Builder team.")
       )
   );
 }
@@ -538,14 +534,10 @@ export function buildSimpleTeamSelectPanel(
 
                 return option;
               }),
-            ...(conference === "AFC" || conference === "NFC"
-              ? [
-                  new StringSelectMenuOptionBuilder()
-                    .setLabel("Custom / Relocated Team")
-                    .setValue("CUSTOM_TEAM")
-                    .setDescription(`Register a custom or relocated ${conference} team`)
-                ]
-              : [])
+            new StringSelectMenuOptionBuilder()
+              .setLabel("Custom / Relocated Team")
+              .setValue("CUSTOM_TEAM")
+              .setDescription(`Register a custom or relocated ${conference} team`)
           )
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(

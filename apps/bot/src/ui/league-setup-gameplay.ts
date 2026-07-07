@@ -10,7 +10,7 @@ import {
 import { CFB_27_TEAMS, CONFERENCE_ORDER } from "@rec/shared";
 import { buildNavigationRow } from "./navigation.js";
 import { LEAGUE_SETUP_CUSTOM_IDS, type LeagueSetupDraft } from "./league-setup-types.js";
-import { baseEmbed, boolText, fmt, formatDifficultyLabel, option, selectRow, yesNoOptions } from "./league-setup-shared.js";
+import { baseEmbed, formatDifficultyLabel, option, selectRow, yesNoOptions } from "./league-setup-shared.js";
 
 export function buildDifficultyWindow(draft: LeagueSetupDraft) {
   const isCfb = draft.game === "cfb_27";
@@ -205,7 +205,9 @@ export function buildRoleWindow(draft: LeagueSetupDraft, title: string, customId
 }
 
 // ---- Franchise / Coach Mode / Assist settings (shared across Madden and CFB).
-// CFB calls this section "Dynasty" rather than "Franchise" — Madden keeps "Franchise". ----
+// CFB calls this section "Dynasty" rather than "Franchise" — Madden keeps "Franchise".
+// Each setting below gets its own dedicated wizard step (never bundled multiple
+// questions onto one screen — see 79eac1cf for the bug that caused). ----
 
 function threeWayOptions(offLabel: string, onLabel: string, thirdLabel: string, thirdValue: string, thirdDescription?: string) {
   return [option(offLabel, "off"), option(onLabel, "on"), option(thirdLabel, thirdValue, thirdDescription)];
@@ -215,111 +217,69 @@ function franchiseOrDynastyLabel(draft: LeagueSetupDraft) {
   return draft.game === "cfb_27" ? "Dynasty" : "Franchise";
 }
 
-export function buildFranchiseSettingsWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed(`Gameplay: ${franchiseOrDynastyLabel(draft)} Settings`, draft)
-    .setDescription([
-      `League: **${draft.name}**`,
-      "",
-      "Pick answers for both settings below, then press Continue.",
-      "",
-      `Coach Firing: **${fmt(draft.coachFiringPolicy)}**`,
-      `Preorder Bonuses: **${boolText(draft.preorderBonusesEnabled)}**`
-    ].join("\n"));
-
+export function buildCoachFiringPolicyWindow(draft: LeagueSetupDraft) {
   return {
-    embeds: [embed],
+    embeds: [baseEmbed(`${franchiseOrDynastyLabel(draft)} Settings: Coach Firing`, draft)],
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.coachFiringPolicy, "Coach Firing", threeWayOptions("Off", "On", "CPU Only", "cpu_only", "Only CPU-controlled coaches can be fired.")),
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.preorderBonuses, "Preorder Bonuses", yesNoOptions()),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.franchiseSettingsDone)
-          .setLabel(draft.editMode ? "Save & Continue" : "Continue")
-          .setStyle(ButtonStyle.Success)
-      ),
       buildNavigationRow()
     ]
   };
+}
+
+export function buildPreorderBonusesWindow(draft: LeagueSetupDraft) {
+  return buildBooleanGameplayWindow(draft, `${franchiseOrDynastyLabel(draft)} Settings: Preorder Bonuses`, LEAGUE_SETUP_CUSTOM_IDS.preorderBonuses, "Preorder Bonuses enabled?");
 }
 
 function assistOptions() {
   return [option("On", "on"), option("Off", "off"), option("Keep Individual", "keep_individual", "Leave each user's personal setting as-is.")];
 }
 
-export function buildAssistSettingsWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("Gameplay: Assist Settings", draft)
-    .setDescription([
-      `League: **${draft.name}**`,
-      "",
-      "Pick answers for all three settings below, then press Continue.",
-      "",
-      `Ball Hawk: **${fmt(draft.ballHawk)}**`,
-      `Heat Seeker: **${fmt(draft.heatSeeker)}**`,
-      `Switch Assist: **${fmt(draft.switchAssist)}**`
-    ].join("\n"));
-
+export function buildBallHawkWindow(draft: LeagueSetupDraft) {
   return {
-    embeds: [embed],
-    components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.ballHawk, "Ball Hawk", assistOptions()),
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.heatSeeker, "Heat Seeker", assistOptions()),
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.switchAssist, "Switch Assist", assistOptions()),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.assistSettingsDone)
-          .setLabel(draft.editMode ? "Save & Continue" : "Continue")
-          .setStyle(ButtonStyle.Success)
-      ),
-      buildNavigationRow()
-    ]
+    embeds: [baseEmbed("Gameplay: Ball Hawk", draft)],
+    components: [selectRow(LEAGUE_SETUP_CUSTOM_IDS.ballHawk, "Ball Hawk", assistOptions()), buildNavigationRow()]
   };
 }
 
-type CoachModeSubSetting = { key: keyof LeagueSetupDraft; label: string; cfbOnly?: boolean };
+export function buildHeatSeekerWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("Gameplay: Heat Seeker", draft)],
+    components: [selectRow(LEAGUE_SETUP_CUSTOM_IDS.heatSeeker, "Heat Seeker", assistOptions()), buildNavigationRow()]
+  };
+}
+
+export function buildSwitchAssistWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("Gameplay: Switch Assist", draft)],
+    components: [selectRow(LEAGUE_SETUP_CUSTOM_IDS.switchAssist, "Switch Assist", assistOptions()), buildNavigationRow()]
+  };
+}
+
+export type CoachModeSubSetting = { step: LeagueSetupDraft["step"]; key: keyof LeagueSetupDraft; customId: string; label: string; cfbOnly?: boolean };
 
 export const COACH_MODE_SUB_SETTINGS: CoachModeSubSetting[] = [
-  { key: "coachModeAutoPassEnabled", label: "Autopass" },
-  { key: "coachModeAutoSnapEnabled", label: "Autosnap" },
-  { key: "coachModeCoachSuggestionsEnabled", label: "Coach Suggestions" },
-  { key: "coachModeRecruitFlippingEnabled", label: "Recruit Flipping", cfbOnly: true },
-  { key: "coachModeAutoRecruitingEnabled", label: "Auto Recruiting", cfbOnly: true },
-  { key: "coachModeAutoProgressPlayersEnabled", label: "Auto Progress Players", cfbOnly: true },
-  { key: "coachModeUserAutoProgressionEnabled", label: "User Coach Auto Progression", cfbOnly: true },
-  { key: "coachModeCpuManageBudgetEnabled", label: "CPU Manage Budget", cfbOnly: true },
-  { key: "coachModeCpuManageStaffEnabled", label: "CPU Manage Staff", cfbOnly: true },
-  { key: "coachModeCpuManageFacilitiesEnabled", label: "CPU Manage Facilities Spending", cfbOnly: true }
+  { step: "coach_mode_auto_pass", key: "coachModeAutoPassEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoPass, label: "Autopass" },
+  { step: "coach_mode_auto_snap", key: "coachModeAutoSnapEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoSnap, label: "Autosnap" },
+  { step: "coach_mode_coach_suggestions", key: "coachModeCoachSuggestionsEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCoachSuggestions, label: "Coach Suggestions" },
+  { step: "coach_mode_recruit_flipping", key: "coachModeRecruitFlippingEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeRecruitFlipping, label: "Recruit Flipping", cfbOnly: true },
+  { step: "coach_mode_auto_recruiting", key: "coachModeAutoRecruitingEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoRecruiting, label: "Auto Recruiting", cfbOnly: true },
+  { step: "coach_mode_auto_progress_players", key: "coachModeAutoProgressPlayersEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoProgressPlayers, label: "Auto Progress Players", cfbOnly: true },
+  { step: "coach_mode_user_auto_progression", key: "coachModeUserAutoProgressionEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeUserAutoProgression, label: "User Coach Auto Progression", cfbOnly: true },
+  { step: "coach_mode_cpu_manage_budget", key: "coachModeCpuManageBudgetEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageBudget, label: "CPU Manage Budget", cfbOnly: true },
+  { step: "coach_mode_cpu_manage_staff", key: "coachModeCpuManageStaffEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageStaff, label: "CPU Manage Staff", cfbOnly: true },
+  { step: "coach_mode_cpu_manage_facilities", key: "coachModeCpuManageFacilitiesEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageFacilities, label: "CPU Manage Facilities Spending", cfbOnly: true }
 ];
 
-export function buildCoachModeSettingsWindow(draft: LeagueSetupDraft) {
-  const isCfb = draft.game === "cfb_27";
-  const visible = COACH_MODE_SUB_SETTINGS.filter((setting) => !setting.cfbOnly || isCfb);
-  const embed = new EmbedBuilder()
-    .setTitle(`${isCfb ? "Dynasty" : "Gameplay"}: Coach Mode Settings`)
-    .setDescription([
-      `League: **${draft.name}**`,
-      "",
-      "Pick a setting below to toggle it on/off.",
-      "",
-      ...visible.map((setting) => `${setting.label}: **${draft[setting.key] ? "On" : "Off"}**`)
-    ].join("\n"));
+export function findCoachModeSubSetting(step: LeagueSetupDraft["step"]) {
+  const setting = COACH_MODE_SUB_SETTINGS.find((candidate) => candidate.step === step);
+  if (!setting) throw new Error(`No coach mode sub-setting registered for step "${step}"`);
+  return setting;
+}
 
-  return {
-    embeds: [embed],
-    components: [
-      selectRow(
-        LEAGUE_SETUP_CUSTOM_IDS.coachModeSettingSelect,
-        "Select a setting to toggle",
-        visible.map((setting) => option(setting.label, setting.key as string, draft[setting.key] ? "Currently On" : "Currently Off"))
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.coachModeSettingsDone)
-          .setLabel(draft.editMode ? "Save & Continue" : "Continue")
-          .setStyle(ButtonStyle.Success)
-      ),
-      buildNavigationRow()
-    ]
-  };
+export function buildCoachModeSubSettingWindow(draft: LeagueSetupDraft, setting: CoachModeSubSetting) {
+  const isCfb = draft.game === "cfb_27";
+  return buildBooleanGameplayWindow(draft, `${isCfb ? "Dynasty" : "Gameplay"}: Coach Mode — ${setting.label}`, setting.customId, `${setting.label} enabled?`);
 }
 
 // ---- Conference assignment editor (CFB 27 only) ----

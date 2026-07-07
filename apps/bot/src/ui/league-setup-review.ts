@@ -38,19 +38,24 @@ import {
 import {
   buildAcceleratedClockEnabledWindow,
   buildAcceleratedClockSecondsWindow,
-  buildAssistSettingsWindow,
+  buildBallHawkWindow,
   buildBooleanGameplayWindow,
-  buildCoachModeSettingsWindow,
+  buildCoachFiringPolicyWindow,
+  buildCoachModeSubSettingWindow,
   buildConferenceAssignmentsWindow,
   buildConferenceRealignmentWindow,
   buildDynastyStructureWindow,
-  buildFranchiseSettingsWindow,
+  buildHeatSeekerWindow,
   buildInjuryPolicyWindow,
   buildPlayCallNumberWindow,
+  buildPreorderBonusesWindow,
   buildQuarterLengthWindow,
   buildRecruitingDifficultyWindow,
+  buildSwitchAssistWindow,
   buildCfbToggleWindow,
-  buildDifficultyWindow
+  buildDifficultyWindow,
+  COACH_MODE_SUB_SETTINGS,
+  findCoachModeSubSetting
 } from "./league-setup-gameplay.js";
 import { buildFeatureDecisionWindow } from "./league-setup-purchases.js";
 import { buildGameSelectWindow, buildLeagueTypeWindow } from "./league-setup-core.js";
@@ -205,10 +210,13 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Stadium Pulse", "stadium_pulse"),
       // CFB calls this section "Dynasty" rather than "Franchise" — these live in the
       // Dynasty category here instead of a separate Franchise category (Madden-only).
-      option("Coach Firing / Preorder Bonuses", "franchise_settings"),
+      option("Coach Firing", "coach_firing_policy"),
+      option("Preorder Bonuses", "preorder_bonuses"),
       option("Coach Mode", "coach_mode_enabled"),
-      ...(draft.coachModeEnabled ? [option("Coach Mode Settings", "coach_mode_settings")] : []),
-      option("Ball Hawk / Heat Seeker / Switch Assist", "assist_settings")
+      ...(draft.coachModeEnabled ? COACH_MODE_SUB_SETTINGS.filter((setting) => !setting.cfbOnly || isCfb).map((setting) => option(setting.label, setting.step)) : []),
+      option("Ball Hawk", "ball_hawk"),
+      option("Heat Seeker", "heat_seeker"),
+      option("Switch Assist", "switch_assist")
     ],
     gameplay: isCfb ? [
       option("Difficulty", "difficulty"),
@@ -227,10 +235,13 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Injuries", "injury_policy")
     ],
     franchise: [
-      option("Coach Firing / Preorder Bonuses", "franchise_settings"),
+      option("Coach Firing", "coach_firing_policy"),
+      option("Preorder Bonuses", "preorder_bonuses"),
       option("Coach Mode", "coach_mode_enabled"),
-      ...(draft.coachModeEnabled ? [option("Coach Mode Settings", "coach_mode_settings")] : []),
-      option("Ball Hawk / Heat Seeker / Switch Assist", "assist_settings")
+      ...(draft.coachModeEnabled ? COACH_MODE_SUB_SETTINGS.filter((setting) => !setting.cfbOnly || isCfb).map((setting) => option(setting.label, setting.step)) : []),
+      option("Ball Hawk", "ball_hawk"),
+      option("Heat Seeker", "heat_seeker"),
+      option("Switch Assist", "switch_assist")
     ],
     play_call: [
       option("Offensive Play Call Limits", "offensive_limits_enabled"),
@@ -548,10 +559,23 @@ export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
     case "abilities": return buildBooleanGameplayWindow(draft, "Gameplay: Abilities", LEAGUE_SETUP_CUSTOM_IDS.abilities, "Abilities enabled?");
     case "wear_and_tear": return buildBooleanGameplayWindow(draft, "Gameplay: Wear & Tear", LEAGUE_SETUP_CUSTOM_IDS.wearAndTear, "Wear & Tear enabled?");
     case "injury_policy": return buildInjuryPolicyWindow(draft);
-    case "franchise_settings": return buildFranchiseSettingsWindow(draft);
+    case "coach_firing_policy": return buildCoachFiringPolicyWindow(draft);
+    case "preorder_bonuses": return buildPreorderBonusesWindow(draft);
     case "coach_mode_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Coach Mode", LEAGUE_SETUP_CUSTOM_IDS.coachModeEnabled, "Coach Mode enabled?");
-    case "coach_mode_settings": return buildCoachModeSettingsWindow(draft);
-    case "assist_settings": return buildAssistSettingsWindow(draft);
+    case "coach_mode_auto_pass":
+    case "coach_mode_auto_snap":
+    case "coach_mode_coach_suggestions":
+    case "coach_mode_recruit_flipping":
+    case "coach_mode_auto_recruiting":
+    case "coach_mode_auto_progress_players":
+    case "coach_mode_user_auto_progression":
+    case "coach_mode_cpu_manage_budget":
+    case "coach_mode_cpu_manage_staff":
+    case "coach_mode_cpu_manage_facilities":
+      return buildCoachModeSubSettingWindow(draft, findCoachModeSubSetting(draft.step));
+    case "ball_hawk": return buildBallHawkWindow(draft);
+    case "heat_seeker": return buildHeatSeekerWindow(draft);
+    case "switch_assist": return buildSwitchAssistWindow(draft);
     case "offensive_limits_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Offensive Play Call Limits", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled, "Offensive play call limits enabled?");
     case "offensive_limit": return buildPlayCallNumberWindow(draft, "Gameplay: Offensive Play Call Limit", LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit, "Select max times a play can be called per game");
     case "offensive_cooldown_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Offensive Play Call Cooldown", LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldownEnabled, "Offensive play call cooldown enabled?");

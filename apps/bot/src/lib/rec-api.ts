@@ -76,7 +76,7 @@ export const recApi = {
       { method: "POST", body: JSON.stringify({ guildId }) }
     ),
 
-  updateTeamConference: (input: { guildId: string; abbreviation: string; conference: string }) =>
+  updateTeamConference: (input: { guildId: string; abbreviation: string; conference: string; requestedByDiscordId?: string }) =>
     recFetch<any>("/v1/setup/league/teams/conference", {
       method: "POST",
       body: JSON.stringify(input)

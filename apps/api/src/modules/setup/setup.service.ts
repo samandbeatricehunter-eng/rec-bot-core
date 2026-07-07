@@ -398,6 +398,12 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
   input = normalizeLeagueSetupInput(input);
   const context = await getCurrentLeagueContext(input.guildId);
 
+  const previous = await supabase
+    .from("rec_league_configuration")
+    .select("*")
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+
   const configurationPayload = {
     league_id: context.leagueId,
     league_password: input.leaguePassword ?? null,
@@ -505,6 +511,19 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     .select("*")
     .single();
   if (error) throw new ApiError(500, "Failed to update league configuration", error);
+
+  await writeAuditLog({
+    action: "league.configuration.updated",
+    entityType: "rec_league_configuration",
+    entityId: context.leagueId,
+    previousValue: previous.data ?? undefined,
+    newValue: data,
+    reason: input.requestedByDiscordId
+      ? `League Setup edited through Discord Admin Panel by discord:${input.requestedByDiscordId}.`
+      : "League Setup edited through Discord Admin Panel.",
+    source: "manual_admin_entry"
+  });
+
   return { configuration: data };
 }
 
@@ -655,14 +674,34 @@ export async function getLeagueTeamConferences(guildId: string) {
  * an existing league (new leagues apply overrides at team-creation time instead, see
  * createDefaultTeamsForGuild's conferenceOverrides param).
  */
-export async function updateTeamConference(input: { guildId: string; abbreviation: string; conference: string }) {
+export async function updateTeamConference(input: { guildId: string; abbreviation: string; conference: string; requestedByDiscordId?: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
+  const previous = await supabase
+    .from("rec_teams")
+    .select("id,abbreviation,conference")
+    .eq("league_id", context.leagueId)
+    .eq("abbreviation", input.abbreviation)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("rec_teams")
     .update({ conference: input.conference })
     .eq("league_id", context.leagueId)
     .eq("abbreviation", input.abbreviation);
   if (error) throw new ApiError(500, "Failed to update team conference", error);
+
+  await writeAuditLog({
+    action: "team.conference.updated",
+    entityType: "rec_teams",
+    entityId: previous.data?.id ?? input.abbreviation,
+    previousValue: previous.data ?? undefined,
+    newValue: { abbreviation: input.abbreviation, conference: input.conference },
+    reason: input.requestedByDiscordId
+      ? `Conference realignment edited through Discord Admin Panel by discord:${input.requestedByDiscordId}.`
+      : "Conference realignment edited through Discord Admin Panel.",
+    source: "manual_admin_entry"
+  });
+
   return { ok: true };
 }
 

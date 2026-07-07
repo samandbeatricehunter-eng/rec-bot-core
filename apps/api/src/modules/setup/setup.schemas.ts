@@ -205,7 +205,8 @@ export const GetLeagueTeamConferencesSchema = z.object({
 export const UpdateTeamConferenceSchema = z.object({
   guildId: z.string().min(1),
   abbreviation: z.string().min(1),
-  conference: z.string().min(1)
+  conference: z.string().min(1),
+  requestedByDiscordId: z.string().min(1).optional()
 });
 
 export type RegisterServerInput = z.infer<typeof RegisterServerSchema>;

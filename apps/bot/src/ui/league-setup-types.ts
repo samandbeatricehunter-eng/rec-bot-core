@@ -85,14 +85,21 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   conferenceAssignTargetSelect: "rec:league_setup:conf_assign_target",
   conferenceAssignDone: "rec:league_setup:conf_assign_done",
   conferenceAssignCancel: "rec:league_setup:conf_assign_cancel",
-  // Franchise/coach-mode/assist settings (shared across Madden and CFB).
+  // Franchise/coach-mode/assist settings (shared across Madden and CFB) — each is its own
+  // dedicated step (see LeagueSetupStep / STEP_ORDER below), not a bundled multi-question screen.
   coachFiringPolicy: "rec:league_setup:coach_firing_policy",
   preorderBonuses: "rec:league_setup:preorder_bonuses",
   coachModeEnabled: "rec:league_setup:coach_mode_enabled",
-  coachModeSettingSelect: "rec:league_setup:coach_mode_setting_select",
-  coachModeSettingsDone: "rec:league_setup:coach_mode_settings_done",
-  franchiseSettingsDone: "rec:league_setup:franchise_settings_done",
-  assistSettingsDone: "rec:league_setup:assist_settings_done",
+  coachModeAutoPass: "rec:league_setup:coach_mode_auto_pass",
+  coachModeAutoSnap: "rec:league_setup:coach_mode_auto_snap",
+  coachModeCoachSuggestions: "rec:league_setup:coach_mode_coach_suggestions",
+  coachModeRecruitFlipping: "rec:league_setup:coach_mode_recruit_flipping",
+  coachModeAutoRecruiting: "rec:league_setup:coach_mode_auto_recruiting",
+  coachModeAutoProgressPlayers: "rec:league_setup:coach_mode_auto_progress_players",
+  coachModeUserAutoProgression: "rec:league_setup:coach_mode_user_auto_progression",
+  coachModeCpuManageBudget: "rec:league_setup:coach_mode_cpu_manage_budget",
+  coachModeCpuManageStaff: "rec:league_setup:coach_mode_cpu_manage_staff",
+  coachModeCpuManageFacilities: "rec:league_setup:coach_mode_cpu_manage_facilities",
   ballHawk: "rec:league_setup:ball_hawk",
   heatSeeker: "rec:league_setup:heat_seeker",
   switchAssist: "rec:league_setup:switch_assist"
@@ -150,10 +157,22 @@ export type LeagueSetupStep =
   | "abilities"
   | "wear_and_tear"
   | "injury_policy"
-  | "franchise_settings"
+  | "coach_firing_policy"
+  | "preorder_bonuses"
   | "coach_mode_enabled"
-  | "coach_mode_settings"
-  | "assist_settings"
+  | "coach_mode_auto_pass"
+  | "coach_mode_auto_snap"
+  | "coach_mode_coach_suggestions"
+  | "coach_mode_recruit_flipping"
+  | "coach_mode_auto_recruiting"
+  | "coach_mode_auto_progress_players"
+  | "coach_mode_user_auto_progression"
+  | "coach_mode_cpu_manage_budget"
+  | "coach_mode_cpu_manage_staff"
+  | "coach_mode_cpu_manage_facilities"
+  | "ball_hawk"
+  | "heat_seeker"
+  | "switch_assist"
   | "offensive_limits_enabled"
   | "offensive_limit"
   | "offensive_cooldown_enabled"
@@ -337,10 +356,22 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "abilities",
   "wear_and_tear",
   "injury_policy",
-  "franchise_settings",
+  "coach_firing_policy",
+  "preorder_bonuses",
   "coach_mode_enabled",
-  "coach_mode_settings",
-  "assist_settings",
+  "coach_mode_auto_pass",
+  "coach_mode_auto_snap",
+  "coach_mode_coach_suggestions",
+  "coach_mode_recruit_flipping",
+  "coach_mode_auto_recruiting",
+  "coach_mode_auto_progress_players",
+  "coach_mode_user_auto_progression",
+  "coach_mode_cpu_manage_budget",
+  "coach_mode_cpu_manage_staff",
+  "coach_mode_cpu_manage_facilities",
+  "ball_hawk",
+  "heat_seeker",
+  "switch_assist",
   "offensive_limits_enabled",
   "offensive_limit",
   "offensive_cooldown_enabled",
@@ -542,8 +573,13 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   if (isCfb && step === "fourth_down_playoff") return "custom_coaches_required";
   if (isCfb && step === "custom_playbooks_allowed") return "difficulty";
 
-  // Coach Mode sub-settings only apply when Coach Mode itself is enabled.
-  if (step === "coach_mode_enabled" && !draft.coachModeEnabled) return "assist_settings";
+  // Coach Mode sub-settings only apply when Coach Mode itself is enabled — skip straight past
+  // all ten individual sub-toggle steps to the assist settings block.
+  if (step === "coach_mode_enabled" && !draft.coachModeEnabled) return "ball_hawk";
+
+  // The last Madden-visible Coach Mode sub-toggle is Coach Suggestions — the remaining seven
+  // (recruiting/staff/budget management) are CFB-only, so Madden jumps straight to Ball Hawk.
+  if (!isCfb && step === "coach_mode_coach_suggestions") return "ball_hawk";
 
   // Economy gates the consecutive purchase-feature section.
   if (step === "economy" && !draft.coinEconomyEnabled) return "server_setup";
