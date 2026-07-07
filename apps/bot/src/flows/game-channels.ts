@@ -54,6 +54,7 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
     });
   }
   const created: string[] = [];
+  const registrationFailures: string[] = [];
   const config = await recApi.getLeagueConfig(interaction.guildId).catch(() => null);
   const isPlayoff = !isRegularSeasonWeek(currentWeek, leagueGame);
   const rulesLines = gameRulesLines(config?.draft ?? null, isPlayoff);
@@ -87,7 +88,10 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
       homeTeamId: game.home_team_id ?? game.home_team?.id ?? null,
       awayUserId: game.away_user_id ?? null,
       homeUserId: game.home_user_id ?? null,
-    }).catch(() => undefined);
+    }).catch((err) => {
+      console.error("[ERROR] Failed to register game channel in database:", err?.message ?? err);
+      registrationFailures.push(`<#${ch.id}>`);
+    });
     pending.push({ ch, game, away, home });
   }
 
@@ -153,6 +157,7 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
     embeds: [new EmbedBuilder().setTitle("Game Channels").setDescription([
       deletedCount > 0 ? `Removed ${deletedCount} previous game channel${deletedCount === 1 ? "" : "s"}.` : "No previous game channels were found in the category.",
       created.length ? `Created:\n${created.join("\n")}` : "No H2H game channels were created.",
+      registrationFailures.length ? `⚠️ Failed to save the DB record for: ${registrationFailures.join(", ")}. Box score/advance lookups for ${registrationFailures.length === 1 ? "this channel" : "these channels"} may not work until a commissioner re-links ${registrationFailures.length === 1 ? "it" : "them"}.` : null,
       isPlayoff ? (gotwPostedCount > 0 ? `Posted ${gotwPostedCount} playoff GOTW poll${gotwPostedCount === 1 ? "" : "s"} to the voting polls channel.` : "No new playoff GOTW polls were posted (already posted, or no voting polls channel).") : null
     ].filter(Boolean).join("\n\n"))],
     components: buildAdvanceRows()

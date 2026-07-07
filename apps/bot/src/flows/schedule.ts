@@ -883,7 +883,7 @@ async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, s
   const channel = await interaction.guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id }).catch(() => null);
   if (!channel?.isTextBased()) return "Game channel creation failed.";
   await channel.lockPermissions().catch(() => undefined);
-  await recApi.registerGameChannel({
+  const registered = await recApi.registerGameChannel({
     guildId: session.guildId,
     gameId: game.id ?? null,
     discordChannelId: channel.id,
@@ -893,13 +893,18 @@ async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, s
     homeTeamId: game.home_team_id ?? null,
     awayUserId: game.away_user_id ?? null,
     homeUserId: game.home_user_id ?? null,
-  }).catch(() => undefined);
+  }).then(() => true).catch((error) => {
+    console.error("[ERROR] Failed to register game channel in database:", error);
+    return false;
+  });
   await channel.send({
     content: `<@${game.away_user_id}> <@${game.home_user_id}>`,
     embeds: [new EmbedBuilder().setTitle("Game Channel").setDescription(`Current-week matchup added manually: **${away} at ${home}**.`)],
     allowedMentions: { users: [game.away_user_id, game.home_user_id] },
   }).catch(() => undefined);
-  return `Created game channel <#${channel.id}>.`;
+  return registered
+    ? `Created game channel <#${channel.id}>.`
+    : `Created game channel <#${channel.id}>, but saving its DB record failed — box score/advance lookups for this channel may not work until a commissioner re-links it.`;
 }
 
 function expectedGamesForWeek(session: ManualScheduleSession) {

@@ -31,10 +31,17 @@ const ABBR_OCR_TYPOS: Record<string, string> = {
   LEY: "LCV",
 };
 
+// Generic digit→letter OCR misread fixes — no real team abbreviation (Madden or the
+// 136-team CFB catalog) legitimately contains a digit, so any digit surviving cleanup
+// is a misread and safe to substitute, without needing to enumerate every real team's
+// specific typo the way ABBR_OCR_TYPOS above does for known letter-for-letter misreads.
+const DIGIT_OCR_TYPOS: Record<string, string> = { "0": "O", "1": "I", "5": "S", "8": "B" };
+
 function correctTeamAbbr(raw: string): string {
   const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!cleaned) return "???";
   if (ABBR_OCR_TYPOS[cleaned]) return ABBR_OCR_TYPOS[cleaned];
+  if (/\d/.test(cleaned)) return cleaned.replace(/[0158]/g, (digit) => DIGIT_OCR_TYPOS[digit]);
   return cleaned;
 }
 
