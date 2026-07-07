@@ -28,14 +28,9 @@ export { buildGameSelectWindow, buildLeagueTypeWindow } from "./league-setup-cor
 export {
   isPurchaseFeatureStep,
   purchaseCapCustomId,
-  purchaseAllTimeCapOpenCustomId,
-  purchaseAllTimeCapModalCustomId,
   coreAttributeGroupCustomId,
   attributeCapGroupCustomId,
   attributeCapModalCustomId,
-  parsePurchaseAllTimeCapInput,
-  buildPurchaseAllTimeCapModal,
-  setPurchaseAllTimeCapValue,
   setPurchaseCapValue,
   setCoreAttributesForGroup,
   setAttributeCapOverride,
@@ -48,8 +43,7 @@ export {
   setLeagueSetupFeatureAnswer,
   buildFeatureTogglesWindow,
   buildFeatureDecisionWindow,
-  type PurchaseFeatureStep,
-  type PurchaseAllTimeCapKind
+  type PurchaseFeatureStep
 } from "./league-setup-purchases.js";
 
 export {

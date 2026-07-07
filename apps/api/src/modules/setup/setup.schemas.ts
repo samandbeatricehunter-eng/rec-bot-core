@@ -86,15 +86,6 @@ export const CreateLeagueSchema = z.object({
   coreAttributes: z.array(z.string()).default([]),
   coreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),
 
-  customPlayersAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),
-  legendsAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),
-  devUpgradesAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),
-  ageResetsAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),
-  playerTraitPurchasesAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),
-  contractPurchasesAllTimeCap: z.number().int().min(0).max(50).nullable().optional(),
-  coreAttributePurchasesAllTimeCap: z.number().int().min(0).max(100).nullable().optional(),
-  nonCoreAttributePurchasesAllTimeCap: z.number().int().min(0).max(100).nullable().optional(),
-
   streamingRequirement: streamingRequirement.default("recommended"),
   regularSeasonStreamingRequirement: streamingRequirement.default("recommended"),
   postseasonStreamingRequirement: streamingRequirement.default("required"),

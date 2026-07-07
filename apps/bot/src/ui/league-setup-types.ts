@@ -75,9 +75,6 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   attrCapGroupPrefix: "rec:league_setup:attr_cap_group",
   attrCapModalPrefix: "rec:league_setup:attr_cap_modal",
   attrCapModalInput: "rec:league_setup:attr_cap_input",
-  purchaseAllTimeCapOpenPrefix: "rec:league_setup:alltime_cap_open",
-  purchaseAllTimeCapModalPrefix: "rec:league_setup:alltime_cap_modal",
-  purchaseAllTimeCapInput: "rec:league_setup:alltime_cap_input",
   // CFB 27: Active Rosters replaces the League Type select (see getNextLeagueSetupStep / buildLeagueTypeWindow).
   activeRosters: "rec:league_setup:active_rosters",
   // Conference realignment editor (CFB 27 only, shown when conferenceRealignment === "allowed").
@@ -215,14 +212,6 @@ export type LeagueSetupDraft = {
   nonCoreAttributePurchasesSeasonCap: number;
   coreAttributes: string[];
   coreAttributeCapOverrides: Record<string, number>;
-  customPlayersAllTimeCap: number | null;
-  legendsAllTimeCap: number | null;
-  devUpgradesAllTimeCap: number | null;
-  ageResetsAllTimeCap: number | null;
-  playerTraitPurchasesAllTimeCap: number | null;
-  contractPurchasesAllTimeCap: number | null;
-  coreAttributePurchasesAllTimeCap: number | null;
-  nonCoreAttributePurchasesAllTimeCap: number | null;
   streamingRequirement: "required" | "recommended" | "disabled";
   regularSeasonStreamingRequirement: "required" | "recommended" | "disabled";
   postseasonStreamingRequirement: "required" | "recommended" | "disabled";
@@ -414,14 +403,6 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     nonCoreAttributePurchasesSeasonCap: 0,
     coreAttributes: [],
     coreAttributeCapOverrides: {},
-    customPlayersAllTimeCap: null,
-    legendsAllTimeCap: null,
-    devUpgradesAllTimeCap: null,
-    ageResetsAllTimeCap: null,
-    playerTraitPurchasesAllTimeCap: null,
-    contractPurchasesAllTimeCap: null,
-    coreAttributePurchasesAllTimeCap: null,
-    nonCoreAttributePurchasesAllTimeCap: null,
     streamingRequirement: "recommended",
     regularSeasonStreamingRequirement: "recommended",
     postseasonStreamingRequirement: "required",

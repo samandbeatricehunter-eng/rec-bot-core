@@ -131,7 +131,6 @@ import {
   handleLeagueSetupSelect,
   handleLeagueSetupServerChannelModal,
   handlePositionRestrictionModal,
-  handlePurchaseAllTimeCapModal,
   handleAttributeCapModal,
   handleSetupModal,
   leagueSetupSessions
@@ -580,7 +579,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel ||
-        interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapOpenPrefix}:`) ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)
       ) return handleLeagueSetupButton(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.save) return handleLeagueSetupSave(interaction);
@@ -761,7 +759,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.positionChangeRestrictionModal) return handlePositionRestrictionModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionModal) return handleCpuTradingRestrictionModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomModal) return handleDifficultyCustomModal(interaction);
-      if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseAllTimeCapModalPrefix}:`)) return handlePurchaseAllTimeCapModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapModalPrefix}:`)) return handleAttributeCapModal(interaction);
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);

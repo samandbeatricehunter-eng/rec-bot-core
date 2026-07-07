@@ -602,10 +602,8 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
   if (draft.game === "cfb_27") {
     draft.ageResetsEnabled = false;
     draft.ageResetsSeasonCap = 0;
-    draft.ageResetsAllTimeCap = null;
     draft.contractAdjustmentPurchasesEnabled = false;
     draft.contractPurchasesSeasonCap = 0;
-    draft.contractPurchasesAllTimeCap = null;
     // CFB has no salary cap, trade deadline, or abilities toggle.
     draft.salaryCapEnabled = false;
     draft.tradeDeadlineEnabled = false;
@@ -662,47 +660,31 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.nonCoreAttributePurchasesSeasonCap = 0;
     draft.coreAttributes = [];
     draft.coreAttributeCapOverrides = {};
-    draft.customPlayersAllTimeCap = null;
-    draft.legendsAllTimeCap = null;
-    draft.devUpgradesAllTimeCap = null;
-    draft.ageResetsAllTimeCap = null;
-    draft.playerTraitPurchasesAllTimeCap = null;
-    draft.contractPurchasesAllTimeCap = null;
-    draft.coreAttributePurchasesAllTimeCap = null;
-    draft.nonCoreAttributePurchasesAllTimeCap = null;
   }
 
   if (!draft.customPlayersEnabled) {
     draft.customPlayersSeasonCap = 0;
-    draft.customPlayersAllTimeCap = null;
   }
   if (!draft.legendsEnabled) {
     draft.legendsSeasonCap = 0;
-    draft.legendsAllTimeCap = null;
   }
   if (!draft.devUpgradesEnabled) {
     draft.devUpgradesSeasonCap = 0;
-    draft.devUpgradesAllTimeCap = null;
   }
   if (!draft.ageResetsEnabled) {
     draft.ageResetsSeasonCap = 0;
-    draft.ageResetsAllTimeCap = null;
   }
   if (!draft.playerTraitPurchasesEnabled) {
     draft.playerTraitPurchasesSeasonCap = 0;
-    draft.playerTraitPurchasesAllTimeCap = null;
   }
   if (!draft.contractAdjustmentPurchasesEnabled) {
     draft.contractPurchasesSeasonCap = 0;
-    draft.contractPurchasesAllTimeCap = null;
   }
   if (!draft.attributePurchasesEnabled) {
     draft.coreAttributePurchasesSeasonCap = 0;
     draft.nonCoreAttributePurchasesSeasonCap = 0;
     draft.coreAttributes = [];
     draft.coreAttributeCapOverrides = {};
-    draft.coreAttributePurchasesAllTimeCap = null;
-    draft.nonCoreAttributePurchasesAllTimeCap = null;
   }
 
   draft.mediaFeaturesEnabled = draft.coinEconomyEnabled;
