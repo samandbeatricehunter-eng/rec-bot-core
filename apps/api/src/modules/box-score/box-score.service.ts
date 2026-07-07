@@ -175,19 +175,29 @@ async function resolveTeams(leagueId: string, abbr1: string, abbr2: string) {
     );
     if (exact) return exact;
 
-    let best: (typeof list)[number] | null = null;
+    // Track every team tied for the best distance, not just the first one found —
+    // some conferences have multiple schools with similar/identical mascots and
+    // abbreviations only 1-2 letters apart (e.g. several "Tigers"/"Owls"/"Cougars"
+    // programs), so a naive "first best match wins" pick can silently resolve to
+    // the wrong school. An ambiguous tie is treated as no match at all — safe,
+    // since callers already fall back to manual commissioner review when a team
+    // can't be resolved.
     let bestDist = Infinity;
+    let bestTeams: (typeof list)[number][] = [];
     for (const t of list) {
       for (const candidate of [t.abbreviation, t.display_abbr]) {
         if (!candidate) continue;
         const d = levenshtein(u, candidate.toUpperCase());
         if (d < bestDist) {
           bestDist = d;
-          best = t;
+          bestTeams = [t];
+        } else if (d === bestDist && !bestTeams.some((existing) => existing.id === t.id)) {
+          bestTeams.push(t);
         }
       }
     }
-    return bestDist <= 2 ? best : null;
+    if (bestDist > 2 || bestTeams.length !== 1) return null;
+    return bestTeams[0];
   };
 
   return { team1: match(abbr1) ?? null, team2: match(abbr2) ?? null };
@@ -1094,11 +1104,17 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
 
   await syncUsersAfterBoxScoreApproval(sub);
 
+  // Non-fatal post-processing: a failure here must never block the payout/approval,
+  // but should still be visible to the reviewing commissioner (not just server logs),
+  // since a silent failure here leaves records/badges/CPU stats stale with no signal.
+  const warnings: string[] = [];
+
   // Record flat per-team-per-game stats (two rows, offense + generated/allowed)
   // before rebuilding stat rollups.
   await recordTeamGameStats(sub);
   await syncCpuTeamsAfterBoxScoreApproval(sub).catch((error) => {
     console.error("[ERROR] Failed to sync CPU team season stats after box score approval:", error);
+    warnings.push("Failed to sync CPU team season stats.");
   });
 
   if (sub.league_id && sub.season_number) {
@@ -1109,6 +1125,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       awayUserId: sub.away_user_id,
     }).catch((error) => {
       console.error("[ERROR] Failed to rebuild official user records before badge computation:", error);
+      warnings.push("Failed to rebuild official user records before badge computation.");
     });
   }
 
@@ -1117,6 +1134,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // failure here must never block the payout/approval. Advance only reads these.
   await processGameIntelligence(sub).catch((error) => {
     console.error("[ERROR] Failed to compute box score intelligence (badges/story):", error);
+    warnings.push("Failed to compute badge/story intelligence for this game.");
   });
   const badgeBonuses = await issueBadgeBonusesForSubmission(sub);
   const xfSeasonBadgeEvents = await loadXfSeasonBadgeEventsForSubmission(sub);
@@ -1156,11 +1174,13 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       awayUserId: sub.away_user_id,
     }).catch((error) => {
       console.error("[ERROR] Failed to rebuild official user records after box score approval:", error);
+      warnings.push("Failed to rebuild official user records after approval.");
     });
     // Team Record (display) reflects every season game regardless of source, so
     // rebuild it on approval too — not only on advance.
     await rebuildSeasonDisplayRecords(sub.league_id, sub.season_number).catch((error) => {
       console.error("[ERROR] Failed to rebuild display records after box score approval:", error);
+      warnings.push("Failed to rebuild display records after approval.");
     });
   }
 
@@ -1204,6 +1224,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     sourceMessageId: sub.discord_message_id ?? null,
     ledgerChannelId: sub.discord_channel_id ?? null,
     ledgerMessageId: sub.ledger_discord_message_id ?? null,
+    warnings,
   };
 }
 

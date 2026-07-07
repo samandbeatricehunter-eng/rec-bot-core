@@ -1382,6 +1382,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       gameGlobalSuperbowlText: league?.id ? superbowlText(gameGlobalRecord ?? {}) : null,
       gameGlobalPointDifferential: gameGlobalRecord?.point_differential ?? 0,
       gameGlobalLabel: league?.id ? formatLeagueGameLabel(leagueGame) : null,
+      game: leagueGame,
       projectedInterest,
       youAreText: youAre,
       matchupType,

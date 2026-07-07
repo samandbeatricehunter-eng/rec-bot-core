@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { canonicalConferenceName, CONFERENCE_ORDER, isRegularSeasonWeek, stageForWeek, stageLabel } from "@rec/shared";
+import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, isRegularSeasonWeek, stageForWeek, stageLabel } from "@rec/shared";
 import { COLORS } from "../lib/colors.js";
 
 /**
@@ -169,6 +169,7 @@ export function buildLeagueMenuEmbed(input: {
   hideLeagueInfo?: boolean;
   noticeText?: string;
   canManageLeague?: boolean;
+  game?: string | null;
 }) {
   const userInfo = [
     `**User:** ${input.discordUsername ?? "Unlinked User"}`,
@@ -186,10 +187,11 @@ export function buildLeagueMenuEmbed(input: {
     `**PointDiff:** ${input.leagueSeasonPointDifferential ?? 0}`
   ].join("\n");
 
+  const championshipLabel = isCfb(input.game) ? "National Championships" : "Super Bowls";
   const globalCareerInfo = input.gameGlobalLabel
     ? [
       `**Global (${input.gameGlobalLabel}):** ${input.gameGlobalRecordText ?? "0-0-0"} | PD: ${input.gameGlobalPointDifferential ?? 0}`,
-      `Playoffs: ${input.gameGlobalPlayoffText ?? "0-0"} | Super Bowls: ${input.gameGlobalSuperbowlText ?? "0-0"}`,
+      `Playoffs: ${input.gameGlobalPlayoffText ?? "0-0"} | ${championshipLabel}: ${input.gameGlobalSuperbowlText ?? "0-0"}`,
       `**All Games:** ${input.globalRecordText ?? "0-0-0"} | Championships: ${input.globalChampionships ?? 0}`,
     ].join("\n")
     : "";

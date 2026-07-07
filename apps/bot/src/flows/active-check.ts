@@ -186,14 +186,21 @@ export async function handleActiveCheckReviewButton(interaction: ButtonInteracti
   await interaction.deferUpdate();
   const bootList = [...(review.inactive ?? []), ...(review.kickMe ?? [])];
   let unlinked = 0;
+  const failed: string[] = [];
   for (const row of bootList as any[]) {
     await recApi.unlinkTeam({ guildId: interaction.guildId, teamId: row.teamId, requestedByDiscordId: interaction.user.id })
       .then(() => { unlinked += 1; })
-      .catch(() => undefined);
+      .catch((error) => {
+        console.error("[ERROR] Failed to unlink team during active check boot:", error);
+        failed.push(String(row.label ?? row.discordId ?? row.teamId));
+      });
   }
   await recApi.markActiveCheckBooted({ eventId, discordIds: bootList.map((row: any) => row.discordId).filter(Boolean) }).catch(() => undefined);
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Active Check Boot Complete").setDescription(`Unlinked **${unlinked}** team user(s).`)],
+    embeds: [new EmbedBuilder().setTitle("Active Check Boot Complete").setDescription([
+      `Unlinked **${unlinked}** team user(s).`,
+      failed.length ? `⚠️ Failed to unlink: ${failed.join(", ")}. Unlink them manually from League Mgmt > Teams.` : null,
+    ].filter(Boolean).join("\n"))],
     components: [],
   });
 }

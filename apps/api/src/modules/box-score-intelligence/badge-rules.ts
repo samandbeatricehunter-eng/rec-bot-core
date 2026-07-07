@@ -96,7 +96,7 @@ export const SEASON_BADGES: BadgeDef<SeasonTotals>[] = [
   { key: "return_threat", label: "Return Threat", description: "2,000+ return yards this season", qualifies: (s) => s.returnYards >= 2000 },
   { key: "two_point_identity", label: "Two-Point Identity", description: "10+ two-point conversions this season", qualifies: (s) => s.twoPointConversions >= 10 },
   { key: "division_champion", label: "Division Champion", description: "Won the division title", qualifies: (s) => s.wonDivision },
-  { key: "super_bowl_champion", label: "Super Bowl Champion", description: "Won the championship", qualifies: (s) => s.wonChampionship },
+  { key: "super_bowl_champion", label: "League Champion", description: "Won the championship", qualifies: (s) => s.wonChampionship },
   { key: "bowl_eligible", label: "Bowl Eligible", description: "Won 6+ games this season", games: CFB_27_ONLY, qualifies: (s) => s.wins >= 6 },
   { key: "conference_contender", label: "Conference Contender", description: "Won 8+ games this season", games: CFB_27_ONLY, qualifies: (s) => s.wins >= 8 },
   { key: "option_program", label: "Option Program", description: "2,500+ rushing yards this season", games: CFB_27_ONLY, qualifies: (s) => s.rushingYards >= 2500 },

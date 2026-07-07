@@ -522,7 +522,8 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
     if (interaction.inCachedGuild()) void refreshConfirmableWagerEmbeds(interaction.client, interaction.guildId);
     const paidPlayerList = formatPaidPlayers(result);
     const badgeBonusText = result.badgeBonusCount ? `, including ${result.badgeBonusCount} badge bonus(es)` : "";
-    const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.`;
+    const warningsText = result.warnings?.length ? `\n⚠️ ${result.warnings.join(" ")}` : "";
+    const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.${warningsText}`;
 
     if (result.ledgerChannelId && result.ledgerMessageId && interaction.inCachedGuild()) {
       const ledgerChannel = await interaction.guild.channels.fetch(result.ledgerChannelId).catch(() => null);

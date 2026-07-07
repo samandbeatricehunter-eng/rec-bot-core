@@ -414,7 +414,7 @@ export function buildAttributeCoreSelectionWindow(draft: LeagueSetupDraft) {
     .setDescription([
       `League: **${draft.name}**`,
       "",
-      "Select which Madden attributes count as **core** (priced $100/pt; others are non-core at $50/pt). The 53 attributes are split across three dropdowns:",
+      "Select which player attributes count as **core** (priced $100/pt; others are non-core at $50/pt). The 53 attributes are split across three dropdowns:",
       "",
       ...groupDoc,
       "",
