@@ -350,7 +350,10 @@ export async function listOpenTeams(guildId: string) {
   if (assignments.error) throw new ApiError(500, "Failed to load team assignments.", assignments.error);
 
   const assigned = new Set(assignments.data.map((row) => row.team_id));
-  return { league, openTeams: teams.data.filter((team) => !assigned.has(team.id)) };
+  // totalTeams lets callers distinguish "this league truly has zero teams" (safe to auto-seed
+  // defaults) from "every team is already linked" (openTeams.length === 0 too, but seeding here
+  // would destructively wipe every existing team/conference/link).
+  return { league, openTeams: teams.data.filter((team) => !assigned.has(team.id)), totalTeams: teams.data.length };
 }
 
 export async function unlinkTeamForGuild(input: UnlinkTeamInput) {

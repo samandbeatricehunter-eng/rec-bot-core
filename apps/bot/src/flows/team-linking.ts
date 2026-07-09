@@ -160,13 +160,27 @@ async function isCfbLeague(guildId: string) {
 }
 
 async function loadLeagueConferences(guildId: string) {
-  let confData = await recApi.getLeagueConferences(guildId).catch(() => null);
+  // Only auto-seed default teams when a successful fetch genuinely confirms zero teams exist —
+  // never on a failed/errored fetch. A transient API error must not be treated as "no teams",
+  // because that previously triggered a destructive reseed that wiped a commissioner's CFB
+  // conference realignment (the fetch itself was broken by a since-fixed RPC bug, not empty).
+  let confData: { conferences?: any[] } | null;
+  try {
+    confData = await recApi.getLeagueConferences(guildId);
+  } catch (err) {
+    console.error("[ERROR] Failed to load league conferences:", err);
+    return [];
+  }
   let conferences = confData?.conferences ?? [];
   const hasTeams = conferences.some((conf: any) => (conf.divisions ?? []).some((division: any) => (division.teams ?? []).length));
   if (!hasTeams) {
-    await recApi.createDefaultTeams(guildId).catch(() => null);
-    confData = await recApi.getLeagueConferences(guildId).catch(() => null);
-    conferences = confData?.conferences ?? [];
+    await recApi.createDefaultTeams(guildId).catch((err) => console.error("[ERROR] Failed to seed default teams:", err));
+    try {
+      confData = await recApi.getLeagueConferences(guildId);
+      conferences = confData?.conferences ?? [];
+    } catch (err) {
+      console.error("[ERROR] Failed to reload league conferences after seeding:", err);
+    }
   }
   return conferences;
 }
@@ -186,8 +200,12 @@ function flattenLeagueTeams(conferences: any[]) {
 async function loadOpenTeams(guildId: string) {
   let openTeamsResult = await recApi.getOpenTeams(guildId);
   let openTeams = openTeamsResult.openTeams ?? [];
-  if (!openTeams.length) {
-    await recApi.createDefaultTeams(guildId).catch(() => null);
+  // Zero OPEN teams is a normal, common state (every team already has a coach) — it must not
+  // trigger a reseed, which would destructively wipe every existing team/conference/link. Only
+  // reseed when the league genuinely has zero teams total; treat a missing/unexpected totalTeams
+  // as "unknown" (don't reseed) rather than silently falling back to the old, unsafe check.
+  if (typeof openTeamsResult.totalTeams === "number" && openTeamsResult.totalTeams === 0) {
+    await recApi.createDefaultTeams(guildId).catch((err) => console.error("[ERROR] Failed to seed default teams:", err));
     openTeamsResult = await recApi.getOpenTeams(guildId);
     openTeams = openTeamsResult.openTeams ?? [];
   }
@@ -803,8 +821,9 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     let openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
     let allTeams = openTeamsResult.openTeams ?? [];
 
-    // If no teams found, create default NFL teams
-    if (allTeams.length === 0) {
+    // Zero OPEN teams is normal (everyone's already linked) — only reseed defaults when the
+    // league genuinely has zero teams total, never just because none are currently open.
+    if (typeof openTeamsResult.totalTeams === "number" && openTeamsResult.totalTeams === 0) {
       await recApi.createDefaultTeams(interaction.guildId);
       openTeamsResult = await recApi.getOpenTeams(interaction.guildId);
       allTeams = openTeamsResult.openTeams ?? [];

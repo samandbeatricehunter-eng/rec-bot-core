@@ -492,6 +492,16 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
       dynasty: "dynasty_structure"
     };
     draft.step = sectionStart[section] ?? "review";
+    // Editing this section will walk forward through STEP_ORDER like normal — flag it so every
+    // step in between shows a "Back to Review" shortcut instead of forcing a full walk back.
+    draft.returnToReview = true;
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.backToReview) {
+    draft.step = "review";
+    draft.returnToReview = false;
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
   }

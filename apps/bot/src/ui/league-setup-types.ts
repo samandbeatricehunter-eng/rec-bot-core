@@ -67,6 +67,7 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   coachAbilitiesRestrictionModal: "rec:league_setup:coach_abilities_restriction_modal",
   coachAbilitiesRestrictionInput: "rec:league_setup:coach_abilities_restriction_input",
   reviewJump: "rec:league_setup:review_jump",
+  backToReview: "rec:league_setup:back_to_review",
   purchaseCapPrefix: "rec:league_setup:purchase_cap",
   purchaseCoreAttrsOpen: "rec:league_setup:purchase_core_attrs_open",
   purchaseCoreAttrsDone: "rec:league_setup:purchase_core_attrs_done",
@@ -302,6 +303,10 @@ export type LeagueSetupDraft = {
   gameChannelsCategoryId?: string | null;
   // When true, changes are saved to DB immediately after each step and return to settings_picker.
   editMode: boolean;
+  // When true, an "Edit X" button on the pre-save Review screen jumped into a section — every
+  // step window shows a "Back to Review" button so the commissioner can bail straight back
+  // instead of re-answering every consecutive step on the way back to Review.
+  returnToReview: boolean;
 };
 
 const STEP_ORDER: LeagueSetupStep[] = [
@@ -484,7 +489,8 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     pendingPurchasesChannelId: null,
     boxScoresChannelId: null,
     gameChannelsCategoryId: null,
-    editMode: false
+    editMode: false,
+    returnToReview: false
   };
 }
 

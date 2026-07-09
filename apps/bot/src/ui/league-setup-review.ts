@@ -516,7 +516,47 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
   return { embeds: [embed], components: [editRow, actionRow, buildNavigationRow()] };
 }
 
+// Injects a "Back to Review" button into a step window's last button-only row (or a new row
+// if there's still room under Discord's 5-action-row limit) when the commissioner got here via
+// an "Edit X" button on the pre-save Review screen — lets them bail straight back to Review
+// instead of re-answering every consecutive step between here and there.
+function withBackToReviewButton(window: ReturnType<typeof buildLeagueSetupStepWindow>) {
+  if (!window) return window;
+  const backButton = new ButtonBuilder()
+    .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.backToReview)
+    .setLabel("Back to Review")
+    .setStyle(ButtonStyle.Success);
+
+  const components = [...window.components];
+  const lastRow = components[components.length - 1];
+  const isButtonOnlyRow = lastRow instanceof ActionRowBuilder
+    && lastRow.components.every((component) => component instanceof ButtonBuilder);
+
+  if (isButtonOnlyRow && lastRow.components.length < 5) {
+    components[components.length - 1] = new ActionRowBuilder<ButtonBuilder>().addComponents(...lastRow.components as ButtonBuilder[], backButton);
+    return { ...window, components };
+  }
+  if (components.length < 5) {
+    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(backButton));
+    return { ...window, components };
+  }
+  // No room under the 5-row limit — skip silently rather than throwing.
+  return window;
+}
+
 export function buildLeagueSetupWindow(draft: LeagueSetupDraft) {
+  const window = buildLeagueSetupStepWindow(draft);
+  if (draft.step === "review") {
+    draft.returnToReview = false;
+    return window;
+  }
+  if (draft.returnToReview && !draft.editMode) {
+    return withBackToReviewButton(window);
+  }
+  return window;
+}
+
+function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
     case "game": return buildGameSelectWindow(draft);
     case "league_type": return buildLeagueTypeWindow(draft);
