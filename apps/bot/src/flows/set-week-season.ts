@@ -15,7 +15,7 @@ import {
 import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
 import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
-import { stageLabel } from "../lib/league-stage.js";
+import { isCfb, regularSeasonWeeks, stageForWeek, stageLabel, type LeagueGame } from "../lib/league-stage.js";
 import { recApi } from "../lib/rec-api.js";
 import { MENU_CUSTOM_IDS } from "../ui/menu.js";
 
@@ -27,31 +27,49 @@ export const ADVANCE_CUSTOM_IDS = {
   seasonManualInput: "rec:advance:season_manual_input"
 } as const;
 
-function stageFromWeekNumber(weekNumber: number) {
-  if (weekNumber <= 18) return "regular_season";
-  if (weekNumber === 19) return "wild_card";
-  if (weekNumber === 20) return "divisional";
-  if (weekNumber === 21) return "conference_championship";
-  if (weekNumber === 22) return "super_bowl";
-  return "regular_season";
+async function currentLeagueGame(guildId: string): Promise<LeagueGame> {
+  const current = await recApi.viewLeagueWeek(guildId).catch(() => null);
+  return (current?.league?.game as LeagueGame) ?? null;
 }
 
-function buildSetWeekRows() {
-  const regularOptions = Array.from({ length: 18 }, (_, idx) => {
-    const week = idx + 1;
+// CFB's postseason is cfp_first_round/cfp_quarterfinals/cfp_semifinals/cfp_bye_week/
+// national_championship at weeks 12-16, and it starts at "preseason" (no training camp).
+// Madden's postseason is wild_card/divisional/conference_championship/super_bowl at weeks
+// 19-22, starting at "preseason_training_camp". The offseason pipeline (coach hiring through
+// draft) is shared across both games — see packages/shared/src/league-stage.ts.
+function buildSetWeekRows(game: LeagueGame) {
+  const cfb = isCfb(game);
+  const firstRegularWeek = cfb ? 0 : 1;
+  const lastRegularWeek = regularSeasonWeeks(game);
+  const regularOptions = Array.from({ length: lastRegularWeek - firstRegularWeek + 1 }, (_, idx) => {
+    const week = firstRegularWeek + idx;
     return new StringSelectMenuOptionBuilder().setLabel(`Week ${week}`).setValue(`regular:${week}`);
   });
-  const stageOptions = [
-    ["Wild Card", "wild_card:19"],
-    ["Divisional", "divisional:20"],
-    ["Conference Championship", "conference_championship:21"],
-    ["Super Bowl", "super_bowl:22"],
-    ["Coach Hiring", "coach_hiring:1"],
-    ["Final Re-Signing", "final_resigning:1"],
-    ["Free Agency", "free_agency:1"],
-    ["Draft", "draft:1"],
-    ["Training Camp", "preseason_training_camp:1"],
-  ].map(([label, value]) => new StringSelectMenuOptionBuilder().setLabel(label).setValue(value));
+  const stageOptions = (cfb
+    ? [
+        ["CFP First Round", "cfp_first_round:12"],
+        ["CFP Quarterfinals", "cfp_quarterfinals:13"],
+        ["CFP Semifinals", "cfp_semifinals:14"],
+        ["Bye Week", "cfp_bye_week:15"],
+        ["National Championship", "national_championship:16"],
+        ["Coach Hiring", "coach_hiring:1"],
+        ["Final Re-Signing", "final_resigning:1"],
+        ["Free Agency", "free_agency:1"],
+        ["Draft", "draft:1"],
+        ["Preseason", "preseason:1"],
+      ]
+    : [
+        ["Wild Card", "wild_card:19"],
+        ["Divisional", "divisional:20"],
+        ["Conference Championship", "conference_championship:21"],
+        ["Super Bowl", "super_bowl:22"],
+        ["Coach Hiring", "coach_hiring:1"],
+        ["Final Re-Signing", "final_resigning:1"],
+        ["Free Agency", "free_agency:1"],
+        ["Draft", "draft:1"],
+        ["Training Camp", "preseason_training_camp:1"],
+      ]
+  ).map(([label, value]) => new StringSelectMenuOptionBuilder().setLabel(label).setValue(value));
 
   return [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -75,11 +93,13 @@ function buildSetWeekRows() {
 export async function handleSetWeek(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
+  const game = await currentLeagueGame(interaction.guildId);
+  const firstRegularWeek = isCfb(game) ? 0 : 1;
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Set Week")
-      .setDescription("Choose a regular season week, postseason week, or offseason stage. Regular season weeks use Week 1-18; postseason and offseason stages are listed separately.")],
-    components: buildSetWeekRows()
+      .setDescription(`Choose a regular season week, postseason week, or offseason stage. Regular season weeks use Week ${firstRegularWeek}-${regularSeasonWeeks(game)}; postseason and offseason stages are listed separately.`)],
+    components: buildSetWeekRows(game)
   });
 }
 
@@ -95,9 +115,13 @@ export async function handleSetWeekSelect(interaction: any, buildAdvanceMgmtRows
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
   await interaction.deferUpdate();
+  const game = await currentLeagueGame(interaction.guildId);
   const [rawStage, rawWeek] = String(interaction.values[0] ?? "regular:1").split(":");
-  const weekNumber = Math.max(1, Number(rawWeek) || 1);
-  const seasonStage = rawStage === "regular" ? stageFromWeekNumber(weekNumber) : rawStage;
+  const parsedWeek = Number(rawWeek);
+  // Math.max(0, ...) — not Math.max(1, ...) — so CFB's Week 0 survives; only Madden's options
+  // start at 1 anyway, so this never pulls a Madden week below its real minimum.
+  const weekNumber = Number.isFinite(parsedWeek) ? Math.max(0, parsedWeek) : 1;
+  const seasonStage = rawStage === "regular" ? stageForWeek(weekNumber, game) : rawStage;
   let result: any;
   try {
     result = await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
@@ -105,7 +129,7 @@ export async function handleSetWeekSelect(interaction: any, buildAdvanceMgmtRows
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set Week Failed").setColor(COLORS.error).setDescription(userFacingError(err))], components: buildAdvanceMgmtRows() });
   }
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Week Set").setDescription(`League is now set to **${stageLabel(seasonStage, weekNumber)}**.${formatSavingsInterestSummary(result)}`)],
+    embeds: [new EmbedBuilder().setTitle("Week Set").setDescription(`League is now set to **${stageLabel(seasonStage, weekNumber, game)}**.${formatSavingsInterestSummary(result)}`)],
     components: buildAdvanceMgmtRows()
   });
 }
@@ -143,7 +167,7 @@ export async function handleSetSeason(interaction: ButtonInteraction) {
 async function updateLeagueSeason(guildId: string, seasonNumber: number) {
   const current = await recApi.viewLeagueWeek(guildId);
   const weekNumber = Number(current?.league?.current_week ?? 1);
-  const seasonStage = String(current?.league?.season_stage ?? current?.league?.current_phase ?? stageFromWeekNumber(weekNumber));
+  const seasonStage = String(current?.league?.season_stage ?? current?.league?.current_phase ?? stageForWeek(weekNumber, current?.league?.game ?? null));
   return recApi.setLeagueWeek({ guildId, weekNumber, seasonStage, seasonNumber });
 }
 
