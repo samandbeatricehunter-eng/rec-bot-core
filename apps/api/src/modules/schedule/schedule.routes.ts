@@ -8,16 +8,17 @@ import { computePowerRankings } from "./power-rankings.service.js";
 
 const GuildSchema = z.object({ guildId: z.string().min(1) });
 
+// weekNumber floors at 0 (not 1) — CFB's regular season starts at Week 0.
 const WeekSchema = z.object({
   guildId: z.string().min(1),
   seasonNumber: z.number().int().positive().optional().nullable(),
-  weekNumber: z.number().int().positive(),
+  weekNumber: z.number().int().min(0),
 });
 
 const SaveManualGameSchema = z.object({
   guildId: z.string().min(1),
   seasonNumber: z.number().int().positive().optional().nullable(),
-  weekNumber: z.number().int().positive(),
+  weekNumber: z.number().int().min(0),
   slotNumber: z.number().int().positive(),
   awayTeamId: z.string().uuid(),
   homeTeamId: z.string().uuid(),
@@ -114,8 +115,8 @@ export async function scheduleRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const input = z.object({
         guildId: z.string().min(1),
-        // Allow playoff weeks (19–22), not just the regular season.
-        weekNumber: z.number().int().min(1).max(22),
+        // Allow playoff weeks (19–22), not just the regular season; floors at 0 for CFB's Week 0.
+        weekNumber: z.number().int().min(0).max(22),
         imageUrls: z.array(z.string().url()).min(1).max(2),
       }).parse(request.body);
       return reply.send(await previewScheduleImport(input));
@@ -130,7 +131,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
       const input = z.object({
         guildId: z.string().min(1),
         seasonNumber: z.number().int().positive().optional().nullable(),
-        weekNumber: z.number().int().positive(),
+        weekNumber: z.number().int().min(0),
         games: z.array(z.object({
           awayTeamId: z.string().uuid(),
           homeTeamId: z.string().uuid(),

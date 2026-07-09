@@ -19,7 +19,8 @@ const ParseSchema = z.object({
   discordId: z.string().min(1),
   imageUrls: z.array(z.string().url()).min(1),
   seasonNumber: z.number().int().positive().optional().nullable(),
-  weekNumber: z.number().int().positive().optional().nullable(),
+  // CFB regular season starts at Week 0.
+  weekNumber: z.number().int().min(0).optional().nullable(),
   commissionerSubmission: z.boolean().optional().nullable(),
 });
 
@@ -31,7 +32,8 @@ const SubmitSchema = z.object({
   discordMessageId: z.string().optional().nullable(),
   ledgerDiscordMessageId: z.string().optional().nullable(),
   seasonNumber: z.number().int().positive().optional().nullable(),
-  weekNumber: z.number().int().positive().optional().nullable(),
+  // CFB regular season starts at Week 0.
+  weekNumber: z.number().int().min(0).optional().nullable(),
   expectedGameId: z.string().uuid().optional().nullable(),
   commissionerSubmission: z.boolean().optional().nullable(),
 });
@@ -133,7 +135,8 @@ export async function boxScoreRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { guildId, weekNumber, seasonNumber } = z.object({
         guildId: z.string().min(1),
-        weekNumber: z.number().int().positive(),
+        // CFB regular season starts at Week 0.
+        weekNumber: z.number().int().min(0),
         seasonNumber: z.number().int().positive().optional().nullable(),
       }).parse(request.body);
       return reply.send(await listScheduledGamesForWeek(guildId, weekNumber, seasonNumber));

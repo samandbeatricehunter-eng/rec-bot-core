@@ -458,7 +458,11 @@ export async function handleManualScheduleWeekSelect(interaction: StringSelectMe
   session.notice = null;
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Loading Week...").setDescription("Fetching the saved matchups for the selected week.")], components: [] });
-  await refreshWeek(session);
+  try {
+    await refreshWeek(session);
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Failed to Load Week").setColor(COLORS.error).setDescription(userFacingError(err))], components: [scheduleBackRow()] });
+  }
   return interaction.editReply(renderManualEntry(session));
 }
 
@@ -527,7 +531,11 @@ export async function handleManualScheduleNextWeek(interaction: ButtonInteractio
   session.selectedTeamIds = [];
   session.warnedIncomplete = false;
   session.notice = null;
-  await refreshWeek(session);
+  try {
+    await refreshWeek(session);
+  } catch (err) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Failed to Load Week").setColor(COLORS.error).setDescription(userFacingError(err))], components: [scheduleBackRow()] });
+  }
   return interaction.editReply(renderManualEntry(session));
 }
 

@@ -47,7 +47,8 @@ export async function gameChannelRoutes(app: FastifyInstance) {
         gameId: z.string().uuid().optional().nullable(),
         discordChannelId: z.string().min(1),
         seasonNumber: z.number().int().positive(),
-        weekNumber: z.number().int().positive(),
+        // CFB regular season starts at Week 0.
+        weekNumber: z.number().int().min(0),
         awayTeamId: z.string().uuid().optional().nullable(),
         homeTeamId: z.string().uuid().optional().nullable(),
         awayUserId: z.string().uuid().optional().nullable(),

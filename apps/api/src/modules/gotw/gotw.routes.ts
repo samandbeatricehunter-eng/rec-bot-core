@@ -19,7 +19,8 @@ export async function gotwRoutes(app: FastifyInstance) {
         homeTeamName: z.string().min(1),
         discordChannelId: z.string().min(1),
         discordMessageId: z.string().min(1),
-        weekNumber: z.number().int().min(1),
+        // CFB regular season starts at Week 0.
+        weekNumber: z.number().int().min(0),
         expiresAt: z.string().min(1),
       }).parse(request.body);
       return reply.send(await createGotwPoll(body));
@@ -33,7 +34,8 @@ export async function gotwRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { guildId, weekNumber } = z.object({
         guildId: z.string().min(1),
-        weekNumber: z.number().int().min(1),
+        // CFB regular season starts at Week 0.
+        weekNumber: z.number().int().min(0),
       }).parse(request.body);
       return reply.send(await getActiveGotwPoll(guildId, weekNumber));
     } catch (error) {
@@ -46,7 +48,8 @@ export async function gotwRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { guildId, weekNumber } = z.object({
         guildId: z.string().min(1),
-        weekNumber: z.number().int().min(1),
+        // CFB regular season starts at Week 0.
+        weekNumber: z.number().int().min(0),
       }).parse(request.body);
       return reply.send({ polls: await getActiveGotwPolls(guildId, weekNumber) });
     } catch (error) {
@@ -59,7 +62,8 @@ export async function gotwRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { guildId, weekNumber } = z.object({
         guildId: z.string().min(1),
-        weekNumber: z.number().int().min(1),
+        // CFB regular season starts at Week 0.
+        weekNumber: z.number().int().min(0),
       }).parse(request.body);
       return reply.send(await clearGotwPollsForWeek(guildId, weekNumber));
     } catch (error) {
@@ -93,7 +97,8 @@ export async function gotwRoutes(app: FastifyInstance) {
         guildId: z.string().min(1),
         awayTeamId: z.string().uuid(),
         homeTeamId: z.string().uuid(),
-        weekNumber: z.number().int().min(1),
+        // CFB regular season starts at Week 0.
+        weekNumber: z.number().int().min(0),
       }).parse(request.body);
       return reply.send(await getGotwGameResult(body));
     } catch (error) {
