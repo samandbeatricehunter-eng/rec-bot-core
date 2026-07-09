@@ -28,7 +28,6 @@ import { recApi } from "../lib/rec-api.js";
 // covers both sides of the matchup.
 
 export const CFB_TEAM_SCHEDULE_CUSTOM_IDS = {
-  start: "rec:cfb_sched:start",
   conferenceSelect: "rec:cfb_sched:conference",
   teamSelect: "rec:cfb_sched:team",
   editWeekSelect: "rec:cfb_sched:edit_week",

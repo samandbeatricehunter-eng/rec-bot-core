@@ -740,7 +740,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix)) return handleManualScoresAnother(interaction, Number(interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix.length)));
       if (interaction.customId.startsWith(SCHEDULE_IMPORT_CUSTOM_IDS.savePrefix)) return handleScheduleImportSave(interaction);
       if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.cancel) return handleScheduleImportCancel(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.start) return startCfbTeamScheduleImport(interaction, buildScheduleMgmtRows);
       if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editHome) return handleCfbTeamScheduleEditHome(interaction);
       if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editAway) return handleCfbTeamScheduleEditAway(interaction);
       if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editBack) return handleCfbTeamScheduleEditBack(interaction);
@@ -917,30 +916,40 @@ async function handleLeagueMgmtServerSetup(interaction: ButtonInteraction) {
   return interaction.update(buildServerSetupPanel());
 }
 
+async function isCfbLeagueForGuild(guildId: string | null): Promise<boolean> {
+  if (!guildId) return false;
+  const week = await recApi.viewLeagueWeek(guildId).catch(() => null);
+  return week?.league?.game === "cfb_27";
+}
+
 async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
-  const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
-  const isCfbLeague = week?.league?.game === "cfb_27";
+  const isCfbLeague = await isCfbLeagueForGuild(interaction.guildId);
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule")
-      .setDescription([
+      .setDescription(isCfbLeague ? [
+        "Build, review, or publish the league schedule.",
+        "",
+        "**Schedule Wizard** / **Upload One Week** - upload a team's in-game **Team Schedule** screenshot (1-2 images cover a full season); pick a conference, then the team. Saving a team's schedule also populates each opponent's matching week.",
+        "**Set Manually** - choose teams from league-loaded conference dropdowns and save matchups.",
+        "**View Schedule** - page through every week and optionally post a week publicly.",
+      ].join("\n") : [
         "Build, review, or publish the league schedule.",
         "",
         "**Schedule Wizard** - upload schedule screenshots in order, starting at Week 1.",
         "**Upload One Week** - upload screenshots for one selected week.",
         "**Set Manually** - choose teams from league-loaded AFC/NFC dropdowns and save matchups.",
         "**View Schedule** - page through every week and optionally post a week publicly.",
-        isCfbLeague ? "**Import Team Schedule** - upload one CFB team's full-season Team Schedule screenshot; populates that team's and each opponent's schedule together." : null,
-      ].filter(Boolean).join("\n"))],
-    components: buildScheduleMgmtRows(isCfbLeague)
+      ].join("\n"))],
+    components: buildScheduleMgmtRows()
   });
 }
 
-function buildScheduleMgmtRows(isCfbLeague = false) {
-  const rows = [
+function buildScheduleMgmtRows() {
+  return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleView).setLabel("View Schedule").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleManual).setLabel("Set Manually").setStyle(ButtonStyle.Primary),
@@ -949,23 +958,22 @@ function buildScheduleMgmtRows(isCfbLeague = false) {
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Success),
     ),
+    new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
+    ),
   ];
-  if (isCfbLeague) {
-    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(CFB_TEAM_SCHEDULE_CUSTOM_IDS.start).setLabel("Import Team Schedule (CFB)").setStyle(ButtonStyle.Success),
-    ));
-  }
-  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
-  ));
-  return rows;
 }
 
+// Both "Schedule Wizard" and "Upload One Week" route to the CFB Team Schedule import
+// (conference -> team -> upload) for CFB leagues — CFB's in-game schedule screen is per-team,
+// full-season, not per-week/all-teams like Madden's, so there's no CFB equivalent of a
+// single-week screenshot to route "Upload One Week" to separately.
 async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
+  if (await isCfbLeagueForGuild(interaction.guildId)) return startCfbTeamScheduleImport(interaction, buildScheduleMgmtRows);
   return startScheduleImportWizard(interaction, buildScheduleMgmtRows);
 }
 
@@ -973,6 +981,7 @@ async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
+  if (await isCfbLeagueForGuild(interaction.guildId)) return startCfbTeamScheduleImport(interaction, buildScheduleMgmtRows);
   return startScheduleImportOneWeek(interaction, buildScheduleMgmtRows);
 }
 
