@@ -1439,42 +1439,35 @@ async function handleBackNavigation(interaction: Extract<Interaction, { isButton
 async function handleServerSetupChannelIdModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
   if (!interaction.isModalSubmit() || !interaction.inCachedGuild()) return;
 
+  // The modal is always opened from the channel-type select menu, so this updates that same
+  // message in place rather than posting a new ephemeral "Channel Assigned" message each time.
+  const canUpdate = interaction.isFromMessage();
+  if (canUpdate) await interaction.deferUpdate();
+  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   try {
     const { getRecRouteChannel } = await import("@rec/shared");
-    const { SERVER_SETUP_CUSTOM_IDS } = await import("./ui/server-setup-admin.js");
+    const { SERVER_SETUP_CUSTOM_IDS, buildServerSetupPanel } = await import("./ui/server-setup-admin.js");
     const channelId = interaction.fields.getTextInputValue(SERVER_SETUP_CUSTOM_IDS.channelIdInput).trim();
     const channelType = serverSetupChannelSessions.get(interaction.user.id);
 
     if (!channelType) {
-      return interaction.reply({
-        content: "Channel type selection expired. Please try again.",
-        flags: MessageFlags.Ephemeral
-      });
+      return interaction.editReply({ content: "Channel type selection expired. Please try again.", embeds: [], components: [] });
     }
 
     const routeChannel = getRecRouteChannel(channelType);
     if (!routeChannel) {
-      return interaction.reply({ content: `Unknown channel type: ${channelType}`, flags: MessageFlags.Ephemeral });
+      return interaction.editReply({ content: `Unknown channel type: ${channelType}`, embeds: [], components: [] });
     }
 
     await recApi.setEconomyConfig({ guildId: interaction.guildId, [routeChannel.inputField]: channelId });
 
     serverSetupChannelSessions.delete(interaction.user.id);
 
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("Channel Assigned")
-          .setDescription(`Assigned <#${channelId}> to **${channelType.replace(/_/g, " ")}**.`)
-      ],
-      flags: MessageFlags.Ephemeral
-    });
+    return interaction.editReply(buildServerSetupPanel(`Assigned <#${channelId}> to **${channelType.replace(/_/g, " ")}**.`));
   } catch (error) {
     console.error("[ERROR] Server setup channel assignment failed:", error);
-    await interaction.reply({
-      content: `Error assigning channel: ${userFacingError(error)}`,
-      flags: MessageFlags.Ephemeral
-    });
+    return interaction.editReply({ content: `Error assigning channel: ${userFacingError(error)}`, embeds: [], components: [] });
   }
 }
 

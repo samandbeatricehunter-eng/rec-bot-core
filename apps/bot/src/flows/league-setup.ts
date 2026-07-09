@@ -49,6 +49,7 @@ export async function handleSetupModal(interaction: Extract<Interaction, { isMod
     const draft = createDefaultLeagueSetupDraft(interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leagueNameInput).trim());
     draft.leaguePassword = interaction.fields.getTextInputValue(MENU_CUSTOM_IDS.leaguePasswordInput).trim() || null;
     leagueSetupSessions.set(interaction.user.id, draft);
+    if (interaction.isFromMessage()) return interaction.update(buildLeagueSetupWindow(draft));
     return interaction.reply({ ...buildLeagueSetupWindow(draft), flags: MessageFlags.Ephemeral });
   }
 }
@@ -505,7 +506,8 @@ export async function handleActivityRequirementsModal(interaction: Extract<Inter
   draft.forceWinRequirements = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.forceWinInput).trim();
   leagueSetupSessions.set(interaction.user.id, draft);
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (interaction.isFromMessage()) await interaction.deferUpdate();
+  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   if (draft.editMode && interaction.guildId) {
     try {
@@ -532,7 +534,8 @@ export async function handleCoachAbilitiesRestrictionModal(interaction: Extract<
   draft.coachAbilitiesRestrictionNotes = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.coachAbilitiesRestrictionInput).trim();
   leagueSetupSessions.set(interaction.user.id, draft);
 
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (interaction.isFromMessage()) await interaction.deferUpdate();
+  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   if (draft.editMode && interaction.guildId) {
     try {
@@ -552,7 +555,8 @@ export async function handleCoachAbilitiesRestrictionModal(interaction: Extract<
 
 async function finishModalStep(interaction: ModalSubmitInteraction, draft: LeagueSetupDraft) {
   leagueSetupSessions.set(interaction.user.id, draft);
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (interaction.isFromMessage()) await interaction.deferUpdate();
+  else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   if (draft.editMode && interaction.guildId) {
     await saveDraftEditIfNeeded(interaction, draft);
@@ -578,6 +582,7 @@ export async function handleLeagueSetupServerChannelModal(interaction: Extract<I
   // Save only the channel the user just changed — not the full draft — so stale
   // draft values can't overwrite channels set via the direct Server Setup panel.
   if (option) await saveChannelEditIfNeeded(interaction, draft, option.field);
+  if (interaction.isFromMessage()) return interaction.update(buildLeagueSetupWindow(draft));
   return interaction.reply({ ...buildLeagueSetupWindow(draft), flags: MessageFlags.Ephemeral });
 }
 
@@ -634,6 +639,7 @@ function mapSeasonWeekToLeagueWeek(seasonWeek: string): { weekNumber: number; se
     case "free_agency":     return { weekNumber: 1, seasonStage: "free_agency" };
     case "draft":           return { weekNumber: 1, seasonStage: "draft" };
     case "training_camp":   return { weekNumber: 1, seasonStage: "preseason_training_camp" };
+    case "preseason":       return { weekNumber: 1, seasonStage: "preseason" };
     default: return { weekNumber: 1, seasonStage: "regular_season" };
   }
 }
@@ -691,9 +697,11 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    // New leagues always begin in Training Camp. The first advance into regular-season Week 1
-    // is the one place where REC imports the full regular-season schedule.
-    const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek("training_camp");
+    // New leagues always begin in the preseason: Madden calls this Training Camp, CFB has no
+    // such period and starts at Preseason (the week before the Week 0 regular-season slate).
+    // The first advance into regular-season Week 1 (Madden) / Week 0 (CFB) is the one place
+    // where REC imports the full regular-season schedule.
+    const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek(draft.game === "cfb_27" ? "preseason" : "training_camp");
     try {
       await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
     } catch (error) {
@@ -719,9 +727,12 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       console.error("[ERROR] Failed to save server setup routes:", error);
     }
 
+    const isCfb = draft.game === "cfb_27";
     let scheduleNote: string | null = formatDefaultScheduleSeedResult(result.defaultScheduleSeed);
     if (!scheduleNote && Array.isArray(result.defaultTeams) && result.defaultTeams.length > 0) {
-      scheduleNote = `Default NFL teams created (${result.defaultTeams.length} teams).`;
+      scheduleNote = isCfb
+        ? `Default College Football 27 teams created (${result.defaultTeams.length} teams).`
+        : `Default NFL teams created (${result.defaultTeams.length} teams).`;
     }
 
     const wantsLinking = draft.linkTeamsAfterSetup;
@@ -734,14 +745,16 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       `League: **${result.league.name}**`,
       "",
       `Type: ${result.configuration.roster_type}`,
-      "Starts: Season 1, Training Camp",
+      isCfb ? "Starts: Season 1, Preseason" : "Starts: Season 1, Training Camp",
       `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`,
       `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`,
       `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`,
       `Injuries: ${result.configuration.injury_policy}`,
       "",
       "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**",
-      "NFL Teams: **32 default teams** seeded automatically",
+      isCfb
+        ? `CFB Teams: **${result.defaultTeams?.length ?? 136} default teams** seeded automatically`
+        : "NFL Teams: **32 default teams** seeded automatically",
       ...roleWarnings,
       ...(scheduleNote ? ["", scheduleNote] : []),
       "",

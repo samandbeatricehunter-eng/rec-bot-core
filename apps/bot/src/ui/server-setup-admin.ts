@@ -11,7 +11,7 @@ export const CHANNEL_TYPE_OPTIONS = Object.fromEntries(
   Object.entries(REC_ROUTE_CHANNELS).map(([key, config]) => [key, config.label])
 ) as Record<keyof typeof REC_ROUTE_CHANNELS, string>;
 
-export function buildServerSetupPanel() {
+export function buildServerSetupPanel(note?: string) {
   const select = new StringSelectMenuBuilder()
     .setCustomId(SERVER_SETUP_CUSTOM_IDS.selectChannelType)
     .setPlaceholder("Select a channel or category to assign")
@@ -25,7 +25,9 @@ export function buildServerSetupPanel() {
     embeds: [
       new EmbedBuilder()
         .setTitle("Server Setup")
-        .setDescription("Select a channel or category type to assign by Discord ID.")
+        .setDescription(
+          ["Select a channel or category type to assign by Discord ID.", note ? `\n${note}` : null].filter(Boolean).join("\n")
+        )
     ],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)]
   };

@@ -306,7 +306,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
 
   const embed = new EmbedBuilder()
     .setTitle("Review League Setup")
-    .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? "Set" : "Not set / public"}`, "", "Review the configuration below, then save the league. Use the section buttons below to jump back and change answers."].join("\n"))
+    .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? draft.leaguePassword : "Not set / public"}`, "", "Review the configuration below, then save the league. Use the section buttons below to jump back and change answers."].join("\n"))
     .addFields(
       {
         name: "Identity",
@@ -418,7 +418,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
 export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
   const embed = new EmbedBuilder()
     .setTitle("Review CFB 27 Dynasty Setup")
-    .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? "Set" : "Not set / public"}`, "", "Review your College Football 27 dynasty configuration, then save. Use the section buttons below to jump back and change answers."].join("\n"))
+    .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? draft.leaguePassword : "Not set / public"}`, "", "Review your College Football 27 dynasty configuration, then save. Use the section buttons below to jump back and change answers."].join("\n"))
     .addFields(
       {
         name: "Identity",
@@ -427,7 +427,7 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
           `Active Rosters: ${yesNo(draft.activeRostersEnabled)}`,
           `Dynasty Structure: ${draft.dynastyType === "mixed" ? "Mixed Teams" : "Real Teams"}`,
           `Team Builder: ${yesNo(draft.teamBuilderAllowed)}`,
-          "Starts: Season 1, Training Camp"
+          "Starts: Season 1, Preseason"
         ].join("\n"),
         inline: true
       },

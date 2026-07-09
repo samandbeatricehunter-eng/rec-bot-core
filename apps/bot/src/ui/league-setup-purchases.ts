@@ -232,7 +232,7 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
   const enabled = Boolean(draft[config.enabledKey]);
   // CFB calls these "Custom Recruits" rather than "Custom Players".
   const isCfbRecruits = draft.game === "cfb_27" && draft.step === "custom_players";
-  // CFB calls Legends "Campus Legends" and it's a plain toggle — no season/all-time caps.
+  // CFB calls Legends "Campus Legends" — same season-cap model as Madden Legends underneath.
   const isCfbCampusLegends = draft.game === "cfb_27" && draft.step === "legends";
   const title = isCfbRecruits ? "Custom Recruits" : isCfbCampusLegends ? "Campus Legends" : config.title;
   const description = isCfbRecruits
@@ -248,7 +248,7 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
       description,
       "",
       `Current Selection: **${enabled ? "Activated" : "Deactivated"}**`,
-      isCfbCampusLegends ? "" : formatPurchaseCapSummary(draft, draft.step)
+      formatPurchaseCapSummary(draft, draft.step)
     ].filter(Boolean).join("\n"));
 
   // Activate/Deactivate no longer auto-advance — this screen combines the on/off decision with
@@ -288,7 +288,7 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
           .setDisabled(draft.coreAttributes.length === 0)
       )
     );
-  } else if (config.seasonCapKey && !isCfbCampusLegends) {
+  } else if (config.seasonCapKey) {
     components.push(
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
@@ -437,9 +437,6 @@ export function formatPurchaseCapsReview(draft: LeagueSetupDraft) {
   for (const [step, config] of Object.entries(PURCHASE_FEATURE_STEPS) as Array<[PurchaseFeatureStep, typeof PURCHASE_FEATURE_STEPS[PurchaseFeatureStep]]>) {
     const enabled = Boolean(draft[config.enabledKey]);
     if (!enabled) continue;
-    // Campus Legends (CFB) is a plain toggle with no caps — already reported as its own
-    // Features line by the review screens, so skip it here.
-    if (draft.game === "cfb_27" && step === "legends") continue;
     if (step === "attribute_purchases") {
       lines.push(`Attributes: default core ${draft.coreAttributePurchasesSeasonCap === 0 ? "unlimited" : `${draft.coreAttributePurchasesSeasonCap} pts`}/season, non-core ${draft.nonCoreAttributePurchasesSeasonCap === 0 ? "unlimited" : `${draft.nonCoreAttributePurchasesSeasonCap} pts`}/season, ${draft.coreAttributes.length} core attrs (${Object.keys(draft.coreAttributeCapOverrides ?? {}).length} overrides)`);
       continue;

@@ -183,7 +183,9 @@ export async function handleSetSeasonManual(interaction: ModalSubmitInteraction,
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league season");
   const seasonNumber = Number(interaction.fields.getTextInputValue(ADVANCE_CUSTOM_IDS.seasonManualInput));
   if (!Number.isInteger(seasonNumber) || seasonNumber < 25) {
-    return interaction.reply({ content: "Manual season number must be 25 or higher.", flags: MessageFlags.Ephemeral });
+    const invalidPayload = { embeds: [new EmbedBuilder().setTitle("Invalid Season").setColor(COLORS.error).setDescription("Manual season number must be 25 or higher.")], components: buildAdvanceMgmtRows() };
+    if (interaction.isFromMessage()) return interaction.update(invalidPayload);
+    return interaction.reply({ ...invalidPayload, flags: MessageFlags.Ephemeral });
   }
   await interaction.deferUpdate();
   try {

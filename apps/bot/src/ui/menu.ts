@@ -127,6 +127,7 @@ function formatLeagueStage(value?: string | null) {
   const stage = String(value ?? "regular_season");
   if (stage === "regular_season") return "Regular Season";
   if (stage === "preseason_training_camp") return "Training Camp";
+  if (stage === "preseason") return "Preseason";
   return stage
     .split("_")
     .filter(Boolean)

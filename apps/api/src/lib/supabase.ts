@@ -250,7 +250,10 @@ class PostgresQueryBuilder {
 
   single(): this {
     this.singleMode = "single";
-    this.limitValue ??= 1;
+    // Fetch 2 (not 1) so finishRows can still detect and error on an unexpectedly
+    // non-unique match, matching real supabase-js .single() semantics — forcing
+    // LIMIT 1 here would silently return an arbitrary row instead of surfacing the bug.
+    this.limitValue ??= 2;
     return this;
   }
 
@@ -488,7 +491,13 @@ class PostgresQueryBuilder {
   }
 }
 
-const tableRpcs = new Set(["rec_roster_league_conferences", "rec_eos_rank_payouts"]);
+// Only RPCs declared `returns table (...)` / `returns setof ...` belong here — calling them via
+// `SELECT * FROM fn(...)` turns each result row into a row of `result.rows`. RPCs that `returns
+// jsonb` (or another scalar) must NOT be listed: `rec_roster_league_conferences` returns a single
+// jsonb value, so it needs the `SELECT fn(...) AS data` branch below to unwrap it correctly —
+// listing it here wrapped the payload as `[{ rec_roster_league_conferences: {...} }]` instead of
+// `{ conferences: [...] }`, which made every league (not just CFB) appear to have zero conferences.
+const tableRpcs = new Set(["rec_eos_rank_payouts"]);
 
 async function executeRpc(name: string, args: Record<string, unknown> = {}): Promise<QueryResult> {
   try {

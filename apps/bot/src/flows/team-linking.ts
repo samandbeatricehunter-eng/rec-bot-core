@@ -490,7 +490,7 @@ export async function handleLeagueTeamsEdit(interaction: Extract<Interaction, { 
   }
   await interaction.deferUpdate();
   const conferences = await loadLeagueConferences(interaction.guildId);
-  await interaction.editReply(buildLeagueTeamsEditPanel(conferences, "AFC"));
+  await interaction.editReply(buildLeagueTeamsEditPanel(conferences, conferences[0]?.conference ?? "AFC"));
 }
 
 export async function handleLeagueTeamsConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
@@ -598,10 +598,13 @@ export async function handleLeagueTeamsResetDefaults(interaction: Extract<Intera
   await interaction.deferUpdate();
   try {
     await recApi.resetDefaultTeams(interaction.guildId, interaction.user.id);
-    const conferences = await loadLeagueConferences(interaction.guildId);
+    const [conferences, isCfb] = await Promise.all([loadLeagueConferences(interaction.guildId), isCfbLeague(interaction.guildId)]);
+    const resetDescription = isCfb
+      ? "The league teams have been restored to the default College Football 27 teams and conferences."
+      : "The league teams have been restored to the default 32 NFL teams across the 8 divisions.";
     await interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Teams Reset").setDescription("The league teams have been restored to the default 32 NFL teams across the 8 divisions.")],
-      components: buildLeagueTeamsEditPanel(conferences, "AFC").components
+      embeds: [new EmbedBuilder().setTitle("Teams Reset").setDescription(resetDescription)],
+      components: buildLeagueTeamsEditPanel(conferences, conferences[0]?.conference ?? "AFC").components
     });
   } catch (error) {
     await interaction.editReply({
@@ -971,7 +974,9 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
 
   const pending = customTeamPendingSessions.get(interaction.user.id);
   if (!pending) {
-    await interaction.reply({ content: "Session expired. Please start team linking again.", ephemeral: true });
+    const expiredPayload = { content: "Session expired. Please start team linking again.", embeds: [], components: [] };
+    if (interaction.isFromMessage()) await interaction.update(expiredPayload);
+    else await interaction.reply({ ...expiredPayload, ephemeral: true });
     return;
   }
 

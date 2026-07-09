@@ -20,7 +20,7 @@ function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput 
     teamBuilderAllowed: dynastyType === "mixed",
     ageResetsEnabled: false,
     contractAdjustmentPurchasesEnabled: false,
-    legendsSeasonCap: 0,
+    // Campus Legends (CFB's Legends) supports its own season cap same as Madden — don't zero it.
     ageResetsSeasonCap: 0,
     contractPurchasesSeasonCap: 0,
     salaryCapEnabled: false,
@@ -149,7 +149,10 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     game: input.game,
     league_type: input.leagueType,
     current_phase: "preseason",
-    season_stage: "preseason_training_camp",
+    // CFB has no training-camp period and starts at Preseason; Madden starts at Training Camp.
+    // The bot immediately calls setLeagueWeek() right after creation to confirm this, but set it
+    // correctly here too so the league is never briefly mislabeled if that follow-up call fails.
+    season_stage: input.game === "cfb_27" ? "preseason" : "preseason_training_camp",
     season_number: input.seasonNumber ?? 1,
     current_week: 1,
     trust_mode: "manual",
