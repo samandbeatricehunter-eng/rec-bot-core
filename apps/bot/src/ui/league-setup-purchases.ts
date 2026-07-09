@@ -251,10 +251,13 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
       isCfbCampusLegends ? "" : formatPurchaseCapSummary(draft, draft.step)
     ].filter(Boolean).join("\n"));
 
+  // Activate/Deactivate no longer auto-advance — this screen combines the on/off decision with
+  // cap selectors, so advancing needs its own explicit action once the commissioner is done here.
   const components: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[] = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.featureActivate).setLabel("Activate Feature").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate).setLabel("Deactivate Feature").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate).setLabel("Deactivate Feature").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.purchaseFeatureDone).setLabel(draft.editMode ? "Save & Continue" : "Continue").setStyle(ButtonStyle.Primary)
     )
   ];
 

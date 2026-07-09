@@ -3,6 +3,7 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   leagueType: "rec:league_setup:league_type",
   featureActivate: "rec:league_setup:feature_activate",
   featureDeactivate: "rec:league_setup:feature_deactivate",
+  purchaseFeatureDone: "rec:league_setup:purchase_feature_done",
   cancelWizard: "rec:league_setup:cancel",
   serverSetupSelect: "rec:league_setup:server_setup_select",
   serverSetupDone: "rec:league_setup:server_setup_done",

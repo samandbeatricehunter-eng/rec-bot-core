@@ -571,6 +571,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureActivate ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.featureDeactivate ||
+        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseFeatureDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.cancelWizard ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.serverSetupDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsOpen ||

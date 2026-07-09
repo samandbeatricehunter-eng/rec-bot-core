@@ -430,6 +430,25 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
       leagueSetupSessions.set(interaction.user.id, draft);
       return interaction.update(buildSettingsPickerWindow(draft));
     }
+    // Purchase-cap screens combine Activate/Deactivate with cap selectors on one screen — stay
+    // put so a cap can still be set once activated; the "Continue" button advances explicitly.
+    if (isPurchaseFeatureStep(draft.step)) {
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildLeagueSetupWindow(draft));
+    }
+    draft.step = getNextLeagueSetupStep(draft.step, draft);
+    leagueSetupSessions.set(interaction.user.id, draft);
+    return interaction.update(buildLeagueSetupWindow(draft));
+  }
+
+  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseFeatureDone) {
+    applyLeagueSetupDependencies(draft);
+    if (draft.editMode) {
+      await saveDraftEditIfNeeded(interaction, draft);
+      draft.step = "settings_picker";
+      leagueSetupSessions.set(interaction.user.id, draft);
+      return interaction.update(buildSettingsPickerWindow(draft, "purchases"));
+    }
     draft.step = getNextLeagueSetupStep(draft.step, draft);
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
