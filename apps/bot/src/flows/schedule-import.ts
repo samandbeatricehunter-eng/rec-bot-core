@@ -11,7 +11,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
-import { isCfb, regularSeasonWeeks } from "@rec/shared";
+import { isCfb, maxSeasonWeek, regularSeasonWeeks } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -28,13 +28,17 @@ import { getPendingPayoutsChannel } from "./schedule-scores.js";
 const CFB_POSTSEASON_LABELS = ["CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "Bye Week", "National Championship"];
 const NFL_POSTSEASON_LABELS = ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
 
+// CFB's regular season starts at Week 0; Madden's starts at Week 1.
+function firstImportWeek(game: string | null): number {
+  return isCfb(game) ? 0 : 1;
+}
 function maxImportWeek(game: string | null): number {
   return regularSeasonWeeks(game ?? null);
 }
 // One-week mode can import any week including the postseason; the wizard still
 // walks the regular season only.
 function maxSingleImportWeek(game: string | null): number {
-  return isCfb(game) ? 17 : 22;
+  return maxSeasonWeek(game ?? null);
 }
 function importWeekLabel(week: number, game: string | null) {
   const lastRegularWeek = regularSeasonWeeks(game ?? null);
@@ -104,20 +108,22 @@ export async function startScheduleImportWizard(interaction: ButtonInteraction, 
     return interaction.reply({ content: "Only commissioners or server admins can import the schedule.", flags: MessageFlags.Ephemeral });
   }
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
+  const game = week?.league?.game ?? null;
+  const startWeek = firstImportWeek(game);
   sessions.set(key(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,
     userId: interaction.user.id,
     channelId: interaction.channelId,
-    game: week?.league?.game ?? null,
+    game,
     mode: "wizard",
-    weekNumber: 1,
+    weekNumber: startWeek,
     phase: "awaiting_upload",
     games: [],
     expectedGames: 0,
     imageUrl: null,
     at: Date.now(),
   });
-  return interaction.update({ embeds: [uploadPrompt(1, "wizard")], components: buildScheduleRows() });
+  return interaction.update({ embeds: [uploadPrompt(startWeek, "wizard")], components: buildScheduleRows() });
 }
 
 export async function startScheduleImportOneWeek(interaction: ButtonInteraction, buildScheduleRows: () => any[]) {
@@ -128,9 +134,10 @@ export async function startScheduleImportOneWeek(interaction: ButtonInteraction,
   sessions.delete(key(interaction.guildId, interaction.user.id));
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const game: string | null = week?.league?.game ?? null;
+  const startWeek = firstImportWeek(game);
   // CFB's bye week has zero scheduled games — no screenshot to import, so skip it.
-  const weekOptions = Array.from({ length: maxSingleImportWeek(game) }, (_, i) => i + 1)
-    .filter((w) => !(isCfb(game) && w === 16));
+  const weekOptions = Array.from({ length: maxSingleImportWeek(game) - startWeek + 1 }, (_, i) => startWeek + i)
+    .filter((w) => !(isCfb(game) && w === 15));
   const select = new StringSelectMenuBuilder()
     .setCustomId(SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect)
     .setPlaceholder("Select the week to import")
@@ -148,7 +155,7 @@ export async function handleScheduleImportWeekSelect(interaction: StringSelectMe
   }
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const game: string | null = week?.league?.game ?? null;
-  const weekNumber = Math.max(1, Math.min(maxSingleImportWeek(game), Number(interaction.values[0] ?? 1)));
+  const weekNumber = Math.max(firstImportWeek(game), Math.min(maxSingleImportWeek(game), Number(interaction.values[0] ?? firstImportWeek(game))));
   sessions.set(key(interaction.guildId, interaction.user.id), {
     guildId: interaction.guildId,
     userId: interaction.user.id,

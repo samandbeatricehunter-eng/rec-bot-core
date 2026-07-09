@@ -17,7 +17,8 @@ const ViewLeagueWeekSchema = z.object({
 
 const SetLeagueWeekSchema = z.object({
   guildId: z.string().min(1),
-  weekNumber: z.number().int().min(1).max(30),
+  // 0 is a valid CFB week (Week 0, before Week 1); Madden never uses it.
+  weekNumber: z.number().int().min(0).max(30),
   seasonStage: z.string().min(1),
   seasonNumber: z.number().int().min(1).optional()
 });
@@ -56,7 +57,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
-        nextWeekNumber: z.number().int().min(1).max(30),
+        nextWeekNumber: z.number().int().min(0).max(30),
         nextSeasonStage: z.string().min(1),
         advancedByDiscordId: z.string().min(1),
         results: z.array(z.object({
@@ -79,7 +80,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
-        weekNumber: z.number().int().min(1).max(22).optional().nullable(),
+        weekNumber: z.number().int().min(0).max(22).optional().nullable(),
         imageUrls: z.array(z.string().url()).min(1).max(2),
         createdByDiscordId: z.string().min(1),
       }).parse(request.body);
@@ -140,7 +141,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/manual-scores/games", async (request, reply) => {
     try {
       requireInternalApiKey(request);
-      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(1).max(22).optional().nullable() }).parse(request.body);
+      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(0).max(22).optional().nullable() }).parse(request.body);
       return reply.send(await listManualScoreGames(body));
     } catch (error) {
       return sendError(reply, error);
@@ -197,7 +198,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const body = z.object({
         guildId: z.string().min(1),
         seasonNumber: z.number().int().min(1),
-        weekNumber: z.number().int().min(1).max(30),
+        weekNumber: z.number().int().min(0).max(30),
         includePosted: z.boolean().optional(),
       }).parse(request.body);
       return reply.send(await listAdvanceGameStories(body));

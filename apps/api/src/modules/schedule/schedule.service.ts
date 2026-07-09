@@ -77,11 +77,11 @@ function phaseForWeek(weekNumber: number, game: LeagueGame) {
 function expectedGamesForWeek(weekNumber: number, game: LeagueGame, teamCount: number) {
   if (isCfb(game)) {
     switch (weekNumber) {
-      case 13: return 4; // CFP First Round (seeds 5-12; top 4 seeds bye)
-      case 14: return 4; // CFP Quarterfinals
-      case 15: return 2; // CFP Semifinals
-      case 16: return 0; // Bye week — no games scheduled
-      case 17: return 1; // National Championship
+      case 12: return 4; // CFP First Round (seeds 5-12; top 4 seeds bye)
+      case 13: return 4; // CFP Quarterfinals
+      case 14: return 2; // CFP Semifinals
+      case 15: return 0; // Bye week — no games scheduled
+      case 16: return 1; // National Championship
       default: return Math.floor(teamCount / 2);
     }
   }
@@ -96,8 +96,10 @@ function expectedGamesForWeek(weekNumber: number, game: LeagueGame, teamCount: n
 
 function assertWeekSlot(input: { weekNumber: number; slotNumber?: number }, game: LeagueGame) {
   const lastWeek = maxSeasonWeek(game);
-  if (!Number.isInteger(input.weekNumber) || input.weekNumber < 1 || input.weekNumber > lastWeek) {
-    throw new ApiError(400, `Week must be between 1 and ${lastWeek}.`);
+  // CFB's regular season starts at Week 0; Madden's starts at Week 1.
+  const firstWeek = isCfb(game) ? 0 : 1;
+  if (!Number.isInteger(input.weekNumber) || input.weekNumber < firstWeek || input.weekNumber > lastWeek) {
+    throw new ApiError(400, `Week must be between ${firstWeek} and ${lastWeek}.`);
   }
   // CFB's larger 136-team catalog can produce a fuller weekly slate than Madden's 32 teams.
   const maxSlot = isCfb(game) ? 100 : 32;

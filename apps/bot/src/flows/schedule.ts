@@ -684,14 +684,15 @@ export async function handleScheduleViewBack(interaction: ButtonInteraction) {
 }
 
 function filterPostSetupWeeks(weeks: ScheduleViewSession["weeks"], game: string | null) {
+  const firstWeek = isCfb(game) ? 0 : 1;
   const lastWeek = regularSeasonWeeks(game);
   const byWeek = new Map(
     weeks
-      .filter((week) => week.weekNumber >= 1 && week.weekNumber <= lastWeek)
+      .filter((week) => week.weekNumber >= firstWeek && week.weekNumber <= lastWeek)
       .map((week) => [week.weekNumber, week] as const)
   );
-  return Array.from({ length: lastWeek }, (_, idx) => {
-    const weekNumber = idx + 1;
+  return Array.from({ length: lastWeek - firstWeek + 1 }, (_, idx) => {
+    const weekNumber = firstWeek + idx;
     return byWeek.get(weekNumber) ?? { weekNumber, phase: "regular_season", games: [] };
   });
 }
@@ -960,10 +961,13 @@ function manualWeekLabel(session: ManualScheduleSession, week: number): string {
 }
 
 function renderManualWeekPicker(session: ManualScheduleSession) {
-  const totalWeeks = isCfb(session.game) ? 17 : 22;
+  const isCfbGame = isCfb(session.game);
+  const firstWeek = isCfbGame ? 0 : 1;
+  const totalWeeks = maxSeasonWeek(session.game ?? null);
   // CFB's bye week has zero scheduled games — nothing to manually enter, so skip it.
-  const options = Array.from({ length: totalWeeks }, (_, idx) => idx + 1)
-    .filter((week) => !(isCfb(session.game) && week === 16))
+  const byeWeek = isCfbGame ? 15 : null;
+  const options = Array.from({ length: totalWeeks - firstWeek + 1 }, (_, idx) => firstWeek + idx)
+    .filter((week) => week !== byeWeek)
     .map((week) => new StringSelectMenuOptionBuilder().setLabel(manualWeekLabel(session, week)).setValue(String(week)));
   return {
     embeds: [new EmbedBuilder()

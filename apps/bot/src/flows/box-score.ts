@@ -15,6 +15,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
+import { isCfb } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -854,7 +855,8 @@ export async function handleBoxScoreSubmissions(interaction: ButtonInteraction) 
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
 
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
-  const currentWeek = Math.max(1, Number(week?.league?.current_week ?? 1));
+  const game = week?.league?.game ?? null;
+  const currentWeek = Math.max(isCfb(game) ? 0 : 1, Number(week?.league?.current_week ?? 1));
   const seasonNumber = Number(week?.league?.season_number ?? week?.league?.display_season_number ?? 1);
 
   commissionerSubmissionSessions.delete(exKey(interaction.guildId, interaction.user.id));
@@ -862,7 +864,7 @@ export async function handleBoxScoreSubmissions(interaction: ButtonInteraction) 
     embeds: [new EmbedBuilder()
       .setTitle("Box Score Submissions")
       .setDescription("Select the game week first, then choose the scheduled game. After that, upload one box score image in this channel. The bot deletes the image after parsing and sends the payout review to Pending Payouts.")],
-    components: buildAdminWeekRows(currentWeek, seasonNumber),
+    components: buildAdminWeekRows(currentWeek, seasonNumber, game),
   });
 }
 
@@ -1028,15 +1030,18 @@ function buildInboxBackRow() {
   );
 }
 
-function buildAdminWeekRows(currentWeek: number, seasonNumber: number) {
-  const maxOptions = Math.min(Math.max(currentWeek, 1), 25);
+function buildAdminWeekRows(currentWeek: number, seasonNumber: number, game: string | null = null) {
+  // CFB's regular season starts at Week 0; Madden's starts at Week 1.
+  const firstWeek = isCfb(game) ? 0 : 1;
+  const highestWeek = Math.min(Math.max(currentWeek, firstWeek), firstWeek + 24);
+  const maxOptions = highestWeek - firstWeek + 1;
   return [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(BOX_SCORE_CUSTOM_IDS.adminWeekSelect)
         .setPlaceholder("Select week")
         .addOptions(Array.from({ length: maxOptions }, (_, idx) => {
-          const week = idx + 1;
+          const week = firstWeek + idx;
           return new StringSelectMenuOptionBuilder().setLabel(`Week ${week}`).setValue(String(week)).setDescription(`Season ${seasonNumber}, Week ${week}`);
         }))
     ),

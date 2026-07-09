@@ -12,6 +12,7 @@ import {
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from "discord.js";
+import { isCfb } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -52,15 +53,18 @@ function buildCancelRow() {
   );
 }
 
-function buildWeekRows(currentWeek: number) {
-  const maxOptions = Math.min(Math.max(currentWeek, 1), 25);
+function buildWeekRows(currentWeek: number, game: string | null) {
+  // CFB's regular season starts at Week 0; Madden's starts at Week 1.
+  const firstWeek = isCfb(game) ? 0 : 1;
+  const highestWeek = Math.min(Math.max(currentWeek, firstWeek), firstWeek + 24);
+  const maxOptions = highestWeek - firstWeek + 1;
   return [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(MANUAL_SCORES_CUSTOM_IDS.weekSelect)
         .setPlaceholder("Select week")
         .addOptions(Array.from({ length: maxOptions }, (_, idx) => {
-          const week = idx + 1;
+          const week = firstWeek + idx;
           return new StringSelectMenuOptionBuilder().setLabel(`Week ${week}`).setValue(String(week));
         })),
     ),
@@ -73,7 +77,8 @@ export async function handleManualScoresOpen(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", ephemeral: true });
 
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
-  const currentWeek = Math.max(1, Number(week?.league?.current_week ?? 1));
+  const game = week?.league?.game ?? null;
+  const currentWeek = Math.max(isCfb(game) ? 0 : 1, Number(week?.league?.current_week ?? 1));
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
 
   return interaction.update({
@@ -86,7 +91,7 @@ export async function handleManualScoresOpen(interaction: ButtonInteraction) {
         "",
         "These results update **display records only** (power rankings / standings). They won't count toward stat-based EOS awards or badges — only full box scores populate those. Games that already have a box score submission can't be overridden here.",
       ].join("\n"))],
-    components: buildWeekRows(currentWeek),
+    components: buildWeekRows(currentWeek, game),
   });
 }
 

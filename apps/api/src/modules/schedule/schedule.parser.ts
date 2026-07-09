@@ -176,7 +176,9 @@ function parseWeek(raw: string): number | null {
   const m = raw.match(/(\d{1,2})/);
   if (!m) return null;
   const n = parseInt(m[1], 10);
-  return n >= 1 && n <= 22 ? n : null;
+  // 0 is a valid CFB week (Week 0); this parser doesn't know the league's game, so allow it
+  // generically — Madden schedules never actually carry a "Week 0" label to match against.
+  return n >= 0 && n <= 22 ? n : null;
 }
 
 function parseImageGames(words: NormalizedWord[]): { games: ParsedScheduleGame[]; weekHint: number | null } {
