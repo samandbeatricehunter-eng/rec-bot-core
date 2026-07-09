@@ -20,6 +20,10 @@ const PURCHASE_CONFIG: Record<RecPurchaseType, { enabled: string; seasonCap: str
 // Statuses that count as "active or successful" toward a season cap / all-time metric.
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"] as const;
 
+// CFB 27: rosters can't be touched — no custom recruits, campus legends, dev upgrades, attribute
+// purchases, or trait purchases — until Season 2. Madden has no such restriction.
+const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player", "legend", "dev_upgrade", "attribute", "player_trait"];
+
 function purchaseLabel(type: RecPurchaseType) {
   return REC_PURCHASE_TYPE_LABELS[type] ?? "Purchase";
 }
@@ -113,6 +117,11 @@ export async function createPurchaseRequest(input: {
   if (!cfgRow.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
   if (!cfgRow[cfg.enabled]) throw new ApiError(400, `${label} purchases are not enabled for this league.`);
 
+  const seasonNumber = resolveSeasonNumber(context);
+  if (context.rec_leagues?.game === "cfb_27" && seasonNumber < 2 && CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES.includes(input.purchaseType)) {
+    throw new ApiError(400, `${label} purchases open in Season 2 — Season 1 rosters are locked while dynasties get established.`);
+  }
+
   // Attributes carry an allocation list; normalize core-ness server-side (authoritative) so
   // pricing and cap enforcement can't be spoofed by the client.
   let details: Record<string, unknown> = input.details ?? {};
@@ -132,7 +141,6 @@ export async function createPurchaseRequest(input: {
     throw new ApiError(400, `Insufficient wallet balance. This costs $${price} and you have $${walletBalance}.`);
   }
 
-  const seasonNumber = resolveSeasonNumber(context);
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   if (input.purchaseType === "attribute") {
