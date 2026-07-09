@@ -12,19 +12,37 @@ export function formatTeamDisplayName(team: {
   display_city?: string | null;
   display_nick?: string | null;
   is_relocated?: boolean | null;
-}) {
+}, isCfb = false) {
+  if (isCfb) return resolveCfbFullName(team);
   if (team.is_relocated && team.display_city && team.display_nick) {
     return `${team.display_city} ${team.display_nick}`;
   }
   return team.name ?? team.display_nick ?? "Team";
 }
 
-/** Discord @nickname base: team nick only — never the city. */
+// CFB's "University Mascot" combo (e.g. "Arkansas State Red Wolves") — display_city/display_nick
+// are populated for every CFB team at seed time (not just relocated/custom ones; see
+// createDefaultTeamsForGuild), so the university always comes from display_city when present,
+// falling back to name for older rows that predate that field.
+function resolveCfbFullName(team: {
+  name?: string | null;
+  display_city?: string | null;
+  display_nick?: string | null;
+}): string {
+  const university = (team.display_city ?? team.name ?? "").trim();
+  const mascot = (team.display_nick ?? "").trim();
+  const combined = mascot ? `${university} ${mascot}`.trim() : university;
+  return combined || "Team";
+}
+
+/** Discord @nickname base: mascot only for Madden (never the city); "University Mascot" for CFB. */
 export function resolveTeamNick(team: {
   name?: string | null;
+  display_city?: string | null;
   display_nick?: string | null;
   is_relocated?: boolean | null;
-}) {
+}, isCfb = false) {
+  if (isCfb) return resolveCfbFullName(team);
   if (team.is_relocated && team.display_nick?.trim()) {
     return team.display_nick.trim();
   }
@@ -38,25 +56,33 @@ function teamNickFromName(teamName: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : teamName.trim();
 }
 
+const DISCORD_NICKNAME_MAX_LENGTH = 32;
+
 export function buildTeamNickname(teamName: string, authority: RecTeamAuthority) {
   return buildTeamNicknameFromNick(teamNickFromName(teamName), authority);
 }
 
 export function buildTeamNicknameFromNick(nick: string, authority: RecTeamAuthority) {
-  if (authority === "commissioner") return `${nick} (Commissioner)`;
-  if (authority === "co_commissioner") return `${nick} (Co-Commissioner)`;
-  return nick;
+  const suffix = authority === "commissioner" ? " (Commissioner)" : authority === "co_commissioner" ? " (Co-Commissioner)" : "";
+  // Truncate the base nick (not the whole result) so the authority suffix never gets cut off —
+  // CFB's "University Mascot" nicknames can run long enough to hit Discord's 32-char nickname
+  // limit, and setNickname() silently fails outright (caught upstream) if the string is too long.
+  const maxNickLength = Math.max(0, DISCORD_NICKNAME_MAX_LENGTH - suffix.length);
+  const trimmedNick = nick.length > maxNickLength ? nick.slice(0, maxNickLength).trim() : nick;
+  return `${trimmedNick}${suffix}`;
 }
 
 export function buildTeamNicknameFromTeam(
   team: {
     name?: string | null;
+    display_city?: string | null;
     display_nick?: string | null;
     is_relocated?: boolean | null;
   },
   authority: RecTeamAuthority,
+  isCfb = false,
 ) {
-  return buildTeamNicknameFromNick(resolveTeamNick(team), authority);
+  return buildTeamNicknameFromNick(resolveTeamNick(team, isCfb), authority);
 }
 
 async function ensureRole(guild: Guild, input: { name: string; color: number }) {
@@ -124,9 +150,12 @@ export async function syncMemberForTeam(input: {
   authority: RecTeamAuthority;
   team?: {
     name?: string | null;
+    display_city?: string | null;
     display_nick?: string | null;
     is_relocated?: boolean | null;
   } | null;
+  /** CFB nicknames show "University Mascot"; Madden nicknames show the mascot alone. */
+  isCfb?: boolean;
 }) {
   const roles = await ensureRecBaseRoles(input.member.guild);
   const rolesToAdd: Role[] = [roles.member];
@@ -147,7 +176,7 @@ export async function syncMemberForTeam(input: {
   await input.member.roles.add(rolesToAdd, "REC team ownership link").catch(() => undefined);
 
   const nickname = input.team
-    ? buildTeamNicknameFromTeam(input.team, input.authority)
+    ? buildTeamNicknameFromTeam(input.team, input.authority, input.isCfb)
     : buildTeamNickname(input.teamName, input.authority);
   await input.member.setNickname(nickname, "REC team ownership link").catch(() => undefined);
 

@@ -3,6 +3,7 @@ import type { RecTeamAuthority } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
+import { isCfbLeague } from "../lib/league-game.js";
 import { ensureRecBaseRoles, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildNavigationRow } from "../ui/navigation.js";
 import {
@@ -152,13 +153,6 @@ async function getEligibleGuildUsers(interaction: ButtonInteraction | StringSele
 
   const guildUsers = await getCachedGuildUsers(interaction);
   return guildUsers.filter((user) => !linkedDiscordIds.has(user.discordId));
-}
-
-// Used to pick CFB-appropriate labels (University Name / Team Name) vs Madden's City/Mascot
-// when opening the custom-team modal. getOpenTeams already returns the league row cheaply.
-async function isCfbLeague(guildId: string) {
-  const result = await recApi.getOpenTeams(guildId).catch(() => null);
-  return result?.league?.game === "cfb_27";
 }
 
 async function loadLeagueConferences(guildId: string) {
@@ -459,6 +453,7 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
       teamName: result.team.name,
       authority: draft.authority,
       team: result.team,
+      isCfb: await isCfbLeague(interaction.guildId),
     });
 
     teamLinkSessions.delete(interaction.user.id);
@@ -1013,6 +1008,7 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
           teamName: result.team?.name ?? session.teamName,
           authority: role,
           team: result.team ?? session.team,
+          isCfb: await isCfbLeague(interaction.guildId),
         })
       : null;
     const nickname = syncResult?.nickname ?? session.teamName;
@@ -1098,6 +1094,7 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
     const teamId = result.customTeam.id;
     if (result.linkedUsers?.length) {
       await ensureRecBaseRoles(interaction.guild);
+      const isCfb = await isCfbLeague(interaction.guildId);
       for (const linked of result.linkedUsers) {
         if (!linked.discordId) continue;
         const member = await interaction.guild.members.fetch(linked.discordId).catch(() => null);
@@ -1107,6 +1104,7 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
           teamName: result.customTeam.name,
           authority: linked.authority ?? "member",
           team: result.customTeam,
+          isCfb,
         }).catch(() => undefined);
       }
     }
