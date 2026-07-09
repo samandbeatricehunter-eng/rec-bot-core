@@ -9,7 +9,6 @@ import {
   type ButtonInteraction,
   type Message,
   type StringSelectMenuInteraction,
-  type TextChannel,
 } from "discord.js";
 import { canonicalConferenceName, CONFERENCE_ORDER, stageForWeek, stageLabel } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
@@ -71,6 +70,10 @@ type Session = {
   editingWeek?: number;
   warnings: string[];
   at: number;
+  // The interaction that put us into "awaiting_upload" (the team-select interaction) — held so
+  // the screenshot-upload listener (a message event, not an interaction) can editReply() the
+  // same ephemeral message for the review, instead of posting a new public channel message.
+  interaction?: StringSelectMenuInteraction;
 };
 
 const sessions = new Map<string, Session>();
@@ -187,6 +190,7 @@ export async function handleCfbTeamScheduleTeamSelect(interaction: StringSelectM
   session.step = "awaiting_upload";
   session.teamId = team.id;
   session.teamName = team.name;
+  session.interaction = interaction;
   touch(session);
 
   return interaction.editReply({
@@ -209,7 +213,7 @@ export async function handleCfbTeamScheduleUploadMessage(message: Message): Prom
   const session = getSession(message.guildId, message.author.id);
   if (!session || session.step !== "awaiting_upload" || session.channelId !== message.channelId) return false;
   if (!message.channel.isTextBased() || message.channel.isDMBased()) return false;
-  const channel = message.channel as TextChannel;
+  if (!session.interaction) return false;
 
   const images = [...message.attachments.values()]
     .filter((a) => (a.contentType?.startsWith("image/") ?? false) || /\.(png|jpe?g|webp)$/i.test(a.name ?? ""))
@@ -217,9 +221,13 @@ export async function handleCfbTeamScheduleUploadMessage(message: Message): Prom
     .slice(0, 2);
   if (images.length === 0) return false;
 
-  const working = await channel.send({
+  // Everything stays on this one ephemeral message (the team-select interaction's reply) rather
+  // than posting a new public channel message — a message event has no interaction of its own
+  // to reply to, so this reuses the stored one from the last step instead of channel.send().
+  await session.interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Reading schedule…").setDescription(`Parsing ${session.teamName}'s schedule. This can take ~30–60 seconds.`)],
-  }).catch(() => null);
+    components: [],
+  }).catch(() => undefined);
 
   try {
     const preview = await recApi.previewCfbTeamScheduleImport({ guildId: session.guildId, teamId: session.teamId!, imageUrls: images });
@@ -245,11 +253,10 @@ export async function handleCfbTeamScheduleUploadMessage(message: Message): Prom
     session.step = "review";
     touch(session);
 
-    await channel.send({ embeds: [buildReviewEmbed(session)], components: await buildReviewRows(session) }).catch(() => null);
-    await working?.delete().catch(() => undefined);
+    await session.interaction.editReply({ embeds: [buildReviewEmbed(session)], components: await buildReviewRows(session) }).catch(() => undefined);
   } catch (err) {
     await message.delete().catch(() => undefined);
-    await working?.edit({ embeds: [new EmbedBuilder().setTitle("Couldn't read schedule").setColor(COLORS.error).setDescription(userFacingError(err))] }).catch(() => undefined);
+    await session.interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Couldn't read schedule").setColor(COLORS.error).setDescription(userFacingError(err))], components: [] }).catch(() => undefined);
     sessions.delete(key(session.guildId, session.userId));
   }
   return true;
