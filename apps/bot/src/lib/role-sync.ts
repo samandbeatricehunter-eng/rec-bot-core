@@ -7,12 +7,16 @@ export const REC_MANAGED_ROLES = {
   commissioner: { name: "REC League Commissioner", color: 0xd4af37 }
 } as const;
 
-export function formatTeamDisplayName(team: {
+type NickTeam = {
   name?: string | null;
+  abbreviation?: string | null;
   display_city?: string | null;
+  display_abbr?: string | null;
   display_nick?: string | null;
   is_relocated?: boolean | null;
-}, isCfb = false) {
+};
+
+export function formatTeamDisplayName(team: NickTeam, isCfb = false) {
   if (isCfb) return resolveCfbFullName(team);
   if (team.is_relocated && team.display_city && team.display_nick) {
     return `${team.display_city} ${team.display_nick}`;
@@ -24,25 +28,43 @@ export function formatTeamDisplayName(team: {
 // are populated for every CFB team at seed time (not just relocated/custom ones; see
 // createDefaultTeamsForGuild), so the university always comes from display_city when present,
 // falling back to name for older rows that predate that field.
-function resolveCfbFullName(team: {
-  name?: string | null;
-  display_city?: string | null;
-  display_nick?: string | null;
-}): string {
+function resolveCfbFullName(team: NickTeam): string {
   const university = (team.display_city ?? team.name ?? "").trim();
   const mascot = (team.display_nick ?? "").trim();
   const combined = mascot ? `${university} ${mascot}`.trim() : university;
   return combined || "Team";
 }
 
-/** Discord @nickname base: mascot only for Madden (never the city); "University Mascot" for CFB. */
-export function resolveTeamNick(team: {
-  name?: string | null;
-  display_city?: string | null;
-  display_nick?: string | null;
-  is_relocated?: boolean | null;
-}, isCfb = false) {
-  if (isCfb) return resolveCfbFullName(team);
+// Same team shape a raw rec_teams row (abbreviation + display_abbr) or an already-resolved RPC
+// payload (abbreviation alone, display-preferring) can both provide — mirrors the resolution
+// rule used in rec_roster_league_conferences and createCustomTeamReplacement.
+function resolveTeamAbbreviation(team: NickTeam): string {
+  const abbr = team.is_relocated && team.display_abbr?.trim() ? team.display_abbr : team.abbreviation;
+  return (abbr ?? "TEAM").trim().toUpperCase();
+}
+
+// Commissioner/Co-Commissioner CFB nicknames use "ABBR Mascot" (e.g. "GCU Trojans") instead of
+// the full university name — leaves headroom for the role suffix within Discord's 32-char limit.
+function resolveCfbLeadershipName(team: NickTeam): string {
+  const abbr = resolveTeamAbbreviation(team);
+  const mascot = (team.display_nick ?? "").trim();
+  const combined = mascot ? `${abbr} ${mascot}`.trim() : abbr;
+  return combined || "Team";
+}
+
+function isLeadershipAuthority(authority: RecTeamAuthority) {
+  return authority === "commissioner" || authority === "co_commissioner";
+}
+
+/**
+ * Discord @nickname base. Madden: mascot only (never the city). CFB: "University Mascot" for
+ * regular members, or "ABBR Mascot" for Commissioners/Co-Commissioners (shorter, to leave room
+ * for the role suffix).
+ */
+export function resolveTeamNick(team: NickTeam, isCfb = false, authority?: RecTeamAuthority) {
+  if (isCfb) {
+    return authority && isLeadershipAuthority(authority) ? resolveCfbLeadershipName(team) : resolveCfbFullName(team);
+  }
   if (team.is_relocated && team.display_nick?.trim()) {
     return team.display_nick.trim();
   }
@@ -63,7 +85,9 @@ export function buildTeamNickname(teamName: string, authority: RecTeamAuthority)
 }
 
 export function buildTeamNicknameFromNick(nick: string, authority: RecTeamAuthority) {
-  const suffix = authority === "commissioner" ? " (Commissioner)" : authority === "co_commissioner" ? " (Co-Commissioner)" : "";
+  // "(Co-Commissioner)" alone is 18 characters, which left no room for anything but the very
+  // shortest team names — "(Co-Commish)" buys back 6 characters for the same role.
+  const suffix = authority === "commissioner" ? " (Commissioner)" : authority === "co_commissioner" ? " (Co-Commish)" : "";
   // Truncate the base nick (not the whole result) so the authority suffix never gets cut off —
   // CFB's "University Mascot" nicknames can run long enough to hit Discord's 32-char nickname
   // limit, and setNickname() silently fails outright (caught upstream) if the string is too long.
@@ -73,16 +97,11 @@ export function buildTeamNicknameFromNick(nick: string, authority: RecTeamAuthor
 }
 
 export function buildTeamNicknameFromTeam(
-  team: {
-    name?: string | null;
-    display_city?: string | null;
-    display_nick?: string | null;
-    is_relocated?: boolean | null;
-  },
+  team: NickTeam,
   authority: RecTeamAuthority,
   isCfb = false,
 ) {
-  return buildTeamNicknameFromNick(resolveTeamNick(team, isCfb), authority);
+  return buildTeamNicknameFromNick(resolveTeamNick(team, isCfb, authority), authority);
 }
 
 async function ensureRole(guild: Guild, input: { name: string; color: number }) {
@@ -148,12 +167,7 @@ export async function syncMemberForTeam(input: {
   member: GuildMember;
   teamName: string;
   authority: RecTeamAuthority;
-  team?: {
-    name?: string | null;
-    display_city?: string | null;
-    display_nick?: string | null;
-    is_relocated?: boolean | null;
-  } | null;
+  team?: NickTeam | null;
   /** CFB nicknames show "University Mascot"; Madden nicknames show the mascot alone. */
   isCfb?: boolean;
 }) {
