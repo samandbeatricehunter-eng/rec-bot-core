@@ -10,6 +10,8 @@ import {
   buildConferenceSelectRow,
   buildLeagueMgmtTeamsPanel,
   buildLeagueTeamsEditPanel,
+  buildLeagueTeamsEditActionPanel,
+  buildRelocateConferencePanel,
   buildLeagueTeamsConferencePanel,
   buildLeagueTeamsTeamSelectPanel,
   buildLeagueTeamsUnlinkConfirmPanel,
@@ -213,13 +215,12 @@ async function loadOpenTeams(guildId: string) {
 }
 
 function findConferenceTeam(conferences: any[], conferenceName: string, teamId: string) {
-  const normalizedConference = conferenceName.toLowerCase();
+  // conferenceName is unused for matching (any conference's team with a matching id wins) — kept
+  // as a param for call-site clarity, since callers usually already know which tab they browsed.
   for (const conference of conferences) {
-    const conferenceMatches = String(conference?.conference ?? "").toLowerCase() === normalizedConference;
     for (const division of conference?.divisions ?? []) {
       const team = (division.teams ?? []).find((row: any) => String(row.id) === String(teamId));
-      if (team && (conferenceMatches || !conferenceName)) return { ...team, divisionLabel: division.label ?? division.division ?? "Teams" };
-      if (team) return { ...team, divisionLabel: division.label ?? division.division ?? "Teams" };
+      if (team) return { ...team, divisionLabel: division.label ?? division.division ?? "Teams", conference: conference?.conference ?? "" };
     }
   }
   return null;
@@ -591,20 +592,94 @@ export async function handleLeagueTeamsEditTeamSelect(interaction: Extract<Inter
   }
   const teamId = interaction.values[0];
   if (teamId === "NO_TEAMS") return interaction.reply({ content: "No teams are available to edit. Reset default teams first.", ephemeral: true });
+  await interaction.deferUpdate();
   const conference = interaction.customId.split(":").pop() ?? "AFC";
   const conferences = await loadLeagueConferences(interaction.guildId);
   const team = findConferenceTeam(conferences, conference, teamId);
-  const replacementAbbreviation = team.originalAbbreviation ?? team.abbreviation;
-  if (!replacementAbbreviation) return interaction.reply({ content: "That team could not be found.", ephemeral: true });
+  if (!team) {
+    return interaction.editReply({ content: "That team could not be found.", embeds: [], components: buildLeagueMgmtTeamsPanel().components });
+  }
+  const isCfb = await isCfbLeague(interaction.guildId);
+  return interaction.editReply(buildLeagueTeamsEditActionPanel(team, isCfb));
+}
+
+// "Edit Team Details" from the per-team action panel — opens the existing rename/replace modal.
+export async function handleLeagueTeamsEditActionDetails(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
+    return;
+  }
+  const teamId = interaction.customId.slice(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionDetails}:`.length);
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  const team = findConferenceTeam(conferences, "", teamId);
+  const replacementAbbreviation = team?.originalAbbreviation ?? team?.abbreviation;
+  if (!team || !replacementAbbreviation) return interaction.reply({ content: "That team could not be found.", ephemeral: true });
   customTeamPendingSessions.set(interaction.user.id, {
     guildId: interaction.guildId,
-    conference,
+    conference: team.conference,
     replacementTeamAbbreviation: replacementAbbreviation,
     returnToLeagueTeams: true,
     linkUser: false
   });
   const isCfb = await isCfbLeague(interaction.guildId);
   return interaction.showModal(buildEditTeamModal(team.name ?? team.abbreviation, isCfb));
+}
+
+// "Relocate to Conference" from the per-team action panel (CFB only) — shows a conference picker
+// instead of forcing a full rename through the custom-team-replacement modal.
+export async function handleLeagueTeamsEditActionRelocate(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
+    return;
+  }
+  await interaction.deferUpdate();
+  const teamId = interaction.customId.slice(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionRelocate}:`.length);
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  const team = findConferenceTeam(conferences, "", teamId);
+  if (!team) return interaction.editReply({ content: "That team could not be found.", embeds: [], components: buildLeagueMgmtTeamsPanel().components });
+  return interaction.editReply(buildRelocateConferencePanel(team));
+}
+
+// Commits the conference chosen on the relocate panel via the same live-update endpoint the
+// League Setup wizard's Conference Assignments editor uses for an existing league.
+export async function handleLeagueTeamsRelocateConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
+  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
+    return;
+  }
+  await interaction.deferUpdate();
+  const teamId = interaction.customId.slice(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsRelocateConferenceSelect}:`.length);
+  const newConference = interaction.values[0];
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  const team = findConferenceTeam(conferences, "", teamId);
+  const abbreviation = team?.originalAbbreviation ?? team?.abbreviation;
+  if (!team || !abbreviation) {
+    return interaction.editReply({ content: "That team could not be found.", embeds: [], components: buildLeagueMgmtTeamsPanel().components });
+  }
+  try {
+    await recApi.updateTeamConference({ guildId: interaction.guildId, abbreviation, conference: newConference, requestedByDiscordId: interaction.user.id });
+  } catch (err) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder().setTitle("Relocate Failed").setDescription(userFacingError(err))],
+      components: buildLeagueMgmtTeamsPanel().components
+    });
+  }
+  const refreshedConferences = await loadLeagueConferences(interaction.guildId);
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setTitle("Team Relocated").setDescription(`**${team.name ?? team.abbreviation}** moved from **${team.conference || "Unknown"}** to **${newConference}**.`)],
+    components: buildLeagueTeamsEditPanel(refreshedConferences, newConference).components
+  });
+}
+
+// "Back to Teams" / "Cancel" from the per-team action panel or relocate picker.
+export async function handleLeagueTeamsEditActionBack(interaction: Extract<Interaction, { isButton(): boolean }>) {
+  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
+  await interaction.deferUpdate();
+  const conferences = await loadLeagueConferences(interaction.guildId);
+  return interaction.editReply(buildLeagueTeamsEditPanel(conferences, conferences[0]?.conference ?? "AFC"));
 }
 
 export async function handleLeagueTeamsResetDefaults(interaction: Extract<Interaction, { isButton(): boolean }>) {

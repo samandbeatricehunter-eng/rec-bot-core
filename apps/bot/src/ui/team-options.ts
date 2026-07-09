@@ -36,6 +36,10 @@ export const TEAM_LINK_CUSTOM_IDS = {
   leagueTeamsTeamSelect: "rec:league_teams:team",
   leagueTeamsEditConferenceSelect: "rec:league_teams:edit_conference",
   leagueTeamsEditTeamSelect: "rec:league_teams:edit_team",
+  leagueTeamsEditActionDetails: "rec:league_teams:edit_action_details",
+  leagueTeamsEditActionRelocate: "rec:league_teams:edit_action_relocate",
+  leagueTeamsEditActionBack: "rec:league_teams:edit_action_back",
+  leagueTeamsRelocateConferenceSelect: "rec:league_teams:relocate_conference",
   leagueTeamsResetDefaults: "rec:league_teams:reset_defaults",
   leagueTeamsConfirmBack: "rec:league_teams:confirm_back",
   leagueTeamsConfirmUnlink: "rec:league_teams:confirm_unlink",
@@ -472,6 +476,74 @@ export function buildLeagueTeamsEditPanel(rawConferences: any[], selectedConfere
           .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditTeamSelect}:${selected?.conference ?? selectedConference}`)
           .setPlaceholder(`Select ${selected?.conference ?? selectedConference} team`)
           .addOptions(teamOptions.length ? teamOptions : [new StringSelectMenuOptionBuilder().setLabel("No teams found").setValue("NO_TEAMS").setDescription("Reset default teams, then try again.")])
+      )
+    ]
+  };
+}
+
+// CFB-only conference list for the relocate flow (matches the League Setup wizard's conference
+// realignment editor) — Madden's AFC/NFC are fixed to each team's real-world identity.
+const CFB_CONFERENCES = CONFERENCE_ORDER.filter((conference) => conference !== "NFC" && conference !== "AFC" && conference !== "Other");
+
+export function buildLeagueTeamsEditActionPanel(team: { id: string; name?: string; abbreviation?: string; conference?: string }, isCfb: boolean) {
+  const teamLabel = team.name ?? team.abbreviation ?? "Team";
+  const buttons = [
+    new ButtonBuilder()
+      .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionDetails}:${team.id}`)
+      .setLabel("Edit Team Details")
+      .setStyle(ButtonStyle.Primary)
+  ];
+  if (isCfb) {
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionRelocate}:${team.id}`)
+        .setLabel("Relocate to Conference")
+        .setStyle(ButtonStyle.Success)
+    );
+  }
+  buttons.push(
+    new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionBack).setLabel("Back to Teams").setStyle(ButtonStyle.Secondary)
+  );
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle(`Edit ${teamLabel}`)
+        .setDescription([
+          `Current conference: **${team.conference || "Unknown"}**`,
+          "",
+          "Edit Team Details renames/replaces this team's identity.",
+          ...(isCfb ? ["Relocate to Conference moves it to a different conference without changing its name."] : [])
+        ].join("\n"))
+    ],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons)]
+  };
+}
+
+export function buildRelocateConferencePanel(team: { id: string; name?: string; abbreviation?: string; conference?: string }) {
+  const teamLabel = team.name ?? team.abbreviation ?? "Team";
+  const options = CFB_CONFERENCES.map((conference) =>
+    new StringSelectMenuOptionBuilder()
+      .setLabel(conference)
+      .setValue(conference)
+      .setDefault(conference === team.conference)
+  );
+
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle(`Relocate ${teamLabel}`)
+        .setDescription(`Currently in **${team.conference || "Unknown"}**. Select the new conference.`)
+    ],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsRelocateConferenceSelect}:${team.id}`)
+          .setPlaceholder("Select new conference")
+          .addOptions(options)
+      ),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionBack).setLabel("Cancel").setStyle(ButtonStyle.Secondary)
       )
     ]
   };
