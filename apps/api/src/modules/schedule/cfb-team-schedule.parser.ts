@@ -20,16 +20,18 @@ import {
 // done by fuzzy name lookup against the league's actual current teams rather than
 // an exact abbreviation match.
 //
-// Column bands below are a first-pass estimate from a single example screenshot,
-// not yet tuned against real OCR output (no CFB fixtures existed before this file).
-// The parser leans on keyword anchors ("vs"/"at"/"BYE") rather than strict x-bands
-// wherever possible, since that's more resilient to imprecise band tuning than the
-// Madden parser's column-band approach — but TABLE_Y_MIN/MAX and the week-label
-// left band should be re-checked against real screenshots via debugTeamScheduleImage.
+// The parser leans on keyword anchors ("vs"/"at"/"BYE") rather than fixed column x-bands —
+// the week label is read off whatever the leftmost token(s) in a row are (relative to the
+// opponent anchor), not a guessed x-fraction, since a wrong band silently produces an empty
+// label for every row instead of an obviously-wrong one. TABLE_Y_MIN/MAX (which rows count as
+// "the table") is still a fixed estimate and may need adjusting against real screenshots via
+// debugTeamScheduleImage. A row that produces no recognizable week number is still kept (not
+// dropped) with its raw OCR text preserved, and a sample of those gets surfaced in `warnings` —
+// so a bad parse is diagnosable from the response itself instead of just vanishing.
 //
 // Results (final scores) aren't parsed yet — none of the reference screenshots had
-// a played game to test against. rawResult/awayScore/homeScore are carried through
-// as null for every row until that can be built and verified against a real sample.
+// a played game to test against. awayScore/homeScore are carried through as null for every
+// row until that can be built and verified against a real sample.
 
 export type ParsedTeamScheduleRow = {
   /** Canonical week number in our system (0-14 regular season, 15 Conf Champ, 16-20 CFP/title). Null if unparseable. */
@@ -37,7 +39,7 @@ export type ParsedTeamScheduleRow = {
   /** Raw week-column text, e.g. "0", "11", "Conf Champ". */
   weekLabel: string;
   isBye: boolean;
-  /** Raw opponent text with rank/vs/at stripped, e.g. "Greedy Academy". Null for BYE rows. */
+  /** Raw opponent text with rank/vs/at stripped, e.g. "Greedy Academy". Null for BYE rows or if unparseable. */
   opponentRaw: string | null;
   /** AP-style rank prefix if present (e.g. "6"), otherwise null. */
   opponentRank: number | null;
@@ -46,7 +48,8 @@ export type ParsedTeamScheduleRow = {
   // Not yet parsed from any known screenshot layout — see file header.
   awayScore: number | null;
   homeScore: number | null;
-  rawOpponentCell: string;
+  /** Full row text as OCR read it — always populated, even when nothing else could be parsed, so a failed row is diagnosable instead of silently vanishing. */
+  rawRowText: string;
   rowY: number;
 };
 
@@ -59,9 +62,6 @@ export type ParsedTeamSchedule = {
 const TABLE_Y_MIN = 0.36;
 const TABLE_Y_MAX = 0.92;
 const ROW_Y_TOLERANCE = 0.018;
-
-// Week label sits in the leftmost column, well left of the DATE/OPPONENT text.
-const WEEK_BAND = { min: 0.0, max: 0.16 } as const;
 
 const SCHEDULE_VARIANTS: PreprocessVariant[] = ["stats", "robust", "default", "highlight"];
 
@@ -86,10 +86,6 @@ async function extractWordsForVariant(buffer: Buffer, variant: PreprocessVariant
   return extractWords(result.data, width, height);
 }
 
-function inBand(w: NormalizedWord, band: { min: number; max: number }): boolean {
-  return w.x >= band.min && w.x <= band.max;
-}
-
 function rowText(row: NormalizedWord[]): string {
   return [...row].sort((a, b) => a.x - b.x).map((w) => w.text).join(" ").replace(/\s+/g, " ").trim();
 }
@@ -111,43 +107,93 @@ function parseWeekLabel(raw: string): { weekNumber: number | null; label: string
   return { weekNumber: null, label: cleaned };
 }
 
-// Opponent cell looks like "vs 6 Greedy Academy", "at Kansas", or "BYE". Anchors on
-// the vs/at keyword (or a standalone "BYE") rather than a fixed column band, since
-// the preceding week-time/date text and following time/record text vary in width.
+const DAY_OF_WEEK = /^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?$/i;
+
+// Week label sits to the left of the DATE cell ("Fri, Sep 4"), which itself starts with a
+// weekday abbreviation — a much more reliable anchor than "leftmost token", because there's
+// often a stray OCR artifact (a misread row-highlight icon, e.g. "|"/"J"/"NY") further left of
+// the actual week number. Scans everything before the date (or before the opponent anchor, for
+// a dateless BYE row) and prefers the LAST token that looks like a real week label — closest to
+// the date, past any leading noise — over the raw leftmost one.
+function extractWeekLabel(sorted: NormalizedWord[], anchorIndex: number): string {
+  const upperBound = anchorIndex === -1 ? sorted.length : Math.max(anchorIndex, 1);
+  const dowIndex = sorted.findIndex((w, i) => i < upperBound && DAY_OF_WEEK.test(w.text));
+  const candidates = sorted.slice(0, dowIndex !== -1 ? dowIndex : upperBound);
+  if (!candidates.length) return "";
+
+  // "Conf Champ" is two words and won't look like a single number — check the whole
+  // candidate span for it before falling back to a single-token numeric search.
+  const joined = candidates.map((w) => w.text).join(" ");
+  if (/conf(?:erence)?\.?\s*champ(?:ionship)?/i.test(joined)) return "Conf Champ";
+
+  for (let i = candidates.length - 1; i >= 0; i--) {
+    if (/^\d{1,2}$/.test(candidates[i].text)) return candidates[i].text;
+  }
+  // No clean digit found (OCR fully missed the numeral, e.g. read as "il" for "1") — fall back
+  // to the leftmost token so there's still something for the caller/warnings to show, even
+  // though it likely won't parse as a valid week number.
+  return candidates[0].text;
+}
+
+// Opponent cell looks like "vs 6 Greedy Academy", "at Kansas", or "BYE". Anchors on the vs/at
+// keyword (or a standalone "BYE") rather than a fixed column band, since the preceding
+// week/date text and following time/record text vary in width. The exact-token match is tried
+// first; if OCR glued "vs"/"at" to the next word with no space, a prefix match catches it too.
 function parseOpponentCell(row: NormalizedWord[]): {
   isBye: boolean;
   opponentRaw: string | null;
   opponentRank: number | null;
   homeAway: "home" | "away" | null;
-  raw: string;
-} | null {
+  weekLabel: string;
+} {
   const sorted = [...row].sort((a, b) => a.x - b.x);
   const byeIndex = sorted.findIndex((w) => /^bye$/i.test(w.text));
   if (byeIndex !== -1) {
-    return { isBye: true, opponentRaw: null, opponentRank: null, homeAway: null, raw: sorted[byeIndex].text };
+    return { isBye: true, opponentRaw: null, opponentRank: null, homeAway: null, weekLabel: extractWeekLabel(sorted, byeIndex) };
   }
 
-  const anchorIndex = sorted.findIndex((w) => /^(vs\.?|at)$/i.test(w.text));
-  if (anchorIndex === -1) return null;
-  const homeAway: "home" | "away" = /^vs\.?$/i.test(sorted[anchorIndex].text) ? "home" : "away";
+  let anchorIndex = sorted.findIndex((w) => /^(vs\.?|at)$/i.test(w.text));
+  let homeAway: "home" | "away" | null = null;
+  let glued: string | null = null; // text remaining after stripping a glued-together anchor prefix
+  if (anchorIndex !== -1) {
+    homeAway = /^vs\.?$/i.test(sorted[anchorIndex].text) ? "home" : "away";
+  } else {
+    // OCR merged "vs"/"at" with the next word (no space) — e.g. "vsKansas" or "atUCF".
+    anchorIndex = sorted.findIndex((w) => /^vs\.?[a-z0-9]/i.test(w.text) || /^at[a-z0-9]/i.test(w.text));
+    if (anchorIndex !== -1) {
+      const text = sorted[anchorIndex].text;
+      const m = text.match(/^(vs\.?|at)(.+)$/i);
+      if (m) {
+        homeAway = /^vs\.?$/i.test(m[1]) ? "home" : "away";
+        glued = m[2];
+      }
+    }
+  }
+  if (anchorIndex === -1 || !homeAway) {
+    // Nothing recognizable — surface the raw row so it isn't silently dropped.
+    return { isBye: false, opponentRaw: null, opponentRank: null, homeAway: null, weekLabel: extractWeekLabel(sorted, -1) };
+  }
 
-  // Everything right of the anchor, up to a word that looks like a clock time
-  // ("10:30", "PM"/"AM") or a W-L record ("0-0") — that's the next column starting.
+  // Everything right of the anchor, up to a word that looks like a clock time ("10:30", "PM"/
+  // "AM", or OCR gluing them together as "9:15PM") or a W-L record ("0-0", sometimes read as
+  // "00" with the dash dropped) — that's the next column starting. None of this catalog's team
+  // names contain a digit, so once the name has started, any token with a digit (or a bare AM/
+  // PM) reliably marks that boundary without needing to match every OCR time format exactly.
   const rest = sorted.slice(anchorIndex + 1);
-  const nameWords: string[] = [];
+  const nameWords: string[] = glued ? [glued] : [];
   let opponentRank: number | null = null;
   for (const w of rest) {
-    if (/^\d{1,2}:\d{2}$/.test(w.text) || /^[ap]m$/i.test(w.text) || /^\d{1,3}-\d{1,3}$/.test(w.text)) break;
-    // A lone 1-2 digit number immediately after vs/at (before any name text) is an
-    // AP rank, not part of the team name.
-    if (nameWords.length === 0 && opponentRank === null && /^\d{1,2}$/.test(w.text)) {
-      opponentRank = parseInt(w.text, 10);
+    if (nameWords.length > 0 && (/\d/.test(w.text) || /^[ap]\.?m\.?$/i.test(w.text))) break;
+    // A lone 1-2 digit number (optionally "#"-prefixed) immediately after vs/at, before any
+    // name text, is an AP rank, not part of the team name.
+    if (nameWords.length === 0 && opponentRank === null && /^#?\d{1,2}$/.test(w.text)) {
+      opponentRank = parseInt(w.text.replace("#", ""), 10);
       continue;
     }
     nameWords.push(w.text);
   }
   const opponentRaw = nameWords.join(" ").replace(/\s+/g, " ").trim() || null;
-  return { isBye: false, opponentRaw, opponentRank, homeAway, raw: rowText(row) };
+  return { isBye: false, opponentRaw, opponentRank, homeAway, weekLabel: extractWeekLabel(sorted, anchorIndex) };
 }
 
 function parseImageRows(words: NormalizedWord[]): ParsedTeamScheduleRow[] {
@@ -156,11 +202,11 @@ function parseImageRows(words: NormalizedWord[]): ParsedTeamScheduleRow[] {
   const parsed: ParsedTeamScheduleRow[] = [];
 
   for (const row of rows) {
-    const opponent = parseOpponentCell(row);
-    if (!opponent) continue; // Header/footer/noise row — no vs/at/BYE anchor found.
+    const raw = rowText(row);
+    if (!raw) continue; // Genuinely empty row (shouldn't happen after grouping, but be safe).
 
-    const weekRaw = rowText(row.filter((w) => inBand(w, WEEK_BAND)));
-    const { weekNumber, label } = parseWeekLabel(weekRaw);
+    const opponent = parseOpponentCell(row);
+    const { weekNumber, label } = parseWeekLabel(opponent.weekLabel);
 
     parsed.push({
       weekNumber,
@@ -171,7 +217,7 @@ function parseImageRows(words: NormalizedWord[]): ParsedTeamScheduleRow[] {
       homeAway: opponent.homeAway,
       awayScore: null,
       homeScore: null,
-      rawOpponentCell: opponent.raw,
+      rawRowText: raw,
       rowY: row.reduce((s, w) => s + w.y, 0) / row.length,
     });
   }
@@ -212,7 +258,31 @@ function mergeRowLists(lists: ParsedTeamScheduleRow[][]): ParsedTeamScheduleRow[
       });
     }
   }
-  return [...byKey.values()].sort((a, b) => (a.weekNumber ?? 999) - (b.weekNumber ?? 999) || a.rowY - b.rowY);
+  return [...byKey.values()];
+}
+
+// Some OCR misreads of a lone numeral don't survive as a clean digit at all (e.g. week "1"
+// read as the two letters "il") — no regex fix is safe there without risking false positives
+// on genuinely unrelated text. Since week rows are always listed in ascending, gap-free order
+// (sequential regular-season weeks, one row per week including byes) top-to-bottom on screen,
+// a row that has real game data (an opponent or BYE) but no parseable week number can be
+// inferred as one past the last confirmed week above it. Walks in on-screen order (rowY), not
+// the final weekNumber-sorted order. Inferred labels are marked so the review UI can flag them
+// for a manual double-check rather than presenting them as equally certain.
+function inferMissingWeekNumbers(rows: ParsedTeamScheduleRow[]): void {
+  const byY = [...rows].sort((a, b) => a.rowY - b.rowY);
+  let lastKnown: number | null = null;
+  for (const row of byY) {
+    if (row.weekNumber != null) {
+      lastKnown = row.weekNumber;
+      continue;
+    }
+    if (lastKnown != null && lastKnown < 20 && (row.isBye || row.opponentRaw)) {
+      row.weekNumber = lastKnown + 1;
+      row.weekLabel = row.weekLabel ? `${row.weekLabel} (inferred: ${row.weekNumber})` : `(inferred: ${row.weekNumber})`;
+      lastKnown = row.weekNumber;
+    }
+  }
 }
 
 export async function parseTeamScheduleBuffers(buffers: Buffer[]): Promise<ParsedTeamSchedule> {
@@ -230,8 +300,35 @@ export async function parseTeamScheduleBuffers(buffers: Buffer[]): Promise<Parse
     }
   }
 
-  const rows = mergeRowLists(lists);
+  let rows = mergeRowLists(lists);
+  inferMissingWeekNumbers(rows);
+  // Inference can newly collide two rows onto the same week number — most often the two
+  // screenshots overlap by a row or two (a natural scroll-continuation capture), so the same
+  // physical week shows up once per image with independently-normalized (and thus
+  // non-comparable) rowY coordinates, which defeats the merge step's y-based dedup key for
+  // whichever copy had no parseable week number at merge time. Collapse those collisions here,
+  // keeping the more complete row per week number.
+  const byWeek = new Map<number, ParsedTeamScheduleRow>();
+  const unresolved: ParsedTeamScheduleRow[] = [];
+  for (const row of rows) {
+    if (row.weekNumber == null) {
+      unresolved.push(row);
+      continue;
+    }
+    const existing = byWeek.get(row.weekNumber);
+    if (!existing || completeness(row) > completeness(existing)) byWeek.set(row.weekNumber, row);
+  }
+  rows = [...byWeek.values(), ...unresolved];
+  rows.sort((a, b) => (a.weekNumber ?? 999) - (b.weekNumber ?? 999) || a.rowY - b.rowY);
   if (!rows.length) warnings.push("No week rows could be read from the team schedule screenshot.");
+
+  // Surface a sample of rows that produced no usable week number (still image-noise from the
+  // header/footer, or a genuine parsing gap) — deduped by raw text, capped — so a bad parse is
+  // diagnosable from the warnings alone instead of just vanishing.
+  const unparsed = [...new Set(rows.filter((r) => r.weekNumber == null).map((r) => r.rawRowText))].slice(0, 15);
+  if (unparsed.length) {
+    warnings.push(`${unparsed.length} row(s) had no recognizable week number. Raw text: ${unparsed.map((t) => `"${t}"`).join(", ")}`);
+  }
 
   return { rows, warnings };
 }

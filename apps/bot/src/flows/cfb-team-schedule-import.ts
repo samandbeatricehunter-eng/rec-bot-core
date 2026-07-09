@@ -283,7 +283,7 @@ function weekLine(week: WeekState): string {
 function buildReviewEmbed(session: Session): EmbedBuilder {
   const lines = session.weeks.filter((w) => w.weekNumber != null).map(weekLine);
   const needsReview = session.weeks.filter((w) => !w.isBye && !effectiveWeek(w).locked && !effectiveWeek(w).opponentTeamId).length;
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setTitle(`Team Schedule Review — ${session.teamName}`)
     .setColor(needsReview ? 0xf1c40f : 0x3498db)
     .setDescription(lines.length ? lines.join("\n").slice(0, 4096) : "No week rows could be read from the screenshot.")
@@ -294,6 +294,10 @@ function buildReviewEmbed(session: Session): EmbedBuilder {
         : "Every week is matched or already confirmed. Review, then **Approve & Save**.",
       inline: false,
     });
+  if (session.warnings.length) {
+    embed.addFields({ name: "PARSER NOTES", value: session.warnings.join("\n").slice(0, 1024), inline: false });
+  }
+  return embed;
 }
 
 async function buildReviewRows(session: Session) {
