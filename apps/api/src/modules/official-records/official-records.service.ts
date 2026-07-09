@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isCfb, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
+import { isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 
 // Every source a game result can legitimately be logged from — box-score OCR,
@@ -78,7 +78,7 @@ function isPlayoffWeek(weekNumber: number | null | undefined, game: LeagueGame) 
 }
 
 function isSuperBowlWeek(weekNumber: number | null | undefined, game: LeagueGame) {
-  return Number(weekNumber ?? 0) >= (isCfb(game) ? 17 : 22);
+  return isChampionshipWeek(weekNumber, game);
 }
 
 function applyGameResult(

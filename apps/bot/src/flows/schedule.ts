@@ -924,13 +924,15 @@ async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, s
 function expectedGamesForWeek(session: ManualScheduleSession) {
   if (isCfb(session.game)) {
     // 12-team CFP: 4 first-round games, 4 quarterfinals, 2 semifinals, a bye week
-    // (zero games), then the national championship.
+    // (zero games), then the national championship. Conference Championship is
+    // advisory only — roughly one title game per conference large enough to hold one.
     switch (session.weekNumber) {
-      case 13: return 4; // CFP First Round
-      case 14: return 4; // CFP Quarterfinals
-      case 15: return 2; // CFP Semifinals
-      case 16: return 0; // Bye Week
-      case 17: return 1; // National Championship
+      case 15: return 9; // Conference Championship
+      case 16: return 4; // CFP First Round
+      case 17: return 4; // CFP Quarterfinals
+      case 18: return 2; // CFP Semifinals
+      case 19: return 0; // Bye Week
+      case 20: return 1; // National Championship
       default: return Math.floor(session.teams.length / 2);
     }
   }
@@ -963,7 +965,7 @@ function manualWeekLabel(session: ManualScheduleSession, week: number): string {
   const lastRegularWeek = regularSeasonWeeks(session.game ?? null);
   if (week <= lastRegularWeek) return `Week ${week}`;
   const postseasonLabels = isCfb(session.game)
-    ? ["CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "Bye Week", "National Championship"]
+    ? ["Conference Championship", "CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "Bye Week", "National Championship"]
     : ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
   return postseasonLabels[week - lastRegularWeek - 1] ?? `Week ${week}`;
 }
@@ -973,7 +975,7 @@ function renderManualWeekPicker(session: ManualScheduleSession) {
   const firstWeek = isCfbGame ? 0 : 1;
   const totalWeeks = maxSeasonWeek(session.game ?? null);
   // CFB's bye week has zero scheduled games — nothing to manually enter, so skip it.
-  const byeWeek = isCfbGame ? 15 : null;
+  const byeWeek = isCfbGame ? 19 : null;
   const options = Array.from({ length: totalWeeks - firstWeek + 1 }, (_, idx) => firstWeek + idx)
     .filter((week) => week !== byeWeek)
     .map((week) => new StringSelectMenuOptionBuilder().setLabel(manualWeekLabel(session, week)).setValue(String(week)));

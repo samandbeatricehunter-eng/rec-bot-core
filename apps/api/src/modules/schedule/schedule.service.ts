@@ -77,11 +77,14 @@ function phaseForWeek(weekNumber: number, game: LeagueGame) {
 function expectedGamesForWeek(weekNumber: number, game: LeagueGame, teamCount: number) {
   if (isCfb(game)) {
     switch (weekNumber) {
-      case 12: return 4; // CFP First Round (seeds 5-12; top 4 seeds bye)
-      case 13: return 4; // CFP Quarterfinals
-      case 14: return 2; // CFP Semifinals
-      case 15: return 0; // Bye week — no games scheduled
-      case 16: return 1; // National Championship
+      // Roughly one title game per conference large enough to hold one (~9 of the catalog's 11
+      // conferences); advisory only — this doesn't gate saving, just the "incomplete week" warning.
+      case 15: return 9; // Conference Championship
+      case 16: return 4; // CFP First Round (seeds 5-12; top 4 seeds bye)
+      case 17: return 4; // CFP Quarterfinals
+      case 18: return 2; // CFP Semifinals
+      case 19: return 0; // Bye week — no games scheduled
+      case 20: return 1; // National Championship
       default: return Math.floor(teamCount / 2);
     }
   }

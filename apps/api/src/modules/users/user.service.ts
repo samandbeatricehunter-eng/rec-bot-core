@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { regularSeasonWeeks } from "@rec/shared";
+import { postseasonPayoutStages, regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -1174,7 +1174,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
     const currentWeek = league.current_week ?? 1;
     const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
-    const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl"].includes(stage);
+    const isPostseason = postseasonPayoutStages(league.game).has(stage);
 
     const [assignmentResult, membershipResult, seasonRecordResult, displayRecordResult] = await Promise.all([
       supabase

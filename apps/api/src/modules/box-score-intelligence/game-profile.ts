@@ -4,7 +4,7 @@
 // live in the offensive_stats/defensive_stats JSONB as strings, so they're parsed
 // here rather than read from dedicated columns.
 
-import { isCfb, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
+import { isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { qualifyWeeklyBadges, type QualifiedBadge } from "./badge-rules.js";
 import { type GameStats, returnYards } from "./types.js";
 
@@ -83,9 +83,9 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
     pointsAgainst,
     margin: pointsFor - pointsAgainst,
     // "SuperBowl" here means the season's final championship game — week 22 for
-    // NFL-style games (madden_26/27), week 17 (national_championship) for CFB.
+    // NFL-style games (madden_26/27), week 20 (national_championship) for CFB.
     isPlayoff: week > regularSeasonWeeks(game),
-    isSuperBowl: week >= (isCfb(game) ? 17 : 22),
+    isSuperBowl: isChampionshipWeek(week, game),
 
     passingYards: pass,
     rushingYards: rush,

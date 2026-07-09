@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages } from "@rec/shared";
+import { isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages, stageForWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -25,21 +25,10 @@ type AdvanceGameResultInput = {
   awayScore?: number | null;
 };
 
+// Delegates to the shared canonical week->stage mapping instead of hand-rolling a second,
+// independently-drifting copy of it (this one had fallen out of sync with league-stage.ts twice).
 function phaseForWeek(weekNumber: number, game: string | null) {
-  if (isRegularSeasonWeek(weekNumber, game)) return "regular_season";
-  if (game === "cfb_27") {
-    if (weekNumber === 13) return "cfp_first_round";
-    if (weekNumber === 14) return "cfp_quarterfinals";
-    if (weekNumber === 15) return "cfp_semifinals";
-    if (weekNumber === 16) return "cfp_bye_week";
-    if (weekNumber === 17) return "national_championship";
-    return "postseason";
-  }
-  if (weekNumber === 19) return "wild_card";
-  if (weekNumber === 20) return "divisional";
-  if (weekNumber === 21) return "conference_championship";
-  if (weekNumber === 22) return "super_bowl";
-  return "postseason";
+  return stageForWeek(weekNumber, game);
 }
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];

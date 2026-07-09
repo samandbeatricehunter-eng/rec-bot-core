@@ -32,9 +32,9 @@ async function currentLeagueGame(guildId: string): Promise<LeagueGame> {
   return (current?.league?.game as LeagueGame) ?? null;
 }
 
-// CFB's postseason is cfp_first_round/cfp_quarterfinals/cfp_semifinals/cfp_bye_week/
-// national_championship at weeks 12-16, and it starts at "preseason" (no training camp).
-// Madden's postseason is wild_card/divisional/conference_championship/super_bowl at weeks
+// CFB's postseason is conference_championship/cfp_first_round/cfp_quarterfinals/cfp_semifinals/
+// cfp_bye_week/national_championship at weeks 15-20, and it starts at "preseason" (no training
+// camp). Madden's postseason is wild_card/divisional/conference_championship/super_bowl at weeks
 // 19-22, starting at "preseason_training_camp". The offseason pipeline (coach hiring through
 // draft) is shared across both games — see packages/shared/src/league-stage.ts.
 function buildSetWeekRows(game: LeagueGame) {
@@ -47,11 +47,12 @@ function buildSetWeekRows(game: LeagueGame) {
   });
   const stageOptions = (cfb
     ? [
-        ["CFP First Round", "cfp_first_round:12"],
-        ["CFP Quarterfinals", "cfp_quarterfinals:13"],
-        ["CFP Semifinals", "cfp_semifinals:14"],
-        ["Bye Week", "cfp_bye_week:15"],
-        ["National Championship", "national_championship:16"],
+        ["Conference Championship", "conference_championship:15"],
+        ["CFP First Round", "cfp_first_round:16"],
+        ["CFP Quarterfinals", "cfp_quarterfinals:17"],
+        ["CFP Semifinals", "cfp_semifinals:18"],
+        ["Bye Week", "cfp_bye_week:19"],
+        ["National Championship", "national_championship:20"],
         ["Coach Hiring", "coach_hiring:1"],
         ["Final Re-Signing", "final_resigning:1"],
         ["Free Agency", "free_agency:1"],
