@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { listScheduleSeason, listScheduleTeams, listScheduleWeek, previewScheduleImport, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
+import { commitCfbTeamScheduleImport, previewCfbTeamScheduleImport } from "./cfb-team-schedule.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 
@@ -139,6 +140,46 @@ export async function scheduleRoutes(app: FastifyInstance) {
         requestedByDiscordId: z.string().optional().nullable(),
       }).parse(request.body);
       return reply.send(await replaceScheduleWeek(input));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Parse a CFB Team Schedule screenshot (one team, every week) into per-week matchups
+  // matched against the league's actual teams, flagging weeks already confirmed from
+  // this or an earlier team's upload. No DB write.
+  app.post("/v1/schedule/cfb-team-import-preview", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const input = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+        imageUrls: z.array(z.string().url()).min(1).max(2),
+      }).parse(request.body);
+      return reply.send(await previewCfbTeamScheduleImport(input));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Commits the commissioner-approved per-week decisions from the preview above.
+  // Weeks already confirmed (by this or an earlier team's upload) are silently skipped.
+  app.post("/v1/schedule/cfb-team-import-commit", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const input = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+        decisions: z.array(z.object({
+          weekNumber: z.number().int().min(0),
+          opponentTeamId: z.string().uuid(),
+          homeAway: z.enum(["home", "away"]),
+        })),
+        requestedByDiscordId: z.string().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await commitCfbTeamScheduleImport(input));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -232,6 +232,20 @@ import {
   handleScheduleImportSave,
   handleScheduleImportCancel,
 } from "./flows/schedule-import.js";
+import {
+  CFB_TEAM_SCHEDULE_CUSTOM_IDS,
+  startCfbTeamScheduleImport,
+  handleCfbTeamScheduleConferenceSelect,
+  handleCfbTeamScheduleTeamSelect,
+  handleCfbTeamScheduleUploadMessage,
+  handleCfbTeamScheduleEditWeekSelect,
+  handleCfbTeamScheduleEditTeamSelect,
+  handleCfbTeamScheduleEditHome,
+  handleCfbTeamScheduleEditAway,
+  handleCfbTeamScheduleEditBack,
+  handleCfbTeamScheduleApprove,
+  handleCfbTeamScheduleCancel,
+} from "./flows/cfb-team-schedule-import.js";
 
 const client = new Client({
   intents: [
@@ -530,6 +544,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
       if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect) return handleScheduleImportWeekSelect(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.conferenceSelect) return handleCfbTeamScheduleConferenceSelect(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.teamSelect) return handleCfbTeamScheduleTeamSelect(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editWeekSelect) return handleCfbTeamScheduleEditWeekSelect(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editTeamSelect) return handleCfbTeamScheduleEditTeamSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
@@ -722,6 +740,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix)) return handleManualScoresAnother(interaction, Number(interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix.length)));
       if (interaction.customId.startsWith(SCHEDULE_IMPORT_CUSTOM_IDS.savePrefix)) return handleScheduleImportSave(interaction);
       if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.cancel) return handleScheduleImportCancel(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.start) return startCfbTeamScheduleImport(interaction, buildScheduleMgmtRows);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editHome) return handleCfbTeamScheduleEditHome(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editAway) return handleCfbTeamScheduleEditAway(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editBack) return handleCfbTeamScheduleEditBack(interaction);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.approve) return handleCfbTeamScheduleApprove(interaction, buildScheduleMgmtRows);
+      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.cancel) return handleCfbTeamScheduleCancel(interaction, buildScheduleMgmtRows);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
@@ -791,6 +815,7 @@ client.on("messageCreate", async (message) => {
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
   if (await handleWeeklyScoresUploadMessage(message).catch(() => false)) return;
   if (await handleScheduleImportUploadMessage(message).catch(() => false)) return;
+  if (await handleCfbTeamScheduleUploadMessage(message).catch(() => false)) return;
   if (await handleCommissionerBoxScoreSubmissionMessage(message).catch(() => false)) return;
   await handleBoxScoreChannelMessage(message).catch(() => undefined);
 });
@@ -896,6 +921,8 @@ async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
+  const week = interaction.guildId ? await recApi.viewLeagueWeek(interaction.guildId).catch(() => null) : null;
+  const isCfbLeague = week?.league?.game === "cfb_27";
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule")
@@ -905,14 +932,15 @@ async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
         "**Schedule Wizard** - upload schedule screenshots in order, starting at Week 1.",
         "**Upload One Week** - upload screenshots for one selected week.",
         "**Set Manually** - choose teams from league-loaded AFC/NFC dropdowns and save matchups.",
-        "**View Schedule** - page through every week and optionally post a week publicly."
-      ].join("\n"))],
-    components: buildScheduleMgmtRows()
+        "**View Schedule** - page through every week and optionally post a week publicly.",
+        isCfbLeague ? "**Import Team Schedule** - upload one CFB team's full-season Team Schedule screenshot; populates that team's and each opponent's schedule together." : null,
+      ].filter(Boolean).join("\n"))],
+    components: buildScheduleMgmtRows(isCfbLeague)
   });
 }
 
-function buildScheduleMgmtRows() {
-  return [
+function buildScheduleMgmtRows(isCfbLeague = false) {
+  const rows = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleView).setLabel("View Schedule").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleManual).setLabel("Set Manually").setStyle(ButtonStyle.Primary),
@@ -921,11 +949,17 @@ function buildScheduleMgmtRows() {
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Success),
     ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
-    ),
   ];
+  if (isCfbLeague) {
+    rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(CFB_TEAM_SCHEDULE_CUSTOM_IDS.start).setLabel("Import Team Schedule (CFB)").setStyle(ButtonStyle.Success),
+    ));
+  }
+  rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
+  ));
+  return rows;
 }
 
 async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
