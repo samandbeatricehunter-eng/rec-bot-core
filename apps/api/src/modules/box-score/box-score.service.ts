@@ -1,11 +1,12 @@
 // @ts-nocheck
 import sharp from "sharp";
-import { isChampionshipWeek, isRegularSeasonWeek } from "@rec/shared";
+import { isCfb, isChampionshipWeek, isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonContext, resolveSeasonId } from "../league-context/season.service.js";
 import { fetchImageBuffer, parseBoxScoreImages, type ParsedBoxScore, type ParsedScore } from "./box-score.parser.js";
+import { parseCfbBoxScoreImages } from "./box-score-cfb.parser.js";
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
@@ -620,6 +621,12 @@ async function resolveGameContext(
   return out;
 }
 
+// CFB (College Football 27) uses a completely different box-score screen from
+// Madden NFL, so it gets its own OCR parser — see box-score-cfb.parser.ts.
+function parseBoxScoreImagesForLeague(context: any, imageUrls: string[], aliases: Record<string, string>): Promise<ParsedBoxScore> {
+  return isCfb(context.rec_leagues.game) ? parseCfbBoxScoreImages(imageUrls, aliases) : parseBoxScoreImages(imageUrls, aliases);
+}
+
 // ─── Parse preview (stateless — no DB write) ───────────────────────────────────
 
 export type PreviewInput = { guildId: string; discordId: string; imageUrls: string[]; seasonNumber?: number | null; weekNumber?: number | null; commissionerSubmission?: boolean | null };
@@ -651,7 +658,7 @@ export async function parseBoxScorePreview(input: PreviewInput): Promise<Preview
     anchorGameId = game.id;
   }
 
-  const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
+  const parsed = await parseBoxScoreImagesForLeague(context, input.imageUrls, await loadLabelAliases());
   const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed, anchorGameId);
 
   // Reject a self-serve upload that isn't the submitter's own scheduled matchup.
@@ -736,7 +743,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     selfServeGameId = scheduledGame.id;
   }
 
-  const parsed = await parseBoxScoreImages(input.imageUrls, await loadLabelAliases());
+  const parsed = await parseBoxScoreImagesForLeague(context, input.imageUrls, await loadLabelAliases());
 
   // Game resolution priority: the commissioner's pre-selected game, otherwise the
   // submitter's scheduled game. Either way the game is authoritative and the OCR
