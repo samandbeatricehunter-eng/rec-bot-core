@@ -153,14 +153,14 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
 export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
   const existing = await supabase
     .from("rec_stream_payout_reviews")
-    .select("*,streamLog:rec_stream_compliance_logs(*)")
+    .select("*,stream_log:rec_stream_compliance_logs(*)")
     .eq("id", input.reviewId)
     .maybeSingle();
 
   if (existing.error) throw new ApiError(500, "Failed to load stream payout review.", existing.error);
   if (!existing.data) throw new ApiError(404, "Stream payout review was not found.");
   if (existing.data.status !== "pending") {
-    return { updated: false, reason: `Review is already ${existing.data.status}.`, review: existing.data, streamLog: existing.data.streamLog };
+    return { updated: false, reason: `Review is already ${existing.data.status}.`, review: existing.data, streamLog: existing.data.stream_log };
   }
 
   if (input.action === "deny") {
@@ -174,11 +174,11 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
         updated_at: new Date().toISOString()
       })
       .eq("id", input.reviewId)
-      .select("*,streamLog:rec_stream_compliance_logs(*)")
+      .select("*,stream_log:rec_stream_compliance_logs(*)")
       .single();
 
     if (denied.error) throw new ApiError(500, "Failed to deny stream payout review.", denied.error);
-    return { updated: true, review: denied.data, streamLog: denied.data.streamLog };
+    return { updated: true, review: denied.data, streamLog: denied.data.stream_log };
   }
 
   const amount = Number(existing.data.amount ?? STREAM_PAYOUT_AMOUNT);
@@ -207,7 +207,7 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
       updated_at: new Date().toISOString()
     })
     .eq("id", input.reviewId)
-    .select("*,streamLog:rec_stream_compliance_logs(*)")
+    .select("*,stream_log:rec_stream_compliance_logs(*)")
     .single();
 
   if (approved.error) throw new ApiError(500, "Failed to approve stream payout review.", approved.error);
@@ -221,7 +221,7 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
   return {
     updated: true,
     review: approved.data,
-    streamLog: approved.data.streamLog,
+    streamLog: approved.data.stream_log,
     amount,
     streamerDiscordId: streamer.data?.discord_id ?? null
   };

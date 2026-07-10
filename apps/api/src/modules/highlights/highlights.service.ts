@@ -165,13 +165,13 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
 export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
   const existing = await supabase
     .from("rec_highlight_payout_reviews")
-    .select("*,highlight:rec_highlight_posts(*)")
+    .select("*,highlight_post:rec_highlight_posts(*)")
     .eq("id", input.reviewId)
     .maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load highlight payout review.", existing.error);
   if (!existing.data) throw new ApiError(404, "Highlight payout review was not found.");
   if (existing.data.status !== "pending") {
-    return { updated: false, reason: `Review is already ${existing.data.status}.`, review: existing.data, highlight: existing.data.highlight };
+    return { updated: false, reason: `Review is already ${existing.data.status}.`, review: existing.data, highlight: existing.data.highlight_post };
   }
 
   if (input.action === "deny") {
@@ -185,10 +185,10 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
         updated_at: new Date().toISOString(),
       })
       .eq("id", input.reviewId)
-      .select("*,highlight:rec_highlight_posts(*)")
+      .select("*,highlight_post:rec_highlight_posts(*)")
       .single();
     if (denied.error) throw new ApiError(500, "Failed to deny highlight payout review.", denied.error);
-    return { updated: true, review: denied.data, highlight: denied.data.highlight };
+    return { updated: true, review: denied.data, highlight: denied.data.highlight_post };
   }
 
   const amount = Number(existing.data.amount ?? HIGHLIGHT_PAYOUT_AMOUNT);
@@ -216,7 +216,7 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.reviewId)
-    .select("*,highlight:rec_highlight_posts(*)")
+    .select("*,highlight_post:rec_highlight_posts(*)")
     .single();
   if (approved.error) throw new ApiError(500, "Failed to approve highlight payout review.", approved.error);
 
@@ -235,7 +235,7 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
   return {
     updated: true,
     review: approved.data,
-    highlight: approved.data.highlight,
+    highlight: approved.data.highlight_post,
     amount,
     streamerDiscordId: account.data?.discord_id ?? null,
   };
