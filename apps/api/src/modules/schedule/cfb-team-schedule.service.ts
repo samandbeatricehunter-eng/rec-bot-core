@@ -3,80 +3,12 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
+import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_NAME_AUTO_MATCH_THRESHOLD as AUTO_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, saveManualScheduleGame } from "./schedule.service.js";
 
-// ─── Fuzzy team-name matching ───────────────────────────────────────────────
-// The OPPONENT column is free text (possibly a commissioner-customized team name,
-// e.g. "Greedy Academy"), not a fixed abbreviation, so matching leans on normalized
-// string similarity across every label a team could plausibly be shown under.
-
-function normalizeName(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function levenshtein(a: string, b: string): number {
-  const rows = a.length + 1;
-  const cols = b.length + 1;
-  const dp: number[][] = Array.from({ length: rows }, () => new Array(cols).fill(0));
-  for (let i = 0; i < rows; i++) dp[i][0] = i;
-  for (let j = 0; j < cols; j++) dp[0][j] = j;
-  for (let i = 1; i < rows; i++) {
-    for (let j = 1; j < cols; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
-    }
-  }
-  return dp[a.length][b.length];
-}
-
-type TeamCandidate = { id: string; labels: string[] };
-
-function buildTeamCandidates(team: {
-  id: string;
-  name?: string | null;
-  abbreviation?: string | null;
-  display_abbr?: string | null;
-  display_city?: string | null;
-  display_nick?: string | null;
-}): TeamCandidate {
-  const labels = [
-    team.name,
-    team.abbreviation,
-    team.display_abbr,
-    team.display_city,
-    team.display_nick,
-    team.display_city && team.display_nick ? `${team.display_city} ${team.display_nick}` : null,
-  ].filter((v): v is string => Boolean(v && v.trim()));
-  return { id: team.id, labels };
-}
-
-// Best-match score in [0,1]; null if there's nothing to compare.
-function matchTeamByName(raw: string | null, candidates: TeamCandidate[]): { teamId: string; score: number } | null {
-  if (!raw) return null;
-  const target = normalizeName(raw);
-  if (!target) return null;
-  let best: { teamId: string; score: number } | null = null;
-  for (const candidate of candidates) {
-    for (const label of candidate.labels) {
-      const normLabel = normalizeName(label);
-      if (!normLabel) continue;
-      if (normLabel === target) return { teamId: candidate.id, score: 1 };
-      const dist = levenshtein(target, normLabel);
-      const maxLen = Math.max(target.length, normLabel.length);
-      const similarity = maxLen ? 1 - dist / maxLen : 0;
-      const containment = normLabel.includes(target) || target.includes(normLabel) ? 0.15 : 0;
-      const score = Math.min(1, similarity + containment);
-      if (!best || score > best.score) best = { teamId: candidate.id, score };
-    }
-  }
-  return best;
-}
-
-// Matches below this are surfaced but not auto-selected — the review embed shows
-// the raw OCR text and lets the commissioner pick from a dropdown either way.
-const AUTO_MATCH_THRESHOLD = 0.72;
+// Matches below AUTO_MATCH_THRESHOLD are surfaced but not auto-selected — the review
+// embed shows the raw OCR text and lets the commissioner pick from a dropdown either way.
 
 export type TeamScheduleWeekPreview = {
   weekNumber: number | null;

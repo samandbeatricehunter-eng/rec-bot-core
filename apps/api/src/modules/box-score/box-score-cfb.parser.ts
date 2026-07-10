@@ -333,6 +333,35 @@ function parseHeaderQuarters(words: NormalizedWord[], team1Final: number, team2F
   return { team1Quarters, team2Quarters };
 }
 
+// ─── Team name panels ─────────────────────────────────────────────────────────
+// CFB shows full school/mascot names (and a seed number + possibly a relocated
+// display city/nick), never a short abbreviation like Madden's scoreboard — so
+// there's nothing to slot into the NFL parser's 2-4 letter abbr matching. Grab
+// every alpha token in each side's panel instead and hand the raw blob to a
+// fuzzy name matcher downstream (box-score.service.ts, via team-name-match.ts)
+// rather than trying to parse a clean single name out of a multi-line, often
+// low-confidence OCR read.
+
+const TEAM_NAME_PANEL_Y = { min: 0.24, max: 0.4 };
+const AWAY_PANEL_X_MAX = 0.2;
+const HOME_PANEL_X_MIN = 0.8;
+
+function extractPanelName(words: NormalizedWord[], xTest: (x: number) => boolean): string {
+  const panelWords = words
+    .filter((w) => xTest(w.x) && w.y >= TEAM_NAME_PANEL_Y.min && w.y <= TEAM_NAME_PANEL_Y.max && /[A-Za-z]{2,}/.test(w.text))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const w of panelWords) {
+    const t = w.text.trim();
+    const key = t.toLowerCase();
+    if (!t || seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out.join(" ");
+}
+
 // ─── Per-image parse pass ─────────────────────────────────────────────────────
 
 type CfbPassResult = {
@@ -340,6 +369,8 @@ type CfbPassResult = {
   quarters: { team1Quarters: number[]; team2Quarters: number[] } | null;
   stats: StatsMap;
   words: NormalizedWord[];
+  team1NameRaw: string;
+  team2NameRaw: string;
 };
 
 async function parseCfbImage(buffer: Buffer): Promise<CfbPassResult> {
@@ -378,7 +409,9 @@ async function parseCfbImage(buffer: Buffer): Promise<CfbPassResult> {
   }
 
   const quarters = finalScore ? parseHeaderQuarters(words, finalScore.team1, finalScore.team2) : null;
-  return { finalScore, quarters, stats, words };
+  const team1NameRaw = extractPanelName(words, (x) => x < AWAY_PANEL_X_MAX);
+  const team2NameRaw = extractPanelName(words, (x) => x > HOME_PANEL_X_MIN);
+  return { finalScore, quarters, stats, words, team1NameRaw, team2NameRaw };
 }
 
 // ─── Derivations (mirrors the NFL parser's arithmetic-recovery tricks) ──────────
@@ -420,6 +453,8 @@ export async function parseCfbBoxScoreBuffers(buffers: Buffer[]): Promise<Parsed
   const stats: StatsMap = {};
   let finalScore: { team1: number; team2: number } | null = null;
   let quarters: { team1Quarters: number[]; team2Quarters: number[] } | null = null;
+  let team1NameRaw = "";
+  let team2NameRaw = "";
 
   for (const r of results) {
     for (const [key, val] of Object.entries(r.stats)) {
@@ -430,6 +465,9 @@ export async function parseCfbBoxScoreBuffers(buffers: Buffer[]): Promise<Parsed
     if (!quarters && r.quarters && (r.quarters.team1Quarters.length || r.quarters.team2Quarters.length)) {
       quarters = r.quarters;
     }
+    // Both screenshots show the same header — keep whichever pass captured more text.
+    if (r.team1NameRaw.length > team1NameRaw.length) team1NameRaw = r.team1NameRaw;
+    if (r.team2NameRaw.length > team2NameRaw.length) team2NameRaw = r.team2NameRaw;
   }
 
   deriveTotalYards(stats);
@@ -438,10 +476,15 @@ export async function parseCfbBoxScoreBuffers(buffers: Buffer[]): Promise<Parsed
   const warnings: string[] = [];
   if (!finalScore) warnings.push("Could not parse the final score from these images.");
 
+  // team1Abbr/team2Abbr hold a raw multi-word OCR blob here, not a real abbreviation
+  // — CFB never displays one. box-score.service.ts's CFB-aware team resolution
+  // fuzzy-matches this blob against team name/mascot/display-city+nick instead of
+  // the NFL abbreviation matcher. Falls back to "???" (unmatchable) if OCR found
+  // nothing at all in either team's panel.
   const score: ParsedScore | null = finalScore
     ? {
-        team1Abbr: "???",
-        team2Abbr: "???",
+        team1Abbr: team1NameRaw || "???",
+        team2Abbr: team2NameRaw || "???",
         team1Score: finalScore.team1,
         team2Score: finalScore.team2,
         team1Quarters: quarters?.team1Quarters ?? [],

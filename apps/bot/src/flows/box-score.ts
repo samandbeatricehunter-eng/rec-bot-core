@@ -21,6 +21,7 @@ import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
+import { isCfbLeague } from "../lib/league-game.js";
 import { refreshConfirmableWagerEmbeds } from "./wagers.js";
 
 // ─── Custom IDs ───────────────────────────────────────────────────────────────
@@ -68,6 +69,43 @@ const CORRECTION_FIELDS: { value: string; label: string; kind: "score" | "quarte
 ];
 const CORRECTION_FIELD_BY_VALUE = new Map(CORRECTION_FIELDS.map((f) => [f.value, f]));
 
+// CFB's Box Score screen tracks different (and more granular) stats than Madden's —
+// see box-score-cfb.parser.ts. The reused keys (off_yards_gained, off_rush_yards,
+// off_pass_yards, off_first_down, punt_return_yards, kick_return_yards,
+// total_yards_gained, turnovers, red_zone_off_percentage, conversions) carry the
+// same canonical meaning as NFL's, just relabeled for CFB's terminology.
+const CFB_CORRECTION_FIELDS: { value: string; label: string; kind: "score" | "quarters" | "matchup" | "stat" }[] = [
+  { value: "score", label: "Final Score", kind: "score" },
+  { value: "quarters", label: "Quarter Scores", kind: "quarters" },
+  { value: "matchup", label: "Matchup / Teams", kind: "matchup" },
+  { value: "off_first_down", label: "First Downs", kind: "stat" },
+  { value: "off_yards_gained", label: "Total Offense", kind: "stat" },
+  { value: "total_plays", label: "Total Plays", kind: "stat" },
+  { value: "off_rush_attempts", label: "Rush Attempts", kind: "stat" },
+  { value: "off_rush_yards", label: "Rush Yards", kind: "stat" },
+  { value: "off_rush_tds", label: "Rush TDs", kind: "stat" },
+  { value: "pass_completions", label: "Pass Completions", kind: "stat" },
+  { value: "pass_attempts", label: "Pass Attempts", kind: "stat" },
+  { value: "off_pass_tds", label: "Pass TDs", kind: "stat" },
+  { value: "off_pass_yards", label: "Passing Yards", kind: "stat" },
+  { value: "third_down_conversions", label: "3rd Down Conversions", kind: "stat" },
+  { value: "fourth_down_conversions", label: "4th Down Conversions", kind: "stat" },
+  { value: "two_point_conversions", label: "2-Point Conversions", kind: "stat" },
+  { value: "red_zone_tds", label: "Red Zone TDs", kind: "stat" },
+  { value: "red_zone_fgs", label: "Red Zone FGs", kind: "stat" },
+  { value: "red_zone_off_percentage", label: "Red Zone Off %", kind: "stat" },
+  { value: "turnovers", label: "Turnovers", kind: "stat" },
+  { value: "fumbles_lost", label: "Fumbles Lost", kind: "stat" },
+  { value: "interceptions_thrown", label: "Interceptions", kind: "stat" },
+  { value: "punt_return_yards", label: "Punt Return Yards", kind: "stat" },
+  { value: "kick_return_yards", label: "Kick Return Yards", kind: "stat" },
+  { value: "total_yards_gained", label: "Total Yards", kind: "stat" },
+  { value: "punts", label: "Punts", kind: "stat" },
+  { value: "penalties", label: "Penalties", kind: "stat" },
+  { value: "penalty_yards", label: "Penalty Yards", kind: "stat" },
+];
+const CFB_CORRECTION_FIELD_BY_VALUE = new Map(CFB_CORRECTION_FIELDS.map((f) => [f.value, f]));
+
 // ─── Per-user exchange state (one active upload per user per guild) ────────────
 
 type Exchange = {
@@ -111,8 +149,17 @@ type CorrectionSession = {
   quarterScores: { team1: number[]; team2: number[] } | null;
   team1Score: number | null;
   team2Score: number | null;
+  isCfb: boolean;
   at: number;
 };
+
+function correctionFieldsFor(isCfb: boolean) {
+  return isCfb ? CFB_CORRECTION_FIELDS : CORRECTION_FIELDS;
+}
+
+function correctionFieldByValueFor(isCfb: boolean) {
+  return isCfb ? CFB_CORRECTION_FIELD_BY_VALUE : CORRECTION_FIELD_BY_VALUE;
+}
 const correctionSessions = new Map<string, CorrectionSession>();
 const CORRECTION_SESSION_TTL = 15 * 60 * 1000;
 
@@ -647,13 +694,13 @@ function team1ScoresFromRow(sub: any): { team1Score: number | null; team2Score: 
   };
 }
 
-function buildCorrectionFieldRows(submissionId: string) {
+function buildCorrectionFieldRows(submissionId: string, isCfb: boolean) {
   return [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctFieldPrefix}${submissionId}`)
         .setPlaceholder("Pick a field to correct")
-        .addOptions(CORRECTION_FIELDS.map((f) => new StringSelectMenuOptionBuilder().setLabel(f.label).setValue(f.value))),
+        .addOptions(correctionFieldsFor(isCfb).map((f) => new StringSelectMenuOptionBuilder().setLabel(f.label).setValue(f.value))),
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctCancelPrefix}${submissionId}`).setLabel("Cancel").setStyle(ButtonStyle.Secondary),
@@ -673,7 +720,7 @@ function correctionInputs(label1: string, value1: string, label2: string, value2
 }
 
 function buildCorrectionModal(submissionId: string, field: string, session: CorrectionSession): ModalBuilder {
-  const def = CORRECTION_FIELD_BY_VALUE.get(field);
+  const def = correctionFieldByValueFor(session.isCfb).get(field);
   const t1 = session.team1Abbr || "Top/Away";
   const t2 = session.team2Abbr || "Bottom/Home";
   const modal = new ModalBuilder().setCustomId(`${BOX_SCORE_CUSTOM_IDS.correctModalPrefix}${submissionId}:${field}`);
@@ -725,7 +772,7 @@ export async function handleBoxScoreCorrectionsOpen(interaction: ButtonInteracti
 
   await interaction.deferUpdate();
   try {
-    const sub = await recApi.getBoxScore(submissionId);
+    const [sub, isCfb] = await Promise.all([recApi.getBoxScore(submissionId), isCfbLeague(interaction.guildId)]);
     if (sub?.status && sub.status !== "pending") {
       return interaction.followUp({ content: "This box score is already approved or denied — corrections are only available while pending.", flags: MessageFlags.Ephemeral });
     }
@@ -740,9 +787,10 @@ export async function handleBoxScoreCorrectionsOpen(interaction: ButtonInteracti
       quarterScores: (sub.quarter_scores as { team1: number[]; team2: number[] } | null) ?? null,
       team1Score,
       team2Score,
+      isCfb,
       at: Date.now(),
     });
-    return interaction.editReply({ components: buildCorrectionFieldRows(submissionId) });
+    return interaction.editReply({ components: buildCorrectionFieldRows(submissionId, isCfb) });
   } catch (err) {
     return interaction.followUp({ content: userFacingError(err), flags: MessageFlags.Ephemeral });
   }
@@ -755,8 +803,9 @@ export async function handleBoxScoreCorrectionsFieldSelect(interaction: StringSe
   if (!interaction.inCachedGuild()) return;
   const submissionId = interaction.customId.slice(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix.length);
   const field = interaction.values[0] ?? "";
-  const def = CORRECTION_FIELD_BY_VALUE.get(field);
   let session = getCorrectionSession(interaction.guildId, interaction.user.id);
+  const isCfb = session ? session.isCfb : await isCfbLeague(interaction.guildId);
+  const def = correctionFieldByValueFor(isCfb).get(field);
 
   if (def?.kind === "matchup") {
     await interaction.deferUpdate();
@@ -765,7 +814,7 @@ export async function handleBoxScoreCorrectionsFieldSelect(interaction: StringSe
       const result = await recApi.listBoxScoreGames({ guildId: interaction.guildId, weekNumber });
       return interaction.editReply({ components: buildCorrectionMatchupRows(submissionId, result?.games ?? []) });
     } catch (err) {
-      return interaction.editReply({ components: buildCorrectionFieldRows(submissionId) }).then(() =>
+      return interaction.editReply({ components: buildCorrectionFieldRows(submissionId, isCfb) }).then(() =>
         interaction.followUp({ content: userFacingError(err), flags: MessageFlags.Ephemeral }),
       );
     }
@@ -787,10 +836,11 @@ export async function handleBoxScoreCorrectionsFieldSelect(interaction: StringSe
         quarterScores: (sub.quarter_scores as { team1: number[]; team2: number[] } | null) ?? null,
         team1Score,
         team2Score,
+        isCfb,
         at: Date.now(),
       };
     } catch {
-      session = { submissionId, weekNumber: 1, seasonNumber: null, team1Abbr: "", team2Abbr: "", stats: {}, quarterScores: null, team1Score: null, team2Score: null, at: Date.now() };
+      session = { submissionId, weekNumber: 1, seasonNumber: null, team1Abbr: "", team2Abbr: "", stats: {}, quarterScores: null, team1Score: null, team2Score: null, isCfb, at: Date.now() };
     }
   }
   return interaction.showModal(buildCorrectionModal(submissionId, field, session));

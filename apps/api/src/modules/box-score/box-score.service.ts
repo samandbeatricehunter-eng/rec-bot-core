@@ -7,6 +7,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonContext, resolveSeasonId } from "../league-context/season.service.js";
 import { fetchImageBuffer, parseBoxScoreImages, type ParsedBoxScore, type ParsedScore } from "./box-score.parser.js";
 import { parseCfbBoxScoreImages } from "./box-score-cfb.parser.js";
+import { buildTeamNameCandidates, matchTeamNameInBlob, TEAM_NAME_BLOB_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
@@ -203,6 +204,27 @@ async function resolveTeams(leagueId: string, abbr1: string, abbr2: string) {
   };
 
   return { team1: match(abbr1) ?? null, team2: match(abbr2) ?? null };
+}
+
+// CFB never shows a short abbreviation on the box-score screen — box-score-cfb.parser.ts
+// hands back a raw, noisy multi-word OCR blob from each team's name panel instead.
+// Match it against school name / mascot / display city+nick (not abbreviation) using
+// the shared blob matcher, tolerant of the noise mixed into that blob.
+async function resolveCfbTeams(leagueId: string, name1Raw: string, name2Raw: string) {
+  const { data: teams, error } = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,display_abbr,display_city,display_nick")
+    .eq("league_id", leagueId);
+  if (error) throw new ApiError(500, "Failed to load league teams.", error);
+
+  const candidates = (teams ?? []).map((t) => buildTeamNameCandidates(t));
+  const match = (raw: string) => {
+    const m = matchTeamNameInBlob(raw, candidates);
+    if (!m || m.score < TEAM_NAME_BLOB_MATCH_THRESHOLD) return null;
+    return (teams ?? []).find((t) => t.id === m.teamId) ?? null;
+  };
+
+  return { team1: match(name1Raw), team2: match(name2Raw) };
 }
 
 async function resolveGame(leagueId: string, team1Id: string, team2Id: string, seasonId: string, weekNumber: number) {
@@ -406,7 +428,27 @@ const CORRECTABLE_STAT_KEYS = [
   "two_point_conversions",
   "red_zone_off_percentage",
 ] as const;
-const CORRECTABLE_STAT_KEY_SET = new Set<string>(CORRECTABLE_STAT_KEYS);
+
+// CFB-only fields from box-score-cfb.parser.ts, correctable in addition to the
+// reused keys above. Decimal fields (yards/play/rush/pass, punt avg) and
+// time_of_possession_seconds are deliberately excluded — correctionStatValue()
+// strips input to bare digits, which would corrupt a decimal or a mm:ss value.
+const CFB_CORRECTABLE_STAT_KEYS = [
+  "total_plays",
+  "off_rush_attempts",
+  "off_rush_tds",
+  "pass_completions",
+  "pass_attempts",
+  "off_pass_tds",
+  "red_zone_tds",
+  "red_zone_fgs",
+  "fumbles_lost",
+  "interceptions_thrown",
+  "punts",
+  "penalties",
+  "penalty_yards",
+] as const;
+const CORRECTABLE_STAT_KEY_SET = new Set<string>([...CORRECTABLE_STAT_KEYS, ...CFB_CORRECTABLE_STAT_KEYS]);
 
 // Reshape a stored submission row into the payload the payout-review embed expects
 // (same shape as CreateSubmissionResult). Used by the correction flow so a patched
@@ -517,6 +559,39 @@ async function boxScoreAbbrsMatchScheduledGame(
   return recognizable((game as any).away_team) || recognizable((game as any).home_team);
 }
 
+// CFB counterpart of boxScoreAbbrsMatchScheduledGame — CFB never shows an
+// abbreviation on the box-score screen, so this matches the raw team-name-panel
+// OCR blob against school name / mascot / display city+nick instead. Same
+// tolerance: true if either scheduled side is recognizable in either blob.
+async function boxScoreNamesMatchScheduledGameCfb(
+  leagueId: string,
+  gameId: string,
+  name1Raw: string,
+  name2Raw: string,
+): Promise<boolean> {
+  const { data: game, error } = await supabase
+    .from("rec_games")
+    .select("home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick)")
+    .eq("league_id", leagueId)
+    .eq("id", gameId)
+    .maybeSingle();
+  if (error || !game) return true; // can't verify → don't block the submitter
+
+  const blobs = [name1Raw, name2Raw].filter((b) => b && b !== "???");
+  if (!blobs.length) return true;
+
+  const recognizable = (team: any) => {
+    if (!team) return false;
+    const candidate = buildTeamNameCandidates(team);
+    return blobs.some((blob) => {
+      const m = matchTeamNameInBlob(blob, [candidate]);
+      return !!m && m.score >= TEAM_NAME_BLOB_MATCH_THRESHOLD;
+    });
+  };
+
+  return recognizable((game as any).away_team) || recognizable((game as any).home_team);
+}
+
 // The user currently linked to each given team (active assignment), keyed by
 // team id. rec_games.home_user_id/away_user_id are frequently null or stale, so
 // the active assignment is the source of truth for who gets paid and recorded.
@@ -542,6 +617,7 @@ async function resolveGameContext(
   weekNumber: number,
   parsed: ParsedBoxScore,
   expectedGameId: string | null = null,
+  isCfbLeagueFlag = false,
 ): Promise<ResolvedGame> {
   const empty: ResolvedGame = {
     team1Name: null, team2Name: null, team1Abbr: null, team2Abbr: null, team1Id: null, team2Id: null, gameId: null,
@@ -587,7 +663,9 @@ async function resolveGameContext(
 
   if (!parsed.score) return empty;
 
-  const { team1, team2 } = await resolveTeams(leagueId, parsed.score.team1Abbr, parsed.score.team2Abbr);
+  const { team1, team2 } = isCfbLeagueFlag
+    ? await resolveCfbTeams(leagueId, parsed.score.team1Abbr, parsed.score.team2Abbr)
+    : await resolveTeams(leagueId, parsed.score.team1Abbr, parsed.score.team2Abbr);
   const out: ResolvedGame = {
     ...empty,
     team1Name: team1?.name ?? null,
@@ -658,12 +736,15 @@ export async function parseBoxScorePreview(input: PreviewInput): Promise<Preview
     anchorGameId = game.id;
   }
 
+  const isCfbLeagueFlag = isCfb(context.rec_leagues.game);
   const parsed = await parseBoxScoreImagesForLeague(context, input.imageUrls, await loadLabelAliases());
-  const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed, anchorGameId);
+  const resolved = await resolveGameContext(context.leagueId, seasonNumber, weekNumber, parsed, anchorGameId, isCfbLeagueFlag);
 
   // Reject a self-serve upload that isn't the submitter's own scheduled matchup.
   if (!input.commissionerSubmission && anchorGameId && parsed.score) {
-    const looksRight = await boxScoreAbbrsMatchScheduledGame(context.leagueId, anchorGameId, parsed.score.team1Abbr, parsed.score.team2Abbr);
+    const looksRight = isCfbLeagueFlag
+      ? await boxScoreNamesMatchScheduledGameCfb(context.leagueId, anchorGameId, parsed.score.team1Abbr, parsed.score.team2Abbr)
+      : await boxScoreAbbrsMatchScheduledGame(context.leagueId, anchorGameId, parsed.score.team1Abbr, parsed.score.team2Abbr);
     if (!looksRight) {
       throw new ApiError(400, `This box score isn't your Week ${weekNumber} matchup. You can only upload your own scheduled game in this channel.`);
     }
@@ -743,6 +824,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     selfServeGameId = scheduledGame.id;
   }
 
+  const isCfbLeagueFlag = isCfb(context.rec_leagues.game);
   const parsed = await parseBoxScoreImagesForLeague(context, input.imageUrls, await loadLabelAliases());
 
   // Game resolution priority: the commissioner's pre-selected game, otherwise the
@@ -750,7 +832,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   // scoreboard only orients home/away (top/left = away) — a relocated team or a
   // misread abbreviation can't misroute it.
   const effectiveGameId = input.expectedGameId ?? selfServeGameId;
-  const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, effectiveGameId);
+  const resolved = await resolveGameContext(leagueId, seasonNumber, weekNumber, parsed, effectiveGameId, isCfbLeagueFlag);
   const supersededLedgerMessageIds = resolved.gameId ? await clearStalePendingForGame(resolved.gameId) : [];
 
   // Display the resolved league team's abbreviation (authoritative), falling back
@@ -765,9 +847,9 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
   // Self-serve: reject a box score that isn't the submitter's own scheduled
   // matchup (they may only upload their own game). Commissioner uploads are exempt.
   if (!input.commissionerSubmission && resolved.gameId && parsed.score) {
-    const looksRight = await boxScoreAbbrsMatchScheduledGame(
-      leagueId, resolved.gameId, parsed.score.team1Abbr, parsed.score.team2Abbr,
-    );
+    const looksRight = isCfbLeagueFlag
+      ? await boxScoreNamesMatchScheduledGameCfb(leagueId, resolved.gameId, parsed.score.team1Abbr, parsed.score.team2Abbr)
+      : await boxScoreAbbrsMatchScheduledGame(leagueId, resolved.gameId, parsed.score.team1Abbr, parsed.score.team2Abbr);
     if (!looksRight) {
       throw new ApiError(400, `This box score isn't your Week ${weekNumber} matchup. You can only upload your own scheduled game in this channel.`);
     }
