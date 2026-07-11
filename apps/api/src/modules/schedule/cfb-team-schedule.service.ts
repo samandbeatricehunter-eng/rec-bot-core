@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_NAME_AUTO_MATCH_THRESHOLD as AUTO_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
+import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, saveManualScheduleGame } from "./schedule.service.js";
 
@@ -91,11 +92,16 @@ export async function previewCfbTeamScheduleImport(input: {
     };
   });
 
+  const imageUrl = input.imageUrls.length
+    ? await persistStitchedUploadImage(`cfbteamimport-${leagueId}-${seasonNumber}-${input.teamId}`, input.imageUrls)
+    : null;
+
   return {
     team: { id: team.id, name: team.name, abbreviation: team.abbreviation },
     seasonNumber,
     weeks,
     warnings: parsed.warnings,
+    imageUrl: imageUrl ?? input.imageUrls[0] ?? null,
   };
 }
 

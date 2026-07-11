@@ -287,27 +287,36 @@ function inferMissingWeekNumbers(rows: ParsedTeamScheduleRow[]): void {
 
 export async function parseTeamScheduleBuffers(buffers: Buffer[]): Promise<ParsedTeamSchedule> {
   const warnings: string[] = [];
-  const lists: ParsedTeamScheduleRow[][] = [];
 
+  // rowY is normalized per-screenshot (0-1 within that image's own dimensions), so a row at
+  // y=0.5 in a "top of scroll" screenshot and a row at y=0.5 in a "bottom of scroll" screenshot
+  // are unrelated physical weeks that merely landed at the same fraction of their own image.
+  // Merging variants and inferring missing week numbers must happen per-image, walking that
+  // image's own top-to-bottom order — flattening every image's rows into one list first (as a
+  // prior version of this function did) interleaves unrelated weeks by raw y and corrupts
+  // inference for any row whose week number didn't OCR cleanly. Only combine across images
+  // afterward, once every row carries a real (or per-image-inferred) week number to key on.
+  const perImageRows: ParsedTeamScheduleRow[][] = [];
   for (const buffer of buffers) {
+    const variantLists: ParsedTeamScheduleRow[][] = [];
     for (const variant of SCHEDULE_VARIANTS) {
       try {
         const words = await extractWordsForVariant(buffer, variant);
-        lists.push(parseImageRows(words));
+        variantLists.push(parseImageRows(words));
       } catch (err) {
         warnings.push(`OCR error (${variant}): ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    const merged = mergeRowLists(variantLists);
+    inferMissingWeekNumbers(merged);
+    perImageRows.push(merged);
   }
 
-  let rows = mergeRowLists(lists);
-  inferMissingWeekNumbers(rows);
-  // Inference can newly collide two rows onto the same week number — most often the two
-  // screenshots overlap by a row or two (a natural scroll-continuation capture), so the same
-  // physical week shows up once per image with independently-normalized (and thus
-  // non-comparable) rowY coordinates, which defeats the merge step's y-based dedup key for
-  // whichever copy had no parseable week number at merge time. Collapse those collisions here,
-  // keeping the more complete row per week number.
+  let rows = mergeRowLists(perImageRows);
+  // Two screenshots often overlap by a row or two (a natural scroll-continuation capture), so
+  // the same physical week can show up once per image, now both correctly week-numbered by the
+  // per-image inference above but as separate row objects — collapse those here, keeping the
+  // more complete row per week number.
   const byWeek = new Map<number, ParsedTeamScheduleRow>();
   const unresolved: ParsedTeamScheduleRow[] = [];
   for (const row of rows) {

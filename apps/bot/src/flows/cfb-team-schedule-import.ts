@@ -69,6 +69,7 @@ type Session = {
   weeks: WeekState[];
   editingWeek?: number;
   warnings: string[];
+  imageUrl: string | null;
   at: number;
   // The interaction that put us into "awaiting_upload" (the team-select interaction) — held so
   // the screenshot-upload listener (a message event, not an interaction) can editReply() the
@@ -128,6 +129,7 @@ export async function startCfbTeamScheduleImport(interaction: ButtonInteraction,
     step: "pick_conference",
     weeks: [],
     warnings: [],
+    imageUrl: null,
     at: Date.now(),
   });
 
@@ -250,6 +252,7 @@ export async function handleCfbTeamScheduleUploadMessage(message: Message): Prom
       overrideHomeAway: null,
     }));
     session.warnings = preview.warnings ?? [];
+    session.imageUrl = preview.imageUrl ?? null;
     session.step = "review";
     touch(session);
 
@@ -297,6 +300,7 @@ function buildReviewEmbed(session: Session): EmbedBuilder {
   if (session.warnings.length) {
     embed.addFields({ name: "PARSER NOTES", value: session.warnings.join("\n").slice(0, 1024), inline: false });
   }
+  if (session.imageUrl) embed.setImage(session.imageUrl);
   return embed;
 }
 
