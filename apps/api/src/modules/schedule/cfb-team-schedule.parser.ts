@@ -285,6 +285,18 @@ function inferMissingWeekNumbers(rows: ParsedTeamScheduleRow[]): void {
   }
 }
 
+// A row with no week number, no BYE flag, and no opponent text carries zero usable
+// information — it's not a week the parser failed on, it's chrome the y-band swept up (the
+// column header row itself, e.g. "WEEK DATE OPPONENT TIME(ET)/RESULT..." which reliably OCRs
+// somewhere in-band, or a stray icon glyph rendered on its own line). A real row, even one OCR
+// mangled badly, always keeps at least isBye or opponentRaw once parseOpponentCell runs. Left
+// in, these silently inflate "needs manual review" counts (no weekNumber, not a bye, no matched
+// opponent all read as true) without ever appearing as a displayed line, since the review UI
+// only lists rows with a weekNumber.
+function isPureNoiseRow(row: ParsedTeamScheduleRow): boolean {
+  return row.weekNumber == null && !row.isBye && !row.opponentRaw;
+}
+
 export async function parseTeamScheduleBuffers(buffers: Buffer[]): Promise<ParsedTeamSchedule> {
   const warnings: string[] = [];
 
@@ -309,7 +321,7 @@ export async function parseTeamScheduleBuffers(buffers: Buffer[]): Promise<Parse
     }
     const merged = mergeRowLists(variantLists);
     inferMissingWeekNumbers(merged);
-    perImageRows.push(merged);
+    perImageRows.push(merged.filter((r) => !isPureNoiseRow(r)));
   }
 
   let rows = mergeRowLists(perImageRows);
