@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
-import { sendError } from "../../lib/errors.js";
+import { assertGuildPermission, requireBotOrUserSession, resolveBotOrUserAuth } from "../../lib/user-auth.js";
+import { ApiError, sendError } from "../../lib/errors.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
   correctBoxScoreSubmission,
   getBoxScoreSubmission,
@@ -13,6 +15,16 @@ import {
   updateBoxScoreLedgerMessage,
 } from "./box-score.service.js";
 import { getBoxScoreSubmissionJob, startBoxScoreSubmissionJob } from "./box-score-jobs.js";
+
+// /get and /review are keyed by submissionId, not guildId, so the combined guard's usual
+// "does the claimed guildId match the session" check doesn't apply directly — instead,
+// for a user session, the submission's own league is checked against the session's guild
+// after the fact (404 rather than 403 on mismatch, so a guessed UUID from another guild
+// doesn't confirm its own existence).
+async function assertSubmissionInSessionGuild(guildId: string, submissionLeagueId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  if (context.leagueId !== submissionLeagueId) throw new ApiError(404, "Submission not found.");
+}
 
 const ParseSchema = z.object({
   guildId: z.string().min(1),
@@ -91,8 +103,15 @@ export async function boxScoreRoutes(app: FastifyInstance) {
   // Commissioner approve or deny
   app.post("/v1/box-score/review", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await reviewBoxScore(ReviewSchema.parse(request.body)));
+      const auth = await resolveBotOrUserAuth(request);
+      const input = ReviewSchema.parse(request.body);
+      if (auth.mode === "user") {
+        await assertGuildPermission(auth.guildId, auth.discordId, "co_commissioner");
+        const submission = await getBoxScoreSubmission(input.submissionId);
+        await assertSubmissionInSessionGuild(auth.guildId, (submission as { league_id: string }).league_id);
+        input.reviewedByDiscordId = auth.discordId;
+      }
+      return reply.send(await reviewBoxScore(input));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -111,7 +130,7 @@ export async function boxScoreRoutes(app: FastifyInstance) {
   // List pending submissions for commissioner inbox
   app.post("/v1/box-score/pending", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
       return reply.send(await listPendingBoxScores(guildId));
     } catch (error) {
@@ -122,9 +141,14 @@ export async function boxScoreRoutes(app: FastifyInstance) {
   // Get a single submission by ID (for commissioner review detail)
   app.post("/v1/box-score/get", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      const auth = await resolveBotOrUserAuth(request);
       const { submissionId } = z.object({ submissionId: z.string().uuid() }).parse(request.body);
-      return reply.send(await getBoxScoreSubmission(submissionId));
+      const submission = await getBoxScoreSubmission(submissionId);
+      if (auth.mode === "user") {
+        await assertGuildPermission(auth.guildId, auth.discordId, "co_commissioner");
+        await assertSubmissionInSessionGuild(auth.guildId, (submission as { league_id: string }).league_id);
+      }
+      return reply.send(submission);
     } catch (error) {
       return sendError(reply, error);
     }

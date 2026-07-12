@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -7,6 +8,30 @@ import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_N
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, saveManualScheduleGame } from "./schedule.service.js";
+
+type ConfirmedWeek = { opponentTeamId: string; opponentName: string; homeAway: "home" | "away" };
+
+// Shared by the OCR-driven preview (previewCfbTeamScheduleImport) and the Activity's
+// no-OCR manual preview (getCfbTeamScheduleManualState) — a team+week already has a
+// confirmed matchup (from either side of the game, from any source: OCR import, manual
+// Discord wizard, or the Activity) if a rec_games row already covers it.
+function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; games: any[] }> }, teamId: string): Map<number, ConfirmedWeek> {
+  const confirmedByWeek = new Map<number, ConfirmedWeek>();
+  for (const week of season.weeks) {
+    for (const game of week.games) {
+      const isAway = game.away_team_id === teamId;
+      const isHome = game.home_team_id === teamId;
+      if (!isAway && !isHome) continue;
+      const opponent = isAway ? game.home_team : game.away_team;
+      confirmedByWeek.set(week.weekNumber, {
+        opponentTeamId: isAway ? game.home_team_id : game.away_team_id,
+        opponentName: opponent?.name ?? opponent?.abbreviation ?? "Team",
+        homeAway: isAway ? "away" : "home",
+      });
+    }
+  }
+  return confirmedByWeek;
+}
 
 // Matches below AUTO_MATCH_THRESHOLD are surfaced but not auto-selected — the review
 // embed shows the raw OCR text and lets the commissioner pick from a dropdown either way.
@@ -55,21 +80,7 @@ export async function previewCfbTeamScheduleImport(input: {
   const parsed = await parseTeamScheduleImages(input.imageUrls);
 
   const season = await listScheduleSeason(input.guildId, seasonNumber);
-  // Confirmed matchup (if any) for this team, keyed by week — from either side of the game.
-  const confirmedByWeek = new Map<number, { opponentTeamId: string; opponentName: string; homeAway: "home" | "away" }>();
-  for (const week of season.weeks) {
-    for (const game of week.games) {
-      const isAway = game.away_team_id === input.teamId;
-      const isHome = game.home_team_id === input.teamId;
-      if (!isAway && !isHome) continue;
-      const opponent = isAway ? game.home_team : game.away_team;
-      confirmedByWeek.set(week.weekNumber, {
-        opponentTeamId: isAway ? game.home_team_id : game.away_team_id,
-        opponentName: opponent?.name ?? opponent?.abbreviation ?? "Team",
-        homeAway: isAway ? "away" : "home",
-      });
-    }
-  }
+  const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
 
   const weeks: TeamScheduleWeekPreview[] = parsed.rows.map((row: ParsedTeamScheduleRow) => {
     const confirmed = row.weekNumber != null ? confirmedByWeek.get(row.weekNumber) : undefined;
@@ -102,6 +113,61 @@ export async function previewCfbTeamScheduleImport(input: {
     weeks,
     warnings: parsed.warnings,
     imageUrl: imageUrl ?? input.imageUrls[0] ?? null,
+  };
+}
+
+// The Activity's schedule form — same "team + every week's confirmed status" shape as
+// previewCfbTeamScheduleImport, minus the OCR step (there's no screenshot; the commissioner
+// fills in every week directly in the UI instead of correcting a parsed guess).
+export type TeamScheduleManualWeek = {
+  weekNumber: number;
+  alreadyConfirmed: boolean;
+  confirmedOpponentTeamId: string | null;
+  confirmedOpponentName: string | null;
+  confirmedHomeAway: "home" | "away" | null;
+};
+
+export async function getCfbTeamScheduleManualState(input: {
+  guildId: string;
+  teamId: string;
+  seasonNumber?: number | null;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  if (context.rec_leagues.game !== "cfb_27") {
+    throw new ApiError(400, "Team schedule entry is only available for CFB leagues.");
+  }
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
+
+  const teams = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,display_abbr,display_city,display_nick,conference,is_relocated")
+    .eq("league_id", leagueId);
+  if (teams.error) throw new ApiError(500, "Failed to load league teams.", teams.error);
+  const teamRows = teams.data ?? [];
+  const team = teamRows.find((t: any) => t.id === input.teamId);
+  if (!team) throw new ApiError(404, "Team was not found in the current league.");
+
+  const season = await listScheduleSeason(input.guildId, seasonNumber);
+  const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
+
+  const lastWeek = regularSeasonWeeks(context.rec_leagues.game);
+  const weeks: TeamScheduleManualWeek[] = [];
+  for (let weekNumber = 0; weekNumber <= lastWeek; weekNumber++) {
+    const confirmed = confirmedByWeek.get(weekNumber);
+    weeks.push({
+      weekNumber,
+      alreadyConfirmed: Boolean(confirmed),
+      confirmedOpponentTeamId: confirmed?.opponentTeamId ?? null,
+      confirmedOpponentName: confirmed?.opponentName ?? null,
+      confirmedHomeAway: confirmed?.homeAway ?? null,
+    });
+  }
+
+  return {
+    team: { id: team.id, name: team.name, abbreviation: team.abbreviation },
+    seasonNumber,
+    weeks,
   };
 }
 

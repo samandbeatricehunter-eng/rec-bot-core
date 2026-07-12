@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { listScheduleSeason, listScheduleTeams, listScheduleWeek, previewScheduleImport, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
-import { commitCfbTeamScheduleImport, previewCfbTeamScheduleImport } from "./cfb-team-schedule.service.js";
+import { commitCfbTeamScheduleImport, getCfbTeamScheduleManualState, previewCfbTeamScheduleImport } from "./cfb-team-schedule.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 
@@ -29,7 +30,7 @@ const SaveManualGameSchema = z.object({
 export async function scheduleRoutes(app: FastifyInstance) {
   app.post("/v1/schedule/teams", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "member" });
       const { guildId } = GuildSchema.parse(request.body);
       return reply.send(await listScheduleTeams(guildId));
     } catch (error) {
@@ -167,7 +168,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
   // Weeks already confirmed (by this or an earlier team's upload) are silently skipped.
   app.post("/v1/schedule/cfb-team-import-commit", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
       const input = z.object({
         guildId: z.string().min(1),
         teamId: z.string().uuid(),
@@ -179,7 +180,26 @@ export async function scheduleRoutes(app: FastifyInstance) {
         })),
         requestedByDiscordId: z.string().optional().nullable(),
       }).parse(request.body);
+      // Attribute Activity-originated saves to the actual Discord user, not a generic bot save.
+      if (auth.mode === "user" && !input.requestedByDiscordId) input.requestedByDiscordId = auth.discordId;
       return reply.send(await commitCfbTeamScheduleImport(input));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Activity-only: the no-OCR equivalent of cfb-team-import-preview — every regular-season
+  // week for a team plus its already-confirmed status, for the "fill in the whole season on
+  // one page" form (no screenshot involved).
+  app.post("/v1/schedule/cfb-team-manual-preview", async (request, reply) => {
+    try {
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await getCfbTeamScheduleManualState(input));
     } catch (error) {
       return sendError(reply, error);
     }

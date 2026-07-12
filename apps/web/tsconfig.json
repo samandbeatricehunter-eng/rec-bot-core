@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // This app is the one deliberate exception to the monorepo's NodeNext convention:
+    // it's browser/Vite code, not a Node process, so module resolution and the lib set
+    // need to match a bundler + DOM target instead. Don't "fix" this to match api/bot.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "outDir": "dist",
+    "rootDir": "src",
+    "noEmit": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

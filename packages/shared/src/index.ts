@@ -2,6 +2,7 @@ export * from "./nfl-teams.js";
 export * from "./cfb-teams.js";
 export * from "./conferences.js";
 export * from "./league-stage.js";
+export * from "./discord-roles.js";
 export * from "./nfl-schedules.js";
 export * from "./route-channels.js";
 export * from "./stats/index.js";
@@ -45,6 +46,10 @@ export const REC_API_ROUTES = {
   gameChannelsTracked: "/v1/game-channels/tracked",
   gameChannelsRegister: "/v1/game-channels/register",
   gameChannelsMarkDeleted: "/v1/game-channels/mark-deleted",
+
+  // Discord Activity (apps/web) only.
+  activityAuthExchange: "/v1/activity/auth/exchange",
+  cfbTeamScheduleManualState: "/v1/schedule/cfb-team-manual-preview",
 } as const;
 
 export type RecTeamAuthority = "member" | "commissioner" | "co_commissioner";

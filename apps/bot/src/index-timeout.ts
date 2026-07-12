@@ -415,6 +415,18 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    // The Discord Activity's launch point — same commissioner/co-commissioner gate as
+    // the existing League Mgmt button (apps/web is additive for now; this command exists
+    // alongside it, not in place of it, until the Activity's UI/mechanics are confirmed).
+    if (interaction.isPrimaryEntryPointCommand()) {
+      if (!isDiscordAdminInteraction(interaction)) {
+        await replyFullAdminOnly(interaction, "open League Mgmt");
+      } else {
+        await interaction.launchActivity();
+      }
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith("rec:stream_review:")) {
       await handleStreamReviewButton(interaction);
       return;
