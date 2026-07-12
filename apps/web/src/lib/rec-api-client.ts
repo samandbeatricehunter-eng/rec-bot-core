@@ -14,19 +14,16 @@ import type {
 const REC_API_TIMEOUT_MS = 30_000;
 
 let authToken: string | null = null;
-// Set by AuthProvider — lets the low-level fetch wrapper trigger a silent re-authorize on
-// a 401 without this module needing to know anything about the Discord SDK/auth flow.
-let onUnauthorized: (() => Promise<string | null>) | null = null;
 
 export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
-export function setUnauthorizedHandler(handler: (() => Promise<string | null>) | null) {
-  onUnauthorized = handler;
-}
-
-async function rawFetch<T>(path: string, init?: RequestInit): Promise<T> {
+// There's no silent recovery from a 401 here — the token comes from a link the bot mints
+// once when the dashboard button is clicked, and there's no ongoing Discord session in the
+// browser to draw a fresh one from. An expired/invalid session just means "go back to
+// Discord and click Open Web Dashboard again," which this error message says directly.
+export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${import.meta.env.VITE_REC_CORE_API_URL}${path}`, {
     ...init,
     signal: init?.signal ?? AbortSignal.timeout(REC_API_TIMEOUT_MS),
@@ -36,40 +33,17 @@ async function rawFetch<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers ?? {}),
     },
   });
+  if (response.status === 401) {
+    throw new Error("Your session has expired — reopen the dashboard from Discord's League Mgmt menu.");
+  }
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    const error = new Error(`REC API request failed: ${response.status} ${body}`) as Error & { status?: number };
-    error.status = response.status;
-    throw error;
+    throw new Error(`REC API request failed: ${response.status} ${body}`);
   }
   return response.json() as Promise<T>;
 }
 
-// Authenticated fetch wrapper — retries once via silent re-authorize on a 401 before
-// surfacing the error, so a JWT expiring mid-session doesn't hard-crash the screen.
-export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  try {
-    return await rawFetch<T>(path, init);
-  } catch (error) {
-    const status = (error as { status?: number }).status;
-    if (status === 401 && onUnauthorized) {
-      const newToken = await onUnauthorized();
-      if (newToken) {
-        setAuthToken(newToken);
-        return rawFetch<T>(path, init);
-      }
-    }
-    throw error;
-  }
-}
-
 export const recApi = {
-  exchangeActivityAuth: (input: { code: string; guildId: string }) =>
-    rawFetch<{ token: string; discordId: string; guildId: string; username: string; globalName: string | null }>(
-      REC_API_ROUTES.activityAuthExchange,
-      { method: "POST", body: JSON.stringify(input) },
-    ),
-
   // Schedule
   listScheduleTeams: (guildId: string) =>
     recApiFetch<{ teams: ScheduleTeam[] }>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
@@ -94,6 +68,6 @@ export const recApi = {
     recApiFetch<BoxScoreSubmissionDetail>("/v1/box-score/get", { method: "POST", body: JSON.stringify({ submissionId }) }),
   reviewBoxScore: (input: { submissionId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     // reviewedByDiscordId is required by the schema but overridden server-side from the
-    // session for Activity calls — the placeholder here is only exercised by direct bot calls.
-    recApiFetch<unknown>("/v1/box-score/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "activity" }) }),
+    // session for browser calls — the placeholder here is only exercised by direct bot calls.
+    recApiFetch<unknown>("/v1/box-score/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
 };

@@ -47,8 +47,8 @@ export const REC_API_ROUTES = {
   gameChannelsRegister: "/v1/game-channels/register",
   gameChannelsMarkDeleted: "/v1/game-channels/mark-deleted",
 
-  // Discord Activity (apps/web) only.
-  activityAuthExchange: "/v1/activity/auth/exchange",
+  // Web dashboard (apps/web) only.
+  webSessionMint: "/v1/web-session/mint",
   cfbTeamScheduleManualState: "/v1/schedule/cfb-team-manual-preview",
 } as const;
 

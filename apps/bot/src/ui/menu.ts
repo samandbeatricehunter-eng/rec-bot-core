@@ -36,6 +36,7 @@ export const MENU_CUSTOM_IDS = {
   streamBack: "rec:stream:back",
   helpRules: "rec:menu:help_rules",
   leagueMgmt: "rec:menu:league_mgmt",
+  leagueMgmtOpenDashboard: "rec:league_mgmt:open_dashboard",
   requestTeam: "rec:teams:request",
   teamsPostOpen: "rec:teams:post_open",
   teamsBack: "rec:teams:back",
@@ -279,7 +280,9 @@ export function buildAdminPanelRows(input: { coCommissionerLimited?: boolean } =
   const sharedRows = [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtTeams).setLabel("Teams").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtRoles).setLabel("Roles").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtRoles).setLabel("Roles").setStyle(ButtonStyle.Primary),
+      // Additive, alongside the rest of this embed-based workflow — not a replacement.
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtOpenDashboard).setLabel("Open Web Dashboard (Beta)").setStyle(ButtonStyle.Secondary)
     ),
   ];
 

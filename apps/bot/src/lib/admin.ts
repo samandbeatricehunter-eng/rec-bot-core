@@ -1,7 +1,7 @@
-import { GuildMember, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type PrimaryEntryPointCommandInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { GuildMember, MessageFlags, PermissionFlagsBits, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { classifyGuildRoleNames } from "@rec/shared";
 
-type AdminInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction | PrimaryEntryPointCommandInteraction;
+type AdminInteraction = ChatInputCommandInteraction | ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 
 function hasFullCommissionerRole(member: GuildMember): boolean {
   return classifyGuildRoleNames(member.roles.cache.map((role) => role.name)).isCommissioner;

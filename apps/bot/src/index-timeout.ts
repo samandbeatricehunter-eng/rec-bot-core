@@ -415,15 +415,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    // The Discord Activity's launch point — same commissioner/co-commissioner gate as
-    // the existing League Mgmt button (apps/web is additive for now; this command exists
-    // alongside it, not in place of it, until the Activity's UI/mechanics are confirmed).
-    if (interaction.isPrimaryEntryPointCommand()) {
-      if (!isDiscordAdminInteraction(interaction)) {
-        await replyFullAdminOnly(interaction, "open League Mgmt");
-      } else {
-        await interaction.launchActivity();
-      }
+    if (interaction.isButton() && interaction.customId === MENU_CUSTOM_IDS.leagueMgmtOpenDashboard) {
+      await handleLeagueMgmtOpenDashboard(interaction);
       return;
     }
 
@@ -936,6 +929,43 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
   if (!interaction.isButton()) return;
   if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only authorized admins can open the Admin Panel.", flags: MessageFlags.Ephemeral });
   await interaction.update(buildAdminPanelPayload(interaction));
+}
+
+// Additive alongside the existing League Mgmt embed workflow (not a replacement) — mints a
+// fresh, personal session token and hands the commissioner a Link button that opens the
+// web dashboard in their browser. Gated the same way the League Mgmt button itself already
+// is (only commissioners/co-commissioners ever see this button in the first place), but
+// checked again here since a stale button in an old message could otherwise be replayed.
+async function handleLeagueMgmtOpenDashboard(interaction: ButtonInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) {
+    return replyFullAdminOnly(interaction, "open the web dashboard");
+  }
+  if (!env.WEB_APP_URL) {
+    return interaction.reply({ content: "The web dashboard isn't configured yet for this bot.", flags: MessageFlags.Ephemeral });
+  }
+  await interaction.reply({ content: "Generating your link…", flags: MessageFlags.Ephemeral });
+  try {
+    const session = await recApi.mintWebSession({
+      guildId: interaction.guildId,
+      discordId: interaction.user.id,
+      username: interaction.user.username,
+      globalName: interaction.user.globalName ?? null,
+    });
+    const url = `${env.WEB_APP_URL}/?token=${encodeURIComponent(session.token)}`;
+    await interaction.editReply({
+      content: null,
+      embeds: [new EmbedBuilder()
+        .setTitle("Web Dashboard")
+        .setColor(COLORS.info)
+        .setDescription("This link is personal and expires in 30 minutes — don't share it.")],
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel("Open Dashboard"),
+      )],
+    });
+  } catch (err) {
+    await interaction.editReply({ content: userFacingError(err) });
+  }
 }
 
 async function handleLeagueMgmtTeams(interaction: ButtonInteraction) {

@@ -6,5 +6,5 @@ const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 dotenv.config({ path: path.resolve(currentDir, "../../../../.env") });
 dotenv.config({ path: path.resolve(currentDir, "../../.env"), override: false });
-const EnvSchema = z.object({ DISCORD_TOKEN:z.string().min(1), DISCORD_CLIENT_ID:z.string().min(1), DISCORD_GUILD_ID:z.string().optional(), REC_CORE_API_URL:z.string().url().default("http://localhost:3000"), REC_INTERNAL_API_KEY:z.string().optional() });
+const EnvSchema = z.object({ DISCORD_TOKEN:z.string().min(1), DISCORD_CLIENT_ID:z.string().min(1), DISCORD_GUILD_ID:z.string().optional(), REC_CORE_API_URL:z.string().url().default("http://localhost:3000"), REC_INTERNAL_API_KEY:z.string().optional(), WEB_APP_URL:z.string().url().optional() });
 export const env = EnvSchema.parse(process.env);

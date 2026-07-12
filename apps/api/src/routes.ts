@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { activityAuthRoutes } from "./modules/activity-auth/activity-auth.routes.js";
+import { webSessionRoutes } from "./modules/web-session/web-session.routes.js";
 import { adminEconomyRoutes } from "./modules/admin-economy/admin-economy.routes.js";
 import { activeCheckRoutes } from "./modules/active-checks/active-checks.routes.js";
 import { boxScoreRoutes } from "./modules/box-score/box-score.routes.js";
@@ -22,7 +22,7 @@ import { wagerRoutes } from "./modules/wagers/wagers.routes.js";
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
 
-  await activityAuthRoutes(app);
+  await webSessionRoutes(app);
   await userRoutes(app);
   await adminEconomyRoutes(app);
   await activeCheckRoutes(app);

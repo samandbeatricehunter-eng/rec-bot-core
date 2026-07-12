@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@discord/embedded-app-sdk": "^1.8.0",
     "@rec/shared": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
