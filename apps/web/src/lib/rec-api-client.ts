@@ -1,6 +1,9 @@
 import { REC_API_ROUTES } from "@rec/shared";
 import type {
   ActiveCheckReview,
+  AdvanceDmPreview,
+  AdvanceResultInput,
+  AdvanceWeekGames,
   BoxScoreJobStatus,
   BoxScoreSubmissionDetail,
   CfbTeamScheduleManualState,
@@ -8,6 +11,7 @@ import type {
   CommitDecision,
   CommitResult,
   DeleteLeagueResult,
+  DivisionWinnerOptions,
   EosAwardPoll,
   LeagueIdentitiesResponse,
   LeagueSettingsDraft,
@@ -168,4 +172,20 @@ export const recApi = {
   // defaults server-side, so a minimal payload here is intentional, not a shortcut.
   createLeague: (input: { guildId: string; name: string; game: string; leagueType?: string; activeRostersEnabled?: boolean }) =>
     recApiFetch<{ league: { id: string; name: string }; defaultTeams: unknown[] }>("/v1/setup/league/create", { method: "POST", body: JSON.stringify(input) }),
+
+  // Advance (Phase 2) — GOTW polls, game-channel creation, @everyone announcements, and
+  // actual DM delivery stay Discord-only (they need the live bot process); everything below
+  // is the pure-data subset of Advance Week that doesn't.
+  getAdvanceWeekGames: (guildId: string) =>
+    recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
+  completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[] }) =>
+    recApiFetch<unknown>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
+  getDivisionWinnerOptions: (guildId: string) =>
+    recApiFetch<DivisionWinnerOptions>("/v1/league-week/division-winner-options", { method: "POST", body: JSON.stringify({ guildId }) }),
+  saveDivisionWinners: (input: { guildId: string; seasonNumber: number; winners: Array<{ divisionKey: string; teamId: string }> }) =>
+    recApiFetch<unknown>("/v1/league-week/division-winners", { method: "POST", body: JSON.stringify({ ...input, selectedByDiscordId: "web-dashboard" }) }),
+  setNextAdvanceTime: (input: { guildId: string; year: number; month: number; day: number; hour: number; minute: number; tzLabel: string }) =>
+    recApiFetch<unknown>("/v1/league-week/set-next-advance", { method: "POST", body: JSON.stringify(input) }),
+  previewAdvanceDms: (guildId: string) =>
+    recApiFetch<AdvanceDmPreview>("/v1/league-week/advance-dms", { method: "POST", body: JSON.stringify({ guildId }) }),
 };

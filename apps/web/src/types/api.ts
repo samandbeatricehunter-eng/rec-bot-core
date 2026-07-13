@@ -170,3 +170,42 @@ export type RoleMgmtRoleKey = "member" | "compCommittee" | "commissioner";
 // LeagueSetupDraft, which is similarly broad). Every field must round-trip on save — see
 // SettingsHome.tsx's comment on why partial updates are unsafe.
 export type LeagueSettingsDraft = Record<string, unknown> & { game?: string };
+
+// Advance (Phase 2)
+export type AdvanceGame = {
+  gameId: string;
+  weekNumber: number;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  homeUserId: string | null;
+  awayUserId: string | null;
+  homeTeamName: string;
+  awayTeamName: string;
+  hasBoxScore: boolean;
+  existingResultSource: string | null;
+  needsInput: boolean;
+  isCpuGame: boolean;
+  isH2h: boolean;
+};
+export type AdvanceWeekGames = {
+  league: { id: string; name: string };
+  seasonNumber: number;
+  currentWeek: number;
+  currentStage: string;
+  games: AdvanceGame[];
+  gamesNeedingInput: AdvanceGame[];
+};
+export type AdvanceResultInput = { gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null };
+export type DivisionWinnerOption = { key: string; conference: string; division: string; label: string; teams: { id: string; name: string; abbreviation: string | null }[] };
+export type DivisionWinnerOptions = { league: { id: string; seasonNumber: number }; divisions: DivisionWinnerOption[] };
+export type AdvanceDmPreview = {
+  fromWeek: number | null;
+  toWeek: number | null;
+  seasonNumber: number;
+  users: Array<{
+    discordId: string;
+    displayName: string;
+    teamName: string | null;
+    sections: { transactions: string | null; badges: string | null; eosProgress: string | null; powerRanking: string | null };
+  }>;
+};

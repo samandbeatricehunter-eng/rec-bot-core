@@ -23,7 +23,7 @@ export function LeagueMgmtHome() {
         <ActivityTile to="/league-mgmt/notifications" icon={Bell} title="Notifications" description="Pending payouts, purchases, and reviews awaiting action." badgeCount={notificationCount} />
         <ActivityTile to="/league-mgmt/schedule" icon={CalendarDays} title="Schedule" description="Set matchups, upload box scores, and record final scores." />
         <ActivityTile to="/league-mgmt/teams" icon={Users} title="Teams" description="Link and unlink users to teams." />
-        <ActivityTile icon={FastForward} title="Advance" description="" disabled />
+        <ActivityTile to="/league-mgmt/advance" icon={FastForward} title="Advance" description="Score entry, division winners, and next-advance scheduling." />
         <ActivityTile to="/league-mgmt/settings" icon={SlidersHorizontal} title="Settings" description="Economy, rules, gameplay, and more." />
         <ActivityTile to="/league-mgmt/roles" icon={Shield} title="Roles" description="Grant or revoke REC League roles." />
         <ActivityTile to="/league-mgmt/first-time-setup" icon={Wand2} title="First-Time Setup" description="Create a new league for this server." />

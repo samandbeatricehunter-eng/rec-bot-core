@@ -58,8 +58,8 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/advance-games", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       return reply.send(await getAdvanceWeekGames(body.guildId));
     } catch (error) {
       return sendError(reply, error);
@@ -68,7 +68,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/advance-complete", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
         nextWeekNumber: z.number().int().min(0).max(30),
@@ -81,6 +80,8 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           awayScore: z.number().int().min(0).max(200).optional().nullable(),
         })),
       }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
       return reply.send(await completeAdvanceWeek(body));
     } catch (error) {
       return sendError(reply, error);
@@ -184,8 +185,8 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/division-winner-options", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       return reply.send(await getDivisionWinnerOptions(body.guildId));
     } catch (error) {
       return sendError(reply, error);
@@ -194,7 +195,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/division-winners", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
         seasonNumber: z.number().int().min(1),
@@ -204,6 +204,8 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           teamId: z.string().uuid(),
         })).min(1),
       }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode === "user") body.selectedByDiscordId = auth.discordId;
       return reply.send(await saveDivisionWinners(body));
     } catch (error) {
       return sendError(reply, error);
@@ -242,7 +244,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/set-next-advance", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
         year: z.number().int().min(2026).max(2100),
@@ -252,16 +253,20 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         minute: z.number().int().min(0).max(59).default(0),
         tzLabel: z.enum(SUPPORTED_TZ_LABELS as [string, ...string[]]),
       }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       return reply.send(await setNextAdvanceTime(body));
     } catch (error) {
       return sendError(reply, error);
     }
   });
 
+  // Preview-only — this generates the per-coach DM text but does not send it. Actual
+  // delivery requires the bot's discordUser.send(), so this route is only useful for a web
+  // "here's what would be sent" view; the send action itself stays Discord-only.
   app.post("/v1/league-week/advance-dms", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       return reply.send(await generateAdvanceDms(body));
     } catch (error) {
       return sendError(reply, error);
