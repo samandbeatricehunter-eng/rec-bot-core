@@ -453,13 +453,8 @@ async function registerCommandsForVisibleGuilds() {
 
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === "menu") {
-      await handleMenuCommand(interaction);
-      return;
-    }
-
-    if (interaction.isChatInputCommand() && interaction.commandName === "league-mgmt") {
-      await handleLeagueMgmtOpenDashboard(interaction);
+    if (interaction.isChatInputCommand() && interaction.commandName === "hub") {
+      await handleHubOpenDashboard(interaction);
       return;
     }
 
@@ -968,6 +963,21 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
   await interaction.editReply(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
 }
 
+async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!env.WEB_APP_URL) return interaction.reply({ content: "The League Hub isn't configured yet for this bot.", flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: "Generating your personal League Hub link…", flags: MessageFlags.Ephemeral });
+  try {
+    const session = await recApi.mintWebSession({ guildId: interaction.guildId, discordId: interaction.user.id, username: interaction.user.username, globalName: interaction.user.globalName ?? null });
+    const url = `${env.WEB_APP_URL}/?token=${encodeURIComponent(session.token)}`;
+    await interaction.editReply({
+      content: null,
+      embeds: [new EmbedBuilder().setTitle("REC League Hub").setColor(COLORS.gold).setDescription("Your league, matchups, headlines, highlights, and team dashboard. This personal link expires in 30 minutes.")],
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel("Open League Hub"))],
+    });
+  } catch (err) { await interaction.editReply({ content: userFacingError(err) }); }
+}
+
 async function renderMainMenuFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton()) return;
   await interaction.update(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
@@ -1002,7 +1012,7 @@ async function handleLeagueMgmtOpenDashboard(interaction: ButtonInteraction | Ch
       username: interaction.user.username,
       globalName: interaction.user.globalName ?? null,
     });
-    const url = `${env.WEB_APP_URL}/?token=${encodeURIComponent(session.token)}`;
+    const url = `${env.WEB_APP_URL}/?token=${encodeURIComponent(session.token)}#/league-mgmt`;
     await interaction.editReply({
       content: null,
       embeds: [new EmbedBuilder()

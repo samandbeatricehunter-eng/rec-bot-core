@@ -16,7 +16,7 @@ import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
-import { getAnnouncementsChannel, getHeadlinesChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
+import { getAnnouncementsChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
 
 // Final step of the advance flow: set (or skip) the next scheduled advance time.
@@ -288,17 +288,16 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
   try {
     const cfg = await recApi.getEconomyConfig(guildId).catch(() => null);
     const channel = await getAnnouncementsChannel(guild, cfg?.routes ?? {});
-    if (!channel) return false;
     const lines = [headline];
     if (epochSeconds != null) {
       lines.push("", `**Next advance** (<t:${epochSeconds}:R>):`, formatAllZones(epochSeconds));
     }
-    await channel.send({
+    const message = channel ? await channel.send({
       content: "@everyone",
       embeds: [new EmbedBuilder().setTitle("📣 League Advanced").setColor(COLORS.success).setDescription(lines.join("\n"))],
       allowedMentions: { parse: ["everyone"] },
-    });
-    return true;
+    }) : null;
+    return Boolean(message);
   } catch {
     return false;
   }
@@ -405,45 +404,16 @@ type PowerRankingsPublishResult = {
   count: number;
 };
 
-async function publishAdvanceHeadlines(guild: Guild, session: AdvanceTimeSession): Promise<HeadlinePublishResult> {
+async function publishAdvanceHeadlines(_guild: Guild, session: AdvanceTimeSession): Promise<HeadlinePublishResult> {
   try {
-    const cfg = await recApi.getEconomyConfig(session.guildId).catch(() => null);
-    const channelId = cfg?.routes?.headlines_channel_id ?? null;
-    if (!channelId) return { posted: 0, configured: false, accessible: false };
-
-    const channel = await getHeadlinesChannel(guild, cfg?.routes ?? {});
-    if (!channel) return { posted: 0, configured: true, accessible: false };
-
     const result = await recApi.listAdvanceStories({
       guildId: session.guildId,
       seasonNumber: session.completedSeasonNumber,
       weekNumber: session.completedWeekNumber,
+      includePosted: true,
     });
     const stories: any[] = result?.stories ?? [];
-    if (!stories.length) return { posted: 0, configured: true, accessible: true };
-
-    const season = session.completedSeasonNumber;
-    const week = session.completedWeekNumber;
-    const total = stories.length;
-
-    const message = await channel.send({
-      content: "@everyone",
-      embeds: [buildStoryEmbed(stories[0], 0, total, season, week)],
-      components: total > 1 ? [buildHeadlinesNavRow(session.guildId, season, week, 0, total)] : [],
-    });
-
-    // Mark all stories as posted with the single message they now share.
-    for (const story of stories) {
-      await recApi.markAdvanceStoryPosted({
-        guildId: session.guildId,
-        storyId: story.id,
-        channelId: channel.id,
-        messageId: message.id,
-      }).catch((error) => {
-        console.error("[ERROR] Failed to stamp posted game story (non-fatal):", error);
-      });
-    }
-    return { posted: total, configured: true, accessible: true };
+    return { posted: stories.length, configured: true, accessible: true };
   } catch (error) {
     console.error("[ERROR] Failed to publish advance headlines (non-fatal):", error);
     return { posted: 0, configured: true, accessible: true };
@@ -474,10 +444,8 @@ export async function handleHeadlinesNav(interaction: ButtonInteraction, dir: "p
 }
 
 function headlinePublishLine(result: HeadlinePublishResult) {
-  if (result.posted > 0) return `\n\nPosted **${result.posted}** game headline${result.posted === 1 ? "" : "s"}.`;
-  if (!result.configured) return "\n\nNo headlines channel is configured, so game stories were not posted.";
-  if (!result.accessible) return "\n\nA headlines channel is configured, but I couldn't access it. Check the bot's channel permissions.";
-  return "\n\nNo new game headlines were ready to post.";
+  if (result.posted > 0) return `\n\nPublished **${result.posted}** game headline${result.posted === 1 ? "" : "s"} to the League Hub.`;
+  return "\n\nNo game headlines were ready for the League Hub.";
 }
 
 function formatPowerRankingMovement(change: number | null | undefined) {

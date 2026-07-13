@@ -722,9 +722,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       await recApi.setEconomyConfig({
         guildId: interaction.guildId,
         announcementsChannelId: draft.announcementsChannelId ?? undefined,
-        headlinesChannelId: draft.headlinesChannelId ?? undefined,
         powerRankingsChannelId: draft.powerRankingsChannelId ?? undefined,
-        votingPollsChannelId: draft.votingPollsChannelId ?? undefined,
         streamsChannelId: draft.streamsChannelId ?? undefined,
         highlightsChannelId: draft.highlightsChannelId ?? undefined,
         boxScoresChannelId: draft.boxScoresChannelId ?? undefined,

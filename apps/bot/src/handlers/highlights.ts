@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Message, type MessageReaction, type PartialMessageReaction, type PartialUser, type TextChannel, type User } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
+import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
 export const HIGHLIGHT_REVIEW_PREFIX = "rec:highlight_review:";
 
@@ -212,7 +213,9 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
     if (!message) continue;
     for (const [category, emoji] of Object.entries(HIGHLIGHT_VOTE_EMOJIS)) {
       const reaction = message.reactions.cache.get(emoji.id) ?? message.reactions.cache.find((r) => r.emoji.id === emoji.id);
-      const count = Math.max(0, (reaction?.count ?? 0) - 1); // subtract the bot's own preload reaction
+      // Hub category reactions count toward Play of the Year; general like/dislike
+      // reactions are deliberately absent from webReactionCounts and never affect awards.
+      const count = Math.max(0, (reaction?.count ?? 0) - 1) + Number(highlight.webReactionCounts?.[category] ?? 0);
       if (count <= 0) continue;
       const entry = { ...highlight, messageUrl: message.url, authorId: message.author.id };
       const cur = leaders.get(category);
@@ -224,7 +227,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
   const created = [];
   const announcementsChannelId = result?.league?.announcementsChannelId ?? null;
   const pendingPayoutsChannelId = result?.league?.pendingPayoutsChannelId ?? null;
-  const announcementsChannel = announcementsChannelId ? await guild.channels.fetch(announcementsChannelId).catch(() => null) : null;
+  const announcementsChannel = announcementsChannelId ? await getAnnouncementsChannel(guild, { announcements_channel_id: announcementsChannelId }) : null;
   const pendingPayoutsChannel = pendingPayoutsChannelId ? await guild.channels.fetch(pendingPayoutsChannelId).catch(() => null) : null;
 
   for (const [category, { count, highlights: tied }] of leaders) {

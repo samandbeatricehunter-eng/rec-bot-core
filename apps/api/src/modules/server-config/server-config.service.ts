@@ -7,13 +7,11 @@ type SetServerConfigInput = {
   guildId: string;
   pendingEconomyChannelId?: string | null;
   boxScoresChannelId?: string | null;
-  headlinesChannelId?: string | null;
   powerRankingsChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   streamsChannelId?: string | null;
   highlightsChannelId?: string | null;
   announcementsChannelId?: string | null;
-  votingPollsChannelId?: string | null;
   commissionerRoleId?: string | null;
   compCommitteeRoleId?: string | null;
 };

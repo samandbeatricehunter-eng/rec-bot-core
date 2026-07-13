@@ -23,6 +23,8 @@ import type {
   ManualScoreRecordResult,
   MentionableList,
   WeeklyH2hGamesResponse,
+  HubReactionKey,
+  HubResponse,
   OpenTeamsResponse,
   RoleMgmtMember,
   RoleMgmtRoleKey,
@@ -58,7 +60,7 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
     },
   });
   if (response.status === 401) {
-    throw new Error("Your session has expired — reopen the dashboard from Discord's League Mgmt menu.");
+    throw new Error("Your session has expired — run /hub again in Discord.");
   }
   if (!response.ok) {
     const body = await response.text().catch(() => "");
@@ -68,6 +70,11 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
 }
 
 export const recApi = {
+  getHub: (guildId: string) =>
+    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
+  toggleHubHighlightReaction: (input: { guildId: string; highlightId: string; reactionKey: HubReactionKey }) =>
+    recApiFetch<{ ok: true }>("/v1/hub/highlights/react", { method: "POST", body: JSON.stringify(input) }),
+
   // Schedule
   listScheduleTeams: (guildId: string) =>
     recApiFetch<{ teams: ScheduleTeam[] }>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),

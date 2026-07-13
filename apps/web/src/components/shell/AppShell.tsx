@@ -14,11 +14,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const auth = useAuth();
   const isHome = location.pathname === "/";
+  const isLeagueMgmt = location.pathname.startsWith("/league-mgmt");
   const [notificationCount, setNotificationCount] = useState(0);
   const [headerSummary, setHeaderSummary] = useState<LeagueHeaderSummary | null>(null);
 
   useEffect(() => {
-    if (auth.status !== "ready") return;
+    if (auth.status !== "ready" || !isLeagueMgmt) { setNotificationCount(0); return; }
     let cancelled = false;
     function load() {
       if (auth.status !== "ready") return;
@@ -30,7 +31,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     load();
     const interval = setInterval(load, NOTIFICATION_POLL_MS);
     return () => { cancelled = true; clearInterval(interval); };
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, isLeagueMgmt]);
 
   // League identity (name/password/season/week/team-count) doesn't change second-to-second
   // like notifications do — fetch once per mount, no polling.
@@ -91,12 +92,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           )}
           <div style={{ marginLeft: "auto" }}>
-            {auth.status === "ready" && <NotificationBell count={notificationCount} />}
+            {auth.status === "ready" && isLeagueMgmt && <NotificationBell count={notificationCount} />}
           </div>
         </header>
         <main>{children}</main>
       </div>
-      {headerSummary?.isGuildOwner && (
+      {isLeagueMgmt && headerSummary?.isGuildOwner && (
         <button
           onClick={() => navigate("/league-mgmt/delete-league")}
           className="delete-league-fab"

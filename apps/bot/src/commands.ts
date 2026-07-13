@@ -3,12 +3,8 @@ import { env } from "./config/env.js";
 
 export const commands = [
   new SlashCommandBuilder()
-    .setName("menu")
-    .setDescription("Open REC League HQ.")
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("league-mgmt")
-    .setDescription("Open the League Mgmt web dashboard (commissioners and co-commissioners only).")
+    .setName("hub")
+    .setDescription("Open the REC League Hub.")
     .toJSON()
 ];
 

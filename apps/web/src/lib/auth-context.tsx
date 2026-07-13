@@ -33,19 +33,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = readTokenFromUrl();
     if (!token) {
-      setState({ status: "error", message: "This link is missing or invalid — open the dashboard again from Discord's League Mgmt menu." });
+      setState({ status: "error", message: "This link is missing or invalid — run /hub again in Discord." });
       return;
     }
     try {
       const payload = decodeJwtPayload<{ discordId: string; guildId: string; exp: number }>(token);
       if (payload.exp * 1000 < Date.now()) {
-        setState({ status: "error", message: "This link has expired — open the dashboard again from Discord's League Mgmt menu." });
+        setState({ status: "error", message: "This link has expired — run /hub again in Discord." });
         return;
       }
       setAuthToken(token);
       setState({ status: "ready", discordId: payload.discordId, guildId: payload.guildId });
     } catch {
-      setState({ status: "error", message: "This link is malformed — open the dashboard again from Discord's League Mgmt menu." });
+      setState({ status: "error", message: "This link is malformed — run /hub again in Discord." });
     }
   }, []);
 

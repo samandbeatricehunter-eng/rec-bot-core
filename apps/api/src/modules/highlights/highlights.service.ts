@@ -302,9 +302,27 @@ export async function listHighlightAwardCandidates(guildId: string) {
     .limit(1);
   if (existingAwards.error) throw new ApiError(500, "Failed to check POTY finalization.", existingAwards.error);
 
+  const highlightIds = (data ?? []).map((highlight: any) => highlight.id);
+  const webReactions = highlightIds.length
+    ? await supabase
+        .from("rec_highlight_reactions")
+        .select("highlight_post_id,reaction_key")
+        .in("highlight_post_id", highlightIds)
+        .in("reaction_key", ["TOTY", "COTY", "ROTY", "IOTY", "HOTY"])
+    : { data: [], error: null };
+  if (webReactions.error) throw new ApiError(500, "Failed to load League Hub award votes.", webReactions.error);
+
   return {
     league: { id: context.leagueId, seasonNumber, announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null },
-    highlights: data ?? [],
+    highlights: (data ?? []).map((highlight: any) => ({
+      ...highlight,
+      webReactionCounts: Object.fromEntries(
+        ["TOTY", "COTY", "ROTY", "IOTY", "HOTY"].map((key) => [
+          key,
+          (webReactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === highlight.id && reaction.reaction_key === key).length,
+        ]),
+      ),
+    })),
     alreadyFinalized: (existingAwards.data ?? []).length > 0,
   };
 }

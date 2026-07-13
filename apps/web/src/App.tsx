@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
 import { AppShell } from "./components/shell/AppShell.js";
@@ -12,6 +13,8 @@ import { DeleteLeagueHome } from "./routes/league-mgmt/delete-league/DeleteLeagu
 import { SettingsHome } from "./routes/league-mgmt/settings/SettingsHome.js";
 import { AdvanceHome } from "./routes/league-mgmt/advance/AdvanceHome.js";
 import { CommissionerChatHome } from "./routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
+import { HubHome } from "./routes/hub/HubHome.js";
+import { recApi } from "./lib/rec-api-client.js";
 
 // This dashboard is only ever reached one way: an authorized user clicks "Open Web
 // Dashboard" in Discord's League Mgmt panel, which opens this app in a normal browser tab
@@ -24,6 +27,24 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LeagueMgmtGate({ children }: { children: React.ReactNode }) {
+  const auth = useAuth();
+  const [access, setAccess] = useState<"loading" | "allowed" | "denied">("loading");
+  useEffect(() => {
+    if (auth.status !== "ready") return;
+    let cancelled = false;
+    recApi.getHub(auth.guildId)
+      .then((hub) => { if (!cancelled) setAccess(hub.canManageLeague ? "allowed" : "denied"); })
+      .catch(() => { if (!cancelled) setAccess("denied"); });
+    return () => { cancelled = true; };
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
+  if (access === "loading") return <div className="hub-state"><h1>Checking league permissions…</h1></div>;
+  if (access === "denied") return <div className="hub-state"><h1>League Management is restricted</h1><p>Only commissioners and co-commissioners can open this area.</p></div>;
+  return <>{children}</>;
+}
+
+const managed = (page: React.ReactNode) => <LeagueMgmtGate>{page}</LeagueMgmtGate>;
+
 export default function App() {
   return (
     <AuthProvider>
@@ -31,17 +52,18 @@ export default function App() {
         <AuthGate>
           <AppShell>
             <Routes>
-              <Route path="/" element={<LeagueMgmtHome />} />
-              <Route path="/league-mgmt/notifications" element={<NotificationsHome />} />
-              <Route path="/league-mgmt/manage-league" element={<ManageLeagueHome />} />
-              <Route path="/league-mgmt/manage-league/roles" element={<RolesHome />} />
-              <Route path="/league-mgmt/manage-league/teams" element={<TeamOwnershipTable />} />
-              <Route path="/league-mgmt/manage-league/teams/link" element={<LinkTeamForm />} />
-              <Route path="/league-mgmt/manage-league/:teamId" element={<TeamScheduleForm />} />
-              <Route path="/league-mgmt/delete-league" element={<DeleteLeagueHome />} />
-              <Route path="/league-mgmt/settings" element={<SettingsHome />} />
-              <Route path="/league-mgmt/advance" element={<AdvanceHome />} />
-              <Route path="/league-mgmt/commissioner-chat" element={<CommissionerChatHome />} />
+              <Route path="/" element={<HubHome />} />
+              <Route path="/league-mgmt" element={managed(<LeagueMgmtHome />)} />
+              <Route path="/league-mgmt/notifications" element={managed(<NotificationsHome />)} />
+              <Route path="/league-mgmt/manage-league" element={managed(<ManageLeagueHome />)} />
+              <Route path="/league-mgmt/manage-league/roles" element={managed(<RolesHome />)} />
+              <Route path="/league-mgmt/manage-league/teams" element={managed(<TeamOwnershipTable />)} />
+              <Route path="/league-mgmt/manage-league/teams/link" element={managed(<LinkTeamForm />)} />
+              <Route path="/league-mgmt/manage-league/:teamId" element={managed(<TeamScheduleForm />)} />
+              <Route path="/league-mgmt/delete-league" element={managed(<DeleteLeagueHome />)} />
+              <Route path="/league-mgmt/settings" element={managed(<SettingsHome />)} />
+              <Route path="/league-mgmt/advance" element={managed(<AdvanceHome />)} />
+              <Route path="/league-mgmt/commissioner-chat" element={managed(<CommissionerChatHome />)} />
             </Routes>
           </AppShell>
         </AuthGate>

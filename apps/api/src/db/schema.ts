@@ -124,9 +124,7 @@ export const recServerRoutes = pgTable("rec_server_routes", {
   highlightsChannelId: text("highlights_channel_id"),
   commissionerRoleId: text("commissioner_role_id"),
   compCommitteeRoleId: text("comp_committee_role_id"),
-  votingPollsChannelId: text("voting_polls_channel_id"),
   boxScoresChannelId: text("box_scores_channel_id"),
-  headlinesChannelId: text("headlines_channel_id"),
   powerRankingsChannelId: text("power_rankings_channel_id")
 });
 
@@ -1297,6 +1295,27 @@ export const recHighlightPosts = pgTable("rec_highlight_posts", {
   payoutIssued: boolean("payout_issued").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
+});
+
+export const recHubAnnouncements = pgTable("rec_hub_announcements", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  seasonNumber: integer("season_number"),
+  weekNumber: integer("week_number"),
+  discordChannelId: text("discord_channel_id"),
+  discordMessageId: text("discord_message_id"),
+  publishedAt: timestamp("published_at", { withTimezone: true, mode: "string" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
+export const recHighlightReactions = pgTable("rec_highlight_reactions", {
+  id: uuid("id").primaryKey(),
+  highlightPostId: uuid("highlight_post_id").notNull().references(() => recHighlightPosts.id),
+  userId: uuid("user_id").notNull().references(() => recUsers.id),
+  reactionKey: text("reaction_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
 });
 
 export const recPotyNominations = pgTable("rec_poty_nominations", {

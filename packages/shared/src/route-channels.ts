@@ -4,20 +4,10 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "announcementsChannelId",
     dbField: "announcements_channel_id",
   },
-  headlines: {
-    label: "Headlines",
-    inputField: "headlinesChannelId",
-    dbField: "headlines_channel_id",
-  },
   power_rankings: {
     label: "Power Rankings",
     inputField: "powerRankingsChannelId",
     dbField: "power_rankings_channel_id",
-  },
-  voting_polls: {
-    label: "Voting Polls",
-    inputField: "votingPollsChannelId",
-    dbField: "voting_polls_channel_id",
   },
   streams: {
     label: "Streams",

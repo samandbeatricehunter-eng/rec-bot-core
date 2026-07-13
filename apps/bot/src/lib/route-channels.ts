@@ -21,7 +21,31 @@ export async function fetchRoutedTextChannel(guild: Guild, channelId?: string | 
 }
 
 export async function getAnnouncementsChannel(guild: Guild, routes: ServerRoutes) {
-  return fetchRoutedTextChannel(guild, routes.announcements_channel_id);
+  const channel = await fetchRoutedTextChannel(guild, routes.announcements_channel_id);
+  if (!channel) return null;
+
+  // Every bot post sent through the announcements route is mirrored into the Hub feed.
+  // The DB write is deliberately non-fatal: Discord delivery should still succeed if the
+  // web feed is temporarily unavailable.
+  return new Proxy(channel, {
+    get(target, property) {
+      if (property === "send") {
+        return async (payload: any) => {
+          const message = await target.send(payload);
+          const embed = typeof payload === "object" && Array.isArray(payload?.embeds) ? payload.embeds[0] : null;
+          const embedJson = embed?.toJSON ? embed.toJSON() : embed?.data ?? embed ?? {};
+          const title = String(embedJson?.title ?? "League Announcement");
+          const body = String(embedJson?.description ?? (typeof payload === "string" ? payload : payload?.content ?? "League update")).replace(/^@everyone\s*/i, "").trim();
+          void recApi.recordHubAnnouncement({ guildId: guild.id, title, body, discordChannelId: message.channelId, discordMessageId: message.id }).catch((error) => {
+            console.error("[ERROR] Failed to mirror Discord announcement to League Hub (non-fatal):", error);
+          });
+          return message;
+        };
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }
 
 export async function getHeadlinesChannel(guild: Guild, routes: ServerRoutes) {

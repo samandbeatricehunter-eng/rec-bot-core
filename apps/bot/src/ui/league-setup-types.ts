@@ -291,9 +291,7 @@ export type LeagueSetupDraft = {
   fairSimRequirements: string;
   forceWinRequirements: string;
   announcementsChannelId?: string | null;
-  headlinesChannelId?: string | null;
   powerRankingsChannelId?: string | null;
-  votingPollsChannelId?: string | null;
   streamsChannelId?: string | null;
   highlightsChannelId?: string | null;
   boxScoresChannelId?: string | null;
@@ -476,9 +474,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     fairSimRequirements: "Fair Sims are the default for any game where users fail to schedule their game prior to advance time.",
     forceWinRequirements: "Force Wins can be requested if users agree to a scheduled time and one fails to appear within 1 hour of the elapsed game time.",
     announcementsChannelId: null,
-    headlinesChannelId: null,
     powerRankingsChannelId: null,
-    votingPollsChannelId: null,
     streamsChannelId: null,
     highlightsChannelId: null,
     boxScoresChannelId: null,

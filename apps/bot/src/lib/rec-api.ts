@@ -26,6 +26,8 @@ export const recApi = {
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),
   mintWebSession: (input: { guildId: string; discordId: string; username: string; globalName: string | null }) =>
     recFetch<{ token: string; expiresInSeconds: number }>(REC_API_ROUTES.webSessionMint, { method: "POST", body: JSON.stringify(input) }),
+  recordHubAnnouncement: (input: { guildId: string; title: string; body: string; discordChannelId?: string | null; discordMessageId?: string | null }) =>
+    recFetch<{ recorded: boolean }>("/v1/hub/announcements/record", { method: "POST", body: JSON.stringify(input) }),
   getWallet: (discordId: string, guildId?: string) => recFetch<any>(`/v1/users/${discordId}/wallet${guildId ? `?guildId=${guildId}` : ""}`),
   transferSavings: (discordId: string, amount: number, direction: "to_savings" | "from_savings") =>
     recFetch<any>(`/v1/users/${discordId}/wallet/transfer`, { method: "POST", body: JSON.stringify({ amount, direction }) }),
@@ -141,13 +143,11 @@ export const recApi = {
     guildId: string;
     pendingEconomyChannelId?: string;
     boxScoresChannelId?: string;
-    headlinesChannelId?: string;
     powerRankingsChannelId?: string;
     gameChannelsCategoryId?: string;
     streamsChannelId?: string;
     highlightsChannelId?: string;
     announcementsChannelId?: string;
-    votingPollsChannelId?: string;
     commissionerRoleId?: string;
     compCommitteeRoleId?: string;
   }) =>

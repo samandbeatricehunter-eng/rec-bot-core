@@ -253,6 +253,21 @@ export type AdvanceDmPreview = {
 
 // Commissioner Chat + Voting
 export type ChatMessage = { id: string; author_discord_id: string; author_display_name: string | null; body: string; created_at: string };
+
+export type HubReactionKey = "like" | "dislike" | "TOTY" | "COTY" | "ROTY" | "IOTY" | "HOTY";
+export type HubResponse = {
+  league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string };
+  canManageLeague: boolean;
+  announcements: Array<{ id: string; title: string; body: string; season_number: number | null; week_number: number | null; published_at: string }>;
+  headlines: Array<{ id: string; season: number; week: number; headline: string | null; body: string | null; primary_angle: string | null; created_at: string }>;
+  matchups: WeeklyH2hGamesResponse;
+  myTeam: any;
+  highlights: Array<{
+    id: string; season_number: number; week_number: number; message_url: string | null; content: string | null; created_at: string;
+    videoUrl: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
+    reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
+  }>;
+};
 export type ChatTopic = {
   id: string;
   title: string;
