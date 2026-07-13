@@ -363,8 +363,8 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
     .map((a) => a.url);
   if (images.length === 0) return false;
 
-  // Don't delete the message yet — the Discord CDN URL expires once the message is
-  // deleted, and Tesseract OCR can take 15-30s. We delete after submission completes.
+  // Keep the original message. The API re-hosts the image for commissioner review,
+  // and the bot acknowledges this exact post after parsing completes.
   commissionerSubmissionSessions.delete(key);
 
   if (images.length !== 1) {
@@ -375,10 +375,6 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
     }).catch(() => undefined);
     return true;
   }
-
-  const working = await channel.send({
-    embeds: [new EmbedBuilder().setTitle("Reading box score...").setDescription(`Validating ${session.gameLabel} for Week ${session.weekNumber}.`)],
-  }).catch(() => null);
 
   try {
     // OCR misses no longer block: any unread field is flagged with "?" on the
@@ -395,39 +391,10 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
       commissionerSubmission: true,
     });
 
-    // Image is no longer needed — delete the message now that submission is saved.
-    await message.delete().catch(() => undefined);
-
-    const routes = await getGuildRoutes(session.guildId);
-    const payoutsChannelId: string | null = routes?.pending_payouts_channel_id ?? null;
-    let posted = false;
-    if (payoutsChannelId) {
-      const ch = await channel.client.channels.fetch(payoutsChannelId).catch(() => null);
-      if (ch && ch.isTextBased() && !ch.isDMBased()) {
-        const payoutsCh = ch as TextChannel;
-        // Delete any superseded pending-payouts embeds for this game before posting the new one.
-        for (const oldMsgId of result.supersededLedgerMessageIds ?? []) {
-          await payoutsCh.messages.delete(oldMsgId).catch(() => undefined);
-        }
-        const newMsg = await payoutsCh.send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
-        posted = true;
-        // Store the new message ID so future re-uploads can delete this embed too.
-        await recApi.updateBoxScoreLedgerMessage({ submissionId: result.submissionId, ledgerDiscordMessageId: newMsg.id }).catch(() => undefined);
-      }
-    }
-
-    await working?.edit({
-      embeds: [new EmbedBuilder()
-        .setTitle("Box Score Submitted")
-        .setColor(COLORS.success)
-        .setDescription(`Parsed ${session.gameLabel} and sent it to Commissioner Notifications for approval.`)],
-      components: [],
-    }).catch(() => undefined);
+    void result;
+    await message.react("✅").catch(() => undefined);
   } catch (err) {
-    await message.delete().catch(() => undefined);
-    await working?.edit({
-      embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(COLORS.error).setDescription(userFacingError(err))],
-    }).catch(() => undefined);
+    await message.reply({ embeds: [new EmbedBuilder().setTitle("Box Score Submission Failed").setColor(COLORS.error).setDescription(userFacingError(err))] }).catch(() => undefined);
   }
   return true;
 }
@@ -439,12 +406,6 @@ async function advanceExchange(ex: Exchange) {
     ex.botMessageIds = [];
   }
   if (ex.timer) { clearTimeout(ex.timer); ex.timer = null; }
-
-  // Parse (stateless — no DB write yet).
-  const working = await ex.channel.send({
-    embeds: [new EmbedBuilder().setTitle("Reading box score…").setDescription("Running OCR on your screenshot. This can take up to a minute or two, especially when others are submitting at the same time.")],
-  }).catch(() => null);
-  if (working) ex.botMessageIds.push(working.id);
 
   // OCR misses no longer block: submit immediately, flag any unread cell with "?"
   // on the payout, and let a commissioner repair it via Corrections. submitBoxScore
@@ -472,56 +433,13 @@ async function advanceExchange(ex: Exchange) {
     return;
   }
 
-  await deleteMessages(ex.channel, ex.botMessageIds);
+  const sourceMessageId = ex.userMessageIds[0] ?? null;
   ex.botMessageIds = [];
-  ex.userMessageIds = [];
   exchanges.delete(exKey(ex.guildId, ex.userId));
-
-  const routes = await getGuildRoutes(ex.guildId);
-  const payoutsChannelId: string | null = routes?.pending_payouts_channel_id ?? null;
-
-  const ledgerMsg = await ex.channel.send({
-    content: `<@${ex.userId}>`,
-    embeds: [buildPayoutReviewEmbed(result)],
-  }).catch(() => null);
-
-  if (ledgerMsg?.id) {
-    await recApi.updateBoxScoreLedgerMessage({
-      submissionId: result.submissionId,
-      ledgerDiscordMessageId: ledgerMsg.id,
-    }).catch(() => undefined);
-  }
-
-  if (payoutsChannelId) {
-    try {
-      const ch = await ex.channel.client.channels.fetch(payoutsChannelId);
-      if (ch && ch.isTextBased() && !ch.isDMBased()) {
-        const payoutsCh = ch as TextChannel;
-        for (const oldMsgId of result.supersededLedgerMessageIds ?? []) {
-          await payoutsCh.messages.delete(oldMsgId).catch(() => undefined);
-        }
-        await payoutsCh.send({ embeds: [buildPayoutReviewEmbed(result)], components: buildPayoutReviewRows(result.submissionId) });
-      }
-    } catch {
-      /* pending payouts channel unavailable */
-    }
-  }
-
-  const flagged: boolean = !!result.flagged;
-  if (flagged) {
-    const roleId: string | null = routes?.commissioner_role_id ?? null;
-    const reasons: string[] = result.flagReasons ?? [];
-    await ex.channel.send({
-      content: roleId ? `<@&${roleId}>` : undefined,
-      embeds: [new EmbedBuilder()
-        .setTitle("⚠️ Box score flagged for review")
-        .setColor(COLORS.warning)
-        .setDescription(
-          `<@${ex.userId}>'s box score couldn't be auto-verified:\n\n${reasons.map((r) => `• ${r}`).join("\n")}\n\n` +
-          "A commissioner should confirm this matchup before approving the payout."
-        )],
-      allowedMentions: roleId ? { roles: [roleId] } : { parse: [] },
-    }).catch(() => undefined);
+  void result;
+  if (sourceMessageId) {
+    const sourceMessage = await ex.channel.messages.fetch(sourceMessageId).catch(() => null);
+    await sourceMessage?.react("✅").catch(() => undefined);
   }
 }
 

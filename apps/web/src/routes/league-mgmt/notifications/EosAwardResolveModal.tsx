@@ -64,7 +64,7 @@ export function EosAwardResolveModal({
             {poll.nominee_payloads.map((nominee, index) => (
               <div key={index} className="form-field" style={{ marginBottom: 0 }}>
                 <label className="form-label" htmlFor={`vote-${index}`}>
-                  {nominee.teamName} {nominee.discordId ? `— <@${nominee.discordId}>` : ""} ({nominee.record}, {nominee.detail ?? `PD ${nominee.pointDifferential}`})
+                  {nominee.teamName} — {nominee.displayName ?? "REC Member"} ({nominee.record}, {nominee.detail ?? `PD ${nominee.pointDifferential}`})
                 </label>
                 <input
                   id={`vote-${index}`}

@@ -157,7 +157,7 @@ export function CommissionerChatHome() {
             {messages.map((m) => (
               <div key={m.id}>
                 <span style={{ color: m.author_discord_id === discordId ? "var(--gold)" : "var(--text-secondary)", fontWeight: 700, fontSize: "var(--text-xs)" }}>
-                  {m.author_display_name ?? `<@${m.author_discord_id}>`}
+                  {m.author_display_name ?? "REC Member"}
                 </span>{" "}
                 <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>{new Date(m.created_at).toLocaleTimeString()}</span>
                 <p style={{ margin: "2px 0 0" }}>{renderMessageWithMentions(m.body, mentionable)}</p>

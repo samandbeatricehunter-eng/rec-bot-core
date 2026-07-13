@@ -30,7 +30,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
     load();
     const interval = setInterval(load, NOTIFICATION_POLL_MS);
-    return () => { cancelled = true; clearInterval(interval); };
+    window.addEventListener("rec:notifications-changed", load);
+    return () => { cancelled = true; clearInterval(interval); window.removeEventListener("rec:notifications-changed", load); };
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, isLeagueMgmt]);
 
   // League identity (name/password/season/week/team-count) doesn't change second-to-second

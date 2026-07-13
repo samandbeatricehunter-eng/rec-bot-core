@@ -151,8 +151,15 @@ export async function boxScoreRoutes(app: FastifyInstance) {
   // Commissioner correction of a pending submission's logged fields
   app.post("/v1/box-score/correct", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await correctBoxScoreSubmission(CorrectSchema.parse(request.body)));
+      const auth = await resolveBotOrUserAuth(request);
+      const input = CorrectSchema.parse(request.body);
+      if (auth.mode === "user") {
+        await assertGuildPermission(auth.guildId, auth.discordId, "co_commissioner");
+        const submission = await getBoxScoreSubmission(input.submissionId);
+        await assertSubmissionInSessionGuild(auth.guildId, (submission as { league_id: string }).league_id);
+        input.reviewedByDiscordId = auth.discordId;
+      }
+      return reply.send(await correctBoxScoreSubmission(input));
     } catch (error) {
       return sendError(reply, error);
     }

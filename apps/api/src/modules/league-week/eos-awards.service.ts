@@ -26,6 +26,7 @@ function awardLabel(key: AwardKey, game: string | null): string {
 type Nominee = {
   userId: string;
   discordId: string | null;
+  displayName: string;
   teamId: string;
   teamName: string;
   record: string;
@@ -57,16 +58,21 @@ async function linkedTeams(leagueId: string) {
 
   const userIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))];
   const accounts = userIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name,user:rec_users(display_name)").in("user_id", userIds)
     : { data: [], error: null };
   if (accounts.error) throw new ApiError(500, "Failed to load Discord accounts for EOS awards.", accounts.error);
   const discordByUser = new Map((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+  const nameByUser = new Map<string, string>((accounts.data ?? []).map((row: any): [string, string] => {
+    const user = Array.isArray(row.user) ? row.user[0] : row.user;
+    return [row.user_id, user?.display_name || row.global_name || row.username || "REC Member"];
+  }));
 
   return (assignments.data ?? []).map((row: any) => ({
     userId: row.user_id,
     teamId: row.team_id,
     teamName: teamName(row.team),
     discordId: discordByUser.get(row.user_id) ?? null,
+    displayName: nameByUser.get(row.user_id) ?? "REC Member",
   })).filter((row) => row.userId && row.teamId);
 }
 

@@ -95,7 +95,7 @@ export function ActiveCheckReviewModal({
             {candidates.map((c) => (
               <label key={c.discordId} style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                 <input type="checkbox" checked={kept.has(c.discordId)} onChange={() => toggleKeep(c.discordId)} disabled={busy || applied} />
-                <span>{c.teamName} — &lt;@{c.discordId}&gt;</span>
+                <span>{c.label}</span>
               </label>
             ))}
           </div>

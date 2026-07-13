@@ -14,6 +14,7 @@ import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/officia
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
+import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -1144,6 +1145,16 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
         .eq("source_id", input.submissionId),
     ]);
 
+    // Review can happen in Discord or in the web Commissioner Notifications panel.
+    // Deliver the same denial notice from the API so the submitter is notified no
+    // matter which review surface the commissioner used.
+    const league = await supabase.from("rec_leagues").select("name").eq("id", sub.league_id).maybeSingle();
+    const reason = input.deniedReason?.trim() || "No reason was provided.";
+    void sendDiscordDirectMessage(
+      sub.submitted_by_discord_id,
+      `Your Week ${sub.week_number ?? "?"} box score for **${league.data?.name ?? "your REC league"}** was denied.\n\n**Reason:** ${reason}\n\nYou may correct the screenshot and submit it again in the league's box score channel. Open **/hub** to return to the league hub.`,
+    ).catch((dmError) => console.error("[WARN] Failed to DM denied box-score submitter:", dmError));
+
     return { ok: true, action: "denied" as const };
   }
 
@@ -1360,12 +1371,14 @@ function correctionQuarterList(raw: string | null | undefined): number[] {
 }
 
 function correctionStatValue(field: string, raw: string | null | undefined): string {
-  const v = (raw ?? "").replace(/[^0-9]/g, "");
+  const original = (raw ?? "").trim();
+  const v = original.replace(/[^0-9]/g, "");
   if (!v) return "";
   if (field.includes("percentage")) {
     const n = parseInt(v, 10);
     return !isNaN(n) && n >= 0 && n <= 100 ? String(n) : "";
   }
+  if (/^\d+(?:\.\d+)?$/.test(original) || /^\d{1,3}:\d{2}$/.test(original)) return original;
   return String(parseInt(v, 10));
 }
 
@@ -1451,7 +1464,7 @@ export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Pr
       update,
       comebackUpdate(computeComebackStats(scoreLike.team1Quarters, scoreLike.team2Quarters, resolved.team1Id, resolved.team2Id)),
     );
-  } else if (CORRECTABLE_STAT_KEY_SET.has(input.field)) {
+  } else if (CORRECTABLE_STAT_KEY_SET.has(input.field) || Object.prototype.hasOwnProperty.call(sub.team_stats ?? {}, input.field)) {
     const stats = { ...((sub.team_stats as Record<string, { team1: string; team2: string }>) ?? {}) };
     stats[input.field] = {
       team1: correctionStatValue(input.field, input.team1),

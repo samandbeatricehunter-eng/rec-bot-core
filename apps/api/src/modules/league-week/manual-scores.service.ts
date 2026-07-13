@@ -7,6 +7,8 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
+import { randomUUID } from "node:crypto";
 
 const MANUAL_SOURCE = "manual";
 
@@ -98,6 +100,8 @@ export async function recordManualGameResult(input: {
   outcome: "home" | "away" | "tie";
   homeScore?: number | null;
   awayScore?: number | null;
+  submittedByDiscordId?: string | null;
+  manualStats?: { home?: Record<string, any>; away?: Record<string, any> } | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
@@ -159,12 +163,63 @@ export async function recordManualGameResult(input: {
     is_playoff: !isRegularSeasonWeek(weekNumber, context.rec_leagues.game),
     source: MANUAL_SOURCE,
     records_apply_key: `manual:${context.leagueId}:${seasonNumber}:${weekNumber}:${homeTeamId}:${awayTeamId}`,
+    manual_stats: input.manualStats ?? null,
     created_at: now,
     updated_at: now,
   };
 
   const result = await supabase.from("rec_game_results").upsert(row, { onConflict: "records_apply_key", ignoreDuplicates: false });
   if (result.error) throw new ApiError(500, "Failed to save the manual game result.", result.error);
+
+  const homeStats = input.manualStats?.home ?? {};
+  const awayStats = input.manualStats?.away ?? {};
+  const hasManualStats = Object.values(homeStats).some((value) => value !== null && value !== "" && value !== undefined) || Object.values(awayStats).some((value) => value !== null && value !== "" && value !== undefined);
+  if (hasManualStats) {
+    const old = await supabase.from("rec_box_score_submissions").select("id").eq("game_id", input.gameId).eq("entry_method", "manual");
+    const oldIds = (old.data ?? []).map((row: any) => row.id);
+    if (oldIds.length) {
+      await supabase.from("rec_team_game_stats").delete().in("submission_id", oldIds);
+      await supabase.from("rec_box_score_submissions").delete().in("id", oldIds);
+    }
+    const account = input.submittedByDiscordId
+      ? await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.submittedByDiscordId).maybeSingle()
+      : { data: null };
+    const submissionId = randomUUID();
+    const submission = await supabase.from("rec_box_score_submissions").insert({
+      id: submissionId, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber,
+      phase: game.data.phase, submitted_by_discord_id: input.submittedByDiscordId ?? "commissioner-manual-entry",
+      submitted_by_user_id: account.data?.user_id ?? null, discord_guild_id: input.guildId, image_urls: [],
+      home_team_id: homeTeamId, away_team_id: awayTeamId, home_user_id: game.data.home_user_id, away_user_id: game.data.away_user_id,
+      home_score: homeScore, away_score: awayScore, quarter_scores: { home: homeStats.quarterScores ?? [], away: awayStats.quarterScores ?? [] },
+      team_stats: { home: homeStats, away: awayStats }, game_id: input.gameId, parse_warnings: [], status: "approved",
+      reviewed_by_discord_id: input.submittedByDiscordId ?? null, reviewed_at: now, entry_method: "manual", created_at: now, updated_at: now,
+    });
+    if (submission.error) throw new ApiError(500, "Failed to create the manual stat submission.", submission.error);
+
+    const numberOrNull = (value: unknown) => value === "" || value == null ? null : Number(value);
+    const statsRow = (stats: Record<string, any>, opponent: Record<string, any>, side: "home" | "away") => ({
+      id: randomUUID(), league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber, phase: game.data.phase,
+      game_id: input.gameId, submission_id: submissionId,
+      team_id: side === "home" ? homeTeamId : awayTeamId, opponent_team_id: side === "home" ? awayTeamId : homeTeamId,
+      user_id: side === "home" ? game.data.home_user_id : game.data.away_user_id, opponent_user_id: side === "home" ? game.data.away_user_id : game.data.home_user_id,
+      is_home: side === "home", result: isTie ? "tie" : (side === input.outcome ? "win" : "loss"),
+      points_for: side === "home" ? homeScore : awayScore, points_against: side === "home" ? awayScore : homeScore,
+      off_yards_gained: numberOrNull(stats.offYardsGained), off_rush_yards: numberOrNull(stats.offRushYards), off_pass_yards: numberOrNull(stats.offPassYards),
+      off_first_down: numberOrNull(stats.offFirstDown), punt_return_yards: numberOrNull(stats.puntReturnYards), kick_return_yards: numberOrNull(stats.kickReturnYards),
+      total_yards_gained: numberOrNull(stats.totalYardsGained), turnovers_committed: numberOrNull(stats.turnoversCommitted), red_zone_off_percentage: numberOrNull(stats.redZoneOffPercentage),
+      generated_turnovers: numberOrNull(stats.generatedTurnovers ?? opponent.turnoversCommitted), yards_allowed: numberOrNull(stats.yardsAllowed ?? opponent.offYardsGained),
+      rush_yards_allowed: numberOrNull(stats.rushYardsAllowed ?? opponent.offRushYards), pass_yards_allowed: numberOrNull(stats.passYardsAllowed ?? opponent.offPassYards),
+      first_downs_allowed: numberOrNull(stats.firstDownsAllowed ?? opponent.offFirstDown), red_zone_def_percentage: numberOrNull(stats.redZoneDefPercentage),
+      comeback_deficit: numberOrNull(stats.comebackDeficit), comeback_deficit_quarter: numberOrNull(stats.comebackDeficitQuarter), comeback_rate: numberOrNull(stats.comebackRate),
+      fourth_quarter_comeback: Boolean(stats.fourthQuarterComeback), quarter_scores: stats.quarterScores ?? null,
+      offensive_stats: { third_down_conversions: numberOrNull(stats.thirdDownConversions), fourth_down_conversions: numberOrNull(stats.fourthDownConversions), two_point_conversions: numberOrNull(stats.twoPointConversions) },
+      defensive_stats: { third_down_conversions: numberOrNull(opponent.thirdDownConversions), fourth_down_conversions: numberOrNull(opponent.fourthDownConversions), two_point_conversions: numberOrNull(opponent.twoPointConversions), red_zone_off_percentage: numberOrNull(opponent.redZoneOffPercentage) },
+      created_at: now,
+    });
+    const statsInsert = await supabase.from("rec_team_game_stats").insert([statsRow(homeStats, awayStats, "home"), statsRow(awayStats, homeStats, "away")]);
+    if (statsInsert.error) throw new ApiError(500, "Failed to save the manually entered team stats.", statsInsert.error);
+    await processGameIntelligence({ id: submissionId, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber, game_id: input.gameId });
+  }
 
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
     console.error("[ERROR] rebuildSeasonDisplayRecords failed after manual score entry (non-fatal):", err);

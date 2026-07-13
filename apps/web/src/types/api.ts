@@ -98,11 +98,17 @@ export type PendingBoxScore = {
 };
 
 export type BoxScoreSubmissionDetail = PendingBoxScore & {
-  league_id: string;
-  status: string;
-  team_stats: Record<string, unknown> | null;
-  quarter_scores: unknown;
-};
+    league_id: string;
+    status: string;
+    team_stats: Record<string, { team1?: string | number | null; team2?: string | number | null }> | null;
+    quarter_scores: { team1?: number[]; team2?: number[] } | null;
+    team1_id: string | null;
+    team2_id: string | null;
+    home_team_id: string | null;
+    away_team_id: string | null;
+    parse_warnings: string[] | null;
+    flag_reasons: string[] | null;
+  };
 
 // Schedule builder: upload + OCR-submit flow (1c)
 export type UploadImageResponse = { url: string };
@@ -162,6 +168,7 @@ export type CommissionerNotification = {
   subtitle: string;
   amount: number | null;
   submittedBy: string | null;
+  submittedByName: string | null;
   submittedAt: string;
   // teamId lets a box_score card deep-link straight into the schedule builder instead of a
   // standalone detail view (see 1c/1d consolidation) — null for every other type today,
@@ -174,6 +181,15 @@ export type CommissionerNotification = {
   payload: Record<string, unknown> | null;
 };
 export type CommissionerNotificationsResponse = { notifications: CommissionerNotification[] };
+export type CompletedCommissionerTransaction = CommissionerNotification & {
+  status: string;
+  statusLabel: string;
+  reviewedBy: string | null;
+  reviewedByName: string | null;
+  completedAt: string;
+  details: Array<{ label: string; value: string }>;
+};
+export type CompletedCommissionerTransactionsResponse = { transactions: CompletedCommissionerTransaction[] };
 
 // Active Check resolve view (notification center)
 export type ActiveCheckCandidate = { discordId: string; userId: string; teamId: string; teamName: string; label: string };
@@ -184,7 +200,7 @@ export type ActiveCheckReview = {
 };
 
 // EOS Award resolve view (notification center)
-export type EosAwardNominee = { userId: string; discordId: string | null; teamId: string; teamName: string; record: string; pointDifferential: number; metric?: number; detail?: string };
+export type EosAwardNominee = { userId: string; discordId: string | null; displayName?: string; teamId: string; teamName: string; record: string; pointDifferential: number; metric?: number; detail?: string };
 export type EosAwardPoll = {
   id: string;
   league_id: string;
@@ -258,14 +274,15 @@ export type HubReactionKey = "like" | "dislike" | "TOTY" | "COTY" | "ROTY" | "IO
 export type HubResponse = {
   league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string };
   canManageLeague: boolean;
+  store: { enabled: boolean; cfbSeasonOneLocked: boolean; products: Array<{ type: "age_reset" | "dev_upgrade" | "contract" | "player_trait" | "attribute" | "legend" | "custom_player"; label: string; locked: boolean }> };
   announcements: Array<{ id: string; title: string; body: string; season_number: number | null; week_number: number | null; published_at: string }>;
-  headlines: Array<{ id: string; season: number; week: number; headline: string | null; body: string | null; primary_angle: string | null; created_at: string }>;
+  headlines: Array<{ id: string; season: number; week: number; headline: string | null; body: string | null; primary_angle: string | null; story_type: "headline" | "article" | "game_article"; notes: string[] | null; roundtable: Array<{ speaker: string; role: string; take: string }> | null; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null; commentCount: number; created_at: string }>;
   matchups: WeeklyH2hGamesResponse;
   myTeam: any;
   highlights: Array<{
-    id: string; season_number: number; week_number: number; message_url: string | null; content: string | null; created_at: string;
+    id: string; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
     videoUrl: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
-    reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
+    viewCount: number; reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
   }>;
 };
 export type ChatTopic = {
@@ -287,8 +304,11 @@ export type WeeklyH2hGame = {
   awayTeamName: string;
   status: "missing" | "awaiting_review" | "final";
   result: { homeScore: number; awayScore: number; isTie: boolean; winnerTeamName: string | null } | null;
+  reactionCounts: { like: number; dislike: number };
+  myReaction: "like" | "dislike" | null;
 };
 export type WeeklyH2hGamesResponse = { weekLabel: string; games: WeeklyH2hGame[] };
+export type StoryComment = { id: string; body: string; authorName: string; created_at: string };
 
 export type MentionableCommissioner = { discordId: string; displayName: string };
 export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };

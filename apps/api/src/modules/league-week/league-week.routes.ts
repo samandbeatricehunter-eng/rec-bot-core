@@ -181,14 +181,27 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/manual-scores/record", async (request, reply) => {
     try {
+      const OptionalStat = z.number().min(0).max(100000).optional().nullable();
+      const TeamManualStats = z.object({
+        offYardsGained: OptionalStat, offRushYards: OptionalStat, offPassYards: OptionalStat, offFirstDown: OptionalStat,
+        puntReturnYards: OptionalStat, kickReturnYards: OptionalStat, totalYardsGained: OptionalStat, turnoversCommitted: OptionalStat,
+        redZoneOffPercentage: z.number().min(0).max(100).optional().nullable(), generatedTurnovers: OptionalStat, yardsAllowed: OptionalStat,
+        rushYardsAllowed: OptionalStat, passYardsAllowed: OptionalStat, firstDownsAllowed: OptionalStat, redZoneDefPercentage: z.number().min(0).max(100).optional().nullable(),
+        thirdDownConversions: OptionalStat, fourthDownConversions: OptionalStat, twoPointConversions: OptionalStat,
+        comebackDeficit: OptionalStat, comebackDeficitQuarter: z.number().int().min(1).max(5).optional().nullable(), comebackRate: OptionalStat,
+        fourthQuarterComeback: z.boolean().optional(), quarterScores: z.array(z.number().int().min(0).max(100)).max(8).optional(),
+      });
       const body = z.object({
         guildId: z.string().min(1),
         gameId: z.string().uuid(),
         outcome: z.enum(["home", "away", "tie"]),
         homeScore: z.number().int().min(0).max(200).optional().nullable(),
         awayScore: z.number().int().min(0).max(200).optional().nullable(),
+        submittedByDiscordId: z.string().optional().nullable(),
+        manualStats: z.object({ home: TeamManualStats.optional(), away: TeamManualStats.optional() }).optional().nullable(),
       }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "user") body.submittedByDiscordId = auth.discordId;
       return reply.send(await recordManualGameResult(body));
     } catch (error) {
       return sendError(reply, error);

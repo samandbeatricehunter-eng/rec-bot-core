@@ -13,6 +13,7 @@ import { DeleteLeagueHome } from "./routes/league-mgmt/delete-league/DeleteLeagu
 import { SettingsHome } from "./routes/league-mgmt/settings/SettingsHome.js";
 import { AdvanceHome } from "./routes/league-mgmt/advance/AdvanceHome.js";
 import { CommissionerChatHome } from "./routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
+import { PublishingHome } from "./routes/league-mgmt/publishing/PublishingHome.js";
 import { HubHome } from "./routes/hub/HubHome.js";
 import { recApi } from "./lib/rec-api-client.js";
 
@@ -64,6 +65,7 @@ export default function App() {
               <Route path="/league-mgmt/settings" element={managed(<SettingsHome />)} />
               <Route path="/league-mgmt/advance" element={managed(<AdvanceHome />)} />
               <Route path="/league-mgmt/commissioner-chat" element={managed(<CommissionerChatHome />)} />
+              <Route path="/league-mgmt/publishing" element={managed(<PublishingHome />)} />
             </Routes>
           </AppShell>
         </AuthGate>

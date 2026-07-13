@@ -27,6 +27,7 @@ import {
 } from "./badge-rules.js";
 import { computeGameProfile, rowToGameStats, type TeamGameStatsRow } from "./game-profile.js";
 import { generateGameStory } from "./story-angles.js";
+import { buildRoundtableDiscussion } from "../hub/roundtable.js";
 import { type CareerTotals, type GameStats } from "./types.js";
 
 /** The box-score submission row (rec_box_score_submissions). Loosely typed — only a few fields are read. */
@@ -87,6 +88,8 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
       headline: story.headline,
       body: story.body,
       notes: story.notes,
+      story_type: "game_article",
+      roundtable: buildRoundtableDiscussion({ headline: story.headline, body: story.body, notes: story.notes }),
     });
   }
 

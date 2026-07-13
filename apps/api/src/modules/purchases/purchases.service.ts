@@ -20,9 +20,8 @@ const PURCHASE_CONFIG: Record<RecPurchaseType, { enabled: string; seasonCap: str
 // Statuses that count as "active or successful" toward a season cap / all-time metric.
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"] as const;
 
-// CFB 27: rosters can't be touched — no custom recruits, campus legends, dev upgrades, attribute
-// purchases, or trait purchases — until Season 2. Madden has no such restriction.
-const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player", "legend", "dev_upgrade", "attribute", "player_trait"];
+// CFB 27's configured store does not open until Season 2. Madden has no such restriction.
+const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player", "legend", "dev_upgrade", "attribute", "player_trait", "age_reset", "contract"];
 
 function purchaseLabel(type: RecPurchaseType) {
   return REC_PURCHASE_TYPE_LABELS[type] ?? "Purchase";

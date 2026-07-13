@@ -35,8 +35,10 @@ const ReviewPurchaseSchema = z.object({
 export async function purchaseRoutes(app: FastifyInstance) {
   app.post("/v1/purchases/create", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await createPurchaseRequest(CreatePurchaseSchema.parse(request.body)));
+      const body = CreatePurchaseSchema.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await createPurchaseRequest(body));
     } catch (error) {
       return sendError(reply, error);
     }

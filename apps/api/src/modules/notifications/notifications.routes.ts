@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { listCommissionerNotifications, listUnattendedCommissionerNotifications, markCommissionerNotificationsDmSent } from "./notifications.service.js";
+import { listCommissionerNotifications, listCompletedCommissionerTransactions, listUnattendedCommissionerNotifications, markCommissionerNotificationsDmSent } from "./notifications.service.js";
 
 const ListSchema = z.object({
   guildId: z.string().min(1),
@@ -21,6 +21,14 @@ export async function notificationsRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/notifications/completed", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await listCompletedCommissionerTransactions(body.guildId));
+    } catch (error) { return sendError(reply, error); }
   });
 
   app.post("/v1/notifications/dm-pending", async (request, reply) => {

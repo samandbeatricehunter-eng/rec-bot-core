@@ -9,6 +9,7 @@ import type {
   ChatMessage,
   ChatTopic,
   CommissionerNotificationsResponse,
+  CompletedCommissionerTransactionsResponse,
   CommitDecision,
   CommitResult,
   DeleteLeagueResult,
@@ -74,6 +75,20 @@ export const recApi = {
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   toggleHubHighlightReaction: (input: { guildId: string; highlightId: string; reactionKey: HubReactionKey }) =>
     recApiFetch<{ ok: true }>("/v1/hub/highlights/react", { method: "POST", body: JSON.stringify(input) }),
+  recordHubHighlightView: (input: { guildId: string; highlightId: string }) =>
+    recApiFetch<{ viewCount: number }>("/v1/hub/highlights/view", { method: "POST", body: JSON.stringify(input) }),
+  publishHubAnnouncement: (input: { guildId: string; title: string; body: string }) =>
+    recApiFetch<{ recorded: true }>("/v1/hub/announcements/publish", { method: "POST", body: JSON.stringify(input) }),
+  publishHubStory: (input: { guildId: string; headline: string; body: string; storyType: "headline" | "article" }) =>
+    recApiFetch<{ published: true; id: string }>("/v1/hub/stories/publish", { method: "POST", body: JSON.stringify(input) }),
+  toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
+    recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
+  toggleHubGameReaction: (input: { guildId: string; gameId: string; reactionKey: "like" | "dislike" }) =>
+    recApiFetch<{ ok: true }>("/v1/hub/games/react", { method: "POST", body: JSON.stringify(input) }),
+  listHubStoryComments: (input: { guildId: string; storyId: string }) =>
+    recApiFetch<{ comments: import("../types/api.js").StoryComment[] }>("/v1/hub/stories/comments/list", { method: "POST", body: JSON.stringify(input) }),
+  addHubStoryComment: (input: { guildId: string; storyId: string; body: string }) =>
+    recApiFetch<{ comments: import("../types/api.js").StoryComment[] }>("/v1/hub/stories/comments/add", { method: "POST", body: JSON.stringify(input) }),
 
   // Schedule
   listScheduleTeams: (guildId: string) =>
@@ -107,6 +122,16 @@ export const recApi = {
     // reviewedByDiscordId is required by the schema but overridden server-side from the
     // session for browser calls — the placeholder here is only exercised by direct bot calls.
     recApiFetch<unknown>("/v1/box-score/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  transferMyFunds: (input: { guildId: string; amount: number; direction: "to_savings" | "from_savings" }) =>
+    recApiFetch<{ transferred: number; direction: string; wallet_balance: number; savings_balance: number }>("/v1/users/me/wallet/transfer", { method: "POST", body: JSON.stringify(input) }),
+  createMyPurchase: (input: { guildId: string; purchaseType: string; details: Record<string, unknown> }) =>
+    recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
+  listHubLegends: (guildId: string) => recApiFetch<{ legends: any[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listHubLegendAvailability: (guildId: string) => recApiFetch<{ soldLegendIds: string[] }>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
+  purchaseHubLegend: (input: { guildId: string; legendId: string; replacePlayerRequest?: string | null }) =>
+    recApiFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
+  correctBoxScore: (input: { submissionId: string; field: string; team1?: string | null; team2?: string | null; gameId?: string | null }) =>
+    recApiFetch<BoxScoreSubmissionDetail>("/v1/box-score/correct", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
 
   // Box score upload + OCR submit (schedule builder)
   uploadBoxScoreImage: (guildId: string, file: File) => {
@@ -127,12 +152,14 @@ export const recApi = {
     recApiFetch<BoxScoreJobStatus>("/v1/box-score/job", { method: "POST", body: JSON.stringify({ jobId }) }),
 
   // Manual final-score entry (schedule builder)
-  recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null }) =>
+  recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; manualStats?: { home?: Record<string, unknown>; away?: Record<string, unknown> } }) =>
     recApiFetch<ManualScoreRecordResult>("/v1/league-week/manual-scores/record", { method: "POST", body: JSON.stringify(input) }),
 
   // Commissioner notification center
   listCommissionerNotifications: (guildId: string) =>
     recApiFetch<CommissionerNotificationsResponse>("/v1/notifications/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listCompletedCommissionerTransactions: (guildId: string) =>
+    recApiFetch<CompletedCommissionerTransactionsResponse>("/v1/notifications/completed", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,

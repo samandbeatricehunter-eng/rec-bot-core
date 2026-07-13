@@ -99,6 +99,8 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   // season; in the postseason the payout is logged but POTY voting is closed.
   const game = context.rec_leagues.game;
   const isRegularSeason = seasonStage === "regular_season" && weekNumber >= 1 && isRegularSeasonWeek(weekNumber, game);
+  const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs"].includes(seasonStage);
+  const payoutEligible = isRegularSeason || isPostseason;
   const preloadEmojis = isRegularSeason;
 
   const existingPost = await supabase
@@ -172,7 +174,10 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
       .catch((error) => console.error("[ERROR] Failed to mirror highlight media to storage (non-fatal):", error));
   }
 
-  if (!paidSlotAvailable) {
+  // Preseason/training-camp clips may still be retained as community media, but
+  // they never create a payout review. Weekly payouts begin with the regular
+  // season and remain available through the postseason.
+  if (!payoutEligible || !paidSlotAvailable) {
     return {
       recorded: true,
       accepted: true,

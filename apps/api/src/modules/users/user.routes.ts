@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
@@ -16,6 +17,14 @@ import {
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 export async function userRoutes(app: FastifyInstance) {
+  app.post("/v1/users/me/wallet/transfer", async (request, reply) => {
+    try {
+      const input = z.object({ guildId: z.string().min(1), amount: z.number().positive(), direction: z.enum(["to_savings", "from_savings"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("The self-service transfer route requires a user session.");
+      return reply.send(await transferSavings(auth.discordId, input.amount, input.direction));
+    } catch (error) { return sendError(reply, error); }
+  });
   app.get("/v1/users/:discordId/baseline", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; return reply.send(await getUserBaselineByDiscordId(discordId)); } catch (error) { return sendError(reply, error); }});
   app.get("/v1/users/:discordId/wallet", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = (request.query ?? {}) as { guildId?: string }; return reply.send(await getWalletByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});
   app.get("/v1/users/:discordId/menu-profile", async (request, reply) => { try { requireInternalApiKey(request); const { discordId } = request.params as { discordId: string }; const { guildId } = request.query as { guildId: string }; return reply.send(await getUserMenuProfileByDiscordId(discordId, guildId)); } catch (error) { return sendError(reply, error); }});

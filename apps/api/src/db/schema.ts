@@ -442,6 +442,7 @@ export const recGameResults = pgTable("rec_game_results", {
   playedAt: timestamp("played_at", { withTimezone: true, mode: "string" }),
   source: text("source").notNull().default("manual"),
   rawPayload: jsonb("raw_payload").$type<Record<string, unknown> | null>(),
+  manualStats: jsonb("manual_stats").$type<Record<string, unknown> | null>(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
   recordsAppliedAt: timestamp("records_applied_at", { withTimezone: true, mode: "string" }),
@@ -1318,6 +1319,13 @@ export const recHighlightReactions = pgTable("rec_highlight_reactions", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
 });
 
+export const recHighlightViews = pgTable("rec_highlight_views", {
+  id: uuid("id").primaryKey(),
+  highlightPostId: uuid("highlight_post_id").notNull().references(() => recHighlightPosts.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  viewedAt: timestamp("viewed_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
 export const recPotyNominations = pgTable("rec_poty_nominations", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
@@ -1736,7 +1744,8 @@ export const recBoxScoreSubmissions = pgTable("rec_box_score_submissions", {
   flagged: boolean("flagged").notNull().default(false),
   flagReasons: jsonb("flag_reasons").$type<Record<string, unknown> | null>(),
   ledgerDiscordMessageId: text("ledger_discord_message_id"),
-  imageStorageUrl: text("image_storage_url")
+  imageStorageUrl: text("image_storage_url"),
+  entryMethod: text("entry_method").notNull().default("box_score")
 });
 
 export const recOcrLabelAliases = pgTable("rec_ocr_label_aliases", {
@@ -1963,12 +1972,42 @@ export const recGameStories = pgTable("rec_game_stories", {
   primaryAngle: text("primary_angle"),
   headline: text("headline"),
   body: text("body"),
+  storyType: text("story_type").notNull().default("game_article"),
+  roundtable: jsonb("roundtable").$type<Array<{ speaker: string; role: string; take: string }> | null>(),
+  publishedByDiscordId: text("published_by_discord_id"),
   notes: jsonb("notes").$type<Record<string, unknown> | null>(),
   postedMessageId: text("posted_message_id"),
   postedChannelId: text("posted_channel_id"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
+
+export const recStoryComments = pgTable("rec_story_comments", {
+  id: uuid("id").primaryKey(),
+  storyId: uuid("story_id").notNull().references(() => recGameStories.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
+export const recStoryReactions = pgTable("rec_story_reactions", {
+  id: uuid("id").primaryKey(),
+  storyId: uuid("story_id").notNull().references(() => recGameStories.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  seasonNumber: integer("season_number").notNull(),
+  reactionKey: text("reaction_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+}, (table) => ({ storyUserKey: uniqueIndex("rec_story_reactions_story_user_key").on(table.storyId, table.userId) }));
+
+export const recGameReactions = pgTable("rec_game_reactions", {
+  id: uuid("id").primaryKey(),
+  gameId: uuid("game_id").notNull().references(() => recGames.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  seasonNumber: integer("season_number").notNull(),
+  reactionKey: text("reaction_key").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+}, (table) => ({ gameUserKey: uniqueIndex("rec_game_reactions_game_user_key").on(table.gameId, table.userId) }));
 
 export const recBadgeOwnership = pgTable("rec_badge_ownership", {
   id: uuid("id").primaryKey(),
