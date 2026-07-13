@@ -1,11 +1,7 @@
 import { Guild, GuildMember, PermissionFlagsBits, Role } from "discord.js";
-import type { RecTeamAuthority } from "@rec/shared";
+import { REC_MANAGED_ROLES, type RecTeamAuthority } from "@rec/shared";
 
-export const REC_MANAGED_ROLES = {
-  member: { name: "REC League Member", color: 0x87ceeb },
-  compCommittee: { name: "REC League Comp. Committee", color: 0xc27c0e },
-  commissioner: { name: "REC League Commissioner", color: 0xd4af37 }
-} as const;
+export { REC_MANAGED_ROLES };
 
 type NickTeam = {
   name?: string | null;

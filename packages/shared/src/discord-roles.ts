@@ -48,3 +48,17 @@ export function classifyGuildRoleNames(roleNames: string[]): { isCommissioner: b
   }
   return { isCommissioner, isCoCommissioner };
 }
+
+// The 3 roles REC actively manages (grants/revokes) per guild — as opposed to the name
+// lists above, which only classify roles a guild admin may have created by hand. Single
+// source of truth for both the bot's discord.js-based role sync (apps/bot/src/lib/
+// role-sync.ts) and the API's REST-based grant/revoke (apps/api/src/modules/roles/).
+// compCommittee's name is deliberately one of CO_COMMISSIONER_ROLE_NAMES above — granting
+// it via either surface is literally what makes someone a co-commissioner elsewhere in the app.
+export const REC_MANAGED_ROLES = {
+  member: { name: "REC League Member", color: 0x87ceeb },
+  compCommittee: { name: "REC League Comp. Committee", color: 0xc27c0e },
+  commissioner: { name: "REC League Commissioner", color: 0xd4af37 },
+} as const;
+
+export type RecManagedRoleKey = keyof typeof REC_MANAGED_ROLES;

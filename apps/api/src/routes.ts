@@ -10,6 +10,7 @@ import { legendRoutes } from "./modules/legends/legends.routes.js";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { purchaseRoutes } from "./modules/purchases/purchases.routes.js";
 import { leagueWeekRoutes } from "./modules/league-week/league-week.routes.js";
+import { rolesRoutes } from "./modules/roles/roles.routes.js";
 import { rosterRoutes } from "./modules/rosters/rosters.routes.js";
 import { scheduleRoutes } from "./modules/schedule/schedule.routes.js";
 import { serverConfigRoutes } from "./modules/server-config/server-config.routes.js";
@@ -42,5 +43,6 @@ export async function registerRoutes(app: FastifyInstance) {
   await legendRoutes(app);
   await notificationsRoutes(app);
   await purchaseRoutes(app);
+  await rolesRoutes(app);
   await wagerRoutes(app);
 }

@@ -160,3 +160,7 @@ export type LeagueWeekView = {
   server: { id: string; guild_id: string; name: string } | null;
 };
 export type DeleteLeagueResult = { ok: true; leagueName: string; result: { rows_deleted: number; [key: string]: unknown } };
+
+// Roles (Phase 2)
+export type RoleMgmtMember = { discordId: string; displayName: string; username: string };
+export type RoleMgmtRoleKey = "member" | "compCommittee" | "commissioner";

@@ -14,6 +14,8 @@ import type {
   LinkedTeamsResponse,
   ManualScoreRecordResult,
   OpenTeamsResponse,
+  RoleMgmtMember,
+  RoleMgmtRoleKey,
   ScheduleTeam,
   UploadImageResponse,
 } from "../types/api.js";
@@ -148,4 +150,10 @@ export const recApi = {
     recApiFetch<LeagueWeekView>("/v1/league-week/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   deleteLeagueData: (input: { guildId: string; confirmationText: string }) =>
     recApiFetch<DeleteLeagueResult>("/v1/setup/league/delete", { method: "POST", body: JSON.stringify(input) }),
+
+  // Roles (Phase 2)
+  listRoleMgmtMembers: (guildId: string) =>
+    recApiFetch<{ members: RoleMgmtMember[] }>("/v1/roles/members", { method: "POST", body: JSON.stringify({ guildId }) }),
+  updateMemberRole: (input: { guildId: string; discordId: string; roleKey: RoleMgmtRoleKey; action: "add" | "remove" }) =>
+    recApiFetch<{ ok: true }>("/v1/roles/update", { method: "POST", body: JSON.stringify(input) }),
 };

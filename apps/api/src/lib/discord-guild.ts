@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
 
 // Server-side guild role/permission lookups for the Discord Activity's per-user auth —
 // the bot has a cached discord.js GuildMember for free on every interaction; a browser
@@ -34,10 +35,11 @@ function toCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T) {
   cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
-async function discordBotFetch(path: string): Promise<Response> {
+async function discordBotFetch(path: string, init?: RequestInit): Promise<Response> {
   if (!env.DISCORD_BOT_TOKEN) throw new Error("DISCORD_BOT_TOKEN is not configured — required for Activity guild role lookups.");
   return fetch(`${DISCORD_API_BASE}${path}`, {
-    headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` },
+    ...init,
+    headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`, ...(init?.headers ?? {}) },
   });
 }
 
@@ -110,4 +112,75 @@ export async function resolveMemberPermissionBits(guildId: string, discordId: st
 
 export function hasAdministratorOrManageGuild(permissionBits: bigint): boolean {
   return (permissionBits & PERMISSION_ADMINISTRATOR) !== 0n || (permissionBits & PERMISSION_MANAGE_GUILD) !== 0n;
+}
+
+// --- Role grant/revoke (Phase 2: Roles web port) -----------------------------------------
+// Everything below hits Discord's REST API directly with the bot's own token, equivalent in
+// privilege to the bot doing it via discord.js (member.roles.add/remove() is itself a thin
+// wrapper over these same PUT/DELETE calls) — no need to proxy through the running bot
+// process. Same role-hierarchy constraint applies: the bot can only grant/revoke roles
+// positioned below its own highest role in the guild.
+
+export type DiscordGuildMemberSummary = { discordId: string; displayName: string; username: string; isBot: boolean };
+
+// Discord caps a single members-list page at 1000; loop with the `after` cursor for guilds
+// larger than that (uncommon for a REC league, but not worth hardcoding a limit).
+export async function listGuildMembers(guildId: string): Promise<DiscordGuildMemberSummary[]> {
+  const members: DiscordGuildMemberSummary[] = [];
+  let after = "0";
+  for (;;) {
+    const res = await discordBotFetch(`/guilds/${guildId}/members?limit=1000&after=${after}`);
+    if (!res.ok) throw new Error(`Failed to fetch guild members (${res.status})`);
+    const page = (await res.json()) as Array<{ user: { id: string; username: string; bot?: boolean }; nick: string | null }>;
+    for (const row of page) {
+      members.push({
+        discordId: row.user.id,
+        displayName: row.nick ?? row.user.username,
+        username: row.user.username,
+        isBot: Boolean(row.user.bot),
+      });
+    }
+    if (page.length < 1000) break;
+    after = page[page.length - 1].user.id;
+  }
+  return members;
+}
+
+// Find-or-create a REC managed role by name (mirrors apps/bot/src/lib/role-sync.ts's
+// ensureRole, minus hierarchy positioning — a guild only reaches the web dashboard after
+// the bot has already run there at least once, so orderRecRoles will already have placed
+// these roles sensibly; re-ordering them isn't worth porting for this path).
+export async function ensureManagedRoleId(guildId: string, roleKey: RecManagedRoleKey): Promise<string> {
+  const definition = REC_MANAGED_ROLES[roleKey];
+  const roles = await getGuildRoles(guildId);
+  for (const [id, role] of roles) {
+    if (role.name === definition.name) return id;
+  }
+  const res = await discordBotFetch(`/guilds/${guildId}/roles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: definition.name, color: definition.color, reason: "REC Core role sync" }),
+  });
+  if (!res.ok) throw new Error(`Failed to create role "${definition.name}" (${res.status})`);
+  const created = (await res.json()) as { id: string };
+  roleListCache.delete(guildId);
+  return created.id;
+}
+
+export async function addMemberRole(guildId: string, discordId: string, roleId: string, reason: string): Promise<void> {
+  const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}/roles/${roleId}`, {
+    method: "PUT",
+    headers: { "X-Audit-Log-Reason": reason },
+  });
+  memberRoleIdsCache.delete(`${guildId}:${discordId}`);
+  if (!res.ok && res.status !== 204) throw new Error(`Failed to add role (${res.status})`);
+}
+
+export async function removeMemberRole(guildId: string, discordId: string, roleId: string, reason: string): Promise<void> {
+  const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}/roles/${roleId}`, {
+    method: "DELETE",
+    headers: { "X-Audit-Log-Reason": reason },
+  });
+  memberRoleIdsCache.delete(`${guildId}:${discordId}`);
+  if (!res.ok && res.status !== 204) throw new Error(`Failed to remove role (${res.status})`);
 }
