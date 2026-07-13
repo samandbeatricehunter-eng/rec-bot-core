@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Shield, UserPlus, Users } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -8,6 +8,7 @@ import type { TeamManagementSummaryRow } from "../../../types/api.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { SearchInput } from "../../../components/ui/SearchInput.js";
 import { Card } from "../../../components/ui/Card.js";
+import { Button } from "../../../components/ui/Button.js";
 import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
@@ -28,9 +29,10 @@ function conferenceSortKey(conference: string): number {
 }
 
 // The main hub for finding a team, seeing its schedule/box-score health at a glance, and
-// jumping into its full season entry + score actions (TeamScheduleForm.tsx). Team identity
-// actions (link/unlink/relocate/rename) still live on the separate Teams tile for now — see
-// the plan's Phase B for folding those in here too.
+// jumping into its full season entry + score actions (TeamScheduleForm.tsx). Roles and team
+// linking are reachable from here (RolesHome.tsx/TeamOwnershipTable.tsx/LinkTeamForm.tsx,
+// moved under this same route prefix) rather than being separate top-level nav destinations.
+// Deep relocate/rename/custom-team actions per row are still future work — see the plan.
 export function ManageLeagueHome() {
   const { guildId } = useReadyAuth();
   const navigate = useNavigate();
@@ -86,6 +88,16 @@ export function ManageLeagueHome() {
       <PageHeader
         title="Manage League"
         subtitle="Find a team, see its schedule and box-score health, and enter its games and scores."
+        actions={
+          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
+              <Users size={16} /> Link/Unlink Teams
+            </Button>
+            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/roles")}>
+              <Shield size={16} /> Manage Roles
+            </Button>
+          </div>
+        }
       />
       {error && <ErrorState message={error} />}
       {!summary && !error && <LoadingState label="Loading teams…" />}
@@ -146,39 +158,51 @@ export function ManageLeagueHome() {
                     <Card style={{ padding: 0 }}>
                       <div style={{ display: "flex", flexDirection: "column" }}>
                         {teams.map((team) => (
-                          <button
+                          <div
                             key={team.id}
-                            onClick={() => navigate(`/league-mgmt/manage-league/${team.id}`)}
-                            className="btn btn-ghost"
                             style={{
+                              display: "flex",
+                              alignItems: "center",
                               justifyContent: "space-between",
-                              width: "100%",
-                              textAlign: "left",
-                              borderRadius: 0,
+                              gap: "var(--space-3)",
                               borderBottom: "1px solid var(--border)",
-                              padding: "var(--space-3) var(--space-4)",
+                              padding: "var(--space-1) var(--space-2) var(--space-1) var(--space-4)",
                             }}
                           >
-                            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
-                              <span style={{ fontWeight: 700 }}>{team.name}</span>
-                              <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
-                                {team.linkedUser?.displayName ?? (team.linkedUser ? "Linked" : "Open")}
-                              </span>
-                              <Badge status={SCHEDULE_STATUS_BADGE[team.scheduleStatus]}>
-                                {team.gamesScheduled}/{team.gamesExpected} games
-                              </Badge>
-                              {team.missingBoxScoreCount > 0 && (
-                                <Badge status="denied">{team.missingBoxScoreCount} missing box score{team.missingBoxScoreCount === 1 ? "" : "s"}</Badge>
-                              )}
-                              {team.awaitingReviewCount > 0 && (
-                                <Badge status="pending">{team.awaitingReviewCount} awaiting review</Badge>
-                              )}
-                              <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
-                                {team.record.wins}-{team.record.losses}{team.record.ties > 0 ? `-${team.record.ties}` : ""}
-                              </span>
-                            </div>
-                            <ChevronRight size={16} />
-                          </button>
+                            <button
+                              onClick={() => navigate(`/league-mgmt/manage-league/${team.id}`)}
+                              className="btn btn-ghost"
+                              style={{ flex: 1, justifyContent: "flex-start", textAlign: "left", padding: "var(--space-2)" }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+                                <span style={{ fontWeight: 700 }}>{team.name}</span>
+                                <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
+                                  {team.linkedUser?.displayName ?? "Open"}
+                                </span>
+                                <Badge status={SCHEDULE_STATUS_BADGE[team.scheduleStatus]}>
+                                  {team.gamesScheduled}/{team.gamesExpected} games
+                                </Badge>
+                                {team.missingBoxScoreCount > 0 && (
+                                  <Badge status="denied">{team.missingBoxScoreCount} missing box score{team.missingBoxScoreCount === 1 ? "" : "s"}</Badge>
+                                )}
+                                {team.awaitingReviewCount > 0 && (
+                                  <Badge status="pending">{team.awaitingReviewCount} awaiting review</Badge>
+                                )}
+                                <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
+                                  {team.record.wins}-{team.record.losses}{team.record.ties > 0 ? `-${team.record.ties}` : ""}
+                                </span>
+                              </div>
+                            </button>
+                            {!team.linkedUser && (
+                              <Button
+                                variant="secondary"
+                                onClick={() => navigate(`/league-mgmt/manage-league/teams/link?teamId=${team.id}`)}
+                              >
+                                <UserPlus size={14} /> Link
+                              </Button>
+                            )}
+                            <ChevronRight size={16} style={{ flexShrink: 0, color: "var(--text-muted)" }} />
+                          </div>
                         ))}
                       </div>
                     </Card>

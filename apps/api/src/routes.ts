@@ -8,6 +8,7 @@ import { gameChannelRoutes } from "./modules/game-channels/game-channels.routes.
 import { highlightRoutes } from "./modules/highlights/highlights.routes.js";
 import { gotwRoutes } from "./modules/gotw/gotw.routes.js";
 import { legendRoutes } from "./modules/legends/legends.routes.js";
+import { leagueContextRoutes } from "./modules/league-context/league-context.routes.js";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { purchaseRoutes } from "./modules/purchases/purchases.routes.js";
 import { leagueWeekRoutes } from "./modules/league-week/league-week.routes.js";
@@ -33,6 +34,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await teamOwnershipRoutes(app);
   await teamRequestRoutes(app);
   await rosterRoutes(app);
+  await leagueContextRoutes(app);
   await scheduleRoutes(app);
   await gameChannelRoutes(app);
   await serverConfigRoutes(app);

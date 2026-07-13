@@ -4,13 +4,12 @@ import { AppShell } from "./components/shell/AppShell.js";
 import { LeagueMgmtHome } from "./routes/league-mgmt/LeagueMgmtHome.js";
 import { ManageLeagueHome } from "./routes/league-mgmt/manage-league/ManageLeagueHome.js";
 import { TeamScheduleForm } from "./routes/league-mgmt/manage-league/TeamScheduleForm.js";
-import { TeamOwnershipTable } from "./routes/league-mgmt/teams/TeamOwnershipTable.js";
-import { LinkTeamForm } from "./routes/league-mgmt/teams/LinkTeamForm.js";
+import { TeamOwnershipTable } from "./routes/league-mgmt/manage-league/TeamOwnershipTable.js";
+import { LinkTeamForm } from "./routes/league-mgmt/manage-league/LinkTeamForm.js";
+import { RolesHome } from "./routes/league-mgmt/manage-league/RolesHome.js";
 import { NotificationsHome } from "./routes/league-mgmt/notifications/NotificationsHome.js";
 import { DeleteLeagueHome } from "./routes/league-mgmt/delete-league/DeleteLeagueHome.js";
-import { RolesHome } from "./routes/league-mgmt/roles/RolesHome.js";
 import { SettingsHome } from "./routes/league-mgmt/settings/SettingsHome.js";
-import { FirstTimeSetupHome } from "./routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";
 import { AdvanceHome } from "./routes/league-mgmt/advance/AdvanceHome.js";
 import { CommissionerChatHome } from "./routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
 
@@ -35,13 +34,12 @@ export default function App() {
               <Route path="/" element={<LeagueMgmtHome />} />
               <Route path="/league-mgmt/notifications" element={<NotificationsHome />} />
               <Route path="/league-mgmt/manage-league" element={<ManageLeagueHome />} />
+              <Route path="/league-mgmt/manage-league/roles" element={<RolesHome />} />
+              <Route path="/league-mgmt/manage-league/teams" element={<TeamOwnershipTable />} />
+              <Route path="/league-mgmt/manage-league/teams/link" element={<LinkTeamForm />} />
               <Route path="/league-mgmt/manage-league/:teamId" element={<TeamScheduleForm />} />
-              <Route path="/league-mgmt/teams" element={<TeamOwnershipTable />} />
-              <Route path="/league-mgmt/teams/link" element={<LinkTeamForm />} />
               <Route path="/league-mgmt/delete-league" element={<DeleteLeagueHome />} />
-              <Route path="/league-mgmt/roles" element={<RolesHome />} />
               <Route path="/league-mgmt/settings" element={<SettingsHome />} />
-              <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupHome />} />
               <Route path="/league-mgmt/advance" element={<AdvanceHome />} />
               <Route path="/league-mgmt/commissioner-chat" element={<CommissionerChatHome />} />
             </Routes>

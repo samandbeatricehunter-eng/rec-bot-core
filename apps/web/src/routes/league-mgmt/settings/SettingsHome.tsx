@@ -8,6 +8,9 @@ import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { FirstTimeSetupHome } from "../first-time-setup/FirstTimeSetupHome.js";
+
+const FIRST_TIME_SETUP_KEY = "first-time-setup";
 
 // One generic renderer for every category in settings-fields.ts's schema. See that file's
 // header comment for what's deliberately out of scope (channel routing, attribute/conference
@@ -93,76 +96,82 @@ export function SettingsHome() {
         ))}
       </div>
 
-      <Card>
-        {visibleFields.map((field) => {
-          if (field.dependsOn && !field.dependsOn(draft)) return null;
-          return (
-            <div key={field.key} className="form-field">
-              {field.type === "toggle" ? (
-                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(draft[field.key])}
-                    onChange={(e) => setField(field.key, e.target.checked)}
-                  />
-                  {field.label}
-                </label>
-              ) : (
-                <>
-                  <label className="form-label" htmlFor={field.key}>{field.label}</label>
-                  {field.type === "enum" && (
-                    <select
-                      id={field.key}
-                      className="form-select"
-                      value={String(draft[field.key] ?? "")}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                    >
-                      {field.options?.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
+      {activeCategory === FIRST_TIME_SETUP_KEY ? (
+        <FirstTimeSetupHome />
+      ) : (
+        <>
+          <Card>
+            {visibleFields.map((field) => {
+              if (field.dependsOn && !field.dependsOn(draft)) return null;
+              return (
+                <div key={field.key} className="form-field">
+                  {field.type === "toggle" ? (
+                    <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(draft[field.key])}
+                        onChange={(e) => setField(field.key, e.target.checked)}
+                      />
+                      {field.label}
+                    </label>
+                  ) : (
+                    <>
+                      <label className="form-label" htmlFor={field.key}>{field.label}</label>
+                      {field.type === "enum" && (
+                        <select
+                          id={field.key}
+                          className="form-select"
+                          value={String(draft[field.key] ?? "")}
+                          onChange={(e) => setField(field.key, e.target.value)}
+                        >
+                          {field.options?.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      )}
+                      {field.type === "number" && (
+                        <input
+                          id={field.key}
+                          className="form-input"
+                          type="number"
+                          min={field.min}
+                          max={field.max}
+                          value={draft[field.key] == null ? "" : String(draft[field.key])}
+                          onChange={(e) => setField(field.key, e.target.value === "" ? null : Number(e.target.value))}
+                        />
+                      )}
+                      {field.type === "text" && (
+                        <input
+                          id={field.key}
+                          className="form-input"
+                          value={String(draft[field.key] ?? "")}
+                          onChange={(e) => setField(field.key, e.target.value)}
+                        />
+                      )}
+                      {field.type === "textarea" && (
+                        <textarea
+                          id={field.key}
+                          className="form-input"
+                          rows={3}
+                          value={String(draft[field.key] ?? "")}
+                          onChange={(e) => setField(field.key, e.target.value)}
+                        />
+                      )}
+                    </>
                   )}
-                  {field.type === "number" && (
-                    <input
-                      id={field.key}
-                      className="form-input"
-                      type="number"
-                      min={field.min}
-                      max={field.max}
-                      value={draft[field.key] == null ? "" : String(draft[field.key])}
-                      onChange={(e) => setField(field.key, e.target.value === "" ? null : Number(e.target.value))}
-                    />
-                  )}
-                  {field.type === "text" && (
-                    <input
-                      id={field.key}
-                      className="form-input"
-                      value={String(draft[field.key] ?? "")}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                    />
-                  )}
-                  {field.type === "textarea" && (
-                    <textarea
-                      id={field.key}
-                      className="form-input"
-                      rows={3}
-                      value={String(draft[field.key] ?? "")}
-                      onChange={(e) => setField(field.key, e.target.value)}
-                    />
-                  )}
-                </>
-              )}
-              {field.hint && <p className="form-hint">{field.hint}</p>}
-            </div>
-          );
-        })}
-      </Card>
+                  {field.hint && <p className="form-hint">{field.hint}</p>}
+                </div>
+              );
+            })}
+          </Card>
 
-      <div style={{ marginTop: "var(--space-4)" }}>
-        <Button variant="primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Settings"}
-        </Button>
-      </div>
+          <div style={{ marginTop: "var(--space-4)" }}>
+            <Button variant="primary" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save Settings"}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
+import { sendError, ApiError } from "../../lib/errors.js";
+import { isGuildOwner } from "../../lib/discord-guild.js";
 import { CreateLeagueSchema, GetLeagueTeamConferencesSchema, RegisterServerSchema, UpdateServerRoutesSchema, UpdateTeamConferenceSchema } from "./setup.schemas.js";
 
 const DeleteLeagueSchema = z.object({
@@ -78,7 +79,15 @@ export async function setupRoutes(app: FastifyInstance) {
     try {
       const body = DeleteLeagueSchema.parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
-      if (auth.mode === "user") body.requestedByDiscordId = auth.discordId;
+      if (auth.mode === "user") {
+        body.requestedByDiscordId = auth.discordId;
+        // Web dashboard's delete is scoped tighter than the base commissioner check above —
+        // only the guild's actual owner ("head commissioner") can delete from here. The
+        // bot-native Discord delete-league flow keeps its existing commissioner-level gate.
+        if (!(await isGuildOwner(body.guildId, auth.discordId))) {
+          throw new ApiError(403, "Only the head commissioner can delete a league.");
+        }
+      }
       return reply.send(await deleteLeagueData(body));
     } catch (error) {
       return sendError(reply, error);

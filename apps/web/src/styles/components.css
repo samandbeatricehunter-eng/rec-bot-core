@@ -258,6 +258,33 @@
   box-shadow: var(--shadow-card);
 }
 
+/* Delete League floating action button — deliberately small and out of the way (bottom
+   corner, muted until hover) since this is a destructive, head-commissioner-only action
+   that shouldn't compete visually with routine tools. */
+.delete-league-fab {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  z-index: 40;
+}
+.delete-league-fab:hover {
+  color: var(--error);
+  border-color: var(--error);
+  background: var(--surface-hover);
+}
+
 /* Notification bell (AppShell header) */
 .notification-bell {
   position: relative;

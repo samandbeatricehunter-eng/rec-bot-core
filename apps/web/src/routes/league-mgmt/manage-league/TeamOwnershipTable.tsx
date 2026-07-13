@@ -45,7 +45,7 @@ export function TeamOwnershipTable() {
         title="Teams"
         subtitle="Manage which users control which teams."
         actions={
-          <Button variant="primary" onClick={() => navigate("/league-mgmt/teams/link")}>
+          <Button variant="primary" onClick={() => navigate("/league-mgmt/manage-league/teams/link")}>
             <UserPlus size={16} /> Link User
           </Button>
         }

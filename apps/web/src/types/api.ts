@@ -55,6 +55,12 @@ export type TeamManagementSummary = {
   teams: TeamManagementSummaryRow[];
 };
 
+export type LeagueHeaderSummary = {
+  league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null };
+  teams: { linked: number; total: number };
+  isGuildOwner: boolean;
+};
+
 export type LinkedTeamRow = {
   id: string;
   user_id: string;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LeagueIdentity, OpenTeam } from "../../../types/api.js";
@@ -15,11 +15,15 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 export function LinkTeamForm() {
   const { guildId } = useReadyAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Deep-linked from an unlinked team's row in the Manage League hub — pre-select that team
+  // instead of making the commissioner re-find it in the flat open-teams list.
+  const prefillTeamId = searchParams.get("teamId");
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
   const [identities, setIdentities] = useState<LeagueIdentity[] | null>(null);
   const [teamQuery, setTeamQuery] = useState("");
   const [userQuery, setUserQuery] = useState("");
-  const [teamId, setTeamId] = useState<string | null>(null);
+  const [teamId, setTeamId] = useState<string | null>(prefillTeamId);
   const [discordId, setDiscordId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -51,7 +55,7 @@ export function LinkTeamForm() {
     setError(null);
     try {
       await recApi.linkUserToTeam({ guildId, teamId, discordId });
-      navigate("/league-mgmt/teams");
+      navigate("/league-mgmt/manage-league/teams");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to link user to team.");
     } finally {

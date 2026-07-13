@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { ChatMessage, ChatTopic } from "../../../types/api.js";
-import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Badge } from "../../../components/ui/Badge.js";
@@ -14,6 +13,10 @@ const POLL_INTERVAL_MS = 5000;
 // to eventually replace the need for the Commissioner's Office Discord channel for this
 // purpose. Simple poll-every-5s read model, no WebSockets — the audience per league is a
 // handful of people, so real-time infrastructure isn't worth the complexity here.
+//
+// Embedded directly at the top of LeagueMgmtHome.tsx (an always-visible panel, not a tile
+// you click into) — no PageHeader here, just a compact heading, since it now shares the
+// page with the tile grid below it instead of owning the whole screen.
 export function CommissionerChatHome() {
   const { guildId, discordId } = useReadyAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -118,8 +121,11 @@ export function CommissionerChatHome() {
   }
 
   return (
-    <div>
-      <PageHeader title="Commissioner Chat" subtitle="Discuss and vote on topics with your commissioners and co-commissioners." />
+    <div style={{ marginBottom: "var(--space-6)" }}>
+      <h2 style={{ margin: "0 0 var(--space-1)" }}>Commissioner's Office</h2>
+      <p style={{ margin: "0 0 var(--space-4)", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
+        Discuss and vote on topics with your commissioners and co-commissioners.
+      </p>
       {error && <ErrorState message={error} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)", gap: "var(--space-4)" }}>

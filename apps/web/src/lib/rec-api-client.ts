@@ -14,6 +14,7 @@ import type {
   DeleteLeagueResult,
   DivisionWinnerOptions,
   EosAwardPoll,
+  LeagueHeaderSummary,
   LeagueIdentitiesResponse,
   LeagueSettingsDraft,
   LeagueWeekView,
@@ -73,6 +74,10 @@ export const recApi = {
     recApiFetch<CommitResult>(REC_API_ROUTES.teamScheduleCommit, { method: "POST", body: JSON.stringify(input) }),
   getTeamManagementSummary: (guildId: string) =>
     recApiFetch<TeamManagementSummary>(REC_API_ROUTES.teamManagementSummary, { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  // League header (AppShell)
+  getLeagueHeaderSummary: (guildId: string) =>
+    recApiFetch<LeagueHeaderSummary>(REC_API_ROUTES.leagueHeaderSummary, { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // Team ownership
   listLinkedUsersTeams: (guildId: string) => recApiFetch<LinkedTeamsResponse>(REC_API_ROUTES.linkedUsersTeams(guildId)),

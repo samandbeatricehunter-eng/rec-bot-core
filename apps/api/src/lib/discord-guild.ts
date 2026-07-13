@@ -65,6 +65,15 @@ async function getGuildOwnerId(guildId: string): Promise<string> {
   return guild.owner_id;
 }
 
+// "Head commissioner" — the Discord guild's actual owner. Same source
+// resolveMemberPermissionBits already special-cases internally (owner → Administrator);
+// exposed here as its own boolean for callers that need an owner-specific gate rather than
+// a general commissioner-level permission check (e.g. Delete League).
+export async function isGuildOwner(guildId: string, discordId: string): Promise<boolean> {
+  const ownerId = await getGuildOwnerId(guildId);
+  return discordId === ownerId;
+}
+
 // Returns the member's role IDs, or null if the Discord user isn't a member of this guild.
 async function getMemberRoleIds(guildId: string, discordId: string): Promise<string[] | null> {
   const cacheKey = `${guildId}:${discordId}`;
