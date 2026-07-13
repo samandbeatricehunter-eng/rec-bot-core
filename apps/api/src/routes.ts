@@ -3,6 +3,7 @@ import { webSessionRoutes } from "./modules/web-session/web-session.routes.js";
 import { adminEconomyRoutes } from "./modules/admin-economy/admin-economy.routes.js";
 import { activeCheckRoutes } from "./modules/active-checks/active-checks.routes.js";
 import { boxScoreRoutes } from "./modules/box-score/box-score.routes.js";
+import { commissionerChatRoutes } from "./modules/commissioner-chat/commissioner-chat.routes.js";
 import { gameChannelRoutes } from "./modules/game-channels/game-channels.routes.js";
 import { highlightRoutes } from "./modules/highlights/highlights.routes.js";
 import { gotwRoutes } from "./modules/gotw/gotw.routes.js";
@@ -38,6 +39,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await leagueWeekRoutes(app);
   await streamRoutes(app);
   await boxScoreRoutes(app);
+  await commissionerChatRoutes(app);
   await highlightRoutes(app);
   await gotwRoutes(app);
   await legendRoutes(app);

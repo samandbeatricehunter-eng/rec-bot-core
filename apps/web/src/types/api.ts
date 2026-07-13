@@ -209,3 +209,19 @@ export type AdvanceDmPreview = {
     sections: { transactions: string | null; badges: string | null; eosProgress: string | null; powerRanking: string | null };
   }>;
 };
+
+// Commissioner Chat + Voting
+export type ChatMessage = { id: string; author_discord_id: string; body: string; created_at: string };
+export type ChatTopic = {
+  id: string;
+  title: string;
+  description: string | null;
+  options: string[];
+  status: "open" | "closed";
+  closes_at: string | null;
+  created_by_discord_id: string;
+  created_at: string;
+  tally: number[];
+  totalVotes: number;
+  voters: { voterDiscordId: string; optionIndex: number }[];
+};

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, CalendarDays, FastForward, Shield, SlidersHorizontal, Trash2, Users, Wand2 } from "lucide-react";
+import { Bell, CalendarDays, FastForward, MessagesSquare, Shield, SlidersHorizontal, Trash2, Users, Wand2 } from "lucide-react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
@@ -28,6 +28,7 @@ export function LeagueMgmtHome() {
         <ActivityTile to="/league-mgmt/roles" icon={Shield} title="Roles" description="Grant or revoke REC League roles." />
         <ActivityTile to="/league-mgmt/first-time-setup" icon={Wand2} title="First-Time Setup" description="Create a new league for this server." />
         <ActivityTile to="/league-mgmt/delete-league" icon={Trash2} title="Delete League" description="Permanently erase this server's league data." />
+        <ActivityTile to="/league-mgmt/commissioner-chat" icon={MessagesSquare} title="Commissioner Chat" description="Discuss and vote on topics with your commissioners." />
       </div>
     </div>
   );

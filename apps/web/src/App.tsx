@@ -12,6 +12,7 @@ import { RolesHome } from "./routes/league-mgmt/roles/RolesHome.js";
 import { SettingsHome } from "./routes/league-mgmt/settings/SettingsHome.js";
 import { FirstTimeSetupHome } from "./routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";
 import { AdvanceHome } from "./routes/league-mgmt/advance/AdvanceHome.js";
+import { CommissionerChatHome } from "./routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
 
 // This dashboard is only ever reached one way: an authorized user clicks "Open Web
 // Dashboard" in Discord's League Mgmt panel, which opens this app in a normal browser tab
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="/league-mgmt/settings" element={<SettingsHome />} />
               <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupHome />} />
               <Route path="/league-mgmt/advance" element={<AdvanceHome />} />
+              <Route path="/league-mgmt/commissioner-chat" element={<CommissionerChatHome />} />
             </Routes>
           </AppShell>
         </AuthGate>

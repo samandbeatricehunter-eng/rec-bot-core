@@ -7,6 +7,8 @@ import type {
   BoxScoreJobStatus,
   BoxScoreSubmissionDetail,
   CfbTeamScheduleManualState,
+  ChatMessage,
+  ChatTopic,
   CommissionerNotificationsResponse,
   CommitDecision,
   CommitResult,
@@ -188,4 +190,18 @@ export const recApi = {
     recApiFetch<unknown>("/v1/league-week/set-next-advance", { method: "POST", body: JSON.stringify(input) }),
   previewAdvanceDms: (guildId: string) =>
     recApiFetch<AdvanceDmPreview>("/v1/league-week/advance-dms", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  // Commissioner Chat + Voting
+  listChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>
+    recApiFetch<{ messages: ChatMessage[] }>("/v1/commissioner-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
+  postChatMessage: (input: { guildId: string; body: string }) =>
+    recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
+  listChatTopics: (guildId: string) =>
+    recApiFetch<{ topics: ChatTopic[] }>("/v1/commissioner-chat/topics/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createChatTopic: (input: { guildId: string; title: string; description?: string | null; options: string[]; closesAt?: string | null }) =>
+    recApiFetch<{ topic: ChatTopic }>("/v1/commissioner-chat/topics/create", { method: "POST", body: JSON.stringify(input) }),
+  voteOnChatTopic: (input: { guildId: string; topicId: string; optionIndex: number }) =>
+    recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/vote", { method: "POST", body: JSON.stringify(input) }),
+  closeChatTopic: (input: { guildId: string; topicId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/close", { method: "POST", body: JSON.stringify(input) }),
 };
