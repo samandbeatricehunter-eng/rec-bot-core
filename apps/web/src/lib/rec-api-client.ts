@@ -7,8 +7,10 @@ import type {
   CommissionerNotificationsResponse,
   CommitDecision,
   CommitResult,
+  DeleteLeagueResult,
   EosAwardPoll,
   LeagueIdentitiesResponse,
+  LeagueWeekView,
   LinkedTeamsResponse,
   ManualScoreRecordResult,
   OpenTeamsResponse,
@@ -140,4 +142,10 @@ export const recApi = {
     recApiFetch<{ poll: EosAwardPoll }>("/v1/league-week/eos-awards/get", { method: "POST", body: JSON.stringify(input) }),
   settleEosAwardPoll: (input: { guildId: string; pollId: string; voteCounts: Record<string, number> }) =>
     recApiFetch<unknown>("/v1/league-week/eos-awards/settle", { method: "POST", body: JSON.stringify(input) }),
+
+  // Delete League (Phase 2)
+  viewLeagueWeek: (guildId: string) =>
+    recApiFetch<LeagueWeekView>("/v1/league-week/view", { method: "POST", body: JSON.stringify({ guildId }) }),
+  deleteLeagueData: (input: { guildId: string; confirmationText: string }) =>
+    recApiFetch<DeleteLeagueResult>("/v1/setup/league/delete", { method: "POST", body: JSON.stringify(input) }),
 };

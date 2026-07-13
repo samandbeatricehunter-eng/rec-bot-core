@@ -39,8 +39,9 @@ const SetLeagueWeekSchema = z.object({
 export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/view", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await viewLeagueWeek(ViewLeagueWeekSchema.parse(request.body).guildId));
+      const { guildId } = ViewLeagueWeekSchema.parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await viewLeagueWeek(guildId));
     } catch (error) {
       return sendError(reply, error);
     }

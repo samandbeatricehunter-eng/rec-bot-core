@@ -27,7 +27,7 @@ export function LeagueMgmtHome() {
         <ActivityTile icon={SlidersHorizontal} title="Settings" description="" disabled />
         <ActivityTile icon={Shield} title="Roles" description="" disabled />
         <ActivityTile icon={Wand2} title="First-Time Setup" description="" disabled />
-        <ActivityTile icon={Trash2} title="Delete League" description="" disabled />
+        <ActivityTile to="/league-mgmt/delete-league" icon={Trash2} title="Delete League" description="Permanently erase this server's league data." />
       </div>
     </div>
   );

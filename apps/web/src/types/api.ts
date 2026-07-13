@@ -153,3 +153,10 @@ export type EosAwardPoll = {
   nominee_payloads: EosAwardNominee[];
   status: string;
 };
+
+// Delete League (Phase 2)
+export type LeagueWeekView = {
+  league: { id: string; name: string; current_week: number | null; season_stage: string | null } | null;
+  server: { id: string; guild_id: string; name: string } | null;
+};
+export type DeleteLeagueResult = { ok: true; leagueName: string; result: { rows_deleted: number; [key: string]: unknown } };
