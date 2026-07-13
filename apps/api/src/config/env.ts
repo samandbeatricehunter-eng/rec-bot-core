@@ -21,6 +21,8 @@ const EnvSchema = z.object({
   // lookups for requests coming from the browser. Optional so the API still boots without
   // these configured; routes that need them fail closed via the zod checks in their own modules.
   ACTIVITY_JWT_SECRET: z.string().optional(),
-  DISCORD_BOT_TOKEN: z.string().optional()
+  // Same bot token apps/bot authenticates with (DISCORD_TOKEN there) — one source of truth
+  // instead of a second env var that has to be kept in sync across every environment.
+  DISCORD_TOKEN: z.string().optional()
 });
 export const env = EnvSchema.parse(process.env);

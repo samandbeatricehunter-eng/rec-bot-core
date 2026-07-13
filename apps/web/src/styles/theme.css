@@ -76,6 +76,23 @@ body {
   font-size: var(--text-md);
 }
 
+/* Hero backdrop — sits behind the whole app. The dark gradient stack sits on top of the
+   stadium/net photo so cards stay legible over it: near-opaque toward the bottom (where
+   most content scrolls to) and lighter up top so the sunset reads through behind the
+   header. Also fades out the photo's own baked-in "REC LEAGUES" wordmark before it
+   collides with the header's own logo. */
+.app-backdrop {
+  min-height: 100%;
+  background-image:
+    linear-gradient(180deg, rgba(15, 15, 15, 0.62) 0%, rgba(15, 15, 15, 0.9) 38%, var(--bg) 72%),
+    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 215, 0, 0.1), transparent 55%),
+    url("../assets/hero-bg.png");
+  background-size: cover, cover, cover;
+  background-position: center top, center top, center 25%;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed;
+}
+
 a {
   color: var(--gold);
 }

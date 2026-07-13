@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
+import { ApiError } from "./errors.js";
 
 // Server-side guild role/permission lookups for the Discord Activity's per-user auth —
 // the bot has a cached discord.js GuildMember for free on every interaction; a browser
@@ -36,10 +37,10 @@ function toCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T) {
 }
 
 async function discordBotFetch(path: string, init?: RequestInit): Promise<Response> {
-  if (!env.DISCORD_BOT_TOKEN) throw new Error("DISCORD_BOT_TOKEN is not configured — required for Activity guild role lookups.");
+  if (!env.DISCORD_TOKEN) throw new ApiError(500, "DISCORD_TOKEN is not configured — required for Activity guild role lookups.");
   return fetch(`${DISCORD_API_BASE}${path}`, {
     ...init,
-    headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`, ...(init?.headers ?? {}) },
+    headers: { Authorization: `Bot ${env.DISCORD_TOKEN}`, ...(init?.headers ?? {}) },
   });
 }
 
