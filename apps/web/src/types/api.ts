@@ -164,3 +164,9 @@ export type DeleteLeagueResult = { ok: true; leagueName: string; result: { rows_
 // Roles (Phase 2)
 export type RoleMgmtMember = { discordId: string; displayName: string; username: string };
 export type RoleMgmtRoleKey = "member" | "compCommittee" | "commissioner";
+
+// Settings (Phase 2) — apps/api/src/modules/setup/setup.schemas.ts's CreateLeagueSchema has
+// ~90 fields; typed loosely here rather than fully enumerated (matches the bot's own
+// LeagueSetupDraft, which is similarly broad). Every field must round-trip on save — see
+// SettingsHome.tsx's comment on why partial updates are unsafe.
+export type LeagueSettingsDraft = Record<string, unknown> & { game?: string };

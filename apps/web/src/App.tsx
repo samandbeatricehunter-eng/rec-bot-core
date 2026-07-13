@@ -9,6 +9,7 @@ import { LinkTeamForm } from "./routes/league-mgmt/teams/LinkTeamForm.js";
 import { NotificationsHome } from "./routes/league-mgmt/notifications/NotificationsHome.js";
 import { DeleteLeagueHome } from "./routes/league-mgmt/delete-league/DeleteLeagueHome.js";
 import { RolesHome } from "./routes/league-mgmt/roles/RolesHome.js";
+import { SettingsHome } from "./routes/league-mgmt/settings/SettingsHome.js";
 
 // This dashboard is only ever reached one way: an authorized user clicks "Open Web
 // Dashboard" in Discord's League Mgmt panel, which opens this app in a normal browser tab
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="/league-mgmt/teams/link" element={<LinkTeamForm />} />
               <Route path="/league-mgmt/delete-league" element={<DeleteLeagueHome />} />
               <Route path="/league-mgmt/roles" element={<RolesHome />} />
+              <Route path="/league-mgmt/settings" element={<SettingsHome />} />
             </Routes>
           </AppShell>
         </AuthGate>

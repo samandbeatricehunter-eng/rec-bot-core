@@ -10,6 +10,7 @@ import type {
   DeleteLeagueResult,
   EosAwardPoll,
   LeagueIdentitiesResponse,
+  LeagueSettingsDraft,
   LeagueWeekView,
   LinkedTeamsResponse,
   ManualScoreRecordResult,
@@ -156,4 +157,10 @@ export const recApi = {
     recApiFetch<{ members: RoleMgmtMember[] }>("/v1/roles/members", { method: "POST", body: JSON.stringify({ guildId }) }),
   updateMemberRole: (input: { guildId: string; discordId: string; roleKey: RoleMgmtRoleKey; action: "add" | "remove" }) =>
     recApiFetch<{ ok: true }>("/v1/roles/update", { method: "POST", body: JSON.stringify(input) }),
+
+  // Settings (Phase 2)
+  getLeagueSettingsDraft: (guildId: string) =>
+    recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/config", { method: "POST", body: JSON.stringify({ guildId }) }),
+  updateLeagueSettings: (draft: LeagueSettingsDraft) =>
+    recApiFetch<unknown>("/v1/setup/league/config/update", { method: "POST", body: JSON.stringify(draft) }),
 };

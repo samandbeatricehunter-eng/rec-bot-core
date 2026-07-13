@@ -51,8 +51,11 @@ export async function setupRoutes(app: FastifyInstance) {
 
   app.post("/v1/setup/league/config", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await getLeagueConfigAsDraft((request.body as any).guildId));
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      // Settings is full-commissioner-only in Discord too — co-commissioners are blocked
+      // before even reaching this screen there (isRestrictedLeagueMgmtButton).
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "commissioner" });
+      return reply.send(await getLeagueConfigAsDraft(guildId));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -60,8 +63,10 @@ export async function setupRoutes(app: FastifyInstance) {
 
   app.post("/v1/setup/league/config/update", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await updateLeagueConfig(CreateLeagueSchema.parse(request.body)));
+      const body = CreateLeagueSchema.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode === "user") body.requestedByDiscordId = auth.discordId;
+      return reply.send(await updateLeagueConfig(body));
     } catch (error) {
       return sendError(reply, error);
     }

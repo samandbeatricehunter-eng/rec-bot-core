@@ -24,7 +24,7 @@ export function LeagueMgmtHome() {
         <ActivityTile to="/league-mgmt/schedule" icon={CalendarDays} title="Schedule" description="Set matchups, upload box scores, and record final scores." />
         <ActivityTile to="/league-mgmt/teams" icon={Users} title="Teams" description="Link and unlink users to teams." />
         <ActivityTile icon={FastForward} title="Advance" description="" disabled />
-        <ActivityTile icon={SlidersHorizontal} title="Settings" description="" disabled />
+        <ActivityTile to="/league-mgmt/settings" icon={SlidersHorizontal} title="Settings" description="Economy, rules, gameplay, and more." />
         <ActivityTile to="/league-mgmt/roles" icon={Shield} title="Roles" description="Grant or revoke REC League roles." />
         <ActivityTile icon={Wand2} title="First-Time Setup" description="" disabled />
         <ActivityTile to="/league-mgmt/delete-league" icon={Trash2} title="Delete League" description="Permanently erase this server's league data." />
