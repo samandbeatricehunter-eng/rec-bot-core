@@ -55,11 +55,19 @@
 
 /* Card */
 .card {
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
+}
+
+.league-home-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 /* Activity tile — centered as a group (there are only ever a handful of these) rather than
@@ -265,6 +273,60 @@
   padding: var(--space-3) var(--space-4);
   box-shadow: var(--shadow-card);
 }
+.app-shell-container {
+  width: 100%;
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+.app-header-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.app-header-summary-meta {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* A recessed double edge makes the message area read as a chat window rather than empty
+   card space, while keeping the composer visually attached to the conversation. */
+.commissioner-chat-window {
+  position: relative;
+  padding: 3px;
+  border: 1px solid #4a4a4a;
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, #292929, #111);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12), 0 5px 14px rgba(0, 0, 0, 0.42), inset 0 1px 2px rgba(255, 255, 255, 0.08);
+}
+.commissioner-chat-feed {
+  height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: #131313;
+  border: 1px solid #303030;
+  border-radius: calc(var(--radius-md) - 3px) calc(var(--radius-md) - 3px) 0 0;
+  box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.72), inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  overflow-wrap: anywhere;
+}
+.commissioner-chat-composer {
+  position: relative;
+  padding: var(--space-2);
+  background: #191919;
+  border: 1px solid #303030;
+  border-top: 0;
+  border-radius: 0 0 calc(var(--radius-md) - 3px) calc(var(--radius-md) - 3px);
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.55);
+}
+.commissioner-chat-input-row {
+  display: flex;
+  gap: var(--space-2);
+}
 
 /* Delete League floating action button — deliberately small and out of the way (bottom
    corner, muted until hover) since this is a destructive, head-commissioner-only action
@@ -381,4 +443,68 @@
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--text-sm);
+}
+
+@media (max-width: 960px) {
+  .league-home-panels {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .activity-tile {
+    width: min(100%, 320px);
+  }
+}
+
+@media (max-width: 600px) {
+  .app-shell-container {
+    padding: var(--space-3);
+  }
+  .app-header-bar {
+    flex-wrap: wrap;
+    padding: var(--space-3);
+    margin-bottom: var(--space-4) !important;
+  }
+  .app-header-summary {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .app-header-summary-meta {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  .card {
+    padding: var(--space-4);
+    overflow-wrap: anywhere;
+  }
+  .league-home-panels h2 {
+    font-size: 24px;
+    line-height: 1.2;
+  }
+  .league-home-panels {
+    margin-bottom: var(--space-5);
+  }
+  .commissioner-chat-feed {
+    height: min(52vh, 380px);
+    min-height: 260px;
+  }
+  .commissioner-chat-input-row .form-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  .commissioner-chat-input-row .btn {
+    flex: 0 0 auto;
+  }
+  .advance-shortcut-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .activity-grid {
+    gap: var(--space-3);
+  }
+  .activity-tile {
+    width: 100%;
+    min-height: 128px;
+    padding: var(--space-4);
+  }
 }

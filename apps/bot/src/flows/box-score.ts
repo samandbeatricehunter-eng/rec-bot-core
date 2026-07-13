@@ -420,9 +420,7 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
       embeds: [new EmbedBuilder()
         .setTitle("Box Score Submitted")
         .setColor(COLORS.success)
-        .setDescription(posted
-          ? `Parsed ${session.gameLabel} and sent it to Pending Payouts for commissioner approval.`
-          : `Parsed ${session.gameLabel}, but no Pending Payouts channel is configured.`)],
+        .setDescription(`Parsed ${session.gameLabel} and sent it to Commissioner Notifications for approval.`)],
       components: [],
     }).catch(() => undefined);
   } catch (err) {
@@ -913,7 +911,7 @@ export async function handleBoxScoreSubmissions(interaction: ButtonInteraction) 
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Box Score Submissions")
-      .setDescription("Select the game week first, then choose the scheduled game. After that, upload one box score image in this channel. The bot deletes the image after parsing and sends the payout review to Pending Payouts.")],
+      .setDescription("Select the game week first, then choose the scheduled game. After that, upload one box score image in this channel. The bot deletes the image after parsing and sends the review to Commissioner Notifications.")],
     components: buildAdminWeekRows(currentWeek, seasonNumber, game),
   });
 }

@@ -27,7 +27,7 @@ export function CommissionerChatHome() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const watermarkRef = useRef<string | null>(null);
+  const pollInFlightRef = useRef(false);
   const feedRef = useRef<HTMLDivElement>(null);
 
   const [topics, setTopics] = useState<ChatTopic[] | null>(null);
@@ -36,20 +36,19 @@ export function CommissionerChatHome() {
   const [mentionable, setMentionable] = useState<MentionableList | null>(null);
 
   function pollMessages() {
+    if (pollInFlightRef.current) return;
+    pollInFlightRef.current = true;
     recApi
-      .listChatMessages({ guildId, sinceIso: watermarkRef.current })
+      .listChatMessages({ guildId })
       .then((res) => {
-        if (!res.messages.length) return;
-        watermarkRef.current = res.messages[res.messages.length - 1].created_at;
-        setMessages((prev) => {
-          // De-dupe by id — two overlapping polls (e.g. a slow response still in flight
-          // when the next 5s tick fires) can otherwise both append the same message.
-          const seen = new Set(prev.map((m) => m.id));
-          const fresh = res.messages.filter((m) => !seen.has(m.id));
-          return fresh.length ? [...prev, ...fresh] : prev;
-        });
+        if (!res.messages.length) {
+          setMessages([]);
+          return;
+        }
+        setMessages(res.messages);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load chat."));
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load chat."))
+      .finally(() => { pollInFlightRef.current = false; });
   }
 
   useEffect(() => {
@@ -83,9 +82,9 @@ export function CommissionerChatHome() {
     setError(null);
     try {
       const res = await recApi.postChatMessage({ guildId, body });
-      watermarkRef.current = res.message.created_at;
-      setMessages((prev) => [...prev, res.message]);
+      setMessages((prev) => prev.some((message) => message.id === res.message.id) ? prev : [...prev, res.message]);
       setDraft("");
+      pollMessages();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.");
     } finally {
@@ -138,7 +137,7 @@ export function CommissionerChatHome() {
   }
 
   return (
-    <Card>
+    <Card className="commissioner-chat-card">
       <h2 style={{ margin: "0 0 var(--space-1)" }}>Commissioner's Office</h2>
       <p style={{ margin: "0 0 var(--space-3)", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
         Discuss and vote on topics with your commissioners and co-commissioners.
@@ -153,8 +152,8 @@ export function CommissionerChatHome() {
       </div>
 
       {tab === "messages" && (
-        <div>
-          <div ref={feedRef} style={{ height: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+        <div className="commissioner-chat-window">
+          <div ref={feedRef} className="commissioner-chat-feed">
             {messages.map((m) => (
               <div key={m.id}>
                 <span style={{ color: m.author_discord_id === discordId ? "var(--gold)" : "var(--text-secondary)", fontWeight: 700, fontSize: "var(--text-xs)" }}>
@@ -166,7 +165,7 @@ export function CommissionerChatHome() {
             ))}
             {messages.length === 0 && <p style={{ color: "var(--text-secondary)" }}>No messages yet — say hello.</p>}
           </div>
-          <div style={{ position: "relative" }}>
+          <div className="commissioner-chat-composer">
             {mentionMatches.length > 0 && (
               <div className="card" style={{ position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: "var(--space-1)", padding: "var(--space-1)", maxHeight: 180, overflowY: "auto", zIndex: 20 }}>
                 {mentionMatches.map((opt) => (
@@ -181,7 +180,7 @@ export function CommissionerChatHome() {
                 ))}
               </div>
             )}
-            <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <div className="commissioner-chat-input-row">
               <input
                 className="form-input"
                 placeholder="Message… (@ to mention a commissioner)"

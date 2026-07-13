@@ -33,7 +33,7 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
     .from("rec_commissioner_chat_messages")
     .select("id,author_discord_id,body,created_at")
     .eq("guild_id", guildId)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(MESSAGE_PAGE_SIZE);
   if (sinceIso) query = query.gt("created_at", sinceIso);
   const { data, error } = await query;
@@ -43,7 +43,7 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
   // snowflake — rec_users.display_name can't be relied on here (it's sometimes just a
   // placeholder copy of the Discord ID from account auto-provisioning).
   const names = await getGuildMemberDisplayNameMap(guildId).catch(() => new Map<string, string>());
-  const messages = (data ?? []).map((row) => ({ ...row, author_display_name: names.get(row.author_discord_id) ?? null }));
+  const messages = (data ?? []).reverse().map((row) => ({ ...row, author_display_name: names.get(row.author_discord_id) ?? null }));
   return { messages };
 }
 

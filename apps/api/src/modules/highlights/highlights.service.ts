@@ -120,7 +120,6 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
       preloadEmojis,
       paidSlotAvailable: false,
       highlight: highlight.data,
-      pendingPayoutsChannelId: null,
     };
   }
 
@@ -175,7 +174,6 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
     paidSlotAvailable: true,
     highlight: { ...highlight.data, payout_review_id: review.data.id },
     review: review.data,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
     commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
     compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
   };
@@ -305,7 +303,7 @@ export async function listHighlightAwardCandidates(guildId: string) {
   if (existingAwards.error) throw new ApiError(500, "Failed to check POTY finalization.", existingAwards.error);
 
   return {
-    league: { id: context.leagueId, seasonNumber, announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null, pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null },
+    league: { id: context.leagueId, seasonNumber, announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null },
     highlights: data ?? [],
     alreadyFinalized: (existingAwards.data ?? []).length > 0,
   };
@@ -339,7 +337,6 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
     return {
       review: existing.data,
       highlight: highlight.data,
-      pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
       commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
       compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
     };
@@ -387,7 +384,6 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
   return {
     review: review.data,
     highlight: highlight.data,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
     commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
     compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
   };

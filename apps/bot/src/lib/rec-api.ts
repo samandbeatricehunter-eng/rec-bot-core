@@ -140,13 +140,10 @@ export const recApi = {
   setEconomyConfig: (input: {
     guildId: string;
     pendingEconomyChannelId?: string;
-    pendingPayoutsChannelId?: string;
-    pendingPurchasesChannelId?: string;
     boxScoresChannelId?: string;
     headlinesChannelId?: string;
     powerRankingsChannelId?: string;
     gameChannelsCategoryId?: string;
-    commissionerOfficeChannelId?: string;
     streamsChannelId?: string;
     highlightsChannelId?: string;
     announcementsChannelId?: string;

@@ -7,14 +7,7 @@ import { CommissionerChatHome } from "./commissioner-chat/CommissionerChatHome.j
 export function LeagueMgmtHome() {
   return (
     <div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr)",
-          gap: "var(--space-5)",
-          marginBottom: "var(--space-6)",
-        }}
-      >
+      <div className="league-home-panels">
         <LinkedRosterPanel />
         <CommissionerChatHome />
         <WeeklyH2hPanel />

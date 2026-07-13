@@ -287,11 +287,12 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/eos-payouts/prepare", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
         requestedByDiscordId: z.string().min(1),
       }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "user") body.requestedByDiscordId = auth.discordId;
       return reply.send(await prepareEosPayouts(body));
     } catch (error) {
       return sendError(reply, error);

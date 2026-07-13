@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, FastForward, Mail, PenSquare, Trophy } from "lucide-react";
+import { CalendarClock, Coins, FastForward, ListChecks, PenSquare, Trophy } from "lucide-react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { WeeklyH2hGame } from "../../types/api.js";
@@ -15,18 +15,21 @@ const STATUS_BADGE: Record<WeeklyH2hGame["status"], { status: "denied" | "pendin
   final: { status: "approved", label: "Final" },
 };
 
-// Left-to-right order matches AdvanceHome.tsx's own top-to-bottom section order — that's
-// the real advance protocol (enter this week's scores, complete the advance, settle
-// division winners, schedule the next one, then see what would get DM'd) — not an
-// arbitrary icon arrangement. All shortcuts land on the same /league-mgmt/advance page
-// since it isn't sub-routed into sections today; framed as separate actions for
-// discoverability rather than actually deep-linking to a section.
+// Left-to-right order follows the real advance protocol: build/adjust the schedule, enter
+// this week's scores, complete the advance, settle division winners, schedule the next one,
+// then (once the season's over) run EOS payouts. Most shortcuts land on /league-mgmt/advance
+// (it isn't sub-routed into sections today — framed as separate actions for discoverability
+// rather than actually deep-linking); "Edit Schedules" and "Run EOS Payouts" go to their own
+// real destinations. Game-channel creation, GOTW polls, and EOS award polls stay Discord-only
+// (they need a live bot session for native Discord channel/poll operations) — not modeled
+// here as shortcuts since there's no working web equivalent to send them to yet.
 const ADVANCE_SHORTCUTS = [
-  { icon: PenSquare, label: "Enter Scores" },
-  { icon: FastForward, label: "Complete Advance" },
-  { icon: Trophy, label: "Division Winners" },
-  { icon: CalendarClock, label: "Schedule Next Advance" },
-  { icon: Mail, label: "Preview Advance DMs" },
+  { icon: ListChecks, label: "Edit Schedules", kind: "link", to: "/league-mgmt/manage-league" },
+  { icon: PenSquare, label: "Enter Scores", kind: "link", to: "/league-mgmt/advance" },
+  { icon: FastForward, label: "Complete Advance", kind: "link", to: "/league-mgmt/advance" },
+  { icon: Trophy, label: "Division Winners", kind: "link", to: "/league-mgmt/advance" },
+  { icon: CalendarClock, label: "Schedule Next Advance", kind: "link", to: "/league-mgmt/advance" },
+  { icon: Coins, label: "Run EOS Payouts", kind: "eos-payouts" },
 ] as const;
 
 // Home page's right column — this week's H2H games at a glance, plus shortcuts into the
@@ -37,6 +40,7 @@ export function WeeklyH2hPanel() {
   const navigate = useNavigate();
   const [data, setData] = useState<{ weekLabel: string; games: WeeklyH2hGame[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [preparingEos, setPreparingEos] = useState(false);
 
   useEffect(() => {
     recApi
@@ -44,6 +48,19 @@ export function WeeklyH2hPanel() {
       .then(setData)
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load this week's games."));
   }, [guildId]);
+
+  async function handleRunEosPayouts() {
+    setPreparingEos(true);
+    setError(null);
+    try {
+      await recApi.prepareEosPayouts({ guildId });
+      navigate("/league-mgmt/notifications");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to run EOS payouts.");
+    } finally {
+      setPreparingEos(false);
+    }
+  }
 
   return (
     <Card>
@@ -79,12 +96,23 @@ export function WeeklyH2hPanel() {
       )}
 
       <div className="advance-shortcut-row">
-        {ADVANCE_SHORTCUTS.map(({ icon: Icon, label }) => (
-          <button key={label} className="advance-shortcut-btn" onClick={() => navigate("/league-mgmt/advance")}>
-            <Icon size={20} />
-            <span>{label}</span>
-          </button>
-        ))}
+        {ADVANCE_SHORTCUTS.map((shortcut) => {
+          const Icon = shortcut.icon;
+          if (shortcut.kind === "eos-payouts") {
+            return (
+              <button key={shortcut.label} className="advance-shortcut-btn" onClick={handleRunEosPayouts} disabled={preparingEos}>
+                <Icon size={20} />
+                <span>{preparingEos ? "Running…" : shortcut.label}</span>
+              </button>
+            );
+          }
+          return (
+            <button key={shortcut.label} className="advance-shortcut-btn" onClick={() => navigate(shortcut.to)}>
+              <Icon size={20} />
+              <span>{shortcut.label}</span>
+            </button>
+          );
+        })}
       </div>
     </Card>
   );

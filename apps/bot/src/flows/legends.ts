@@ -398,7 +398,7 @@ export async function handleLegendReplaceModalSubmit(interaction: ModalSubmitInt
           ? `Once a commissioner approves, they'll install the legend in-game, replacing **${replacePlayerRequest}** as you requested.`
           : "Once a commissioner approves, they'll install the legend in-game, replacing your lowest-OVR player at this position.",
         "The legend is installed on a 7-year contract at the lowest contract value (if the salary cap is on).",
-        posted ? "Sent to Pending Purchases for review." : "No Pending Purchases channel is configured — ask a commissioner to review it.",
+        "Sent to Commissioner Notifications for review.",
       ].join("\n"))],
     components: [backRow()],
   });

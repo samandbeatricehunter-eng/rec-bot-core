@@ -241,7 +241,6 @@ export async function createPurchaseRequest(input: {
     purchase: finalized.data,
     price,
     walletBalance: walletBalance - price,
-    pendingPurchasesChannelId: (context.routes as any)?.pending_purchases_channel_id ?? null,
   };
 }
 
@@ -330,7 +329,6 @@ export async function listPendingPurchases(guildId: string) {
   if (error) throw new ApiError(500, "Failed to load pending purchases.", error);
   return {
     purchases: data ?? [],
-    pendingPurchasesChannelId: (context.routes as any)?.pending_purchases_channel_id ?? null,
   };
 }
 

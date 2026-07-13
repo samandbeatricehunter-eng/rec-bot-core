@@ -502,15 +502,12 @@ async function submitPurchase(interaction: ButtonInteraction) {
       details: draft.details,
     });
     purchaseSessions.delete(interaction.user.id);
-    await postPendingPurchase(interaction, result);
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Purchase Requested").setDescription([
         `Your **${REC_PURCHASE_TYPE_LABELS[draft.purchaseType]}** request was submitted.`,
         `**$${result.price}** was deducted. Your wallet is now **$${result.walletBalance}**.`,
         "",
-        result.pendingPurchasesChannelId
-          ? "A commissioner will review it. If denied, you'll be refunded."
-          : "Note: no pending-purchases channel is configured, so ask a commissioner to review it. If denied, you'll be refunded.",
+        "A commissioner will review it in Commissioner Notifications. If denied, you'll be refunded.",
       ].join("\n"))],
       components: [backRow()],
     });

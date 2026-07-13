@@ -201,11 +201,7 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
     }
   }
 
-  const loaded = await listEosPayoutBatch(batch.id);
-  return {
-    ...loaded,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
-  };
+  return listEosPayoutBatch(batch.id);
 }
 
 export async function projectEosPayouts(input: { guildId: string }) {

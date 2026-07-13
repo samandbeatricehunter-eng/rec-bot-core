@@ -1,9 +1,4 @@
 export const REC_ROUTE_CHANNELS = {
-  commissioner_office: {
-    label: "Commissioner Office",
-    inputField: "commissionerOfficeChannelId",
-    dbField: "commissioner_office_channel_id",
-  },
   announcements: {
     label: "Announcements",
     inputField: "announcementsChannelId",
@@ -38,16 +33,6 @@ export const REC_ROUTE_CHANNELS = {
     label: "Box Scores",
     inputField: "boxScoresChannelId",
     dbField: "box_scores_channel_id",
-  },
-  pending_payouts: {
-    label: "Pending Payouts",
-    inputField: "pendingPayoutsChannelId",
-    dbField: "pending_payouts_channel_id",
-  },
-  pending_purchases: {
-    label: "Pending Purchases",
-    inputField: "pendingPurchasesChannelId",
-    dbField: "pending_purchases_channel_id",
   },
   game_channels_category: {
     label: "Game Channels Category",

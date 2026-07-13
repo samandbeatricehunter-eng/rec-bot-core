@@ -126,7 +126,6 @@ export async function handleStreamChannelMessage(message: Message) {
     return null;
   });
 
-  await postPendingReviewFromMessage(message, streamResult, link, matchup);
   return true;
 }
 
@@ -208,7 +207,6 @@ async function submitStream(interaction: StringSelectMenuInteraction | ModalSubm
     submissionType: link ? "link" : "discord_live"
   }).catch((error) => ({ recorded: false, reason: error instanceof Error ? error.message : String(error) }));
 
-  await postPendingReview(interaction, streamResult, matchup);
 
   const status = streamResult?.alreadyPaid
     ? "Your stream was posted. You already have a stream payout pending or paid for this game week, so this one won't trigger another."

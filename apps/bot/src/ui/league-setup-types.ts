@@ -290,15 +290,12 @@ export type LeagueSetupDraft = {
   seedDefaultSchedule: boolean | null;
   fairSimRequirements: string;
   forceWinRequirements: string;
-  commissionerOfficeChannelId?: string | null;
   announcementsChannelId?: string | null;
   headlinesChannelId?: string | null;
   powerRankingsChannelId?: string | null;
   votingPollsChannelId?: string | null;
   streamsChannelId?: string | null;
   highlightsChannelId?: string | null;
-  pendingPayoutsChannelId?: string | null;
-  pendingPurchasesChannelId?: string | null;
   boxScoresChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   // When true, changes are saved to DB immediately after each step and return to settings_picker.
@@ -478,15 +475,12 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     seedDefaultSchedule: null,
     fairSimRequirements: "Fair Sims are the default for any game where users fail to schedule their game prior to advance time.",
     forceWinRequirements: "Force Wins can be requested if users agree to a scheduled time and one fails to appear within 1 hour of the elapsed game time.",
-    commissionerOfficeChannelId: null,
     announcementsChannelId: null,
     headlinesChannelId: null,
     powerRankingsChannelId: null,
     votingPollsChannelId: null,
     streamsChannelId: null,
     highlightsChannelId: null,
-    pendingPayoutsChannelId: null,
-    pendingPurchasesChannelId: null,
     boxScoresChannelId: null,
     gameChannelsCategoryId: null,
     editMode: false,

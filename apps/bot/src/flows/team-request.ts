@@ -155,7 +155,7 @@ export async function handleTeamRequestConference(interaction: ButtonInteraction
   );
 
   return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle(`${conference} Open Teams`).setDescription("Select an available team to send a link request to the commissioner office.")],
+    embeds: [new EmbedBuilder().setTitle(`${conference} Open Teams`).setDescription("Select an available team to send a link request to Commissioner Notifications.")],
     components: [
       new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
         new StringSelectMenuBuilder()
@@ -166,14 +166,6 @@ export async function handleTeamRequestConference(interaction: ButtonInteraction
       ...buildTeamsMenuRows(conference as TeamsMenuPage, conferences),
     ],
   });
-}
-
-async function getCommissionerOfficeChannel(guild: ButtonInteraction["guild"], guildId: string) {
-  const cfg = await recApi.getEconomyConfig(guildId).catch(() => null);
-  const routes = cfg?.routes ?? cfg ?? {};
-  const channelId = routes.commissioner_office_channel_id ?? routes.commissionerOfficeChannelId;
-  if (!channelId || !guild) return null;
-  return guild.channels.fetch(channelId).catch(() => null);
 }
 
 export async function handleTeamRequestSelect(interaction: StringSelectMenuInteraction) {
@@ -188,46 +180,11 @@ export async function handleTeamRequestSelect(interaction: StringSelectMenuInter
       teamId,
     });
 
-    const requestId = created.request.id;
-    const officeChannel = await getCommissionerOfficeChannel(interaction.guild, interaction.guildId);
-    if (!officeChannel || !officeChannel.isTextBased()) {
-      return interaction.editReply({
-        embeds: [new EmbedBuilder().setTitle("Request Failed").setDescription("Commissioner office channel is not configured. Ask a commissioner to set it in Server Setup.")],
-        components: buildTeamsMenuRows("NFC"),
-      });
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle("Team Link Request")
-      .setDescription([
-        `<@${interaction.user.id}> requested the following open team:`,
-        `**${created.teamName}**`,
-        "",
-        "Approve or reject this request below.",
-      ].join("\n"));
-
-    const message = await officeChannel.send({
-      embeds: [embed],
-      components: [
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${TEAM_REQUEST_CUSTOM_IDS.approvePrefix}:${requestId}`).setLabel("Approve").setStyle(ButtonStyle.Success),
-          new ButtonBuilder().setCustomId(`${TEAM_REQUEST_CUSTOM_IDS.rejectPrefix}:${requestId}`).setLabel("Reject").setStyle(ButtonStyle.Danger),
-        ),
-      ],
-      allowedMentions: { users: [interaction.user.id] },
-    });
-
-    await recApi.attachTeamLinkRequestMessage({
-      requestId,
-      channelId: message.channelId,
-      messageId: message.id,
-    });
-
     return interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setTitle("Request Sent")
-          .setDescription(`Your request for **${created.teamName}** was sent to the commissioner office. You'll be linked once approved.`),
+          .setDescription(`Your request for **${created.teamName}** was sent to Commissioner Notifications. You'll be linked once approved.`),
       ],
       components: buildTeamsMenuRows("NFC"),
     });

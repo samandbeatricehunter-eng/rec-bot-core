@@ -44,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="app-backdrop">
-      <div style={{ maxWidth: "var(--content-width)", margin: "0 auto", padding: "var(--space-5)" }}>
+      <div className="app-shell-container">
         <header
           className="app-header-bar"
           style={{
@@ -61,6 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
           <Link
             to="/"
+            className="app-wordmark"
             style={{
               display: "flex",
               alignItems: "center",
@@ -78,11 +79,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             REC LEAGUE
           </Link>
           {headerSummary && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+            <div className="app-header-summary">
               <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {headerSummary.league.name}
               </span>
-              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+              <span className="app-header-summary-meta">
                 Season {headerSummary.league.seasonNumber} · {headerSummary.league.weekLabel} ·{" "}
                 {headerSummary.teams.linked}/{headerSummary.teams.cap} teams linked ({headerSummary.teams.availableTeams} available)
                 {headerSummary.league.leaguePassword && <> · Password: {headerSummary.league.leaguePassword}</>}

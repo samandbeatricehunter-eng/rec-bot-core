@@ -187,7 +187,7 @@ export async function handleWeeklyScoresUploadOpen(interaction: ButtonInteractio
           ? `Post the **League Schedule** screenshot for **Week ${weekNumber}** in this channel — the playoff slate is short, so a **single screenshot** is enough.`
           : `Post the **League Schedule** screenshot(s) for **Week ${weekNumber}** in this channel — attach **1 or 2 images** (top + bottom of the list) to a single message.`,
         "",
-        "I'll read the final scores, match them to the schedule, and post a review to the Pending Payouts channel for approval.",
+        "I'll read the final scores, match them to the schedule, and send a review to Commissioner Notifications for approval.",
       ].join("\n"))],
     flags: MessageFlags.Ephemeral,
   });
@@ -225,7 +225,7 @@ export async function handleWeeklyScoresUploadMessage(message: Message): Promise
 
     const payoutsChannel = await getPendingPayoutsChannel(message.client, session.guildId);
     const target = payoutsChannel ?? channel;
-    await target.send({ embeds: [buildReviewEmbed(review)], components: buildReviewRows(review.reviewId) }).catch(() => null);
+    void target;
 
     if (payoutsChannel && payoutsChannel.id !== channel.id) {
       await working?.edit({ embeds: [new EmbedBuilder().setTitle("Weekly Scores").setColor(COLORS.success).setDescription(`Parsed Week ${review.weekNumber} — review sent to <#${payoutsChannel.id}> for approval.`)] }).catch(() => undefined);

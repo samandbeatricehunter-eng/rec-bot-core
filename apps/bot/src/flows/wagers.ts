@@ -574,7 +574,7 @@ async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: W
         `Stake: **$${result.wager.stake}** → To win: **$${result.payout}**`,
         "",
         `$${result.wager.stake} was moved to holding. Wallet balance: **$${result.walletBalance}**.`,
-        posted ? "Sent to Pending Payouts for settlement once results are confirmed." : "No Pending Payouts channel is configured, so settlement must be handled manually.",
+        "Sent to Commissioner Notifications for settlement once results are confirmed.",
       ].filter(Boolean).join("\n"))],
     components: [],
   });
@@ -623,7 +623,7 @@ async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: 
         "",
         `Stake: **$${stake}** → To win: **$${result.payout}** (${americanFromDecimal(result.combinedOdds)}, boosted).`,
         `$${stake} moved to holding. Wallet: **$${result.walletBalance}**.`,
-        posted ? "Sent to Pending Payouts; settles once all 3 results are confirmed." : "No Pending Payouts channel is configured.",
+        "Sent to Commissioner Notifications; settles once all 3 results are confirmed.",
       ].join("\n").slice(0, 4096))],
     components: [],
   });
@@ -709,7 +709,7 @@ async function acceptPeerAndPost(interaction: ButtonInteraction, wagerId: string
   // Update the announcement embed: remove buttons, show it's locked.
   const base = interaction.message.embeds[0];
   const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Wager")).setColor(COLORS.success);
-  embed.addFields({ name: "ACCEPTED", value: `<@${interaction.user.id}> took the other side. Sent to Pending Payouts.` });
+  embed.addFields({ name: "ACCEPTED", value: `<@${interaction.user.id}> took the other side. Sent to Commissioner Notifications.` });
   await interaction.editReply({ embeds: [embed], components: [] }).catch(() => undefined);
 
   // Post the pending-payout embed.
@@ -871,7 +871,7 @@ export async function handleCounterAccept(interaction: ButtonInteraction) {
       const msg = await (ch as any).messages.fetch(result.originalAnnouncementMessageId).catch(() => null);
       if (msg?.embeds?.[0]) {
         const embed = EmbedBuilder.from(msg.embeds[0]).setColor(COLORS.success);
-        embed.addFields({ name: "SETTLED VIA COUNTER", value: `Countered terms accepted. Sent to Pending Payouts.` });
+        embed.addFields({ name: "SETTLED VIA COUNTER", value: `Countered terms accepted. Sent to Commissioner Notifications.` });
         await msg.edit({ embeds: [embed], components: [] }).catch(() => undefined);
       }
     }
@@ -880,7 +880,7 @@ export async function handleCounterAccept(interaction: ButtonInteraction) {
   // Update the DM and post the pending-payout embed.
   const base = interaction.message.embeds[0];
   const dmEmbed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Counter")).setColor(COLORS.success);
-  dmEmbed.addFields({ name: "ACCEPTED", value: "You accepted the counter. Sent to Pending Payouts." });
+  dmEmbed.addFields({ name: "ACCEPTED", value: "You accepted the counter. Sent to Commissioner Notifications." });
   await interaction.editReply({ embeds: [dmEmbed], components: [] }).catch(() => undefined);
 
   const channelId: string | null = result.pendingPayoutsChannelId ?? null;

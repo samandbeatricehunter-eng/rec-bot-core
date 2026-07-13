@@ -11,13 +11,10 @@ const ViewConfigSchema = z.object({
 const SetConfigSchema = z.object({
   guildId: z.string().min(1),
   pendingEconomyChannelId: z.string().optional().nullable(),
-  pendingPayoutsChannelId: z.string().optional().nullable(),
-  pendingPurchasesChannelId: z.string().optional().nullable(),
   boxScoresChannelId: z.string().optional().nullable(),
   headlinesChannelId: z.string().optional().nullable(),
   powerRankingsChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
-  commissionerOfficeChannelId: z.string().optional().nullable(),
   streamsChannelId: z.string().optional().nullable(),
   highlightsChannelId: z.string().optional().nullable(),
   announcementsChannelId: z.string().optional().nullable(),

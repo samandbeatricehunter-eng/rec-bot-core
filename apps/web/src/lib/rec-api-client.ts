@@ -148,6 +148,8 @@ export const recApi = {
     recApiFetch<unknown>("/v1/league-week/weekly-scores/review/cancel", { method: "POST", body: JSON.stringify(input) }),
   issueEosPayoutBatch: (input: { guildId: string; batchId: string }) =>
     recApiFetch<unknown>("/v1/league-week/eos-payouts/issue-batch", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  prepareEosPayouts: (input: { guildId: string }) =>
+    recApiFetch<unknown>("/v1/league-week/eos-payouts/prepare", { method: "POST", body: JSON.stringify({ ...input, requestedByDiscordId: "web-dashboard" }) }),
 
   // Active Check resolve view
   getActiveCheckReview: (input: { guildId: string; eventId: string }) =>

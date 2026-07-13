@@ -89,19 +89,14 @@ export async function recoverOpenActiveChecks(client: Client) {
 async function settleActiveCheckPoll(client: Client, input: { eventId: string; guildId: string; channelId: string; messageId: string }) {
   const guild = await client.guilds.fetch(input.guildId).catch(() => null);
   if (!guild) return;
-  const routes = await getRouteChannels(input.guildId);
   const pollChannel = await guild.channels.fetch(input.channelId).catch(() => null);
-  const commissionerChannelId = routes.commissioner_office_channel_id ?? routes.commissionerOfficeChannelId;
-  const commissionerChannel = commissionerChannelId ? await guild.channels.fetch(commissionerChannelId).catch(() => null) : null;
   if (!pollChannel?.isTextBased()) {
     await recApi.markActiveCheckNeedsReview({ eventId: input.eventId, reason: "Poll channel was not fetchable." }).catch(() => undefined);
-    if (commissionerChannel?.isTextBased()) await commissionerChannel.send({ embeds: [new EmbedBuilder().setTitle("Active Check Needs Review").setDescription("The persisted active-check poll channel could not be fetched after restart. Review Discord manually before booting users.")] }).catch(() => undefined);
     return;
   }
   const message = await pollChannel.messages.fetch(input.messageId).catch(() => null);
   if (!message?.poll) {
     await recApi.markActiveCheckNeedsReview({ eventId: input.eventId, reason: "Poll message was not fetchable." }).catch(() => undefined);
-    if (commissionerChannel?.isTextBased()) await commissionerChannel.send({ embeds: [new EmbedBuilder().setTitle("Active Check Needs Review").setDescription("The persisted active-check poll message could not be fetched after restart. Review Discord manually before booting users.")] }).catch(() => undefined);
     return;
   }
 
@@ -114,10 +109,7 @@ async function settleActiveCheckPoll(client: Client, input: { eventId: string; g
   const kickVoters = kickAnswer ? await kickAnswer.fetchVoters().catch(() => null) : null;
   const activeDiscordIds = [...(activeVoters?.values() ?? [])].map((user: any) => user.id);
   const kickMeDiscordIds = [...(kickVoters?.values() ?? [])].map((user: any) => user.id);
-  const review = await recApi.settleActiveCheck({ eventId: input.eventId, activeDiscordIds, kickMeDiscordIds });
-
-  if (!commissionerChannel?.isTextBased()) return;
-  await commissionerChannel.send(buildActiveCheckReviewPayload(input.eventId, review.inactive ?? [], review.kickMe ?? []));
+  await recApi.settleActiveCheck({ eventId: input.eventId, activeDiscordIds, kickMeDiscordIds });
 }
 
 function listActiveCheckRows(rows: Array<{ label: string }>) {

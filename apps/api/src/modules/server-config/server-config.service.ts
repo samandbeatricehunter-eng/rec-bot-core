@@ -6,13 +6,10 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 type SetServerConfigInput = {
   guildId: string;
   pendingEconomyChannelId?: string | null;
-  pendingPayoutsChannelId?: string | null;
-  pendingPurchasesChannelId?: string | null;
   boxScoresChannelId?: string | null;
   headlinesChannelId?: string | null;
   powerRankingsChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
-  commissionerOfficeChannelId?: string | null;
   streamsChannelId?: string | null;
   highlightsChannelId?: string | null;
   announcementsChannelId?: string | null;

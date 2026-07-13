@@ -152,7 +152,6 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
     return true;
   }
 
-  await postPendingReview(message, result);
   return true;
 }
 

@@ -189,7 +189,6 @@ export async function handleEosPayouts(interaction: ButtonInteraction) {
   }
   const categoryLines = [...byCategory.entries()].map(([key, row]) => `${key}: **${row.count}** item${row.count === 1 ? "" : "s"} / **$${row.amount}**`);
   const batchId = result?.batch?.id ? String(result.batch.id) : null;
-  const reviewEmbedsPosted = pending > 0 ? await postEosReviewEmbeds(interaction, result) : 0;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("EOS Payouts Prepared")
@@ -200,7 +199,7 @@ export async function handleEosPayouts(interaction: ButtonInteraction) {
         `Pending review items: **${pending}**`,
         `Issued items: **${issued}**`,
         `Total generated amount: **$${total}**`,
-        `Review embeds posted: **${reviewEmbedsPosted}**`,
+        pending > 0 ? "Review the pending items in Commissioner Notifications." : "No review is required.",
         "",
         categoryLines.length ? categoryLines.join("\n") : "No qualifying EOS payouts were generated.",
         "",

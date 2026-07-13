@@ -243,7 +243,6 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
     line,
     payout,
     walletBalance: balance - stake,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
   };
 }
 
@@ -375,7 +374,6 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
     payout,
     walletBalance: prep.balance - stake,
     announcementsChannelId: (context.routes as any)?.announcements_channel_id ?? null,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
   };
 }
 
@@ -432,7 +430,6 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
 
   return {
     wager: updated.data,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
   };
 }
 
@@ -561,7 +558,6 @@ export async function acceptCounter(input: { guildId: string; discordId: string;
     wager: updated.data,
     originalAnnouncementChannelId: originalAnnouncement.channelId,
     originalAnnouncementMessageId: originalAnnouncement.messageId,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
   };
 }
 
@@ -698,7 +694,6 @@ export async function placeParlay(input: PlaceParlayInput) {
     legs: prepared.map((l) => l.label),
     combinedOdds, stake, payout,
     walletBalance: balance - stake,
-    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
   };
 }
 

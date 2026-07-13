@@ -156,15 +156,12 @@ export const CreateLeagueSchema = z.object({
 
   fairSimRequirements: z.string().optional().nullable(),
   forceWinRequirements: z.string().optional().nullable(),
-  commissionerOfficeChannelId: z.string().optional().nullable(),
   announcementsChannelId: z.string().optional().nullable(),
   headlinesChannelId: z.string().optional().nullable(),
   powerRankingsChannelId: z.string().optional().nullable(),
   votingPollsChannelId: z.string().optional().nullable(),
   streamsChannelId: z.string().optional().nullable(),
   highlightsChannelId: z.string().optional().nullable(),
-  pendingPayoutsChannelId: z.string().optional().nullable(),
-  pendingPurchasesChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
   seedDefaultSchedule: z.boolean().default(false),
   requestedByDiscordId: z.string().min(1).optional(),
@@ -182,10 +179,7 @@ export const UpdateServerRoutesSchema = z.object({
   powerRankingsChannelId: z.string().optional().nullable(),
   streamsChannelId: z.string().optional().nullable(),
   highlightsChannelId: z.string().optional().nullable(),
-  pendingPayoutsChannelId: z.string().optional().nullable(),
-  pendingPurchasesChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
-  commissionerOfficeChannelId: z.string().optional().nullable(),
   votingPollsChannelId: z.string().optional().nullable()
 });
 
