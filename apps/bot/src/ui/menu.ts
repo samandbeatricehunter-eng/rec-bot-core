@@ -229,7 +229,10 @@ export function buildLeagueMenuEmbed(input: {
     .setFooter({ text: "Powered by the REC Scout bot (c) 2026" });
 }
 
-export function buildLeagueMenuRows(canManageLeague: boolean, isLinkedToTeam = true) {
+// League Mgmt used to have a button here for commissioners/co-commissioners; it's now
+// reached via the standalone /league-mgmt command instead (same isDiscordAdminInteraction
+// gate), which goes straight to the web dashboard now that it has full League Mgmt parity.
+export function buildLeagueMenuRows(isLinkedToTeam = true) {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Teams").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.schedule).setLabel("Schedule").setStyle(ButtonStyle.Secondary),
@@ -241,8 +244,7 @@ export function buildLeagueMenuRows(canManageLeague: boolean, isLinkedToTeam = t
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Wager").setStyle(ButtonStyle.Success)
   );
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("Profiles").setStyle(ButtonStyle.Danger),
-    ...(canManageLeague ? [new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmt).setLabel("League Mgmt").setStyle(ButtonStyle.Danger)] : [])
+    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.viewUserProfiles).setLabel("Profiles").setStyle(ButtonStyle.Danger)
   );
   return isLinkedToTeam ? [row1, row2, row3] : [row1, row3];
 }

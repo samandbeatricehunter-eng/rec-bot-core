@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction, listGuildAdminDiscordIds, replyFullAdminOnly } from "./lib/admin.js";
@@ -458,6 +458,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    if (interaction.isChatInputCommand() && interaction.commandName === "league-mgmt") {
+      await handleLeagueMgmtOpenDashboard(interaction);
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId === MENU_CUSTOM_IDS.leagueMgmtOpenDashboard) {
       await handleLeagueMgmtOpenDashboard(interaction);
       return;
@@ -903,7 +908,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
   if (!guildId) {
     return {
       embeds: [buildLeagueMenuEmbed({ discordUsername: "Open /menu inside a REC Discord server", canManageLeague: isAdmin })],
-      components: buildLeagueMenuRows(isAdmin, false)
+      components: buildLeagueMenuRows(false)
     };
   }
 
@@ -952,7 +957,7 @@ async function buildMainMenuPayload(userId: string, guildId: string | null, isAd
 
   return {
     embeds: [menuEmbed],
-    components: buildLeagueMenuRows(isAdmin, isLinkedToTeamForRows)
+    components: buildLeagueMenuRows(isLinkedToTeamForRows)
   };
 }
 
@@ -974,12 +979,14 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
   await interaction.update(buildAdminPanelPayload(interaction));
 }
 
-// Additive alongside the existing League Mgmt embed workflow (not a replacement) — mints a
-// fresh, personal session token and hands the commissioner a Link button that opens the
-// web dashboard in their browser. Gated the same way the League Mgmt button itself already
-// is (only commissioners/co-commissioners ever see this button in the first place), but
-// checked again here since a stale button in an old message could otherwise be replayed.
-async function handleLeagueMgmtOpenDashboard(interaction: ButtonInteraction) {
+// Mints a fresh, personal session token and hands the commissioner/co-commissioner a Link
+// button that opens the web dashboard in their browser. Shared by the /league-mgmt slash
+// command (the primary entry point now that the dashboard has full League Mgmt parity —
+// see [[web-dashboard-full-parity]]) and the legacy "Open Web Dashboard" button still sitting
+// in the Discord-native Admin Panel, which is unreachable via /menu now but left in place
+// rather than deleted. Re-checks permission here regardless of caller, since a stale button
+// on an old message could otherwise be replayed.
+async function handleLeagueMgmtOpenDashboard(interaction: ButtonInteraction | ChatInputCommandInteraction) {
   if (!interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "open the web dashboard");
