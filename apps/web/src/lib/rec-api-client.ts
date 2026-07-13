@@ -163,4 +163,9 @@ export const recApi = {
     recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/config", { method: "POST", body: JSON.stringify({ guildId }) }),
   updateLeagueSettings: (draft: LeagueSettingsDraft) =>
     recApiFetch<unknown>("/v1/setup/league/config/update", { method: "POST", body: JSON.stringify(draft) }),
+
+  // First-Time Setup (Phase 2) — omitted fields fall back to CreateLeagueSchema's Zod
+  // defaults server-side, so a minimal payload here is intentional, not a shortcut.
+  createLeague: (input: { guildId: string; name: string; game: string; leagueType?: string; activeRostersEnabled?: boolean }) =>
+    recApiFetch<{ league: { id: string; name: string }; defaultTeams: unknown[] }>("/v1/setup/league/create", { method: "POST", body: JSON.stringify(input) }),
 };

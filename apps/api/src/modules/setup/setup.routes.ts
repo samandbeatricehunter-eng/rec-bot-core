@@ -33,8 +33,10 @@ export async function setupRoutes(app: FastifyInstance) {
 
   app.post("/v1/setup/league/create", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await createLeagueForServer(CreateLeagueSchema.parse(request.body)));
+      const body = CreateLeagueSchema.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode === "user") body.requestedByDiscordId = auth.discordId;
+      return reply.send(await createLeagueForServer(body));
     } catch (error) {
       return sendError(reply, error);
     }

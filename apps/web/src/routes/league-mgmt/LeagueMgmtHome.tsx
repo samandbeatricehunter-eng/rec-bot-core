@@ -26,7 +26,7 @@ export function LeagueMgmtHome() {
         <ActivityTile icon={FastForward} title="Advance" description="" disabled />
         <ActivityTile to="/league-mgmt/settings" icon={SlidersHorizontal} title="Settings" description="Economy, rules, gameplay, and more." />
         <ActivityTile to="/league-mgmt/roles" icon={Shield} title="Roles" description="Grant or revoke REC League roles." />
-        <ActivityTile icon={Wand2} title="First-Time Setup" description="" disabled />
+        <ActivityTile to="/league-mgmt/first-time-setup" icon={Wand2} title="First-Time Setup" description="Create a new league for this server." />
         <ActivityTile to="/league-mgmt/delete-league" icon={Trash2} title="Delete League" description="Permanently erase this server's league data." />
       </div>
     </div>
