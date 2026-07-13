@@ -56,7 +56,7 @@ export type TeamManagementSummary = {
 };
 
 export type LeagueHeaderSummary = {
-  league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null };
+  league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
   teams: { linked: number; total: number };
   isGuildOwner: boolean;
 };
@@ -243,7 +243,7 @@ export type AdvanceDmPreview = {
 };
 
 // Commissioner Chat + Voting
-export type ChatMessage = { id: string; author_discord_id: string; body: string; created_at: string };
+export type ChatMessage = { id: string; author_discord_id: string; author_display_name: string | null; body: string; created_at: string };
 export type ChatTopic = {
   id: string;
   title: string;

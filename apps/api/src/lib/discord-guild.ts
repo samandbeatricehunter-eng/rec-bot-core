@@ -156,6 +156,19 @@ export async function listGuildMembers(guildId: string): Promise<DiscordGuildMem
   return members;
 }
 
+const guildMemberListCache = new Map<string, CacheEntry<DiscordGuildMemberSummary[]>>();
+
+// Cached wrapper around listGuildMembers for callers that just need a discordId -> live
+// Discord display name (nickname, or username as fallback) lookup and can tolerate a ~60s
+// staleness window — e.g. resolving commissioner chat message authors, or linked-team
+// display names. Avoids hitting Discord's members endpoint on every 5s chat poll.
+export async function getGuildMemberDisplayNameMap(guildId: string): Promise<Map<string, string>> {
+  const cached = fromCache(guildMemberListCache, guildId);
+  const members = cached ?? (await listGuildMembers(guildId));
+  if (!cached) toCache(guildMemberListCache, guildId, members);
+  return new Map(members.map((m) => [m.discordId, m.displayName]));
+}
+
 // Find-or-create a REC managed role by name (mirrors apps/bot/src/lib/role-sync.ts's
 // ensureRole, minus hierarchy positioning — a guild only reaches the web dashboard after
 // the bot has already run there at least once, so orderRecRoles will already have placed

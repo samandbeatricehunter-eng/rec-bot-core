@@ -42,6 +42,7 @@ export function ManageLeagueHome() {
   const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
   const [missing, setMissing] = useState<MissingFilter>("all");
+  const [conferenceFilter, setConferenceFilter] = useState<string>("all");
 
   useEffect(() => {
     recApi
@@ -50,18 +51,28 @@ export function ManageLeagueHome() {
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load teams."));
   }, [guildId]);
 
+  // Built off the full team list (not the filtered subset) so picking a conference never
+  // makes other conferences disappear from the dropdown itself.
+  const availableConferences = useMemo(() => {
+    if (!summary) return [];
+    return [...new Set(summary.teams.map((t) => t.conference))].sort(
+      (a, b) => conferenceSortKey(a) - conferenceSortKey(b) || a.localeCompare(b),
+    );
+  }, [summary]);
+
   const filtered = useMemo(() => {
     if (!summary) return [];
     const q = query.trim().toLowerCase();
     return summary.teams.filter((t) => {
       if (q && !t.name.toLowerCase().includes(q)) return false;
+      if (conferenceFilter !== "all" && t.conference !== conferenceFilter) return false;
       if (ownership === "linked" && !t.linkedUser) return false;
       if (ownership === "unlinked" && t.linkedUser) return false;
       if (scheduleStatus !== "all" && t.scheduleStatus !== scheduleStatus) return false;
       if (missing === "has_missing" && t.missingBoxScoreCount === 0) return false;
       return true;
     });
-  }, [summary, query, ownership, scheduleStatus, missing]);
+  }, [summary, query, conferenceFilter, ownership, scheduleStatus, missing]);
 
   const grouped = useMemo(() => {
     const byConference = new Map<string, TeamManagementSummaryRow[]>();
@@ -111,6 +122,15 @@ export function ManageLeagueHome() {
               style={{ marginBottom: "var(--space-3)" }}
             />
             <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap" }}>
+              <div className="form-field" style={{ margin: 0, minWidth: 160 }}>
+                <label className="form-label" htmlFor="filter-conference">Conference</label>
+                <select id="filter-conference" className="form-select" value={conferenceFilter} onChange={(e) => setConferenceFilter(e.target.value)}>
+                  <option value="all">All conferences</option>
+                  {availableConferences.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
               <div className="form-field" style={{ margin: 0, minWidth: 160 }}>
                 <label className="form-label" htmlFor="filter-ownership">Ownership</label>
                 <select id="filter-ownership" className="form-select" value={ownership} onChange={(e) => setOwnership(e.target.value as OwnershipFilter)}>

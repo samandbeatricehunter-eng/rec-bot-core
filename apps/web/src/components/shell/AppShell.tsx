@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {headerSummary.league.name}
               </span>
               <span style={{ fontSize: "var(--text-xs)", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                Season {headerSummary.league.seasonNumber} · Week {headerSummary.league.currentWeek ?? "—"} ·{" "}
+                Season {headerSummary.league.seasonNumber} · {headerSummary.league.weekLabel} ·{" "}
                 {headerSummary.teams.linked}/{headerSummary.teams.total} teams linked
                 {headerSummary.league.leaguePassword && <> · Password: {headerSummary.league.leaguePassword}</>}
               </span>

@@ -6,6 +6,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { listScheduleSeason, listScheduleTeams } from "./schedule.service.js";
 import { loadResultsAndPendingSubmissions } from "./team-schedule.service.js";
+import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 
 export type TeamManagementSummaryRow = {
   id: string;
@@ -65,6 +66,10 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     : { data: [], error: null };
   if (accountsRes.error) throw new ApiError(500, "Failed to load Discord accounts.", accountsRes.error);
   const discordByUser = new Map((accountsRes.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+  // rec_users.display_name can be a stale placeholder (some accounts were auto-provisioned
+  // with their raw Discord ID as the name) — prefer the live Discord nickname/username when
+  // available, falling back to the stored value only if the live lookup fails.
+  const liveDiscordNames = await getGuildMemberDisplayNameMap(guildId).catch(() => new Map<string, string>());
 
   const season = await listScheduleSeason(guildId, resolvedSeasonNumber);
   const regularSeasonGames = season.weeks.flatMap((w: any) => w.games).filter((g: any) => isRegularSeasonWeek(g.week_number, game));
@@ -120,6 +125,7 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     }
 
     const assignment = assignmentByTeam.get(team.id);
+    const assignmentDiscordId = assignment ? discordByUser.get(assignment.userId) ?? null : null;
     return {
       id: team.id,
       name: team.name,
@@ -131,7 +137,11 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
       division: team.division ?? null,
       isRelocated: Boolean(team.is_relocated),
       linkedUser: assignment
-        ? { userId: assignment.userId, discordId: discordByUser.get(assignment.userId) ?? null, displayName: assignment.displayName }
+        ? {
+            userId: assignment.userId,
+            discordId: assignmentDiscordId,
+            displayName: (assignmentDiscordId && liveDiscordNames.get(assignmentDiscordId)) ?? assignment.displayName,
+          }
         : null,
       scheduleStatus,
       gamesScheduled,

@@ -39,7 +39,13 @@ export function CommissionerChatHome() {
       .then((res) => {
         if (!res.messages.length) return;
         watermarkRef.current = res.messages[res.messages.length - 1].created_at;
-        setMessages((prev) => [...prev, ...res.messages]);
+        setMessages((prev) => {
+          // De-dupe by id — two overlapping polls (e.g. a slow response still in flight
+          // when the next 5s tick fires) can otherwise both append the same message.
+          const seen = new Set(prev.map((m) => m.id));
+          const fresh = res.messages.filter((m) => !seen.has(m.id));
+          return fresh.length ? [...prev, ...fresh] : prev;
+        });
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load chat."));
   }
@@ -135,7 +141,7 @@ export function CommissionerChatHome() {
             {messages.map((m) => (
               <div key={m.id}>
                 <span style={{ color: m.author_discord_id === discordId ? "var(--gold)" : "var(--text-secondary)", fontWeight: 700, fontSize: "var(--text-xs)" }}>
-                  &lt;@{m.author_discord_id}&gt;
+                  {m.author_display_name ?? `<@${m.author_discord_id}>`}
                 </span>{" "}
                 <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>{new Date(m.created_at).toLocaleTimeString()}</span>
                 <p style={{ margin: "2px 0 0" }}>{m.body}</p>

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { stageLabel } from "@rec/shared";
 import { getDrizzleDb } from "../../db/client.js";
 import { recDiscordServers, recLeagues, recServerLeagueLinks, recServerRoutes } from "../../db/schema.js";
 import { ApiError } from "../../lib/errors.js";
@@ -55,7 +56,7 @@ export async function getCurrentLeagueContext(guildId: string): Promise<CurrentL
 }
 
 export type LeagueHeaderSummary = {
-  league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null };
+  league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
   teams: { linked: number; total: number };
   isGuildOwner: boolean;
 };
@@ -80,12 +81,17 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
   if (totalRes.error) throw new ApiError(500, "Failed to count league teams.", totalRes.error);
   if (linkedRes.error) throw new ApiError(500, "Failed to count linked teams.", linkedRes.error);
 
+  const currentWeek = context.rec_leagues.current_week != null ? Number(context.rec_leagues.current_week) : null;
+  const seasonStage = String(context.rec_leagues.season_stage ?? "preseason");
   return {
     league: {
       name: context.rec_leagues.name ?? "",
       leaguePassword: context.rec_leagues.league_password ?? null,
       seasonNumber: Number(context.rec_leagues.season_number ?? 1),
-      currentWeek: context.rec_leagues.current_week != null ? Number(context.rec_leagues.current_week) : null,
+      currentWeek,
+      // "Week N" only makes sense once games are actually being played — preseason/draft/
+      // free agency/etc. show their own stage name instead (stageLabel already knows this).
+      weekLabel: stageLabel(seasonStage, currentWeek ?? 1, context.rec_leagues.game ?? null),
     },
     teams: { linked: linkedRes.count ?? 0, total: totalRes.count ?? 0 },
     isGuildOwner: isOwner,

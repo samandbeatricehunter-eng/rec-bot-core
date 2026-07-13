@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
+import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 
 export async function getCurrentLeagueForGuild(guildId: string) {
@@ -248,9 +249,15 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
   let userId = account.data?.user_id;
 
   if (!userId) {
+    // Look up the real Discord nickname/username instead of stashing the raw snowflake as
+    // a placeholder — that placeholder was never getting corrected later, so it just showed
+    // up permanently as a number in every team/roster/chat display.
+    const liveName = await getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null).catch(() => null);
+    const displayName = liveName ?? input.discordId;
+
     const user = await supabase
       .from("rec_users")
-      .insert({ display_name: input.discordId, status: "active" })
+      .insert({ display_name: displayName, status: "active" })
       .select("id")
       .single();
 
@@ -258,7 +265,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
 
     const created = await supabase
       .from("rec_discord_accounts")
-      .insert({ user_id: user.data.id, discord_id: input.discordId, username: input.discordId, global_name: input.discordId })
+      .insert({ user_id: user.data.id, discord_id: input.discordId, username: displayName, global_name: displayName })
       .select("user_id")
       .single();
 

@@ -1,6 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 
 const MESSAGE_PAGE_SIZE = 200;
 
@@ -20,7 +21,13 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
   if (sinceIso) query = query.gt("created_at", sinceIso);
   const { data, error } = await query;
   if (error) throw new ApiError(500, "Failed to load commissioner chat messages.", error);
-  return { messages: data ?? [] };
+
+  // Resolve each author's live Discord nickname/username rather than showing the raw
+  // snowflake — rec_users.display_name can't be relied on here (it's sometimes just a
+  // placeholder copy of the Discord ID from account auto-provisioning).
+  const names = await getGuildMemberDisplayNameMap(guildId).catch(() => new Map<string, string>());
+  const messages = (data ?? []).map((row) => ({ ...row, author_display_name: names.get(row.author_discord_id) ?? null }));
+  return { messages };
 }
 
 export async function postChatMessage(input: { guildId: string; discordId: string; body: string }) {
@@ -41,7 +48,8 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     .select("id,author_discord_id,body,created_at")
     .single();
   if (error) throw new ApiError(500, "Failed to post message.", error);
-  return { message: data };
+  const names = await getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>());
+  return { message: { ...data, author_display_name: names.get(input.discordId) ?? null } };
 }
 
 export async function listChatTopics(guildId: string) {
