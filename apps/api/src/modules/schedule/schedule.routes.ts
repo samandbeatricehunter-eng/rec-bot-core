@@ -4,7 +4,8 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { listScheduleSeason, listScheduleTeams, listScheduleWeek, previewScheduleImport, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
-import { commitCfbTeamScheduleImport, getCfbTeamScheduleManualState, previewCfbTeamScheduleImport } from "./cfb-team-schedule.service.js";
+import { commitTeamScheduleDecisions, getTeamScheduleManualState, previewCfbTeamScheduleImport } from "./team-schedule.service.js";
+import { getTeamManagementSummary } from "./team-schedule-summary.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 
@@ -166,7 +167,8 @@ export async function scheduleRoutes(app: FastifyInstance) {
 
   // Commits the commissioner-approved per-week decisions from the preview above.
   // Weeks already confirmed (by this or an earlier team's upload) are silently skipped.
-  app.post("/v1/schedule/cfb-team-import-commit", async (request, reply) => {
+  // Game-generic (cfb_27 | madden_26 | madden_27).
+  app.post("/v1/schedule/team-schedule-commit", async (request, reply) => {
     try {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
       const input = z.object({
@@ -182,16 +184,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
       }).parse(request.body);
       // Attribute Activity-originated saves to the actual Discord user, not a generic bot save.
       if (auth.mode === "user" && !input.requestedByDiscordId) input.requestedByDiscordId = auth.discordId;
-      return reply.send(await commitCfbTeamScheduleImport(input));
+      return reply.send(await commitTeamScheduleDecisions(input));
     } catch (error) {
       return sendError(reply, error);
     }
   });
 
-  // Activity-only: the no-OCR equivalent of cfb-team-import-preview — every regular-season
-  // week for a team plus its already-confirmed status, for the "fill in the whole season on
-  // one page" form (no screenshot involved).
-  app.post("/v1/schedule/cfb-team-manual-preview", async (request, reply) => {
+  // Activity-only: the no-OCR equivalent of the CFB screenshot import preview — every
+  // regular-season week for a team plus its already-confirmed status, for the "fill in the
+  // whole season on one page" form (no screenshot involved). Game-generic.
+  app.post("/v1/schedule/team-manual-preview", async (request, reply) => {
     try {
       await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
       const input = z.object({
@@ -199,7 +201,22 @@ export async function scheduleRoutes(app: FastifyInstance) {
         teamId: z.string().uuid(),
         seasonNumber: z.number().int().positive().optional().nullable(),
       }).parse(request.body);
-      return reply.send(await getCfbTeamScheduleManualState(input));
+      return reply.send(await getTeamScheduleManualState(input));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Manage League hub's list view: every team's ownership + schedule-completion +
+  // box-score-health status in one call.
+  app.post("/v1/schedule/team-management-summary", async (request, reply) => {
+    try {
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({
+        guildId: z.string().min(1),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+      }).parse(request.body);
+      return reply.send(await getTeamManagementSummary(input.guildId, input.seasonNumber));
     } catch (error) {
       return sendError(reply, error);
     }

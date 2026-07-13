@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { CfbTeamScheduleManualState, CfbTeamScheduleManualWeek, ScheduleTeam } from "../../../types/api.js";
+import type { TeamScheduleManualState, TeamScheduleManualWeek, ScheduleTeam } from "../../../types/api.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -20,14 +20,14 @@ type WeekPick = { isBye: boolean; conference: string | null; opponentTeamId: str
 type SavedResult = { weekNumber: number; skipped: boolean; reason?: string };
 
 type ActiveModal =
-  | { type: "upload"; week: CfbTeamScheduleManualWeek }
-  | { type: "review"; week: CfbTeamScheduleManualWeek; submissionId: string }
-  | { type: "score"; week: CfbTeamScheduleManualWeek };
+  | { type: "upload"; week: TeamScheduleManualWeek }
+  | { type: "review"; week: TeamScheduleManualWeek; submissionId: string }
+  | { type: "score"; week: TeamScheduleManualWeek };
 
 // "home"/"away" describe the scheduled game's actual home/away team, not this row's team —
 // resolve real names once so the score-entry modal and result badge never show "Home Win"
 // for a team that's actually on the road this week.
-function homeAwayLabels(week: CfbTeamScheduleManualWeek, thisTeamName: string): { homeLabel: string; awayLabel: string } {
+function homeAwayLabels(week: TeamScheduleManualWeek, thisTeamName: string): { homeLabel: string; awayLabel: string } {
   const opponent = week.confirmedOpponentName ?? "Opponent";
   return week.confirmedHomeAway === "home" ? { homeLabel: thisTeamName, awayLabel: opponent } : { homeLabel: opponent, awayLabel: thisTeamName };
 }
@@ -38,10 +38,12 @@ function homeAwayLabels(week: CfbTeamScheduleManualWeek, thisTeamName: string): 
 // that already have a real matchup are also where box-score upload, review, and manual
 // final-score entry live — a commissioner opening this screen for an in-progress team sees
 // real, populated data immediately, and can resolve that week's result right from this row.
+// Game-generic (cfb_27 | madden_26 | madden_27) — stage labels come from the loaded team's
+// actual league.game, not a hardcoded guess.
 export function TeamScheduleForm() {
   const { teamId } = useParams<{ teamId: string }>();
   const { guildId, discordId } = useReadyAuth();
-  const [state, setState] = useState<CfbTeamScheduleManualState | null>(null);
+  const [state, setState] = useState<TeamScheduleManualState | null>(null);
   const [teams, setTeams] = useState<ScheduleTeam[] | null>(null);
   const [picks, setPicks] = useState<Record<number, WeekPick>>({});
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export function TeamScheduleForm() {
 
   const load = useCallback(() => {
     if (!teamId) return Promise.resolve();
-    return Promise.all([recApi.getCfbTeamScheduleManualState({ guildId, teamId }), recApi.listScheduleTeams(guildId)])
+    return Promise.all([recApi.getTeamScheduleManualState({ guildId, teamId }), recApi.listScheduleTeams(guildId)])
       .then(([manualState, teamsRes]) => {
         setState(manualState);
         setTeams(teamsRes.teams);
@@ -89,7 +91,7 @@ export function TeamScheduleForm() {
       .filter(([, pick]) => !pick.isBye && pick.opponentTeamId && pick.homeAway)
       .map(([weekNumber, pick]) => ({ weekNumber: Number(weekNumber), opponentTeamId: pick.opponentTeamId!, homeAway: pick.homeAway! }));
     try {
-      const result = await recApi.commitCfbTeamSchedule({ guildId, teamId, decisions });
+      const result = await recApi.commitTeamScheduleDecisions({ guildId, teamId, decisions });
       setResults(result.saved);
       // Newly-confirmed weeks need to switch over to their populated, box-score-ready
       // display without a manual page reload.
@@ -115,6 +117,7 @@ export function TeamScheduleForm() {
   if (!state || !teams) return <LoadingState label="Loading schedule…" />;
 
   const resultByWeek = new Map(results?.map((r) => [r.weekNumber, r]));
+  const game = state.game;
 
   return (
     <div>
@@ -134,7 +137,7 @@ export function TeamScheduleForm() {
           </thead>
           <tbody>
             {state.weeks.map((week) => {
-              const label = stageLabel(stageForWeek(week.weekNumber, "cfb_27"), week.weekNumber, "cfb_27");
+              const label = stageLabel(stageForWeek(week.weekNumber, game), week.weekNumber, game);
               const pick = picks[week.weekNumber];
               const savedResult = resultByWeek.get(week.weekNumber);
 
@@ -151,6 +154,9 @@ export function TeamScheduleForm() {
                           </Badge>
                         )}
                         {week.pendingBoxScoreSubmissionId && <Badge status="pending">Box Score Pending Review</Badge>}
+                        <Tooltip text="This matchup was entered once and is shared between both teams' schedules — no need to enter it again on the other side.">
+                          <Badge status="info">Shared with {week.confirmedOpponentName}'s schedule</Badge>
+                        </Tooltip>
                       </div>
                     </Td>
                     <Td>
@@ -243,7 +249,13 @@ export function TeamScheduleForm() {
                     </label>
                   </Td>
                   <Td>
-                    {savedResult ? (savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>) : ""}
+                    {savedResult ? (
+                      savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>
+                    ) : (
+                      <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
+                        Pick an opponent and Save Season to unlock box score entry
+                      </span>
+                    )}
                   </Td>
                 </tr>
               );

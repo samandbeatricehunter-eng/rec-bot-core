@@ -7,9 +7,10 @@ export type ScheduleTeam = {
   name: string;
   abbreviation: string;
   conference: string | null;
+  division: string | null;
 };
 
-export type CfbTeamScheduleManualWeek = {
+export type TeamScheduleManualWeek = {
   weekNumber: number;
   alreadyConfirmed: boolean;
   confirmedOpponentTeamId: string | null;
@@ -20,14 +21,39 @@ export type CfbTeamScheduleManualWeek = {
   pendingBoxScoreSubmissionId: string | null;
 };
 
-export type CfbTeamScheduleManualState = {
+export type TeamScheduleManualState = {
   team: { id: string; name: string; abbreviation: string };
   seasonNumber: number;
-  weeks: CfbTeamScheduleManualWeek[];
+  game: string | null;
+  weeks: TeamScheduleManualWeek[];
 };
 
 export type CommitDecision = { weekNumber: number; opponentTeamId: string; homeAway: "home" | "away" };
 export type CommitResult = { saved: Array<{ weekNumber: number; skipped: boolean; reason?: string }> };
+
+export type TeamManagementSummaryRow = {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  displayCity: string | null;
+  displayNick: string | null;
+  displayAbbr: string | null;
+  conference: string;
+  division: string | null;
+  isRelocated: boolean;
+  linkedUser: { userId: string; discordId: string | null; displayName: string | null } | null;
+  scheduleStatus: "empty" | "partial" | "complete";
+  gamesScheduled: number;
+  gamesExpected: number;
+  missingBoxScoreCount: number;
+  awaitingReviewCount: number;
+  record: { wins: number; losses: number; ties: number };
+};
+
+export type TeamManagementSummary = {
+  league: { id: string; name: string | null; game: string | null; seasonNumber: number; currentWeek: number; gamesExpectedPerTeam: number };
+  teams: TeamManagementSummaryRow[];
+};
 
 export type LinkedTeamRow = {
   id: string;

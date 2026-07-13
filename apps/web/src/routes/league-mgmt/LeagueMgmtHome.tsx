@@ -21,7 +21,7 @@ export function LeagueMgmtHome() {
       <PageHeader title="League Mgmt" subtitle="Everything a commissioner or co-commissioner can manage, in one place." />
       <div className="activity-grid">
         <ActivityTile to="/league-mgmt/notifications" icon={Bell} title="Notifications" description="Pending payouts, purchases, and reviews awaiting action." badgeCount={notificationCount} />
-        <ActivityTile to="/league-mgmt/schedule" icon={CalendarDays} title="Schedule" description="Set matchups, upload box scores, and record final scores." />
+        <ActivityTile to="/league-mgmt/manage-league" icon={CalendarDays} title="Manage League" description="Find a team, assign a coach, and enter its schedule and scores." />
         <ActivityTile to="/league-mgmt/teams" icon={Users} title="Teams" description="Link and unlink users to teams." />
         <ActivityTile to="/league-mgmt/advance" icon={FastForward} title="Advance" description="Score entry, division winners, and next-advance scheduling." />
         <ActivityTile to="/league-mgmt/settings" icon={SlidersHorizontal} title="Settings" description="Economy, rules, gameplay, and more." />

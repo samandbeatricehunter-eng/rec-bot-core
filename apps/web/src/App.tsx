@@ -2,8 +2,8 @@ import { HashRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
 import { AppShell } from "./components/shell/AppShell.js";
 import { LeagueMgmtHome } from "./routes/league-mgmt/LeagueMgmtHome.js";
-import { TeamPicker } from "./routes/league-mgmt/schedule/TeamPicker.js";
-import { TeamScheduleForm } from "./routes/league-mgmt/schedule/TeamScheduleForm.js";
+import { ManageLeagueHome } from "./routes/league-mgmt/manage-league/ManageLeagueHome.js";
+import { TeamScheduleForm } from "./routes/league-mgmt/manage-league/TeamScheduleForm.js";
 import { TeamOwnershipTable } from "./routes/league-mgmt/teams/TeamOwnershipTable.js";
 import { LinkTeamForm } from "./routes/league-mgmt/teams/LinkTeamForm.js";
 import { NotificationsHome } from "./routes/league-mgmt/notifications/NotificationsHome.js";
@@ -34,8 +34,8 @@ export default function App() {
             <Routes>
               <Route path="/" element={<LeagueMgmtHome />} />
               <Route path="/league-mgmt/notifications" element={<NotificationsHome />} />
-              <Route path="/league-mgmt/schedule" element={<TeamPicker />} />
-              <Route path="/league-mgmt/schedule/:teamId" element={<TeamScheduleForm />} />
+              <Route path="/league-mgmt/manage-league" element={<ManageLeagueHome />} />
+              <Route path="/league-mgmt/manage-league/:teamId" element={<TeamScheduleForm />} />
               <Route path="/league-mgmt/teams" element={<TeamOwnershipTable />} />
               <Route path="/league-mgmt/teams/link" element={<LinkTeamForm />} />
               <Route path="/league-mgmt/delete-league" element={<DeleteLeagueHome />} />

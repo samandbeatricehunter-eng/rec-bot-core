@@ -6,7 +6,6 @@ import type {
   AdvanceWeekGames,
   BoxScoreJobStatus,
   BoxScoreSubmissionDetail,
-  CfbTeamScheduleManualState,
   ChatMessage,
   ChatTopic,
   CommissionerNotificationsResponse,
@@ -24,6 +23,8 @@ import type {
   RoleMgmtMember,
   RoleMgmtRoleKey,
   ScheduleTeam,
+  TeamManagementSummary,
+  TeamScheduleManualState,
   UploadImageResponse,
 } from "../types/api.js";
 
@@ -66,10 +67,12 @@ export const recApi = {
   // Schedule
   listScheduleTeams: (guildId: string) =>
     recApiFetch<{ teams: ScheduleTeam[] }>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
-  getCfbTeamScheduleManualState: (input: { guildId: string; teamId: string }) =>
-    recApiFetch<CfbTeamScheduleManualState>(REC_API_ROUTES.cfbTeamScheduleManualState, { method: "POST", body: JSON.stringify(input) }),
-  commitCfbTeamSchedule: (input: { guildId: string; teamId: string; decisions: CommitDecision[] }) =>
-    recApiFetch<CommitResult>("/v1/schedule/cfb-team-import-commit", { method: "POST", body: JSON.stringify(input) }),
+  getTeamScheduleManualState: (input: { guildId: string; teamId: string }) =>
+    recApiFetch<TeamScheduleManualState>(REC_API_ROUTES.teamScheduleManualState, { method: "POST", body: JSON.stringify(input) }),
+  commitTeamScheduleDecisions: (input: { guildId: string; teamId: string; decisions: CommitDecision[] }) =>
+    recApiFetch<CommitResult>(REC_API_ROUTES.teamScheduleCommit, { method: "POST", body: JSON.stringify(input) }),
+  getTeamManagementSummary: (guildId: string) =>
+    recApiFetch<TeamManagementSummary>(REC_API_ROUTES.teamManagementSummary, { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // Team ownership
   listLinkedUsersTeams: (guildId: string) => recApiFetch<LinkedTeamsResponse>(REC_API_ROUTES.linkedUsersTeams(guildId)),

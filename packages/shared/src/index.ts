@@ -49,7 +49,9 @@ export const REC_API_ROUTES = {
 
   // Web dashboard (apps/web) only.
   webSessionMint: "/v1/web-session/mint",
-  cfbTeamScheduleManualState: "/v1/schedule/cfb-team-manual-preview",
+  teamScheduleManualState: "/v1/schedule/team-manual-preview",
+  teamScheduleCommit: "/v1/schedule/team-schedule-commit",
+  teamManagementSummary: "/v1/schedule/team-management-summary",
 } as const;
 
 export type RecTeamAuthority = "member" | "commissioner" | "co_commissioner";

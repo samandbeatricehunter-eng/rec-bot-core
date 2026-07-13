@@ -24,6 +24,16 @@ export function regularSeasonWeeks(game: LeagueGame): number {
   return isCfb(game) ? 14 : 18;
 }
 
+// Regular-season weeks is NOT the same as regular-season games — both games have bye weeks
+// that are never persisted anywhere (a bye and a not-yet-entered week look identical: no
+// rec_games row for that team+week), so "confirmed weeks / weeks in season" can never reach
+// 1.0 for a real schedule. Use this fixed per-team game count as the completion denominator
+// instead. CFB: 12 games across 15 regular-season weeks. Madden: 17 games across 18 weeks
+// (1 bye), matching the real-NFL schedule this is modeled on.
+export function regularSeasonGamesPerTeam(game: LeagueGame): number {
+  return isCfb(game) ? 12 : 17;
+}
+
 /** Last week number of the whole season (regular season + postseason) for this game. */
 export function maxSeasonWeek(game: LeagueGame): number {
   return isCfb(game) ? 20 : 22;

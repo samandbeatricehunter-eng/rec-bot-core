@@ -9,11 +9,20 @@ import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, saveManualScheduleGame } from "./schedule.service.js";
 
-type ConfirmedWeek = { gameId: string; opponentTeamId: string; opponentName: string; homeAway: "home" | "away" };
+type ConfirmedWeek = {
+  gameId: string;
+  weekNumber: number;
+  homeTeamId: string;
+  awayTeamId: string;
+  opponentTeamId: string;
+  opponentName: string;
+  homeAway: "home" | "away";
+};
 
-// Shared by the OCR-driven preview (previewCfbTeamScheduleImport) and the web dashboard's
-// no-OCR manual preview (getCfbTeamScheduleManualState) — a team+week already has a
-// confirmed matchup (from either side of the game, from any source: OCR import, manual
+// Shared by the OCR-driven preview (previewCfbTeamScheduleImport, still CFB-only — that
+// parser only understands the CFB Team Schedule screenshot format) and the web dashboard's
+// no-OCR manual preview (getTeamScheduleManualState, now game-generic) — a team+week already
+// has a confirmed matchup (from either side of the game, from any source: OCR import, manual
 // Discord wizard, or the web dashboard) if a rec_games row already covers it.
 function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; games: any[] }> }, teamId: string): Map<number, ConfirmedWeek> {
   const confirmedByWeek = new Map<number, ConfirmedWeek>();
@@ -25,6 +34,9 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
       const opponent = isAway ? game.home_team : game.away_team;
       confirmedByWeek.set(week.weekNumber, {
         gameId: game.id,
+        weekNumber: week.weekNumber,
+        homeTeamId: game.home_team_id,
+        awayTeamId: game.away_team_id,
         opponentTeamId: isAway ? game.home_team_id : game.away_team_id,
         opponentName: opponent?.name ?? opponent?.abbreviation ?? "Team",
         homeAway: isAway ? "away" : "home",
@@ -35,7 +47,7 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
 }
 
 // The web dashboard's schedule builder is also where box scores get uploaded/reviewed and
-// final scores get manually recorded (see cfb-team-schedule.service.ts's plan doc) — every
+// final scores get manually recorded (see team-schedule.service.ts's plan doc) — every
 // week row needs to know not just "who's the opponent" but "does this game already have a
 // result, or a box-score submission awaiting review," so the UI can show the right actions
 // instead of asking the commissioner to open each game to check.
@@ -44,25 +56,50 @@ type GameResultAndSubmission = {
   pendingBoxScoreSubmissionId: string | null;
 };
 
-async function loadResultsAndPendingSubmissions(gameIds: string[]): Promise<Map<string, GameResultAndSubmission>> {
+export type GameResultLookupDescriptor = { id: string; weekNumber: number; homeTeamId: string; awayTeamId: string };
+
+// Exported so the bulk team-management-summary aggregation (team-schedule-summary.service.ts)
+// can reuse this instead of duplicating the result/pending-submission query per team.
+//
+// rec_game_results has no game_id column — a result is a standalone row correlated to a
+// scheduled matchup by (league_id, season_number, week_number, home_team_id, away_team_id),
+// same as manual-scores.service.ts's listManualScoreGames. rec_box_score_submissions DOES
+// have game_id, so that half stays a direct lookup.
+export async function loadResultsAndPendingSubmissions(
+  leagueId: string,
+  seasonNumber: number,
+  games: GameResultLookupDescriptor[],
+): Promise<Map<string, GameResultAndSubmission>> {
   const byGameId = new Map<string, GameResultAndSubmission>();
-  if (!gameIds.length) return byGameId;
+  if (!games.length) return byGameId;
+  const gameIds = games.map((g) => g.id);
+  const weekNumbers = [...new Set(games.map((g) => g.weekNumber))];
 
   const [resultsRes, submissionsRes] = await Promise.all([
-    supabase.from("rec_game_results").select("game_id,home_score,away_score,is_tie,source").in("game_id", gameIds),
+    supabase
+      .from("rec_game_results")
+      .select("week_number,home_team_id,away_team_id,home_score,away_score,is_tie,source")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .in("week_number", weekNumbers),
     supabase.from("rec_box_score_submissions").select("id,game_id").eq("status", "pending").in("game_id", gameIds),
   ]);
   if (resultsRes.error) throw new ApiError(500, "Failed to load existing game results.", resultsRes.error);
   if (submissionsRes.error) throw new ApiError(500, "Failed to load pending box score submissions.", submissionsRes.error);
 
-  for (const gameId of gameIds) byGameId.set(gameId, { result: null, pendingBoxScoreSubmissionId: null });
-  for (const row of resultsRes.data ?? []) {
-    const entry = byGameId.get(row.game_id);
-    if (entry) entry.result = { homeScore: row.home_score, awayScore: row.away_score, isTie: row.is_tie, source: row.source };
-  }
-  for (const row of submissionsRes.data ?? []) {
-    const entry = row.game_id ? byGameId.get(row.game_id) : undefined;
-    if (entry) entry.pendingBoxScoreSubmissionId = row.id;
+  const resultByMatchup = new Map(
+    (resultsRes.data ?? []).map((row: any) => [`${row.week_number}:${row.home_team_id}:${row.away_team_id}`, row]),
+  );
+  const pendingByGameId = new Map(
+    (submissionsRes.data ?? []).filter((row: any) => row.game_id).map((row: any) => [row.game_id, row.id]),
+  );
+
+  for (const g of games) {
+    const row = resultByMatchup.get(`${g.weekNumber}:${g.homeTeamId}:${g.awayTeamId}`);
+    byGameId.set(g.id, {
+      result: row ? { homeScore: row.home_score, awayScore: row.away_score, isTie: row.is_tie, source: row.source } : null,
+      pendingBoxScoreSubmissionId: pendingByGameId.get(g.id) ?? null,
+    });
   }
   return byGameId;
 }
@@ -87,6 +124,8 @@ export type TeamScheduleWeekPreview = {
   confirmedHomeAway: "home" | "away" | null;
 };
 
+// OCR-screenshot-driven preview — CFB only (the parser only understands the CFB Team
+// Schedule screenshot format). Left untouched; not part of the Madden generalization.
 export async function previewCfbTeamScheduleImport(input: {
   guildId: string;
   teamId: string;
@@ -155,6 +194,8 @@ export async function previewCfbTeamScheduleImport(input: {
 // commissioner fills in every week directly in the UI instead of correcting a parsed
 // guess), plus each week's existing result/pending-submission so the builder can show
 // (and act on) box scores and final scores inline instead of starting from blank.
+// Game-generic (cfb_27 | madden_26 | madden_27) — the week range and stage labels already
+// come from @rec/shared's game-aware helpers, so no CFB-only guard is needed here.
 export type TeamScheduleManualWeek = {
   weekNumber: number;
   alreadyConfirmed: boolean;
@@ -166,15 +207,12 @@ export type TeamScheduleManualWeek = {
   pendingBoxScoreSubmissionId: string | null;
 };
 
-export async function getCfbTeamScheduleManualState(input: {
+export async function getTeamScheduleManualState(input: {
   guildId: string;
   teamId: string;
   seasonNumber?: number | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
-  if (context.rec_leagues.game !== "cfb_27") {
-    throw new ApiError(400, "Team schedule entry is only available for CFB leagues.");
-  }
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
 
@@ -189,12 +227,14 @@ export async function getCfbTeamScheduleManualState(input: {
 
   const season = await listScheduleSeason(input.guildId, seasonNumber);
   const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
-  const gameIds = [...confirmedByWeek.values()].map((c) => c.gameId);
-  const resultsAndSubmissions = await loadResultsAndPendingSubmissions(gameIds);
+  const gameDescriptors = [...confirmedByWeek.values()].map((c) => ({ id: c.gameId, weekNumber: c.weekNumber, homeTeamId: c.homeTeamId, awayTeamId: c.awayTeamId }));
+  const resultsAndSubmissions = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
 
   const lastWeek = regularSeasonWeeks(context.rec_leagues.game);
+  // CFB's regular season starts at Week 0; Madden's starts at Week 1.
+  const firstWeek = context.rec_leagues.game === "cfb_27" ? 0 : 1;
   const weeks: TeamScheduleManualWeek[] = [];
-  for (let weekNumber = 0; weekNumber <= lastWeek; weekNumber++) {
+  for (let weekNumber = firstWeek; weekNumber <= lastWeek; weekNumber++) {
     const confirmed = confirmedByWeek.get(weekNumber);
     const extra = confirmed ? resultsAndSubmissions.get(confirmed.gameId) : undefined;
     weeks.push({
@@ -212,11 +252,12 @@ export async function getCfbTeamScheduleManualState(input: {
   return {
     team: { id: team.id, name: team.name, abbreviation: team.abbreviation },
     seasonNumber,
+    game: context.rec_leagues.game,
     weeks,
   };
 }
 
-export async function commitCfbTeamScheduleImport(input: {
+export async function commitTeamScheduleDecisions(input: {
   guildId: string;
   teamId: string;
   seasonNumber?: number | null;
@@ -224,9 +265,6 @@ export async function commitCfbTeamScheduleImport(input: {
   requestedByDiscordId?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
-  if (context.rec_leagues.game !== "cfb_27") {
-    throw new ApiError(400, "Team schedule import is only available for CFB leagues.");
-  }
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);

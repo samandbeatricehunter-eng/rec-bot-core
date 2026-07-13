@@ -90,7 +90,7 @@ export function FirstTimeSetupHome() {
           <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginTop: "var(--space-4)" }}>
             <Link to="/league-mgmt/settings"><Button variant="primary">Configure Settings</Button></Link>
             <Link to="/league-mgmt/teams"><Button variant="secondary">Link Teams</Button></Link>
-            <Link to="/league-mgmt/schedule"><Button variant="secondary">Set Schedule</Button></Link>
+            <Link to="/league-mgmt/manage-league"><Button variant="secondary">Set Schedule</Button></Link>
           </div>
         </Card>
       )}
