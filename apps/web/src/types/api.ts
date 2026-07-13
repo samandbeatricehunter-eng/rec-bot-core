@@ -79,8 +79,8 @@ export type LinkedTeamRow = {
 };
 export type LinkedTeamsResponse = { linked: LinkedTeamRow[] };
 
-export type OpenTeam = { id: string; name: string; abbreviation: string; conference: string | null };
-export type OpenTeamsResponse = { openTeams: OpenTeam[] };
+export type OpenTeam = { id: string; name: string; abbreviation: string; conference: string | null; division: string | null };
+export type OpenTeamsResponse = { openTeams: OpenTeam[]; totalTeams: number; league?: { name?: string | null } };
 
 export type LeagueIdentity = { userId: string; discordId: string | null; displayName: string };
 export type LeagueIdentitiesResponse = { identities: LeagueIdentity[] };

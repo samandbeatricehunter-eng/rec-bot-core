@@ -36,6 +36,7 @@ import {
   buildAdminPanelRows,
   buildLeagueMenuEmbed,
   buildLeagueMenuRows,
+  buildOpenTeamsEmbeds,
   buildWalletTransferCustomModal,
   buildSetupDangerModal,
   buildDeleteLeagueWarningPayload,
@@ -964,6 +965,32 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
 
 async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction) {
   if (!interaction.inCachedGuild()) return;
+  try {
+    const profile = await recApi.getMenuProfile(interaction.user.id, interaction.guildId).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("404") || /Discord account not found/i.test(message)) return null;
+      throw error;
+    });
+
+    if (!profile?.team) {
+      const conferenceData = await recApi.getLeagueConferences(interaction.guildId);
+      const embeds = buildOpenTeamsEmbeds(conferenceData?.conferences ?? []).slice(0, 10);
+      const allTeamsAssigned = embeds.length === 1 && embeds[0]?.data.title === "Open Teams";
+      await interaction.reply({
+        embeds,
+        components: allTeamsAssigned
+          ? []
+          : [new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Success),
+            )],
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+  } catch (err) {
+    await interaction.reply({ content: userFacingError(err), flags: MessageFlags.Ephemeral });
+    return;
+  }
   if (!env.WEB_APP_URL) return interaction.reply({ content: "The League Hub isn't configured yet for this bot.", flags: MessageFlags.Ephemeral });
   await interaction.reply({ content: "Generating your personal League Hub link…", flags: MessageFlags.Ephemeral });
   try {
