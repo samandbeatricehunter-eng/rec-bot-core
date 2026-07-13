@@ -45,20 +45,24 @@ export async function userRoutes(app: FastifyInstance) {
       if (!context?.leagueId) return reply.send({ coaches: [] });
       const { data } = await supabase
         .from("rec_team_assignments")
-        .select("user_id,team_id,rec_users(display_name,rec_discord_accounts(discord_id,username,global_name)),rec_teams(name,abbreviation)")
+        .select("user_id,team_id,user:rec_users(display_name),team:rec_teams(name,abbreviation)")
         .eq("league_id", context.leagueId)
         .eq("assignment_status", "active")
         .is("ended_at", null);
+      const userIds = [...new Set((data ?? []).map((row: any) => row.user_id).filter(Boolean))];
+      const { data: discordAccounts } = userIds.length
+        ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
+        : { data: [] };
+      const discordByUser = new Map<string, any>((discordAccounts ?? []).map((account: any) => [account.user_id, account]));
       const coaches = (data ?? []).map((row: any) => {
-        const discordAccounts = row.rec_users?.rec_discord_accounts;
-        const discordAcc = Array.isArray(discordAccounts) ? discordAccounts[0] : discordAccounts;
+        const discordAcc = discordByUser.get(row.user_id) ?? null;
         return {
           userId: row.user_id,
           teamId: row.team_id,
-          displayName: row.rec_users?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Unknown",
+          displayName: row.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Unknown",
           discordId: discordAcc?.discord_id ?? null,
-          teamName: row.rec_teams?.name ?? null,
-          teamAbbreviation: row.rec_teams?.abbreviation ?? null
+          teamName: row.team?.name ?? null,
+          teamAbbreviation: row.team?.abbreviation ?? null
         };
       });
       return reply.send({ coaches });

@@ -47,14 +47,14 @@ async function purchasingTeam(leagueId: string, discordId: string): Promise<{ te
   if (!account.data?.user_id) return { teamId: null, teamName: null };
   const assignment = await supabase
     .from("rec_team_assignments")
-    .select("team_id,rec_teams(name,display_abbr,abbreviation)")
+    .select("team_id,team:rec_teams(name,display_abbr,abbreviation)")
     .eq("league_id", leagueId)
     .eq("user_id", account.data.user_id)
     .eq("assignment_status", "active")
     .is("ended_at", null)
     .maybeSingle();
   if (assignment.error) throw new ApiError(500, "Failed to load your team.", assignment.error);
-  const team = assignment.data?.rec_teams as any;
+  const team = assignment.data?.team as any;
   return { teamId: assignment.data?.team_id ?? null, teamName: team?.name ?? team?.display_abbr ?? team?.abbreviation ?? null };
 }
 

@@ -589,19 +589,22 @@ export async function listChallengeableCoaches(guildId: string, discordId: strin
   const me = await userIdFromDiscord(discordId).catch(() => null);
   const { data } = await supabase
     .from("rec_team_assignments")
-    .select("user_id,team_id,rec_teams(name,abbreviation,display_abbr,conference,division),rec_users(rec_discord_accounts(discord_id))")
+    .select("user_id,team_id,team:rec_teams(name,abbreviation,display_abbr,conference,division)")
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
+  const userIds = [...new Set((data ?? []).map((a: any) => a.user_id).filter(Boolean))];
+  const { data: discordAccounts } = userIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
+    : { data: [] };
+  const discordByUser = new Map((discordAccounts ?? []).map((account: any) => [account.user_id, account.discord_id]));
   const coaches = (data ?? [])
     .filter((a: any) => a.user_id && a.user_id !== me)
     .map((a: any) => {
-      const acc = a.rec_users?.rec_discord_accounts;
-      const discord = Array.isArray(acc) ? acc[0]?.discord_id : acc?.discord_id;
-      const team = a.rec_teams;
+      const team = a.team;
       return {
         userId: a.user_id,
-        discordId: discord ?? null,
+        discordId: discordByUser.get(a.user_id) ?? null,
         teamAbbr: teamAbbr(team),
         conference: canonicalConferenceName(team?.conference, team?.division),
       };

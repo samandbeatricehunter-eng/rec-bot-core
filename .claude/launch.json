@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@rec/web", "run", "dev", "--", "--port", "5173"],
       "port": 5173
+    },
+    {
+      "name": "api-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@rec/api", "run", "dev"],
+      "port": 3000
     }
   ]
 }

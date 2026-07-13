@@ -485,7 +485,7 @@ export async function getLeagueUserIdentities(guildId: string) {
   const [{ data: assignments, error: assignmentError }, { data: badges, error: badgeError }] = await Promise.all([
     supabase
       .from("rec_team_assignments")
-      .select("user_id,team_id,rec_users(display_name,rec_discord_accounts(discord_id,username,global_name)),rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+      .select("user_id,team_id,user:rec_users(display_name),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
       .eq("league_id", leagueId)
       .eq("assignment_status", "active")
       .is("ended_at", null),
@@ -498,6 +498,13 @@ export async function getLeagueUserIdentities(guildId: string) {
   if (assignmentError) throw new ApiError(500, "Failed to load active users for identities.", assignmentError);
   if (badgeError) throw new ApiError(500, "Failed to load badge identities.", badgeError);
 
+  const userIds = [...new Set((assignments ?? []).map((assignment: any) => assignment.user_id).filter(Boolean))];
+  const discordResult = userIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
+    : { data: [], error: null };
+  if (discordResult.error) throw new ApiError(500, "Failed to load Discord identities.", discordResult.error);
+  const discordByUser = new Map((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
+
   const badgesByUser = new Map<string, any[]>();
   for (const badge of badges ?? []) {
     if (!badge.user_id) continue;
@@ -509,8 +516,7 @@ export async function getLeagueUserIdentities(guildId: string) {
   const trophiesByUser = await loadLeagueCareerTrophies(leagueId);
 
   const identities = await Promise.all((assignments ?? []).map(async (assignment: any) => {
-    const discordAccounts = assignment.rec_users?.rec_discord_accounts;
-    const discordAcc = Array.isArray(discordAccounts) ? discordAccounts[0] : discordAccounts;
+    const discordAcc = discordByUser.get(assignment.user_id) ?? null;
     const seasonStats = assignment.user_id
       ? await loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber).catch(() => null)
       : null;
@@ -519,8 +525,8 @@ export async function getLeagueUserIdentities(guildId: string) {
       userId: assignment.user_id,
       teamId: assignment.team_id,
       discordId: discordAcc?.discord_id ?? null,
-      displayName: assignment.rec_users?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
-      teamName: formatTeamDisplayName(assignment.rec_teams) ?? assignment.rec_teams?.name ?? null,
+      displayName: assignment.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
+      teamName: formatTeamDisplayName(assignment.team) ?? assignment.team?.name ?? null,
       seasonStats,
       careerTrophies: assignment.user_id ? trophiesByUser.get(assignment.user_id) ?? [] : [],
       ...identity,
@@ -578,25 +584,31 @@ export async function getLeagueSeasonXfBadges(guildId: string, seasonNumber?: nu
       .order("updated_at", { ascending: false }),
     supabase
       .from("rec_team_assignments")
-      .select("user_id,team_id,rec_users(display_name,rec_discord_accounts(discord_id,username,global_name)),rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+      .select("user_id,team_id,user:rec_users(display_name),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
       .eq("league_id", leagueId)
       .eq("assignment_status", "active")
       .is("ended_at", null),
   ]);
   if (error) throw new ApiError(500, "Failed to load XF season badges.", error);
 
+  const userIds = [...new Set((assignments ?? []).map((assignment: any) => assignment.user_id).filter(Boolean))];
+  const discordResult = userIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
+    : { data: [], error: null };
+  if (discordResult.error) throw new ApiError(500, "Failed to load Discord identities.", discordResult.error);
+  const discordByUser = new Map((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
+
   const activeByUser = new Map((assignments ?? []).map((assignment: any) => [assignment.user_id, assignment]));
   const badges = (rows ?? []).map((row: any) => {
     const assignment = activeByUser.get(row.user_id);
-    const discordAccounts = assignment?.rec_users?.rec_discord_accounts;
-    const discordAcc = Array.isArray(discordAccounts) ? discordAccounts[0] : discordAccounts;
+    const discordAcc = discordByUser.get(row.user_id) ?? null;
     return {
       ...row,
       badgeLabel: BADGE_LABELS.get(row.badge_key) ?? row.badge_key,
       badgeDescription: BADGE_DESCRIPTIONS.get(row.badge_key) ?? null,
       discordId: discordAcc?.discord_id ?? null,
-      displayName: assignment?.rec_users?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
-      teamName: formatTeamDisplayName(assignment?.rec_teams) ?? null,
+      displayName: assignment?.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
+      teamName: formatTeamDisplayName(assignment?.team) ?? null,
     };
   });
 
@@ -619,7 +631,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const assignmentResult = leagueId
     ? await supabase
         .from("rec_team_assignments")
-        .select("team_id,rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+        .select("team_id,team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
         .eq("league_id", leagueId)
         .eq("user_id", userId)
         .eq("assignment_status", "active")
@@ -627,7 +639,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
         .maybeSingle()
     : { data: null };
   const teamId = (assignmentResult.data as any)?.team_id ?? null;
-  const teamRow = (assignmentResult.data as any)?.rec_teams ?? null;
+  const teamRow = (assignmentResult.data as any)?.team ?? null;
 
   const leagueInfoResult = leagueId
     ? await supabase.from("rec_leagues").select("name,game,season_number,display_season_number,current_week,season_stage").eq("id", leagueId).maybeSingle()
