@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, FastForward, PenSquare, Trophy } from "lucide-react";
+import { CalendarClock, FastForward, Mail, PenSquare, Trophy } from "lucide-react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { WeeklyH2hGame } from "../../types/api.js";
@@ -8,13 +8,26 @@ import { Card } from "../ui/Card.js";
 import { Badge } from "../ui/Badge.js";
 import { LoadingState } from "../ui/LoadingState.js";
 import { ErrorState } from "../ui/ErrorState.js";
-import { Tooltip } from "../ui/Tooltip.js";
 
 const STATUS_BADGE: Record<WeeklyH2hGame["status"], { status: "denied" | "pending" | "approved"; label: string }> = {
   missing: { status: "denied", label: "Missing" },
   awaiting_review: { status: "pending", label: "Awaiting Review" },
   final: { status: "approved", label: "Final" },
 };
+
+// Left-to-right order matches AdvanceHome.tsx's own top-to-bottom section order — that's
+// the real advance protocol (enter this week's scores, complete the advance, settle
+// division winners, schedule the next one, then see what would get DM'd) — not an
+// arbitrary icon arrangement. All shortcuts land on the same /league-mgmt/advance page
+// since it isn't sub-routed into sections today; framed as separate actions for
+// discoverability rather than actually deep-linking to a section.
+const ADVANCE_SHORTCUTS = [
+  { icon: PenSquare, label: "Enter Scores" },
+  { icon: FastForward, label: "Complete Advance" },
+  { icon: Trophy, label: "Division Winners" },
+  { icon: CalendarClock, label: "Schedule Next Advance" },
+  { icon: Mail, label: "Preview Advance DMs" },
+] as const;
 
 // Home page's right column — this week's H2H games at a glance, plus shortcuts into the
 // Advance page (which isn't sub-routed into sections today, so all shortcuts land on the
@@ -42,7 +55,7 @@ export function WeeklyH2hPanel() {
           {data.games.map((g) => {
             const badge = STATUS_BADGE[g.status];
             return (
-              <div key={g.gameId} style={{ paddingBottom: "var(--space-2)", borderBottom: "1px solid var(--border)" }}>
+              <div key={g.gameId} style={{ padding: "var(--space-2) 0 var(--space-3)", borderBottom: "1px solid var(--border)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-2)" }}>
                   <span>
                     <span style={{ fontWeight: g.result && g.result.winnerTeamName === g.awayTeamName ? 700 : 400 }}>{g.awayTeamName}</span>
@@ -65,27 +78,13 @@ export function WeeklyH2hPanel() {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-        <Tooltip text="Enter scores, division winners, and complete the advance">
-          <button className="btn btn-secondary" onClick={() => navigate("/league-mgmt/advance")} aria-label="Enter Scores">
-            <PenSquare size={16} />
+      <div className="advance-shortcut-row">
+        {ADVANCE_SHORTCUTS.map(({ icon: Icon, label }) => (
+          <button key={label} className="advance-shortcut-btn" onClick={() => navigate("/league-mgmt/advance")}>
+            <Icon size={20} />
+            <span>{label}</span>
           </button>
-        </Tooltip>
-        <Tooltip text="Complete this week's advance">
-          <button className="btn btn-secondary" onClick={() => navigate("/league-mgmt/advance")} aria-label="Complete Advance">
-            <FastForward size={16} />
-          </button>
-        </Tooltip>
-        <Tooltip text="Division winners">
-          <button className="btn btn-secondary" onClick={() => navigate("/league-mgmt/advance")} aria-label="Division Winners">
-            <Trophy size={16} />
-          </button>
-        </Tooltip>
-        <Tooltip text="Schedule next advance">
-          <button className="btn btn-secondary" onClick={() => navigate("/league-mgmt/advance")} aria-label="Schedule Next Advance">
-            <CalendarClock size={16} />
-          </button>
-        </Tooltip>
+        ))}
       </div>
     </Card>
   );

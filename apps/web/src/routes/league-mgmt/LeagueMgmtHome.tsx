@@ -11,7 +11,7 @@ export function LeagueMgmtHome() {
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr)",
-          gap: "var(--space-4)",
+          gap: "var(--space-5)",
           marginBottom: "var(--space-6)",
         }}
       >

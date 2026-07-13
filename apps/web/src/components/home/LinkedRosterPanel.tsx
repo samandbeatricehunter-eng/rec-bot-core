@@ -7,8 +7,9 @@ import { LoadingState } from "../ui/LoadingState.js";
 import { ErrorState } from "../ui/ErrorState.js";
 
 // Home page's left column — "who's linked to what team, and how's their season going," at a
-// glance. Sorted by wins (see getLinkedRoster in team-schedule-summary.service.ts) since
-// that's the most useful ordering for a quick season-health check.
+// glance. Ordered by power ranking (see getLinkedRoster in team-schedule-summary.service.ts,
+// which reuses computePowerRankings rather than re-deriving the ranking formula), with the
+// change since the last snapshot shown in parentheses next to the rank.
 export function LinkedRosterPanel() {
   const { guildId } = useReadyAuth();
   const [entries, setEntries] = useState<LinkedRosterEntry[] | null>(null);
@@ -27,17 +28,25 @@ export function LinkedRosterPanel() {
       {error && <ErrorState message={error} />}
       {!entries && !error && <LoadingState />}
       {entries && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", maxHeight: 480, overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", maxHeight: 520, overflowY: "auto", paddingRight: "var(--space-2)" }}>
           {entries.map((e) => (
             <div
               key={e.teamId}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-2)", padding: "var(--space-2) 0", borderBottom: "1px solid var(--border)" }}
+              style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", padding: "var(--space-3) var(--space-1)", borderBottom: "1px solid var(--border)" }}
             >
-              <div style={{ minWidth: 0 }}>
+              <div style={{ flexShrink: 0, minWidth: 60, textAlign: "right" }}>
+                <span style={{ fontWeight: 700, color: "var(--gold)" }}>{e.powerRank != null ? `#${e.powerRank}` : "—"}</span>
+                {e.rankChange != null && e.rankChange !== 0 && (
+                  <div style={{ fontSize: "var(--text-xs)", color: e.rankChange > 0 ? "var(--success)" : "var(--error)" }}>
+                    ({e.rankChange > 0 ? "+" : ""}{e.rankChange})
+                  </div>
+                )}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.userDisplayName}</div>
                 <div style={{ color: "var(--text-secondary)", fontSize: "var(--text-xs)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.teamName}</div>
               </div>
-              <div style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)", flexShrink: 0 }}>
+              <div style={{ color: "var(--text-muted)", fontSize: "var(--text-sm)", flexShrink: 0, whiteSpace: "nowrap" }}>
                 {e.record.wins}-{e.record.losses}{e.record.ties > 0 ? `-${e.record.ties}` : ""}
               </div>
             </div>

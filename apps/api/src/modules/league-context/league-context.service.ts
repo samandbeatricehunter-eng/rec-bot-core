@@ -55,9 +55,15 @@ export async function getCurrentLeagueContext(guildId: string): Promise<CurrentL
   return context;
 }
 
+// A REC league can never have more than 32 real coaches, regardless of the game's team
+// catalog size — Madden's is naturally capped at 32 (one per NFL team), and CFB leagues
+// carry that same policy even though the CFB catalog itself has 136 teams (mostly
+// CPU-controlled). The header shows "linked / 32", not "linked / catalog size".
+const MAX_LINKED_USERS = 32;
+
 export type LeagueHeaderSummary = {
   league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
-  teams: { linked: number; total: number };
+  teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
 };
 
@@ -93,7 +99,11 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
       // free agency/etc. show their own stage name instead (stageLabel already knows this).
       weekLabel: stageLabel(seasonStage, currentWeek ?? 1, context.rec_leagues.game ?? null),
     },
-    teams: { linked: linkedRes.count ?? 0, total: totalRes.count ?? 0 },
+    teams: {
+      linked: linkedRes.count ?? 0,
+      cap: MAX_LINKED_USERS,
+      availableTeams: Math.max(0, (totalRes.count ?? 0) - (linkedRes.count ?? 0)),
+    },
     isGuildOwner: isOwner,
   };
 }

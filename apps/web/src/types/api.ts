@@ -60,11 +60,13 @@ export type LinkedRosterEntry = {
   teamName: string;
   userDisplayName: string;
   record: { wins: number; losses: number; ties: number };
+  powerRank: number | null;
+  rankChange: number | null;
 };
 
 export type LeagueHeaderSummary = {
   league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
-  teams: { linked: number; total: number };
+  teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
 };
 

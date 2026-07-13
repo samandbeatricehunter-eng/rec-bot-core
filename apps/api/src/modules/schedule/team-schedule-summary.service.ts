@@ -6,6 +6,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { listScheduleSeason, listScheduleTeams } from "./schedule.service.js";
 import { loadResultsAndPendingSubmissions } from "./team-schedule.service.js";
+import { computePowerRankings } from "./power-rankings.service.js";
 import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 
 export type TeamManagementSummaryRow = {
@@ -170,22 +171,42 @@ export type LinkedRosterEntry = {
   teamName: string;
   userDisplayName: string;
   record: { wins: number; losses: number; ties: number };
+  /** 1 = best. Null if power rankings haven't been computed for this team yet (e.g. zero games played). */
+  powerRank: number | null;
+  /** Rank movement since the last snapshot: positive = moved up, negative = moved down, null if there's no prior snapshot yet. */
+  rankChange: number | null;
 };
 
 // Home page's "who's linked to what team, and how's their season going" panel — public
 // roster info, not admin tooling, so this is exposed at member permission (broader than the
 // co_commissioner-gated summary it wraps). Trims that summary down instead of duplicating
-// its query logic.
+// its query logic. Ordered by power ranking (computePowerRankings already computes rank +
+// week-over-week change — reused as-is, not re-derived).
 export async function getLinkedRoster(guildId: string): Promise<{ entries: LinkedRosterEntry[] }> {
-  const summary = await getTeamManagementSummary(guildId);
-  const entries = summary.teams
+  const [summary, rankings] = await Promise.all([
+    getTeamManagementSummary(guildId),
+    computePowerRankings(guildId).catch(() => null),
+  ]);
+  const rankByTeam = new Map((rankings?.teams ?? []).map((t: any) => [t.teamId, { rank: t.rank, change: t.change }]));
+
+  const entries: LinkedRosterEntry[] = summary.teams
     .filter((t) => t.linkedUser)
-    .map((t) => ({
-      teamId: t.id,
-      teamName: t.name,
-      userDisplayName: t.linkedUser!.displayName ?? "Unknown",
-      record: t.record,
-    }))
-    .sort((a, b) => b.record.wins - a.record.wins || a.record.losses - b.record.losses);
+    .map((t) => {
+      const ranking = rankByTeam.get(t.id);
+      return {
+        teamId: t.id,
+        teamName: t.name,
+        userDisplayName: t.linkedUser!.displayName ?? "Unknown",
+        record: t.record,
+        powerRank: ranking?.rank ?? null,
+        rankChange: ranking?.change ?? null,
+      };
+    })
+    .sort((a, b) => {
+      if (a.powerRank == null && b.powerRank == null) return 0;
+      if (a.powerRank == null) return 1;
+      if (b.powerRank == null) return -1;
+      return a.powerRank - b.powerRank;
+    });
   return { entries };
 }
