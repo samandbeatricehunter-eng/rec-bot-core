@@ -164,3 +164,28 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     teams,
   };
 }
+
+export type LinkedRosterEntry = {
+  teamId: string;
+  teamName: string;
+  userDisplayName: string;
+  record: { wins: number; losses: number; ties: number };
+};
+
+// Home page's "who's linked to what team, and how's their season going" panel — public
+// roster info, not admin tooling, so this is exposed at member permission (broader than the
+// co_commissioner-gated summary it wraps). Trims that summary down instead of duplicating
+// its query logic.
+export async function getLinkedRoster(guildId: string): Promise<{ entries: LinkedRosterEntry[] }> {
+  const summary = await getTeamManagementSummary(guildId);
+  const entries = summary.teams
+    .filter((t) => t.linkedUser)
+    .map((t) => ({
+      teamId: t.id,
+      teamName: t.name,
+      userDisplayName: t.linkedUser!.displayName ?? "Unknown",
+      record: t.record,
+    }))
+    .sort((a, b) => b.record.wins - a.record.wins || a.record.losses - b.record.losses);
+  return { entries };
+}

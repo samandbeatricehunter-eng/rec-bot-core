@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
+import { getMentionableCommissioners } from "../../lib/discord-guild.js";
 import { closeChatTopic, createChatTopic, listChatMessages, listChatTopics, postChatMessage, voteOnChatTopic } from "./commissioner-chat.service.js";
 
 // Everything here is co_commissioner-gated (not full-commissioner-only) — this is meant to
@@ -72,6 +73,18 @@ export async function commissionerChatRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), topicId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await closeChatTopic(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // @-mention autocomplete data — commissioners/co-commissioners individually, plus the two
+  // managed role tags. member-permission (same room everyone in this chat can already read).
+  app.post("/v1/commissioner-chat/mentionable", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      return reply.send(await getMentionableCommissioners(guildId));
     } catch (error) {
       return sendError(reply, error);
     }

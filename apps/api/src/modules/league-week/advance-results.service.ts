@@ -1,11 +1,12 @@
 // @ts-nocheck
-import { isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages, stageForWeek } from "@rec/shared";
+import { isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
+import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
@@ -122,6 +123,66 @@ export async function getAdvanceWeekGames(guildId: string) {
     games: mapped,
     gamesNeedingInput: mapped.filter((game) => game.needsInput),
   };
+}
+
+export type WeeklyH2hGame = {
+  gameId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  status: "missing" | "awaiting_review" | "final";
+  result: { homeScore: number; awayScore: number; isTie: boolean; winnerTeamName: string | null } | null;
+};
+
+// Home page's read-only "this week's H2H games" panel — same week/team-pair source as
+// getAdvanceWeekGames above, but scoped to human-vs-human matchups only and enriched with
+// actual scores (getAdvanceWeekGames only needs to know IF a result exists, not what it
+// says, so it never selects home_score/away_score). Reuses the same result/pending-
+// submission correlation as the schedule builder (loadResultsAndPendingSubmissions) instead
+// of re-deriving that logic a third time.
+export async function getWeeklyH2hGames(guildId: string): Promise<{ weekLabel: string; games: WeeklyH2hGame[] }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
+  const weekLabel = stageLabel(currentStage, currentWeek, context.rec_leagues.game ?? null);
+
+  if (!stageHasScheduledGames(currentStage, context.rec_leagues.game)) {
+    return { weekLabel, games: [] };
+  }
+
+  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+  const { data: games, error } = await supabase
+    .from("rec_games")
+    .select("id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
+    .eq("league_id", context.leagueId)
+    .eq("season_id", seasonId)
+    .eq("week_number", currentWeek);
+  if (error) throw new ApiError(500, "Failed to load week schedule.", error);
+
+  const h2hGames = (games ?? []).filter((g: any) => g.home_user_id && g.away_user_id);
+  const resultsAndSubmissions = await loadResultsAndPendingSubmissions(
+    context.leagueId,
+    seasonNumber,
+    h2hGames.map((g: any) => ({ id: g.id, weekNumber: g.week_number, homeTeamId: g.home_team_id, awayTeamId: g.away_team_id })),
+  );
+
+  const mapped: WeeklyH2hGame[] = h2hGames.map((g: any) => {
+    const extra = resultsAndSubmissions.get(g.id);
+    const homeTeamName = formatTeamDisplayName(g.home_team) ?? g.home_team?.name ?? "Home";
+    const awayTeamName = formatTeamDisplayName(g.away_team) ?? g.away_team?.name ?? "Away";
+    let status: WeeklyH2hGame["status"] = "missing";
+    let result: WeeklyH2hGame["result"] = null;
+    if (extra?.result) {
+      status = "final";
+      const winnerTeamName = extra.result.isTie ? null : extra.result.homeScore > extra.result.awayScore ? homeTeamName : awayTeamName;
+      result = { homeScore: extra.result.homeScore, awayScore: extra.result.awayScore, isTie: extra.result.isTie, winnerTeamName };
+    } else if (extra?.pendingBoxScoreSubmissionId) {
+      status = "awaiting_review";
+    }
+    return { gameId: g.id, homeTeamName, awayTeamName, status, result };
+  });
+
+  return { weekLabel, games: mapped };
 }
 
 export async function completeAdvanceWeek(input: {

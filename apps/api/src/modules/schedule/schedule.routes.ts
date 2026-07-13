@@ -5,7 +5,7 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { listScheduleSeason, listScheduleTeams, listScheduleWeek, previewScheduleImport, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
 import { commitTeamScheduleDecisions, getTeamScheduleManualState, previewCfbTeamScheduleImport } from "./team-schedule.service.js";
-import { getTeamManagementSummary } from "./team-schedule-summary.service.js";
+import { getLinkedRoster, getTeamManagementSummary } from "./team-schedule-summary.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 
@@ -217,6 +217,19 @@ export async function scheduleRoutes(app: FastifyInstance) {
         seasonNumber: z.number().int().positive().optional().nullable(),
       }).parse(request.body);
       return reply.send(await getTeamManagementSummary(input.guildId, input.seasonNumber));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Home page's linked-users panel — public roster info (who's playing whom, how's their
+  // season going), so this is member-permission rather than the co_commissioner-gated
+  // summary above.
+  app.post("/v1/schedule/linked-roster", async (request, reply) => {
+    try {
+      const { guildId } = GuildSchema.parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await getLinkedRoster(guildId));
     } catch (error) {
       return sendError(reply, error);
     }

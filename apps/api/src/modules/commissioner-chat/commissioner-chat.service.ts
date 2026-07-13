@@ -4,6 +4,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 
 const MESSAGE_PAGE_SIZE = 200;
+const MESSAGE_RETENTION_HOURS = 72;
 
 async function resolveUserId(discordId: string): Promise<string | null> {
   const { data, error } = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
@@ -11,7 +12,23 @@ async function resolveUserId(discordId: string): Promise<string | null> {
   return data?.user_id ?? null;
 }
 
+// No scheduled job in this codebase for chat-specific cleanup — piggyback a lazy purge of
+// anything past the retention window onto the read path, which already runs on every 5s
+// poll. Fire-and-forget: a failed purge just means cleanup happens on the next read instead.
+function purgeOldMessages(guildId: string): void {
+  const cutoffIso = new Date(Date.now() - MESSAGE_RETENTION_HOURS * 60 * 60 * 1000).toISOString();
+  supabase
+    .from("rec_commissioner_chat_messages")
+    .delete()
+    .eq("guild_id", guildId)
+    .lt("created_at", cutoffIso)
+    .then(({ error }) => {
+      if (error) console.error("[ERROR] purgeOldMessages failed (non-fatal):", error);
+    });
+}
+
 export async function listChatMessages(guildId: string, sinceIso?: string | null) {
+  purgeOldMessages(guildId);
   let query = supabase
     .from("rec_commissioner_chat_messages")
     .select("id,author_discord_id,body,created_at")
@@ -79,7 +96,12 @@ export async function listChatTopics(guildId: string) {
       const topicVotes = votesByTopic.get(t.id) ?? [];
       const options = Array.isArray(t.options) ? (t.options as string[]) : [];
       const tally = options.map((_, index) => topicVotes.filter((v) => v.optionIndex === index).length);
-      return { ...t, options, tally, totalVotes: topicVotes.length, voters: topicVotes };
+      // Same "no cron job flips status" nuance as voteOnChatTopic — reflect an expired time
+      // limit in the list view too, so the UI can disable voting without waiting for a
+      // failed vote attempt to find out.
+      const isExpired = Boolean(t.closes_at && new Date(t.closes_at).getTime() <= Date.now());
+      const status = isExpired && t.status === "open" ? "closed" : t.status;
+      return { ...t, status, options, tally, totalVotes: topicVotes.length, voters: topicVotes };
     }),
   };
 }
@@ -117,10 +139,15 @@ export async function createChatTopic(input: {
 }
 
 export async function voteOnChatTopic(input: { guildId: string; discordId: string; topicId: string; optionIndex: number }) {
-  const topic = await supabase.from("rec_commissioner_chat_topics").select("id,options,status").eq("id", input.topicId).maybeSingle();
+  const topic = await supabase.from("rec_commissioner_chat_topics").select("id,options,status,closes_at").eq("id", input.topicId).maybeSingle();
   if (topic.error) throw new ApiError(500, "Failed to load topic.", topic.error);
   if (!topic.data) throw new ApiError(404, "Topic not found.");
   if (topic.data.status !== "open") throw new ApiError(400, "Voting is closed for this topic.");
+  // Nothing flips status to "closed" automatically when a time limit runs out (no cron job
+  // for this) — check the timestamp directly at vote-time instead.
+  if (topic.data.closes_at && new Date(topic.data.closes_at).getTime() <= Date.now()) {
+    throw new ApiError(400, "Voting has closed for this topic.");
+  }
   const options = Array.isArray(topic.data.options) ? (topic.data.options as string[]) : [];
   if (input.optionIndex < 0 || input.optionIndex >= options.length) throw new ApiError(400, "Invalid option.");
 

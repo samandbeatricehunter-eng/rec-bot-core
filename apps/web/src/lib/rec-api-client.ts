@@ -16,10 +16,13 @@ import type {
   EosAwardPoll,
   LeagueHeaderSummary,
   LeagueIdentitiesResponse,
+  LinkedRosterEntry,
   LeagueSettingsDraft,
   LeagueWeekView,
   LinkedTeamsResponse,
   ManualScoreRecordResult,
+  MentionableList,
+  WeeklyH2hGamesResponse,
   OpenTeamsResponse,
   RoleMgmtMember,
   RoleMgmtRoleKey,
@@ -74,6 +77,8 @@ export const recApi = {
     recApiFetch<CommitResult>(REC_API_ROUTES.teamScheduleCommit, { method: "POST", body: JSON.stringify(input) }),
   getTeamManagementSummary: (guildId: string) =>
     recApiFetch<TeamManagementSummary>(REC_API_ROUTES.teamManagementSummary, { method: "POST", body: JSON.stringify({ guildId }) }),
+  getLinkedRoster: (guildId: string) =>
+    recApiFetch<{ entries: LinkedRosterEntry[] }>(REC_API_ROUTES.linkedRoster, { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // League header (AppShell)
   getLeagueHeaderSummary: (guildId: string) =>
@@ -212,4 +217,10 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/vote", { method: "POST", body: JSON.stringify(input) }),
   closeChatTopic: (input: { guildId: string; topicId: string }) =>
     recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/close", { method: "POST", body: JSON.stringify(input) }),
+  getMentionableCommissioners: (guildId: string) =>
+    recApiFetch<MentionableList>(REC_API_ROUTES.commissionerChatMentionable, { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  // Home page's weekly H2H panel
+  getWeeklyH2hGames: (guildId: string) =>
+    recApiFetch<WeeklyH2hGamesResponse>(REC_API_ROUTES.weeklyH2hGames, { method: "POST", body: JSON.stringify({ guildId }) }),
 };

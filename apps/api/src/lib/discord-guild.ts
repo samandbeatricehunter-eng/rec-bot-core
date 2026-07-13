@@ -1,5 +1,5 @@
 import { env } from "../config/env.js";
-import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
+import { REC_MANAGED_ROLES, classifyGuildRoleNames, type RecManagedRoleKey } from "@rec/shared";
 import { ApiError } from "./errors.js";
 
 // Server-side guild role/permission lookups for the Discord Activity's per-user auth —
@@ -154,6 +154,53 @@ export async function listGuildMembers(guildId: string): Promise<DiscordGuildMem
     after = page[page.length - 1].user.id;
   }
   return members;
+}
+
+export type MentionableCommissioner = { discordId: string; displayName: string };
+export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };
+export type MentionableList = { members: MentionableCommissioner[]; roles: MentionableRole[] };
+
+const mentionableCache = new Map<string, CacheEntry<MentionableList>>();
+
+// Powers the commissioner chat's @-mention autocomplete — commissioners/co-commissioners
+// individually, plus the two managed role tags themselves (tagging "@Co-Commissioner" pings
+// the whole group in Discord's own mention format, same as tagging a person). Cached
+// alongside the other lookups in this file; a 60s staleness window is fine for an
+// autocomplete list.
+export async function getMentionableCommissioners(guildId: string): Promise<MentionableList> {
+  const cached = fromCache(mentionableCache, guildId);
+  if (cached) return cached;
+
+  const roles = await getGuildRoles(guildId);
+  const roleNameById = new Map([...roles].map(([id, r]) => [id, r.name]));
+
+  const members: MentionableCommissioner[] = [];
+  let after = "0";
+  for (;;) {
+    const res = await discordBotFetch(`/guilds/${guildId}/members?limit=1000&after=${after}`);
+    if (!res.ok) throw new Error(`Failed to fetch guild members (${res.status})`);
+    const page = (await res.json()) as Array<{ user: { id: string; username: string; bot?: boolean }; nick: string | null; roles: string[] }>;
+    for (const row of page) {
+      if (row.user.bot) continue;
+      const roleNames = row.roles.map((id) => roleNameById.get(id)).filter((n): n is string => Boolean(n));
+      const { isCommissioner, isCoCommissioner } = classifyGuildRoleNames(roleNames);
+      if (isCommissioner || isCoCommissioner) {
+        members.push({ discordId: row.user.id, displayName: row.nick ?? row.user.username });
+      }
+    }
+    if (page.length < 1000) break;
+    after = page[page.length - 1].user.id;
+  }
+
+  const commissionerRoleId = [...roles].find(([, r]) => r.name === REC_MANAGED_ROLES.commissioner.name)?.[0];
+  const coCommissionerRoleId = [...roles].find(([, r]) => r.name === REC_MANAGED_ROLES.compCommittee.name)?.[0];
+  const roleTags: MentionableRole[] = [];
+  if (commissionerRoleId) roleTags.push({ key: "commissioner", roleId: commissionerRoleId, name: REC_MANAGED_ROLES.commissioner.name });
+  if (coCommissionerRoleId) roleTags.push({ key: "coCommissioner", roleId: coCommissionerRoleId, name: REC_MANAGED_ROLES.compCommittee.name });
+
+  const result: MentionableList = { members, roles: roleTags };
+  toCache(mentionableCache, guildId, result);
+  return result;
 }
 
 const guildMemberListCache = new Map<string, CacheEntry<DiscordGuildMemberSummary[]>>();

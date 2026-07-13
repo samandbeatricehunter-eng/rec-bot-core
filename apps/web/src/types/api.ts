@@ -55,6 +55,13 @@ export type TeamManagementSummary = {
   teams: TeamManagementSummaryRow[];
 };
 
+export type LinkedRosterEntry = {
+  teamId: string;
+  teamName: string;
+  userDisplayName: string;
+  record: { wins: number; losses: number; ties: number };
+};
+
 export type LeagueHeaderSummary = {
   league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
   teams: { linked: number; total: number };
@@ -257,3 +264,15 @@ export type ChatTopic = {
   totalVotes: number;
   voters: { voterDiscordId: string; optionIndex: number }[];
 };
+export type WeeklyH2hGame = {
+  gameId: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  status: "missing" | "awaiting_review" | "final";
+  result: { homeScore: number; awayScore: number; isTie: boolean; winnerTeamName: string | null } | null;
+};
+export type WeeklyH2hGamesResponse = { weekLabel: string; games: WeeklyH2hGame[] };
+
+export type MentionableCommissioner = { discordId: string; displayName: string };
+export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };
+export type MentionableList = { members: MentionableCommissioner[]; roles: MentionableRole[] };

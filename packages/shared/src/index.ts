@@ -52,7 +52,10 @@ export const REC_API_ROUTES = {
   teamScheduleManualState: "/v1/schedule/team-manual-preview",
   teamScheduleCommit: "/v1/schedule/team-schedule-commit",
   teamManagementSummary: "/v1/schedule/team-management-summary",
+  linkedRoster: "/v1/schedule/linked-roster",
   leagueHeaderSummary: "/v1/league-context/header",
+  commissionerChatMentionable: "/v1/commissioner-chat/mentionable",
+  weeklyH2hGames: "/v1/league-week/weekly-h2h",
 } as const;
 
 export type RecTeamAuthority = "member" | "commissioner" | "co_commissioner";
