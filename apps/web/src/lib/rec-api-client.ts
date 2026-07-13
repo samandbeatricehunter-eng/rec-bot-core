@@ -1,11 +1,13 @@
 import { REC_API_ROUTES } from "@rec/shared";
 import type {
+  ActiveCheckReview,
   BoxScoreJobStatus,
   BoxScoreSubmissionDetail,
   CfbTeamScheduleManualState,
   CommissionerNotificationsResponse,
   CommitDecision,
   CommitResult,
+  EosAwardPoll,
   LeagueIdentitiesResponse,
   LinkedTeamsResponse,
   ManualScoreRecordResult,
@@ -122,4 +124,20 @@ export const recApi = {
     recApiFetch<unknown>("/v1/league-week/weekly-scores/review/cancel", { method: "POST", body: JSON.stringify(input) }),
   issueEosPayoutBatch: (input: { guildId: string; batchId: string }) =>
     recApiFetch<unknown>("/v1/league-week/eos-payouts/issue-batch", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+
+  // Active Check resolve view
+  getActiveCheckReview: (input: { guildId: string; eventId: string }) =>
+    recApiFetch<ActiveCheckReview>("/v1/active-checks/review", { method: "POST", body: JSON.stringify(input) }),
+  keepActiveCheckUsers: (input: { guildId: string; eventId: string; discordIds: string[] }) =>
+    recApiFetch<ActiveCheckReview>("/v1/active-checks/keep", { method: "POST", body: JSON.stringify(input) }),
+  markActiveCheckBooted: (input: { guildId: string; eventId: string; discordIds: string[] }) =>
+    recApiFetch<{ updated: number }>("/v1/active-checks/booted", { method: "POST", body: JSON.stringify(input) }),
+  finishActiveCheckReview: (input: { guildId: string; eventId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/active-checks/finish-review", { method: "POST", body: JSON.stringify(input) }),
+
+  // EOS Award resolve view
+  getEosAwardPoll: (input: { guildId: string; pollId: string }) =>
+    recApiFetch<{ poll: EosAwardPoll }>("/v1/league-week/eos-awards/get", { method: "POST", body: JSON.stringify(input) }),
+  settleEosAwardPoll: (input: { guildId: string; pollId: string; voteCounts: Record<string, number> }) =>
+    recApiFetch<unknown>("/v1/league-week/eos-awards/settle", { method: "POST", body: JSON.stringify(input) }),
 };

@@ -186,11 +186,9 @@ export async function settleActiveCheckEvent(input: {
     .single();
   if (updated.error) throw new ApiError(500, "Failed to settle active check.", updated.error);
 
-  await supabase
-    .from("rec_commissioners_inbox")
-    .update({ status: "approved", reviewed_at: now })
-    .eq("source_table", "rec_active_check_events")
-    .eq("source_id", input.eventId);
+  // Settling the poll only collects who missed/asked to leave — the actual commissioner
+  // action (deciding who to keep vs boot) hasn't happened yet, so the inbox row stays
+  // "pending" here. It's resolved by finishActiveCheckReview once that decision is made.
 
   return getActiveCheckReview(input.eventId);
 }
@@ -259,6 +257,19 @@ export async function markActiveCheckBooted(input: { eventId: string; discordIds
     .select("id");
   if (misses.error) throw new ApiError(500, "Failed to mark active-check users booted.", misses.error);
   return { updated: misses.data?.length ?? 0 };
+}
+
+// Marks the commissioner-inbox row resolved once the keep/boot decision has actually been
+// made (via keepActiveCheckUsers / markActiveCheckBooted above) — the true "commissioner
+// acted on this" point, as opposed to settleActiveCheckEvent's automated poll-close step.
+export async function finishActiveCheckReview(input: { eventId: string; reviewedByDiscordId: string }) {
+  const now = new Date().toISOString();
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "resolved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
+    .eq("source_table", "rec_active_check_events")
+    .eq("source_id", input.eventId);
+  return { ok: true };
 }
 
 export async function markActiveCheckNeedsReview(input: { eventId: string; reason: string }) {

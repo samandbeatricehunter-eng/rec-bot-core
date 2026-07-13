@@ -6,12 +6,14 @@ import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 
-// One shared resolve panel for the eight notification types that aren't box scores (which
-// reuse ReviewBoxScoreModal directly instead — see NotificationsHome.tsx). Every type here
-// reduces to one of three shapes: approve/deny (with or without a reason field, depending
-// on whether the underlying table has one to store it in), a single one-click resolve
-// action, or — for the two types with no self-service web action yet (Active Checks' keep/
-// boot lists, EOS Awards' vote tallying) — an info-only panel pointing back to Discord.
+// One shared resolve panel for the notification types that don't get their own dedicated
+// modal. Box Scores reuse ReviewBoxScoreModal, Active Checks reuse ActiveCheckReviewModal,
+// and EOS Awards reuse EosAwardResolveModal (all opened directly from NotificationsHome
+// instead of through here). Every type this modal actually handles reduces to one of three
+// shapes: approve/deny (with or without a reason field, depending on whether the underlying
+// table has one to store it in), or a single one-click resolve action. The active_check/
+// eos_award cases below are only a defensive fallback for the rare case a notification of
+// that type is missing its sourceId.
 type ResolveMode =
   | { kind: "approve_deny"; reasonField: boolean; approveLabel: string; denyLabel: string }
   | { kind: "single"; actionLabel: string }
@@ -34,9 +36,9 @@ function resolveModeFor(type: string): ResolveMode {
     case "eos_payout":
       return { kind: "single", actionLabel: "Issue Batch" };
     case "active_check":
-      return { kind: "info", message: "Active checks need per-user keep/boot decisions, which aren't available on the web yet — resolve this one from /menu → League Mgmt → Advance in Discord." };
+      return { kind: "info", message: "This active check is missing its event reference — resolve it from Discord instead." };
     case "eos_award":
-      return { kind: "info", message: "Settling an award poll requires vote tallying, which isn't available on the web yet — resolve this one from Discord." };
+      return { kind: "info", message: "This award poll is missing its poll reference — resolve it from Discord instead." };
     default:
       return { kind: "info", message: "This notification type doesn't have a web resolve action yet." };
   }

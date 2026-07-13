@@ -133,3 +133,23 @@ export type CommissionerNotification = {
   payload: Record<string, unknown> | null;
 };
 export type CommissionerNotificationsResponse = { notifications: CommissionerNotification[] };
+
+// Active Check resolve view (notification center)
+export type ActiveCheckCandidate = { discordId: string; userId: string; teamId: string; teamName: string; label: string };
+export type ActiveCheckReview = {
+  event: { id: string; league_id: string; status: string; week_number: number; season_number: number };
+  inactive: ActiveCheckCandidate[];
+  kickMe: ActiveCheckCandidate[];
+};
+
+// EOS Award resolve view (notification center)
+export type EosAwardNominee = { userId: string; discordId: string | null; teamId: string; teamName: string; record: string; pointDifferential: number; metric?: number; detail?: string };
+export type EosAwardPoll = {
+  id: string;
+  league_id: string;
+  category_key: string;
+  category_label: string;
+  award_amount: number;
+  nominee_payloads: EosAwardNominee[];
+  status: string;
+};

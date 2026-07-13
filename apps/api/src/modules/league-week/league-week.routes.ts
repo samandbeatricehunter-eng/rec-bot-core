@@ -6,11 +6,23 @@ import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
 import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
-import { cancelOpenEosAwardPolls, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
+import { cancelOpenEosAwardPolls, getEosAwardPoll, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
+import { ApiError } from "../../lib/errors.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+
+// EOS award polls are fetched/settled by pollId, not guildId, so the combined guard's usual
+// "claimed guildId matches session" check only proves the caller belongs to *some* guild —
+// it doesn't prove the poll itself belongs to that guild. Mirrors box-score.routes.ts's
+// assertSubmissionInSessionGuild: 404 rather than 403 on mismatch so a guessed UUID from
+// another guild doesn't confirm its own existence.
+async function assertEosAwardPollInSessionGuild(guildId: string, pollLeagueId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  if (context.leagueId !== pollLeagueId) throw new ApiError(404, "Poll not found.");
+}
 
 const ViewLeagueWeekSchema = z.object({
   guildId: z.string().min(1)
@@ -382,10 +394,34 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/v1/league-week/eos-awards/get", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), pollId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      const result = await getEosAwardPoll(body.pollId);
+      if (auth.mode === "user") await assertEosAwardPollInSessionGuild(auth.guildId, result.poll.league_id);
+      return reply.send(result);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/league-week/eos-awards/settle", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      const body = z.object({ pollId: z.string().uuid(), voteCounts: z.record(z.string(), z.number()), voterDiscordIds: z.record(z.string(), z.array(z.string())).optional(), discordMessageId: z.string().optional().nullable() }).parse(request.body);
+      // guildId is optional because the bot's existing calls don't send it (bot-mode auth
+      // never checks it — see resolveGuildId below); the web dashboard always sends it.
+      const body = z.object({
+        guildId: z.string().min(1).optional(),
+        pollId: z.string().uuid(),
+        voteCounts: z.record(z.string(), z.number()),
+        voterDiscordIds: z.record(z.string(), z.array(z.string())).optional(),
+        discordMessageId: z.string().optional().nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      if (auth.mode === "user") {
+        const existing = await getEosAwardPoll(body.pollId);
+        await assertEosAwardPollInSessionGuild(auth.guildId, existing.poll.league_id);
+      }
       return reply.send(await settleEosAwardPoll(body));
     } catch (error) {
       return sendError(reply, error);

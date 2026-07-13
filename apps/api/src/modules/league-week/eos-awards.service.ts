@@ -268,6 +268,15 @@ export async function listOpenEosAwardPolls() {
   return { polls: (polls.data ?? []).map((poll: any) => ({ ...poll, guildId: guildByLeague.get(poll.league_id) ?? null })) };
 }
 
+// Single-poll fetch for the web dashboard's settle form (the Discord flow only ever needs
+// the bulk "all open polls" list above).
+export async function getEosAwardPoll(pollId: string) {
+  const poll = await supabase.from("rec_eos_award_polls").select("*").eq("id", pollId).maybeSingle();
+  if (poll.error) throw new ApiError(500, "Failed to load EOS award poll.", poll.error);
+  if (!poll.data) throw new ApiError(404, "EOS award poll not found.");
+  return { poll: poll.data };
+}
+
 export async function cancelOpenEosAwardPolls(input: { guildId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);

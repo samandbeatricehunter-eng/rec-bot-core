@@ -10,6 +10,8 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { ReviewBoxScoreModal } from "../../../components/box-score/ReviewBoxScoreModal.js";
 import { ResolveNotificationModal } from "./ResolveNotificationModal.js";
+import { ActiveCheckReviewModal } from "./ActiveCheckReviewModal.js";
+import { EosAwardResolveModal } from "./EosAwardResolveModal.js";
 
 const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score",
@@ -32,6 +34,8 @@ export function NotificationsHome() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CommissionerNotificationType | "all">("all");
   const [activeBoxScoreId, setActiveBoxScoreId] = useState<string | null>(null);
+  const [activeActiveCheckId, setActiveActiveCheckId] = useState<string | null>(null);
+  const [activeEosAwardId, setActiveEosAwardId] = useState<string | null>(null);
   const [activeResolve, setActiveResolve] = useState<CommissionerNotification | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -48,16 +52,21 @@ export function NotificationsHome() {
   const typesPresent = new Set(notifications?.map((n) => n.type) ?? []);
 
   function openNotification(n: CommissionerNotification) {
-    if (n.type === "box_score") {
-      if (n.sourceId) setActiveBoxScoreId(n.sourceId);
+    if (!n.sourceId) {
+      setActiveResolve(n);
       return;
     }
+    if (n.type === "box_score") return setActiveBoxScoreId(n.sourceId);
+    if (n.type === "active_check") return setActiveActiveCheckId(n.sourceId);
+    if (n.type === "eos_award") return setActiveEosAwardId(n.sourceId);
     setActiveResolve(n);
   }
 
   function afterResolved(message: string) {
     setNotice(message);
     setActiveBoxScoreId(null);
+    setActiveActiveCheckId(null);
+    setActiveEosAwardId(null);
     setActiveResolve(null);
     load();
   }
@@ -116,6 +125,22 @@ export function NotificationsHome() {
           submissionId={activeBoxScoreId}
           onClose={() => setActiveBoxScoreId(null)}
           onResolved={(action) => afterResolved(action === "approve" ? "Box score approved." : "Box score denied.")}
+        />
+      )}
+
+      {activeActiveCheckId && (
+        <ActiveCheckReviewModal
+          eventId={activeActiveCheckId}
+          onClose={() => setActiveActiveCheckId(null)}
+          onResolved={() => afterResolved("Active check resolved.")}
+        />
+      )}
+
+      {activeEosAwardId && (
+        <EosAwardResolveModal
+          pollId={activeEosAwardId}
+          onClose={() => setActiveEosAwardId(null)}
+          onResolved={() => afterResolved("Award settled.")}
         />
       )}
 
