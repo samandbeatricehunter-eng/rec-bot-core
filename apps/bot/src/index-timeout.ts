@@ -170,7 +170,7 @@ import {
   handleCounterAccept,
   handleCounterDeny,
 } from "./flows/wagers.js";
-import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild } from "./handlers/highlights.js";
+import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
 import { handlePurchaseButton, handlePurchaseModal, handlePurchaseSelect, openPurchaseStore } from "./flows/purchases.js";
 import {
   LEGENDS_CUSTOM_IDS,
@@ -335,38 +335,30 @@ setInterval(() => {
 // guild's first poll after bot start only establishes the watermark — it doesn't notify on
 // whatever's already pending, since that's already visible in the web dashboard and would
 // otherwise flood commissioners with a backlog DM on every restart.
-const notificationWatermarks = new Map<string, string>();
-
 async function pollCommissionerNotifications() {
   for (const guild of client.guilds.cache.values()) {
-    const since = notificationWatermarks.get(guild.id);
-    const nowIso = new Date().toISOString();
-    if (!since) {
-      notificationWatermarks.set(guild.id, nowIso);
-      continue;
-    }
-
-    let result: { notifications: Array<{ id: string; title: string; subtitle: string }> };
+    let result: { notifications: Array<{ id: string; header: string; summary: string | null }> };
     try {
-      result = await recApi.listCommissionerNotifications({ guildId: guild.id, sinceIso: since });
+      result = await recApi.listUnattendedCommissionerNotifications(guild.id);
     } catch (error) {
       console.error(`[ERROR] Failed to poll commissioner notifications for guild ${guild.id}:`, error);
       continue;
     }
-    notificationWatermarks.set(guild.id, nowIso);
     if (!result.notifications.length) continue;
 
     const adminIds = await listGuildAdminDiscordIds(guild).catch((error) => {
       console.error(`[ERROR] Failed to list guild admins for ${guild.id}:`, error);
       return [] as string[];
     });
-    const lines = result.notifications.map((n) => `• **${n.title}** — ${n.subtitle}`).join("\n").slice(0, 1800);
+    const lines = result.notifications.map((n) => `• **${n.header}** — ${n.summary ?? "Pending review"}`).join("\n").slice(0, 1600);
     const count = result.notifications.length;
-    const message = `You have ${count} new pending item${count === 1 ? "" : "s"} in League Mgmt:\n${lines}`;
+    const message = `You have ${count} unattended pending item${count === 1 ? "" : "s"} in League Management:\n${lines}\n\nRun **/hub**, open **League Management**, then **Notifications** to review ${count === 1 ? "it" : "them"}.`;
+    let delivered = false;
     for (const discordId of adminIds) {
       const user = await client.users.fetch(discordId).catch(() => null);
-      await user?.send(message).catch(() => undefined);
+      if (await user?.send(message).then(() => true).catch(() => false)) delivered = true;
     }
+    if (delivered) await recApi.markCommissionerNotificationDms(guild.id, result.notifications.map((notification) => notification.id)).catch((error) => console.error(`[ERROR] Failed to mark commissioner notification DMs for ${guild.id}:`, error));
   }
 }
 
@@ -374,7 +366,7 @@ setInterval(() => {
   pollCommissionerNotifications().catch((error) => console.error("[ERROR] Commissioner notification poll failed:", error));
 }, 150_000).unref();
 
-const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please reopen /menu to proceed.";
+const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please run /hub again to proceed.";
 
 async function expireWindow(interaction: Interaction) {
   if (!interaction.isRepliable()) return;
@@ -419,6 +411,7 @@ client.once("clientReady", async () => {
     console.error("REC Core API health check failed", error);
   }
   await registerCommandsForVisibleGuilds();
+  await Promise.allSettled([...client.guilds.cache.values()].map((guild) => syncRecentHighlightMessages(guild)));
   await recoverOpenActiveChecks(client);
   await recoverOpenEosAwardPolls(client, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
 });
@@ -431,6 +424,7 @@ client.on("guildCreate", async (guild) => {
   await registerGuildCommands(guild.id).catch((error) => {
     console.error(`Failed to register commands for newly joined guild ${guild.id}`, error);
   });
+  await syncRecentHighlightMessages(guild).catch((error) => console.error(`Failed to reconcile highlights for newly joined guild ${guild.id}`, error));
 });
 
 async function registerCommandsForVisibleGuilds() {

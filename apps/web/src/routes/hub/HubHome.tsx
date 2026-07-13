@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarDays, ChevronRight, Megaphone, Newspaper, Play, ShieldCheck, ThumbsDown, ThumbsUp, Trophy, UserRound } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Megaphone, Newspaper, Play, ShieldCheck, ThumbsDown, ThumbsUp, Trophy, UserRound } from "lucide-react";
 import { useAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubReactionKey, HubResponse } from "../../types/api.js";
@@ -15,6 +15,7 @@ export function HubHome() {
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"league" | "team">("league");
+  const [highlightIndex, setHighlightIndex] = useState(0);
 
   async function load() {
     if (auth.status !== "ready") return;
@@ -34,6 +35,8 @@ export function HubHome() {
 
   const my = hub.myTeam?.display ?? {};
   const games: any[] = hub.matchups?.games ?? [];
+  const activeHighlightIndex = hub.highlights.length ? highlightIndex % hub.highlights.length : 0;
+  const activeHighlight = hub.highlights.length ? hub.highlights[activeHighlightIndex] : null;
   return (
     <div className="hub-page">
       <section className="hub-hero">
@@ -81,15 +84,19 @@ export function HubHome() {
 
         <section className="hub-section">
           <div className="hub-section-heading"><div><p className="hub-eyebrow"><Play size={14} /> Community clips</p><h2>Highlight Reel</h2></div></div>
-          {hub.highlights.length ? <div className="hub-highlight-roll">{hub.highlights.map(highlight => <article className="hub-highlight" key={highlight.id}>
-            <div className="hub-video-frame">{highlight.videoUrl ? <video src={highlight.videoUrl} controls playsInline preload="metadata" /> : <a href={highlight.message_url ?? "#"} target="_blank" rel="noreferrer"><Play size={36} /> Open highlight</a>}</div>
-            <div className="hub-highlight-meta"><strong>{highlight.team?.name ?? highlight.user?.display_name ?? "REC Highlight"}</strong><span>Season {highlight.season_number} · Week {highlight.week_number}</span></div>
+          {activeHighlight ? <div className="hub-highlight-carousel">
+            {hub.highlights.length > 1 && <button className="hub-highlight-arrow previous" aria-label="Previous highlight" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + hub.highlights.length) % hub.highlights.length)}><ChevronLeft size={26} /></button>}
+            <article className="hub-highlight" key={activeHighlight.id}>
+            <div className="hub-video-frame">{activeHighlight.videoUrl ? <video src={activeHighlight.videoUrl} controls autoPlay muted loop playsInline preload="metadata" /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer"><Play size={36} /> Open highlight</a>}</div>
+            <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {hub.highlights.length} · Season {activeHighlight.season_number} · Week {activeHighlight.week_number}</span></div>
             <div className="hub-reactions">
-              <button className={highlight.myReactions.includes("like") ? "active" : ""} onClick={() => void react(highlight.id, "like")} title="Like (does not count toward Play of the Year)"><ThumbsUp size={16} /> {highlight.reactionCounts.like}</button>
-              <button className={highlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void react(highlight.id, "dislike")} title="Dislike (does not count toward Play of the Year)"><ThumbsDown size={16} /> {highlight.reactionCounts.dislike}</button>
-              {AWARD_REACTIONS.map(reaction => <button key={reaction.key} className={highlight.myReactions.includes(reaction.key) ? "active award" : "award"} onClick={() => void react(highlight.id, reaction.key)}>{reaction.label} {highlight.reactionCounts[reaction.key]}</button>)}
+              <button className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void react(activeHighlight.id, "like")} title="Like (does not count toward Play of the Year)"><ThumbsUp size={16} /> {activeHighlight.reactionCounts.like}</button>
+              <button className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void react(activeHighlight.id, "dislike")} title="Dislike (does not count toward Play of the Year)"><ThumbsDown size={16} /> {activeHighlight.reactionCounts.dislike}</button>
+              {AWARD_REACTIONS.map(reaction => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active award" : "award"} onClick={() => void react(activeHighlight.id, reaction.key)}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</button>)}
             </div>
-          </article>)}</div> : <p className="hub-empty">Videos posted in the Discord highlights channel will roll in here.</p>}
+          </article>
+          {hub.highlights.length > 1 && <button className="hub-highlight-arrow next" aria-label="Next highlight" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % hub.highlights.length)}><ChevronRight size={26} /></button>}
+          </div> : <p className="hub-empty">Videos posted in the Discord highlights channel will roll in here.</p>}
         </section>
 
         <section className="hub-section hub-interview">

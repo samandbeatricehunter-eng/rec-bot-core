@@ -44,6 +44,22 @@ async function discordBotFetch(path: string, init?: RequestInit): Promise<Respon
   });
 }
 
+export async function sendDiscordDirectMessage(discordId: string, content: string): Promise<void> {
+  const dm = await discordBotFetch("/users/@me/channels", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ recipient_id: discordId }),
+  });
+  if (!dm.ok) throw new Error(`Failed to open Discord DM (${dm.status})`);
+  const channel = await dm.json() as { id: string };
+  const sent = await discordBotFetch(`/channels/${channel.id}/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } }),
+  });
+  if (!sent.ok) throw new Error(`Failed to send Discord DM (${sent.status})`);
+}
+
 async function getGuildRoles(guildId: string): Promise<Map<string, { name: string; permissions: bigint }>> {
   const cached = fromCache(roleListCache, guildId);
   if (cached) return cached;

@@ -1,7 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
+import { getGuildMemberDisplayNameMap, getMentionableCommissioners, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 
 const MESSAGE_PAGE_SIZE = 200;
 const MESSAGE_RETENTION_HOURS = 72;
@@ -66,6 +66,20 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     .single();
   if (error) throw new ApiError(500, "Failed to post message.", error);
   const names = await getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>());
+  const directMentions = [...trimmed.matchAll(/<@!?(\d+)>/g)].map((match) => match[1]);
+  const roleMentioned = /<@&(\d+)>/.test(trimmed);
+  void (async () => {
+    const recipients = new Set(directMentions);
+    if (roleMentioned) {
+      const mentionable = await getMentionableCommissioners(input.guildId);
+      for (const member of mentionable.members) recipients.add(member.discordId);
+    }
+    recipients.delete(input.discordId);
+    if (!recipients.size) return;
+    const author = names.get(input.discordId) ?? "A commissioner";
+    const message = `**${author}** mentioned you in the Commissioner's Office:\n\n${trimmed.slice(0, 1200)}\n\nRun **/hub**, open **League Management**, then **Commissioner's Office** to reply.`;
+    await Promise.allSettled([...recipients].map((discordId) => sendDiscordDirectMessage(discordId, message)));
+  })().catch((notifyError) => console.error("[ERROR] Failed to send commissioner-chat mention DMs (non-fatal):", notifyError));
   return { message: { ...data, author_display_name: names.get(input.discordId) ?? null } };
 }
 

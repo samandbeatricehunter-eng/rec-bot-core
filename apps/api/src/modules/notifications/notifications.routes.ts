@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { listCommissionerNotifications } from "./notifications.service.js";
+import { listCommissionerNotifications, listUnattendedCommissionerNotifications, markCommissionerNotificationsDmSent } from "./notifications.service.js";
 
 const ListSchema = z.object({
   guildId: z.string().min(1),
@@ -20,5 +21,21 @@ export async function notificationsRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/notifications/dm-pending", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      return reply.send(await listUnattendedCommissionerNotifications(guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/dm-mark", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), ids: z.array(z.string().uuid()).max(200) }).parse(request.body);
+      return reply.send(await markCommissionerNotificationsDmSent(body.guildId, body.ids));
+    } catch (error) { return sendError(reply, error); }
   });
 }

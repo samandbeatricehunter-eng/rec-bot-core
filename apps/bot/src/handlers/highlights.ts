@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Message, type MessageReaction, type PartialMessageReaction, type PartialUser, type TextChannel, type User } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Guild, type Message, type MessageReaction, type PartialMessageReaction, type PartialUser, type TextChannel, type User } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
@@ -114,7 +114,9 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
     discordChannelId: message.channelId,
     discordMessageId: message.id,
     messageUrl: message.url,
-    content: message.content || mediaAttachments(message)[0]?.url || null,
+    // Persist the actual attachment URL even when the post also has a caption; captions
+    // are not playable and previously prevented the Hub from finding the video.
+    content: mediaAttachments(message)[0]?.url || message.content || null,
   }).catch((error) => ({ recorded: false, reason: error instanceof Error ? error.message : String(error) }));
 
   // Posted outside an active season (before regular-season Wk 1 or after the
@@ -154,6 +156,26 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
   }
 
   return true;
+}
+
+export async function syncRecentHighlightMessages(guild: Guild): Promise<void> {
+  const highlightsChannelId = await getHighlightsChannelId(guild.id);
+  if (!highlightsChannelId) return;
+  const channel = await guild.channels.fetch(highlightsChannelId).catch(() => null);
+  if (!channel?.isTextBased() || !("messages" in channel)) return;
+  const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+  if (!messages) return;
+  const recent = [...messages.values()].filter((message) => !message.author.bot && clipCount(message) === 1).sort((a, b) => a.createdTimestamp - b.createdTimestamp).slice(-5);
+  for (const message of recent) {
+    await recApi.recordHighlightPost({
+      guildId: guild.id,
+      discordId: message.author.id,
+      discordChannelId: message.channelId,
+      discordMessageId: message.id,
+      messageUrl: message.url,
+      content: mediaAttachments(message)[0]?.url || message.content || null,
+    }).catch((error) => console.error(`[ERROR] Failed to reconcile highlight ${message.id} for guild ${guild.id}:`, error));
+  }
 }
 
 export async function handleHighlightReviewButton(interaction: ButtonInteraction) {

@@ -1626,6 +1626,7 @@ export const recCommissionersInbox = pgTable("rec_commissioners_inbox", {
   reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "string" }),
   reviewReason: text("review_reason"),
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }),
+  dmNotifiedAt: timestamp("dm_notified_at", { withTimezone: true, mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });

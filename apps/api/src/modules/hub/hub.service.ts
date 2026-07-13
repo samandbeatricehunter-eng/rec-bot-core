@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
+import { env } from "../../config/env.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId } from "../users/user.service.js";
+import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
 
 export const HUB_REACTION_KEYS = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY"] as const;
 export type HubReactionKey = (typeof HUB_REACTION_KEYS)[number];
@@ -22,6 +24,32 @@ function videoUrl(content: string | null) {
   return urls.find((url) => /\.(mp4|mov|webm|mkv)(?:\?|$)/i.test(url)) ?? urls[0] ?? (/^https?:\/\//i.test(content) ? content : null);
 }
 
+function discordCdnUrlIsFresh(url: string | null) {
+  if (!url || !url.includes("cdn.discordapp.com")) return Boolean(url);
+  try {
+    const expiresHex = new URL(url).searchParams.get("ex");
+    return !expiresHex || Number.parseInt(expiresHex, 16) * 1000 > Date.now() + 5 * 60_000;
+  } catch { return false; }
+}
+
+async function refreshDiscordMediaUrl(highlight: any) {
+  const current = videoUrl(highlight.content);
+  if (discordCdnUrlIsFresh(current) || !env.DISCORD_TOKEN || !highlight.discord_channel_id || !highlight.discord_message_id) return current;
+  try {
+    const response = await fetch(`https://discord.com/api/v10/channels/${highlight.discord_channel_id}/messages/${highlight.discord_message_id}`, {
+      headers: { authorization: `Bot ${env.DISCORD_TOKEN}` },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return current;
+    const message = await response.json() as { attachments?: Array<{ url?: string; content_type?: string; filename?: string }> };
+    const attachment = (message.attachments ?? []).find((item) => item.content_type?.startsWith("video/") || /\.(mp4|mov|webm|mkv)$/i.test(item.filename ?? ""));
+    if (!attachment?.url) return current;
+    const durableUrl = await mirrorHighlightMedia(attachment.url, highlight.league_id, highlight.discord_message_id).catch(() => attachment.url!);
+    void supabase.from("rec_highlight_posts").update({ content: durableUrl, updated_at: new Date().toISOString() }).eq("id", highlight.id);
+    return durableUrl;
+  } catch { return current; }
+}
+
 export async function getHub(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const userId = await userIdForDiscord(discordId);
@@ -31,7 +59,7 @@ export async function getHub(guildId: string, discordId: string) {
   const [announcements, headlines, highlights, matchups, myTeam] = await Promise.all([
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).order("published_at", { ascending: false }).limit(8),
     supabase.from("rec_game_stories").select("id,season,week,headline,body,primary_angle,created_at").eq("league_id", context.leagueId).order("created_at", { ascending: false }).limit(12),
-    supabase.from("rec_highlight_posts").select("id,user_id,team_id,season_number,week_number,message_url,content,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).order("created_at", { ascending: false }).limit(18),
+    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,message_url,content,discord_channel_id,discord_message_id,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).order("created_at", { ascending: false }).limit(5),
     getWeeklyH2hGames(guildId),
     getUserMenuProfileByDiscordId(discordId, guildId),
   ]);
@@ -44,6 +72,8 @@ export async function getHub(guildId: string, discordId: string) {
     ? await supabase.from("rec_highlight_reactions").select("highlight_post_id,user_id,reaction_key").in("highlight_post_id", ids)
     : { data: [], error: null };
   if (reactions.error) throw new ApiError(500, "Failed to load highlight reactions.", reactions.error);
+
+  const hydratedHighlights = await Promise.all((highlights.data ?? []).map(async (item: any) => ({ ...item, videoUrl: await refreshDiscordMediaUrl(item) })));
 
   return {
     league: {
@@ -59,10 +89,10 @@ export async function getHub(guildId: string, discordId: string) {
     headlines: headlines.data ?? [],
     matchups,
     myTeam,
-    highlights: (highlights.data ?? []).map((item: any) => {
+    highlights: hydratedHighlights.map((item: any) => {
       const rows = (reactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === item.id);
       const counts = Object.fromEntries(HUB_REACTION_KEYS.map((key) => [key, rows.filter((reaction: any) => reaction.reaction_key === key).length]));
-      return { ...item, videoUrl: videoUrl(item.content), reactionCounts: counts, myReactions: rows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key) };
+      return { ...item, reactionCounts: counts, myReactions: rows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key) };
     }),
   };
 }

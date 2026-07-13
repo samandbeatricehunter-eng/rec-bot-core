@@ -539,6 +539,10 @@ export const recApi = {
       "/v1/notifications/list",
       { method: "POST", body: JSON.stringify(input) },
     ),
+  listUnattendedCommissionerNotifications: (guildId: string) =>
+    recFetch<{ notifications: Array<{ id: string; header: string; summary: string | null }> }>("/v1/notifications/dm-pending", { method: "POST", body: JSON.stringify({ guildId }) }),
+  markCommissionerNotificationDms: (guildId: string, ids: string[]) =>
+    recFetch<{ updated: number }>("/v1/notifications/dm-mark", { method: "POST", body: JSON.stringify({ guildId, ids }) }),
 
   getBoxScoreUploadEligibility: (input: { guildId: string; discordId: string }) =>
     recFetch<any>("/v1/box-score/upload-eligibility", { method: "POST", body: JSON.stringify(input) }),

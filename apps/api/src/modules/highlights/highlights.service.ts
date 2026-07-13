@@ -1,4 +1,4 @@
-import { isRegularSeasonWeek, maxSeasonWeek, postseasonPayoutStages, regularSeasonWeeks } from "@rec/shared";
+import { isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -6,6 +6,35 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
 const HIGHLIGHT_AWARD_AMOUNT = 500;
+const HIGHLIGHT_BUCKET = "rec-highlights";
+
+function mediaExtension(url: string, contentType: string) {
+  const pathname = (() => { try { return new URL(url).pathname; } catch { return ""; } })();
+  const fromPath = pathname.match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase();
+  if (fromPath && ["mp4", "mov", "webm", "mkv"].includes(fromPath)) return fromPath;
+  if (contentType.includes("quicktime")) return "mov";
+  if (contentType.includes("webm")) return "webm";
+  if (contentType.includes("matroska")) return "mkv";
+  return "mp4";
+}
+
+export async function mirrorHighlightMedia(url: string, leagueId: string, discordMessageId: string) {
+  if (!/^https?:\/\//i.test(url) || url.includes(`/storage/v1/object/public/${HIGHLIGHT_BUCKET}/`)) return url;
+  const response = await fetch(url, { signal: AbortSignal.timeout(25_000) });
+  if (!response.ok) throw new Error(`Highlight download failed (${response.status}).`);
+  const contentType = response.headers.get("content-type")?.split(";")[0] ?? "video/mp4";
+  if (!contentType.startsWith("video/")) return url;
+  const body = await response.arrayBuffer();
+  const path = `${leagueId}/${discordMessageId}.${mediaExtension(url, contentType)}`;
+  const uploaded = await supabase.storage.from(HIGHLIGHT_BUCKET).upload(path, body, { contentType, cacheControl: "31536000", upsert: true });
+  if (uploaded.error) throw uploaded.error;
+  const stored = await supabase.storage.from(HIGHLIGHT_BUCKET).list(leagueId, { limit: 100, sortBy: { column: "name", order: "desc" } });
+  if (!stored.error && (stored.data ?? []).length > 5) {
+    const stalePaths = (stored.data ?? []).slice(5).map((file) => `${leagueId}/${file.name}`);
+    await supabase.storage.from(HIGHLIGHT_BUCKET).remove(stalePaths);
+  }
+  return supabase.storage.from(HIGHLIGHT_BUCKET).getPublicUrl(path).data.publicUrl;
+}
 
 type RecordHighlightInput = {
   guildId: string;
@@ -69,17 +98,26 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   // through the championship game. Voting emojis preload only in the regular
   // season; in the postseason the payout is logged but POTY voting is closed.
   const game = context.rec_leagues.game;
-  const postseasonStages = postseasonPayoutStages(game);
   const isRegularSeason = seasonStage === "regular_season" && weekNumber >= 1 && isRegularSeasonWeek(weekNumber, game);
-  const isPostseason = postseasonStages.has(seasonStage) || (weekNumber > regularSeasonWeeks(game) && weekNumber <= maxSeasonWeek(game));
-  if (!isRegularSeason && !isPostseason) {
+  const preloadEmojis = isRegularSeason;
+
+  const existingPost = await supabase
+    .from("rec_highlight_posts")
+    .select("*")
+    .eq("league_id", context.leagueId)
+    .eq("discord_channel_id", input.discordChannelId)
+    .eq("discord_message_id", input.discordMessageId)
+    .maybeSingle();
+  if (existingPost.error) throw new ApiError(500, "Failed to check the existing highlight.", existingPost.error);
+  if (existingPost.data) {
     return {
-      recorded: false,
-      accepted: false,
-      reason: "Highlights are only accepted during an active season — regular-season Week 1 through the championship game.",
+      recorded: true,
+      accepted: true,
+      preloadEmojis,
+      paidSlotAvailable: Boolean(existingPost.data.payout_review_id),
+      highlight: existingPost.data,
     };
   }
-  const preloadEmojis = isRegularSeason;
 
   const existingPaid = await supabase
     .from("rec_highlight_payout_reviews")
@@ -112,6 +150,17 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
     .select("*")
     .single();
   if (highlight.error) throw new ApiError(500, "Failed to record highlight.", highlight.error);
+
+  // Discord attachment URLs expire. Mirror the file in the background while the fresh
+  // Discord URL remains immediately usable, then point the persisted record at storage.
+  if (input.content) {
+    void mirrorHighlightMedia(input.content, context.leagueId, input.discordMessageId)
+      .then(async (durableUrl) => {
+        if (durableUrl === input.content) return;
+        await supabase.from("rec_highlight_posts").update({ content: durableUrl, updated_at: new Date().toISOString() }).eq("id", highlight.data.id);
+      })
+      .catch((error) => console.error("[ERROR] Failed to mirror highlight media to storage (non-fatal):", error));
+  }
 
   if (!paidSlotAvailable) {
     return {
@@ -148,9 +197,9 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
     .eq("id", highlight.data.id);
   if (postUpdate.error) throw new ApiError(500, "Failed to attach highlight payout review.", postUpdate.error);
 
-  await supabase.from("rec_commissioners_inbox").insert({
+  const inbox = await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,
-    server_id: null,
+    server_id: context.serverId,
     league_id: context.leagueId,
     season_number: seasonNumber,
     week_number: weekNumber,
@@ -166,6 +215,7 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
     source_id: review.data.id,
     payload: { reviewId: review.data.id, highlightPostId: highlight.data.id, payoutKind: "weekly_highlight" },
   });
+  if (inbox.error) throw new ApiError(500, "Failed to create the commissioner highlight notification.", inbox.error);
 
   return {
     recorded: true,
