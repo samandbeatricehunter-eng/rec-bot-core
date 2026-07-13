@@ -110,6 +110,16 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
     .maybeSingle();
   if (existingPost.error) throw new ApiError(500, "Failed to check the existing highlight.", existingPost.error);
   if (existingPost.data) {
+    // Reconciliation may revisit a clip after a deploy. Use that opportunity to
+    // create the durable Storage mirror if the row still points at Discord's CDN.
+    if (input.content && !String(existingPost.data.content ?? "").includes(`/storage/v1/object/public/${HIGHLIGHT_BUCKET}/`)) {
+      void mirrorHighlightMedia(input.content, context.leagueId, input.discordMessageId)
+        .then(async (durableUrl) => {
+          if (durableUrl === existingPost.data.content) return;
+          await supabase.from("rec_highlight_posts").update({ content: durableUrl, updated_at: new Date().toISOString() }).eq("id", existingPost.data.id);
+        })
+        .catch((error) => console.error("[ERROR] Failed to mirror reconciled highlight media to storage (non-fatal):", error));
+    }
     return {
       recorded: true,
       accepted: true,

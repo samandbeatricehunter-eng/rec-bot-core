@@ -352,7 +352,12 @@ async function pollCommissionerNotifications() {
     });
     const lines = result.notifications.map((n) => `• **${n.header}** — ${n.summary ?? "Pending review"}`).join("\n").slice(0, 1600);
     const count = result.notifications.length;
-    const message = `You have ${count} unattended pending item${count === 1 ? "" : "s"} in League Management:\n${lines}\n\nRun **/hub**, open **League Management**, then **Notifications** to review ${count === 1 ? "it" : "them"}.`;
+    const landingChannelId = guild.systemChannelId ?? guild.rulesChannelId ??
+      guild.channels.cache.find((channel) => channel.isTextBased() && !channel.isThread())?.id;
+    const serverUrl = landingChannelId
+      ? `https://discord.com/channels/${guild.id}/${landingChannelId}`
+      : `https://discord.com/channels/${guild.id}`;
+    const message = `**${guild.name}** has ${count} unattended pending item${count === 1 ? "" : "s"} in League Management:\n${lines}\n\n[Open ${guild.name} in Discord](<${serverUrl}>) and run **/hub**, then open **League Management** → **Notifications** to review ${count === 1 ? "it" : "them"}.`;
     let delivered = false;
     for (const discordId of adminIds) {
       const user = await client.users.fetch(discordId).catch(() => null);

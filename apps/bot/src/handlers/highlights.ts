@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Guild, type Message, type MessageReaction, type PartialMessageReaction, type PartialUser, type TextChannel, type User } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type AnyThreadChannel, type ButtonInteraction, type Guild, type Message, type MessageReaction, type PartialMessageReaction, type PartialUser, type User } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel } from "../lib/route-channels.js";
@@ -36,33 +36,14 @@ function clipCount(message: Message) {
   return mediaAttachments(message).length + ((message.content.match(CLIP_URL_RE) ?? []).length);
 }
 
+function isInHighlightsChannel(message: Pick<Message, "channelId" | "channel">, highlightsChannelId: string) {
+  return message.channelId === highlightsChannelId ||
+    ("parentId" in message.channel && message.channel.parentId === highlightsChannelId);
+}
+
 async function getHighlightsChannelId(guildId: string) {
   const config = await recApi.getEconomyConfig(guildId).catch(() => null);
   return config?.routes?.highlights_channel_id ?? null;
-}
-
-async function postPendingReview(message: Message, result: any) {
-  if (!message.guild || !result?.review || !result.pendingPayoutsChannelId) return;
-  const channel = await message.guild.channels.fetch(result.pendingPayoutsChannelId).catch(() => null);
-  if (!channel?.isTextBased()) return;
-  const mentions = [result.commissionerRoleId, result.compCommitteeRoleId].filter(Boolean).map((id: string) => `<@&${id}>`).join(" ");
-  await (channel as TextChannel).send({
-    content: mentions || undefined,
-    embeds: [new EmbedBuilder()
-      .setTitle("HIGHLIGHT PAYOUT REVIEW")
-      .setDescription([
-        `<@${message.author.id}> posted a highlight eligible for a **$25** payout.`,
-        "",
-        `[Open Highlight](${message.url})`,
-        "",
-        "Approve to issue the payout. Deny if the clip is invalid or violates league rules."
-      ].join("\n"))],
-    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${HIGHLIGHT_REVIEW_PREFIX}approve:${result.review.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`${HIGHLIGHT_REVIEW_PREFIX}deny:${result.review.id}`).setLabel("Deny").setStyle(ButtonStyle.Danger)
-    )],
-    allowedMentions: { roles: [result.commissionerRoleId, result.compCommitteeRoleId].filter(Boolean) }
-  }).catch(() => undefined);
 }
 
 // One category vote per user per highlight: when a user adds one of the five
@@ -83,7 +64,7 @@ export async function handleHighlightReactionRestrict(
   const guildId = reaction.message.guildId ?? reaction.message.guild?.id ?? null;
   if (!guildId) return;
   const highlightsChannelId = await getHighlightsChannelId(guildId);
-  if (!highlightsChannelId || reaction.message.channelId !== highlightsChannelId) return;
+  if (!highlightsChannelId || !isInHighlightsChannel(reaction.message as Message, highlightsChannelId)) return;
 
   for (const other of reaction.message.reactions.cache.values()) {
     if (other.emoji.id && other.emoji.id !== emojiId && HIGHLIGHT_VOTE_EMOJI_IDS.has(other.emoji.id)) {
@@ -95,7 +76,9 @@ export async function handleHighlightReactionRestrict(
 export async function handleHighlightChannelMessage(message: Message): Promise<boolean> {
   if (!message.inGuild() || message.author.bot) return false;
   const highlightsChannelId = await getHighlightsChannelId(message.guildId);
-  if (!highlightsChannelId || message.channelId !== highlightsChannelId) return false;
+  // Discord Media and Forum channels store each post in a child thread. Accept
+  // messages from either a normal configured channel or one of those child threads.
+  if (!highlightsChannelId || !isInHighlightsChannel(message, highlightsChannelId)) return false;
 
   const clips = clipCount(message);
   if (clips === 0) return false;
@@ -161,11 +144,45 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
 export async function syncRecentHighlightMessages(guild: Guild): Promise<void> {
   const highlightsChannelId = await getHighlightsChannelId(guild.id);
   if (!highlightsChannelId) return;
-  const channel = await guild.channels.fetch(highlightsChannelId).catch(() => null);
-  if (!channel?.isTextBased() || !("messages" in channel)) return;
-  const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
-  if (!messages) return;
-  const recent = [...messages.values()].filter((message) => !message.author.bot && clipCount(message) === 1).sort((a, b) => a.createdTimestamp - b.createdTimestamp).slice(-5);
+  const channel = await guild.channels.fetch(highlightsChannelId).catch((error) => {
+    console.error(`[ERROR] Failed to fetch configured highlights channel ${highlightsChannelId} for guild ${guild.id}:`, error);
+    return null;
+  });
+  if (!channel) return;
+
+  const collected = new Map<string, Message>();
+  const collectMessages = async (source: { messages: { fetch(options: { limit: number }): Promise<Map<string, Message>> } }) => {
+    const messages = await source.messages.fetch({ limit: 10 });
+    for (const message of messages.values()) collected.set(message.id, message);
+  };
+
+  if (channel.isTextBased() && "messages" in channel) {
+    await collectMessages(channel).catch((error) => console.error(`[ERROR] Failed to fetch recent highlights from channel ${highlightsChannelId}:`, error));
+  }
+
+  // A Discord Media/Forum channel has no messages of its own: each upload is the
+  // starter message of a child thread. Reconcile both active and recently archived
+  // threads so clips posted while the bot was offline are still recorded.
+  if ("threads" in channel) {
+    const threadMap = new Map<string, AnyThreadChannel>();
+    const active = await channel.threads.fetchActive().catch((error) => {
+      console.error(`[ERROR] Failed to fetch active highlight threads from ${highlightsChannelId}:`, error);
+      return null;
+    });
+    for (const thread of active?.threads.values() ?? []) threadMap.set(thread.id, thread);
+    const archived = await channel.threads.fetchArchived({ limit: 10 }).catch((error) => {
+      console.error(`[ERROR] Failed to fetch archived highlight threads from ${highlightsChannelId}:`, error);
+      return null;
+    });
+    for (const thread of archived?.threads.values() ?? []) threadMap.set(thread.id, thread);
+    for (const thread of threadMap.values()) {
+      if (thread && "messages" in thread) {
+        await collectMessages(thread as Parameters<typeof collectMessages>[0]).catch((error) => console.error(`[ERROR] Failed to fetch messages from highlight thread ${"id" in thread ? thread.id : "unknown"}:`, error));
+      }
+    }
+  }
+
+  const recent = [...collected.values()].filter((message) => !message.author.bot && clipCount(message) === 1).sort((a, b) => a.createdTimestamp - b.createdTimestamp).slice(-5);
   for (const message of recent) {
     await recApi.recordHighlightPost({
       guildId: guild.id,
@@ -174,7 +191,10 @@ export async function syncRecentHighlightMessages(guild: Guild): Promise<void> {
       discordMessageId: message.id,
       messageUrl: message.url,
       content: mediaAttachments(message)[0]?.url || message.content || null,
-    }).catch((error) => console.error(`[ERROR] Failed to reconcile highlight ${message.id} for guild ${guild.id}:`, error));
+    }).catch((error) => {
+      console.error(`[ERROR] Failed to reconcile highlight ${message.id} for guild ${guild.id}:`, error);
+      return null;
+    });
   }
 }
 
