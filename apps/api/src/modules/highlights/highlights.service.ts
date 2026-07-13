@@ -149,6 +149,25 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
     .eq("id", highlight.data.id);
   if (postUpdate.error) throw new ApiError(500, "Failed to attach highlight payout review.", postUpdate.error);
 
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: context.leagueId,
+    season_number: seasonNumber,
+    week_number: weekNumber,
+    queue_type: "highlight",
+    status: "pending",
+    priority: 0,
+    header: `Highlight: Wk ${weekNumber}`,
+    summary: `Highlight submitted by <@${input.discordId}>.`,
+    requester_discord_id: input.discordId,
+    requester_user_id: account.user_id,
+    amount: HIGHLIGHT_PAYOUT_AMOUNT,
+    source_table: "rec_highlight_payout_reviews",
+    source_id: review.data.id,
+    payload: { reviewId: review.data.id, highlightPostId: highlight.data.id, payoutKind: "weekly_highlight" },
+  });
+
   return {
     recorded: true,
     accepted: true,
@@ -188,6 +207,16 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
       .select("*,highlight_post:rec_highlight_posts(*)")
       .single();
     if (denied.error) throw new ApiError(500, "Failed to deny highlight payout review.", denied.error);
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({
+        status: "denied",
+        reviewed_by_discord_id: input.reviewedByDiscordId,
+        reviewed_at: denied.data.reviewed_at,
+        review_reason: denied.data.denied_reason ?? null,
+      })
+      .eq("source_table", "rec_highlight_payout_reviews")
+      .eq("source_id", input.reviewId);
     return { updated: true, review: denied.data, highlight: denied.data.highlight_post };
   }
 
@@ -225,6 +254,16 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
     .update({ payout_issued: true, updated_at: new Date().toISOString() })
     .eq("id", existing.data.highlight_post_id);
   if (postUpdate.error) throw new ApiError(500, "Failed to mark highlight payout issued.", postUpdate.error);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({
+      status: "approved",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      reviewed_at: approved.data.reviewed_at,
+    })
+    .eq("source_table", "rec_highlight_payout_reviews")
+    .eq("source_id", input.reviewId);
 
   const account = await supabase
     .from("rec_discord_accounts")
@@ -325,6 +364,25 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
 
   const review = await supabase.from("rec_highlight_payout_reviews").insert(payload).select("*").single();
   if (review.error) throw new ApiError(500, "Failed to create highlight award review.", review.error);
+
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: context.leagueId,
+    season_number: seasonNumber,
+    week_number: highlight.data.week_number,
+    queue_type: "highlight",
+    status: "pending",
+    priority: 0,
+    header: `Player of the Season award: ${input.category}`,
+    summary: `Highlight nominated for ${input.category} (${input.voteCount} votes).`,
+    requester_discord_id: null,
+    requester_user_id: highlight.data.user_id,
+    amount: payload.amount,
+    source_table: "rec_highlight_payout_reviews",
+    source_id: review.data.id,
+    payload: { reviewId: review.data.id, highlightPostId: highlight.data.id, payoutKind: "season_award", category: input.category },
+  });
 
   return {
     review: review.data,

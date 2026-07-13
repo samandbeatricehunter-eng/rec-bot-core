@@ -9,12 +9,12 @@ import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, saveManualScheduleGame } from "./schedule.service.js";
 
-type ConfirmedWeek = { opponentTeamId: string; opponentName: string; homeAway: "home" | "away" };
+type ConfirmedWeek = { gameId: string; opponentTeamId: string; opponentName: string; homeAway: "home" | "away" };
 
-// Shared by the OCR-driven preview (previewCfbTeamScheduleImport) and the Activity's
+// Shared by the OCR-driven preview (previewCfbTeamScheduleImport) and the web dashboard's
 // no-OCR manual preview (getCfbTeamScheduleManualState) — a team+week already has a
 // confirmed matchup (from either side of the game, from any source: OCR import, manual
-// Discord wizard, or the Activity) if a rec_games row already covers it.
+// Discord wizard, or the web dashboard) if a rec_games row already covers it.
 function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; games: any[] }> }, teamId: string): Map<number, ConfirmedWeek> {
   const confirmedByWeek = new Map<number, ConfirmedWeek>();
   for (const week of season.weeks) {
@@ -24,6 +24,7 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
       if (!isAway && !isHome) continue;
       const opponent = isAway ? game.home_team : game.away_team;
       confirmedByWeek.set(week.weekNumber, {
+        gameId: game.id,
         opponentTeamId: isAway ? game.home_team_id : game.away_team_id,
         opponentName: opponent?.name ?? opponent?.abbreviation ?? "Team",
         homeAway: isAway ? "away" : "home",
@@ -31,6 +32,39 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
     }
   }
   return confirmedByWeek;
+}
+
+// The web dashboard's schedule builder is also where box scores get uploaded/reviewed and
+// final scores get manually recorded (see cfb-team-schedule.service.ts's plan doc) — every
+// week row needs to know not just "who's the opponent" but "does this game already have a
+// result, or a box-score submission awaiting review," so the UI can show the right actions
+// instead of asking the commissioner to open each game to check.
+type GameResultAndSubmission = {
+  result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
+  pendingBoxScoreSubmissionId: string | null;
+};
+
+async function loadResultsAndPendingSubmissions(gameIds: string[]): Promise<Map<string, GameResultAndSubmission>> {
+  const byGameId = new Map<string, GameResultAndSubmission>();
+  if (!gameIds.length) return byGameId;
+
+  const [resultsRes, submissionsRes] = await Promise.all([
+    supabase.from("rec_game_results").select("game_id,home_score,away_score,is_tie,source").in("game_id", gameIds),
+    supabase.from("rec_box_score_submissions").select("id,game_id").eq("status", "pending").in("game_id", gameIds),
+  ]);
+  if (resultsRes.error) throw new ApiError(500, "Failed to load existing game results.", resultsRes.error);
+  if (submissionsRes.error) throw new ApiError(500, "Failed to load pending box score submissions.", submissionsRes.error);
+
+  for (const gameId of gameIds) byGameId.set(gameId, { result: null, pendingBoxScoreSubmissionId: null });
+  for (const row of resultsRes.data ?? []) {
+    const entry = byGameId.get(row.game_id);
+    if (entry) entry.result = { homeScore: row.home_score, awayScore: row.away_score, isTie: row.is_tie, source: row.source };
+  }
+  for (const row of submissionsRes.data ?? []) {
+    const entry = row.game_id ? byGameId.get(row.game_id) : undefined;
+    if (entry) entry.pendingBoxScoreSubmissionId = row.id;
+  }
+  return byGameId;
 }
 
 // Matches below AUTO_MATCH_THRESHOLD are surfaced but not auto-selected — the review
@@ -116,15 +150,20 @@ export async function previewCfbTeamScheduleImport(input: {
   };
 }
 
-// The Activity's schedule form — same "team + every week's confirmed status" shape as
-// previewCfbTeamScheduleImport, minus the OCR step (there's no screenshot; the commissioner
-// fills in every week directly in the UI instead of correcting a parsed guess).
+// The web dashboard's schedule builder — same "team + every week's confirmed status"
+// shape as previewCfbTeamScheduleImport, minus the OCR step (there's no screenshot; the
+// commissioner fills in every week directly in the UI instead of correcting a parsed
+// guess), plus each week's existing result/pending-submission so the builder can show
+// (and act on) box scores and final scores inline instead of starting from blank.
 export type TeamScheduleManualWeek = {
   weekNumber: number;
   alreadyConfirmed: boolean;
   confirmedOpponentTeamId: string | null;
   confirmedOpponentName: string | null;
   confirmedHomeAway: "home" | "away" | null;
+  gameId: string | null;
+  result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
+  pendingBoxScoreSubmissionId: string | null;
 };
 
 export async function getCfbTeamScheduleManualState(input: {
@@ -150,17 +189,23 @@ export async function getCfbTeamScheduleManualState(input: {
 
   const season = await listScheduleSeason(input.guildId, seasonNumber);
   const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
+  const gameIds = [...confirmedByWeek.values()].map((c) => c.gameId);
+  const resultsAndSubmissions = await loadResultsAndPendingSubmissions(gameIds);
 
   const lastWeek = regularSeasonWeeks(context.rec_leagues.game);
   const weeks: TeamScheduleManualWeek[] = [];
   for (let weekNumber = 0; weekNumber <= lastWeek; weekNumber++) {
     const confirmed = confirmedByWeek.get(weekNumber);
+    const extra = confirmed ? resultsAndSubmissions.get(confirmed.gameId) : undefined;
     weeks.push({
       weekNumber,
       alreadyConfirmed: Boolean(confirmed),
       confirmedOpponentTeamId: confirmed?.opponentTeamId ?? null,
       confirmedOpponentName: confirmed?.opponentName ?? null,
       confirmedHomeAway: confirmed?.homeAway ?? null,
+      gameId: confirmed?.gameId ?? null,
+      result: extra?.result ?? null,
+      pendingBoxScoreSubmissionId: extra?.pendingBoxScoreSubmissionId ?? null,
     });
   }
 

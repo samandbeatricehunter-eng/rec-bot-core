@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
@@ -117,11 +118,15 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/weekly-scores/review/approve", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      // guildId is optional because the bot's existing calls don't send it (bot-mode auth
+      // never checks it — see resolveGuildId below); the web dashboard always sends it.
       const body = z.object({
+        guildId: z.string().min(1).optional(),
         reviewId: z.string().uuid(),
         loggedByDiscordId: z.string().min(1),
       }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      if (auth.mode === "user") body.loggedByDiscordId = auth.discordId;
       return reply.send(await approveWeeklyScoreReview(body));
     } catch (error) {
       return sendError(reply, error);
@@ -130,9 +135,9 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/weekly-scores/review/cancel", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      const { reviewId } = z.object({ reviewId: z.string().uuid() }).parse(request.body);
-      return reply.send(await cancelWeeklyScoreReview(reviewId));
+      const body = z.object({ guildId: z.string().min(1).optional(), reviewId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      return reply.send(await cancelWeeklyScoreReview(body.reviewId));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -140,8 +145,8 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/manual-scores/games", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(0).max(22).optional().nullable() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await listManualScoreGames(body));
     } catch (error) {
       return sendError(reply, error);
@@ -150,7 +155,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/manual-scores/record", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
         gameId: z.string().uuid(),
@@ -158,6 +162,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         homeScore: z.number().int().min(0).max(200).optional().nullable(),
         awayScore: z.number().int().min(0).max(200).optional().nullable(),
       }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await recordManualGameResult(body));
     } catch (error) {
       return sendError(reply, error);
@@ -316,11 +321,15 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/eos-payouts/issue-batch", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      // guildId is optional because the bot's existing calls don't send it (bot-mode auth
+      // never checks it — see resolveGuildId below); the web dashboard always sends it.
       const body = z.object({
+        guildId: z.string().min(1).optional(),
         batchId: z.string().uuid(),
         reviewedByDiscordId: z.string().min(1),
       }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
       return reply.send(await issueEosPayoutBatch(body));
     } catch (error) {
       return sendError(reply, error);

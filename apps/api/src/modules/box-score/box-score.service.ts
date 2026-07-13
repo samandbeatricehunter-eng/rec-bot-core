@@ -377,6 +377,20 @@ export async function persistUploadImage(key: string, imageUrl: string): Promise
   }
 }
 
+// Web dashboard equivalent of persistUploadImage — the bot's flows always start from an
+// already-hosted Discord CDN URL, but a browser upload arrives as a raw file. Uploads it
+// directly to the same bucket and returns its public URL (throws on failure rather than
+// falling back to null, since there's no CDN URL to fall back to here).
+export async function persistUploadedImageBuffer(key: string, buffer: Buffer, contentType: string): Promise<string> {
+  const ext = contentType === "image/jpeg" ? "jpeg" : contentType === "image/webp" ? "webp" : "png";
+  const path = `${key}.${ext}`;
+  const { error } = await supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).upload(path, buffer, { contentType, upsert: true });
+  if (error) throw new ApiError(500, "Failed to upload image.", error);
+  const { data } = supabase.storage.from(BOX_SCORE_IMAGE_BUCKET).getPublicUrl(path);
+  if (!data?.publicUrl) throw new ApiError(500, "Failed to resolve uploaded image URL.");
+  return data.publicUrl;
+}
+
 // Re-host one or more screenshots as a SINGLE image (stacked vertically) so an embed
 // — which only renders one image — can show every uploaded shot. Falls back to
 // re-hosting the first image, then to its CDN URL, on any failure.

@@ -227,6 +227,26 @@ export async function recordEosAwardPoll(input: {
     .select("*")
     .single();
   if (row.error) throw new ApiError(500, "Failed to record EOS award poll.", row.error);
+
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: context.leagueId,
+    season_number: seasonNumber,
+    week_number: null,
+    queue_type: "eos_award",
+    status: "pending",
+    priority: 0,
+    header: `EOS Award: ${label}`,
+    summary: `Voting open for ${label} (${row.data.nominee_payloads?.length ?? input.nominees.length} nominees).`,
+    requester_discord_id: null,
+    requester_user_id: null,
+    amount: definition.amount,
+    source_table: "rec_eos_award_polls",
+    source_id: row.data.id,
+    payload: { pollId: row.data.id, categoryKey: definition.key, discordChannelId: input.discordChannelId, discordMessageId: input.discordMessageId },
+  });
+
   return { poll: row.data };
 }
 
@@ -265,6 +285,12 @@ export async function cancelOpenEosAwardPolls(input: { guildId: string }) {
       .update({ status: "cancelled", updated_at: new Date().toISOString() })
       .in("id", ids);
     if (cancelled.error) throw new ApiError(500, "Failed to cancel open EOS award polls.", cancelled.error);
+    const now = new Date().toISOString();
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "cancelled", reviewed_at: now })
+      .eq("source_table", "rec_eos_award_polls")
+      .in("source_id", ids);
   }
   return { cancelled: existing.data ?? [] };
 }
@@ -342,6 +368,13 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
     .select("*")
     .single();
   if (updated.error) throw new ApiError(500, "Failed to settle EOS award poll.", updated.error);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "approved", reviewed_at: new Date().toISOString() })
+    .eq("source_table", "rec_eos_award_polls")
+    .eq("source_id", poll.data.id);
+
   return { poll: updated.data, winner, amount, votes: topRawVotes, tiebreakerNeeded };
 }
 

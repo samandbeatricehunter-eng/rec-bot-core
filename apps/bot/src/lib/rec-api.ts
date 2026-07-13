@@ -537,6 +537,12 @@ export const recApi = {
   listBoxScoreGames: (input: { guildId: string; weekNumber: number; seasonNumber?: number | null }) =>
     recFetch<any>("/v1/box-score/games", { method: "POST", body: JSON.stringify(input) }),
 
+  listCommissionerNotifications: (input: { guildId: string; sinceIso?: string | null }) =>
+    recFetch<{ notifications: Array<{ id: string; type: string; title: string; subtitle: string; amount: number | null; submittedBy: string | null; submittedAt: string }> }>(
+      "/v1/notifications/list",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+
   getBoxScoreUploadEligibility: (input: { guildId: string; discordId: string }) =>
     recFetch<any>("/v1/box-score/upload-eligibility", { method: "POST", body: JSON.stringify(input) }),
 

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
@@ -11,10 +12,13 @@ import {
   listScheduledGamesForWeek,
   listPendingBoxScores,
   parseBoxScorePreview,
+  persistUploadedImageBuffer,
   reviewBoxScore,
   updateBoxScoreLedgerMessage,
 } from "./box-score.service.js";
-import { getBoxScoreSubmissionJob, startBoxScoreSubmissionJob } from "./box-score-jobs.js";
+import { getBoxScoreSubmissionJob, getJobGuildId, startBoxScoreSubmissionJob } from "./box-score-jobs.js";
+
+const SUPPORTED_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 // /get and /review are keyed by submissionId, not guildId, so the combined guard's usual
 // "does the claimed guildId match the session" check doesn't apply directly — instead,
@@ -82,19 +86,46 @@ export async function boxScoreRoutes(app: FastifyInstance) {
   // OCR run. The bot polls /v1/box-score/job for the result.
   app.post("/v1/box-score/submit", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(startBoxScoreSubmissionJob(SubmitSchema.parse(request.body)));
+      const input = SubmitSchema.parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "co_commissioner" });
+      return reply.send(startBoxScoreSubmissionJob(input));
     } catch (error) {
       return sendError(reply, error);
     }
   });
 
-  // Poll a box-score OCR job started by /v1/box-score/submit.
+  // Poll a box-score OCR job started by /v1/box-score/submit. Jobs are keyed by an
+  // unguessable UUID (same trust model as submissionId above) — a user session must
+  // still prove it owns the guild the job was started for.
   app.post("/v1/box-score/job", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      const auth = await resolveBotOrUserAuth(request);
       const { jobId } = z.object({ jobId: z.string().uuid() }).parse(request.body);
+      if (auth.mode === "user") {
+        await assertGuildPermission(auth.guildId, auth.discordId, "co_commissioner");
+        const jobGuildId = getJobGuildId(jobId);
+        if (jobGuildId && jobGuildId !== auth.guildId) throw new ApiError(404, "Job not found.");
+      }
       return reply.send(getBoxScoreSubmissionJob(jobId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Browser file upload (the bot's flows always start from an already-hosted Discord CDN
+  // URL instead). guildId travels as a query param, not a multipart field, so the
+  // permission check can run before the file stream is even read. Returns a public URL
+  // the frontend then passes into /v1/box-score/submit's imageUrls.
+  app.post("/v1/box-score/upload-image", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.query);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      const file = await request.file();
+      if (!file) throw new ApiError(400, "Missing file.");
+      if (!SUPPORTED_UPLOAD_MIME_TYPES.has(file.mimetype)) throw new ApiError(400, "Unsupported image type.");
+      const buffer = await file.toBuffer();
+      const url = await persistUploadedImageBuffer(`uploads/${randomUUID()}`, buffer, file.mimetype);
+      return reply.send({ url });
     } catch (error) {
       return sendError(reply, error);
     }

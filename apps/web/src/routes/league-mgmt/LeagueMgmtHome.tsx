@@ -1,14 +1,34 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Bell, CalendarDays, FastForward, Shield, SlidersHorizontal, Trash2, Users, Wand2 } from "lucide-react";
+import { useReadyAuth } from "../../lib/auth-context.js";
+import { recApi } from "../../lib/rec-api-client.js";
+import { PageHeader } from "../../components/ui/PageHeader.js";
+import { ActivityTile } from "../../components/ui/ActivityTile.js";
 
 export function LeagueMgmtHome() {
+  const { guildId } = useReadyAuth();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  useEffect(() => {
+    recApi
+      .listCommissionerNotifications(guildId)
+      .then((res) => setNotificationCount(res.notifications.length))
+      .catch(() => setNotificationCount(0));
+  }, [guildId]);
+
   return (
     <div>
-      <h2>League Mgmt</h2>
-      <ul>
-        <li><Link to="/league-mgmt/schedule">Schedule</Link></li>
-        <li><Link to="/league-mgmt/teams">Teams</Link></li>
-        <li><Link to="/league-mgmt/box-scores">Box Scores</Link></li>
-      </ul>
+      <PageHeader title="League Mgmt" subtitle="Everything a commissioner or co-commissioner can manage, in one place." />
+      <div className="activity-grid">
+        <ActivityTile to="/league-mgmt/notifications" icon={Bell} title="Notifications" description="Pending payouts, purchases, and reviews awaiting action." badgeCount={notificationCount} />
+        <ActivityTile to="/league-mgmt/schedule" icon={CalendarDays} title="Schedule" description="Set matchups, upload box scores, and record final scores." />
+        <ActivityTile to="/league-mgmt/teams" icon={Users} title="Teams" description="Link and unlink users to teams." />
+        <ActivityTile icon={FastForward} title="Advance" description="" disabled />
+        <ActivityTile icon={SlidersHorizontal} title="Settings" description="" disabled />
+        <ActivityTile icon={Shield} title="Roles" description="" disabled />
+        <ActivityTile icon={Wand2} title="First-Time Setup" description="" disabled />
+        <ActivityTile icon={Trash2} title="Delete League" description="" disabled />
+      </div>
     </div>
   );
 }

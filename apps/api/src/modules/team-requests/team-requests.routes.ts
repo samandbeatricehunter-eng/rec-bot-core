@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import {
   approveTeamLinkRequest,
@@ -18,6 +19,9 @@ const CreateRequestSchema = z.object({
 });
 
 const RequestIdSchema = z.object({
+  // Optional because the bot's existing calls to approve/reject don't send it (bot-mode
+  // auth never checks it — see resolveGuildId below); the web dashboard always sends it.
+  guildId: z.string().min(1).optional(),
   requestId: z.string().uuid(),
   reviewerDiscordId: z.string().min(1),
 });
@@ -54,8 +58,10 @@ export async function teamRequestRoutes(app: FastifyInstance) {
 
   app.post("/v1/team-requests/approve", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await approveTeamLinkRequest(RequestIdSchema.parse(request.body)));
+      const body = RequestIdSchema.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      if (auth.mode === "user") body.reviewerDiscordId = auth.discordId;
+      return reply.send(await approveTeamLinkRequest(body));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -63,8 +69,10 @@ export async function teamRequestRoutes(app: FastifyInstance) {
 
   app.post("/v1/team-requests/reject", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await rejectTeamLinkRequest(RequestIdSchema.parse(request.body)));
+      const body = RequestIdSchema.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      if (auth.mode === "user") body.reviewerDiscordId = auth.discordId;
+      return reply.send(await rejectTeamLinkRequest(body));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -196,6 +196,25 @@ export async function createWeeklyScoreReview(input: {
     .single();
   if (error || !data) throw new ApiError(500, "Failed to save the weekly score review.", error);
 
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: leagueId,
+    season_number: seasonNumber,
+    week_number: weekNumber,
+    queue_type: "weekly_score_review",
+    status: "pending",
+    priority: 0,
+    header: `Week ${weekNumber} Score Review`,
+    summary: `Weekly scores uploaded by <@${input.createdByDiscordId}> for review.`,
+    requester_discord_id: input.createdByDiscordId,
+    requester_user_id: null,
+    amount: null,
+    source_table: REVIEW_TABLE,
+    source_id: data.id,
+    payload: { reviewId: data.id, imageUrl: data.image_url ?? null },
+  });
+
   return { ...shapeReview(data), warnings: parsedWeek.warnings };
 }
 
@@ -239,7 +258,15 @@ export async function correctWeeklyScoreReview(input: {
 }
 
 export async function cancelWeeklyScoreReview(reviewId: string): Promise<{ ok: true }> {
-  await supabase.from(REVIEW_TABLE).update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("id", reviewId);
+  const now = new Date().toISOString();
+  await supabase.from(REVIEW_TABLE).update({ status: "cancelled", updated_at: now }).eq("id", reviewId);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "cancelled", reviewed_at: now })
+    .eq("source_table", REVIEW_TABLE)
+    .eq("source_id", reviewId);
+
   return { ok: true };
 }
 
@@ -267,7 +294,15 @@ export async function approveWeeklyScoreReview(input: {
 
   const result = await writePrelogResults(leagueId, seasonNumber, seasonId, weekNumber, games);
 
-  await supabase.from(REVIEW_TABLE).update({ status: "logged", updated_at: new Date().toISOString() }).eq("id", input.reviewId);
+  const now = new Date().toISOString();
+  await supabase.from(REVIEW_TABLE).update({ status: "logged", updated_at: now }).eq("id", input.reviewId);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "approved", reviewed_by_discord_id: input.loggedByDiscordId, reviewed_at: now })
+    .eq("source_table", REVIEW_TABLE)
+    .eq("source_id", input.reviewId);
+
   return { seasonNumber, weekNumber, ...result };
 }
 

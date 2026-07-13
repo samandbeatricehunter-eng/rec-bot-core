@@ -7,6 +7,7 @@ import { gameChannelRoutes } from "./modules/game-channels/game-channels.routes.
 import { highlightRoutes } from "./modules/highlights/highlights.routes.js";
 import { gotwRoutes } from "./modules/gotw/gotw.routes.js";
 import { legendRoutes } from "./modules/legends/legends.routes.js";
+import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { purchaseRoutes } from "./modules/purchases/purchases.routes.js";
 import { leagueWeekRoutes } from "./modules/league-week/league-week.routes.js";
 import { rosterRoutes } from "./modules/rosters/rosters.routes.js";
@@ -39,6 +40,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await highlightRoutes(app);
   await gotwRoutes(app);
   await legendRoutes(app);
+  await notificationsRoutes(app);
   await purchaseRoutes(app);
   await wagerRoutes(app);
 }

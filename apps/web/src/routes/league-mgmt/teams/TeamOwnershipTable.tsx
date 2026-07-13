@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { UserPlus } from "lucide-react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LinkedTeamRow } from "../../../types/api.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { Card } from "../../../components/ui/Card.js";
+import { Button } from "../../../components/ui/Button.js";
+import { Table, Th, Td } from "../../../components/ui/Table.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 export function TeamOwnershipTable() {
   const { guildId } = useReadyAuth();
+  const navigate = useNavigate();
   const [linked, setLinked] = useState<LinkedTeamRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyTeamId, setBusyTeamId] = useState<string | null>(null);
@@ -33,44 +41,52 @@ export function TeamOwnershipTable() {
 
   return (
     <div>
-      <h2>Teams</h2>
-      <Link to="/league-mgmt/teams/link">Link a user to a team →</Link>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      {!linked && !error && <p>Loading…</p>}
+      <PageHeader
+        title="Teams"
+        subtitle="Manage which users control which teams."
+        actions={
+          <Button variant="primary" onClick={() => navigate("/league-mgmt/teams/link")}>
+            <UserPlus size={16} /> Link User
+          </Button>
+        }
+      />
+      {error && <ErrorState message={error} />}
+      {!linked && !error && <LoadingState />}
       {linked && (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
-          <thead>
-            <tr>
-              <th style={cellStyle}>Team</th>
-              <th style={cellStyle}>User</th>
-              <th style={cellStyle}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {linked.map((row) => (
-              <tr key={row.id}>
-                <td style={cellStyle}>{row.team?.name ?? "Unknown"}</td>
-                <td style={cellStyle}>{row.user?.display_name ?? "Unknown"}</td>
-                <td style={cellStyle}>
-                  <button
-                    disabled={!row.team || busyTeamId === row.team.id}
-                    onClick={() => row.team && handleUnlink(row.team.id)}
-                  >
-                    {busyTeamId === row.team?.id ? "Unlinking…" : "Unlink"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {linked.length === 0 && (
+        <Card>
+          <Table>
+            <thead>
               <tr>
-                <td style={cellStyle} colSpan={3}>No teams are linked yet.</td>
+                <Th>Team</Th>
+                <Th>User</Th>
+                <Th></Th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {linked.map((row) => (
+                <tr key={row.id}>
+                  <Td>{row.team?.name ?? "Unknown"}</Td>
+                  <Td>{row.user?.display_name ?? "Unknown"}</Td>
+                  <Td style={{ textAlign: "right" }}>
+                    <Button
+                      variant="danger"
+                      disabled={!row.team || busyTeamId === row.team.id}
+                      onClick={() => row.team && handleUnlink(row.team.id)}
+                    >
+                      {busyTeamId === row.team?.id ? "Unlinking…" : "Unlink"}
+                    </Button>
+                  </Td>
+                </tr>
+              ))}
+              {linked.length === 0 && (
+                <tr>
+                  <Td colSpan={3} style={{ color: "var(--text-secondary)" }}>No teams are linked yet.</Td>
+                </tr>
+              )}
+            </tbody>
+          </Table>
+        </Card>
       )}
     </div>
   );
 }
-
-const cellStyle = { border: "1px solid #ccc", padding: 6, textAlign: "left" as const };

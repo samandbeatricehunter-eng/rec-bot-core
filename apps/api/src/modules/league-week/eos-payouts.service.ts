@@ -52,7 +52,7 @@ export function evalTeamStat(statKey: string, rows: any[]) {
   return 0;
 }
 
-async function loadOrCreateBatch(leagueId: string, seasonNumber: number, requestedByDiscordId: string) {
+async function loadOrCreateBatch(guildId: string, leagueId: string, seasonNumber: number, requestedByDiscordId: string) {
   const existing = await supabase
     .from("rec_eos_payout_batches")
     .select("*")
@@ -78,6 +78,26 @@ async function loadOrCreateBatch(leagueId: string, seasonNumber: number, request
     .select("*")
     .single();
   if (created.error) throw new ApiError(500, "Failed to create EOS payout batch.", created.error);
+
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: guildId,
+    server_id: null,
+    league_id: leagueId,
+    season_number: seasonNumber,
+    week_number: null,
+    queue_type: "eos_payout",
+    status: "pending",
+    priority: 0,
+    header: `EOS Payouts — Season ${seasonNumber}`,
+    summary: `End-of-season payout batch created for season ${seasonNumber}.`,
+    requester_discord_id: requestedByDiscordId,
+    requester_user_id: creator.data?.user_id ?? null,
+    amount: null,
+    source_table: "rec_eos_payout_batches",
+    source_id: created.data.id,
+    payload: { batchId: created.data.id, batchType: "eos_regular_season" },
+  });
+
   return created.data;
 }
 
@@ -160,7 +180,7 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
     throw new ApiError(400, "EOS payouts are only available during the postseason (after the regular season ends, through the championship game).");
   }
   const seasonNumber = resolveSeasonNumber(context);
-  const batch = await loadOrCreateBatch(context.leagueId, seasonNumber, input.requestedByDiscordId);
+  const batch = await loadOrCreateBatch(input.guildId, context.leagueId, seasonNumber, input.requestedByDiscordId);
   const existingIssued = await supabase
     .from("rec_eos_payout_items")
     .select("id")
@@ -349,5 +369,15 @@ export async function issueEosPayoutBatch(input: { batchId: string; reviewedByDi
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.batchId);
+
+  if (!failed.length && !stillPending) {
+    const now = new Date().toISOString();
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
+      .eq("source_table", "rec_eos_payout_batches")
+      .eq("source_id", input.batchId);
+  }
+
   return { ...refreshed, issuedCount: issued.length, issuedItems, failed };
 }

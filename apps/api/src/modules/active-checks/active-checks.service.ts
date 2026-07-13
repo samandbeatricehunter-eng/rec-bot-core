@@ -73,6 +73,26 @@ export async function createActiveCheckEvent(input: {
     .select("*")
     .single();
   if (inserted.error) throw new ApiError(500, "Failed to create active check event.", inserted.error);
+
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: inserted.data.league_id,
+    season_number: inserted.data.season_number,
+    week_number: inserted.data.week_number,
+    queue_type: "active_check",
+    status: "pending",
+    priority: 0,
+    header: `Week ${inserted.data.week_number} Active Check`,
+    summary: `Active check started in <#${input.discordChannelId}>.`,
+    requester_discord_id: input.createdByDiscordId,
+    requester_user_id: null,
+    amount: null,
+    source_table: "rec_active_check_events",
+    source_id: inserted.data.id,
+    payload: { eventId: inserted.data.id, discordChannelId: input.discordChannelId, discordMessageId: input.discordMessageId, closesAt: input.closesAt },
+  });
+
   return { event: inserted.data };
 }
 
@@ -166,6 +186,12 @@ export async function settleActiveCheckEvent(input: {
     .single();
   if (updated.error) throw new ApiError(500, "Failed to settle active check.", updated.error);
 
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "approved", reviewed_at: now })
+    .eq("source_table", "rec_active_check_events")
+    .eq("source_id", input.eventId);
+
   return getActiveCheckReview(input.eventId);
 }
 
@@ -244,5 +270,12 @@ export async function markActiveCheckNeedsReview(input: { eventId: string; reaso
     .select("*")
     .single();
   if (result.error) throw new ApiError(500, "Failed to mark active check for manual review.", result.error);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "resolved", reviewed_at: now, review_reason: input.reason })
+    .eq("source_table", "rec_active_check_events")
+    .eq("source_id", input.eventId);
+
   return { event: result.data, reason: input.reason };
 }

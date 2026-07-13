@@ -1,7 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { registerGuildCommands } from "./commands.js";
-import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction, replyFullAdminOnly } from "./lib/admin.js";
+import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction, listGuildAdminDiscordIds, replyFullAdminOnly } from "./lib/admin.js";
 import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
 import { recApi } from "./lib/rec-api.js";
@@ -330,6 +330,49 @@ setInterval(() => {
   cleanupRosterSessions();
   sweepBoxScoreExchanges();
 }, 60_000).unref();
+
+// Per-guild "last checked" watermark for the commissioner-notification DM ping (1e). A
+// guild's first poll after bot start only establishes the watermark — it doesn't notify on
+// whatever's already pending, since that's already visible in the web dashboard and would
+// otherwise flood commissioners with a backlog DM on every restart.
+const notificationWatermarks = new Map<string, string>();
+
+async function pollCommissionerNotifications() {
+  for (const guild of client.guilds.cache.values()) {
+    const since = notificationWatermarks.get(guild.id);
+    const nowIso = new Date().toISOString();
+    if (!since) {
+      notificationWatermarks.set(guild.id, nowIso);
+      continue;
+    }
+
+    let result: { notifications: Array<{ id: string; title: string; subtitle: string }> };
+    try {
+      result = await recApi.listCommissionerNotifications({ guildId: guild.id, sinceIso: since });
+    } catch (error) {
+      console.error(`[ERROR] Failed to poll commissioner notifications for guild ${guild.id}:`, error);
+      continue;
+    }
+    notificationWatermarks.set(guild.id, nowIso);
+    if (!result.notifications.length) continue;
+
+    const adminIds = await listGuildAdminDiscordIds(guild).catch((error) => {
+      console.error(`[ERROR] Failed to list guild admins for ${guild.id}:`, error);
+      return [] as string[];
+    });
+    const lines = result.notifications.map((n) => `• **${n.title}** — ${n.subtitle}`).join("\n").slice(0, 1800);
+    const count = result.notifications.length;
+    const message = `You have ${count} new pending item${count === 1 ? "" : "s"} in League Mgmt:\n${lines}`;
+    for (const discordId of adminIds) {
+      const user = await client.users.fetch(discordId).catch(() => null);
+      await user?.send(message).catch(() => undefined);
+    }
+  }
+}
+
+setInterval(() => {
+  pollCommissionerNotifications().catch((error) => console.error("[ERROR] Commissioner notification poll failed:", error));
+}, 150_000).unref();
 
 const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please reopen /menu to proceed.";
 

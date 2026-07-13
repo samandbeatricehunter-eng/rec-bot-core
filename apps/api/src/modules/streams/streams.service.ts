@@ -139,6 +139,25 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     throw new ApiError(500, "Failed to create stream payout review.", review.error);
   }
 
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: context.leagueId,
+    season_number: seasonNumber,
+    week_number: weekNumber,
+    queue_type: "stream",
+    status: "pending",
+    priority: 0,
+    header: `Stream: Wk ${weekNumber}`,
+    summary: `Stream submitted by <@${input.discordId}>.`,
+    requester_discord_id: input.discordId,
+    requester_user_id: account.user_id,
+    amount: STREAM_PAYOUT_AMOUNT,
+    source_table: "rec_stream_payout_reviews",
+    source_id: review.data.id,
+    payload: { reviewId: review.data.id, streamLogId: streamLog.data.id },
+  });
+
   return {
     recorded: true,
     needsReview: true,
@@ -178,6 +197,16 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
       .single();
 
     if (denied.error) throw new ApiError(500, "Failed to deny stream payout review.", denied.error);
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({
+        status: "denied",
+        reviewed_by_discord_id: input.reviewedByDiscordId,
+        reviewed_at: denied.data.reviewed_at,
+        review_reason: denied.data.denied_reason ?? null,
+      })
+      .eq("source_table", "rec_stream_payout_reviews")
+      .eq("source_id", input.reviewId);
     return { updated: true, review: denied.data, streamLog: denied.data.stream_log };
   }
 
@@ -211,6 +240,16 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
     .single();
 
   if (approved.error) throw new ApiError(500, "Failed to approve stream payout review.", approved.error);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({
+      status: "approved",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      reviewed_at: approved.data.reviewed_at,
+    })
+    .eq("source_table", "rec_stream_payout_reviews")
+    .eq("source_id", input.reviewId);
 
   const streamer = await supabase
     .from("rec_discord_accounts")

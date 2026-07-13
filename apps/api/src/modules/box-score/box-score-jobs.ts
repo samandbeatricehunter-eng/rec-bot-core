@@ -21,9 +21,9 @@ import {
 } from "./box-score.service.js";
 
 type BoxScoreJob =
-  | { status: "processing"; startedAt: number }
-  | { status: "done"; result: CreateSubmissionResult; finishedAt: number }
-  | { status: "failed"; error: string; statusCode: number; finishedAt: number };
+  | { status: "processing"; startedAt: number; guildId: string }
+  | { status: "done"; result: CreateSubmissionResult; finishedAt: number; guildId: string }
+  | { status: "failed"; error: string; statusCode: number; finishedAt: number; guildId: string };
 
 const jobs = new Map<string, BoxScoreJob>();
 
@@ -49,18 +49,19 @@ export type StartBoxScoreJobResult = { jobId: string; status: "processing" };
 export function startBoxScoreSubmissionJob(input: CreateSubmissionInput): StartBoxScoreJobResult {
   sweepJobs();
   const jobId = randomUUID();
-  jobs.set(jobId, { status: "processing", startedAt: Date.now() });
+  const guildId = input.guildId;
+  jobs.set(jobId, { status: "processing", startedAt: Date.now(), guildId });
 
   void createBoxScoreSubmission(input)
     .then((result) => {
-      jobs.set(jobId, { status: "done", result, finishedAt: Date.now() });
+      jobs.set(jobId, { status: "done", result, finishedAt: Date.now(), guildId });
     })
     .catch((err: unknown) => {
       const statusCode = err instanceof ApiError ? err.statusCode : 500;
       const message = err instanceof Error ? err.message : String(err);
       // ApiErrors carry a user-facing message by design; log anything unexpected.
       if (!(err instanceof ApiError)) console.error("[box-score] OCR job failed:", err);
-      jobs.set(jobId, { status: "failed", error: message, statusCode, finishedAt: Date.now() });
+      jobs.set(jobId, { status: "failed", error: message, statusCode, finishedAt: Date.now(), guildId });
     });
 
   return { jobId, status: "processing" };
@@ -71,6 +72,12 @@ export type BoxScoreJobStatus =
   | { status: "done"; result: CreateSubmissionResult }
   | { status: "failed"; error: string; statusCode: number }
   | { status: "not_found" };
+
+// Jobs are keyed by an unguessable UUID, same trust model as submissionId elsewhere in this
+// module — a user session must still prove it owns the guild the job was started for.
+export function getJobGuildId(jobId: string): string | undefined {
+  return jobs.get(jobId)?.guildId;
+}
 
 export function getBoxScoreSubmissionJob(jobId: string): BoxScoreJobStatus {
   sweepJobs();

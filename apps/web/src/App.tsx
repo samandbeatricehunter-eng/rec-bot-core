@@ -6,8 +6,7 @@ import { TeamPicker } from "./routes/league-mgmt/schedule/TeamPicker.js";
 import { TeamScheduleForm } from "./routes/league-mgmt/schedule/TeamScheduleForm.js";
 import { TeamOwnershipTable } from "./routes/league-mgmt/teams/TeamOwnershipTable.js";
 import { LinkTeamForm } from "./routes/league-mgmt/teams/LinkTeamForm.js";
-import { PendingBoxScoresList } from "./routes/league-mgmt/box-scores/PendingBoxScoresList.js";
-import { BoxScoreDetail } from "./routes/league-mgmt/box-scores/BoxScoreDetail.js";
+import { NotificationsHome } from "./routes/league-mgmt/notifications/NotificationsHome.js";
 
 // This dashboard is only ever reached one way: an authorized user clicks "Open Web
 // Dashboard" in Discord's League Mgmt panel, which opens this app in a normal browser tab
@@ -28,12 +27,11 @@ export default function App() {
           <AppShell>
             <Routes>
               <Route path="/" element={<LeagueMgmtHome />} />
+              <Route path="/league-mgmt/notifications" element={<NotificationsHome />} />
               <Route path="/league-mgmt/schedule" element={<TeamPicker />} />
               <Route path="/league-mgmt/schedule/:teamId" element={<TeamScheduleForm />} />
               <Route path="/league-mgmt/teams" element={<TeamOwnershipTable />} />
               <Route path="/league-mgmt/teams/link" element={<LinkTeamForm />} />
-              <Route path="/league-mgmt/box-scores" element={<PendingBoxScoresList />} />
-              <Route path="/league-mgmt/box-scores/:submissionId" element={<BoxScoreDetail />} />
             </Routes>
           </AppShell>
         </AuthGate>

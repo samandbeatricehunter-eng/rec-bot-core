@@ -874,6 +874,52 @@ async function creditAndCloseWager(wager: any, outcome: "won" | "lost" | "push")
   return credited;
 }
 
+// Record a commissioner-inbox row the moment a wager's result becomes known (i.e. it
+// is confirmed-resolvable) and is now awaiting the commissioner's settle action. The
+// wagers table has no distinct "confirmed" status of its own (wagers stay "pending"
+// until settleWager closes them) — the normal caller is listConfirmableWagers, so the
+// row exists as "pending" in the inbox before settlement happens. settleWager also
+// calls this as a fallback for a wager that reaches settle without ever having been
+// surfaced there. Guarded by the inbox table's unique (guild_id, queue_type,
+// source_table, source_id) index so neither caller ever double-inserts.
+async function recordWagerInbox(wager: any): Promise<void> {
+  const link = await supabase
+    .from("rec_server_league_links")
+    .select("server_id")
+    .eq("league_id", wager.league_id)
+    .eq("is_primary", true)
+    .maybeSingle();
+  const serverId: string | null = link.data?.server_id ?? null;
+  const server = serverId
+    ? await supabase.from("rec_discord_servers").select("guild_id").eq("id", serverId).maybeSingle()
+    : { data: null };
+  const guildId: string | null = server.data?.guild_id ?? null;
+  // guild_id is required on the inbox table; if we can't resolve the wager's server
+  // (shouldn't happen in practice), skip the inbox row rather than failing settlement.
+  if (!guildId) return;
+
+  const { error } = await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: guildId,
+    server_id: serverId,
+    league_id: wager.league_id,
+    season_number: wager.season_number ?? null,
+    week_number: wager.week_number ?? null,
+    queue_type: "wager",
+    status: "pending",
+    priority: 0,
+    header: `Wager settle: ${wager.market} — $${wager.stake}`,
+    summary: `Wager placed by <@${wager.placed_by_discord_id}> is ready to settle.`,
+    requester_discord_id: wager.placed_by_discord_id,
+    requester_user_id: wager.placed_by_user_id ?? null,
+    amount: wager.stake,
+    source_table: "rec_wagers",
+    source_id: wager.id,
+    payload: { wagerId: wager.id, market: wager.market, pick: wager.pick, wagerKind: wager.wager_kind, isParlay: Boolean(wager.is_parlay) },
+  });
+  // 23505 = unique violation — a row for this wager already exists, which is fine.
+  if (error && error.code !== "23505") throw new ApiError(500, "Failed to add wager to commissioner inbox.", error);
+}
+
 // Approve a wager payout — only succeeds once the game result is confirmed.
 export async function settleWager(input: { wagerId: string; reviewedByDiscordId: string }) {
   const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
@@ -886,6 +932,7 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
   if (wager.is_parlay) {
     const r = await resolveParlay(wager.league_id, wager.id, Number(wager.stake ?? 0));
     if (!r) return { ok: false, notConfirmed: true, wager };
+    await recordWagerInbox(wager);
     let credited = 0;
     if (r.payout > 0) {
       const credit = await supabase.rpc("add_to_wallet", {
@@ -901,6 +948,12 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
       credited = r.payout;
     }
     await supabase.from("rec_wagers").update({ status: r.outcome, settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", wager.id);
+    const now = new Date().toISOString();
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "resolved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
+      .eq("source_table", "rec_wagers")
+      .eq("source_id", wager.id);
     return { ok: true, outcome: r.outcome, credited, wager: { ...wager, status: r.outcome } };
   }
 
@@ -908,17 +961,29 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
   if (!outcome) {
     return { ok: false, notConfirmed: true, wager };
   }
+  await recordWagerInbox(wager);
 
   const credited = await creditAndCloseWager(wager, outcome);
+  const now = new Date().toISOString();
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "resolved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
+    .eq("source_table", "rec_wagers")
+    .eq("source_id", wager.id);
   return { ok: true, outcome, credited, wager: { ...wager, status: outcome } };
 }
 
 // Pending wagers whose game result is now available — used to refresh their
-// pending-payout embeds to the "confirmed" state after a result is logged.
+// pending-payout embeds to the "confirmed" state after a result is logged. This is also
+// the earliest point a wager can be identified as "awaiting commissioner settle action"
+// (rec_wagers has no persisted "confirmed" status of its own — see recordWagerInbox), so
+// it doubles as the trigger for the commissioner-inbox row: the bot calls this function
+// via refreshConfirmableWagerEmbeds right after a result is logged (box score / weekly
+// scores / advance), which is exactly when a wager first becomes settle-ready.
 export async function listConfirmableWagers(leagueId: string) {
   const { data } = await supabase
     .from("rec_wagers")
-    .select("id,pending_channel_id,pending_message_id,game_id,market,pick,line,wager_kind,is_parlay,stake")
+    .select("id,league_id,season_number,week_number,placed_by_discord_id,placed_by_user_id,pending_channel_id,pending_message_id,game_id,market,pick,line,wager_kind,is_parlay,stake")
     .eq("league_id", leagueId)
     .eq("status", "pending")
     .not("pending_message_id", "is", null);
@@ -928,6 +993,7 @@ export async function listConfirmableWagers(leagueId: string) {
       ? (await resolveParlay(leagueId, w.id, Number(w.stake ?? 0))) != null
       : (await resolveOutcome(leagueId, w)) != null;
     if (resolvable && w.pending_channel_id && w.pending_message_id) {
+      await recordWagerInbox(w);
       wagers.push({ id: w.id, channelId: w.pending_channel_id, messageId: w.pending_message_id });
     }
   }

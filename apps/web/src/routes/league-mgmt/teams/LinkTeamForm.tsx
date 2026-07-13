@@ -3,6 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LeagueIdentity, OpenTeam } from "../../../types/api.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { Card } from "../../../components/ui/Card.js";
+import { Button } from "../../../components/ui/Button.js";
+import { SearchInput } from "../../../components/ui/SearchInput.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 // The searchable-list replacement for Discord's paginated 25-option team/user selects
 // (apps/bot/src/ui/team-options.ts's buildUserSelectRows/buildOpenTeamSelectRow).
@@ -53,50 +59,50 @@ export function LinkTeamForm() {
     }
   }
 
-  if (error) return <p style={{ color: "crimson" }}>{error}</p>;
-  if (!openTeams || !identities) return <p>Loading…</p>;
+  if (error) return <ErrorState message={error} />;
+  if (!openTeams || !identities) return <LoadingState />;
 
   return (
     <div>
-      <h2>Link User to Team</h2>
-      <div style={{ display: "flex", gap: 24 }}>
-        <div style={{ flex: 1 }}>
-          <h3>Team</h3>
-          <input placeholder="Search teams…" value={teamQuery} onChange={(e) => setTeamQuery(e.target.value)} style={{ width: "100%", marginBottom: 8 }} />
-          <ul style={{ listStyle: "none", padding: 0, maxHeight: 300, overflowY: "auto" }}>
+      <PageHeader title="Link User to Team" subtitle="Pick an open team, then the user to assign it to." />
+      <div style={{ display: "flex", gap: "var(--space-5)" }}>
+        <Card style={{ flex: 1 }}>
+          <h3 style={{ marginTop: 0 }}>Team</h3>
+          <SearchInput placeholder="Search teams…" value={teamQuery} onChange={(e) => setTeamQuery(e.target.value)} style={{ marginBottom: "var(--space-3)" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", maxHeight: 320, overflowY: "auto" }}>
             {filteredTeams.map((t) => (
-              <li key={t.id}>
-                <button
-                  onClick={() => setTeamId(t.id)}
-                  style={{ width: "100%", textAlign: "left", padding: 6, background: teamId === t.id ? "#ddd" : undefined }}
-                >
-                  {t.name}
-                </button>
-              </li>
+              <button
+                key={t.id}
+                onClick={() => setTeamId(t.id)}
+                className={`btn ${teamId === t.id ? "btn-primary" : "btn-ghost"}`}
+                style={{ width: "100%", textAlign: "left", justifyContent: "flex-start" }}
+              >
+                {t.name}
+              </button>
             ))}
-          </ul>
-        </div>
-        <div style={{ flex: 1 }}>
-          <h3>User</h3>
-          <input placeholder="Search users…" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} style={{ width: "100%", marginBottom: 8 }} />
-          <ul style={{ listStyle: "none", padding: 0, maxHeight: 300, overflowY: "auto" }}>
+          </div>
+        </Card>
+        <Card style={{ flex: 1 }}>
+          <h3 style={{ marginTop: 0 }}>User</h3>
+          <SearchInput placeholder="Search users…" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} style={{ marginBottom: "var(--space-3)" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)", maxHeight: 320, overflowY: "auto" }}>
             {filteredUsers.map((u) => (
-              <li key={u.userId}>
-                <button
-                  disabled={!u.discordId}
-                  onClick={() => u.discordId && setDiscordId(u.discordId)}
-                  style={{ width: "100%", textAlign: "left", padding: 6, background: discordId === u.discordId ? "#ddd" : undefined }}
-                >
-                  {u.displayName}
-                </button>
-              </li>
+              <button
+                key={u.userId}
+                disabled={!u.discordId}
+                onClick={() => u.discordId && setDiscordId(u.discordId)}
+                className={`btn ${discordId === u.discordId ? "btn-primary" : "btn-ghost"}`}
+                style={{ width: "100%", textAlign: "left", justifyContent: "flex-start" }}
+              >
+                {u.displayName}
+              </button>
             ))}
-          </ul>
-        </div>
+          </div>
+        </Card>
       </div>
-      <button onClick={handleSubmit} disabled={!teamId || !discordId || saving} style={{ marginTop: 16, padding: "8px 16px" }}>
+      <Button variant="primary" onClick={handleSubmit} disabled={!teamId || !discordId || saving} style={{ marginTop: "var(--space-5)" }}>
         {saving ? "Linking…" : "Link"}
-      </button>
+      </Button>
     </div>
   );
 }

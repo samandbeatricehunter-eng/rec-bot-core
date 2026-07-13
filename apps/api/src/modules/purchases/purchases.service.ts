@@ -218,6 +218,25 @@ export async function createPurchaseRequest(input: {
     .single();
   if (finalized.error) throw new ApiError(500, "Failed to finalize purchase request.", finalized.error);
 
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: leagueId,
+    season_number: seasonNumber,
+    week_number: null,
+    queue_type: "purchase",
+    status: "pending",
+    priority: 0,
+    header: `Purchase: ${label} — $${price}`,
+    summary: `${label} requested by <@${input.discordId}>.`,
+    requester_discord_id: input.discordId,
+    requester_user_id: userId,
+    amount: price,
+    source_table: "rec_purchases",
+    source_id: finalized.data.id,
+    payload: { purchaseId: finalized.data.id, purchaseType: input.purchaseType, cost: price },
+  });
+
   return {
     purchase: finalized.data,
     price,
@@ -272,6 +291,11 @@ export async function reviewPurchase(input: {
       .select("*")
       .single();
     if (denied.error) throw new ApiError(500, "Failed to deny purchase.", denied.error);
+    await supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "denied", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now, review_reason: input.deniedReason ?? null })
+      .eq("source_table", "rec_purchases")
+      .eq("source_id", input.purchaseId);
     return { updated: true, action: "deny" as const, purchase: denied.data, refunded: cost, buyerDiscordId: existing.data.discord_id };
   }
 
@@ -287,6 +311,11 @@ export async function reviewPurchase(input: {
     .select("*")
     .single();
   if (approved.error) throw new ApiError(500, "Failed to approve purchase.", approved.error);
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
+    .eq("source_table", "rec_purchases")
+    .eq("source_id", input.purchaseId);
   return { updated: true, action: "approve" as const, purchase: approved.data, buyerDiscordId: existing.data.discord_id };
 }
 

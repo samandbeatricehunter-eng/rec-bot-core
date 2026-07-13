@@ -87,6 +87,26 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     .single();
   if (inserted.error) throw new ApiError(500, "Failed to create team request.", inserted.error);
 
+  const teamName = formatTeamDisplayName(team.data) ?? team.data.name;
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: leagueId,
+    season_number: null,
+    week_number: null,
+    queue_type: "team_request",
+    status: "pending",
+    priority: 0,
+    header: teamName ? `Team link request: ${teamName}` : "Team link request",
+    summary: `Requested by <@${input.discordId}>.`,
+    requester_discord_id: input.discordId,
+    requester_user_id: userId,
+    team_id: input.teamId,
+    source_table: "rec_team_link_requests",
+    source_id: inserted.data.id,
+    payload: { requestId: inserted.data.id, teamId: input.teamId },
+  });
+
   return {
     request: inserted.data,
     teamName: formatTeamDisplayName(team.data) ?? team.data.name,
@@ -116,6 +136,11 @@ export async function approveTeamLinkRequest(input: { requestId: string; reviewe
     .select("*")
     .single();
   if (updated.error) throw new ApiError(500, "Failed to approve team request.", updated.error);
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "approved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
+    .eq("source_table", "rec_team_link_requests")
+    .eq("source_id", input.requestId);
 
   const teamRow = await supabase.from("rec_teams").select("*").eq("id", request.team_id).maybeSingle();
   return {
@@ -141,6 +166,11 @@ export async function rejectTeamLinkRequest(input: { requestId: string; reviewer
     .select("*")
     .single();
   if (updated.error) throw new ApiError(500, "Failed to reject team request.", updated.error);
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "denied", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
+    .eq("source_table", "rec_team_link_requests")
+    .eq("source_id", input.requestId);
   return updated.data;
 }
 

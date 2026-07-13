@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { createPurchaseRequest, getUserPurchaseCounts, listPendingPurchases, reviewPurchase } from "./purchases.service.js";
 
@@ -22,6 +23,9 @@ const CreatePurchaseSchema = z.object({
 });
 
 const ReviewPurchaseSchema = z.object({
+  // Optional because the bot's existing calls don't send it (bot-mode auth never checks
+  // it — see resolveGuildId below); the web dashboard always sends it.
+  guildId: z.string().min(1).optional(),
   purchaseId: z.string().uuid(),
   action: z.enum(["approve", "deny"]),
   reviewedByDiscordId: z.string().min(1),
@@ -40,8 +44,10 @@ export async function purchaseRoutes(app: FastifyInstance) {
 
   app.post("/v1/purchases/review", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await reviewPurchase(ReviewPurchaseSchema.parse(request.body)));
+      const body = ReviewPurchaseSchema.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
+      return reply.send(await reviewPurchase(body));
     } catch (error) {
       return sendError(reply, error);
     }
