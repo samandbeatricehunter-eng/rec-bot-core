@@ -109,7 +109,6 @@ export function HubHome() {
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [showTeamSchedule, setShowTeamSchedule] = useState(false);
   const [linkedTeams, setLinkedTeams] = useState<LinkedTeamRow[] | null>(null);
   const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
@@ -128,7 +127,6 @@ export function HubHome() {
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [legends, setLegends] = useState<any[] | null>(null);
   const [soldLegendIds, setSoldLegendIds] = useState<string[]>([]);
-  const [showOpenTeams, setShowOpenTeams] = useState(false);
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
   const viewedHighlights = useRef(new Set<string>());
@@ -322,7 +320,7 @@ export function HubHome() {
   }
   async function viewOpenTeams() {
     if (auth.status !== "ready") return;
-    setShowOpenTeams(false); setSection("openTeams"); setOpenTeamsError(null);
+    setSection("openTeams"); setOpenTeamsError(null);
     setMobileNavOpen(false);
     if (openTeams) return;
     try { setOpenTeams((await recApi.listOpenTeams(auth.guildId)).openTeams); }
@@ -342,7 +340,7 @@ export function HubHome() {
 
   async function openTeamSchedulePicker() {
     if (auth.status !== "ready") return;
-    setShowTeamSchedule(false); setSection("schedules"); setMobileNavOpen(false);
+    setSection("schedules"); setMobileNavOpen(false);
     setTeamScheduleTeamId(null); setTeamSchedule(null); setTeamScheduleError(null);
     if (linkedTeams) return;
     try { setLinkedTeams((await recApi.listLinkedUsersTeams(auth.guildId)).linked); }
@@ -543,7 +541,7 @@ export function HubHome() {
         </div>
       </aside>
     </section>
-    <button className="hub-nav-toggle" aria-label="Tap to open menu" onClick={() => setMobileNavOpen(true)}><Menu size={19} /><span>Tap to Open Menu</span></button>
+    {!mobileNavOpen && <button className="hub-nav-toggle" aria-label="Tap to open menu" onClick={() => setMobileNavOpen(true)}><Menu size={19} /><span>Tap to Open Menu</span></button>}
     <div className="hub-body">
       {mobileNavOpen && <div className="hub-sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />}
       <aside className={mobileNavOpen ? "hub-sidebar open" : "hub-sidebar"}>
@@ -561,7 +559,7 @@ export function HubHome() {
         {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={18} /> League Mgmt</Link>}
       </aside>
       <main className="hub-content">
-    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong><small>{team.division || "Conference team"}</small></span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
+    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
       <div className="hub-my-team-shortcuts">
         <button className="hub-shortcut-card" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={18} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : "$100 on approval"}</span></div></button>
         <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : "$50 on approval"}</span></div></button>
@@ -741,8 +739,6 @@ export function HubHome() {
         <div className="hub-peer-board"><h3>Peer Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · ${wager.stake.toLocaleString()} · {wager.challengeType}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>
       </>}
     </div></Modal>}
-    {showOpenTeams && <Modal title="Open Teams" onClose={() => setShowOpenTeams(false)}><div className="hub-open-teams"><p>These teams are currently available in {hub.league.name}. Unlinked members can run <strong>/hub</strong> in Discord and select <strong>Request Team</strong>.</p>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong><small>{team.division || "Conference team"}</small></span></article>)}</div></section>)}</div>}</div></Modal>}
-
     {mediaModal === "article" && <Modal title="Submit Article" onClose={() => setMediaModal(null)}><div className="hub-media-modal">
       {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
       {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
@@ -777,16 +773,6 @@ export function HubHome() {
 
     {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)}><div className="hub-my-schedule">
       {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div> : !mySchedule ? <p className="hub-empty">Loading your schedule...</p> : <ScheduleWeekList weeks={mySchedule.weeks} />}
-    </div></Modal>}
-
-    {showTeamSchedule && <Modal title="Team Schedules" onClose={() => setShowTeamSchedule(false)}><div className="hub-my-schedule">
-      <label className="form-field"><span className="form-label">Team</span>
-        <select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}>
-          <option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>
-          {(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}
-        </select>
-      </label>
-      {teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}
     </div></Modal>}
   </div>;
 }

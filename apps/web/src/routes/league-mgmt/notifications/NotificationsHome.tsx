@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { CommissionerNotification, CommissionerNotificationType, CompletedCommissionerTransaction } from "../../../types/api.js";
@@ -13,6 +12,7 @@ import { ReviewBoxScoreModal } from "../../../components/box-score/ReviewBoxScor
 import { ResolveNotificationModal } from "./ResolveNotificationModal.js";
 import { ActiveCheckReviewModal } from "./ActiveCheckReviewModal.js";
 import { EosAwardResolveModal } from "./EosAwardResolveModal.js";
+import { EosPayoutLedgers } from "./EosPayoutLedgers.js";
 
 const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score", purchase: "Purchase", highlight: "Highlight", stream: "Stream",
@@ -21,10 +21,13 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   media: "Media",
 };
 const ALL_TYPES = Object.keys(TYPE_LABELS) as CommissionerNotificationType[];
+// EOS Payout and Stream get their own tab regardless of whether anything is pending right
+// now, since they're recurring commissioner workflows worth always being able to find —
+// unlike the other types, which only earn a pill when something's actually waiting.
+const ALWAYS_VISIBLE_TYPES: CommissionerNotificationType[] = ["eos_payout", "stream"];
 
 export function NotificationsHome() {
   const { guildId } = useReadyAuth();
-  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
@@ -47,11 +50,14 @@ export function NotificationsHome() {
   }
 
   useEffect(load, [guildId]);
-  const visible = notifications?.filter((notification) => filter === "all" || notification.type === filter) ?? [];
-  const typesPresent = new Set(notifications?.map((notification) => notification.type) ?? []);
+  // EOS Payout notifications are handled entirely by the dedicated ledger tab below — a
+  // flat card for one doesn't have a well-defined click action any more, so it's excluded
+  // from every other view.
+  const cardNotifications = notifications?.filter((notification) => notification.type !== "eos_payout") ?? [];
+  const visible = cardNotifications.filter((notification) => filter === "all" || notification.type === filter);
+  const typesPresent = new Set(cardNotifications.map((notification) => notification.type));
 
   function openNotification(notification: CommissionerNotification) {
-    if (notification.type === "eos_payout") return navigate("/league-mgmt/payouts");
     if (!notification.sourceId) return setActiveResolve(notification);
     if (notification.type === "box_score") return setActiveBoxScoreId(notification.sourceId);
     if (notification.type === "active_check") return setActiveActiveCheckId(notification.sourceId);
@@ -83,22 +89,26 @@ export function NotificationsHome() {
 
       {view === "pending" ? <>
         <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
-          <Button variant={filter === "all" ? "primary" : "secondary"} onClick={() => setFilter("all")}>All ({notifications.length})</Button>
-          {ALL_TYPES.filter((type) => typesPresent.has(type)).map((type) => <Button key={type} variant={filter === type ? "primary" : "secondary"} onClick={() => setFilter(type)}>{TYPE_LABELS[type]}</Button>)}
+          <Button variant={filter === "all" ? "primary" : "secondary"} onClick={() => setFilter("all")}>All ({cardNotifications.length})</Button>
+          {ALL_TYPES.filter((type) => typesPresent.has(type) || ALWAYS_VISIBLE_TYPES.includes(type)).map((type) => <Button key={type} variant={filter === type ? "primary" : "secondary"} onClick={() => setFilter(type)}>{TYPE_LABELS[type]}</Button>)}
         </div>
-        {visible.length === 0 && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-          {visible.map((notification) => <Card key={notification.id} style={{ cursor: "pointer" }} onClick={() => openNotification(notification)}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-3)" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><span style={{ fontWeight: 700 }}>{notification.title}</span></div>
-                <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{notification.subtitle}</p>
-                <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
+        {filter === "eos_payout" ? (
+          <EosPayoutLedgers onResolved={(message) => { setNotice(message); load(); window.dispatchEvent(new Event("rec:notifications-changed")); }} />
+        ) : <>
+          {visible.length === 0 && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            {visible.map((notification) => <Card key={notification.id} style={{ cursor: "pointer" }} onClick={() => openNotification(notification)}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-3)" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><span style={{ fontWeight: 700 }}>{notification.title}</span></div>
+                  <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{notification.subtitle}</p>
+                  <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
+                </div>
+                {notification.amount != null && <span style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</span>}
               </div>
-              {notification.amount != null && <span style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</span>}
-            </div>
-          </Card>)}
-        </div>
+            </Card>)}
+          </div>
+        </>}
       </> : <CompletedTransactions transactions={completed} />}
     </>}
 

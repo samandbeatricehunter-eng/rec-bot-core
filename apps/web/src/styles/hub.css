@@ -350,10 +350,10 @@
 .hub-open-team-conferences > section { overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface-raised); }
 .hub-open-team-conferences h3 { margin: 0; padding: var(--space-3); border-bottom: 1px solid rgba(255,215,0,.28); color: var(--gold); text-align: center; }
 .hub-open-team-conferences section > div { display: grid; gap: 1px; background: var(--border); }
-.hub-open-team-conferences article { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); background: var(--surface-raised); }
+.hub-open-team-conferences article { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); background: var(--surface-raised); text-align: left; }
 .hub-open-team-conferences article svg { flex: 0 0 auto; color: var(--gold); }
-.hub-open-team-conferences article span { min-width: 0; }
-.hub-open-team-conferences article strong, .hub-open-team-conferences article small { display: block; overflow-wrap: anywhere; }
+.hub-open-team-conferences article span { min-width: 0; flex: 1; text-align: left; }
+.hub-open-team-conferences article strong, .hub-open-team-conferences article small { display: block; overflow-wrap: anywhere; text-align: left; }
 .hub-open-team-conferences article small { margin-top: 2px; color: var(--text-muted); }
 
 .hub-story-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }

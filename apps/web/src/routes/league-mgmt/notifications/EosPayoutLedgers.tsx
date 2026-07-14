@@ -3,19 +3,18 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { EosLedger, PendingEosLedgers, RecPayoutTier } from "../../../types/api.js";
-import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Badge } from "../../../components/ui/Badge.js";
 import { Button } from "../../../components/ui/Button.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 
-// Commissioner "Pending Payouts" inbox — one collapsible receipt per linked user, collapsed
-// by default. Expanding shows every stat line the user's team qualified for, the tier and
-// dollar amount for each, and lets the commissioner bump any single line to a different
-// tier (or clear it) before approving the whole ledger. Approve issues the money and DMs the
-// user the ledger + who approved it; reject DMs them the reason.
-export function PendingPayoutsHome() {
+// Embedded in Notifications as the "EOS Payout" tab — one collapsible receipt per linked
+// user, collapsed by default. Expanding shows every stat line the user's team qualified
+// for, the tier and dollar amount for each, and lets the commissioner bump any single line
+// to a different tier (or clear it) before approving the whole ledger. Approve issues the
+// money and DMs the user the ledger + who approved it; reject DMs them the reason.
+export function EosPayoutLedgers({ onResolved }: { onResolved: (message: string) => void }) {
   const { guildId } = useReadyAuth();
   const [data, setData] = useState<PendingEosLedgers | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +22,6 @@ export function PendingPayoutsHome() {
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const [notice, setNotice] = useState<string | null>(null);
 
   function load() {
     recApi.listPendingEosLedgers(guildId).then(setData).catch((err) => setError(err instanceof Error ? err.message : "Failed to load pending payouts."));
@@ -55,7 +53,7 @@ export function PendingPayoutsHome() {
     setError(null);
     try {
       await recApi.reviewEosLedger({ guildId, batchId: data.batch.id, userId: ledger.userId, action: "approve" });
-      setNotice(`Approved ${ledger.displayName}'s ledger — $${ledger.total} issued.`);
+      onResolved(`Approved ${ledger.displayName}'s ledger — $${ledger.total} issued.`);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve this ledger.");
@@ -70,7 +68,7 @@ export function PendingPayoutsHome() {
     setError(null);
     try {
       await recApi.reviewEosLedger({ guildId, batchId: data.batch.id, userId: ledger.userId, action: "deny", deniedReason: reason.trim() });
-      setNotice(`Rejected ${ledger.displayName}'s ledger.`);
+      onResolved(`Rejected ${ledger.displayName}'s ledger.`);
       setRejecting(null);
       setReason("");
       load();
@@ -81,13 +79,11 @@ export function PendingPayoutsHome() {
     }
   }
 
-  if (error && !data) return <div><PageHeader title="Pending Payouts" subtitle="EOS payout ledgers awaiting commissioner review." /><ErrorState message={error} /></div>;
+  if (error && !data) return <ErrorState message={error} />;
   if (!data) return <LoadingState />;
 
   return (
     <div>
-      <PageHeader title="Pending Payouts" subtitle="EOS payout ledgers awaiting commissioner review." />
-      {notice && <p style={{ color: "var(--success)", marginTop: 0 }}>{notice}</p>}
       {error && <ErrorState message={error} />}
 
       {!data.batch && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>No EOS payout batch is open right now. Ledgers are prepared automatically once postseason play ends (or, for CFB, once the league advances past week 16).</p></Card>}

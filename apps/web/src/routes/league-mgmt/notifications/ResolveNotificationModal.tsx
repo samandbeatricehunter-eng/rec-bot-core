@@ -35,8 +35,6 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: false, approveLabel: "Log Scores", denyLabel: "Cancel" };
     case "wager":
       return { kind: "single", actionLabel: "Settle Wager" };
-    case "eos_payout":
-      return { kind: "single", actionLabel: "Issue Batch" };
     case "active_check":
       return { kind: "info", message: "This active check is missing its event reference — resolve it from Discord instead." };
     case "eos_award":
@@ -67,8 +65,6 @@ async function resolveAction(guildId: string, notification: CommissionerNotifica
         : recApi.cancelWeeklyScoreReview({ guildId, reviewId: sourceId });
     case "wager":
       return recApi.settleWager({ guildId, wagerId: sourceId });
-    case "eos_payout":
-      return recApi.issueEosPayoutBatch({ guildId, batchId: sourceId });
     default:
       throw new Error("No resolve action for this notification type.");
   }
