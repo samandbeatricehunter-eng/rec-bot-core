@@ -45,6 +45,10 @@ function displayLabel(key: string) {
   return key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function gameLabel(game: string | null | undefined) {
+  return String(game ?? "League").replaceAll("_", " ").replace(/\bcfb\b/ig, "CFB").toUpperCase();
+}
+
 function ProfileStats({ values }: { values: Record<string, unknown> | null | undefined }) {
   const hidden = new Set(["userId", "leagueId", "seasonNumber"]);
   const rows = Object.entries(values ?? {}).filter(([key, value]) => !hidden.has(key) && value != null && typeof value !== "object");
@@ -406,6 +410,13 @@ export function HubHome() {
   if (!hub) return <div className="hub-state"><h1>Loading League Hub…</h1></div>;
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
+  const heroRank = profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked";
+  const heroRecord = profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0";
+  const heroStreak = profile.seasonRecord?.activeStreak ?? "—";
+  const heroDifferential = Number(my.leagueSeasonPointDifferential ?? profile.seasonRecord?.pointDifferential ?? 0);
+  const heroGotw = my.gotwStatus ?? "Not GOTW";
+  const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
+  const heroSchool = my.teamName ?? profile.teamName ?? "School unavailable";
   const activeHighlight = hub.highlights[activeHighlightIndex] ?? null;
   const activeStory = activeStoryIndex != null ? hub.headlines[activeStoryIndex] ?? null : null;
   const openTeamsByConference = (openTeams ?? []).reduce<Record<string, OpenTeam[]>>((groups, team) => {
@@ -416,7 +427,19 @@ export function HubHome() {
   const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
 
   return <div className="hub-page">
-    <section className="hub-hero"><div><p className="hub-eyebrow">Season {hub.league.seasonNumber} · Week {hub.league.weekNumber}</p><h1>{hub.league.name}</h1><p>{String(hub.league.game ?? "League").replaceAll("_", " ")} · {String(hub.league.seasonStage).replaceAll("_", " ")}</p></div></section>
+    <section className="hub-hero">
+      <div className="hub-hero-main"><p className="hub-eyebrow">Season {hub.league.seasonNumber} · Week {hub.league.weekNumber}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p></div>
+      <aside className="hub-hero-snapshot">
+        <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong><small>{heroGotw}</small></div>
+        <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong><small>School: {heroSchool}</small></div>
+        <div className="hub-hero-metrics">
+          <article><span>Record</span><strong>{heroRecord}</strong><small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff</small></article>
+          <article><span>Streak</span><strong>{heroStreak}</strong><small>Current W/L</small></article>
+          <article><span>Power Rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.score ? `Score ${Number(profile.powerRank.score).toFixed(2)}` : "Pending"}</small></article>
+          <article><span>Wallet</span><strong>${Number(my.wallet ?? 0).toLocaleString()}</strong><small>Savings ${Number(my.savings ?? 0).toLocaleString()}</small></article>
+        </div>
+      </aside>
+    </section>
     <nav className={`hub-tabs ${hub.canManageLeague ? "with-management" : "with-live-games"}`}><button className={tab === "league" ? "active" : ""} onClick={() => setTab("league")}><Trophy size={18} /> League</button><button onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button><button className={tab === "media" ? "active" : ""} onClick={() => setTab("media")}><Mic size={18} /> Media</button><button className={tab === "store" ? "active" : ""} onClick={() => setTab("store")}><ShoppingBag size={18} /> Store</button><button className={tab === "team" ? "active" : ""} onClick={() => setTab("team")}><UserRound size={18} /> My Team</button>{hub.canManageLeague ? <Link className="hub-management-tab" to="/league-mgmt"><ShieldCheck size={18} /> League Mgmt</Link> : <button className={hub.liveStreams?.length ? "hub-live-tab live" : "hub-live-tab"} onClick={() => { setTab("league"); setSubTab("matchups"); }}><Play size={18} /> Live Games</button>}</nav>
 
     {tab === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div><div className="hub-stat-grid">
