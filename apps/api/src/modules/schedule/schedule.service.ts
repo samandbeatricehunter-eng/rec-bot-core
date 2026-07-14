@@ -204,8 +204,8 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
       currentWeek: Number(context.rec_leagues.current_week ?? 1),
       game: context.rec_leagues.game ?? null,
     },
-    weeks: Array.from({ length: maxSeasonWeek(context.rec_leagues.game) }, (_, idx) => {
-      const weekNumber = idx + 1;
+    weeks: Array.from({ length: maxSeasonWeek(context.rec_leagues.game) - (isCfb(context.rec_leagues.game) ? 0 : 1) + 1 }, (_, idx) => {
+      const weekNumber = idx + (isCfb(context.rec_leagues.game) ? 0 : 1);
       return {
         weekNumber,
         phase: phaseForWeek(weekNumber, context.rec_leagues.game),

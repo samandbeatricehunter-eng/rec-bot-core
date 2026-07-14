@@ -519,9 +519,10 @@ function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | 
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonNumber = Number(requested?.seasonNumber ?? currentSeason);
   const weekNumber = Number(requested?.weekNumber ?? currentWeek);
+  const firstWeek = isCfb(context.rec_leagues.game) ? 0 : 1;
 
   if (!Number.isInteger(seasonNumber) || seasonNumber < 1) throw new ApiError(400, "Invalid season number.");
-  if (!Number.isInteger(weekNumber) || weekNumber < 1) throw new ApiError(400, "Invalid week number.");
+  if (!Number.isInteger(weekNumber) || weekNumber < firstWeek) throw new ApiError(400, "Invalid week number.");
   if (seasonNumber === currentSeason && weekNumber > currentWeek) {
     throw new ApiError(400, `Week ${weekNumber} has not been reached yet.`);
   }

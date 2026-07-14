@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isRegularSeasonWeek, maxSeasonWeek } from "@rec/shared";
+import { isCfb, isRegularSeasonWeek, maxSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -27,7 +27,8 @@ async function loadWeekContext(guildId: string, weekNumber?: number | null) {
   const context = await getCurrentLeagueContext(guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const week = Number(weekNumber ?? context.rec_leagues.current_week ?? 1);
-  if (!Number.isInteger(week) || week < 1 || week > maxSeasonWeek(context.rec_leagues.game ?? null)) throw new ApiError(400, "Invalid week number.");
+  const firstWeek = isCfb(context.rec_leagues.game) ? 0 : 1;
+  if (!Number.isInteger(week) || week < firstWeek || week > maxSeasonWeek(context.rec_leagues.game ?? null)) throw new ApiError(400, "Invalid week number.");
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   return { context, leagueId: context.leagueId, seasonNumber, seasonId, weekNumber: week };
 }
