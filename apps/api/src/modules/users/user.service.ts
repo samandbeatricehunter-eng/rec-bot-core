@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { postseasonPayoutStages, regularSeasonWeeks } from "@rec/shared";
+import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -1191,6 +1191,8 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const currentWeek = league.current_week ?? 1;
     const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
     const isPostseason = postseasonPayoutStages(league.game).has(stage);
+    const isPreseason = stage === "preseason" || stage === "preseason_training_camp";
+    const isGameplayStage = gameplaySeasonStages(league.game).has(stage);
 
     const [assignmentResult, membershipResult, seasonRecordResult, displayRecordResult] = await Promise.all([
       supabase
@@ -1234,49 +1236,71 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     badges = await loadUserBadges(userId, league.id);
 
     if (assignment?.team_id) {
-      const games = await supabase
-        .from("rec_games")
-        .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation), away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
-        .eq("league_id", league.id)
-        .eq("week_number", currentWeek)
-        .or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
-        .limit(1)
-        .maybeSingle();
-
-      if (!games.error && games.data) {
-        const game: any = games.data;
-        const isHome = game.home_team_id === assignment.team_id;
-        const opponent = isHome ? game.away_team : game.home_team;
-        const opponentUser = isHome ? game.away_user_id : game.home_user_id;
-
-        currentGame = game;
-        currentMatchup = `${opponent?.name ?? "Opponent"} (${opponentUser ? "User H2H" : "CPU"}, ${isHome ? "Home" : "Away"})`;
-        youAre = isHome ? "Home" : "Away";
-        matchupType = opponentUser ? "H2H" : "CPU";
-        opponentUserId = opponentUser ?? null;
-        opponentName = opponent?.name ?? null;
-
-        const gotw = await supabase
-          .from("rec_game_of_week_candidates")
-          .select("id,is_selected,selection_source,strength_rating")
+      // Preseason has no scheduled slate for anyone — never surface a matchup here even if
+      // one was already entered into the schedule builder ahead of time.
+      if (isPreseason) {
+        currentMatchup = "Preseason (No Games)";
+      } else {
+        const games = await supabase
+          .from("rec_games")
+          .select("*, home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation), away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
           .eq("league_id", league.id)
-          .eq("season_number", seasonNumber)
           .eq("week_number", currentWeek)
-          .eq("game_id", game.id)
-          .eq("is_selected", true)
+          .or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
+          .limit(1)
           .maybeSingle();
 
-        if (!gotw.error && gotw.data) {
-          gotwStatus = `Yes${gotw.data.strength_rating ? ` (${Number(gotw.data.strength_rating).toFixed(1)} rating)` : ""}`;
+        if (!games.error && games.data) {
+          const game: any = games.data;
+          const isHome = game.home_team_id === assignment.team_id;
+          const opponent = isHome ? game.away_team : game.home_team;
+          const opponentUser = isHome ? game.away_user_id : game.home_user_id;
+
+          currentGame = game;
+          currentMatchup = `${opponent?.name ?? "Opponent"} (${opponentUser ? "User H2H" : "CPU"}, ${isHome ? "Home" : "Away"})`;
+          youAre = isHome ? "Home" : "Away";
+          matchupType = opponentUser ? "H2H" : "CPU";
+          opponentUserId = opponentUser ?? null;
+          opponentName = opponent?.name ?? null;
+
+          const gotw = await supabase
+            .from("rec_game_of_week_candidates")
+            .select("id,is_selected,selection_source,strength_rating")
+            .eq("league_id", league.id)
+            .eq("season_number", seasonNumber)
+            .eq("week_number", currentWeek)
+            .eq("game_id", game.id)
+            .eq("is_selected", true)
+            .maybeSingle();
+
+          if (!gotw.error && gotw.data) {
+            gotwStatus = `Yes${gotw.data.strength_rating ? ` (${Number(gotw.data.strength_rating).toFixed(1)} rating)` : ""}`;
+          } else if (isPostseason) {
+            gotwStatus = "Yes - Playoff GOTW";
+          }
+        } else if (stage === "cfp_bye_week") {
+          // Scheduled off week baked into the CFP bracket itself — applies to everyone, not
+          // a per-team bye, so it doesn't need the rec_team_byes lookup below.
+          currentMatchup = "BYE WEEK";
+        } else if (isGameplayStage) {
+          // A real gameplay week (regular season or postseason) with no rec_games row for
+          // this team — distinguish a deliberately-scheduled bye from a matchup the
+          // commissioner just hasn't entered yet.
+          const byeCheck = await supabase
+            .from("rec_team_byes")
+            .select("id")
+            .eq("league_id", league.id)
+            .eq("season_number", seasonNumber)
+            .eq("team_id", assignment.team_id)
+            .eq("week_number", currentWeek)
+            .maybeSingle();
+          if (byeCheck.error) throw new ApiError(500, "Failed to check bye week status", byeCheck.error);
+          currentMatchup = byeCheck.data ? "BYE WEEK" : "MISSING MATCHUP, NOTIFY COMMISSIONER";
         } else if (isPostseason) {
-          gotwStatus = "Yes - Playoff GOTW";
+          currentMatchup = "Season Concluded";
+        } else {
+          currentMatchup = stageDisplay(stage);
         }
-      } else if (isPostseason) {
-        currentMatchup = "Season Concluded";
-      } else if (!["regular_season", "preseason_training_camp", "preseason"].includes(stage)) {
-        currentMatchup = stageDisplay(stage);
-      } else {
-        currentMatchup = "BYE WEEK";
       }
     } else {
       currentMatchup = "None";

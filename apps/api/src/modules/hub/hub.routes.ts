@@ -11,6 +11,7 @@ import {
   getHub,
   getHubMatchupSchedule,
   getHubMediaPortal,
+  getMyTeamSchedule,
   HUB_REACTION_KEYS,
   listHubStoryComments,
   persistMediaImageBuffer,
@@ -61,6 +62,15 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Highlight views require a user session.");
       return reply.send(await recordHubHighlightView({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/my-team-schedule", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "My Team schedule is a browser-only endpoint.");
+      return reply.send(await getMyTeamSchedule(body.guildId, auth.discordId));
     } catch (error) { return sendError(reply, error); }
   });
 

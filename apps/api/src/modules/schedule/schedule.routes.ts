@@ -180,6 +180,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
           opponentTeamId: z.string().uuid(),
           homeAway: z.enum(["home", "away"]),
         })),
+        byeWeeks: z.array(z.number().int().min(0)).optional(),
         requestedByDiscordId: z.string().optional().nullable(),
       }).parse(request.body);
       // Attribute Activity-originated saves to the actual Discord user, not a generic bot save.

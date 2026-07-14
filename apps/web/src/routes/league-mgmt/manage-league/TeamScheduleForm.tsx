@@ -70,7 +70,7 @@ export function TeamScheduleForm() {
         setPicks((prev) => {
           const next: Record<number, WeekPick> = {};
           for (const week of manualState.weeks) {
-            next[week.weekNumber] = prev[week.weekNumber] ?? { isBye: false, conference: null, opponentTeamId: null, homeAway: null };
+            next[week.weekNumber] = prev[week.weekNumber] ?? { isBye: week.isBye, conference: null, opponentTeamId: null, homeAway: null };
           }
           return next;
         });
@@ -99,8 +99,9 @@ export function TeamScheduleForm() {
     const decisions = Object.entries(picks)
       .filter(([, pick]) => !pick.isBye && pick.opponentTeamId && pick.homeAway)
       .map(([weekNumber, pick]) => ({ weekNumber: Number(weekNumber), opponentTeamId: pick.opponentTeamId!, homeAway: pick.homeAway! }));
+    const byeWeeks = Object.entries(picks).filter(([, pick]) => pick.isBye).map(([weekNumber]) => Number(weekNumber));
     try {
-      const result = await recApi.commitTeamScheduleDecisions({ guildId, teamId, decisions });
+      const result = await recApi.commitTeamScheduleDecisions({ guildId, teamId, decisions, byeWeeks });
       setResults(result.saved);
       // Newly-confirmed weeks need to switch over to their populated, box-score-ready
       // display without a manual page reload.

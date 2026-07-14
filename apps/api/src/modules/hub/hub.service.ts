@@ -9,6 +9,7 @@ import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
+import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 
 export const HUB_REACTION_KEYS = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA"] as const;
@@ -21,29 +22,103 @@ const USER_ARTICLE_PAYOUT = 100;
 const INTERVIEW_PAYOUT = 50;
 export const STREAM_VIEWER_COOKIE = "rec_stream_viewer";
 
-const INTERVIEW_CONTEXTS = [
-  "Pregame", "Postgame", "Rivalry Week", "Upset Watch", "Playoff Push",
-  "Rebuild", "Championship Standard", "Recruiting Trail", "Transfer Portal", "Coach Spotlight",
-] as const;
-const INTERVIEW_CATEGORIES = ["Gameplan", "Locker Room", "Opponent Talk", "Program Identity", "Pressure"] as const;
-const INTERVIEW_TEMPLATES = [
-  "What has to show up first for your team in this {context} moment?",
-  "Which detail inside {category} will decide whether this week feels successful?",
-  "What did the last advance teach you about handling {context} pressure?",
-  "Which player or position group best represents your {category} right now?",
-  "What is one thing the league is underestimating about your {context} outlook?",
-  "If the headline writes itself after this week, what does it say about your {category}?",
-] as const;
+// Previously a Context x Category x Template cross-product (300 questions) behind two
+// cascading selects — but each template only ever referenced one of {context}/{category},
+// so the second dropdown filtered the pool without reliably changing the wording the coach
+// saw. Collapsed to a single "Topic" selector with a curated, hand-written question list per
+// topic — the old five categories (Gameplan, Locker Room, Opponent Talk, Program Identity,
+// Pressure) are baked directly into each topic's question set instead of being a live filter.
+const INTERVIEW_TOPIC_QUESTIONS = {
+  "Pregame": [
+    "What does your gameplan have to get right in the first quarter?",
+    "How is the locker room carrying itself heading into kickoff?",
+    "What's the one thing about this opponent that worries you most?",
+    "What does this game say about who your program is right now?",
+    "Where do you feel the pressure most heading into this one?",
+    "If the headline writes itself after this game, what does it say about your team?",
+  ],
+  "Postgame": [
+    "What did your gameplan get right today?",
+    "What was said in the locker room right after the final whistle?",
+    "What did this result reveal about the team you just played?",
+    "Does this result change how the league should see your program?",
+    "Where did the pressure show up the most during that game?",
+    "What's the first thing you fix on film this week?",
+  ],
+  "Rivalry Week": [
+    "What's the gameplan wrinkle you've been saving for this rivalry?",
+    "How does the locker room's energy change during rivalry week?",
+    "What's your honest read on the team across the field this week?",
+    "What does beating this rival mean for your program's identity?",
+    "How much extra pressure does a rivalry game carry for your staff?",
+    "What's the one storyline outsiders are missing about this rivalry?",
+  ],
+  "Upset Watch": [
+    "What's the gameplan that gives you a puncher's chance here?",
+    "Is the locker room buying into the upset, or feeling the doubt?",
+    "What do people get wrong about the favorite you're facing?",
+    "Does an upset here change what your program is capable of?",
+    "How are you managing the pressure of being the clear underdog?",
+    "What would this upset mean for the rest of your season?",
+  ],
+  "Playoff Push": [
+    "What does the gameplan need to look like down the stretch?",
+    "How is the locker room handling the playoff push pressure?",
+    "Which team on your remaining schedule worries you most right now?",
+    "What does making the playoffs say about your program's trajectory?",
+    "Where do you feel the playoff pressure the most right now?",
+    "What has to show up first for your team in this playoff push?",
+  ],
+  "Rebuild": [
+    "What's the gameplan priority while you rebuild this roster?",
+    "How do you keep a rebuilding locker room believing in the process?",
+    "What have you learned watching how other teams around the league rebuild?",
+    "What does success look like for your program's identity this season?",
+    "How do you handle outside pressure to rebuild faster than you'd like?",
+    "What's one thing the league is underestimating about your rebuild?",
+  ],
+  "Championship Standard": [
+    "What does the gameplan look like when the standard is championship or bust?",
+    "How does the locker room handle the weight of championship expectations?",
+    "Which contender worries you most on the road to a title?",
+    "What does it mean for your program's identity to be held to that standard?",
+    "How do you manage pressure when anything short of a title is a letdown?",
+    "If the headline writes itself after this season, what does it say about your program?",
+  ],
+  "Recruiting Trail": [
+    "What's the recruiting gameplan for closing out this class?",
+    "How does the locker room react when a big recruiting commitment lands?",
+    "What are other programs saying about your recruiting pitch?",
+    "What does your recruiting class say about your program's identity?",
+    "How much pressure comes with living up to a big-name recruiting class?",
+    "Which position group are you most focused on upgrading through recruiting?",
+  ],
+  "Transfer Portal": [
+    "What's the plan for working the transfer portal this cycle?",
+    "How does the locker room handle players entering the portal?",
+    "What's your honest read on the players available in the portal right now?",
+    "Does the portal era change how you define your program's identity?",
+    "How much pressure does portal roster turnover put on your staff?",
+    "Which position group are you most likely to address through the portal?",
+  ],
+  "Coach Spotlight": [
+    "What's the gameplan philosophy you lean on more than anything else?",
+    "How do you build a locker room culture that lasts beyond one season?",
+    "What's the toughest opposing coach you've had to gameplan against?",
+    "How would you describe your program's identity in one sentence?",
+    "How do you personally handle the pressure of the job week to week?",
+    "What does the headline get wrong about you as a coach?",
+  ],
+} as const satisfies Record<string, readonly string[]>;
 
-export const INTERVIEW_QUESTIONS = INTERVIEW_CONTEXTS.flatMap((context) =>
-  INTERVIEW_CATEGORIES.flatMap((category) =>
-    INTERVIEW_TEMPLATES.map((template, index) => ({
-      id: `${context.toLowerCase().replaceAll(" ", "_")}:${category.toLowerCase().replaceAll(" ", "_")}:${index + 1}`,
-      context,
-      category,
-      question: template.replace("{context}", context.toLowerCase()).replace("{category}", category.toLowerCase()),
-    })),
-  ),
+export const INTERVIEW_TOPICS = Object.keys(INTERVIEW_TOPIC_QUESTIONS) as Array<keyof typeof INTERVIEW_TOPIC_QUESTIONS>;
+
+export const INTERVIEW_QUESTIONS = INTERVIEW_TOPICS.flatMap((topic) =>
+  INTERVIEW_TOPIC_QUESTIONS[topic].map((question, index) => ({
+    id: `${topic.toLowerCase().replaceAll(" ", "_")}:${index + 1}`,
+    topic,
+    question,
+  })),
 );
 
 async function userIdForDiscord(discordId: string) {
@@ -103,9 +178,31 @@ async function currentH2hOpponent(guildId: string, leagueId: string, userId: str
     discordId: await discordIdForUser(opponentUserId),
     teamId: isHome ? game.away_team_id : game.home_team_id,
     teamName: opponentTeam?.name ?? opponentTeam?.abbreviation ?? "Opponent",
+    teamAbbreviation: opponentTeam?.abbreviation ?? null,
     seasonNumber,
     weekNumber,
   };
+}
+
+const CALLOUT_HEADLINE_TEMPLATES = [
+  "@{from} Calls Out @{to}",
+  "@{from} Has a Message for @{to}",
+  "@{from} Sends a Warning to @{to}",
+  "@{from} Fires a Shot at @{to}",
+  "@{from} Isn't Holding Back Against @{to}",
+  "@{from} Puts @{to} on Notice",
+  "@{from} Sounds Off on @{to}",
+] as const;
+
+/** Handle-style tag for a team in a headline — abbreviation-based, no spaces, so it reads like a social callout. */
+function teamHandle(name: string | null | undefined, abbreviation: string | null | undefined) {
+  const raw = (abbreviation || name || "Team").replace(/[^a-z0-9]/gi, "");
+  return raw || "Team";
+}
+
+function buildCalloutHeadline(fromHandle: string, toHandle: string) {
+  const template = CALLOUT_HEADLINE_TEMPLATES[Math.floor(Math.random() * CALLOUT_HEADLINE_TEMPLATES.length)];
+  return template.replace("{from}", fromHandle).replace("{to}", toHandle);
 }
 
 export async function persistMediaImageBuffer(leagueId: string, buffer: Buffer, contentType: string): Promise<string> {
@@ -633,6 +730,18 @@ export async function createCommissionerMediaArticle(input: {
   return { published: true, id: inserted.data.id, storyId };
 }
 
+// Read-only, self-scoped season schedule for the My Team page — reuses the commissioner
+// schedule builder's data shape (results, pending box scores, byes) but resolves the team
+// from the caller's own active assignment instead of an arbitrary teamId, so it can sit
+// behind a plain "member" permission check instead of co_commissioner.
+export async function getMyTeamSchedule(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const userId = await userIdForDiscord(discordId);
+  const assignment = await activeAssignment(context.leagueId, userId);
+  if (!assignment?.team_id) throw new ApiError(404, "You don't have a team linked in this league.");
+  return getTeamScheduleManualState({ guildId, teamId: assignment.team_id });
+}
+
 export async function getHubMediaPortal(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const userId = await userIdForDiscord(discordId);
@@ -703,7 +812,13 @@ export async function submitInterview(input: {
   if (input.tagOpponent && !opponent) throw new ApiError(400, "You can only tag an opponent when you have a human H2H game this week.");
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
-  const title = `Coach Interview: Week ${weekNumber}`;
+  let title = `Coach Interview: Week ${weekNumber}`;
+  if (opponent && assignment?.team_id) {
+    const myTeam = await supabase.from("rec_teams").select("name,abbreviation").eq("id", assignment.team_id).maybeSingle();
+    const fromHandle = teamHandle(myTeam.data?.name, myTeam.data?.abbreviation);
+    const toHandle = teamHandle(opponent.teamName, opponent.teamAbbreviation);
+    title = buildCalloutHeadline(fromHandle, toHandle);
+  }
   const body = input.answers.map((answer) => `${answer.question}\n${answer.answer.trim()}`).join("\n\n");
   const row = await supabase.from("rec_media_submissions").insert({
     id: randomUUID(), guild_id: input.guildId, server_id: context.serverId, league_id: context.leagueId,

@@ -449,6 +449,15 @@ export const recGameResults = pgTable("rec_game_results", {
   recordsApplyKey: text("records_apply_key")
 });
 
+export const recTeamByes = pgTable("rec_team_byes", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
+  seasonNumber: integer("season_number").notNull(),
+  teamId: uuid("team_id").notNull().references(() => recTeams.id),
+  weekNumber: integer("week_number").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
+});
+
 export const recGameSchedulingEvents = pgTable("rec_game_scheduling_events", {
   id: uuid("id").primaryKey(),
   gameId: uuid("game_id").notNull().references(() => recGames.id),

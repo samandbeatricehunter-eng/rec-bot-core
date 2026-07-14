@@ -16,9 +16,11 @@ export type TeamScheduleManualWeek = {
   confirmedOpponentTeamId: string | null;
   confirmedOpponentName: string | null;
   confirmedHomeAway: "home" | "away" | null;
+  confirmedMatchupType: "h2h" | "cpu" | null;
   gameId: string | null;
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
   pendingBoxScoreSubmissionId: string | null;
+  isBye: boolean;
 };
 
 export type TeamScheduleManualState = {
@@ -29,6 +31,7 @@ export type TeamScheduleManualState = {
 };
 
 export type CommitDecision = { weekNumber: number; opponentTeamId: string; homeAway: "home" | "away" };
+export type CommitByeWeeks = number[];
 export type CommitResult = { saved: Array<{ weekNumber: number; skipped: boolean; reason?: string }> };
 
 export type TeamManagementSummaryRow = {
@@ -340,7 +343,7 @@ export type WeeklyH2hGame = {
 export type WeeklyH2hGamesResponse = { weekLabel: string; games: WeeklyH2hGame[] };
 export type StoryComment = { id: string; body: string; authorName: string; created_at: string };
 
-export type InterviewQuestion = { id: string; context: string; category: string; question: string };
+export type InterviewQuestion = { id: string; topic: string; question: string };
 export type MediaPortalResponse = {
   questions: InterviewQuestion[];
   limits: { articleSubmitted: boolean; articleStatus: string | null; interviewSubmitted: boolean; interviewStatus: string | null };

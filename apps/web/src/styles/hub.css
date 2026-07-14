@@ -133,13 +133,50 @@
 .hub-hero-metrics strong { font-size: var(--text-md); }
 .hub-eyebrow { display: flex; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-1); color: var(--gold) !important; font-size: var(--text-xs); font-weight: 900; text-transform: uppercase !important; letter-spacing: .08em; }
 .hub-manage-button { flex-shrink: 0; text-decoration: none; }
-.hub-tabs { position: relative; display: inline-grid; grid-template-columns: repeat(6, minmax(118px, 1fr)); align-self: center; gap: 6px; padding: 6px; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; background: rgba(6,7,6,.82); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 18px 42px rgba(0,0,0,.38); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); overflow: hidden; }
-.hub-tabs::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--yardline-overlay); background-size: 180px 180px; opacity: .34; }
-.hub-tabs button, .hub-tabs a { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; justify-content: center; padding: var(--space-3) var(--space-4); border: 0; border-radius: 999px; background: transparent; color: var(--text-secondary); font-weight: 800; text-decoration: none; cursor: pointer; white-space: nowrap; }
-.hub-tabs button.active, .hub-tabs a.active { background: linear-gradient(180deg, var(--gold-light), var(--gold) 68%, var(--gold-dark)); color: var(--text-on-gold); box-shadow: 0 10px 28px rgba(255,215,0,.24), inset 0 1px 0 rgba(255,255,255,.55); }
-.hub-management-tab { border: 1px solid rgba(255,215,0,.28) !important; color: var(--gold) !important; }
-.hub-live-tab.live { color: var(--gold) !important; animation: hubLivePulse .9s infinite alternate; }
-@keyframes hubLivePulse { from { box-shadow: inset 0 0 0 1px rgba(255,215,0,.18); } to { box-shadow: inset 0 0 0 2px rgba(255,215,0,.68), 0 0 18px rgba(255,215,0,.24); } }
+/* Sidebar navigation — replaces the old top hub-tabs pill bar. Sidebar on desktop
+   (persistent left column), collapses to a horizontal top strip on mobile so the League
+   subheaders don't need to fit — mobile relies on the in-page pill nav + MobileBottomNav
+   for those instead. */
+.hub-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.hub-sidebar { position: sticky; top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.hub-sidebar-nav { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid rgba(217,165,33,.18); border-radius: var(--radius-lg); background: rgba(6,7,6,.82); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 18px 42px rgba(0,0,0,.38); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); overflow: hidden; }
+.hub-sidebar-nav::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--yardline-overlay); background-size: 180px 180px; opacity: .3; }
+.hub-sidebar-item-group { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 2px; }
+.hub-sidebar-nav > button { position: relative; z-index: 1; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-secondary); font-weight: 800; text-decoration: none; cursor: pointer; white-space: nowrap; text-align: left; }
+.hub-sidebar-nav > .hub-sidebar-item-group > button { width: 100%; }
+.hub-sidebar-nav button.active { background: linear-gradient(180deg, var(--gold-light), var(--gold) 68%, var(--gold-dark)); color: var(--text-on-gold); box-shadow: 0 10px 28px rgba(217,165,33,.28), inset 0 1px 0 rgba(255,255,255,.55); }
+.hub-sidebar-subnav { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px 14px; padding-left: var(--space-3); border-left: 2px solid rgba(217,165,33,.24); }
+.hub-sidebar-subnav button { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-muted); font-weight: 700; font-size: var(--text-sm); cursor: pointer; text-align: left; }
+.hub-sidebar-subnav button.active { background: rgba(217,165,33,.16); color: var(--gold-light); }
+.hub-live-dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 999px; background: var(--gold); box-shadow: 0 0 8px rgba(217,165,33,.7); animation: hubLivePulse .9s infinite alternate; }
+.hub-sidebar-mgmt { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid rgba(217,165,33,.32); border-radius: var(--radius-md); background: rgba(217,165,33,.08); color: var(--gold) !important; font-weight: 800; text-decoration: none; }
+.hub-content { min-width: 0; }
+@keyframes hubLivePulse { from { box-shadow: 0 0 4px rgba(217,165,33,.4); } to { box-shadow: 0 0 14px rgba(217,165,33,.85); } }
+@media (max-width: 900px) {
+  .hub-body { grid-template-columns: 1fr; }
+  .hub-sidebar { position: static; }
+  .hub-sidebar-nav { flex-direction: row; overflow-x: auto; }
+  .hub-sidebar-nav::before { display: none; }
+  .hub-sidebar-item-group { flex-direction: row; }
+  .hub-sidebar-nav > button, .hub-sidebar-nav > .hub-sidebar-item-group > button { padding: var(--space-2) var(--space-3); font-size: var(--text-sm); }
+  .hub-sidebar-mgmt { justify-content: center; }
+}
+
+/* My Team shortcut cards + media modals + full-season schedule modal */
+.hub-my-team-shortcuts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
+.hub-shortcut-card { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border: 1px solid rgba(217,165,33,.24); border-radius: var(--radius-md); background: linear-gradient(135deg, rgba(217,165,33,.1), rgba(255,255,255,.02)); color: var(--text-primary); cursor: pointer; text-align: left; transition: border-color var(--duration-fast) var(--ease-standard), transform var(--duration-fast) var(--ease-standard); }
+.hub-shortcut-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.hub-shortcut-card strong { display: block; font-family: var(--font-display); letter-spacing: .01em; }
+.hub-shortcut-card span { display: block; margin-top: 2px; color: var(--text-muted); font-size: var(--text-xs); }
+.hub-media-modal { display: flex; flex-direction: column; gap: var(--space-3); }
+.hub-schedule-week-list { display: flex; flex-direction: column; gap: var(--space-2); max-height: 60vh; overflow-y: auto; }
+.hub-schedule-week { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); }
+.hub-schedule-week.h2h { border-left: 3px solid var(--gold); }
+.hub-schedule-week.cpu { border-left: 3px solid var(--border-strong); }
+.hub-schedule-week.bye { border-left: 3px solid var(--info); opacity: .75; }
+.hub-schedule-week.missing { border-left: 3px solid var(--error); }
+.hub-schedule-week-label { flex-shrink: 0; width: 64px; color: var(--text-muted); font-size: var(--text-xs); font-weight: 800; text-transform: uppercase; }
+.hub-schedule-missing { color: var(--error); }
 .hub-section { min-width: 0; padding: clamp(20px, 3vw, 32px); border: 1px solid var(--border); border-radius: var(--radius-lg); background: rgba(24,24,24,.94); box-shadow: var(--shadow-card); }
 .hub-section-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: var(--space-4); }
 .hub-section h2 { margin: 0; font-size: clamp(23px, 3vw, 30px); }
@@ -327,9 +364,6 @@
 .story-comments > article { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-2); }
 .story-comments article time { margin-left: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
 .story-comments article p { margin: var(--space-1) 0 0; }
-.hub-media-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); }
-.hub-media-form { padding: var(--space-4); border: 1px solid rgba(255,255,255,.09); border-radius: var(--radius-md); background: rgba(0,0,0,.2); }
-.hub-media-form h3 { display: flex; align-items: center; gap: var(--space-2); margin-top: 0; }
 .hub-interview-question { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-3); }
 .media-toggle { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-3) 0; color: var(--text-secondary); font-weight: 700; }
 .media-image-preview, .media-review-preview img { display: block; width: 100%; max-height: 220px; object-fit: cover; border-radius: var(--radius-md); margin-top: var(--space-2); border: 1px solid var(--border); }

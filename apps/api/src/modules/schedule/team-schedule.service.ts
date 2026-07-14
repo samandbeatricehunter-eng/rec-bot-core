@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { regularSeasonWeeks } from "@rec/shared";
+import { randomUUID } from "node:crypto";
+import { isCfb, regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -17,6 +18,7 @@ type ConfirmedWeek = {
   opponentTeamId: string;
   opponentName: string;
   homeAway: "home" | "away";
+  matchupType: "h2h" | "cpu";
 };
 
 // Shared by the OCR-driven preview (previewCfbTeamScheduleImport, still CFB-only — that
@@ -32,6 +34,7 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
       const isHome = game.home_team_id === teamId;
       if (!isAway && !isHome) continue;
       const opponent = isAway ? game.home_team : game.away_team;
+      const opponentUserId = isAway ? game.home_user_id : game.away_user_id;
       confirmedByWeek.set(week.weekNumber, {
         gameId: game.id,
         weekNumber: week.weekNumber,
@@ -40,6 +43,7 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
         opponentTeamId: isAway ? game.home_team_id : game.away_team_id,
         opponentName: opponent?.name ?? opponent?.abbreviation ?? "Team",
         homeAway: isAway ? "away" : "home",
+        matchupType: opponentUserId ? "h2h" : "cpu",
       });
     }
   }
@@ -202,9 +206,12 @@ export type TeamScheduleManualWeek = {
   confirmedOpponentTeamId: string | null;
   confirmedOpponentName: string | null;
   confirmedHomeAway: "home" | "away" | null;
+  confirmedMatchupType: "h2h" | "cpu" | null;
   gameId: string | null;
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
   pendingBoxScoreSubmissionId: string | null;
+  /** Persisted from rec_team_byes — stays checked across reloads until the commissioner unchecks and re-saves. */
+  isBye: boolean;
 };
 
 export async function getTeamScheduleManualState(input: {
@@ -230,7 +237,14 @@ export async function getTeamScheduleManualState(input: {
   const gameDescriptors = [...confirmedByWeek.values()].map((c) => ({ id: c.gameId, weekNumber: c.weekNumber, homeTeamId: c.homeTeamId, awayTeamId: c.awayTeamId }));
   const resultsAndSubmissions = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
 
-  const lastWeek = regularSeasonWeeks(context.rec_leagues.game);
+  const byeRows = await supabase.from("rec_team_byes").select("week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
+  if (byeRows.error) throw new ApiError(500, "Failed to load bye weeks.", byeRows.error);
+  const byeWeeks = new Set((byeRows.data ?? []).map((row: any) => row.week_number));
+
+  // CFB's schedule builder also covers Conference Championship (week 15) as a schedulable
+  // matchup row, so the season spans 16 weeks (0-15) instead of stopping at the regular
+  // season's last week (14) — regularSeasonWeeks() itself stays 14 for stage-transition math.
+  const lastWeek = regularSeasonWeeks(context.rec_leagues.game) + (isCfb(context.rec_leagues.game) ? 1 : 0);
   // CFB's regular season starts at Week 0; Madden's starts at Week 1.
   const firstWeek = context.rec_leagues.game === "cfb_27" ? 0 : 1;
   const weeks: TeamScheduleManualWeek[] = [];
@@ -243,9 +257,11 @@ export async function getTeamScheduleManualState(input: {
       confirmedOpponentTeamId: confirmed?.opponentTeamId ?? null,
       confirmedOpponentName: confirmed?.opponentName ?? null,
       confirmedHomeAway: confirmed?.homeAway ?? null,
+      confirmedMatchupType: confirmed?.matchupType ?? null,
       gameId: confirmed?.gameId ?? null,
       result: extra?.result ?? null,
       pendingBoxScoreSubmissionId: extra?.pendingBoxScoreSubmissionId ?? null,
+      isBye: !confirmed && byeWeeks.has(weekNumber),
     });
   }
 
@@ -262,12 +278,32 @@ export async function commitTeamScheduleDecisions(input: {
   teamId: string;
   seasonNumber?: number | null;
   decisions: Array<{ weekNumber: number; opponentTeamId: string; homeAway: "home" | "away" }>;
+  byeWeeks?: number[];
   requestedByDiscordId?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
+
+  // Full-replace diff against the checkbox state submitted by the whole-season form — a week
+  // that's unchecked and re-saved needs its bye row removed, not just left un-added.
+  const desiredByeWeeks = new Set(input.byeWeeks ?? []);
+  const existingByes = await supabase.from("rec_team_byes").select("week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
+  if (existingByes.error) throw new ApiError(500, "Failed to load existing bye weeks.", existingByes.error);
+  const existingByeWeeks = new Set((existingByes.data ?? []).map((row: any) => row.week_number));
+  const byeWeeksToDelete = [...existingByeWeeks].filter((week) => !desiredByeWeeks.has(week));
+  const byeWeeksToInsert = [...desiredByeWeeks].filter((week) => !existingByeWeeks.has(week));
+  if (byeWeeksToDelete.length) {
+    const removed = await supabase.from("rec_team_byes").delete().eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId).in("week_number", byeWeeksToDelete);
+    if (removed.error) throw new ApiError(500, "Failed to clear unchecked bye weeks.", removed.error);
+  }
+  if (byeWeeksToInsert.length) {
+    const inserted = await supabase.from("rec_team_byes").insert(byeWeeksToInsert.map((weekNumber) => ({
+      id: randomUUID(), league_id: leagueId, season_number: seasonNumber, team_id: input.teamId, week_number: weekNumber, created_at: new Date().toISOString(),
+    })));
+    if (inserted.error) throw new ApiError(500, "Failed to save bye weeks.", inserted.error);
+  }
 
   const saved: Array<{ weekNumber: number; skipped: boolean; reason?: string }> = [];
   for (const decision of input.decisions) {

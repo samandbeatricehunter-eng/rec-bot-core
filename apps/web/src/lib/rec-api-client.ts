@@ -113,6 +113,8 @@ export const recApi = {
     recApiFetch<unknown>("/v1/hub/media/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null }) =>
     recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
+  getMyTeamSchedule: (guildId: string) =>
+    recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
   voteGameOfWeek: (input: { guildId: string; pollId: string; selectedTeamId: string }) =>
     recApiFetch<{ voted: true }>("/v1/hub/gotw/vote", { method: "POST", body: JSON.stringify(input) }),
   closeGameOfWeekVoting: (input: { guildId: string; pollId: string }) =>
@@ -145,7 +147,7 @@ export const recApi = {
     recApiFetch<{ teams: ScheduleTeam[] }>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
   getTeamScheduleManualState: (input: { guildId: string; teamId: string }) =>
     recApiFetch<TeamScheduleManualState>(REC_API_ROUTES.teamScheduleManualState, { method: "POST", body: JSON.stringify(input) }),
-  commitTeamScheduleDecisions: (input: { guildId: string; teamId: string; decisions: CommitDecision[] }) =>
+  commitTeamScheduleDecisions: (input: { guildId: string; teamId: string; decisions: CommitDecision[]; byeWeeks?: number[] }) =>
     recApiFetch<CommitResult>(REC_API_ROUTES.teamScheduleCommit, { method: "POST", body: JSON.stringify(input) }),
   getTeamManagementSummary: (guildId: string) =>
     recApiFetch<TeamManagementSummary>(REC_API_ROUTES.teamManagementSummary, { method: "POST", body: JSON.stringify({ guildId }) }),
