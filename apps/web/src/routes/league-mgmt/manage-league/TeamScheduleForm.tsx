@@ -163,6 +163,11 @@ export function TeamScheduleForm() {
                             {week.result.isTie ? `Tie ${week.result.homeScore}–${week.result.awayScore}` : `Final ${week.result.homeScore}–${week.result.awayScore}`}
                           </Badge>
                         )}
+                        {week.result?.source === "box_score_screenshot" && (
+                          <Tooltip text="Imported from an approved box score screenshot — the win/loss payout for this game has already been issued.">
+                            <Badge status="approved">Box Score Imported · Payout Issued</Badge>
+                          </Tooltip>
+                        )}
                         {week.pendingBoxScoreSubmissionId && <Badge status="pending">Box Score Pending Review</Badge>}
                         <Tooltip text="This matchup was entered once and is shared between both teams' schedules — no need to enter it again on the other side.">
                           <Badge status="info">Shared with {week.confirmedOpponentName}'s schedule</Badge>
@@ -180,8 +185,19 @@ export function TeamScheduleForm() {
                           </Button>
                         ) : (
                           <>
-                            <Tooltip text="Upload a screenshot — stats are parsed automatically and sent here for your approval.">
-                              <Button variant="secondary" onClick={() => setActiveModal({ type: "upload", week })}>
+                            <Tooltip text={week.result?.source === "box_score_screenshot" ? "A payout was already issued from a previously approved box score for this game." : "Upload a screenshot — stats are parsed automatically and sent here for your approval."}>
+                              <Button
+                                variant="secondary"
+                                onClick={() => {
+                                  if (
+                                    week.result?.source === "box_score_screenshot" &&
+                                    !window.confirm("A box score for this game was already approved and its payout issued. Re-uploading will be rejected unless the existing payout is reversed first. Continue anyway?")
+                                  ) {
+                                    return;
+                                  }
+                                  setActiveModal({ type: "upload", week });
+                                }}
+                              >
                                 Upload Box Score
                               </Button>
                             </Tooltip>

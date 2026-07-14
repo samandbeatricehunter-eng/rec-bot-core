@@ -29,6 +29,7 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
   const [team2Quarters, setTeam2Quarters] = useState("");
   const [stats, setStats] = useState<Record<string, { team1: string; team2: string }>>({});
   const [addingImage, setAddingImage] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
   const { guildId } = useReadyAuth();
 
   function hydrate(row: BoxScoreSubmissionDetail) {
@@ -46,6 +47,13 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
   useEffect(() => {
     recApi.getBoxScoreSubmission(submissionId).then(hydrate).catch((cause) => setError(cause instanceof Error ? cause.message : "Failed to load submission."));
   }, [submissionId]);
+
+  useEffect(() => {
+    if (!zoomed) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setZoomed(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [zoomed]);
 
   const statKeys = useMemo(() => Object.keys(stats).sort(), [stats]);
 
@@ -99,9 +107,14 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
     {!submission && !error && <LoadingState />}
     {submission && <div className="box-score-review">
       <p className="box-score-review__matchup">Week {submission.week_number ?? "?"}: {submission.team1_abbr ?? "Team 1"} vs {submission.team2_abbr ?? "Team 2"}</p>
-      {submission.image_storage_url && <a href={submission.image_storage_url} target="_blank" rel="noreferrer">
+      {submission.image_storage_url && <button type="button" className="box-score-review__image-button" onClick={() => setZoomed(true)} aria-label="Zoom in on the submitted screenshot">
         <img className="box-score-review__image" src={submission.image_storage_url} alt="Submitted box score screenshot" />
-      </a>}
+        <span className="box-score-review__image-hint">Click to zoom</span>
+      </button>}
+      {zoomed && submission.image_storage_url && <div className="box-score-review__lightbox" onClick={() => setZoomed(false)}>
+        <img src={submission.image_storage_url} alt="Submitted box score screenshot, zoomed in" />
+        <button type="button" className="box-score-review__lightbox-close" onClick={() => setZoomed(false)} aria-label="Close zoomed screenshot">×</button>
+      </div>}
       {(submission.image_urls?.length ?? 0) < 2 && submission.status === "pending" && <label className="box-score-review__add-image">
         <span className="form-label">{(submission.image_urls?.length ?? 0) === 0 ? "Add a screenshot" : "Add the missing second screenshot (top or bottom of the stats page)"}</span>
         <input className="form-input" type="file" accept="image/png,image/jpeg,image/webp" disabled={addingImage} onChange={(event) => void addMissingImage(event.target.files?.[0] ?? null)} />

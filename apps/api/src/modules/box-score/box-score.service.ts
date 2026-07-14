@@ -597,7 +597,7 @@ type ResolvedGame = {
   awayScore: number | null;
 };
 
-function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | null; weekNumber?: number | null }) {
+function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | null; weekNumber?: number | null; commissionerSubmission?: boolean | null }) {
   const currentSeason = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonNumber = Number(requested?.seasonNumber ?? currentSeason);
@@ -606,7 +606,10 @@ function selectedSeasonWeek(context: any, requested?: { seasonNumber?: number | 
 
   if (!Number.isInteger(seasonNumber) || seasonNumber < 1) throw new ApiError(400, "Invalid season number.");
   if (!Number.isInteger(weekNumber) || weekNumber < firstWeek) throw new ApiError(400, "Invalid week number.");
-  if (seasonNumber === currentSeason && weekNumber > currentWeek) {
+  // Members are restricted to the current game week (self-serve, via Discord). Commissioners
+  // catching up on missed weeks need to submit box scores for any week regardless of how far
+  // the league has advanced, so this guard is skipped for commissioner submissions.
+  if (!requested?.commissionerSubmission && seasonNumber === currentSeason && weekNumber > currentWeek) {
     throw new ApiError(400, `Week ${weekNumber} has not been reached yet.`);
   }
 

@@ -1,6 +1,10 @@
 /* IconWell — recessed icon housing replacing bare Lucide icons sitting next to text. */
 .icon-well {
-  display: inline-flex;
+  /* Always used as a flex item inside a flex row (shortcut cards, activity tiles, badge
+     shelves) — blockification of a nested inline-flex item can otherwise collapse this to
+     a plain block box with no centering at all, leaving the icon glyph flush in the corner
+     instead of centered in the well. Authoring it as flex directly sidesteps that. */
+  display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;

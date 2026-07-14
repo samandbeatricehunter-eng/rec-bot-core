@@ -142,14 +142,21 @@ export async function recordManualGameResult(input: {
   const hasRealScores = input.homeScore != null && input.awayScore != null;
   const homeScore = hasRealScores ? Number(input.homeScore) : input.outcome === "home" ? 1 : 0;
   const awayScore = hasRealScores ? Number(input.awayScore) : input.outcome === "away" ? 1 : 0;
-  const isTie = input.outcome === "tie";
+  // The scores are the source of truth once they're provided — anything reading this row
+  // later (e.g. the Manage League team summary's W/L count) derives wins/losses straight
+  // from home_score vs away_score, not from a stored winner flag. Deriving the outcome from
+  // input.outcome instead (a separate set of buttons) let a commissioner pick "Away Win" but
+  // type the scores in the wrong boxes, silently writing a row whose winner flag disagreed
+  // with its own scoreboard. Re-deriving from the scores here keeps both readings in sync.
+  const isTie = hasRealScores ? homeScore === awayScore : input.outcome === "tie";
+  const effectiveOutcome: "home" | "away" | "tie" = isTie ? "tie" : hasRealScores ? (homeScore > awayScore ? "home" : "away") : input.outcome;
   const homeTeamId = game.data.home_team_id;
   const awayTeamId = game.data.away_team_id;
 
-  const winningUserId = isTie ? null : input.outcome === "home" ? game.data.home_user_id : game.data.away_user_id;
-  const losingUserId = isTie ? null : input.outcome === "home" ? game.data.away_user_id : game.data.home_user_id;
-  const winningTeamId = isTie ? null : input.outcome === "home" ? homeTeamId : awayTeamId;
-  const losingTeamId = isTie ? null : input.outcome === "home" ? awayTeamId : homeTeamId;
+  const winningUserId = isTie ? null : effectiveOutcome === "home" ? game.data.home_user_id : game.data.away_user_id;
+  const losingUserId = isTie ? null : effectiveOutcome === "home" ? game.data.away_user_id : game.data.home_user_id;
+  const winningTeamId = isTie ? null : effectiveOutcome === "home" ? homeTeamId : awayTeamId;
+  const losingTeamId = isTie ? null : effectiveOutcome === "home" ? awayTeamId : homeTeamId;
 
   const row = {
     league_id: context.leagueId,
@@ -216,7 +223,7 @@ export async function recordManualGameResult(input: {
       game_id: input.gameId, submission_id: submissionId,
       team_id: side === "home" ? homeTeamId : awayTeamId, opponent_team_id: side === "home" ? awayTeamId : homeTeamId,
       user_id: side === "home" ? game.data.home_user_id : game.data.away_user_id, opponent_user_id: side === "home" ? game.data.away_user_id : game.data.home_user_id,
-      is_home: side === "home", result: isTie ? "tie" : (side === input.outcome ? "win" : "loss"),
+      is_home: side === "home", result: isTie ? "tie" : (side === effectiveOutcome ? "win" : "loss"),
       points_for: side === "home" ? homeScore : awayScore, points_against: side === "home" ? awayScore : homeScore,
       off_yards_gained: numberOrNull(stats.offYardsGained), off_rush_yards: numberOrNull(stats.offRushYards), off_pass_yards: numberOrNull(stats.offPassYards),
       off_first_down: numberOrNull(stats.offFirstDown), punt_return_yards: numberOrNull(stats.puntReturnYards), kick_return_yards: numberOrNull(stats.kickReturnYards),
@@ -282,6 +289,6 @@ export async function recordManualGameResult(input: {
     awayScore,
     hasRealScores,
     isTie,
-    outcome: input.outcome,
+    outcome: effectiveOutcome,
   };
 }

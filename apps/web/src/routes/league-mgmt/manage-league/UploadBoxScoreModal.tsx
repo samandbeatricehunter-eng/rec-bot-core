@@ -32,6 +32,7 @@ export function UploadBoxScoreModal({
   onSubmitted: (submissionId: string) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
+  const [secondFile, setSecondFile] = useState<File | null>(null);
   const [status, setStatus] = useState<"idle" | "uploading" | "parsing">("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -40,11 +41,13 @@ export function UploadBoxScoreModal({
     setStatus("uploading");
     setError(null);
     try {
-      const { url } = await recApi.uploadBoxScoreImage(guildId, file);
+      const uploaded = await Promise.all(
+        [file, secondFile].filter((f): f is File => !!f).map((f) => recApi.uploadBoxScoreImage(guildId, f)),
+      );
       const { jobId } = await recApi.submitBoxScore({
         guildId,
         discordId,
-        imageUrls: [url],
+        imageUrls: uploaded.map((u) => u.url),
         weekNumber,
         seasonNumber,
         expectedGameId: gameId,
@@ -75,7 +78,7 @@ export function UploadBoxScoreModal({
     <Modal title="Upload Box Score" onClose={onClose}>
       {error && <ErrorState message={error} />}
       <div className="form-field">
-        <label className="form-label" htmlFor="box-score-file">Screenshot</label>
+        <label className="form-label" htmlFor="box-score-file">Screenshot (top or bottom of the stats page)</label>
         <input
           id="box-score-file"
           className="form-input"
@@ -89,6 +92,18 @@ export function UploadBoxScoreModal({
           {status === "parsing" && "Reading stats from the screenshot — this can take a minute…"}
           {status === "idle" && "PNG, JPEG, or WebP."}
         </p>
+      </div>
+      <div className="form-field">
+        <label className="form-label" htmlFor="box-score-file-2">Second screenshot (optional)</label>
+        <input
+          id="box-score-file-2"
+          className="form-input"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          disabled={busy}
+          onChange={(e) => setSecondFile(e.target.files?.[0] ?? null)}
+        />
+        <p className="form-hint">Add the other half of the stats page now, or add it later from the review screen.</p>
       </div>
       <Button variant="primary" onClick={handleSubmit} disabled={!file || busy}>
         {busy ? "Submitting…" : "Submit"}
