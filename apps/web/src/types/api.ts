@@ -281,6 +281,8 @@ export type AdvanceGame = {
   needsInput: boolean;
   isCpuGame: boolean;
   isH2h: boolean;
+  isBowlGame: boolean;
+  isNationalChampionship: boolean;
 };
 export type AdvanceWeekGames = {
   league: { id: string; name: string };
@@ -293,6 +295,28 @@ export type AdvanceWeekGames = {
 export type AdvanceResultInput = { gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null };
 export type DivisionWinnerOption = { key: string; conference: string; division: string; label: string; teams: { id: string; name: string; abbreviation: string | null }[] };
 export type DivisionWinnerOptions = { league: { id: string; seasonNumber: number }; divisions: DivisionWinnerOption[] };
+
+export type RecPayoutTier = "S" | "A" | "B" | "C" | "D";
+export type EosLedgerLineItem = {
+  id: string;
+  payoutCategory: string;
+  payoutLabel: string;
+  qualifiedTier: RecPayoutTier | null;
+  qualifiedValue: number;
+  amount: number;
+  availableTiers: Array<{ tier: RecPayoutTier; amount: number; threshold: number; operator: string }>;
+};
+export type EosLedger = {
+  userId: string;
+  displayName: string;
+  teamName: string | null;
+  discordId: string | null;
+  items: EosLedgerLineItem[];
+  total: number;
+};
+export type PendingEosLedgers = { batch: { id: string; seasonNumber: number } | null; ledgers: EosLedger[] };
+
+export type GotwPollStatus = { id: string; game_id: string; status: string; away_team_name: string; home_team_name: string };
 export type AdvanceDmPreview = {
   fromWeek: number | null;
   toWeek: number | null;

@@ -416,7 +416,9 @@ export const recGames = pgTable("rec_games", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
   advanceOutcomeOverride: text("advance_outcome_override"),
   advanceOutcomeMarkedByDiscordId: text("advance_outcome_marked_by_discord_id"),
-  advanceOutcomeMarkedAt: timestamp("advance_outcome_marked_at", { withTimezone: true, mode: "string" })
+  advanceOutcomeMarkedAt: timestamp("advance_outcome_marked_at", { withTimezone: true, mode: "string" }),
+  isBowlGame: boolean("is_bowl_game").notNull().default(false),
+  isNationalChampionship: boolean("is_national_championship").notNull().default(false)
 });
 
 export const recGameResults = pgTable("rec_game_results", {

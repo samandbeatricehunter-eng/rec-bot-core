@@ -10,8 +10,10 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { FirstTimeSetupHome } from "../first-time-setup/FirstTimeSetupHome.js";
 import { ChannelSettings } from "./ChannelSettings.js";
+import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
 
 const FIRST_TIME_SETUP_KEY = "first-time-setup";
+const EOS_PAYOUTS_KEY = "eos-payouts";
 
 // One generic renderer for every category in settings-fields.ts's schema. See that file's
 // header comment for what's deliberately out of scope (channel routing, attribute/conference
@@ -97,7 +99,7 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === FIRST_TIME_SETUP_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <EosPayoutMaintenance /> : activeCategory === FIRST_TIME_SETUP_KEY ? (
         <FirstTimeSetupHome />
       ) : (
         <>

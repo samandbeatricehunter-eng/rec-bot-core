@@ -260,7 +260,7 @@ export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } 
       "",
       "**Teams / Roles** — Link coaches to teams, edit relocated/custom teams, reset defaults, and manage REC Discord roles.",
       "**Schedule** — Upload a schedule screenshot, enter it manually, or review the current schedule. Playoff schedules usually need an in-game advance first.",
-      "**Advance** — Run the weekly REC advance: upload scores, GOTW polls, game channels, active checks, EOS payouts/awards, and power rankings.",
+      "**Advance** — Upload score catch-up tools and active checks live here; advancing the league week, GOTW, game channels, and EOS payouts moved to the web dashboard.",
       "**Settings** — Update league & server configuration (channels, economy, rules, activity requirements).",
       "**First-Time Setup / Delete League** — Re-run initial setup (can rebuild league data) or permanently delete this server's league.",
     ];

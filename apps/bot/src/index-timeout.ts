@@ -722,13 +722,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvance) return handleLeagueMgmtAdvance(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtUploadScores) return handleLeagueMgmtUploadScores(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek) return startAdvanceWeekWizard(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtActiveCheck) return handleActiveCheck(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtGotwPolls) return handleGotwPollsMenu(interaction, buildAdvanceBackRows);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetGotw) return handleSetGotw(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtRerunGotw) return handleRerunGotwPolls(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId.startsWith(`${GOTW_CUSTOM_IDS.confirmPrefix}:`)) return handleGotwConfirm(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtGameChannels) return handleGameChannels(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetWeek) return handleSetWeek(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetSeason) return handleSetSeason(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosActions) return handleEosActions(interaction);
@@ -1171,12 +1165,9 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
       .setDescription([
         "Run weekly league operations from one place.",
         "",
-        "**Advance in-game first.** REC should be advanced after the console league is advanced so score uploads and new playoff schedules are available.",
+        "**Advancing the league, assigning GOTW, and creating game channels now happen on the web dashboard** — open League Mgmt > Advance there.",
         "",
         "**Upload Scores** opens commissioner score catch-up tools.",
-        "**Advance Week** changes only the league week/stage.",
-        "**GOTW Polls** sets or reruns voting polls.",
-        "**Game Channels** creates private channels for scheduled H2H games with two linked users.",
         "**Set Week / Set Season** manually correct the league clock.",
         "**EOS Actions** opens postseason tools; actions stay gated until the right week.",
         "**Troubleshoot** checks schedule, payout, transaction, and blocker workflows."
@@ -1188,12 +1179,7 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
 function buildAdvanceMgmtRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtUploadScores).setLabel("Upload Scores").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceWeek).setLabel("Advance Week").setStyle(ButtonStyle.Success)
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtGotwPolls).setLabel("GOTW Polls").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtGameChannels).setLabel("Game Channels").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtUploadScores).setLabel("Upload Scores").setStyle(ButtonStyle.Primary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetWeek).setLabel("Set Week").setStyle(ButtonStyle.Secondary),

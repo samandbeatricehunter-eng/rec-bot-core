@@ -1,11 +1,23 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { getGameChannelMatchup, getGameChannelMatchupsForGuild } from "./game-channel-matchup.service.js";
-import { listTrackedGameChannelDiscordIds, markTrackedGameChannelsDeleted, registerGameChannel } from "./game-channels.service.js";
+import { createGameChannelsForCurrentWeek, listTrackedGameChannelDiscordIds, markTrackedGameChannelsDeleted, registerGameChannel } from "./game-channels.service.js";
 
 export async function gameChannelRoutes(app: FastifyInstance) {
+  // Commissioner-facing "Create Game Channels" action from League Mgmt.
+  app.post("/v1/game-channels/create-current-week", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "commissioner" });
+      return reply.send(await createGameChannelsForCurrentWeek(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/game-channels/matchup", async (request, reply) => {
     try {
       requireInternalApiKey(request);

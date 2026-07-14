@@ -153,6 +153,9 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { key: "defensivePlayCallCooldown", label: "Defensive Play Call Cooldown (seconds)", type: "number", min: 1, max: 50, dependsOn: (d) => Boolean(d.defensivePlayCallCooldownEnabled), resetTo: null },
     ],
   },
+  // Special-cased in SettingsHome.tsx to render <EosPayoutMaintenance /> instead of the
+  // generic field list.
+  { key: "eos-payouts", label: "EOS Payouts", fields: [] },
   // Special-cased in SettingsHome.tsx to render <FirstTimeSetupHome /> instead of the
   // generic field list — a fundamentally different UI shape (a whole self-contained
   // create-league form/wizard, not a SettingsField[] list), so `fields` is unused here.

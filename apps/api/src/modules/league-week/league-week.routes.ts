@@ -4,8 +4,8 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
-import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setNextAdvanceTime } from "./advance-results.service.js";
-import { issueEosPayoutBatch, listEosPayoutBatch, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser } from "./eos-payouts.service.js";
+import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
+import { adjustEosPayoutItem, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
 import { cancelOpenEosAwardPolls, getEosAwardPoll, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
@@ -72,6 +72,23 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       return reply.send(await getAdvanceWeekGames(body.guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Mark a CFB postseason game as a bowl game / the national championship — both are
+  // automatic GOTW games.
+  app.post("/v1/league-week/games/postseason-flags", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        gameId: z.string().uuid(),
+        isBowlGame: z.boolean(),
+        isNationalChampionship: z.boolean(),
+      }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await setGamePostseasonFlags(body));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -372,14 +389,18 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
 
   app.post("/v1/league-week/eos-payouts/review-user", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
+      // guildId is optional because the bot's existing calls don't send it (bot-mode auth
+      // never checks it — see resolveGuildId below); the web dashboard always sends it.
       const body = z.object({
+        guildId: z.string().min(1).optional(),
         batchId: z.string().uuid(),
         userId: z.string().uuid(),
         action: z.enum(["approve", "deny"]),
         reviewedByDiscordId: z.string().min(1),
         deniedReason: z.string().optional().nullable(),
       }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
       return reply.send(await reviewEosPayoutsForUser(body));
     } catch (error) {
       return sendError(reply, error);
@@ -398,6 +419,48 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
       if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
       return reply.send(await issueEosPayoutBatch(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Commissioner Pending Payouts inbox — every linked user's pending EOS items on the
+  // league's current batch, grouped into one collapsible ledger per user.
+  app.post("/v1/league-week/eos-payouts/pending", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await listPendingEosLedgers(body.guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Bump (or clear) a single pending line item's tier before approving the ledger.
+  app.post("/v1/league-week/eos-payouts/adjust-item", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        itemId: z.string().uuid(),
+        tier: z.enum(["S", "A", "B", "C", "D"]).nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await adjustEosPayoutItem({ itemId: body.itemId, tier: body.tier, actorDiscordId: auth.mode === "user" ? auth.discordId : "bot" }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Wipes every not-yet-issued item off the league's open EOS batch, clears its inbox
+  // entry, and immediately recalculates a fresh one — for league-wide data issues.
+  app.post("/v1/league-week/eos-payouts/wipe-rerun", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        reason: z.string().trim().min(1).max(500),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      return reply.send(await wipeAndRerunEosLedger({ guildId: body.guildId, requestedByDiscordId: auth.mode === "user" ? auth.discordId : "bot", reason: body.reason }));
     } catch (error) {
       return sendError(reply, error);
     }

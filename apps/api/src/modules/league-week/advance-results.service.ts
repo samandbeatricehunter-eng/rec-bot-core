@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
+import { isCfb, isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -18,6 +18,44 @@ import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
+import { autoAssignGotwForWeek, settleGotwPollsForGame } from "../gotw/gotw.service.js";
+import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
+import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
+import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
+
+const WEEKLY_SUBMISSIONS_PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
+
+// Server-side twin of the bot's publishWeeklySubmissionsPanel (apps/bot/src/flows/weekly-submissions.ts)
+// — posts straight to Discord's REST API instead of through a live gateway client, since
+// advance completion can now be triggered from the web with no bot process involved. Custom
+// IDs must stay byte-identical to WEEKLY_SUBMISSIONS_CUSTOM_IDS so the bot's interaction
+// handler still responds to clicks on this panel.
+async function republishWeeklySubmissionsPanel(input: { guildId: string; routes: Record<string, unknown>; seasonNumber: number; seasonStage: string; weekNumber: number }) {
+  if (!WEEKLY_SUBMISSIONS_PLAYABLE_STAGES.has(input.seasonStage)) return;
+  const channelId = String(input.routes?.weekly_submissions_channel_id ?? input.routes?.box_scores_channel_id ?? "");
+  if (!channelId) return;
+  await purgeDiscordChannelMessages(channelId);
+  const stageText = input.seasonStage.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+  const weekText = input.seasonStage === "regular_season" ? `Week ${input.weekNumber}` : stageText;
+  const sent = await postDiscordChannelMessage(channelId, {
+    embeds: [{
+      title: "REC Weekly Submissions",
+      color: 0xd9a521,
+      description: `Season ${input.seasonNumber} • ${weekText}\n\nUse the buttons below. Submission messages are captured and removed so this panel stays in focus.`,
+    }],
+    components: [{
+      type: 1,
+      components: [
+        { type: 2, style: 1, custom_id: "rec:weekly_submissions:box_scores", label: "Box Scores" },
+        { type: 2, style: 2, custom_id: "rec:weekly_submissions:player_stats", label: "Player Stats" },
+        { type: 2, style: 3, custom_id: "rec:weekly_submissions:recruiting", label: "Recruiting Commits" },
+      ],
+    }],
+  });
+  if (sent) {
+    await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: sent.id });
+  }
+}
 
 type AdvanceGameResultInput = {
   gameId: string;
@@ -64,7 +102,7 @@ export async function getAdvanceWeekGames(guildId: string) {
 
   const { data: games, error } = await supabase
     .from("rec_games")
-    .select("id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
+    .select("id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
     .eq("league_id", context.leagueId)
     .eq("season_id", seasonId)
     .eq("week_number", currentWeek);
@@ -113,6 +151,8 @@ export async function getAdvanceWeekGames(guildId: string) {
       needsInput,
       isCpuGame: !(game.home_user_id && game.away_user_id),
       isH2h: Boolean(game.home_user_id && game.away_user_id),
+      isBowlGame: Boolean(game.is_bowl_game),
+      isNationalChampionship: Boolean(game.is_national_championship),
     };
   });
 
@@ -124,6 +164,37 @@ export async function getAdvanceWeekGames(guildId: string) {
     games: mapped,
     gamesNeedingInput: mapped.filter((game) => game.needsInput),
   };
+}
+
+// Commissioner marks a CFB postseason game as a bowl game / the national championship
+// (auto-suggested by week where derivable, but always editable) — both are automatic GOTW
+// games, so flagging one immediately assigns its poll if it's an H2H matchup without one yet.
+export async function setGamePostseasonFlags(input: { guildId: string; gameId: string; isBowlGame: boolean; isNationalChampionship: boolean }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const game = await supabase
+    .from("rec_games")
+    .select("id,week_number,home_user_id,away_user_id")
+    .eq("id", input.gameId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (!game.data) throw new ApiError(404, "Game was not found in this league.");
+
+  const updated = await supabase
+    .from("rec_games")
+    .update({ is_bowl_game: input.isBowlGame, is_national_championship: input.isNationalChampionship, updated_at: new Date().toISOString() })
+    .eq("id", input.gameId)
+    .select("*")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to save postseason flags.", updated.error);
+
+  if ((input.isBowlGame || input.isNationalChampionship) && game.data.home_user_id && game.data.away_user_id) {
+    await autoAssignGotwForWeek({ guildId: input.guildId, weekNumber: game.data.week_number }).catch((err) => {
+      console.error("[ERROR] autoAssignGotwForWeek failed after flagging a postseason game (non-fatal):", err);
+    });
+  }
+
+  return { game: updated.data };
 }
 
 export type WeeklyH2hGame = {
@@ -248,6 +319,12 @@ export async function completeAdvanceWeek(input: {
       },
       { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
+
+    // Settle any GOTW poll tied to this game against the real result (idempotent — a no-op
+    // if box-score approval or manual score entry already settled it earlier).
+    await settleGotwPollsForGame({ guildId: input.guildId, gameId: game.data.id, winningTeamId }).catch((err) => {
+      console.error("[ERROR] settleGotwPollsForGame failed during advance (non-fatal):", err);
+    });
   }
 
   const advanceResult = await setLeagueWeek({
@@ -256,6 +333,42 @@ export async function completeAdvanceWeek(input: {
     seasonStage: input.nextSeasonStage,
     seasonNumber,
   });
+
+  // Bowl games / the national championship are automatic GOTW games in CFB leagues —
+  // catches any flagged game in the week just advanced INTO that doesn't have a poll yet.
+  await autoAssignGotwForWeek({ guildId: input.guildId, weekNumber: input.nextWeekNumber }).catch((err) => {
+    console.error("[ERROR] autoAssignGotwForWeek failed after advance (non-fatal):", err);
+  });
+
+  // EOS payouts: automatic for every league. Madden fires once postseason play actually
+  // ends (advancing out of the terminal stage into the offseason pipeline); CFB has no
+  // offseason stages built yet, so — per commissioner direction — it fires from the moment
+  // the league advances past week 16 and keeps refreshing on every advance after that until
+  // a commissioner approves the ledger.
+  const isMaddenPostseasonEnd = !isCfb(context.rec_leagues.game)
+    && isTerminalSeasonStage(String(context.rec_leagues.season_stage ?? ""), context.rec_leagues.game)
+    && input.nextSeasonStage === "coach_hiring";
+  const isCfbPastWeek16 = isCfb(context.rec_leagues.game) && input.nextWeekNumber > 16;
+  if (isMaddenPostseasonEnd || isCfbPastWeek16) {
+    await autoPrepareEosPayouts({
+      guildId: input.guildId,
+      leagueId: context.leagueId,
+      game: context.rec_leagues.game,
+      seasonNumber,
+      requestedByDiscordId: input.advancedByDiscordId,
+    }).catch((err) => console.error("[ERROR] autoPrepareEosPayouts failed after advance (non-fatal):", err));
+  }
+
+  // Refresh the Weekly Submissions panel for the new week (same channel the bot used to
+  // reset at the end of its wizard) — purges last week's submissions/chatter and posts a
+  // fresh panel pointed at the new week.
+  await republishWeeklySubmissionsPanel({
+    guildId: input.guildId,
+    routes: context.routes,
+    seasonNumber,
+    seasonStage: input.nextSeasonStage,
+    weekNumber: input.nextWeekNumber,
+  }).catch((err) => console.error("[ERROR] republishWeeklySubmissionsPanel failed after advance (non-fatal):", err));
 
   // Five independent, non-fatal cleanup/rebuild steps — none feed data into another,
   // so run them in parallel instead of one after another.

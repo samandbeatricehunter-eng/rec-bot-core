@@ -1,6 +1,7 @@
-import { REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
+import { REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, type LeagueGame, type RecPayoutTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 
@@ -59,6 +60,7 @@ async function loadOrCreateBatch(guildId: string, leagueId: string, seasonNumber
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .eq("batch_type", "eos_regular_season")
+    .neq("status", "cleared")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -173,14 +175,13 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: 
   return items;
 }
 
-export async function prepareEosPayouts(input: { guildId: string; requestedByDiscordId: string }) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
-  if (!isEosPayoutEligibleStage(currentStage, context.rec_leagues.game)) {
-    throw new ApiError(400, "EOS payouts are only available during the postseason (after the regular season ends, through the championship game).");
-  }
-  const seasonNumber = resolveSeasonNumber(context);
-  const batch = await loadOrCreateBatch(input.guildId, context.leagueId, seasonNumber, input.requestedByDiscordId);
+// Shared by the commissioner-triggered `prepareEosPayouts` (which gates on season stage)
+// and the automatic advance-time trigger (which already knows it's the right moment and
+// would otherwise re-fetch a season_stage that's already flipped past eligible — see
+// autoPrepareEosPayouts below). Safe to call repeatedly: only replaces items still "pending",
+// never touches ones already approved/issued/denied.
+async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, game: LeagueGame, seasonNumber: number, requestedByDiscordId: string) {
+  const batch = await loadOrCreateBatch(guildId, leagueId, seasonNumber, requestedByDiscordId);
   const existingIssued = await supabase
     .from("rec_eos_payout_items")
     .select("id")
@@ -189,7 +190,7 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
     .limit(1);
   if (existingIssued.error) throw new ApiError(500, "Failed to check existing EOS payout items.", existingIssued.error);
 
-  const items = [...await buildPowerRankItems(context.leagueId, seasonNumber), ...await buildTeamStatItems(context.leagueId, seasonNumber, context.rec_leagues.game)];
+  const items = [...await buildPowerRankItems(leagueId, seasonNumber), ...await buildTeamStatItems(leagueId, seasonNumber, game)];
   if (!(existingIssued.data ?? []).length) {
     await supabase.from("rec_eos_payout_items").delete().eq("batch_id", batch.id).eq("status", "pending");
     if (items.length) {
@@ -202,6 +203,66 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
   }
 
   return listEosPayoutBatch(batch.id);
+}
+
+export async function prepareEosPayouts(input: { guildId: string; requestedByDiscordId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
+  if (!isEosPayoutEligibleStage(currentStage, context.rec_leagues.game)) {
+    throw new ApiError(400, "EOS payouts are only available during the postseason (after the regular season ends, through the championship game).");
+  }
+  const seasonNumber = resolveSeasonNumber(context);
+  return prepareEosPayoutsForLeague(input.guildId, context.leagueId, context.rec_leagues.game, seasonNumber, input.requestedByDiscordId);
+}
+
+// Called from completeAdvanceWeek once postseason play ends (Madden: advancing out of the
+// terminal stage into the offseason) or, for CFB — which has no offseason stages yet — once
+// the league advances past week 16. Re-runs on every subsequent advance past that point too,
+// so the ledger keeps reflecting the latest playoff results until a commissioner approves it.
+export async function autoPrepareEosPayouts(input: { guildId: string; leagueId: string; game: LeagueGame; seasonNumber: number; requestedByDiscordId: string }) {
+  return prepareEosPayoutsForLeague(input.guildId, input.leagueId, input.game, input.seasonNumber, input.requestedByDiscordId);
+}
+
+// Wipes every not-yet-issued item off the league's current EOS batch, clears its
+// commissioner-inbox entry, and immediately recalculates a fresh batch — for when a
+// league-wide data issue means the open ledgers can't be trusted. Already-issued items
+// (money already paid out) are left untouched.
+export async function wipeAndRerunEosLedger(input: { guildId: string; requestedByDiscordId: string; reason: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const reviewer = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.requestedByDiscordId).maybeSingle();
+
+  const existing = await supabase
+    .from("rec_eos_payout_batches")
+    .select("id")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("batch_type", "eos_regular_season")
+    .neq("status", "cleared");
+  if (existing.error) throw new ApiError(500, "Failed to load EOS payout batches to clear.", existing.error);
+  const batchIds = (existing.data ?? []).map((row) => row.id);
+
+  if (batchIds.length) {
+    const now = new Date().toISOString();
+    const cleared = await supabase
+      .from("rec_eos_payout_batches")
+      .update({ status: "cleared", cleared_by_user_id: reviewer.data?.user_id ?? null, clear_reason: input.reason, cleared_at: now, updated_at: now })
+      .in("id", batchIds);
+    if (cleared.error) throw new ApiError(500, "Failed to clear EOS payout batches.", cleared.error);
+
+    const removedItems = await supabase.from("rec_eos_payout_items").delete().in("batch_id", batchIds).in("status", ["pending", "denied"]);
+    if (removedItems.error) throw new ApiError(500, "Failed to wipe pending EOS payout items.", removedItems.error);
+
+    const inboxCleared = await supabase
+      .from("rec_commissioners_inbox")
+      .update({ status: "cleared", reviewed_by_discord_id: input.requestedByDiscordId, review_reason: input.reason, reviewed_at: now })
+      .eq("source_table", "rec_eos_payout_batches")
+      .in("source_id", batchIds)
+      .eq("status", "pending");
+    if (inboxCleared.error) throw new ApiError(500, "Failed to clear the EOS payout inbox entry.", inboxCleared.error);
+  }
+
+  return prepareEosPayoutsForLeague(input.guildId, context.leagueId, context.rec_leagues.game, seasonNumber, input.requestedByDiscordId);
 }
 
 export async function projectEosPayouts(input: { guildId: string }) {
@@ -283,8 +344,31 @@ export async function reviewEosPayoutsForUser(input: {
   const failed = outcomes.filter((o): o is { ok: false; itemId: string; error: string } => o?.ok === false);
 
   const account = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", input.userId).maybeSingle();
+  const payeeDiscordId = account.data?.discord_id ?? null;
   const totalAmount = processed.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
-  return { action: input.action, userId: input.userId, payeeDiscordId: account.data?.discord_id ?? null, items: processed, failed, totalAmount };
+
+  if (payeeDiscordId && processed.length) {
+    const dm = input.action === "approve"
+      ? [
+          "**Your EOS payout ledger was approved.**",
+          "",
+          ...processed.map((item) => `- ${item.payout_label}${item.qualified_tier ? ` (Tier ${item.qualified_tier})` : ""}: $${Number(item.amount ?? 0)}`),
+          "",
+          `**Total: $${totalAmount}** — sent to your wallet.`,
+          `Approved by <@${input.reviewedByDiscordId}>.`,
+        ].join("\n")
+      : [
+          "**Your EOS payout ledger was rejected.**",
+          "",
+          `Reason: ${input.deniedReason ?? "No reason given."}`,
+          `Reviewed by <@${input.reviewedByDiscordId}>.`,
+        ].join("\n");
+    await sendDiscordDirectMessage(payeeDiscordId, dm).catch((error) => {
+      console.error("[ERROR] Failed to DM EOS payout review outcome (non-fatal):", error);
+    });
+  }
+
+  return { action: input.action, userId: input.userId, payeeDiscordId, items: processed, failed, totalAmount };
 }
 
 export async function reviewEosPayoutItem(input: { itemId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {
@@ -376,4 +460,128 @@ export async function issueEosPayoutBatch(input: { batchId: string; reviewedByDi
   }
 
   return { ...refreshed, issuedCount: issued.length, issuedItems, failed };
+}
+
+function definitionForItem(item: { payout_category: string; payout_key: string }) {
+  if (item.payout_category === "ranking") return RANK_DEFINITION ?? null;
+  const key = String(item.payout_key ?? "").split(":")[2];
+  return TEAM_DEFINITIONS.find((d) => d.key === key) ?? null;
+}
+
+// Lets a commissioner bump a single line item to a different tier (or clear its payout
+// entirely) before approving the ledger — e.g. a stat was miscounted, or the league wants
+// to award a courtesy tier bump. Amount is always recomputed from the chosen tier's rule,
+// never entered freehand, so it can't drift from the published payout table.
+export async function adjustEosPayoutItem(input: { itemId: string; tier: RecPayoutTier | null; actorDiscordId: string }) {
+  const existing = await supabase.from("rec_eos_payout_items").select("*").eq("id", input.itemId).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load EOS payout item.", existing.error);
+  if (!existing.data) throw new ApiError(404, "EOS payout item was not found.");
+  if (existing.data.status !== "pending") throw new ApiError(400, "Only pending items can be adjusted.");
+
+  const definition = definitionForItem(existing.data);
+  if (!definition) throw new ApiError(400, "Could not resolve the payout tier table for this item.");
+
+  let amount = 0;
+  if (input.tier) {
+    const rule = definition.tiers.find((t) => t.tier === input.tier);
+    if (!rule) throw new ApiError(400, "That tier isn't valid for this payout.");
+    amount = rule.amount;
+  }
+
+  const updated = await supabase
+    .from("rec_eos_payout_items")
+    .update({ qualified_tier: input.tier, amount, updated_at: new Date().toISOString() })
+    .eq("id", input.itemId)
+    .select("*")
+    .single();
+  if (updated.error) throw new ApiError(500, "Failed to adjust EOS payout item.", updated.error);
+  return { item: updated.data };
+}
+
+export type EosLedgerLineItem = {
+  id: string;
+  payoutCategory: string;
+  payoutLabel: string;
+  qualifiedTier: string | null;
+  qualifiedValue: number;
+  amount: number;
+  availableTiers: Array<{ tier: string; amount: number; threshold: number; operator: string }>;
+};
+
+export type EosLedger = {
+  userId: string;
+  displayName: string;
+  teamName: string | null;
+  discordId: string | null;
+  items: EosLedgerLineItem[];
+  total: number;
+};
+
+// The commissioner "Pending Payouts" inbox — every linked user's still-pending items on the
+// league's current (not cleared) EOS batch, grouped into one collapsible receipt per user
+// with a grand total, plus each line's other selectable tiers for in-place adjustment.
+export async function listPendingEosLedgers(guildId: string): Promise<{ batch: any; ledgers: EosLedger[] }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const batch = await supabase
+    .from("rec_eos_payout_batches")
+    .select("*")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("batch_type", "eos_regular_season")
+    .neq("status", "cleared")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (batch.error) throw new ApiError(500, "Failed to load the EOS payout batch.", batch.error);
+  if (!batch.data) return { batch: null, ledgers: [] };
+
+  const items = await supabase
+    .from("rec_eos_payout_items")
+    .select("*")
+    .eq("batch_id", batch.data.id)
+    .eq("status", "pending")
+    .order("payout_category", { ascending: true })
+    .order("amount", { ascending: false });
+  if (items.error) throw new ApiError(500, "Failed to load EOS payout items.", items.error);
+
+  const userIds = [...new Set((items.data ?? []).map((item) => item.user_id))];
+  const [accounts, users, assignments] = await Promise.all([
+    userIds.length ? supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : Promise.resolve({ data: [] as any[], error: null }),
+    userIds.length ? supabase.from("rec_users").select("id,display_name").in("id", userIds) : Promise.resolve({ data: [] as any[], error: null }),
+    userIds.length
+      ? supabase.from("rec_team_assignments").select("user_id,team:rec_teams(name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null).in("user_id", userIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
+  const discordByUser = new Map<string, string | null>((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+  const nameByUser = new Map<string, string>((users.data ?? []).map((row: any) => [row.id, row.display_name]));
+  const teamByUser = new Map<string, string | null>((assignments.data ?? []).map((row: any) => [row.user_id, Array.isArray(row.team) ? row.team[0]?.name : row.team?.name]));
+
+  const byUser = new Map<string, EosLedgerLineItem[]>();
+  for (const item of items.data ?? []) {
+    const rows = byUser.get(item.user_id) ?? [];
+    rows.push({
+      id: item.id,
+      payoutCategory: item.payout_category,
+      payoutLabel: item.payout_label,
+      qualifiedTier: item.qualified_tier,
+      qualifiedValue: Number(item.qualified_value ?? 0),
+      amount: Number(item.amount ?? 0),
+      availableTiers: (definitionForItem(item)?.tiers ?? []).map((t) => ({ tier: t.tier, amount: t.amount, threshold: t.threshold, operator: t.operator })),
+    });
+    byUser.set(item.user_id, rows);
+  }
+
+  const ledgers: EosLedger[] = [...byUser.entries()]
+    .map(([userId, lineItems]) => ({
+      userId,
+      displayName: nameByUser.get(userId) ?? "REC Member",
+      teamName: teamByUser.get(userId) ?? null,
+      discordId: discordByUser.get(userId) ?? null,
+      items: lineItems,
+      total: lineItems.reduce((sum, item) => sum + item.amount, 0),
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  return { batch: batch.data, ledgers };
 }

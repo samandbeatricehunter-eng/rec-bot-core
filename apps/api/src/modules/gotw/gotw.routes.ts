@@ -1,13 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { clearGotwPollsForWeek, createGotwPoll, getActiveGotwPoll, getActiveGotwPolls, getGotwGameResult, settleGotwPoll } from "./gotw.service.js";
+import { autoAssignGotwForWeek, clearGotwPollsForWeek, createGotwPoll, getActiveGotwPoll, getActiveGotwPolls, getGotwGameResult, settleGotwPoll } from "./gotw.service.js";
 
 export async function gotwRoutes(app: FastifyInstance) {
+  // Commissioner "Assign GOTW" action in League Mgmt — picks a game from the current
+  // week's schedule and creates its poll. Voting/closing happen on the Hub matchup page;
+  // this is creation only.
   app.post("/v1/gotw/poll/create", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
         gameId: z.string().uuid(),
@@ -23,7 +26,21 @@ export async function gotwRoutes(app: FastifyInstance) {
         weekNumber: z.number().int().min(0),
         expiresAt: z.string().min(1).nullable().optional(),
       }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await createGotwPoll(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Re-scans a week for bowl-game/national-championship-flagged CFB games without a poll
+  // yet and creates one for each. Called automatically after schedule flag saves and after
+  // an advance completes; also exposed here so a commissioner can re-trigger it manually.
+  app.post("/v1/gotw/poll/auto-assign", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(0) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await autoAssignGotwForWeek(body));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -45,12 +62,12 @@ export async function gotwRoutes(app: FastifyInstance) {
 
   app.post("/v1/gotw/poll/active-all", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const { guildId, weekNumber } = z.object({
         guildId: z.string().min(1),
         // CFB regular season starts at Week 0.
         weekNumber: z.number().int().min(0),
       }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       return reply.send({ polls: await getActiveGotwPolls(guildId, weekNumber) });
     } catch (error) {
       return sendError(reply, error);

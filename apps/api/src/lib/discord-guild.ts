@@ -97,6 +97,69 @@ export async function sendDiscordAdvanceAnnouncement(channelId: string, destinat
   if (!sent.ok) throw new ApiError(502, `Discord rejected the advance announcement (${sent.status}).`);
 }
 
+// Generic message post (embeds/components/content) — the REST equivalent of a discord.js
+// TextChannel#send(), used by server-driven flows (advance completion) that need to post to
+// a channel without a live bot gateway client. Returns the created message id.
+export async function postDiscordChannelMessage(channelId: string, payload: Record<string, unknown>): Promise<{ id: string } | null> {
+  const sent = await discordBotFetch(`/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!sent.ok) return null;
+  return (await sent.json()) as { id: string };
+}
+
+export async function deleteDiscordMessage(channelId: string, messageId: string): Promise<void> {
+  await discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }).catch(() => undefined);
+}
+
+// Clears a channel's recent history the same way the bot's purgeChannelMessages does —
+// bulk-delete (2-100 at a time) for messages under 14 days old, individual deletes beyond
+// that. Capped at 200 fetched messages so a very chatty channel can't turn advance
+// completion into a long-running purge.
+export async function purgeDiscordChannelMessages(channelId: string): Promise<{ purged: number }> {
+  const fourteenDaysAgoMs = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  let purged = 0;
+  let before: string | undefined;
+  for (let page = 0; page < 2; page++) {
+    const res = await discordBotFetch(`/channels/${channelId}/messages?limit=100${before ? `&before=${before}` : ""}`);
+    if (!res.ok) break;
+    const messages = (await res.json()) as Array<{ id: string; timestamp: string }>;
+    if (!messages.length) break;
+    before = messages[messages.length - 1].id;
+
+    const bulkable = messages.filter((m) => new Date(m.timestamp).getTime() > fourteenDaysAgoMs).map((m) => m.id);
+    const singles = messages.filter((m) => new Date(m.timestamp).getTime() <= fourteenDaysAgoMs).map((m) => m.id);
+
+    for (let i = 0; i < bulkable.length; i += 100) {
+      const chunk = bulkable.slice(i, i + 100);
+      if (chunk.length === 1) {
+        await deleteDiscordMessage(channelId, chunk[0]);
+        purged += 1;
+      } else if (chunk.length > 1) {
+        const bulk = await discordBotFetch(`/channels/${channelId}/messages/bulk-delete`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ messages: chunk }),
+        });
+        if (bulk.ok) purged += chunk.length;
+      }
+    }
+    for (const id of singles.slice(0, 50)) {
+      await deleteDiscordMessage(channelId, id);
+      purged += 1;
+    }
+    if (messages.length < 100) break;
+  }
+  return { purged };
+}
+
+export async function deleteGuildChannel(channelId: string, reason: string): Promise<boolean> {
+  const res = await discordBotFetch(`/channels/${channelId}`, { method: "DELETE", headers: { "X-Audit-Log-Reason": reason } });
+  return res.ok;
+}
+
 async function getGuildRoles(guildId: string): Promise<Map<string, { name: string; permissions: bigint }>> {
   const cached = fromCache(roleListCache, guildId);
   if (cached) return cached;

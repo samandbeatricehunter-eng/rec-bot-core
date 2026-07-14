@@ -1,6 +1,8 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { createGuildChannel, deleteGuildChannel } from "../../lib/discord-guild.js";
+import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
 
 export async function getGameChannelByDiscordId(discordChannelId: string) {
   const { data, error } = await supabase
@@ -75,4 +77,49 @@ export async function markTrackedGameChannelsDeleted(discordChannelIds: string[]
     .select("id");
   if (result.error) throw new ApiError(500, "Failed to mark game channels deleted.", result.error);
   return { updated: result.data?.length ?? 0 };
+}
+
+function channelSlug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42);
+}
+
+// Commissioner "Create Game Channels" action in League Mgmt — deletes last week's tracked
+// game channels and creates one per current-week H2H matchup, same as the bot's old
+// Game Channels menu button, but driven from the web via Discord's REST API.
+export async function createGameChannelsForCurrentWeek(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const categoryId = String((context.routes as any)?.game_channels_category_id ?? "");
+  if (!categoryId) throw new ApiError(400, "Assign the Game Channels category in Settings before creating game channels.");
+
+  const tracked = await listTrackedGameChannelDiscordIds(guildId);
+  const deletedIds: string[] = [];
+  for (const channelId of tracked) {
+    const id = String(channelId);
+    const deleted = await deleteGuildChannel(id, "Replacing tracked REC game channels for the current week schedule.");
+    if (deleted) deletedIds.push(id);
+  }
+  if (deletedIds.length) await markTrackedGameChannelsDeleted(deletedIds);
+
+  const week = await getAdvanceWeekGames(guildId);
+  const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
+
+  const created: Array<{ gameId: string; discordChannelId: string; name: string }> = [];
+  for (const game of h2hGames) {
+    const name = `wk-${week.currentWeek}-${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
+    const channel = await createGuildChannel(guildId, { name, type: "text", parentChannelId: categoryId });
+    await registerGameChannel({
+      guildId,
+      gameId: game.gameId,
+      discordChannelId: channel.id,
+      seasonNumber: week.seasonNumber,
+      weekNumber: week.currentWeek,
+      awayTeamId: game.awayTeamId,
+      homeTeamId: game.homeTeamId,
+      awayUserId: game.awayUserId,
+      homeUserId: game.homeUserId,
+    });
+    created.push({ gameId: game.gameId, discordChannelId: channel.id, name: channel.name });
+  }
+
+  return { created, deleted: deletedIds.length, eligible: h2hGames.length };
 }

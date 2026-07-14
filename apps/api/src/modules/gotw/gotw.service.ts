@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 
 const GOTW_CORRECT_GUESS_PAYOUT = 25;
 
@@ -121,6 +122,10 @@ export async function settleGotwPoll(input: {
     .eq("league_id", context.leagueId)
     .single();
   if (pollErr || !poll) throw new ApiError(404, "GOTW poll not found.", pollErr);
+  // Settlement can be triggered from more than one place (box-score approval, manual score
+  // entry, advance completion) for the same game — settle exactly once so correct-pick
+  // payouts never get issued twice.
+  if (poll.status === "settled") return { settled: true, payouts: 0, losses: 0 };
 
   const { data: storedVotes, error: votesErr } = await supabase
     .from("rec_game_of_week_votes")
@@ -265,4 +270,50 @@ export async function getGotwGameResult(input: {
     .limit(1);
 
   return data?.[0] ?? null;
+}
+
+// Every bowl game and the national championship are automatic GOTW games in CFB leagues —
+// called both right after a commissioner flags a game in the schedule builder, and for the
+// new week's games as part of completing an advance (so pre-flagged games still get a poll
+// even if nobody visited the schedule builder again after the flip).
+export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber: number }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+
+  const games = await supabase
+    .from("rec_games")
+    .select("id,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)")
+    .eq("league_id", context.leagueId)
+    .eq("week_number", input.weekNumber)
+    .or("is_bowl_game.eq.true,is_national_championship.eq.true");
+  if (games.error) throw new ApiError(500, "Failed to load flagged postseason games.", games.error);
+  const flagged = (games.data ?? []).filter((g: any) => g.home_team_id && g.away_team_id);
+  if (!flagged.length) return { created: 0 };
+
+  const existing = await supabase
+    .from("rec_game_of_week_polls")
+    .select("game_id")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", input.weekNumber);
+  if (existing.error) throw new ApiError(500, "Failed to check existing GOTW polls.", existing.error);
+  const existingGameIds = new Set((existing.data ?? []).map((row: any) => row.game_id));
+
+  let created = 0;
+  for (const game of flagged as any[]) {
+    if (existingGameIds.has(game.id)) continue;
+    await createGotwPoll({
+      guildId: input.guildId,
+      gameId: game.id,
+      awayTeamId: game.away_team_id,
+      homeTeamId: game.home_team_id,
+      awayUserId: game.away_user_id ?? null,
+      homeUserId: game.home_user_id ?? null,
+      awayTeamName: formatTeamDisplayName(game.away_team) ?? "Away",
+      homeTeamName: formatTeamDisplayName(game.home_team) ?? "Home",
+      weekNumber: input.weekNumber,
+    });
+    created += 1;
+  }
+  return { created };
 }

@@ -14,6 +14,9 @@ import type {
   DeleteLeagueResult,
   DivisionWinnerOptions,
   EosAwardPoll,
+  GotwPollStatus,
+  PendingEosLedgers,
+  RecPayoutTier,
   LeagueHeaderSummary,
   LeagueIdentitiesResponse,
   LinkedRosterEntry,
@@ -324,9 +327,10 @@ export const recApi = {
   createLeague: (input: { guildId: string; name: string; game: string; leagueType?: string; activeRostersEnabled?: boolean }) =>
     recApiFetch<{ league: { id: string; name: string }; defaultTeams: unknown[] }>("/v1/setup/league/create", { method: "POST", body: JSON.stringify(input) }),
 
-  // Advance (Phase 2) — GOTW polls, game-channel creation, @everyone announcements, and
-  // actual DM delivery stay Discord-only (they need the live bot process); everything below
-  // is the pure-data subset of Advance Week that doesn't.
+  // Advance — the web is now the sole advance surface (there is no Discord advance wizard
+  // any more). completeAdvanceWeek triggers every side effect the old wizard used to:
+  // GOTW settlement, EOS auto-trigger, the Weekly Submissions panel refresh, and the
+  // @everyone announcement, all server-side via Discord's REST API.
   getAdvanceWeekGames: (guildId: string) =>
     recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[] }) =>
@@ -337,6 +341,30 @@ export const recApi = {
     recApiFetch<unknown>("/v1/league-week/division-winners", { method: "POST", body: JSON.stringify({ ...input, selectedByDiscordId: "web-dashboard" }) }),
   setNextAdvanceTime: (input: { guildId: string; year: number; month: number; day: number; hour: number; minute: number; tzLabel: string }) =>
     recApiFetch<unknown>("/v1/league-week/set-next-advance", { method: "POST", body: JSON.stringify(input) }),
+  setGamePostseasonFlags: (input: { guildId: string; gameId: string; isBowlGame: boolean; isNationalChampionship: boolean }) =>
+    recApiFetch<unknown>("/v1/league-week/games/postseason-flags", { method: "POST", body: JSON.stringify(input) }),
+
+  // Game channels — creates (and replaces last week's) Discord game channels for the
+  // current week's H2H matchups.
+  createGameChannelsForCurrentWeek: (guildId: string) =>
+    recApiFetch<{ created: Array<{ gameId: string; discordChannelId: string; name: string }>; deleted: number; eligible: number }>("/v1/game-channels/create-current-week", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  // GOTW — commissioner assigns a game from League Mgmt; voting/closing live on the Hub
+  // matchup page.
+  listGotwPollsForWeek: (input: { guildId: string; weekNumber: number }) =>
+    recApiFetch<{ polls: GotwPollStatus[] }>("/v1/gotw/poll/active-all", { method: "POST", body: JSON.stringify(input) }),
+  assignGotwPoll: (input: { guildId: string; gameId: string; awayTeamId: string; homeTeamId: string; awayUserId?: string | null; homeUserId?: string | null; awayTeamName: string; homeTeamName: string; weekNumber: number }) =>
+    recApiFetch<{ pollId: string }>("/v1/gotw/poll/create", { method: "POST", body: JSON.stringify(input) }),
+
+  // EOS Payouts — Pending Payouts inbox.
+  listPendingEosLedgers: (guildId: string) =>
+    recApiFetch<PendingEosLedgers>("/v1/league-week/eos-payouts/pending", { method: "POST", body: JSON.stringify({ guildId }) }),
+  adjustEosPayoutItem: (input: { guildId: string; itemId: string; tier: RecPayoutTier | null }) =>
+    recApiFetch<{ item: unknown }>("/v1/league-week/eos-payouts/adjust-item", { method: "POST", body: JSON.stringify(input) }),
+  reviewEosLedger: (input: { guildId: string; batchId: string; userId: string; action: "approve" | "deny"; deniedReason?: string | null }) =>
+    recApiFetch<{ totalAmount: number }>("/v1/league-week/eos-payouts/review-user", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  wipeAndRerunEosPayouts: (input: { guildId: string; reason: string }) =>
+    recApiFetch<unknown>("/v1/league-week/eos-payouts/wipe-rerun", { method: "POST", body: JSON.stringify(input) }),
 
   // Commissioner Chat + Voting
   listChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { CommissionerNotification, CommissionerNotificationType, CompletedCommissionerTransaction } from "../../../types/api.js";
@@ -23,6 +24,7 @@ const ALL_TYPES = Object.keys(TYPE_LABELS) as CommissionerNotificationType[];
 
 export function NotificationsHome() {
   const { guildId } = useReadyAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
@@ -49,6 +51,7 @@ export function NotificationsHome() {
   const typesPresent = new Set(notifications?.map((notification) => notification.type) ?? []);
 
   function openNotification(notification: CommissionerNotification) {
+    if (notification.type === "eos_payout") return navigate("/league-mgmt/payouts");
     if (!notification.sourceId) return setActiveResolve(notification);
     if (notification.type === "box_score") return setActiveBoxScoreId(notification.sourceId);
     if (notification.type === "active_check") return setActiveActiveCheckId(notification.sourceId);
