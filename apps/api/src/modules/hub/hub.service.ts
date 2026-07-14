@@ -17,6 +17,7 @@ const MEDIA_BUCKET = "rec-media";
 const MEDIA_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const USER_ARTICLE_PAYOUT = 100;
 const INTERVIEW_PAYOUT = 50;
+export const STREAM_VIEWER_COOKIE = "rec_stream_viewer";
 
 const INTERVIEW_CONTEXTS = [
   "Pregame", "Postgame", "Rivalry Week", "Upset Watch", "Playoff Push",
@@ -68,6 +69,14 @@ async function activeAssignment(leagueId: string, userId: string) {
     .maybeSingle();
   if (assignment.error) throw new ApiError(500, "Failed to load team assignment.", assignment.error);
   return assignment.data ?? null;
+}
+
+function streamWatchPath(streamLogId: string) {
+  return `/v1/hub/streams/open/${streamLogId}`;
+}
+
+function missingRelation(error: any, tableName: string) {
+  return error?.code === "42P01" || JSON.stringify(error ?? {}).includes(tableName);
 }
 
 async function currentH2hOpponent(guildId: string, leagueId: string, userId: string) {
@@ -274,6 +283,24 @@ export async function getHub(guildId: string, discordId: string) {
   if (storyReactions.error || storyComments.error || gameReactions.error) throw new ApiError(500, "Failed to load Hub discussion activity.", storyReactions.error ?? storyComments.error ?? gameReactions.error);
 
   const hydratedHighlights = await Promise.all(shuffled(highlights.data ?? []).map(async (item: any) => ({ ...item, videoUrl: await refreshDiscordMediaUrl(item) })));
+  const currentStreamLogs = await supabase
+    .from("rec_stream_compliance_logs")
+    .select("id,user_id,team_id,message_url,posted_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", Number(context.rec_leagues.current_week ?? 1))
+    .eq("status", "posted")
+    .not("message_url", "is", null)
+    .order("posted_at", { ascending: false })
+    .limit(16);
+  if (currentStreamLogs.error) throw new ApiError(500, "Failed to load live streams.", currentStreamLogs.error);
+  const streamLogIds = (currentStreamLogs.data ?? []).map((stream: any) => stream.id);
+  const [streamViews, streamReactions] = await Promise.all([
+    streamLogIds.length ? supabase.from("rec_stream_views").select("stream_log_id").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
+    streamLogIds.length ? supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (streamViews.error && !missingRelation(streamViews.error, "rec_stream_views")) throw new ApiError(500, "Failed to load stream engagement.", streamViews.error);
+  if (streamReactions.error && !missingRelation(streamReactions.error, "rec_stream_reactions")) throw new ApiError(500, "Failed to load stream engagement.", streamReactions.error);
 
   return {
     league: {
@@ -313,6 +340,23 @@ export async function getHub(guildId: string, discordId: string) {
       return { ...game, reactionCounts: { like: reactions.filter((reaction: any) => reaction.reaction_key === "like").length, dislike: reactions.filter((reaction: any) => reaction.reaction_key === "dislike").length }, myReaction: reactions.find((reaction: any) => reaction.user_id === userId)?.reaction_key ?? null };
     }) },
     powerRankings,
+    liveStreams: (currentStreamLogs.data ?? []).map((stream: any) => {
+      const streamRows = (streamReactions.data ?? []).filter((reaction: any) => reaction.stream_log_id === stream.id);
+      return {
+        id: stream.id,
+        url: stream.message_url,
+        watchPath: streamWatchPath(stream.id),
+        postedAt: stream.posted_at,
+        user: stream.user ?? null,
+        team: stream.team ?? null,
+        viewCount: (streamViews.data ?? []).filter((view: any) => view.stream_log_id === stream.id).length,
+        reactionCounts: {
+          like: streamRows.filter((reaction: any) => reaction.reaction_key === "like").length,
+          dislike: streamRows.filter((reaction: any) => reaction.reaction_key === "dislike").length,
+        },
+        myReaction: streamRows.find((reaction: any) => reaction.user_id === userId)?.reaction_key ?? null,
+      };
+    }),
     myTeam,
     highlights: hydratedHighlights.map((item: any) => {
       const rows = (reactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === item.id);
@@ -405,6 +449,92 @@ export async function toggleHubGameReaction(input: { guildId: string; discordId:
   if (game.error) throw new ApiError(500, "Failed to verify game.", game.error);
   if (!game.data) throw new ApiError(404, "Game not found.");
   return toggleBinaryReaction({ table: "rec_game_reactions", foreignKey: "game_id", targetId: input.gameId, userId, seasonNumber: Number(context.rec_leagues.season_number ?? 1), reactionKey: input.reactionKey });
+}
+
+export async function recordHubStreamView(input: { guildId: string; discordId: string; streamLogId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdForDiscord(input.discordId);
+  const stream = await supabase.from("rec_stream_compliance_logs").select("id,season_number,week_number").eq("id", input.streamLogId).eq("league_id", context.leagueId).maybeSingle();
+  if (stream.error) throw new ApiError(500, "Failed to verify stream.", stream.error);
+  if (!stream.data) throw new ApiError(404, "Stream not found.");
+
+  const existing = await supabase.from("rec_stream_views").select("id").eq("stream_log_id", input.streamLogId).eq("user_id", userId).limit(1);
+  if (existing.error) throw new ApiError(500, "Failed to check stream view.", existing.error);
+  if (!existing.data?.length) {
+    const inserted = await supabase.from("rec_stream_views").insert({
+      stream_log_id: input.streamLogId,
+      league_id: context.leagueId,
+      season_number: Number(stream.data.season_number),
+      week_number: Number(stream.data.week_number),
+      user_id: userId,
+      discord_id: input.discordId,
+      viewed_at: new Date().toISOString(),
+    });
+    if (inserted.error) throw new ApiError(500, "Failed to record stream view.", inserted.error);
+  }
+  const count = await supabase.from("rec_stream_views").select("id", { count: "exact", head: true }).eq("stream_log_id", input.streamLogId);
+  if (count.error) throw new ApiError(500, "Failed to count stream views.", count.error);
+  return { viewCount: count.count ?? 0 };
+}
+
+export async function recordAnonymousStreamView(input: { streamLogId: string; anonymousViewerId: string }) {
+  const stream = await supabase
+    .from("rec_stream_compliance_logs")
+    .select("id,league_id,season_number,week_number,message_url")
+    .eq("id", input.streamLogId)
+    .maybeSingle();
+  if (stream.error) throw new ApiError(500, "Failed to verify stream.", stream.error);
+  if (!stream.data?.message_url) throw new ApiError(404, "Stream not found.");
+
+  const existing = await supabase
+    .from("rec_stream_views")
+    .select("id")
+    .eq("stream_log_id", input.streamLogId)
+    .eq("anonymous_viewer_id", input.anonymousViewerId)
+    .limit(1);
+  if (existing.error) throw new ApiError(500, "Failed to check stream view.", existing.error);
+  if (!existing.data?.length) {
+    const inserted = await supabase.from("rec_stream_views").insert({
+      stream_log_id: input.streamLogId,
+      league_id: stream.data.league_id,
+      season_number: Number(stream.data.season_number),
+      week_number: Number(stream.data.week_number),
+      anonymous_viewer_id: input.anonymousViewerId,
+      viewed_at: new Date().toISOString(),
+    });
+    if (inserted.error) throw new ApiError(500, "Failed to record stream view.", inserted.error);
+  }
+  return { url: stream.data.message_url as string };
+}
+
+export async function toggleHubStreamReaction(input: { guildId: string; discordId: string; streamLogId: string; reactionKey: "like" | "dislike" }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdForDiscord(input.discordId);
+  const stream = await supabase.from("rec_stream_compliance_logs").select("id,season_number,week_number").eq("id", input.streamLogId).eq("league_id", context.leagueId).maybeSingle();
+  if (stream.error) throw new ApiError(500, "Failed to verify stream.", stream.error);
+  if (!stream.data) throw new ApiError(404, "Stream not found.");
+
+  const existing = await supabase.from("rec_stream_reactions").select("id,reaction_key").eq("stream_log_id", input.streamLogId).eq("user_id", userId).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to read stream reaction.", existing.error);
+  if (existing.data?.reaction_key === input.reactionKey) {
+    const removed = await supabase.from("rec_stream_reactions").delete().eq("id", existing.data.id);
+    if (removed.error) throw new ApiError(500, "Failed to remove stream reaction.", removed.error);
+  } else if (existing.data) {
+    const updated = await supabase.from("rec_stream_reactions").update({ reaction_key: input.reactionKey, updated_at: new Date().toISOString() }).eq("id", existing.data.id);
+    if (updated.error) throw new ApiError(500, "Failed to update stream reaction.", updated.error);
+  } else {
+    const inserted = await supabase.from("rec_stream_reactions").insert({
+      stream_log_id: input.streamLogId,
+      league_id: context.leagueId,
+      season_number: Number(stream.data.season_number),
+      week_number: Number(stream.data.week_number),
+      user_id: userId,
+      discord_id: input.discordId,
+      reaction_key: input.reactionKey,
+    });
+    if (inserted.error) throw new ApiError(500, "Failed to save stream reaction.", inserted.error);
+  }
+  return { ok: true };
 }
 
 export async function listHubStoryComments(input: { guildId: string; storyId: string }) {
@@ -647,17 +777,23 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   if (season.error) throw new ApiError(500, "Failed to load season.", season.error);
   let gamesQuery = supabase
     .from("rec_games")
-    .select("id,week_number,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference)")
+    .select("id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference)")
     .eq("league_id", context.leagueId)
     .eq("week_number", selectedWeek);
   if (season.data?.id) gamesQuery = gamesQuery.eq("season_id", season.data.id);
-  const [games, weeks, assignments, gotwPoll] = await Promise.all([
+  const [games, weeks, results, streamLogs, streamViewsForWeek, streamReactionsForWeek, assignments, gotwPoll] = await Promise.all([
     gamesQuery,
     supabase.from("rec_games").select("week_number").eq("league_id", context.leagueId).order("week_number", { ascending: true }),
+    supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score,is_tie,winning_team_id,source").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
+    supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").order("posted_at", { ascending: false }),
+    supabase.from("rec_stream_views").select("stream_log_id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
+    supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_team_assignments").select("user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(display_name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
     supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
-  if (games.error || weeks.error || assignments.error || gotwPoll.error) throw new ApiError(500, "Failed to load matchup schedule.", games.error ?? weeks.error ?? assignments.error ?? gotwPoll.error);
+  if (games.error || weeks.error || results.error || streamLogs.error || assignments.error || gotwPoll.error) throw new ApiError(500, "Failed to load matchup schedule.", games.error ?? weeks.error ?? results.error ?? streamLogs.error ?? assignments.error ?? gotwPoll.error);
+  if (streamViewsForWeek.error && !missingRelation(streamViewsForWeek.error, "rec_stream_views")) throw new ApiError(500, "Failed to load stream views.", streamViewsForWeek.error);
+  if (streamReactionsForWeek.error && !missingRelation(streamReactionsForWeek.error, "rec_stream_reactions")) throw new ApiError(500, "Failed to load stream reactions.", streamReactionsForWeek.error);
   const poll = gotwPoll.data ?? null;
   const voteRows = poll
     ? await supabase.from("rec_game_of_week_votes").select("selected_team_id,discord_id").eq("poll_id", poll.id)
@@ -677,8 +813,30 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     list.push({ userId: row.user_id, displayName: user?.display_name ?? "REC Member", teamName: team?.name ?? team?.abbreviation ?? "Team", division: team?.division ?? null });
     usersByConference.set(conference, list);
   }
-  const weekNumbers = [...new Set<number>((weeks.data ?? []).map((row: any) => Number(row.week_number)).filter((week: number) => Number.isFinite(week)))].sort((a: number, b: number) => a - b);
-  if (!weekNumbers.includes(0)) weekNumbers.unshift(0);
+  const minimumMaxWeek = Math.max(14, currentWeek);
+  const weekNumbers = [...new Set<number>([
+    ...Array.from({ length: minimumMaxWeek + 1 }, (_, week) => week),
+    ...(weeks.data ?? []).map((row: any) => Number(row.week_number)).filter((week: number) => Number.isFinite(week)),
+  ])].sort((a: number, b: number) => a - b);
+  const resultByTeams = new Map<string, any>();
+  for (const result of results.data ?? []) {
+    if (result.home_team_id && result.away_team_id) resultByTeams.set(`${result.home_team_id}:${result.away_team_id}`, result);
+  }
+  const streamByUser = new Map<string, any>();
+  for (const stream of streamLogs.data ?? []) {
+    if (stream.user_id && stream.message_url && !streamByUser.has(stream.user_id)) streamByUser.set(stream.user_id, stream);
+  }
+  const streamEngagement = (stream: any) => {
+    const reactions = (streamReactionsForWeek.data ?? []).filter((reaction: any) => reaction.stream_log_id === stream.id);
+    return {
+      viewCount: (streamViewsForWeek.data ?? []).filter((view: any) => view.stream_log_id === stream.id).length,
+      reactionCounts: {
+        like: reactions.filter((reaction: any) => reaction.reaction_key === "like").length,
+        dislike: reactions.filter((reaction: any) => reaction.reaction_key === "dislike").length,
+      },
+      myReaction: reactions.find((reaction: any) => reaction.user_id === userId)?.reaction_key ?? null,
+    };
+  };
   return {
     currentWeek,
     selectedWeek,
@@ -696,17 +854,34 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       homeVotes: gotwCounts.home,
       myVote: myGotwVote,
     } : null,
-    games: (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => ({
-      gameId: game.id,
-      weekNumber: Number(game.week_number),
-      matchupType: game.home_user_id && game.away_user_id ? "h2h" : "cpu",
-      involvesMe: game.home_user_id === userId || game.away_user_id === userId,
-      isGameOfWeek: poll?.game_id === game.id,
-      homeTeamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
-      awayTeamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away",
-      homeConference: game.home_team?.conference ?? null,
-      awayConference: game.away_team?.conference ?? null,
-    })).sort((a: any, b: any) => Number(b.involvesMe) - Number(a.involvesMe) || Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName)),
+    games: (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => {
+      const result = resultByTeams.get(`${game.home_team?.id}:${game.away_team?.id}`) ?? null;
+      const homeScore = result?.home_score ?? game.home_score ?? null;
+      const awayScore = result?.away_score ?? game.away_score ?? null;
+      const isFinal = Boolean(result) || ["final", "completed", "played"].includes(String(game.status ?? "").toLowerCase()) || (homeScore != null && awayScore != null && selectedWeek < currentWeek);
+      const showStreams = !isFinal && game.home_user_id && game.away_user_id;
+      const homeStream = showStreams ? streamByUser.get(game.home_user_id) ?? null : null;
+      const awayStream = showStreams ? streamByUser.get(game.away_user_id) ?? null : null;
+      return {
+        gameId: game.id,
+        weekNumber: Number(game.week_number),
+        matchupType: game.home_user_id && game.away_user_id ? "h2h" : "cpu",
+        involvesMe: game.home_user_id === userId || game.away_user_id === userId,
+        isGameOfWeek: poll?.game_id === game.id,
+        homeTeamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
+        awayTeamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away",
+        homeConference: game.home_team?.conference ?? null,
+        awayConference: game.away_team?.conference ?? null,
+        homeScore,
+        awayScore,
+        isFinal,
+        winnerTeamId: result?.winning_team_id ?? null,
+        streams: [
+          awayStream ? { side: "away", userId: game.away_user_id, teamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away", streamLogId: awayStream.id, url: awayStream.message_url, watchPath: streamWatchPath(awayStream.id), postedAt: awayStream.posted_at ?? null, ...streamEngagement(awayStream) } : null,
+          homeStream ? { side: "home", userId: game.home_user_id, teamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,
+        ].filter(Boolean),
+      };
+    }).sort((a: any, b: any) => Number(b.involvesMe) - Number(a.involvesMe) || Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName)),
   };
 }
 

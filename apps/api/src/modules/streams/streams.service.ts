@@ -163,6 +163,8 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     needsReview: true,
     review: review.data,
     streamLog: streamLog.data,
+    watchPath: `/v1/hub/streams/open/${streamLog.data.id}`,
+    pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
     commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
     compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null
   };

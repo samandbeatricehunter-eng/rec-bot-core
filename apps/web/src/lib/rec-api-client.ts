@@ -88,6 +88,10 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/hub/highlights/react", { method: "POST", body: JSON.stringify(input) }),
   recordHubHighlightView: (input: { guildId: string; highlightId: string }) =>
     recApiFetch<{ viewCount: number }>("/v1/hub/highlights/view", { method: "POST", body: JSON.stringify(input) }),
+  recordHubStreamView: (input: { guildId: string; streamLogId: string }) =>
+    recApiFetch<{ viewCount: number }>("/v1/hub/streams/view", { method: "POST", body: JSON.stringify(input) }),
+  toggleHubStreamReaction: (input: { guildId: string; streamLogId: string; reactionKey: "like" | "dislike" }) =>
+    recApiFetch<{ ok: true }>("/v1/hub/streams/react", { method: "POST", body: JSON.stringify(input) }),
   publishHubAnnouncement: (input: { guildId: string; title: string; body: string }) =>
     recApiFetch<{ recorded: true }>("/v1/hub/announcements/publish", { method: "POST", body: JSON.stringify(input) }),
   publishHubStory: (input: { guildId: string; headline: string; body: string; storyType: "headline" | "article" }) =>

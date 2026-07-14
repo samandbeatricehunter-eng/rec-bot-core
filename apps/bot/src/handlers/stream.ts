@@ -1,4 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type ButtonInteraction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction, type TextChannel } from "discord.js";
+import { env } from "../config/env.js";
 import { recApi } from "../lib/rec-api.js";
 import { buildStreamLinkModal, buildStreamRows, STREAM_CUSTOM_IDS } from "../ui/menu.js";
 
@@ -20,6 +21,8 @@ function scheduleMatchup(schedule: any) {
     weekNumber: game.weekNumber ?? leagueWeek,
     awayTeamName: game.awayTeamName ?? "Away",
     homeTeamName: game.homeTeamName ?? "Home",
+    awayUserId: game.awayUserId ?? null,
+    homeUserId: game.homeUserId ?? null,
     matchupType: game.isH2h ? "H2H" : "CPU",
     userTeamName: schedule?.team?.name ?? null
   };
@@ -27,7 +30,7 @@ function scheduleMatchup(schedule: any) {
 
 function matchupTitle(matchup: any) {
   if (!matchup) return "Week ? - Stream";
-  return `Week ${matchup.weekNumber ?? "?"} - ${matchup.awayTeamName} VS ${matchup.homeTeamName} (${matchup.matchupType ?? "CPU"})`;
+  return `Week ${matchup.weekNumber ?? "?"} - ${matchup.awayTeamName} vs ${matchup.homeTeamName}`;
 }
 
 function boldUserTeam(matchup: any) {
@@ -102,13 +105,26 @@ function firstLink(content: string) {
   return content.match(/https?:\/\/\S+/i)?.[0] ?? null;
 }
 
+async function matchupMentions(guildId: string, matchup: any) {
+  const identities = await recApi.getLeagueIdentities(guildId).catch(() => null);
+  const byUserId = new Map((identities?.users ?? []).map((user: any) => [user.userId, user.discordId]));
+  const away = matchup?.awayUserId ? byUserId.get(matchup.awayUserId) : null;
+  const home = matchup?.homeUserId ? byUserId.get(matchup.homeUserId) : null;
+  return {
+    away: away ? `<@${away}>` : null,
+    home: home ? `<@${home}>` : null,
+  };
+}
+
 export async function handleStreamChannelMessage(message: Message) {
   if (!message.guildId || message.author.bot) return false;
-  const link = firstLink(message.content);
-  if (!link) return false;
-
   const config = await recApi.getEconomyConfig(message.guildId).catch(() => null);
   if (message.channelId !== config?.routes?.streams_channel_id) return false;
+  const link = firstLink(message.content);
+  if (!link) {
+    await message.delete().catch(() => undefined);
+    return true;
+  }
 
   const schedule = await recApi.getUserSchedule(message.author.id, message.guildId).catch(() => null);
   const matchup = schedule?.isLinked ? scheduleMatchup(schedule) : null;
@@ -125,6 +141,26 @@ export async function handleStreamChannelMessage(message: Message) {
     console.warn("Failed to record stream channel post", { guildId: message.guildId, channelId: message.channelId, messageId: message.id, error });
     return null;
   });
+  await postPendingReviewFromMessage(message, streamResult, streamResult?.streamLog?.message_url ?? link, streamResult?.matchup ?? matchup);
+  if (streamResult?.watchPath) {
+    const mentions = await matchupMentions(message.guildId, matchup);
+    const watchUrl = `${env.REC_CORE_API_URL}${streamResult.watchPath}`;
+    await message.delete().catch(() => undefined);
+    if (!message.channel.isSendable()) return true;
+    await message.channel.send({
+      content: "@everyone",
+      embeds: [new EmbedBuilder()
+        .setTitle(matchupTitle(matchup))
+        .setDescription([
+          [mentions.away, mentions.home].filter(Boolean).join(" vs "),
+          "",
+          `[WATCH STREAM](${watchUrl})`,
+          "",
+          "Views are tracked through this REC watch link."
+        ].filter(Boolean).join("\n"))],
+      allowedMentions: { parse: ["everyone"], users: [mentions.away, mentions.home].filter(Boolean).map((mention) => mention!.replace(/[<@>]/g, "")) }
+    }).catch(() => undefined);
+  }
 
   return true;
 }
@@ -213,6 +249,7 @@ async function submitStream(interaction: StringSelectMenuInteraction | ModalSubm
     : streamResult?.needsReview
       ? "Your stream was posted and sent to commissioners for a **$50** payout review. You'll be paid and notified once it's approved."
       : "Your stream was posted.";
+  await postPendingReview(interaction, streamResult, streamResult?.matchup ?? matchup);
 
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Stream Submitted").setDescription(status)],

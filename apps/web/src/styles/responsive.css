@@ -82,10 +82,13 @@
   .hub-hero { width: 100%; min-height: 0; flex-direction: column; align-items: stretch; padding: var(--space-5); border-radius: 14px; }
   .hub-hero h1 { font-size: 38px; }
   .hub-manage-button { width: 100%; }
-  .hub-tabs { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: var(--radius-lg); }
-  .hub-tabs button { min-width: 0; padding: var(--space-3); }
-  .hub-subtabs { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: stretch; border-radius: var(--radius-lg); }
+  .hub-tabs { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: 18px; gap: 8px; padding: 8px; }
+  .hub-tabs button, .hub-tabs a { min-width: 0; padding: var(--space-3); border-radius: 14px; white-space: normal; }
+  .hub-subtabs { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: 18px; gap: 8px; padding: 8px; }
   .hub-subtabs button { justify-content: center; min-width: 0; padding: var(--space-3) var(--space-2); }
+  .hub-week-strip { display: none; }
+  .hub-week-select { display: grid; gap: var(--space-1); margin-bottom: var(--space-4); }
+  .hub-week-select span { color: var(--gold); font-size: var(--text-xs); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
   .hub-section { padding: var(--space-4); }
   .hub-highlight-carousel { padding: 0 0 58px; }
   .hub-highlight-arrow { top: auto; bottom: 0; }
@@ -98,5 +101,8 @@
   .hub-profile-panel, .hub-profile-sections summary { text-align: center; }
   .hub-profile-sections summary, .box-score-review__actions { justify-content: center; }
   .box-score-review__stat-head, .box-score-review__stat-row { grid-template-columns: minmax(110px, 1.2fr) repeat(2, minmax(68px, 1fr)); }
-  .hub-matchups article { align-items: flex-start; flex-direction: column; }
+  .hub-matchups article { align-items: stretch; flex-direction: column; text-align: left; }
+  .hub-matchups article > div { justify-content: flex-start; }
+  .hub-live-streams span { grid-template-columns: minmax(0, 1fr) auto; }
+  .hub-live-streams span button { justify-content: center; }
 }

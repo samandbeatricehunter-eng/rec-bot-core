@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
@@ -16,16 +17,24 @@ import {
   publishHubStory,
   recordHubAnnouncement,
   recordHubHighlightView,
+  recordHubStreamView,
+  recordAnonymousStreamView,
   reviewMediaSubmission,
+  STREAM_VIEWER_COOKIE,
   submitInterview,
   submitUserMediaArticle,
   toggleHubGameReaction,
   toggleHubHighlightReaction,
+  toggleHubStreamReaction,
   toggleHubStoryReaction,
   voteGameOfWeek,
 } from "./hub.service.js";
 
 const ImageUrl = z.string().url().optional().nullable();
+
+function cookieValue(cookieHeader: string | undefined, name: string) {
+  return cookieHeader?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1) ?? null;
+}
 
 export async function hubRoutes(app: FastifyInstance) {
   app.post("/v1/hub/view", async (request, reply) => {
@@ -113,6 +122,35 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "bot") throw new ApiError(400, "League stories require a commissioner session.");
       return reply.send(await publishHubStory({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/streams/view", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), streamLogId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Stream views require a user session.");
+      return reply.send(await recordHubStreamView({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/streams/react", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), streamLogId: z.string().uuid(), reactionKey: z.enum(["like", "dislike"]) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Stream reactions require a user session.");
+      return reply.send(await toggleHubStreamReaction({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.get("/v1/hub/streams/open/:streamLogId", async (request, reply) => {
+    try {
+      const { streamLogId } = z.object({ streamLogId: z.string().uuid() }).parse(request.params);
+      const existingViewer = cookieValue(request.headers.cookie, STREAM_VIEWER_COOKIE);
+      const viewerId = existingViewer && /^[a-f0-9-]{36}$/i.test(existingViewer) ? existingViewer : randomUUID();
+      const result = await recordAnonymousStreamView({ streamLogId, anonymousViewerId: viewerId });
+      reply.header("set-cookie", `${STREAM_VIEWER_COOKIE}=${viewerId}; Path=/; Max-Age=31536000; SameSite=Lax; Secure; HttpOnly`);
+      return reply.redirect(result.url);
     } catch (error) { return sendError(reply, error); }
   });
 

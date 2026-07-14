@@ -189,6 +189,45 @@ export function HubHome() {
       setHub((current) => current ? { ...current, highlights: current.highlights.map((highlight) => highlight.id === highlightId ? { ...highlight, viewCount: result.viewCount } : highlight) } : current);
     } catch { viewedHighlights.current.delete(highlightId); }
   }
+
+  async function recordStreamClick(streamLogId: string) {
+    if (auth.status !== "ready") return;
+    try {
+      const result = await recApi.recordHubStreamView({ guildId: auth.guildId, streamLogId });
+      setHub((current) => current ? {
+        ...current,
+        liveStreams: current.liveStreams.map((stream) => stream.id === streamLogId ? { ...stream, viewCount: result.viewCount } : stream),
+      } : current);
+      setMatchupSchedule((current) => current ? {
+        ...current,
+        games: current.games.map((game) => ({
+          ...game,
+          streams: game.streams.map((stream) => stream.streamLogId === streamLogId ? { ...stream, viewCount: result.viewCount } : stream),
+        })),
+      } : current);
+    } catch {}
+  }
+
+  async function streamReact(streamLogId: string, reactionKey: "like" | "dislike") {
+    if (auth.status !== "ready") return;
+    const updateStream = <T extends { streamLogId?: string; id?: string; myReaction: "like" | "dislike" | null; reactionCounts: { like: number; dislike: number } }>(stream: T): T => {
+      const id = stream.streamLogId ?? stream.id;
+      if (id !== streamLogId) return stream;
+      const previous = stream.myReaction;
+      const counts = { ...stream.reactionCounts };
+      if (previous === reactionKey) {
+        counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
+        return { ...stream, myReaction: null, reactionCounts: counts };
+      }
+      if (previous) counts[previous] = Math.max(0, counts[previous] - 1);
+      counts[reactionKey] += 1;
+      return { ...stream, myReaction: reactionKey, reactionCounts: counts };
+    };
+    setHub((current) => current ? { ...current, liveStreams: current.liveStreams.map(updateStream) } : current);
+    setMatchupSchedule((current) => current ? { ...current, games: current.games.map((game) => ({ ...game, streams: game.streams.map(updateStream) })) } : current);
+    try { await recApi.toggleHubStreamReaction({ guildId: auth.guildId, streamLogId, reactionKey }); }
+    catch { if (matchupSchedule) setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek })); await load(); }
+  }
   function openStory(index: number) { setActiveStoryIndex(index); }
   function closeStory() { setActiveStoryIndex(null); setComments(null); }
   async function submitComment() {
@@ -371,13 +410,14 @@ export function HubHome() {
   const activeStory = activeStoryIndex != null ? hub.headlines[activeStoryIndex] ?? null : null;
   const openTeamsByConference = (openTeams ?? []).reduce<Record<string, OpenTeam[]>>((groups, team) => {
     const conference = team.conference || "Other";
-    (groups[conference] ??= []).push(team);
+        (groups[conference] ??= []).push(team);
     return groups;
   }, {});
+  const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
 
   return <div className="hub-page">
-    <section className="hub-hero"><div><p className="hub-eyebrow">Season {hub.league.seasonNumber} · Week {hub.league.weekNumber}</p><h1>{hub.league.name}</h1><p>{String(hub.league.game ?? "League").replaceAll("_", " ")} · {String(hub.league.seasonStage).replaceAll("_", " ")}</p></div>{hub.canManageLeague && <Link className="btn btn-primary hub-manage-button" to="/league-mgmt"><ShieldCheck size={18} /> League Management</Link>}</section>
-    <nav className="hub-tabs"><button className={tab === "league" ? "active" : ""} onClick={() => setTab("league")}><Trophy size={18} /> League</button><button onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button><button className={tab === "media" ? "active" : ""} onClick={() => setTab("media")}><Mic size={18} /> Media</button><button className={tab === "store" ? "active" : ""} onClick={() => setTab("store")}><ShoppingBag size={18} /> Store</button><button className={tab === "team" ? "active" : ""} onClick={() => setTab("team")}><UserRound size={18} /> My Team</button></nav>
+    <section className="hub-hero"><div><p className="hub-eyebrow">Season {hub.league.seasonNumber} · Week {hub.league.weekNumber}</p><h1>{hub.league.name}</h1><p>{String(hub.league.game ?? "League").replaceAll("_", " ")} · {String(hub.league.seasonStage).replaceAll("_", " ")}</p></div></section>
+    <nav className={`hub-tabs ${hub.canManageLeague ? "with-management" : "with-live-games"}`}><button className={tab === "league" ? "active" : ""} onClick={() => setTab("league")}><Trophy size={18} /> League</button><button onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button><button className={tab === "media" ? "active" : ""} onClick={() => setTab("media")}><Mic size={18} /> Media</button><button className={tab === "store" ? "active" : ""} onClick={() => setTab("store")}><ShoppingBag size={18} /> Store</button><button className={tab === "team" ? "active" : ""} onClick={() => setTab("team")}><UserRound size={18} /> My Team</button>{hub.canManageLeague ? <Link className="hub-management-tab" to="/league-mgmt"><ShieldCheck size={18} /> League Mgmt</Link> : <button className={hub.liveStreams?.length ? "hub-live-tab live" : "hub-live-tab"} onClick={() => { setTab("league"); setSubTab("matchups"); }}><Play size={18} /> Live Games</button>}</nav>
 
     {tab === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div><div className="hub-stat-grid">
       <article><span>Coach</span><strong>{my.discordUsername ?? "REC Member"}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></article><article><span>Savings</span><strong>${Number(my.savings ?? 0).toLocaleString()}</strong></article>
@@ -518,7 +558,10 @@ export function HubHome() {
         <SectionFrame eyebrow="Current slate" title="Weekly H2H Matchups">
           {!matchupSchedule ? <p className="hub-empty">Loading matchups...</p> : <>
             <div className="hub-conference-users">{matchupSchedule.usersByConference.map((group) => <article key={group.conference}><h3>{group.conference}</h3><div>{group.users.map((user) => <span key={user.userId}><strong>{user.teamName}</strong><small>{user.displayName}{user.division ? ` · ${user.division}` : ""}</small></span>)}</div></article>)}</div>
-            <div className="hub-week-strip">{matchupSchedule.weekNumbers.map((week) => <button key={week} className={week === matchupSchedule.selectedWeek ? "active" : week === matchupSchedule.currentWeek ? "current" : ""} onClick={() => setMatchupWeek(week)}>W{week}</button>)}</div>
+            <div className="hub-week-picker">
+              <div className="hub-week-strip">{matchupSchedule.weekNumbers.map((week) => <button key={week} className={week === matchupSchedule.selectedWeek ? "active" : week === matchupSchedule.currentWeek ? "current" : ""} onClick={() => setMatchupWeek(week)}>Week {week}</button>)}</div>
+              <label className="hub-week-select"><span>Week</span><select className="form-input" value={matchupSchedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{matchupSchedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === matchupSchedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
+            </div>
             {matchupSchedule.gotw && (() => {
               const totalVotes = matchupSchedule.gotw.awayVotes + matchupSchedule.gotw.homeVotes;
               const awayPct = totalVotes ? Math.round((matchupSchedule.gotw.awayVotes / totalVotes) * 100) : 50;
@@ -527,7 +570,7 @@ export function HubHome() {
             })()}
             {matchupSchedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{matchupSchedule.games.map((game) => (
               <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
-                <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong><small>{[game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
+                <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong><small>{[game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small>{game.isFinal && game.awayScore != null && game.homeScore != null && <b className="hub-final-score">Final: {game.awayScore} - {game.homeScore}</b>}{game.streams.length > 0 && <div className="hub-live-streams"><strong>LIVE! TUNE IN!</strong>{game.streams.map((stream) => <span key={stream.streamLogId}><a href={`${apiBaseUrl}${stream.watchPath}`} target="_blank" rel="noreferrer">{stream.teamName} stream</a><small>{stream.viewCount} views</small><button className={stream.myReaction === "like" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "like")}><ThumbsUp size={13} /> {stream.reactionCounts.like}</button><button className={stream.myReaction === "dislike" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "dislike")}><ThumbsDown size={13} /> {stream.reactionCounts.dislike}</button></span>)}</div>}</div>
                 <div className="hub-matchup-actions">{game.matchupType === "h2h" && <StatusChip status="info" label={game.involvesMe ? "Your game" : "User matchup"} />}<Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button></div>
               </article>
             ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {matchupSchedule.selectedWeek}.</p>}

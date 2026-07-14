@@ -308,6 +308,7 @@ export type HubResponse = {
   matchups: WeeklyH2hGamesResponse;
   myTeam: any;
   powerRankings: null | { completedWeekNumber: number | null; hasPreviousWeek: boolean; teams: Array<{ teamId: string; teamName: string; abbr: string | null; isHuman: boolean; rank: number; score: number; prevRank: number | null; change: number | null }> };
+  liveStreams: Array<{ id: string; url: string; watchPath: string; postedAt: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   highlights: Array<{
     id: string; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
     videoUrl: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
@@ -351,7 +352,22 @@ export type HubMatchupSchedule = {
   weekNumbers: number[];
   usersByConference: Array<{ conference: string; users: Array<{ userId: string; displayName: string; teamName: string; division: string | null }> }>;
   gotw: null | { pollId: string; gameId: string; status: "open" | "closed"; awayTeamId: string; homeTeamId: string; awayTeamName: string; homeTeamName: string; awayVotes: number; homeVotes: number; myVote: string | null };
-  games: Array<{ gameId: string; weekNumber: number; matchupType: "h2h" | "cpu"; involvesMe: boolean; isGameOfWeek: boolean; homeTeamName: string; awayTeamName: string; homeConference: string | null; awayConference: string | null }>;
+  games: Array<{
+    gameId: string;
+    weekNumber: number;
+    matchupType: "h2h" | "cpu";
+    involvesMe: boolean;
+    isGameOfWeek: boolean;
+    homeTeamName: string;
+    awayTeamName: string;
+    homeConference: string | null;
+    awayConference: string | null;
+    homeScore: number | null;
+    awayScore: number | null;
+    isFinal: boolean;
+    winnerTeamId: string | null;
+    streams: Array<{ side: "away" | "home"; userId: string; teamName: string; streamLogId: string; url: string; watchPath: string; postedAt: string | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
+  }>;
 };
 
 export type WagerOptionsResponse = {
