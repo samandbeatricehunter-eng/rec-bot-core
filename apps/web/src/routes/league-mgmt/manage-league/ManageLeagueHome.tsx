@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Shield, UserPlus, Users } from "lucide-react";
+import { BarChart3, ChevronRight, Shield, UserPlus, Users } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -107,6 +107,7 @@ export function ManageLeagueHome() {
             <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/roles")}>
               <Shield size={16} /> Manage Roles
             </Button>
+            <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
           </div>
         }
       />

@@ -553,6 +553,10 @@ export const recApi = {
     recFetch<{ submissionId: string; imageStorageUrl: string | null; imageCount: number }>("/v1/box-score/append-image", { method: "POST", body: JSON.stringify(input) }),
   submitPlayerStatLine: (input: { guildId: string; discordId: string; playerName: string; category: string; statLines: Array<{ statKey: string; label: string; value: number }> }) => recFetch<any>("/v1/watched-players/submit-stat-line", { method: "POST", body: JSON.stringify(input) }),
   listMyWatchedPlayers: (input: { guildId: string; discordId: string }) => recFetch<{ players: Array<{ id: string; playerName: string; position: string }> }>("/v1/watched-players/my-list", { method: "POST", body: JSON.stringify(input) }),
+  removeMyPlayerStatLine:(input:{guildId:string;discordId:string;playerName:string;category:string})=>recFetch<any>("/v1/watched-players/remove-stat-line",{method:"POST",body:JSON.stringify(input)}),
+  getGuideMessageState: (guildId: string) => recFetch<{ messages: Array<{ section_index: number; discord_channel_id: string; discord_message_id: string }> }>("/v1/submission-state/guide/get", { method: "POST", body: JSON.stringify({ guildId }) }),
+  saveGuideMessageState: (input: { guildId: string; channelId: string; messageIds: string[] }) => recFetch<any>("/v1/submission-state/guide/save", { method: "POST", body: JSON.stringify(input) }),
+  saveWeeklyPanelState: (input: { guildId: string; seasonNumber: number; seasonStage: string; weekNumber: number | null; channelId: string; messageId: string }) => recFetch<any>("/v1/submission-state/panel/save", { method: "POST", body: JSON.stringify(input) }),
   submitRecruitCommit: (input: { guildId: string; discordId: string; playerName: string; position: string; starRating: number; homeCity: string; homeState: string }) => recFetch<any>("/v1/recruiting/submit-commit", { method: "POST", body: JSON.stringify(input) }),
 
   updateBoxScoreLedgerMessage: (input: { submissionId: string; ledgerDiscordMessageId: string }) =>

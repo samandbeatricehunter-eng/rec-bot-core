@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getWeeklySubmissionsChannel, purgeChannelMessages } from "../lib/route-channels.js";
+import { validPlayerName, validateStatValues } from "./weekly-submission-validation.js";
 
 export const WEEKLY_SUBMISSIONS_CUSTOM_IDS = {
   boxScores: "rec:weekly_submissions:box_scores",
@@ -13,12 +14,15 @@ export const WEEKLY_SUBMISSIONS_CUSTOM_IDS = {
   statCategory: "rec:weekly_submissions:stat_category",
   statPlayer: "rec:weekly_submissions:stat_player",
   statModal: "rec:weekly_submissions:stat_modal",
+  statAnotherPlayer: "rec:weekly_submissions:stat_another_player",
+  statRemoveLast: "rec:weekly_submissions:stat_remove_last",
+  statFinish: "rec:weekly_submissions:stat_finish",
   recruitPosition: "rec:weekly_submissions:recruit_position",
   recruitStars: "rec:weekly_submissions:recruit_stars",
   recruitHometown: "rec:weekly_submissions:recruit_hometown",
 } as const;
 
-type Session = { kind: "player" | "recruit"; guildId: string; channelId: string; userId: string; expiresAt: number; interaction: ButtonInteraction; name?: string; position?: string; stars?: number };
+type Session = { kind: "player" | "recruit"; guildId: string; channelId: string; userId: string; expiresAt: number; interaction: ButtonInteraction; name?: string; position?: string; stars?: number; lastCategory?: string };
 const sessions = new Map<string, Session>();
 const key = (guildId: string, userId: string) => `${guildId}:${userId}`;
 const STAT_FIELDS: Record<string, Array<[string, string]>> = {
@@ -48,8 +52,9 @@ export async function publishWeeklySubmissionsPanel(guild: Guild) {
     new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats).setLabel("Player Stats").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting).setLabel("Recruiting Commits").setStyle(ButtonStyle.Success),
   );
-  await channel.send({ embeds: [new EmbedBuilder().setTitle("REC Weekly Submissions").setColor(COLORS.gold).setDescription(`Season ${league.season_number ?? 1} • ${week}\n\nUse the buttons below. Submission messages are captured and removed so this panel stays in focus.`)], components: [row] });
-  return { posted: true, channelId: channel.id };
+  const sent = await channel.send({ embeds: [new EmbedBuilder().setTitle("REC Weekly Submissions").setColor(COLORS.gold).setDescription(`Season ${league.season_number ?? 1} • ${week}\n\nUse the buttons below. Submission messages are captured and removed so this panel stays in focus.`)], components: [row] });
+  await recApi.saveWeeklyPanelState({ guildId: guild.id, seasonNumber: league.season_number ?? 1, seasonStage: league.season_stage, weekNumber: league.current_week ?? null, channelId: channel.id, messageId: sent.id });
+  return { posted: true, channelId: channel.id, messageId: sent.id };
 }
 
 function examplePath(name: string) {
@@ -88,6 +93,14 @@ function statCategoryRow() {
   const select = new StringSelectMenuBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.statCategory).setPlaceholder("Select a stat category").addOptions(Object.keys(STAT_FIELDS).map((category) => new StringSelectMenuOptionBuilder().setLabel(category.replace(/_/g," ").replace(/\b\w/g,(c)=>c.toUpperCase())).setValue(category)));
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select);
 }
+async function playerRow(session:Session){const{players}=await recApi.listMyWatchedPlayers({guildId:session.guildId,discordId:session.userId});return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.statPlayer).setPlaceholder("Select a player").addOptions([{label:"Enter a new player",value:"__new__",description:"Type the player's first and last name"},...players.slice(0,24).map(p=>({label:p.playerName,value:p.id,description:p.position}))]));}
+function statActionRow(){return new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.statAnotherPlayer).setLabel("Add Another Player").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.statRemoveLast).setLabel("Remove Last Line").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.statFinish).setLabel("Finish").setStyle(ButtonStyle.Success));}
+
+export async function handleWeeklySubmissionButton(interaction:ButtonInteraction){const session=sessions.get(key(interaction.guildId!,interaction.user.id));if(!session||session.kind!=="player"||session.expiresAt<Date.now())return interaction.reply({content:"This submission session expired. Start again from the weekly panel.",flags:MessageFlags.Ephemeral});
+  if(interaction.customId===WEEKLY_SUBMISSIONS_CUSTOM_IDS.statFinish){sessions.delete(key(session.guildId,session.userId));return interaction.update({content:"Player stat submission finished. Your saved stat lines are available to league story generation.",components:[],embeds:[]});}
+  if(interaction.customId===WEEKLY_SUBMISSIONS_CUSTOM_IDS.statAnotherPlayer){session.name=undefined;session.lastCategory=undefined;return interaction.update({content:"Choose a returning player or enter a new player.",components:[await playerRow(session)],embeds:[]});}
+  if(interaction.customId===WEEKLY_SUBMISSIONS_CUSTOM_IDS.statRemoveLast){if(!session.name||!session.lastCategory)return interaction.reply({content:"There is no recent stat line to remove.",flags:MessageFlags.Ephemeral});await recApi.removeMyPlayerStatLine({guildId:session.guildId,discordId:session.userId,playerName:session.name,category:session.lastCategory});session.lastCategory=undefined;return interaction.update({content:`Removed the last saved stat line for **${session.name}**. Choose a category to continue or finish.`,components:[statCategoryRow(),statActionRow()]});}
+}
 
 export async function handleWeeklyRecruiting(interaction: ButtonInteraction) {
   const cfg = await recApi.getEconomyConfig(interaction.guildId!);
@@ -99,7 +112,7 @@ export async function handleWeeklyRecruiting(interaction: ButtonInteraction) {
 export async function handleWeeklySubmissionMessage(message: Message): Promise<boolean> {
   if (!message.guildId) return false; const session = sessions.get(key(message.guildId, message.author.id));
   if (!session || session.channelId !== message.channelId || session.expiresAt < Date.now()) return false;
-  const name = message.content.trim().replace(/\s+/g, " "); if (!/^[\p{L}'-]+\s+[\p{L}' .-]+$/u.test(name) || name.length > 80) return false;
+  const name = message.content.trim().replace(/\s+/g, " "); if (!validPlayerName(name)) return false;
   session.name = name; await message.delete().catch(() => undefined);
   if (session.kind === "player") {
     await session.interaction.followUp({ content: `Adding stats for **${name}**.`, components: [statCategoryRow()], flags: MessageFlags.Ephemeral });
@@ -134,7 +147,7 @@ export async function handleWeeklySubmissionModal(interaction: ModalSubmitIntera
   const session = sessions.get(key(interaction.guildId!, interaction.user.id)); if (!session?.name) return interaction.reply({ content:"Session expired.",flags:MessageFlags.Ephemeral });
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   try {
-    if (interaction.customId.startsWith(`${WEEKLY_SUBMISSIONS_CUSTOM_IDS.statModal}:`)) { const category=interaction.customId.split(":").at(-1)!; const lines=STAT_FIELDS[category].flatMap(([statKey,label])=>{const raw=interaction.fields.getTextInputValue(statKey).trim(); if(!raw)return[]; const value=Number(raw); if(!Number.isFinite(value)||value<0)throw new Error(`${label} must be zero or a positive number.`); return[{statKey,label,value}];}); if(!lines.length)throw new Error("Enter at least one stat."); const obj=Object.fromEntries(lines.map(x=>[x.statKey,x.value])); if(obj.completions>obj.attempts)throw new Error("Completions cannot exceed attempts."); if(obj.fg_made>obj.fg_attempted||obj.xp_made>obj.xp_attempted)throw new Error("Made kicks cannot exceed attempts."); await recApi.submitPlayerStatLine({guildId:session.guildId,discordId:session.userId,playerName:session.name,category,statLines:lines}); return interaction.editReply({ content: `Saved ${category.replace(/_/g," ")} stats for **${session.name}**. Select another category to add another stat line, or return to the weekly panel when finished.`, components: [statCategoryRow()] }); }
+    if (interaction.customId.startsWith(`${WEEKLY_SUBMISSIONS_CUSTOM_IDS.statModal}:`)) { const category=interaction.customId.split(":").at(-1)!; const lines=STAT_FIELDS[category].flatMap(([statKey,label])=>{const raw=interaction.fields.getTextInputValue(statKey).trim(); if(!raw)return[]; const value=Number(raw); return[{statKey,label,value}];}); if(!lines.length)throw new Error("Enter at least one stat."); validateStatValues(category,Object.fromEntries(lines.map(x=>[x.statKey,x.value]))); await recApi.submitPlayerStatLine({guildId:session.guildId,discordId:session.userId,playerName:session.name,category,statLines:lines}); session.lastCategory=category; return interaction.editReply({ content: `Saved ${category.replace(/_/g," ")} stats for **${session.name}**. Add or edit another category, add another player, remove this line, or finish.`, components: [statCategoryRow(),statActionRow()] }); }
     await recApi.submitRecruitCommit({guildId:session.guildId,discordId:session.userId,playerName:session.name,position:session.position!,starRating:session.stars!,homeCity:interaction.fields.getTextInputValue("city"),homeState:interaction.fields.getTextInputValue("state")}); sessions.delete(key(session.guildId,session.userId)); return interaction.editReply(`Saved **${session.name}** as a ${session.stars}-star ${session.position} commitment to your school.`);
   } catch(e){return interaction.editReply(e instanceof Error?e.message:String(e));}
 }

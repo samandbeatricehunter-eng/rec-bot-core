@@ -73,17 +73,24 @@ export async function publishRecGuide(guild: Guild): Promise<{ posted: number; c
     ViewChannel: true, SendMessages: true, EmbedLinks: true, AttachFiles: true, ManageMessages: true, AddReactions: true,
   });
   const embeds = guideEmbeds(cfg);
-  const recent = await channel.messages.fetch({ limit: 100 });
-  const existing = [...recent.values()].filter((m) => m.author.id === guild.client.user.id && m.embeds[0]?.footer?.text?.endsWith("• REC Guide")).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  const state = await recApi.getGuideMessageState(guild.id).catch(() => ({ messages: [] }));
+  const stored = await Promise.all(state.messages.filter((row) => row.discord_channel_id === channel.id).map((row) => channel.messages.fetch(row.discord_message_id).catch(() => null)));
+  let existing = stored.filter((message): message is NonNullable<typeof message> => Boolean(message));
+  if (!existing.length) {
+    const recent = await channel.messages.fetch({ limit: 100 });
+    existing = [...recent.values()].filter((m) => m.author.id === guild.client.user.id && m.embeds[0]?.footer?.text?.endsWith("• REC Guide")).sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+  }
+  const messageIds: string[] = [];
   for (let i = 0; i < embeds.length; i++) {
     const components = i === 0 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(REC_GUIDE_CUSTOM_IDS.hub).setLabel("Open REC Hub").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(REC_GUIDE_CUSTOM_IDS.openTeams).setLabel("View Open Teams").setStyle(ButtonStyle.Secondary),
     )] : [];
-    if (existing[i]) await existing[i].edit({ embeds: [embeds[i]], components });
-    else await channel.send({ embeds: [embeds[i]], components });
+    if (existing[i]) { await existing[i].edit({ embeds: [embeds[i]], components }); messageIds.push(existing[i].id); }
+    else { const sent = await channel.send({ embeds: [embeds[i]], components }); messageIds.push(sent.id); }
   }
   for (const obsolete of existing.slice(embeds.length)) await obsolete.delete().catch(() => undefined);
+  await recApi.saveGuideMessageState({ guildId: guild.id, channelId: channel.id, messageIds });
   return { posted: embeds.length, channelId: channel.id };
 }
 

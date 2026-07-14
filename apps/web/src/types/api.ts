@@ -257,6 +257,7 @@ export type TeamLinkMatrix = {
   teams: Array<{ id: string; name: string; abbreviation: string; conference: string | null; division: string | null; discordId: string | null }>;
   users: Array<{ discordId: string; displayName: string; username: string }>;
 };
+export type PlayerStatSubmission = { id:string; seasonNumber:number; seasonStage:string; weekNumber:number|null; teamId:string; teamName:string; gameId:string; submittedByDiscordId:string; playerName:string; status:"draft"|"submitted"|"approved"|"rejected"; reviewedByDiscordId:string|null; reviewedAt:string|null; createdAt:string; lines:Array<{id:string;category:string;stats:Record<string,number>;updatedAt:string}> };
 export type RoleMgmtRoleKey = "member" | "compCommittee" | "commissioner";
 
 // Settings (Phase 2) — apps/api/src/modules/setup/setup.schemas.ts's CreateLeagueSchema has

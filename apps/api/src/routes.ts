@@ -26,6 +26,7 @@ import { hubRoutes } from "./modules/hub/hub.routes.js";
 import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.routes.js";
 import { recruitingRoutes } from "./modules/recruiting/recruiting.routes.js";
 import { transferPortalRoutes } from "./modules/transfer-portal/transfer-portal.routes.js";
+import { submissionStateRoutes } from "./modules/submission-state/submission-state.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
@@ -57,4 +58,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await watchedPlayersRoutes(app);
   await recruitingRoutes(app);
   await transferPortalRoutes(app);
+  await submissionStateRoutes(app);
 }

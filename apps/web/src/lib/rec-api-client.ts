@@ -29,6 +29,7 @@ import type {
   TransferEntry,
   TransferStatus,
   WatchedPlayer,
+  PlayerStatSubmission,
   WeeklyH2hGamesResponse,
   HubReactionKey,
   HubResponse,
@@ -224,6 +225,9 @@ export const recApi = {
     recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/update", { method: "POST", body: JSON.stringify(input) }),
   removeWatchedPlayer: (guildId: string, id: string) =>
     recApiFetch<{ removed: true }>("/v1/watched-players/remove", { method: "POST", body: JSON.stringify({ guildId, id }) }),
+  listPlayerStatSubmissions: (guildId:string) => recApiFetch<{submissions:PlayerStatSubmission[]}>("/v1/player-stats/submissions/list",{method:"POST",body:JSON.stringify({guildId})}),
+  updatePlayerStatSubmission: (input:{guildId:string;id:string;playerName?:string;status?:"submitted"|"approved"|"rejected";lines?:Array<{category:string;stats:Record<string,number>}>}) => recApiFetch<{updated:true}>("/v1/player-stats/submissions/update",{method:"POST",body:JSON.stringify(input)}),
+  removePlayerStatSubmission: (guildId:string,id:string) => recApiFetch<{removed:true}>("/v1/player-stats/submissions/remove",{method:"POST",body:JSON.stringify({guildId,id})}),
 
   // Recruiting tracker
   listRecruits: (guildId: string) =>

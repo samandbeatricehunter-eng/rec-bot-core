@@ -8,6 +8,7 @@ import { TeamScheduleForm } from "./routes/league-mgmt/manage-league/TeamSchedul
 import { TeamOwnershipTable } from "./routes/league-mgmt/manage-league/TeamOwnershipTable.js";
 import { LinkTeamForm } from "./routes/league-mgmt/manage-league/LinkTeamForm.js";
 import { RolesHome } from "./routes/league-mgmt/manage-league/RolesHome.js";
+import { PlayerStatsReview } from "./routes/league-mgmt/manage-league/PlayerStatsReview.js";
 import { NotificationsHome } from "./routes/league-mgmt/notifications/NotificationsHome.js";
 import { DeleteLeagueHome } from "./routes/league-mgmt/delete-league/DeleteLeagueHome.js";
 import { SettingsHome } from "./routes/league-mgmt/settings/SettingsHome.js";
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="/league-mgmt/notifications" element={managed(<NotificationsHome />)} />
               <Route path="/league-mgmt/manage-league" element={managed(<ManageLeagueHome />)} />
               <Route path="/league-mgmt/manage-league/roles" element={managed(<RolesHome />)} />
+              <Route path="/league-mgmt/manage-league/player-stats" element={managed(<PlayerStatsReview />)} />
               <Route path="/league-mgmt/manage-league/teams" element={managed(<TeamOwnershipTable />)} />
               <Route path="/league-mgmt/manage-league/teams/link" element={managed(<LinkTeamForm />)} />
               <Route path="/league-mgmt/manage-league/:teamId" element={managed(<TeamScheduleForm />)} />
