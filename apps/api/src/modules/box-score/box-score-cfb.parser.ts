@@ -24,16 +24,19 @@
 // pass TDs, yards/rush, yards/pass, fumbles lost, interceptions thrown, red zone
 // TD/FG counts, punts, punt avg, penalties, penalty yards, time of possession) get
 // new keys and are captured best-effort but aren't required or read by badges yet.
+import sharp from "sharp";
 import {
   dedupeWords,
   extractLeftColumnWords,
   extractNormalizedWords,
   extractRightColumnWords,
+  flattenPageWords,
   groupIntoRows,
 } from "./box-score.parser.ocr.js";
 import { fetchImageBuffer } from "./box-score.parser.js";
 import {
   computeMissingRequired,
+  recognizeWithPool,
   type LabelAliases,
   type NormalizedWord,
   type ParsedBoxScore,
@@ -304,14 +307,38 @@ function valueAt(words: NormalizedWord[], rowY: number, xMin: number, xMax: numb
 
 const HEADER_AWAY_Y = { min: 0.25, max: 0.31 };
 const HEADER_HOME_Y = { min: 0.315, max: 0.36 };
-const HEADER_QUARTER_COLUMNS = [0.428, 0.47, 0.514, 0.558, 0.603] as const;
-const HEADER_COLUMN_TOLERANCE = 0.03;
+// Quarter/OT/Final columns sit somewhere past the team seed number/mini-badge (x<0.4)
+// and before the home team's panel border (x>0.75) — wide enough to catch every
+// layout below.
+const HEADER_ROW_X_MIN = 0.4;
+const HEADER_ROW_X_MAX = 0.75;
+// Columns aren't at fixed x fractions: whether the game went to OT changes how many
+// columns (4 quarters, or 4 quarters + OT) share the same header width, which shifts
+// every quarter column's x position rightward compared to an OT box score — a fixed
+// per-column x lookup calibrated from one layout silently reads zero columns from the
+// other. Cluster the digits that are actually present into columns instead, the same
+// "locate real anchors, don't assume fixed positions" approach locateRows already
+// uses for the stat table's rows.
+const HEADER_COLUMN_CLUSTER_GAP = 0.025;
 
-function readHeaderRow(words: NormalizedWord[], yMin: number, yMax: number): number[] {
+function clusterColumnXs(words: NormalizedWord[]): number[] {
+  const xs = words
+    .filter((w) => w.x >= HEADER_ROW_X_MIN && w.x <= HEADER_ROW_X_MAX && /\d/.test(w.text))
+    .map((w) => w.x)
+    .sort((a, b) => a - b);
+  const columns: number[] = [];
+  for (const x of xs) {
+    const last = columns[columns.length - 1];
+    if (last == null || x - last > HEADER_COLUMN_CLUSTER_GAP) columns.push(x);
+  }
+  return columns;
+}
+
+function readHeaderRow(words: NormalizedWord[], yMin: number, yMax: number, columnXs: number[]): number[] {
   const row = words.filter((w) => w.y >= yMin && w.y <= yMax);
-  return HEADER_QUARTER_COLUMNS.map((x) => {
+  return columnXs.map((x) => {
     const candidates = row
-      .filter((w) => Math.abs(w.x - x) <= HEADER_COLUMN_TOLERANCE && /\d/.test(w.text))
+      .filter((w) => Math.abs(w.x - x) <= HEADER_COLUMN_CLUSTER_GAP && /\d/.test(w.text))
       .sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x));
     const digits = candidates[0]?.text.replace(/[Oo]/g, "0").replace(/\D/g, "") ?? "";
     if (!digits) return 0;
@@ -323,8 +350,17 @@ function readHeaderRow(words: NormalizedWord[], yMin: number, yMax: number): num
 // Best-effort only — if the summed quarters don't roughly match the (far more
 // reliable) "Score" row total, discard rather than show misleading partial data.
 function parseHeaderQuarters(words: NormalizedWord[], team1Final: number, team2Final: number): { team1Quarters: number[]; team2Quarters: number[] } {
-  const team1Quarters = readHeaderRow(words, HEADER_AWAY_Y.min, HEADER_AWAY_Y.max);
-  const team2Quarters = readHeaderRow(words, HEADER_HOME_Y.min, HEADER_HOME_Y.max);
+  // Both team rows share the same column positions, so pool digits from both when
+  // locating columns — a column only one side actually scored in (e.g. a shutout
+  // quarter for the other team) still gets located correctly.
+  const headerWords = words.filter((w) => w.y >= HEADER_AWAY_Y.min && w.y <= HEADER_HOME_Y.max);
+  const columnXs = clusterColumnXs(headerWords);
+  // The rightmost detected column is "Final," not a quarter — drop it.
+  const quarterColumnXs = columnXs.slice(0, -1);
+  if (quarterColumnXs.length < 4) return { team1Quarters: [], team2Quarters: [] };
+
+  const team1Quarters = readHeaderRow(words, HEADER_AWAY_Y.min, HEADER_AWAY_Y.max, quarterColumnXs);
+  const team2Quarters = readHeaderRow(words, HEADER_HOME_Y.min, HEADER_HOME_Y.max, quarterColumnXs);
   const sum1 = team1Quarters.reduce((s, n) => s + n, 0);
   const sum2 = team2Quarters.reduce((s, n) => s + n, 0);
   if (Math.abs(sum1 - team1Final) > 3 || Math.abs(sum2 - team2Final) > 3) {
@@ -362,6 +398,59 @@ function extractPanelName(words: NormalizedWord[], xTest: (x: number) => boolean
   return out.join(" ");
 }
 
+// ─── Score row targeted crop ──────────────────────────────────────────────────
+// The Score row's digits ("59", "14") are dark text on a bright highlighted bar —
+// every other row is light text on a dark panel. Neither the full-frame passes nor
+// the wide (32%-of-image-width) left/right column crops reliably resolve that one
+// row: at that scale the row is a thin sliver of a much larger crop, too small
+// relative to the crop to binarize cleanly. Once the other (reliably-read) rows
+// have located roughly where row 0 sits, crop tightly around just that row's value
+// bands and re-OCR at a much higher effective zoom — the same trick that fixed a
+// hand-picked crop of just this row in calibration.
+const SCORE_ROW_Y_PAD = 0.03;
+const SCORE_ROW_BANDS: { xMin: number; xMax: number }[] = [
+  { xMin: LEFT_VAL_X_MIN - 0.04, xMax: LEFT_VAL_X_MAX + 0.06 },
+  { xMin: RIGHT_VAL_X_MIN - 0.06, xMax: RIGHT_VAL_X_MAX + 0.04 },
+];
+
+async function extractScoreRowWords(buffer: Buffer, rowY: number): Promise<NormalizedWord[]> {
+  const resized = await sharp(buffer)
+    .flatten({ background: { r: 0, g: 0, b: 0 } })
+    .resize(1920, undefined, { fit: "inside", withoutEnlargement: false })
+    .toBuffer();
+  const meta = await sharp(resized).metadata();
+  const actualWidth = meta.width ?? 1920;
+  const actualHeight = meta.height ?? 1080;
+
+  const out: NormalizedWord[] = [];
+  for (const band of SCORE_ROW_BANDS) {
+    const left = Math.max(0, Math.round(actualWidth * band.xMin));
+    const right = Math.min(actualWidth, Math.round(actualWidth * band.xMax));
+    const top = Math.max(0, Math.round(actualHeight * (rowY - SCORE_ROW_Y_PAD)));
+    const bottom = Math.min(actualHeight, Math.round(actualHeight * (rowY + SCORE_ROW_Y_PAD)));
+    const width = right - left;
+    const height = bottom - top;
+    if (width <= 0 || height <= 0) continue;
+
+    const crop = await sharp(resized).extract({ left, top, width, height }).toBuffer();
+    // No normalise/CLAHE — dark-text-on-light-bar is already the polarity Tesseract
+    // expects, and redistributing the histogram is what loses thin strokes like "1".
+    const processed = await sharp(crop).grayscale().threshold(180).resize(width * 4, height * 4, { fit: "fill" }).png().toBuffer();
+    const result = await recognizeWithPool(processed, undefined, { blocks: true });
+
+    for (const w of flattenPageWords(result.data)) {
+      const text = w.text.trim();
+      if (!text) continue;
+      const cx = (w.bbox.x0 + w.bbox.x1) / 2 / (width * 4);
+      const cy = (w.bbox.y0 + w.bbox.y1) / 2 / (height * 4);
+      const x = band.xMin + cx * (band.xMax - band.xMin);
+      const y = (rowY - SCORE_ROW_Y_PAD) + cy * (2 * SCORE_ROW_Y_PAD);
+      out.push({ text, confidence: w.confidence, x, y, x0: x, x1: x, y0: y, y1: y });
+    }
+  }
+  return out;
+}
+
 // ─── Per-image parse pass ─────────────────────────────────────────────────────
 
 type CfbPassResult = {
@@ -374,21 +463,37 @@ type CfbPassResult = {
 };
 
 async function parseCfbImage(buffer: Buffer): Promise<CfbPassResult> {
-  // Merge several preprocessing passes — "default" (global threshold) reads the
-  // header/score row and most labels cleanly, "stats" (CLAHE) recovers dimmer stat
-  // digits the global threshold crushes, and the dedicated left/right column crops
-  // (higher zoom, column-specific preprocessing) recover edge-of-frame value-column
-  // digits — e.g. the Score row's near-right-edge "31" — that the full-frame passes
-  // sometimes split into unusable fragments. No single pass alone had full recall
-  // in calibration against the two CFB test-fixture screenshots.
-  const [defaultPass, statsPass, leftWords, rightWords] = await Promise.all([
+  // Merge several preprocessing passes — "default" (global threshold) reads most
+  // labels cleanly, "stats" (CLAHE) recovers dimmer stat digits the global threshold
+  // crushes, "highlight" (high cutoff, isolates the brightest pixels) helps with
+  // some bright-row cases, and the dedicated left/right column crops (higher zoom,
+  // column-specific preprocessing) recover edge-of-frame value-column digits that
+  // the full-frame passes sometimes split into unusable fragments. No single pass
+  // alone had full recall in calibration against the CFB test-fixture screenshots.
+  const [defaultPass, statsPass, highlightPass, leftWords, rightWords] = await Promise.all([
     extractNormalizedWords(buffer, "default"),
     extractNormalizedWords(buffer, "stats"),
+    extractNormalizedWords(buffer, "highlight"),
     extractLeftColumnWords(buffer),
     extractRightColumnWords(buffer),
   ]);
-  const words = dedupeWords([...defaultPass.words, ...statsPass.words, ...leftWords, ...rightWords]);
-  const positions = locateRows(words);
+  let words = dedupeWords([...defaultPass.words, ...statsPass.words, ...highlightPass.words, ...leftWords, ...rightWords]);
+  let positions = locateRows(words);
+
+  // The Score row is the one row in the table that's dark text on a bright
+  // highlighted bar (every other row is light text on a dark panel) — none of the
+  // above passes reliably resolve it at their scale. Once the other rows have
+  // located roughly where row 0 sits, re-OCR just that row's value bands at a much
+  // higher effective zoom and fold the result back in before reading any values.
+  const estimatedScoreRowY = positions.get(0);
+  if (estimatedScoreRowY != null) {
+    const scoreRowWords = await extractScoreRowWords(buffer, estimatedScoreRowY);
+    if (scoreRowWords.length) {
+      words = dedupeWords([...words, ...scoreRowWords]);
+      positions = locateRows(words);
+    }
+  }
+
   const stats: StatsMap = {};
   let finalScore: { team1: number; team2: number } | null = null;
 

@@ -97,7 +97,7 @@ export async function extractNormalizedWords(buffer: Buffer, variant: Preprocess
 // Left column digits sit on a dark panel; a global threshold often destroys them.
 const LEFT_COL_CROP_FRAC = 0.32;
 
-type LeftColPreprocess = "threshold" | "clahe" | "soft";
+type LeftColPreprocess = "threshold" | "clahe" | "soft" | "highlight" | "brightbar";
 
 async function preprocessColumnCrop(
   cropBuffer: Buffer,
@@ -113,6 +113,19 @@ async function preprocessColumnCrop(
     pipeline = pipeline.normalise().threshold(80).negate();
   } else if (variant === "clahe") {
     pipeline = pipeline.clahe({ width: 48, height: 48, maxSlope: 3 }).normalise().negate();
+  } else if (variant === "highlight") {
+    // Mirrors the full-frame "highlight" pass — the CFB Score row sits in a bright
+    // highlighted bar whose near-white digits a normalised/CLAHE'd threshold can
+    // merge into the light background and lose. A high, un-normalised cutoff
+    // isolates just the brightest pixels instead of redistributing the histogram.
+    pipeline = pipeline.threshold(200).negate();
+  } else if (variant === "brightbar") {
+    // The Score row's digits are dark text on a light bar — the opposite polarity
+    // from every other (light-text-on-dark) row in the table. Thresholding without
+    // negating keeps that dark-on-light polarity, which is the orientation Tesseract
+    // is best trained on, instead of inverting it into a hard-edged rectangle that
+    // tends to swallow thin strokes like "1".
+    pipeline = pipeline.threshold(180);
   } else {
     pipeline = pipeline.normalise().linear(1.6, -35).sharpen().negate();
   }
@@ -214,7 +227,7 @@ export async function extractRightColumnWords(buffer: Buffer): Promise<Normalize
   const cropWidth = Math.max(1, Math.round(actualWidth * RIGHT_COL_CROP_FRAC));
   const cropLeft = actualWidth - cropWidth;
 
-  const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft"];
+  const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft", "highlight", "brightbar"];
   const allWords: NormalizedWord[] = [];
 
   for (const variant of variants) {
@@ -241,7 +254,7 @@ export async function extractLeftColumnWords(buffer: Buffer): Promise<Normalized
   const actualHeight = resizedMeta.height ?? 1080;
   const cropWidth = Math.max(1, Math.round(actualWidth * LEFT_COL_CROP_FRAC));
 
-  const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft"];
+  const variants: LeftColPreprocess[] = ["clahe", "threshold", "soft", "highlight", "brightbar"];
   const allWords: NormalizedWord[] = [];
 
   for (const variant of variants) {
