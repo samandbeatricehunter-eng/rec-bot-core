@@ -314,6 +314,13 @@ async function getUserScheduledGameForWeek(
   return data ?? null;
 }
 
+export type ExistingBoxScoreSubmission = {
+  id: string;
+  status: "pending" | "approved";
+  submittedByUserId: string | null;
+  submittedByDiscordId: string | null;
+};
+
 export type BoxScoreUploadEligibility = {
   seasonNumber: number;
   weekNumber: number;
@@ -321,6 +328,13 @@ export type BoxScoreUploadEligibility = {
   hasScheduledGame: boolean;
   teamId: string | null;
   gameId: string | null;
+  /**
+   * Any pending/approved submission already logged for the shared scheduled game — set
+   * regardless of who submitted it, so the bot can tell apart "this is my own pending
+   * submission, append the new image" (submittedByDiscordId matches the caller) from
+   * "my H2H opponent already submitted this game" (it doesn't).
+   */
+  existingSubmission: ExistingBoxScoreSubmission | null;
 };
 
 export async function getBoxScoreUploadEligibility(input: { guildId: string; discordId: string }): Promise<BoxScoreUploadEligibility> {
@@ -332,14 +346,83 @@ export async function getBoxScoreUploadEligibility(input: { guildId: string; dis
   const hasApprovedForWeek = await userHasApprovedBoxScoreForWeek(leagueId, account!.user_id, seasonNumber, weekNumber);
   const game = teamId ? await getUserScheduledGameForWeek(leagueId, teamId, seasonNumber, weekNumber) : null;
 
+  let existingSubmission: ExistingBoxScoreSubmission | null = null;
+  if (game) {
+    const existing = await supabase
+      .from("rec_box_score_submissions")
+      .select("id,status,submitted_by_user_id,submitted_by_discord_id")
+      .eq("game_id", game.id)
+      .in("status", ["pending", "approved"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing.error) throw new ApiError(500, "Failed to check existing box score submissions.", existing.error);
+    existingSubmission = existing.data
+      ? { id: existing.data.id, status: existing.data.status, submittedByUserId: existing.data.submitted_by_user_id, submittedByDiscordId: existing.data.submitted_by_discord_id }
+      : null;
+  }
+
   return {
     seasonNumber,
     weekNumber,
     hasApprovedForWeek,
     hasScheduledGame: !!game,
+    existingSubmission,
     teamId,
     gameId: game?.id ?? null,
   };
+}
+
+export type AppendImageInput =
+  | { mode: "self_serve"; guildId: string; discordId: string; imageUrl: string }
+  | { mode: "commissioner"; submissionId: string; imageUrl: string };
+
+// Adds a screenshot to an already-pending submission instead of creating a duplicate —
+// covers both a coach's own late second screenshot (self_serve, resolved by their
+// scheduled game for the week) and a commissioner filling in a missing screenshot from
+// the review UI (commissioner, resolved directly by submissionId). Re-stitches the
+// combined image set into a single storage URL so the review UI's single-image display
+// stays accurate; leaves every other field untouched so it can't clobber corrections a
+// commissioner already made.
+export async function appendBoxScoreImage(input: AppendImageInput): Promise<{ submissionId: string; imageStorageUrl: string | null; imageCount: number }> {
+  let submissionId: string;
+  if (input.mode === "self_serve") {
+    const context = await getCurrentLeagueContext(input.guildId);
+    const account = await getDiscordAccount(input.discordId, true);
+    const { seasonNumber, weekNumber } = selectedSeasonWeek(context);
+    const teamId = await getActiveTeamId(context.leagueId, account!.user_id);
+    if (!teamId) throw new ApiError(400, "You aren't linked to a team in this league.");
+    const game = await getUserScheduledGameForWeek(context.leagueId, teamId, seasonNumber, weekNumber);
+    if (!game) throw new ApiError(400, `You don't have a scheduled game in Week ${weekNumber}.`);
+    const existing = await supabase.from("rec_box_score_submissions").select("id").eq("game_id", game.id).eq("status", "pending").maybeSingle();
+    if (existing.error) throw new ApiError(500, "Failed to load pending box score submission.", existing.error);
+    if (!existing.data) throw new ApiError(404, "No pending box score submission found for this game.");
+    submissionId = existing.data.id;
+  } else {
+    submissionId = input.submissionId;
+  }
+
+  const row = await supabase.from("rec_box_score_submissions").select("id,status,image_urls").eq("id", submissionId).maybeSingle();
+  if (row.error) throw new ApiError(500, "Failed to load box score submission.", row.error);
+  if (!row.data) throw new ApiError(404, "Submission not found.");
+  if (row.data.status !== "pending") throw new ApiError(409, "This submission is no longer pending.");
+
+  const imageUrls = [...new Set([...(row.data.image_urls ?? []), input.imageUrl])].slice(0, 2);
+  const imageStorageUrl = await persistStitchedUploadImage(submissionId, imageUrls);
+  const update = await supabase
+    .from("rec_box_score_submissions")
+    .update({ image_urls: imageUrls, image_storage_url: imageStorageUrl, updated_at: new Date().toISOString() })
+    .eq("id", submissionId);
+  if (update.error) throw new ApiError(500, "Failed to append image to submission.", update.error);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ summary: "A second screenshot was added to this box score. Review the updated image." })
+    .eq("source_table", "rec_box_score_submissions")
+    .eq("source_id", submissionId)
+    .eq("status", "pending");
+
+  return { submissionId, imageStorageUrl, imageCount: imageUrls.length };
 }
 
 // Helpers for the per-team stats table.
@@ -929,12 +1012,14 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     throw new ApiError(500, "Failed to save box score submission.", error);
   }
 
-  // Re-host the screenshot so the payout embeds keep it after the source Discord
-  // message is deleted. Non-fatal — fall back to the (soon-expiring) Discord URL.
+  // Re-host the screenshot(s) so the payout embeds keep them after the source Discord
+  // message is deleted. Two images (top + bottom of the stats page) are stitched into one
+  // combined image so the single-image review UI/embeds show both. Non-fatal — falls back
+  // to the (soon-expiring) Discord URL.
   const firstImage = input.imageUrls[0] ?? null;
   let imageStorageUrl: string | null = null;
   if (firstImage) {
-    imageStorageUrl = await persistUploadImage(submission.id, firstImage);
+    imageStorageUrl = await persistStitchedUploadImage(submission.id, input.imageUrls);
     if (imageStorageUrl) {
       await supabase
         .from("rec_box_score_submissions")
@@ -1685,7 +1770,7 @@ export async function listPendingBoxScores(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_box_score_submissions")
-    .select("id,team1_abbr,team2_abbr,home_score,away_score,week_number,submitted_by_discord_id,created_at,parse_warnings,team_stats,quarter_scores,home_team_id,away_team_id,team1_id,image_storage_url")
+    .select("id,team1_abbr,team2_abbr,home_score,away_score,week_number,submitted_by_discord_id,created_at,parse_warnings,team_stats,quarter_scores,home_team_id,away_team_id,team1_id,image_storage_url,image_urls")
     .eq("league_id", context.leagueId)
     .eq("status", "pending")
     .order("created_at", { ascending: false })

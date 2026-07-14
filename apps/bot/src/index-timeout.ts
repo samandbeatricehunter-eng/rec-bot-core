@@ -972,7 +972,10 @@ async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction) 
       throw error;
     });
 
-    if (!profile?.team) {
+    // A Discord server admin always gets through to the Hub, team or no team — on a
+    // brand new server there's no league (and so no team) yet, and they need the Hub
+    // link to run First-Time Setup. Every other member still needs a linked team.
+    if (!profile?.team && !isFullLeagueAdminInteraction(interaction)) {
       const conferenceData = await recApi.getLeagueConferences(interaction.guildId);
       const embeds = buildOpenTeamsEmbeds(conferenceData?.conferences ?? []).slice(0, 10);
       const allTeamsAssigned = embeds.length === 1 && embeds[0]?.data.title === "Open Teams";

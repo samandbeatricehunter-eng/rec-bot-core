@@ -84,6 +84,8 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
 export const recApi = {
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getHubBootstrapStatus: (guildId: string) =>
+    recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }) }),
   toggleHubHighlightReaction: (input: { guildId: string; highlightId: string; reactionKey: HubReactionKey }) =>
     recApiFetch<{ ok: true }>("/v1/hub/highlights/react", { method: "POST", body: JSON.stringify(input) }),
   recordHubHighlightView: (input: { guildId: string; highlightId: string }) =>
@@ -115,6 +117,8 @@ export const recApi = {
     recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
   getMyTeamSchedule: (guildId: string) =>
     recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getTeamSchedule: (input: { guildId: string; teamId: string }) =>
+    recApiFetch<TeamScheduleManualState>("/v1/hub/team-schedule", { method: "POST", body: JSON.stringify(input) }),
   voteGameOfWeek: (input: { guildId: string; pollId: string; selectedTeamId: string }) =>
     recApiFetch<{ voted: true }>("/v1/hub/gotw/vote", { method: "POST", body: JSON.stringify(input) }),
   closeGameOfWeekVoting: (input: { guildId: string; pollId: string }) =>
@@ -184,6 +188,8 @@ export const recApi = {
     recApiFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   correctBoxScore: (input: { submissionId: string; field: string; team1?: string | null; team2?: string | null; gameId?: string | null }) =>
     recApiFetch<BoxScoreSubmissionDetail>("/v1/box-score/correct", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  appendBoxScoreImageCommissioner: (input: { submissionId: string; imageUrl: string }) =>
+    recApiFetch<{ submissionId: string; imageStorageUrl: string | null; imageCount: number }>("/v1/box-score/append-image-commissioner", { method: "POST", body: JSON.stringify(input) }),
 
   // Box score upload + OCR submit (schedule builder)
   uploadBoxScoreImage: (guildId: string, file: File) => {

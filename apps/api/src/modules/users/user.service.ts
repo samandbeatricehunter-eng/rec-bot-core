@@ -15,6 +15,7 @@ import {
   loadSeasonBoxScoreStats,
   loadUserFinancialSummary,
   resolveTeamNick,
+  resolveTeamSchool,
 } from "./user-profile-stats.service.js";
 
 const ALL_BADGE_DEFS = [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES];
@@ -770,6 +771,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     user: baseline.user,
     discord: baseline.discord,
     teamName,
+    schoolName: resolveTeamSchool(teamRow) ?? teamName,
     leagueName: leagueInfo?.name ?? null,
     seasonNumber,
     currentWeek: leagueInfo?.current_week ?? null,
@@ -1197,7 +1199,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const [assignmentResult, membershipResult, seasonRecordResult, displayRecordResult] = await Promise.all([
       supabase
         .from("rec_team_assignments")
-        .select("team_id,assignment_status,team:rec_teams(id,name,abbreviation)")
+        .select("team_id,assignment_status,team:rec_teams(id,name,abbreviation,display_city,display_nick,is_relocated)")
         .eq("league_id", league.id)
         .eq("user_id", userId)
         .eq("assignment_status", "active")
@@ -1398,6 +1400,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     display: {
       discordUsername: baseline.discord.global_name ?? baseline.discord.username ?? baseline.user.display_name,
       teamName: assignment?.team?.name ?? null,
+      schoolName: resolveTeamSchool(assignment?.team) ?? assignment?.team?.name ?? null,
       highestRole: membership?.role ?? null,
       wallet: baseline.wallet?.wallet_balance ?? 0,
       savings: baseline.wallet?.savings_balance ?? 0,

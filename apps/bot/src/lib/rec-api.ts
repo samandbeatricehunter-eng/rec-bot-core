@@ -547,6 +547,9 @@ export const recApi = {
   getBoxScoreUploadEligibility: (input: { guildId: string; discordId: string }) =>
     recFetch<any>("/v1/box-score/upload-eligibility", { method: "POST", body: JSON.stringify(input) }),
 
+  appendBoxScoreImage: (input: { guildId: string; discordId: string; imageUrl: string }) =>
+    recFetch<{ submissionId: string; imageStorageUrl: string | null; imageCount: number }>("/v1/box-score/append-image", { method: "POST", body: JSON.stringify(input) }),
+
   updateBoxScoreLedgerMessage: (input: { submissionId: string; ledgerDiscordMessageId: string }) =>
     recFetch<any>("/v1/box-score/ledger-message", { method: "POST", body: JSON.stringify(input) }),
 

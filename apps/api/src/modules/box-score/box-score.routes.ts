@@ -6,6 +6,7 @@ import { assertGuildPermission, requireBotOrUserSession, resolveBotOrUserAuth } 
 import { ApiError, sendError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
+  appendBoxScoreImage,
   correctBoxScoreSubmission,
   getBoxScoreSubmission,
   getBoxScoreUploadEligibility,
@@ -215,6 +216,41 @@ export async function boxScoreRoutes(app: FastifyInstance) {
         discordId: z.string().min(1),
       }).parse(request.body);
       return reply.send(await getBoxScoreUploadEligibility({ guildId, discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Bot-only: a coach's late second screenshot for their own already-pending submission
+  // (posted after the 2-minute exchange window closed but still the same game week).
+  app.post("/v1/box-score/append-image", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const input = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1),
+        imageUrl: z.string().url(),
+      }).parse(request.body);
+      return reply.send(await appendBoxScoreImage({ mode: "self_serve", ...input }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Commissioner fills in a screenshot missing from a pending submission (review UI).
+  app.post("/v1/box-score/append-image-commissioner", async (request, reply) => {
+    try {
+      const auth = await resolveBotOrUserAuth(request);
+      const input = z.object({
+        submissionId: z.string().uuid(),
+        imageUrl: z.string().url(),
+      }).parse(request.body);
+      if (auth.mode === "user") {
+        await assertGuildPermission(auth.guildId, auth.discordId, "co_commissioner");
+        const submission = await getBoxScoreSubmission(input.submissionId);
+        await assertSubmissionInSessionGuild(auth.guildId, (submission as { league_id: string }).league_id);
+      }
+      return reply.send(await appendBoxScoreImage({ mode: "commissioner", ...input }));
     } catch (error) {
       return sendError(reply, error);
     }

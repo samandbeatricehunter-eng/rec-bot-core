@@ -15,6 +15,7 @@ import { AdvanceHome } from "./routes/league-mgmt/advance/AdvanceHome.js";
 import { CommissionerChatHome } from "./routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
 import { PublishingHome } from "./routes/league-mgmt/publishing/PublishingHome.js";
 import { RecruitingHome } from "./routes/league-mgmt/recruiting/RecruitingHome.js";
+import { FirstTimeSetupHome } from "./routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";
 import { HubHome } from "./routes/hub/HubHome.js";
 import { recApi } from "./lib/rec-api-client.js";
 
@@ -45,6 +46,27 @@ function LeagueMgmtGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// LeagueMgmtGate can't be reused for First-Time Setup — it calls getHub(), which 404s
+// (and so reports "denied") whenever no league is linked yet, which is exactly the
+// state this page exists to fix. This checks Discord-level commissioner permission
+// directly instead, independent of a league existing (same trust model
+// createLeagueForServer itself already relies on server-side).
+function FirstTimeSetupGate({ children }: { children: React.ReactNode }) {
+  const auth = useAuth();
+  const [access, setAccess] = useState<"loading" | "allowed" | "denied">("loading");
+  useEffect(() => {
+    if (auth.status !== "ready") return;
+    let cancelled = false;
+    recApi.getHubBootstrapStatus(auth.guildId)
+      .then((status) => { if (!cancelled) setAccess(status.canSetup ? "allowed" : "denied"); })
+      .catch(() => { if (!cancelled) setAccess("denied"); });
+    return () => { cancelled = true; };
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
+  if (access === "loading") return <div className="hub-state"><h1>Checking permissions…</h1></div>;
+  if (access === "denied") return <div className="hub-state"><h1>First-Time Setup is restricted</h1><p>Only Discord server admins or commissioners can set up a league.</p></div>;
+  return <>{children}</>;
+}
+
 const managed = (page: React.ReactNode) => <LeagueMgmtGate>{page}</LeagueMgmtGate>;
 
 export default function App() {
@@ -55,6 +77,7 @@ export default function App() {
           <AppShell>
             <Routes>
               <Route path="/" element={<HubHome />} />
+              <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupGate><FirstTimeSetupHome /></FirstTimeSetupGate>} />
               <Route path="/league-mgmt" element={managed(<LeagueMgmtHome />)} />
               <Route path="/league-mgmt/notifications" element={managed(<NotificationsHome />)} />
               <Route path="/league-mgmt/manage-league" element={managed(<ManageLeagueHome />)} />

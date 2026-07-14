@@ -44,7 +44,7 @@
   .hub-hero-main { text-align: center; align-items: center; }
   .hub-hero-snapshot { width: 100%; }
   .hub-hero-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hub-tabs, .hub-reactions, .hub-social-actions { justify-content: center; }
+  .hub-reactions, .hub-social-actions { justify-content: center; }
   .hub-story-grid, .publishing-grid, .manual-stat-sides, .manual-stat-grid { grid-template-columns: minmax(0, 1fr); }
   .hub-matchups article { flex-direction: column; text-align: center; }
   .hub-matchups article > div { justify-content: center; }
@@ -88,10 +88,10 @@
   .hub-hero-matchup strong { font-size: 24px; }
   .hub-hero-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-manage-button { width: 100%; }
-  .hub-tabs { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: 18px; gap: 8px; padding: 8px; }
-  .hub-tabs button, .hub-tabs a { min-width: 0; padding: var(--space-3); border-radius: 14px; white-space: normal; }
-  .hub-subtabs { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: 18px; gap: 8px; padding: 8px; }
-  .hub-subtabs button { justify-content: center; min-width: 0; padding: var(--space-3) var(--space-2); }
+  /* League/Open Teams/Store/My Team live in the pop-out sidebar drawer now (hub.css),
+     and Campus Buzz/Matchups/Rankings live in the bottom nav — this in-page pill row
+     would just duplicate both, so it's hidden below the mobile breakpoint. */
+  .hub-subtabs { display: none; }
   .hub-week-strip { display: none; }
   .hub-week-select { display: grid; gap: var(--space-1); margin-bottom: var(--space-4); }
   .hub-week-select span { color: var(--gold); font-size: var(--text-xs); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }

@@ -88,7 +88,8 @@ export function FirstTimeSetupHome() {
           <h2 style={{ marginTop: 0, color: "var(--success)" }}>League Created</h2>
           <p>{result.leagueName} — {result.teamCount} default team(s) created.</p>
           <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginTop: "var(--space-4)" }}>
-            <Link to="/league-mgmt/settings"><Button variant="primary">Configure Settings</Button></Link>
+            <Link to="/"><Button variant="primary">Go to League Hub</Button></Link>
+            <Link to="/league-mgmt/settings"><Button variant="secondary">Configure Settings</Button></Link>
             <Link to="/league-mgmt/manage-league/teams"><Button variant="secondary">Link Teams</Button></Link>
             <Link to="/league-mgmt/manage-league"><Button variant="secondary">Set Schedule</Button></Link>
           </div>

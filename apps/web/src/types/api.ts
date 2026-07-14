@@ -98,6 +98,7 @@ export type PendingBoxScore = {
   submitted_by_discord_id: string | null;
   created_at: string;
   image_storage_url: string | null;
+  image_urls: string[] | null;
 };
 
 export type BoxScoreSubmissionDetail = PendingBoxScore & {

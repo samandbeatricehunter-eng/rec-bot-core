@@ -389,6 +389,32 @@ export function formatTeamDisplayName(team: {
   return team.name ?? team.display_nick ?? null;
 }
 
+/**
+ * School/university name only — never the mascot. Derived by stripping the known
+ * mascot (display_nick, populated for every CFB team at seed time, not just relocated
+ * ones — see team-ownership.service.ts) off the end of the full display name, rather
+ * than guessing a word boundary. Returns null when there's no reliable distinct value
+ * (Madden teams, or any team missing display_nick) — callers should fall back to
+ * hiding the school line rather than showing a duplicate of the team name.
+ */
+export function resolveTeamSchool(team: {
+  name?: string | null;
+  display_city?: string | null;
+  display_nick?: string | null;
+  is_relocated?: boolean | null;
+} | null | undefined): string | null {
+  if (!team) return null;
+  if (team.is_relocated && team.display_city && team.display_city.trim() && team.display_city.trim() !== team.name?.trim()) {
+    return team.display_city.trim();
+  }
+  const name = team.name?.trim();
+  const nick = team.display_nick?.trim();
+  if (name && nick && name.length > nick.length && name.toLowerCase().endsWith(nick.toLowerCase())) {
+    return name.slice(0, name.length - nick.length).trim();
+  }
+  return null;
+}
+
 /** Schedule/nickname label: team nick only — never the city. */
 export function resolveTeamNick(team: {
   name?: string | null;

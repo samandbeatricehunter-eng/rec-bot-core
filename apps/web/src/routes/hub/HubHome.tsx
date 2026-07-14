@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Eye, FileText, Landmark, MessageCircle, Mic, Megaphone, Newspaper, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trophy, UserRound, UsersRound, WalletCards } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trophy, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { useAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, MediaPortalResponse, OpenTeam, StoryComment, TeamScheduleManualState, WagerOptionsResponse } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, StoryComment, TeamScheduleManualState, WagerOptionsResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
@@ -68,11 +68,25 @@ function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
   return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => <article key={`${badge.badge_key}-${badge.tier}-${badge.season_number}`} title={badge.badge_description ?? ""}><Award size={18} /><div><strong>{badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")}</strong><span>{badge.tier ? `${String(badge.tier).toUpperCase()} · ` : ""}Earned {badge.earned_count ?? badge.earned_value ?? 1}×</span></div></article>)}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
 
+function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }) {
+  return <div className="hub-schedule-week-list">
+    {weeks.map((week) => <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}`}>
+      <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
+      {week.alreadyConfirmed ? <>
+        <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
+        <StatusChip status={week.confirmedMatchupType === "h2h" ? "info" : "locked"} label={week.confirmedMatchupType === "h2h" ? "H2H" : "CPU"} />
+        {week.result ? <b className="hub-final-score">{week.result.isTie ? "Tie" : "Final"} {week.result.homeScore}–{week.result.awayScore}</b> : <span className="hub-muted">Not yet played</span>}
+      </> : week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
+    </article>)}
+  </div>;
+}
+
 export function HubHome() {
   const auth = useAuth();
   const isMobile = useIsMobile();
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
   const [section, setSection] = useState<"league" | "store" | "team">("league");
   const [subTab, setSubTab] = useState<LeagueSubTab>("buzz");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
@@ -92,6 +106,12 @@ export function HubHome() {
   const [showMySchedule, setShowMySchedule] = useState(false);
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showTeamSchedule, setShowTeamSchedule] = useState(false);
+  const [linkedTeams, setLinkedTeams] = useState<LinkedTeamRow[] | null>(null);
+  const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
+  const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
+  const [teamScheduleError, setTeamScheduleError] = useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [comments, setComments] = useState<StoryComment[] | null>(null);
@@ -126,8 +146,20 @@ export function HubHome() {
 
   async function load() {
     if (auth.status !== "ready") return;
-    try { setHub(await recApi.getHub(auth.guildId)); setError(null); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+    try { setHub(await recApi.getHub(auth.guildId)); setError(null); setSetupAccess(null); }
+    catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      // A 404 here means no league is linked to this Discord server yet — not a real
+      // error. Check whether this viewer can run First-Time Setup instead of showing
+      // a dead-end error screen.
+      if (message.includes("404")) {
+        try { setSetupAccess(await recApi.getHubBootstrapStatus(auth.guildId)); }
+        catch { setSetupAccess({ leagueExists: false, canSetup: false }); }
+        setError(null);
+      } else {
+        setError(message);
+      }
+    }
   }
   useEffect(() => { void load(); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
 
@@ -284,6 +316,7 @@ export function HubHome() {
   async function viewOpenTeams() {
     if (auth.status !== "ready") return;
     setShowOpenTeams(true); setOpenTeamsError(null);
+    setMobileNavOpen(false);
     if (openTeams) return;
     try { setOpenTeams((await recApi.listOpenTeams(auth.guildId)).openTeams); }
     catch (cause) { setOpenTeamsError(cause instanceof Error ? cause.message : "Open teams could not be loaded."); }
@@ -291,9 +324,29 @@ export function HubHome() {
   async function viewMySchedule() {
     if (auth.status !== "ready") return;
     setShowMySchedule(true); setMyScheduleError(null);
+    setMobileNavOpen(false);
     if (mySchedule) return;
     try { setMySchedule(await recApi.getMyTeamSchedule(auth.guildId)); }
     catch (cause) { setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded."); }
+  }
+
+  function selectSection(next: typeof section) { setSection(next); setMobileNavOpen(false); }
+  function selectSubTab(next: LeagueSubTab) { setSubTab(next); setMobileNavOpen(false); }
+
+  async function openTeamSchedulePicker() {
+    if (auth.status !== "ready") return;
+    setShowTeamSchedule(true); setMobileNavOpen(false);
+    setTeamScheduleTeamId(null); setTeamSchedule(null); setTeamScheduleError(null);
+    if (linkedTeams) return;
+    try { setLinkedTeams((await recApi.listLinkedUsersTeams(auth.guildId)).linked); }
+    catch { setLinkedTeams([]); }
+  }
+
+  async function loadTeamSchedule(teamId: string) {
+    if (auth.status !== "ready") return;
+    setTeamScheduleTeamId(teamId); setTeamSchedule(null); setTeamScheduleError(null);
+    try { setTeamSchedule(await recApi.getTeamSchedule({ guildId: auth.guildId, teamId })); }
+    catch (cause) { setTeamScheduleError(cause instanceof Error ? cause.message : "Schedule could not be loaded."); }
   }
   async function submitPurchase() {
     if (auth.status !== "ready" || !purchaseType) return;
@@ -427,6 +480,13 @@ export function HubHome() {
   }
 
   if (error) return <div className="hub-state"><h1>League Hub</h1><p>{error}</p><button className="btn btn-primary" onClick={() => void load()}>Try again</button></div>;
+  if (setupAccess && !setupAccess.leagueExists) return <div className="hub-state">
+    <h1>Welcome to REC League</h1>
+    {setupAccess.canSetup ? <>
+      <p>This Discord server doesn't have a league set up yet. Run First-Time Setup to create one — once it's done, this page becomes your league's normal Hub.</p>
+      <Link className="btn btn-primary" to="/league-mgmt/first-time-setup">First Time Setup</Link>
+    </> : <p>This Discord server doesn't have a league set up yet. Ask a server admin or commissioner to run First-Time Setup.</p>}
+  </div>;
   if (!hub) return <div className="hub-state"><h1>Loading League Hub…</h1></div>;
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
@@ -436,7 +496,7 @@ export function HubHome() {
   const heroDifferential = Number(my.leagueSeasonPointDifferential ?? profile.seasonRecord?.pointDifferential ?? 0);
   const heroGotw = my.gotwStatus ?? "Not GOTW";
   const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
-  const heroSchool = my.teamName ?? profile.teamName ?? "School unavailable";
+  const heroSchool = my.schoolName ?? profile.schoolName ?? my.teamName ?? profile.teamName ?? "School unavailable";
   const activeHighlight = hub.highlights[activeHighlightIndex] ?? null;
   const activeStory = activeStoryIndex != null ? hub.headlines[activeStoryIndex] ?? null : null;
   const openTeamsByConference = (openTeams ?? []).reduce<Record<string, OpenTeam[]>>((groups, team) => {
@@ -460,24 +520,29 @@ export function HubHome() {
         </div>
       </aside>
     </section>
+    <button className="hub-nav-toggle" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}><Menu size={20} /> Menu</button>
     <div className="hub-body">
-      <aside className="hub-sidebar">
+      {mobileNavOpen && <div className="hub-sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />}
+      <aside className={mobileNavOpen ? "hub-sidebar open" : "hub-sidebar"}>
+        <button className="hub-sidebar-close" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}><X size={18} /></button>
         <nav className="hub-sidebar-nav">
           <div className="hub-sidebar-item-group">
-            <button className={section === "league" ? "active" : ""} onClick={() => setSection("league")}><Trophy size={18} /> League</button>
+            <button className={section === "league" ? "active" : ""} onClick={() => selectSection("league")}><Trophy size={18} /> League</button>
             {section === "league" && !isMobile && (
               <div className="hub-sidebar-subnav">
-                <button className={subTab === "buzz" ? "active" : ""} onClick={() => setSubTab("buzz")}><Newspaper size={15} /> Campus Buzz</button>
-                <button className={subTab === "matchups" ? "active" : ""} onClick={() => setSubTab("matchups")}><CalendarDays size={15} /> Matchups{hub.liveStreams?.length ? <i className="hub-live-dot" title="Live streams" /> : null}</button>
-                <button className={subTab === "rankings" ? "active" : ""} onClick={() => setSubTab("rankings")}><Trophy size={15} /> Rankings</button>
+                <button className={subTab === "buzz" ? "active" : ""} onClick={() => selectSubTab("buzz")}><Newspaper size={15} /> Campus Buzz</button>
+                <button className={subTab === "matchups" ? "active" : ""} onClick={() => selectSubTab("matchups")}><CalendarDays size={15} /> Matchups{hub.liveStreams?.length ? <i className="hub-live-dot" title="Live streams" /> : null}</button>
+                <button className={subTab === "rankings" ? "active" : ""} onClick={() => selectSubTab("rankings")}><Trophy size={15} /> Rankings</button>
               </div>
             )}
           </div>
           <button onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button>
-          <button className={section === "store" ? "active" : ""} onClick={() => setSection("store")}><ShoppingBag size={18} /> Store</button>
-          <button className={section === "team" ? "active" : ""} onClick={() => setSection("team")}><UserRound size={18} /> My Team</button>
+          <button className={section === "store" ? "active" : ""} onClick={() => selectSection("store")}><ShoppingBag size={18} /> Store</button>
+          <button className={section === "team" ? "active" : ""} onClick={() => selectSection("team")}><UserRound size={18} /> My Team</button>
+          <button onClick={() => { selectSection("league"); selectSubTab("matchups"); }}><Coins size={18} /> Wagers</button>
+          <button onClick={() => void openTeamSchedulePicker()}><CalendarDays size={18} /> Team Schedules</button>
         </nav>
-        {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt"><ShieldCheck size={18} /> League Mgmt</Link>}
+        {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={18} /> League Mgmt</Link>}
       </aside>
       <main className="hub-content">
     {section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
@@ -574,8 +639,8 @@ export function HubHome() {
               <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="metadata" onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}{SIDELINE_REACTIONS.some((reaction) => activeHighlight.reactionCounts[reaction.key] > 0) && <div className="hub-video-reaction-badges">{SIDELINE_REACTIONS.filter((reaction) => activeHighlight.reactionCounts[reaction.key] > 0).map((reaction) => <span key={reaction.key}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</span>)}</div>}</div>
               <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
               <div className="hub-reaction-groups"><div className="hub-reaction-group"><span className="hub-reaction-label">Community reactions</span><div className="hub-reactions"><button className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={16} /> Like {activeHighlight.reactionCounts.like}</button><button className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={16} /> Dislike {activeHighlight.reactionCounts.dislike}</button></div></div>
-                <div className="hub-reaction-group hub-sideline-reactions"><span className="hub-reaction-label">Sideline reactions</span><select className="form-input" value={SIDELINE_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key ?? ""} onChange={(event) => { const current = SIDELINE_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key; const next = event.target.value as HubReactionKey | ""; if (next) void highlightReact(activeHighlight.id, next); else if (current) void highlightReact(activeHighlight.id, current); }}><option value="">Pick a reaction</option>{SIDELINE_REACTIONS.map((reaction) => <option key={reaction.key} value={reaction.key}>{reaction.label} ({activeHighlight.reactionCounts[reaction.key]})</option>)}</select><div className="hub-sideline-summary">{SIDELINE_REACTIONS.filter((reaction) => activeHighlight.reactionCounts[reaction.key] > 0).map((reaction) => <span key={reaction.key}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</span>)}</div></div>
-                <div className="hub-reaction-group hub-poty-reactions"><span className="hub-reaction-label">Play of the Year nominations</span><select className="form-input" value={AWARD_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key ?? ""} onChange={(event) => { const current = AWARD_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key; const next = event.target.value as HubReactionKey | ""; if (next) void highlightReact(activeHighlight.id, next); else if (current) void highlightReact(activeHighlight.id, current); }}><option value="">Don't Nominate</option>{AWARD_REACTIONS.map((reaction) => <option key={reaction.key} value={reaction.key}>{reaction.label} ({activeHighlight.reactionCounts[reaction.key]})</option>)}</select><div className="hub-sideline-summary">{AWARD_REACTIONS.filter((reaction) => activeHighlight.reactionCounts[reaction.key] > 0).map((reaction) => <span key={reaction.key}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</span>)}</div></div></div>
+                <div className="hub-reaction-group hub-sideline-reactions"><span className="hub-reaction-label">Sideline reactions</span><div className="hub-pill-row">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` · ${activeHighlight.reactionCounts[reaction.key]}` : ""}</button>)}</div></div>
+                <div className="hub-reaction-group hub-poty-reactions"><span className="hub-reaction-label">Play of the Year nominations</span><div className="hub-pill-row">{AWARD_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` · ${activeHighlight.reactionCounts[reaction.key]}` : ""}</button>)}</div></div></div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Videos posted in Discord will roll in here.</p>}
         </SectionFrame>
 
@@ -680,9 +745,11 @@ export function HubHome() {
           const selectedTopic = answer.questionId ? mediaPortal.questions.find((question) => question.id === answer.questionId)?.topic ?? "" : "";
           const topics = [...new Set(mediaPortal.questions.map((question) => question.topic))];
           const questions = mediaPortal.questions.filter((question) => !selectedTopic || question.topic === selectedTopic);
+          const selectedQuestionText = answer.questionId ? mediaPortal.questions.find((question) => question.id === answer.questionId)?.question ?? "" : "";
           return <div className="hub-interview-question" key={index}><strong>Question {index + 1}</strong>
             <select className="form-input" value={selectedTopic} disabled={mediaPortal.limits.interviewSubmitted} onChange={(event) => setInterviewAnswers((current) => current.map((item, i) => i === index ? { ...item, questionId: mediaPortal.questions.find((q) => q.topic === event.target.value)?.id ?? "" } : item))}><option value="">Topic</option>{topics.map((topic) => <option key={topic}>{topic}</option>)}</select>
             <select className="form-input" value={answer.questionId} disabled={mediaPortal.limits.interviewSubmitted} onChange={(event) => setInterviewAnswers((current) => current.map((item, i) => i === index ? { ...item, questionId: event.target.value } : item))}><option value="">Question</option>{questions.map((question) => <option key={question.id} value={question.id}>{question.question}</option>)}</select>
+            {selectedQuestionText && <p className="hub-interview-question-preview">{selectedQuestionText}</p>}
             <textarea className="form-input" rows={3} placeholder="Answer" value={answer.answer} disabled={mediaPortal.limits.interviewSubmitted} onChange={(event) => setInterviewAnswers((current) => current.map((item, i) => i === index ? { ...item, answer: event.target.value } : item))} />
           </div>;
         })}
@@ -692,19 +759,17 @@ export function HubHome() {
     </div></Modal>}
 
     {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)}><div className="hub-my-schedule">
-      {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div> : !mySchedule ? <p className="hub-empty">Loading your schedule...</p> : <div className="hub-schedule-week-list">
-        {mySchedule.weeks.map((week) => {
-          const label = `Week ${week.weekNumber}`;
-          return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}`}>
-            <span className="hub-schedule-week-label">{label}</span>
-            {week.alreadyConfirmed ? <>
-              <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
-              <StatusChip status={week.confirmedMatchupType === "h2h" ? "info" : "locked"} label={week.confirmedMatchupType === "h2h" ? "H2H" : "CPU"} />
-              {week.result ? <b className="hub-final-score">{week.result.isTie ? "Tie" : "Final"} {week.result.homeScore}–{week.result.awayScore}</b> : <span className="hub-muted">Not yet played</span>}
-            </> : week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
-          </article>;
-        })}
-      </div>}
+      {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div> : !mySchedule ? <p className="hub-empty">Loading your schedule...</p> : <ScheduleWeekList weeks={mySchedule.weeks} />}
+    </div></Modal>}
+
+    {showTeamSchedule && <Modal title="Team Schedules" onClose={() => setShowTeamSchedule(false)}><div className="hub-my-schedule">
+      <label className="form-field"><span className="form-label">Team</span>
+        <select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}>
+          <option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>
+          {(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}
+        </select>
+      </label>
+      {teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}
     </div></Modal>}
   </div>;
 }

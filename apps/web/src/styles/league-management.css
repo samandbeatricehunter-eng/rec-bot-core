@@ -182,6 +182,7 @@
 .box-score-review__stat-row > span { color: var(--text-secondary); font-size: var(--text-xs); }
 .box-score-review__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .box-score-review__deny { margin-top: var(--space-3); }
+.box-score-review__add-image { display: block; margin-bottom: var(--space-3); padding: var(--space-3); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: rgba(217,165,33,.04); }
 
 .notification-view-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border); }
 .completed-transaction-list { display: grid; gap: var(--space-3); }

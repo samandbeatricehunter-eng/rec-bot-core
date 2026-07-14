@@ -4,7 +4,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
@@ -728,6 +728,19 @@ export async function createCommissionerMediaArticle(input: {
   const updated = await supabase.from("rec_media_submissions").update({ status: "published", approved_story_id: storyId, published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", inserted.data.id);
   if (updated.error) throw new ApiError(500, "Failed to mark article published.", updated.error);
   return { published: true, id: inserted.data.id, storyId };
+}
+
+// Called by the web Hub when getHub() 404s with "no league linked" — tells the page
+// whether this is a genuinely fresh server (so it can offer First-Time Setup) and
+// whether the current viewer is allowed to run it. Deliberately independent of any
+// league existing: assertGuildPermission's "commissioner" tier is pure Discord-API
+// membership/role/permission-bit checking, so this works before a league is ever
+// created (same trust model createLeagueForServer itself already relies on).
+export async function getHubBootstrapStatus(guildId: string, discordId: string) {
+  const context = await findCurrentLeagueContext(guildId);
+  const leagueExists = Boolean(context);
+  const canSetup = await assertGuildPermission(guildId, discordId, "commissioner").then(() => true).catch(() => false);
+  return { leagueExists, canSetup };
 }
 
 // Read-only, self-scoped season schedule for the My Team page — reuses the commissioner

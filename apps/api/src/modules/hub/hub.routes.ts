@@ -4,12 +4,14 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
+import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import {
   addHubStoryComment,
   closeGameOfWeekVoting,
   createCommissionerMediaArticle,
   getHub,
   getHubMatchupSchedule,
+  getHubBootstrapStatus,
   getHubMediaPortal,
   getMyTeamSchedule,
   HUB_REACTION_KEYS,
@@ -47,6 +49,18 @@ export async function hubRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  // Checked by the web Hub when /v1/hub/view 404s (no league linked yet) — tells it
+  // whether to offer a First-Time Setup entry point. No permission requirement of its
+  // own beyond a valid session; canSetup itself is the meaningful gate.
+  app.post("/v1/hub/bootstrap-status", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      if (auth.mode === "bot") throw new ApiError(400, "Bootstrap status is a browser-only endpoint.");
+      return reply.send(await getHubBootstrapStatus(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
   app.post("/v1/hub/highlights/react", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), highlightId: z.string().uuid(), reactionKey: z.enum(HUB_REACTION_KEYS) }).parse(request.body);
@@ -71,6 +85,18 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "My Team schedule is a browser-only endpoint.");
       return reply.send(await getMyTeamSchedule(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Any member can view any team's schedule (public league info, scouting) — unlike the
+  // commissioner schedule builder's /v1/schedule/team-manual-preview, this is read-only
+  // and gated on "member", not "co_commissioner". getTeamScheduleManualState itself already
+  // 404s if teamId isn't in the caller's own league, so no separate cross-league check needed.
+  app.post("/v1/hub/team-schedule", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), teamId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await getTeamScheduleManualState(body));
     } catch (error) { return sendError(reply, error); }
   });
 

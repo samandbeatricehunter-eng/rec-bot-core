@@ -6,6 +6,7 @@ type ServerRoutes = {
   headlines_channel_id?: string | null;
   power_rankings_channel_id?: string | null;
   voting_polls_channel_id?: string | null;
+  box_scores_channel_id?: string | null;
 };
 
 export async function getRouteChannels(guildId: string): Promise<Record<string, any>> {
@@ -58,4 +59,28 @@ export async function getPowerRankingsChannel(guild: Guild, routes: ServerRoutes
 
 export async function getVotingPollsChannel(guild: Guild, routes: ServerRoutes) {
   return fetchRoutedTextChannel(guild, routes.voting_polls_channel_id);
+}
+
+export async function getBoxScoresChannel(guild: Guild, routes: ServerRoutes) {
+  return fetchRoutedTextChannel(guild, routes.box_scores_channel_id);
+}
+
+/**
+ * Deletes every message in a channel — used to reset the box scores channel at the start
+ * of each new game week so old submissions/chatter don't linger. Discord's bulk-delete
+ * only touches messages under 14 days old (rare for anything to be older in a
+ * weekly-cadence channel, but `bulkDelete`'s filterOld flag skips them instead of
+ * throwing); anything it skips is removed one at a time as a fallback.
+ */
+export async function purgeChannelMessages(channel: TextChannel) {
+  let fetched;
+  do {
+    fetched = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+    if (!fetched || fetched.size === 0) break;
+    const deleted = await channel.bulkDelete(fetched, true).catch(() => null);
+    const remaining = deleted ? fetched.filter((message) => !deleted.has(message.id)) : fetched;
+    for (const message of remaining.values()) {
+      await message.delete().catch(() => undefined);
+    }
+  } while (fetched.size === 100);
 }

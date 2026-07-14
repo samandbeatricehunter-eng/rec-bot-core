@@ -16,6 +16,7 @@ import {
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { nextLeagueStage, stageLabel } from "../lib/league-stage.js";
 import { recApi } from "../lib/rec-api.js";
+import { getBoxScoresChannel, getRouteChannels, purgeChannelMessages } from "../lib/route-channels.js";
 import { enterAdvanceTimeStep } from "./advance-time.js";
 import { deleteWagerCleanupMessages, refreshConfirmableWagerEmbeds } from "./wagers.js";
 
@@ -220,6 +221,15 @@ async function completeAdvanceFromSession(
   if (interaction.guild) await settleGotwForWeek(interaction.guild, session.guildId, session.currentWeek).catch((err) => {
     console.error("[ERROR] GOTW settlement failed (non-fatal):", err);
   });
+
+  // Reset the box scores channel for the new week — last week's submissions (and any
+  // stray chatter) are cleared out so it starts clean.
+  if (interaction.guild) {
+    void getRouteChannels(session.guildId)
+      .then((routes) => getBoxScoresChannel(interaction.guild!, routes))
+      .then((channel) => channel && purgeChannelMessages(channel))
+      .catch((err) => console.error("[ERROR] Box scores channel reset failed (non-fatal):", err));
+  }
 
   const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek, session.game)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber, session.game)}**.${interestLine}${wagerLine}`;
   sessions.delete(sessionKey(session.guildId, session.userId));

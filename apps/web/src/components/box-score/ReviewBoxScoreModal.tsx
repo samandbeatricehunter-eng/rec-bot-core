@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
+import { useReadyAuth } from "../../lib/auth-context.js";
 import type { BoxScoreSubmissionDetail } from "../../types/api.js";
 import { Modal } from "../ui/Modal.js";
 import { Button } from "../ui/Button.js";
@@ -27,6 +28,8 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
   const [team1Quarters, setTeam1Quarters] = useState("");
   const [team2Quarters, setTeam2Quarters] = useState("");
   const [stats, setStats] = useState<Record<string, { team1: string; team2: string }>>({});
+  const [addingImage, setAddingImage] = useState(false);
+  const { guildId } = useReadyAuth();
 
   function hydrate(row: BoxScoreSubmissionDetail) {
     setSubmission(row);
@@ -76,6 +79,21 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
     }
   }
 
+  async function addMissingImage(file: File | null) {
+    if (!file) return;
+    setAddingImage(true); setError(null);
+    try {
+      const { url } = await recApi.uploadBoxScoreImage(guildId, file);
+      await recApi.appendBoxScoreImageCommissioner({ submissionId, imageUrl: url });
+      const refreshed = await recApi.getBoxScoreSubmission(submissionId);
+      hydrate(refreshed);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to add screenshot.");
+    } finally {
+      setAddingImage(false);
+    }
+  }
+
   return <Modal title="Review Box Score" onClose={onClose}>
     {error && <ErrorState message={error} />}
     {!submission && !error && <LoadingState />}
@@ -84,6 +102,11 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
       {submission.image_storage_url && <a href={submission.image_storage_url} target="_blank" rel="noreferrer">
         <img className="box-score-review__image" src={submission.image_storage_url} alt="Submitted box score screenshot" />
       </a>}
+      {(submission.image_urls?.length ?? 0) < 2 && submission.status === "pending" && <label className="box-score-review__add-image">
+        <span className="form-label">{(submission.image_urls?.length ?? 0) === 0 ? "Add a screenshot" : "Add the missing second screenshot (top or bottom of the stats page)"}</span>
+        <input className="form-input" type="file" accept="image/png,image/jpeg,image/webp" disabled={addingImage} onChange={(event) => void addMissingImage(event.target.files?.[0] ?? null)} />
+        {addingImage && <span className="form-hint">Uploading…</span>}
+      </label>}
       {(submission.flag_reasons?.length || submission.parse_warnings?.length) ? <div className="box-score-review__warnings">
         {[...(submission.flag_reasons ?? []), ...(submission.parse_warnings ?? [])].map((warning, index) => <p key={`${warning}-${index}`}>{warning}</p>)}
       </div> : null}

@@ -247,6 +247,8 @@ async function clearExchange(ex: Exchange, opts: { deleteUserImages: boolean }) 
 
 // ─── Channel listener (called from messageCreate) ─────────────────────────────
 
+const EXCHANGE_WINDOW_MS = 2 * 60 * 1000;
+
 export async function handleBoxScoreChannelMessage(message: Message): Promise<void> {
   if (!message.inGuild() || message.author.bot) return;
 
@@ -279,12 +281,14 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
     return;
   }
 
-  const images = imageAttachments.map((a) => a.url);
+  const imageUrl = imageAttachments[0].url;
 
   const key = exKey(message.guildId, message.author.id);
   const existing = exchanges.get(key);
 
-  // First image in a new upload pass — gate before OCR.
+  // First image in a new upload pass — gate before OCR, and route around starting a
+  // fresh exchange if this game already has a submission (either the coach's own
+  // pending one from an earlier pass, or their H2H opponent's).
   if (!existing) {
     try {
       const eligibility = await recApi.getBoxScoreUploadEligibility({ guildId: message.guildId, discordId: message.author.id });
@@ -308,6 +312,47 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
             .setDescription(`You don't have a scheduled game in Week ${eligibility.weekNumber}. Box scores are only accepted when your team has an H2H or CPU matchup this week.`)],
         }).catch(() => undefined);
         return;
+      }
+      const existingSubmission = eligibility.existingSubmission;
+      if (existingSubmission) {
+        const isMine = existingSubmission.submittedByDiscordId === message.author.id;
+        if (isMine && existingSubmission.status === "pending") {
+          // A late second (or third) screenshot for the coach's own already-pending
+          // submission — the earlier exchange already finalized and forwarded it to
+          // the commissioner inbox, so append instead of starting a new one.
+          try {
+            await recApi.appendBoxScoreImage({ guildId: message.guildId, discordId: message.author.id, imageUrl });
+            await message.react("✅").catch(() => undefined);
+            const notice = await channel.send({
+              content: `<@${message.author.id}> Added to your pending box score submission — a commissioner will review it.`,
+              allowedMentions: { users: [message.author.id] },
+            }).catch(() => null);
+            if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 10_000);
+          } catch (err) {
+            await channel.send({
+              content: `<@${message.author.id}>`,
+              embeds: [new EmbedBuilder().setTitle("Box Score Update Failed").setColor(COLORS.error).setDescription(userFacingError(err))],
+            }).catch(() => undefined);
+          }
+          return;
+        }
+        if (!isMine) {
+          // The other side of this H2H matchup already submitted (or was paid out) —
+          // this coach doesn't need to submit their own.
+          await message.delete().catch(() => undefined);
+          const statusText = existingSubmission.status === "approved" ? "already been reviewed and paid out" : "already submitted";
+          const notice = await channel.send({
+            content: `<@${message.author.id}>`,
+            embeds: [new EmbedBuilder()
+              .setTitle("Box Score Not Needed")
+              .setColor(COLORS.info)
+              .setDescription(`Your opponent's box score for this game has ${statusText} — you don't need to submit your own. Your message was removed.`)],
+          }).catch(() => null);
+          if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 15_000);
+          return;
+        }
+        // isMine && approved: already handled by hasApprovedForWeek above in practice;
+        // fall through defensively and let it start a fresh exchange rather than block.
       }
     } catch (err) {
       await channel.send({
@@ -338,13 +383,40 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   }
 
   ex.channel = channel;
-  ex.imageUrls.push(...images);
+  ex.imageUrls.push(imageUrl);
   ex.userMessageIds.push(message.id);
 
-  if (ex.busy) return; // a parse is already in flight; the new images are captured for next pass
+  if (ex.busy) return; // a submit is already in flight; further images just sit captured
+  if (ex.imageUrls.length >= 2) {
+    // Second screenshot arrived — no need to wait out the rest of the window.
+    ex.busy = true;
+    try {
+      await finalizeExchange(ex, { timedOut: false });
+    } finally {
+      ex.busy = false;
+    }
+    return;
+  }
+
+  // First screenshot of this pass — arm the 2-minute window for the second (top/bottom)
+  // screenshot instead of submitting right away.
+  if (ex.timer) clearTimeout(ex.timer);
+  ex.expiresAt = Date.now() + EXCHANGE_WINDOW_MS;
+  ex.timer = setTimeout(() => { void finalizeOnTimeout(ex!); }, EXCHANGE_WINDOW_MS);
+
+  const notice = await channel.send({
+    content: `<@${message.author.id}> Screenshot received. Post your **second** box score screenshot (scroll down for the bottom of the stats page) within 2 minutes.`,
+    allowedMentions: { users: [message.author.id] },
+  }).catch(() => null);
+  if (notice) ex.botMessageIds.push(notice.id);
+}
+
+async function finalizeOnTimeout(ex: Exchange) {
+  const current = exchanges.get(exKey(ex.guildId, ex.userId));
+  if (!current || current !== ex || ex.busy) return; // already finalized by a second image
   ex.busy = true;
   try {
-    await advanceExchange(ex);
+    await finalizeExchange(ex, { timedOut: true });
   } finally {
     ex.busy = false;
   }
@@ -399,7 +471,11 @@ export async function handleCommissionerBoxScoreSubmissionMessage(message: Messa
   return true;
 }
 
-async function advanceExchange(ex: Exchange) {
+// Submits whatever screenshots were captured (1 or 2) and, when finalized by the
+// 2-minute timeout with only one screenshot in hand, DMs the coach a reminder that a
+// second (top + bottom of the stats page) screenshot is expected — the submission
+// itself still goes to the commissioner inbox either way so nothing is ever dropped.
+async function finalizeExchange(ex: Exchange, opts: { timedOut: boolean }) {
   // Drop any prior bot prompt so only the latest guidance is visible.
   if (ex.botMessageIds.length) {
     await deleteMessages(ex.channel, ex.botMessageIds);
@@ -434,6 +510,9 @@ async function advanceExchange(ex: Exchange) {
   }
 
   const sourceMessageId = ex.userMessageIds[0] ?? null;
+  const userId = ex.userId;
+  const imageCount = ex.imageUrls.length;
+  const client = ex.channel.client;
   ex.botMessageIds = [];
   exchanges.delete(exKey(ex.guildId, ex.userId));
   void result;
@@ -441,14 +520,27 @@ async function advanceExchange(ex: Exchange) {
     const sourceMessage = await ex.channel.messages.fetch(sourceMessageId).catch(() => null);
     await sourceMessage?.react("✅").catch(() => undefined);
   }
+
+  if (opts.timedOut && imageCount < 2) {
+    try {
+      const discordUser = await client.users.fetch(userId);
+      await discordUser.send({
+        embeds: [new EmbedBuilder()
+          .setTitle("Box Score Reminder")
+          .setColor(COLORS.warning)
+          .setDescription("Each box score needs **2 screenshots**: one from the **top** of the stats page and one from the **bottom** (scroll down in-game). We forwarded what you posted to the commissioners for review — if you still have the second screenshot, post it in the box scores channel and it'll be added to your pending submission.")],
+      });
+    } catch { /* DMs closed — non-fatal */ }
+  }
 }
 
-// Safety-net sweep for exchanges whose timer was lost (called on an interval).
+// Safety-net sweep for exchanges whose timer was somehow lost (called on an interval) —
+// finalizes with whatever was captured instead of silently dropping it.
 export function sweepBoxScoreExchanges() {
   const now = Date.now();
   for (const ex of [...exchanges.values()]) {
     if (ex.expiresAt && now > ex.expiresAt + 10_000) {
-      void clearExchange(ex, { deleteUserImages: false });
+      void finalizeOnTimeout(ex);
     }
   }
 }
