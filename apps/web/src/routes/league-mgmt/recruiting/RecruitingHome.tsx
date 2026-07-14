@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Star, Trash2 } from "lucide-react";
+import { Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { ClassYear, Recruit, RecruitStatus, ScheduleTeam, TransferEntry, TransferStatus } from "../../../types/api.js";
@@ -76,6 +76,15 @@ function RecruitsPanel({ guildId, teams, teamName }: { guildId: string; teams: S
     catch (err) { setError(err instanceof Error ? err.message : "Failed to delete the recruit."); }
     finally { setBusy(false); }
   }
+  async function edit(recruit: Recruit) {
+    const playerName = window.prompt("Recruit name", recruit.playerName)?.trim(); if (!playerName) return;
+    const position = window.prompt("Position", recruit.position)?.trim(); if (!position) return;
+    const stars = Number(window.prompt("Star rating (1-5)", String(recruit.starRating))); if (!Number.isInteger(stars) || stars < 1 || stars > 5) return setError("Star rating must be from 1 to 5.");
+    const homeCity = window.prompt("Hometown city", recruit.homeCity ?? ""); if (homeCity === null) return;
+    const homeState = window.prompt("Hometown state", recruit.homeState ?? ""); if (homeState === null) return;
+    setBusy(true); try { await recApi.updateRecruitDetails({ guildId, id: recruit.id, playerName, position, starRating: stars, homeCity: homeCity.trim() || null, homeState: homeState.trim() || null }); load(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Failed to edit recruit."); } finally { setBusy(false); }
+  }
 
   return (
     <div>
@@ -109,6 +118,7 @@ function RecruitsPanel({ guildId, teams, teamName }: { guildId: string; teams: S
                   {recruit.status === "committed" && recruit.committedTeamId && <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>→ {teamName(recruit.committedTeamId)}</span>}
                 </div>
                 <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <Button variant="ghost" size="compact" disabled={busy} onClick={() => void edit(recruit)}><Pencil size={14} /> Edit</Button>
                   {recruit.status !== "committed" && committingId !== recruit.id && <Button variant="secondary" size="compact" onClick={() => setCommittingId(recruit.id)}>Mark Committed</Button>}
                   {recruit.status === "committed" && <Button variant="secondary" size="compact" onClick={() => void decommit(recruit.id)}>Decommit</Button>}
                   <Button variant="danger" size="compact" disabled={busy} onClick={() => void remove(recruit.id)}><Trash2 size={14} /></Button>

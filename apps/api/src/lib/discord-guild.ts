@@ -44,6 +44,30 @@ async function discordBotFetch(path: string, init?: RequestInit): Promise<Respon
   });
 }
 
+export async function listGuildChannels(guildId: string) {
+  const res = await discordBotFetch(`/guilds/${guildId}/channels`);
+  if (!res.ok) throw new ApiError(502, `Discord rejected the channel list request (${res.status}).`);
+  const channels = await res.json() as Array<{ id: string; name: string; type: number; parent_id?: string | null; position?: number }>;
+  return channels.filter((c) => c.type === 0 || c.type === 5 || c.type === 4).map((c) => ({ id: c.id, name: c.name, type: c.type === 4 ? "category" : "text", parentId: c.parent_id ?? null, position: c.position ?? 0 })).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+}
+
+export async function createGuildChannel(guildId: string, input: { name: string; type: "text" | "category"; templateChannelId?: string | null; parentChannelId?: string | null }) {
+  let permissionOverwrites: unknown[] | undefined;
+  let parentId: string | null | undefined = input.parentChannelId;
+  if (input.templateChannelId) {
+    const template = await discordBotFetch(`/channels/${input.templateChannelId}`);
+    if (template.ok) {
+      const row = await template.json() as { permission_overwrites?: unknown[]; parent_id?: string | null };
+      permissionOverwrites = row.permission_overwrites;
+      parentId ??= row.parent_id;
+    }
+  }
+  const res = await discordBotFetch(`/guilds/${guildId}/channels`, { method: "POST", headers: { "content-type": "application/json", "x-audit-log-reason": "REC League Management channel setup" }, body: JSON.stringify({ name: input.name, type: input.type === "category" ? 4 : 0, permission_overwrites: permissionOverwrites, parent_id: input.type === "text" ? parentId : undefined }) });
+  if (!res.ok) throw new ApiError(502, `Discord rejected channel creation (${res.status}). Check Manage Channels permission.`);
+  const channel = await res.json() as { id: string; name: string; type: number };
+  return { id: channel.id, name: channel.name, type: channel.type === 4 ? "category" : "text" };
+}
+
 export async function sendDiscordDirectMessage(discordId: string, content: string): Promise<void> {
   const dm = await discordBotFetch("/users/@me/channels", {
     method: "POST",
@@ -147,23 +171,30 @@ export function hasAdministratorOrManageGuild(permissionBits: bigint): boolean {
 // process. Same role-hierarchy constraint applies: the bot can only grant/revoke roles
 // positioned below its own highest role in the guild.
 
-export type DiscordGuildMemberSummary = { discordId: string; displayName: string; username: string; isBot: boolean };
+export type DiscordGuildMemberSummary = { discordId: string; displayName: string; username: string; isBot: boolean; managedRole: RecManagedRoleKey | null };
 
 // Discord caps a single members-list page at 1000; loop with the `after` cursor for guilds
 // larger than that (uncommon for a REC league, but not worth hardcoding a limit).
 export async function listGuildMembers(guildId: string): Promise<DiscordGuildMemberSummary[]> {
   const members: DiscordGuildMemberSummary[] = [];
+  const roles = await getGuildRoles(guildId);
+  const managedById = new Map<string, RecManagedRoleKey>();
+  for (const [id, role] of roles) {
+    const match = (Object.entries(REC_MANAGED_ROLES) as Array<[RecManagedRoleKey, { name: string }]>).find(([, definition]) => definition.name === role.name);
+    if (match) managedById.set(id, match[0]);
+  }
   let after = "0";
   for (;;) {
     const res = await discordBotFetch(`/guilds/${guildId}/members?limit=1000&after=${after}`);
     if (!res.ok) throw new Error(`Failed to fetch guild members (${res.status})`);
-    const page = (await res.json()) as Array<{ user: { id: string; username: string; bot?: boolean }; nick: string | null }>;
+    const page = (await res.json()) as Array<{ user: { id: string; username: string; bot?: boolean }; nick: string | null; roles: string[] }>;
     for (const row of page) {
       members.push({
         discordId: row.user.id,
         displayName: row.nick ?? row.user.username,
         username: row.user.username,
         isBot: Boolean(row.user.bot),
+        managedRole: row.roles.map((id) => managedById.get(id)).filter((role): role is RecManagedRoleKey => Boolean(role)).sort((a, b) => ["member", "compCommittee", "commissioner"].indexOf(b) - ["member", "compCommittee", "commissioner"].indexOf(a))[0] ?? null,
       });
     }
     if (page.length < 1000) break;

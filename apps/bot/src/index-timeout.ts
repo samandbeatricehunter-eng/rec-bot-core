@@ -7,7 +7,7 @@ import { userFacingError } from "./lib/errors.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
 import { handleGuideOpenTeams, publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
-import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
+import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, handleWeeklySubmissionMessage, handleWeeklySubmissionModal, handleWeeklySubmissionSelect, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
 import { GAME_CHANNEL_PAGE_PREFIX, handleGameChannelPage } from "./flows/game-channel-pages.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
 import { GOTW_CUSTOM_IDS, handleGotwConfirm, handleGotwPollsMenu, handleGotwSelect, handleRerunGotwPolls, handleSetGotw } from "./flows/gotw.js";
@@ -422,6 +422,9 @@ client.once("clientReady", async () => {
   await Promise.allSettled([...client.guilds.cache.values()].map((guild) => syncRecentHighlightMessages(guild)));
   await recoverOpenActiveChecks(client);
   await recoverOpenEosAwardPolls(client, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
+  const refreshGuides = () => Promise.allSettled([...client.guilds.cache.values()].map((guild) => publishRecGuide(guild)));
+  await refreshGuides();
+  setInterval(() => { void refreshGuides(); }, 60_000).unref();
 });
 
 client.on("error", (error) => {
@@ -470,6 +473,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.boxScores) return handleWeeklyBoxScores(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats) return handleWeeklyPlayerStats(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting) return handleWeeklyRecruiting(interaction);
+    if (interaction.isStringSelectMenu() && [WEEKLY_SUBMISSIONS_CUSTOM_IDS.statPlayer, WEEKLY_SUBMISSIONS_CUSTOM_IDS.statCategory, WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruitPosition, WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruitStars].includes(interaction.customId as any)) return handleWeeklySubmissionSelect(interaction);
+    if (interaction.isModalSubmit() && (interaction.customId.startsWith(`${WEEKLY_SUBMISSIONS_CUSTOM_IDS.statModal}:`) || interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruitHometown)) return handleWeeklySubmissionModal(interaction);
 
     if (interaction.isButton() && interaction.customId.startsWith("rec:stream_review:")) {
       await handleStreamReviewButton(interaction);
@@ -890,6 +895,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+  if (await handleWeeklySubmissionMessage(message).catch(() => false)) return;
   if (await handleStreamChannelMessage(message).catch(() => false)) return;
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
   if (await handleWeeklyScoresUploadMessage(message).catch(() => false)) return;

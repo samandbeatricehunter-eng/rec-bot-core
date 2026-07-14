@@ -153,6 +153,12 @@ export async function submitPlayerStatLine(input: {
   return { playerId: playerId!, tagId, submissionId, teamId: eligibility.teamId, gameId: eligibility.gameId };
 }
 
+export async function listMyWatchedPlayers(guildId: string, discordId: string): Promise<{ players: WatchedPlayer[] }> {
+  const eligibility = await getBoxScoreUploadEligibility({ guildId, discordId });
+  if (!eligibility.teamId) throw new ApiError(400, "You aren't linked to a team in this league.");
+  return listWatchedPlayers(guildId, eligibility.teamId);
+}
+
 // Soft delete (is_active = false) rather than a hard delete — historical performance tags
 // from past games may still reference this player and need to keep resolving.
 export async function removeWatchedPlayer(input: { guildId: string; id: string }): Promise<{ removed: true }> {

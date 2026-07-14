@@ -39,6 +39,7 @@ import type {
   ChallengeableCoachesResponse,
   OpenTeamsResponse,
   RoleMgmtMember,
+  TeamLinkMatrix,
   RoleMgmtRoleKey,
   ScheduleTeam,
   TeamManagementSummary,
@@ -164,6 +165,7 @@ export const recApi = {
 
   // Team ownership
   listLinkedUsersTeams: (guildId: string) => recApiFetch<LinkedTeamsResponse>(REC_API_ROUTES.linkedUsersTeams(guildId)),
+  getTeamLinkMatrix: (guildId: string) => recApiFetch<TeamLinkMatrix>(`/v1/team-ownership/${guildId}/matrix`),
   listOpenTeams: (guildId: string) => recApiFetch<OpenTeamsResponse>(REC_API_ROUTES.openTeams(guildId)),
   listLeagueIdentities: (guildId: string) => recApiFetch<LeagueIdentitiesResponse>(`/v1/guilds/${guildId}/identities`),
   linkUserToTeam: (input: { guildId: string; discordId: string; teamId: string }) =>
@@ -230,6 +232,8 @@ export const recApi = {
     recApiFetch<{ recruit: Recruit }>("/v1/recruiting/create", { method: "POST", body: JSON.stringify(input) }),
   updateRecruitStatus: (input: { guildId: string; id: string; status: RecruitStatus; committedTeamId?: string | null; committedTeamExternal?: string | null; commitDate?: string | null }) =>
     recApiFetch<{ recruit: Recruit }>("/v1/recruiting/update-status", { method: "POST", body: JSON.stringify(input) }),
+  updateRecruitDetails: (input: { guildId: string; id: string; playerName: string; position: string; starRating: number; homeCity?: string | null; homeState?: string | null }) =>
+    recApiFetch<{ recruit: Recruit }>("/v1/recruiting/update-details", { method: "POST", body: JSON.stringify(input) }),
   deleteRecruit: (guildId: string, id: string) =>
     recApiFetch<{ deleted: true }>("/v1/recruiting/delete", { method: "POST", body: JSON.stringify({ guildId, id }) }),
 
@@ -300,8 +304,13 @@ export const recApi = {
     recApiFetch<{ members: RoleMgmtMember[] }>("/v1/roles/members", { method: "POST", body: JSON.stringify({ guildId }) }),
   updateMemberRole: (input: { guildId: string; discordId: string; roleKey: RoleMgmtRoleKey; action: "add" | "remove" }) =>
     recApiFetch<{ ok: true }>("/v1/roles/update", { method: "POST", body: JSON.stringify(input) }),
+  setMemberRole: (input: { guildId: string; discordId: string; roleKey: RoleMgmtRoleKey }) =>
+    recApiFetch<{ ok: true; roleKey: RoleMgmtRoleKey }>("/v1/roles/set", { method: "POST", body: JSON.stringify(input) }),
 
   // Settings (Phase 2)
+  getServerChannels: (guildId: string) => recApiFetch<{ channels: Array<{ id: string; name: string; type: "text" | "category" }>; routes: Record<string, string | null> }>("/v1/server-config/channels", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createServerChannel: (input: { guildId: string; routeKey: string; name: string; type: "text" | "category"; templateChannelId?: string | null }) => recApiFetch<{ channel: { id: string; name: string; type: "text" | "category" } }>("/v1/server-config/channels/create", { method: "POST", body: JSON.stringify(input) }),
+  saveServerChannels: (input: Record<string, string | null> & { guildId: string }) => recApiFetch<unknown>("/v1/economy/config/set", { method: "POST", body: JSON.stringify(input) }),
   getLeagueSettingsDraft: (guildId: string) =>
     recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/config", { method: "POST", body: JSON.stringify({ guildId }) }),
   updateLeagueSettings: (draft: LeagueSettingsDraft) =>

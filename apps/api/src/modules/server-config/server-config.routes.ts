@@ -3,6 +3,9 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { getServerConfig, setServerConfig } from "./server-config.service.js";
+import { createGuildChannel, listGuildChannels } from "../../lib/discord-guild.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { getRecRouteChannel } from "@rec/shared";
 
 const ViewConfigSchema = z.object({
   guildId: z.string().min(1)
@@ -24,6 +27,17 @@ const SetConfigSchema = z.object({
 });
 
 export async function serverConfigRoutes(app: FastifyInstance) {
+  app.post("/v1/server-config/channels", async (request, reply) => { try { const { guildId } = ViewConfigSchema.parse(request.body); await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" }); const [channels, config] = await Promise.all([listGuildChannels(guildId), getServerConfig(guildId)]); return reply.send({ channels, routes: config.routes }); } catch (error) { return sendError(reply, error); } });
+  app.post("/v1/server-config/channels/create", async (request, reply) => { try {
+    const body = z.object({ guildId: z.string().min(1), routeKey: z.string().min(1), name: z.string().min(1).max(100), type: z.enum(["text", "category"]), templateChannelId: z.string().optional().nullable() }).parse(request.body);
+    await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+    const route = getRecRouteChannel(body.routeKey); if (!route) throw new Error("Unknown designated channel type.");
+    const config = await getServerConfig(body.guildId); const routes = config.routes as Record<string, string | null | undefined>;
+    const ownTemplate = routes?.[route.dbField] ?? null;
+    const parentRoute = "defaultParentRoute" in route ? getRecRouteChannel(route.defaultParentRoute as string) : null;
+    const parentChannelId = parentRoute ? routes?.[parentRoute.dbField] ?? null : null;
+    return reply.send({ channel: await createGuildChannel(body.guildId, { ...body, name: route.defaultName, templateChannelId: ownTemplate ?? body.templateChannelId, parentChannelId }) });
+  } catch (error) { return sendError(reply, error); } });
   app.post("/v1/economy/config/view", async (request, reply) => {
     try {
       requireInternalApiKey(request);
@@ -35,8 +49,9 @@ export async function serverConfigRoutes(app: FastifyInstance) {
 
   app.post("/v1/economy/config/set", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      return reply.send(await setServerConfig(SetConfigSchema.parse(request.body)));
+      const body = SetConfigSchema.parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await setServerConfig(body));
     } catch (error) {
       return sendError(reply, error);
     }

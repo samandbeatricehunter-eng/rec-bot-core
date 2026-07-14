@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { CLASS_YEARS, createWatchedPlayer, listWatchedPlayers, removeWatchedPlayer, submitPlayerStatLine, updateWatchedPlayer } from "./watched-players.service.js";
+import { CLASS_YEARS, createWatchedPlayer, listMyWatchedPlayers, listWatchedPlayers, removeWatchedPlayer, submitPlayerStatLine, updateWatchedPlayer } from "./watched-players.service.js";
 
 const ClassYearSchema = z.enum(CLASS_YEARS).optional().nullable();
 
@@ -54,6 +54,14 @@ export async function watchedPlayersRoutes(app: FastifyInstance) {
         statLines: z.array(z.object({ statKey: z.string(), label: z.string(), value: z.number() })).min(1).max(10),
       }).parse(request.body);
       return reply.send(await submitPlayerStatLine(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/watched-players/my-list", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
+      return reply.send(await listMyWatchedPlayers(body.guildId, body.discordId));
     } catch (error) { return sendError(reply, error); }
   });
 }

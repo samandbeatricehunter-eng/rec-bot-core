@@ -618,6 +618,7 @@
 }
 
 @media (max-width: 600px) {
+  .channel-settings-row { grid-template-columns: 1fr !important; }
   .app-shell-container {
     padding: var(--space-3);
   }
@@ -694,4 +695,12 @@
   .hub-profile-sections summary, .box-score-review__actions { justify-content: center; }
   .box-score-review__stat-head, .box-score-review__stat-row { grid-template-columns: minmax(110px, 1.2fr) repeat(2, minmax(68px, 1fr)); }
   .hub-matchups article { align-items: flex-start; flex-direction: column; }
+}
+
+.channel-settings-grid { display: grid; gap: var(--space-4); }
+.channel-settings-row { display: grid; grid-template-columns: minmax(150px, .8fr) minmax(220px, 1.5fr) auto; gap: var(--space-3); align-items: end; }
+.inline-admin-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(180px, 2fr); gap: var(--space-3); align-items: center; }
+@media (max-width: 600px) {
+  .channel-settings-row, .inline-admin-row { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .channel-settings-row .btn, .inline-admin-row .form-select { width: 100%; }
 }

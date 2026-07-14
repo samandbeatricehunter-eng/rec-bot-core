@@ -9,6 +9,7 @@ import { Button } from "../../../components/ui/Button.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { FirstTimeSetupHome } from "../first-time-setup/FirstTimeSetupHome.js";
+import { ChannelSettings } from "./ChannelSettings.js";
 
 const FIRST_TIME_SETUP_KEY = "first-time-setup";
 
@@ -96,7 +97,7 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === FIRST_TIME_SETUP_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === FIRST_TIME_SETUP_KEY ? (
         <FirstTimeSetupHome />
       ) : (
         <>

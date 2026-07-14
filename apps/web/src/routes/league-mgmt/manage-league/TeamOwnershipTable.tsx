@@ -1,92 +1,49 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { UserPlus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { LinkedTeamRow } from "../../../types/api.js";
+import type { TeamLinkMatrix } from "../../../types/api.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
-import { Button } from "../../../components/ui/Button.js";
-import { Table, Th, Td } from "../../../components/ui/Table.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 export function TeamOwnershipTable() {
   const { guildId } = useReadyAuth();
-  const navigate = useNavigate();
-  const [linked, setLinked] = useState<LinkedTeamRow[] | null>(null);
+  const [matrix, setMatrix] = useState<TeamLinkMatrix | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busyTeamId, setBusyTeamId] = useState<string | null>(null);
-
-  function load() {
-    recApi
-      .listLinkedUsersTeams(guildId)
-      .then((res) => setLinked(res.linked))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load linked teams."));
-  }
-
-  useEffect(load, [guildId]);
-
-  async function handleUnlink(teamId: string) {
-    setBusyTeamId(teamId);
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = () => recApi.getTeamLinkMatrix(guildId).then(setMatrix).catch((e) => setError(e instanceof Error ? e.message : "Failed to load teams."));
+  useEffect(() => { void load(); }, [guildId]);
+  const users = matrix?.users ?? [];
+  const conferences = useMemo(() => {
+    const grouped = new Map<string, TeamLinkMatrix["teams"]>();
+    for (const team of matrix?.teams ?? []) { const key = team.conference ?? "Other"; grouped.set(key, [...(grouped.get(key) ?? []), team]); }
+    return [...grouped.entries()];
+  }, [matrix]);
+  async function change(teamId: string, discordId: string) {
+    setBusy(teamId); setError(null);
     try {
-      await recApi.unlinkTeam({ guildId, teamId });
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to unlink team.");
-    } finally {
-      setBusyTeamId(null);
-    }
+      if (discordId) await recApi.linkUserToTeam({ guildId, teamId, discordId });
+      else await recApi.unlinkTeam({ guildId, teamId });
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Failed to update team."); } finally { setBusy(null); }
   }
-
-  return (
-    <div>
-      <PageHeader
-        title="Teams"
-        subtitle="Manage which users control which teams."
-        actions={
-          <Button variant="primary" onClick={() => navigate("/league-mgmt/manage-league/teams/link")}>
-            <UserPlus size={16} /> Link User
-          </Button>
-        }
-      />
-      {error && <ErrorState message={error} />}
-      {!linked && !error && <LoadingState />}
-      {linked && (
-        <Card>
-          <Table>
-            <thead>
-              <tr>
-                <Th>Team</Th>
-                <Th>User</Th>
-                <Th></Th>
-              </tr>
-            </thead>
-            <tbody>
-              {linked.map((row) => (
-                <tr key={row.id}>
-                  <Td>{row.team?.name ?? "Unknown"}</Td>
-                  <Td>{row.user?.display_name ?? "Unknown"}</Td>
-                  <Td style={{ textAlign: "right" }}>
-                    <Button
-                      variant="danger"
-                      disabled={!row.team || busyTeamId === row.team.id}
-                      onClick={() => row.team && handleUnlink(row.team.id)}
-                    >
-                      {busyTeamId === row.team?.id ? "Unlinking…" : "Unlink"}
-                    </Button>
-                  </Td>
-                </tr>
-              ))}
-              {linked.length === 0 && (
-                <tr>
-                  <Td colSpan={3} style={{ color: "var(--text-secondary)" }}>No teams are linked yet.</Td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
-        </Card>
-      )}
+  return <div>
+    <PageHeader title="Teams" subtitle="Assign each team directly. New links receive the Member role by default; change authority under Roles." />
+    {error && <ErrorState message={error} />}{!matrix && !error && <LoadingState />}
+    <div style={{ display: "grid", gap: "var(--space-4)" }}>
+      {conferences.map(([conference, teams]) => <Card key={conference}>
+        <h3 style={{ marginTop: 0 }}>{conference}</h3>
+        <div style={{ display: "grid", gap: "var(--space-3)" }}>
+          {teams.map((team) => <div key={team.id} className="inline-admin-row">
+            <label htmlFor={`team-${team.id}`}><strong>{team.name}</strong>{team.division ? <small style={{ display: "block", color: "var(--text-secondary)" }}>{team.division}</small> : null}</label>
+            <select id={`team-${team.id}`} className="form-select" value={team.discordId ?? ""} disabled={busy === team.id} onChange={(e) => change(team.id, e.target.value)}>
+              <option value="">None</option>
+              {users.map((user) => <option key={user.discordId} value={user.discordId}>{user.displayName}{user.displayName !== user.username ? ` (${user.username})` : ""}</option>)}
+            </select>
+          </div>)}
+        </div>
+      </Card>)}
     </div>
-  );
+  </div>;
 }

@@ -251,7 +251,12 @@ export type LeagueWeekView = {
 export type DeleteLeagueResult = { ok: true; leagueName: string; result: { rows_deleted: number; [key: string]: unknown } };
 
 // Roles (Phase 2)
-export type RoleMgmtMember = { discordId: string; displayName: string; username: string };
+export type RoleMgmtMember = { discordId: string; displayName: string; username: string; managedRole: RoleMgmtRoleKey };
+export type TeamLinkMatrix = {
+  league: { id: string; name: string };
+  teams: Array<{ id: string; name: string; abbreviation: string; conference: string | null; division: string | null; discordId: string | null }>;
+  users: Array<{ discordId: string; displayName: string; username: string }>;
+};
 export type RoleMgmtRoleKey = "member" | "compCommittee" | "commissioner";
 
 // Settings (Phase 2) — apps/api/src/modules/setup/setup.schemas.ts's CreateLeagueSchema has

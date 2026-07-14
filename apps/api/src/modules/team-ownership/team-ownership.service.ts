@@ -5,7 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
-import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
+import { addMemberRole, ensureManagedRoleId, getGuildMemberDisplayNameMap, listGuildMembers } from "../../lib/discord-guild.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 
 export async function getCurrentLeagueForGuild(guildId: string) {
@@ -308,6 +308,11 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
 
   if (assignment.error) throw new ApiError(500, "Failed to create team assignment.", assignment.error);
 
+  // Team linking intentionally starts everyone at Member. Commissioners can elevate the
+  // user independently from the Roles screen after the link is established.
+  const memberRoleId = await ensureManagedRoleId(input.guildId, "member");
+  await addMemberRole(input.guildId, input.discordId, memberRoleId, "REC team linked; default Member role");
+
   await writeAuditLog({
     action: "team.user_linked",
     entityType: "rec_team_assignments",
@@ -346,6 +351,26 @@ export async function listLinkedUsersTeams(guildId: string) {
   }));
 
   return { league, linked };
+}
+
+export async function getTeamLinkMatrix(guildId: string) {
+  const { league } = await getCurrentLeagueForGuild(guildId);
+  const [teams, assignments, members] = await Promise.all([
+    supabase.from("rec_teams").select("id,name,abbreviation,conference,division").eq("league_id", league.id).order("conference").order("name"),
+    supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", league.id).eq("assignment_status", "active").is("ended_at", null),
+    listGuildMembers(guildId),
+  ]);
+  if (teams.error || assignments.error) throw new ApiError(500, "Failed to load the team linking matrix.", teams.error ?? assignments.error);
+  const userIds = [...new Set((assignments.data ?? []).map((row) => row.user_id))];
+  const accounts = userIds.length ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : { data: [], error: null };
+  if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
+  const discordByUser = new Map((accounts.data ?? []).map((row) => [row.user_id, row.discord_id]));
+  const assignmentByTeam = new Map((assignments.data ?? []).map((row) => [row.team_id, discordByUser.get(row.user_id) ?? null]));
+  return {
+    league: { id: league.id, name: league.name },
+    teams: (teams.data ?? []).map((team) => ({ ...team, discordId: assignmentByTeam.get(team.id) ?? null })),
+    users: members.filter((member) => !member.isBot).map(({ discordId, displayName, username }) => ({ discordId, displayName, username })),
+  };
 }
 
 export async function listOpenTeams(guildId: string) {

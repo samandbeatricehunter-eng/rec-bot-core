@@ -40,6 +40,7 @@ const notCfb = (game: string) => game !== "cfb_27";
 const isCfb = (game: string) => game === "cfb_27";
 
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
+  { key: "channels", label: "Channels", fields: [] },
   {
     key: "features",
     label: "Features",

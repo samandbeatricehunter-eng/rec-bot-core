@@ -551,6 +551,9 @@ export const recApi = {
 
   appendBoxScoreImage: (input: { guildId: string; discordId: string; imageUrl: string }) =>
     recFetch<{ submissionId: string; imageStorageUrl: string | null; imageCount: number }>("/v1/box-score/append-image", { method: "POST", body: JSON.stringify(input) }),
+  submitPlayerStatLine: (input: { guildId: string; discordId: string; playerName: string; category: string; statLines: Array<{ statKey: string; label: string; value: number }> }) => recFetch<any>("/v1/watched-players/submit-stat-line", { method: "POST", body: JSON.stringify(input) }),
+  listMyWatchedPlayers: (input: { guildId: string; discordId: string }) => recFetch<{ players: Array<{ id: string; playerName: string; position: string }> }>("/v1/watched-players/my-list", { method: "POST", body: JSON.stringify(input) }),
+  submitRecruitCommit: (input: { guildId: string; discordId: string; playerName: string; position: string; starRating: number; homeCity: string; homeState: string }) => recFetch<any>("/v1/recruiting/submit-commit", { method: "POST", body: JSON.stringify(input) }),
 
   updateBoxScoreLedgerMessage: (input: { submissionId: string; ledgerDiscordMessageId: string }) =>
     recFetch<any>("/v1/box-score/ledger-message", { method: "POST", body: JSON.stringify(input) }),

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { listRoleMgmtMembers, updateMemberRole } from "./roles.service.js";
+import { listRoleMgmtMembers, setMemberRole, updateMemberRole } from "./roles.service.js";
 
 const RoleKeySchema = z.enum(["member", "compCommittee", "commissioner"]);
 
@@ -32,5 +32,12 @@ export async function rolesRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+  app.post("/v1/roles/set", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), roleKey: RoleKeySchema }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      return reply.send(await setMemberRole({ ...body, actingDiscordId: auth.mode === "user" ? auth.discordId : "bot" }));
+    } catch (error) { return sendError(reply, error); }
   });
 }
