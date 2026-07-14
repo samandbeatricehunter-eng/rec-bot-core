@@ -41,6 +41,59 @@ type SubmissionRow = {
 
 const WEEKLY_LABEL = new Map(WEEKLY_BADGES.map((b) => [b.key, b.label]));
 
+type PerformanceTagRow = {
+  team_id: string;
+  subject_type: "player" | "unit";
+  watched_player_id: string | null;
+  unit: string | null;
+  stat_lines: Array<{ statKey: string; label: string; value: number }>;
+  performance_grade: "standout" | "solid" | "neutral" | "poor";
+};
+
+// Turns commissioner-entered player/unit performance tags into roundtable notes, and — for
+// a standout player tag on the winning team with a real stat line — a sharper, named
+// headline in place of the generic angle-based one. Leaves the 20-angle scoring system
+// (story-angles.ts) as the untouched fallback for the common case where no tags exist yet.
+async function loadPerformanceTagNotes(gameId: string, winnerTeamId: string | null): Promise<{ notes: string[]; headline: string | null }> {
+  const tagsResult = await supabase.from("rec_game_performance_tags").select("team_id,subject_type,watched_player_id,unit,stat_lines,performance_grade").eq("game_id", gameId);
+  if (tagsResult.error || !tagsResult.data?.length) return { notes: [], headline: null };
+  const tags = tagsResult.data as PerformanceTagRow[];
+
+  const playerIds = [...new Set(tags.filter((tag) => tag.subject_type === "player" && tag.watched_player_id).map((tag) => tag.watched_player_id!))];
+  const playersResult = playerIds.length
+    ? await supabase.from("rec_watched_players").select("id,player_name,position,class_year").in("id", playerIds)
+    : { data: [] as any[] };
+  const playerById = new Map((playersResult.data ?? []).map((row: any) => [row.id, row]));
+
+  const notes: string[] = [];
+  let bestStandout: { text: string; magnitude: number } | null = null;
+
+  for (const tag of tags) {
+    if (tag.subject_type === "player" && tag.watched_player_id) {
+      const player = playerById.get(tag.watched_player_id);
+      if (!player) continue;
+      const classLabel = player.class_year ? `${player.class_year} ` : "";
+      const statText = (tag.stat_lines ?? []).map((line) => `${line.value} ${line.label.toLowerCase()}`).join(", ");
+      const gradeWord = tag.performance_grade === "standout" ? "stood out" : tag.performance_grade === "poor" ? "struggled" : null;
+      const sentence = statText
+        ? `${classLabel}${player.position} ${player.player_name} posted ${statText}${gradeWord ? ` and ${gradeWord}` : ""}.`
+        : gradeWord ? `${classLabel}${player.position} ${player.player_name} ${gradeWord} this week.` : null;
+      if (sentence) notes.push(sentence);
+      if (tag.performance_grade === "standout" && tag.stat_lines?.length && tag.team_id === winnerTeamId) {
+        const magnitude = Math.max(...tag.stat_lines.map((line) => Number(line.value) || 0));
+        const headlineText = `${classLabel}${player.position} ${player.player_name} Shines With ${tag.stat_lines[0].value} ${tag.stat_lines[0].label}`;
+        if (!bestStandout || magnitude > bestStandout.magnitude) bestStandout = { text: headlineText, magnitude };
+      }
+    } else if (tag.subject_type === "unit" && tag.unit) {
+      const unitLabel = tag.unit.replace("_", " ");
+      const gradeWord = tag.performance_grade === "standout" || tag.performance_grade === "solid" ? "had a strong showing" : tag.performance_grade === "poor" ? "had a rough night" : null;
+      if (gradeWord) notes.push(`The ${unitLabel} unit ${gradeWord}.`);
+    }
+  }
+
+  return { notes, headline: bestStandout?.text ?? null };
+}
+
 export async function processGameIntelligence(sub: SubmissionRow): Promise<void> {
   const gameId = sub.game_id ?? null;
   const leagueGame = await loadLeagueGame(sub.league_id);
@@ -77,6 +130,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
       },
       winnerBadges,
     );
+    const performanceNotes = await loadPerformanceTagNotes(gameId, winner.teamId ?? null);
     await supabase.from("rec_game_stories").insert({
       league_id: sub.league_id,
       season: sub.season_number,
@@ -85,11 +139,11 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
       winner_team_id: winner.teamId,
       loser_team_id: loser.teamId,
       primary_angle: story.primaryAngle,
-      headline: story.headline,
+      headline: performanceNotes.headline ?? story.headline,
       body: story.body,
       notes: story.notes,
       story_type: "game_article",
-      roundtable: buildRoundtableDiscussion({ headline: story.headline, body: story.body, notes: story.notes }),
+      roundtable: buildRoundtableDiscussion({ headline: story.headline, body: story.body, notes: [...story.notes, ...performanceNotes.notes] }),
     });
   }
 

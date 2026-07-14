@@ -65,7 +65,7 @@ export type LinkedRosterEntry = {
 };
 
 export type LeagueHeaderSummary = {
-  league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
+  league: { name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
   teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
 };
@@ -145,6 +145,33 @@ export type ManualScoreRecordResult = {
   hasRealScores: boolean;
   isTie: boolean;
   outcome: "home" | "away" | "tie";
+};
+
+// Players to Watch
+export type ClassYear = "freshman" | "sophomore" | "junior" | "senior";
+export type WatchedPlayer = { id: string; teamId: string; playerName: string; position: string; classYear: ClassYear | null };
+export type PerformanceTag = {
+  subjectType: "player" | "unit";
+  watchedPlayerId?: string | null;
+  unit?: "offense" | "defense" | "special_teams" | null;
+  statLines?: Array<{ statKey: string; label: string; value: number }>;
+  performanceGrade: "standout" | "solid" | "neutral" | "poor";
+};
+
+// Recruiting tracker
+export type RecruitStatus = "uncommitted" | "committed" | "decommitted";
+export type Recruit = {
+  id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
+  starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;
+  commitDate: string | null; storyId: string | null;
+};
+
+// Transfer portal tracker
+export type TransferStatus = "entered_portal" | "transferred" | "withdrawn";
+export type TransferEntry = {
+  id: string; playerName: string; position: string; classYear: ClassYear | null;
+  originTeamId: string; status: TransferStatus; destinationTeamId: string | null; destinationTeamExternal: string | null;
+  entryDate: string | null; storyId: string | null;
 };
 
 // Commissioner notification center (1d) — one unified shape covering ten heterogeneous

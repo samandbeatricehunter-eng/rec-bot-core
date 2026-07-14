@@ -94,6 +94,14 @@ export async function listManualScoreGames(input: {
   return { seasonNumber, weekNumber, games: mapped, lockedCount: games.length - eligible.length };
 }
 
+export type PerformanceTagInput = {
+  subjectType: "player" | "unit";
+  watchedPlayerId?: string | null;
+  unit?: "offense" | "defense" | "special_teams" | null;
+  statLines?: Array<{ statKey: string; label: string; value: number }>;
+  performanceGrade: "standout" | "solid" | "neutral" | "poor";
+};
+
 export async function recordManualGameResult(input: {
   guildId: string;
   gameId: string;
@@ -102,6 +110,7 @@ export async function recordManualGameResult(input: {
   awayScore?: number | null;
   submittedByDiscordId?: string | null;
   manualStats?: { home?: Record<string, any>; away?: Record<string, any> } | null;
+  performanceTags?: { home?: PerformanceTagInput[]; away?: PerformanceTagInput[] } | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
@@ -218,7 +227,39 @@ export async function recordManualGameResult(input: {
     });
     const statsInsert = await supabase.from("rec_team_game_stats").insert([statsRow(homeStats, awayStats, "home"), statsRow(awayStats, homeStats, "away")]);
     if (statsInsert.error) throw new ApiError(500, "Failed to save the manually entered team stats.", statsInsert.error);
-    await processGameIntelligence({ id: submissionId, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber, game_id: input.gameId });
+  }
+
+  // Independent of team stats — a commissioner might tag players/units without filling any
+  // team-stat fields. Delete-then-insert on re-save, matching the idempotent pattern above.
+  const homeTags = input.performanceTags?.home ?? [];
+  const awayTags = input.performanceTags?.away ?? [];
+  const hasPerformanceTags = homeTags.length > 0 || awayTags.length > 0;
+  if (hasPerformanceTags) {
+    await supabase.from("rec_game_performance_tags").delete().eq("game_id", input.gameId);
+    const tagRow = (tag: PerformanceTagInput, teamId: string) => ({
+      id: randomUUID(), league_id: context.leagueId, game_id: input.gameId, season_number: seasonNumber, week_number: weekNumber,
+      team_id: teamId, subject_type: tag.subjectType,
+      watched_player_id: tag.subjectType === "player" ? tag.watchedPlayerId ?? null : null,
+      unit: tag.subjectType === "unit" ? tag.unit ?? null : null,
+      stat_lines: tag.statLines ?? [], performance_grade: tag.performanceGrade,
+      created_at: now, updated_at: now,
+    });
+    const tagsInsert = await supabase.from("rec_game_performance_tags").insert([
+      ...homeTags.map((tag) => tagRow(tag, homeTeamId)),
+      ...awayTags.map((tag) => tagRow(tag, awayTeamId)),
+    ]);
+    if (tagsInsert.error) throw new ApiError(500, "Failed to save the player/unit performance tags.", tagsInsert.error);
+  }
+
+  // processGameIntelligence builds its story from rec_team_game_stats rows — it can only
+  // run when team stats actually exist. Performance tags entered without team stats are
+  // still saved above (for reference / a later box-score pass) but can't drive story
+  // generation on their own since there's no GameStats to derive a winner/loser from.
+  if (hasManualStats) {
+    const submission = await supabase.from("rec_box_score_submissions").select("id").eq("game_id", input.gameId).eq("entry_method", "manual").maybeSingle();
+    if (submission.data?.id) {
+      await processGameIntelligence({ id: submission.data.id, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber, game_id: input.gameId });
+    }
   }
 
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {

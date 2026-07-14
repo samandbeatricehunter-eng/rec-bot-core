@@ -1,0 +1,10 @@
+/* Madden 27 presentation mode — no active Madden 27 league exists yet, so these values are
+   deliberately aliased to the CFB 27 theme rather than independently designed. Swap the
+   values here once a Madden 27 league is live and can be visually verified. */
+[data-game-theme="madden_26"],
+[data-game-theme="madden_27"] {
+  --accent-primary: var(--gold);
+  --field-line: #d4d4d4;
+  --turf-a: #14150f;
+  --turf-b: #0c0d09;
+}

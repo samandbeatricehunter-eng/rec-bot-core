@@ -1961,6 +1961,34 @@ export const recGameProfiles = pgTable("rec_game_profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
+export const recWatchedPlayers = pgTable("rec_watched_players", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull(),
+  teamId: uuid("team_id").notNull(),
+  playerName: text("player_name").notNull(),
+  position: text("position").notNull(),
+  classYear: text("class_year"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
+export const recGamePerformanceTags = pgTable("rec_game_performance_tags", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull(),
+  gameId: uuid("game_id").notNull().references(() => recGames.id, { onDelete: "cascade" }),
+  seasonNumber: integer("season_number").notNull(),
+  weekNumber: integer("week_number").notNull(),
+  teamId: uuid("team_id").notNull(),
+  subjectType: text("subject_type").notNull(),
+  watchedPlayerId: uuid("watched_player_id"),
+  unit: text("unit"),
+  statLines: jsonb("stat_lines").$type<Array<{ statKey: string; label: string; value: number }>>().notNull(),
+  performanceGrade: text("performance_grade").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
 export const recGameStories = pgTable("rec_game_stories", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull(),

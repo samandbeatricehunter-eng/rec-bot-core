@@ -1,0 +1,85 @@
+/* Hero backdrop — sits behind the whole app. The dark gradient stack sits on top of the
+   stadium/net photo so cards stay legible over it: near-opaque toward the bottom (where
+   most content scrolls to) and lighter up top so the sunset reads through behind the
+   header. Also fades out the photo's own baked-in "REC LEAGUES" wordmark before it
+   collides with the header's own logo. */
+.app-backdrop {
+  min-height: 100%;
+  background-image:
+    linear-gradient(180deg, rgba(15, 15, 15, 0.62) 0%, rgba(15, 15, 15, 0.9) 38%, var(--bg) 72%),
+    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 215, 0, 0.1), transparent 55%),
+    url("../assets/hero-bg.png");
+  background-size: cover, cover, cover;
+  background-position: center top, center top, center 25%;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed;
+}
+
+/* Header bar (AppShell) — sits directly on the hero photo, so it gets its own solid scrim
+   instead of relying on drop-shadows alone; keeps the wordmark, back button, and bell
+   readable regardless of how bright the photo is behind them at a given scroll position. */
+.app-header-bar {
+  background: rgba(15, 15, 15, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-card);
+}
+.app-shell-container {
+  width: 100%;
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+.app-header-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.app-header-summary-meta {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* Notification bell (AppShell header) */
+.notification-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  flex-shrink: 0;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.notification-bell:hover {
+  background: var(--surface-hover);
+  border-color: var(--gold-dark);
+  transform: translateY(-1px);
+}
+.notification-bell-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--error);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+}

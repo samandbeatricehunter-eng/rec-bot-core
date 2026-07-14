@@ -1,0 +1,89 @@
+@media (max-width: 960px) {
+  .league-home-panels {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .activity-tile {
+    width: min(100%, 320px);
+  }
+  .hub-two-column { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .app-shell-container {
+    padding: var(--space-3);
+  }
+  .app-header-bar {
+    flex-wrap: wrap;
+    padding: var(--space-3);
+    margin-bottom: var(--space-4) !important;
+  }
+  .app-header-summary {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .app-header-summary-meta {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  .hub-page, .hub-hero, .hub-section, .hub-section-heading, .hub-highlight-meta, .hub-story-open { text-align: center; }
+  .hub-hero, .hub-section-heading, .hub-highlight-meta { align-items: center; flex-direction: column; }
+  .hub-tabs, .hub-reactions, .hub-social-actions { justify-content: center; }
+  .hub-story-grid, .publishing-grid, .manual-stat-sides, .manual-stat-grid { grid-template-columns: minmax(0, 1fr); }
+  .hub-matchups article { flex-direction: column; text-align: center; }
+  .hub-matchups article > div { justify-content: center; }
+  .card {
+    padding: var(--space-4);
+    overflow-wrap: anywhere;
+  }
+  .league-home-panels h2 {
+    font-size: 24px;
+    line-height: 1.2;
+  }
+  .league-home-panels {
+    margin-bottom: var(--space-5);
+  }
+  .commissioner-chat-feed {
+    height: min(52vh, 380px);
+    min-height: 260px;
+  }
+  .commissioner-chat-input-row .form-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
+  .commissioner-chat-input-row .btn {
+    flex: 0 0 auto;
+  }
+  .advance-shortcut-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .activity-grid {
+    gap: var(--space-3);
+  }
+  .activity-tile {
+    width: 100%;
+    min-height: 128px;
+    padding: var(--space-4);
+  }
+  .hub-page { gap: var(--space-4); }
+  .hub-hero { min-height: 0; flex-direction: column; align-items: stretch; padding: var(--space-5); }
+  .hub-hero h1 { font-size: 34px; }
+  .hub-manage-button { width: 100%; }
+  .hub-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: var(--radius-lg); }
+  .hub-tabs button { min-width: 0; padding: var(--space-3); }
+  .hub-section { padding: var(--space-4); }
+  .hub-highlight-carousel { padding: 0 0 58px; }
+  .hub-highlight-arrow { top: auto; bottom: 0; }
+  .hub-highlight-arrow.previous { left: calc(50% - 54px); }
+  .hub-highlight-arrow.next { right: calc(50% - 54px); }
+  .hub-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hub-transfer-form, .box-score-review__grid { grid-template-columns: minmax(0, 1fr); }
+  .hub-store-row { grid-template-columns: minmax(0, 1fr); }
+  .hub-store-products button { align-items: center; text-align: center; }
+  .hub-profile-panel, .hub-profile-sections summary { text-align: center; }
+  .hub-profile-sections summary, .box-score-review__actions { justify-content: center; }
+  .box-score-review__stat-head, .box-score-review__stat-row { grid-template-columns: minmax(110px, 1.2fr) repeat(2, minmax(68px, 1fr)); }
+  .hub-matchups article { align-items: flex-start; flex-direction: column; }
+}

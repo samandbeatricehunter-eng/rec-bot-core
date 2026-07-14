@@ -1,0 +1,102 @@
+/* REC League design tokens — every screen pulls from these variables, no one-off colors,
+   spacing, or type sizes in component code. Semantic colors reuse the bot's existing
+   Discord embed color semantics (apps/bot/src/lib/colors.ts) so the web dashboard and
+   Discord embeds agree on what "success"/"error"/"warning"/"info" mean. */
+
+:root {
+  /* Surfaces */
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface-hover: #232323;
+  --surface-raised: #202020;
+  --border: #2e2e2e;
+  --border-strong: #3a3a3a;
+
+  /* Gold accent (bot's COLORS.gold = 0xFFD700) */
+  --gold: #ffd700;
+  --gold-light: #ffe14d;
+  --gold-dark: #b8960a;
+
+  /* Text */
+  --text-primary: #f2f2f2;
+  --text-secondary: #a3a3a3;
+  --text-muted: #707070;
+  --text-on-gold: #1a1400;
+
+  /* Semantic (matches apps/bot/src/lib/colors.ts) */
+  --success: #2ecc71;
+  --error: #e74c3c;
+  --warning: #f1c40f;
+  --info: #3498db;
+
+  /* Spacing scale — no arbitrary one-off values */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* Radius / shadow */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-glow-gold: 0 0 24px rgba(255, 215, 0, 0.25);
+
+  /* Typography scale */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-2xl: 36px;
+
+  /* Layout */
+  --content-width: 1320px;
+
+  /* Metal / illuminated-edge system — used by FootballPanel's layered surface pattern */
+  --metal-highlight: rgba(255, 255, 255, 0.08);
+  --metal-shadow-inset: rgba(0, 0, 0, 0.55);
+  --edge-gold: linear-gradient(180deg, var(--gold-light), var(--gold-dark));
+  --edge-steel: linear-gradient(180deg, #4a4a4a, #1c1c1c);
+
+  /* Glass overlay — mobile expanded-article scrims, sheet backgrounds */
+  --glass-bg: rgba(20, 20, 20, 0.72);
+  --glass-blur: 14px;
+  --glass-border: rgba(255, 255, 255, 0.06);
+
+  /* Team hooks — not wired to real per-team data yet, aliased to REC gold/charcoal so
+     components can consume --team-primary/--team-secondary today without a rewrite later. */
+  --team-primary: var(--gold);
+  --team-secondary: var(--surface-raised);
+  --team-primary-contrast: var(--text-on-gold);
+
+  /* Semantic-status aliases (named for design-system component use, map to the same values) */
+  --status-positive: var(--success);
+  --status-negative: var(--error);
+  --status-caution: var(--warning);
+  --status-neutral: var(--info);
+
+  /* Display typography */
+  --font-display: "Oswald", var(--font-sans);
+  --tracking-display: 0.01em;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 120ms;
+  --duration-standard: 220ms;
+
+  /* Responsive breakpoint values as custom properties for JS parity (media queries
+     themselves stay hard-coded in CSS — custom properties aren't usable inside @media
+     conditions — but exporting the same numbers keeps hooks like useSwipeNavigation in
+     sync with the CSS tiers). */
+  --bp-2xl: 1440px;
+  --bp-xl: 1280px;
+  --bp-lg: 1024px;
+  --bp-md: 768px;
+  --bp-sm-2: 430px;
+  --bp-sm: 390px;
+  --bp-xs: 360px;
+}

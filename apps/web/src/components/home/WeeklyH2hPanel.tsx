@@ -25,7 +25,7 @@ const STATUS_BADGE: Record<WeeklyH2hGame["status"], { status: "denied" | "pendin
 // here as shortcuts since there's no working web equivalent to send them to yet.
 const ADVANCE_SHORTCUTS = [
   { icon: ListChecks, label: "Edit Schedules", kind: "link", to: "/league-mgmt/manage-league" },
-  { icon: PenSquare, label: "Enter Scores", kind: "link", to: "/league-mgmt/advance" },
+  { icon: PenSquare, label: "Enter Results", kind: "link", to: "/league-mgmt/advance" },
   { icon: FastForward, label: "Complete Advance", kind: "link", to: "/league-mgmt/advance" },
   { icon: Trophy, label: "Division Winners", kind: "link", to: "/league-mgmt/advance" },
   { icon: CalendarClock, label: "Schedule Next Advance", kind: "link", to: "/league-mgmt/advance" },

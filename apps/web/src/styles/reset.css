@@ -1,0 +1,27 @@
+/* Base element reset — box model, root sizing, and selection styling. */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+}
+
+a {
+  color: var(--gold);
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--text-on-gold);
+}

@@ -15,6 +15,7 @@ import { Tooltip } from "../../../components/ui/Tooltip.js";
 import { ReviewBoxScoreModal } from "../../../components/box-score/ReviewBoxScoreModal.js";
 import { UploadBoxScoreModal } from "./UploadBoxScoreModal.js";
 import { EnterFinalScoreModal } from "./EnterFinalScoreModal.js";
+import { WatchedPlayersPanel } from "./WatchedPlayersPanel.js";
 
 type WeekPick = { isBye: boolean; conference: string | null; opponentTeamId: string | null; homeAway: "home" | "away" | null };
 type SavedResult = { weekNumber: number; skipped: boolean; reason?: string };
@@ -30,6 +31,14 @@ type ActiveModal =
 function homeAwayLabels(week: TeamScheduleManualWeek, thisTeamName: string): { homeLabel: string; awayLabel: string } {
   const opponent = week.confirmedOpponentName ?? "Opponent";
   return week.confirmedHomeAway === "home" ? { homeLabel: thisTeamName, awayLabel: opponent } : { homeLabel: opponent, awayLabel: thisTeamName };
+}
+
+// Players to Watch needs each side's real team id (to fetch that team's watch list) — the
+// schedule row only tracks "this team" vs. "the opponent," so resolve actual home/away ids
+// from confirmedHomeAway the same way homeAwayLabels resolves display names.
+function homeAwayTeamIds(week: TeamScheduleManualWeek, thisTeamId: string): { homeTeamId: string | null; awayTeamId: string | null } {
+  const opponentId = week.confirmedOpponentTeamId;
+  return week.confirmedHomeAway === "home" ? { homeTeamId: thisTeamId, awayTeamId: opponentId } : { homeTeamId: opponentId, awayTeamId: thisTeamId };
 }
 
 // The whole-season, single-page form this Activity exists to demonstrate — every week is
@@ -176,7 +185,7 @@ export function TeamScheduleForm() {
                               </Button>
                             </Tooltip>
                             <Button variant="secondary" onClick={() => setActiveModal({ type: "score", week })}>
-                              {week.result ? "Correct Score" : "Enter Final Score"}
+                              {week.result ? "Correct Results" : "Enter Results"}
                             </Button>
                           </>
                         )}
@@ -269,6 +278,8 @@ export function TeamScheduleForm() {
         </Button>
       </div>
 
+      <WatchedPlayersPanel guildId={guildId} teamId={teamId!} />
+
       {activeModal?.type === "upload" && (
         <UploadBoxScoreModal
           guildId={guildId}
@@ -295,8 +306,9 @@ export function TeamScheduleForm() {
           gameId={activeModal.week.gameId!}
           existing={activeModal.week.result}
           {...homeAwayLabels(activeModal.week, state.team.name)}
+          {...homeAwayTeamIds(activeModal.week, teamId!)}
           onClose={closeModal}
-          onSaved={() => afterResolved("Final score saved.")}
+          onSaved={() => afterResolved("Results saved.")}
         />
       )}
     </div>

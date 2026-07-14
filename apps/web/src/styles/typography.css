@@ -1,0 +1,8 @@
+/* Display typography — imported here so --font-display has a real face to fall back to.
+   Not yet applied to any component (that lands with the design-system component pass);
+   importing it now is a no-op visually since nothing references --font-display yet. */
+@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap");
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

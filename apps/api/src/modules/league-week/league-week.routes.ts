@@ -191,6 +191,13 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         comebackDeficit: OptionalStat, comebackDeficitQuarter: z.number().int().min(1).max(5).optional().nullable(), comebackRate: OptionalStat,
         fourthQuarterComeback: z.boolean().optional(), quarterScores: z.array(z.number().int().min(0).max(100)).max(8).optional(),
       });
+      const PerformanceTag = z.object({
+        subjectType: z.enum(["player", "unit"]),
+        watchedPlayerId: z.string().uuid().optional().nullable(),
+        unit: z.enum(["offense", "defense", "special_teams"]).optional().nullable(),
+        statLines: z.array(z.object({ statKey: z.string().min(1), label: z.string().min(1), value: z.number() })).max(20).optional(),
+        performanceGrade: z.enum(["standout", "solid", "neutral", "poor"]),
+      });
       const body = z.object({
         guildId: z.string().min(1),
         gameId: z.string().uuid(),
@@ -199,6 +206,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         awayScore: z.number().int().min(0).max(200).optional().nullable(),
         submittedByDiscordId: z.string().optional().nullable(),
         manualStats: z.object({ home: TeamManualStats.optional(), away: TeamManualStats.optional() }).optional().nullable(),
+        performanceTags: z.object({ home: z.array(PerformanceTag).max(30).optional(), away: z.array(PerformanceTag).max(30).optional() }).optional().nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "user") body.submittedByDiscordId = auth.discordId;

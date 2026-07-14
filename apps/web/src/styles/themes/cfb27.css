@@ -1,0 +1,10 @@
+/* CFB 27 presentation mode — the only fully-designed theme today (REC OG, the one active
+   league, is cfb_27). Kept intentionally close to the base gold palette right now so this
+   file introduces zero visual change; it becomes the place CFB-specific accent/turf/field
+   values get tuned as the football redesign lands. */
+[data-game-theme="cfb_27"] {
+  --accent-primary: var(--gold);
+  --field-line: #d4d4d4;
+  --turf-a: #14150f;
+  --turf-b: #0c0d09;
+}

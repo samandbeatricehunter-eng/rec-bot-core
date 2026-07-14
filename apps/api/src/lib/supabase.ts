@@ -103,6 +103,21 @@ function relationKey(alias: string): string {
   return `${alias}_id`;
 }
 
+// node-postgres serializes any JS array as a Postgres array-literal ("{a,b,c}"), regardless
+// of the target column's real type — correct for a native `text[]`/`integer[]` column, but
+// broken for `jsonb` (its parser rejects array-literal syntax as invalid JSON), and this
+// schema has zero native array columns (confirmed: no `information_schema` ARRAY-typed
+// columns anywhere in `public`) — every array/object bound for a jsonb column must be
+// JSON-stringified here before it reaches the driver, or the insert/update silently fails
+// (this builder's `execute()` swallows the error into `{ error }` instead of throwing,
+// so callers that don't check `.error` never notice the row went unwritten).
+function serializeJsonValue(value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value;
+  if (Array.isArray(value) || typeof value === "object") return JSON.stringify(value);
+  return value;
+}
+
 function emptyResult(data: any = null): QueryResult {
   return { data: data as QueryResult["data"], error: null };
 }
@@ -409,7 +424,7 @@ class PostgresQueryBuilder {
     const values: unknown[] = [];
     const tuples = rows.map((row) => {
       const placeholders = columns.map((column) => {
-        values.push((row as Record<string, unknown>)[column] ?? null);
+        values.push(serializeJsonValue((row as Record<string, unknown>)[column] ?? null));
         return `$${values.length}`;
       });
       return `(${placeholders.join(", ")})`;
@@ -436,7 +451,7 @@ class PostgresQueryBuilder {
     const columns = Object.keys(row).map(assertIdent);
     const values: unknown[] = [];
     const setSql = columns.map((column) => {
-      values.push(row[column]);
+      values.push(serializeJsonValue(row[column]));
       return `${ident(column)} = $${values.length}`;
     });
     const sql = `UPDATE ${ident(this.table)} SET ${setSql.join(", ")}${this.whereSql(values)}${this.returningSql()}`;

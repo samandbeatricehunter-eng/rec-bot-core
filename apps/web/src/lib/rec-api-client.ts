@@ -23,6 +23,12 @@ import type {
   LinkedTeamsResponse,
   ManualScoreRecordResult,
   MentionableList,
+  PerformanceTag,
+  Recruit,
+  RecruitStatus,
+  TransferEntry,
+  TransferStatus,
+  WatchedPlayer,
   WeeklyH2hGamesResponse,
   HubReactionKey,
   HubResponse,
@@ -152,8 +158,38 @@ export const recApi = {
     recApiFetch<BoxScoreJobStatus>("/v1/box-score/job", { method: "POST", body: JSON.stringify({ jobId }) }),
 
   // Manual final-score entry (schedule builder)
-  recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; manualStats?: { home?: Record<string, unknown>; away?: Record<string, unknown> } }) =>
+  recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; manualStats?: { home?: Record<string, unknown>; away?: Record<string, unknown> }; performanceTags?: { home?: PerformanceTag[]; away?: PerformanceTag[] } }) =>
     recApiFetch<ManualScoreRecordResult>("/v1/league-week/manual-scores/record", { method: "POST", body: JSON.stringify(input) }),
+
+  // Players to Watch (per-team persistent list, selectable when tagging a game result)
+  listWatchedPlayers: (guildId: string, teamId: string) =>
+    recApiFetch<{ players: WatchedPlayer[] }>("/v1/watched-players/list", { method: "POST", body: JSON.stringify({ guildId, teamId }) }),
+  createWatchedPlayer: (input: { guildId: string; teamId: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
+    recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/create", { method: "POST", body: JSON.stringify(input) }),
+  updateWatchedPlayer: (input: { guildId: string; id: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
+    recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/update", { method: "POST", body: JSON.stringify(input) }),
+  removeWatchedPlayer: (guildId: string, id: string) =>
+    recApiFetch<{ removed: true }>("/v1/watched-players/remove", { method: "POST", body: JSON.stringify({ guildId, id }) }),
+
+  // Recruiting tracker
+  listRecruits: (guildId: string) =>
+    recApiFetch<{ recruits: Recruit[] }>("/v1/recruiting/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createRecruit: (input: { guildId: string; playerName: string; position: string; homeCity?: string | null; homeState?: string | null; starRating: number }) =>
+    recApiFetch<{ recruit: Recruit }>("/v1/recruiting/create", { method: "POST", body: JSON.stringify(input) }),
+  updateRecruitStatus: (input: { guildId: string; id: string; status: RecruitStatus; committedTeamId?: string | null; committedTeamExternal?: string | null; commitDate?: string | null }) =>
+    recApiFetch<{ recruit: Recruit }>("/v1/recruiting/update-status", { method: "POST", body: JSON.stringify(input) }),
+  deleteRecruit: (guildId: string, id: string) =>
+    recApiFetch<{ deleted: true }>("/v1/recruiting/delete", { method: "POST", body: JSON.stringify({ guildId, id }) }),
+
+  // Transfer portal tracker
+  listTransferEntries: (guildId: string) =>
+    recApiFetch<{ entries: TransferEntry[] }>("/v1/transfer-portal/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createTransferEntry: (input: { guildId: string; playerName: string; position: string; classYear?: TransferEntry["classYear"]; originTeamId: string; entryDate?: string | null }) =>
+    recApiFetch<{ entry: TransferEntry }>("/v1/transfer-portal/create", { method: "POST", body: JSON.stringify(input) }),
+  updateTransferStatus: (input: { guildId: string; id: string; status: TransferStatus; destinationTeamId?: string | null; destinationTeamExternal?: string | null }) =>
+    recApiFetch<{ entry: TransferEntry }>("/v1/transfer-portal/update-status", { method: "POST", body: JSON.stringify(input) }),
+  deleteTransferEntry: (guildId: string, id: string) =>
+    recApiFetch<{ deleted: true }>("/v1/transfer-portal/delete", { method: "POST", body: JSON.stringify({ guildId, id }) }),
 
   // Commissioner notification center
   listCommissionerNotifications: (guildId: string) =>

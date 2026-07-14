@@ -5,6 +5,7 @@ import { Button } from "../ui/Button.js";
 import { NotificationBell } from "../ui/NotificationBell.js";
 import { useAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
+import { LeagueThemeProvider } from "../../lib/league-theme-context.js";
 import type { LeagueHeaderSummary } from "../../types/api.js";
 
 const NOTIFICATION_POLL_MS = 30_000;
@@ -44,7 +45,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       .catch(() => setHeaderSummary(null));
   }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
 
+  // Drives the CFB27/Madden27 presentation-mode token layer (see styles/themes/*.css).
+  // main.tsx sets a synchronous "cfb_27" default so there's no flash before this resolves.
+  useEffect(() => {
+    if (headerSummary?.league.game) {
+      document.documentElement.setAttribute("data-game-theme", headerSummary.league.game);
+    }
+  }, [headerSummary?.league.game]);
+
   return (
+    <LeagueThemeProvider game={headerSummary?.league.game ?? null}>
     <div className="app-backdrop">
       <div className="app-shell-container">
         <header
@@ -109,5 +119,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       )}
     </div>
+    </LeagueThemeProvider>
   );
 }

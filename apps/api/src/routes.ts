@@ -23,6 +23,9 @@ import { teamRequestRoutes } from "./modules/team-requests/team-requests.routes.
 import { userRoutes } from "./modules/users/user.routes.js";
 import { wagerRoutes } from "./modules/wagers/wagers.routes.js";
 import { hubRoutes } from "./modules/hub/hub.routes.js";
+import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.routes.js";
+import { recruitingRoutes } from "./modules/recruiting/recruiting.routes.js";
+import { transferPortalRoutes } from "./modules/transfer-portal/transfer-portal.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
@@ -51,4 +54,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await rolesRoutes(app);
   await wagerRoutes(app);
   await hubRoutes(app);
+  await watchedPlayersRoutes(app);
+  await recruitingRoutes(app);
+  await transferPortalRoutes(app);
 }

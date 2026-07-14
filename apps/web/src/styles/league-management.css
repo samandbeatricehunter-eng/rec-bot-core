@@ -1,0 +1,201 @@
+.league-home-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+/* Activity tile — centered as a group (there are only ever a handful of these) rather than
+   a full-width auto-fill grid that leaves lopsided empty space when the count doesn't
+   divide evenly into the row. */
+.activity-grid {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+.activity-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 260px;
+  background-image:
+    linear-gradient(160deg, rgba(32, 32, 32, 0.94), rgba(26, 26, 26, 0.97)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Ctext x='6' y='46' font-family='Georgia,serif' font-size='42' font-weight='700' fill='rgba(255,215,0,0.05)'%3EX%3C/text%3E%3Ctext x='76' y='112' font-family='Georgia,serif' font-size='42' font-weight='700' fill='rgba(255,215,0,0.05)'%3EO%3C/text%3E%3C/svg%3E");
+  background-size: cover, 140px 140px;
+  background-repeat: no-repeat, repeat;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  min-height: 150px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.activity-tile:hover:not(.activity-tile-disabled) {
+  transform: translateY(-2px);
+  border-color: var(--gold-dark);
+  box-shadow: var(--shadow-glow-gold);
+}
+.activity-tile-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.activity-tile-icon {
+  color: var(--gold);
+}
+.activity-tile-badge {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+
+/* Page header */
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+}
+.page-header h1 {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+.page-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* A recessed double edge makes the message area read as a chat window rather than empty
+   card space, while keeping the composer visually attached to the conversation. */
+.commissioner-chat-window {
+  position: relative;
+  padding: 3px;
+  border: 1px solid #4a4a4a;
+  border-radius: var(--radius-md);
+  background: linear-gradient(145deg, #292929, #111);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12), 0 5px 14px rgba(0, 0, 0, 0.42), inset 0 1px 2px rgba(255, 255, 255, 0.08);
+}
+.commissioner-chat-feed {
+  height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: #131313;
+  border: 1px solid #303030;
+  border-radius: calc(var(--radius-md) - 3px) calc(var(--radius-md) - 3px) 0 0;
+  box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.72), inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  overflow-wrap: anywhere;
+}
+.commissioner-chat-composer {
+  position: relative;
+  padding: var(--space-2);
+  background: #191919;
+  border: 1px solid #303030;
+  border-top: 0;
+  border-radius: 0 0 calc(var(--radius-md) - 3px) calc(var(--radius-md) - 3px);
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.55);
+}
+.commissioner-chat-input-row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Delete League floating action button — deliberately small and out of the way (bottom
+   corner, muted until hover) since this is a destructive, head-commissioner-only action
+   that shouldn't compete visually with routine tools. */
+.delete-league-fab {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+  z-index: 40;
+}
+.delete-league-fab:hover {
+  color: var(--error);
+  border-color: var(--error);
+  background: var(--surface-hover);
+}
+
+/* Advance shortcut row (WeeklyH2hPanel) — labeled icon buttons, not icon-only, and given
+   room to breathe instead of a cramped row of bare squares. */
+.advance-shortcut-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: var(--space-2);
+}
+.advance-shortcut-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  padding: var(--space-3) var(--space-2);
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+.advance-shortcut-btn span {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.2;
+}
+.advance-shortcut-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold-dark);
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+}
+
+.box-score-review__matchup { margin: 0 0 var(--space-3); font-size: var(--text-lg); font-weight: 800; }
+.box-score-review__image { display: block; width: 100%; max-height: 52vh; object-fit: contain; margin-bottom: var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: #050505; }
+.box-score-review__warnings { margin-bottom: var(--space-3); padding: var(--space-3); border: 1px solid rgba(255,170,0,.45); border-radius: var(--radius-sm); background: rgba(255,170,0,.07); color: var(--warning); }
+.box-score-review__warnings p { margin: 0; }
+.box-score-review__parsed h3 { margin: 0 0 var(--space-3); }
+.box-score-review__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.box-score-review__grid label span { display: block; margin-bottom: 4px; color: var(--text-muted); font-size: var(--text-xs); }
+.box-score-review__stats { margin-top: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.box-score-review__stat-head, .box-score-review__stat-row { display: grid; grid-template-columns: minmax(150px, 1.4fr) repeat(2, minmax(90px, 1fr)); gap: var(--space-2); align-items: center; padding: var(--space-2); }
+.box-score-review__stat-head { background: var(--surface-hover); color: var(--gold); font-size: var(--text-xs); font-weight: 800; }
+.box-score-review__stat-row { border-top: 1px solid var(--border); }
+.box-score-review__stat-row > span { color: var(--text-secondary); font-size: var(--text-xs); }
+.box-score-review__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
+.box-score-review__deny { margin-top: var(--space-3); }
+
+.notification-view-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border); }
+.completed-transaction-list { display: grid; gap: var(--space-3); }
+.completed-transaction-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
+.completed-transaction-title { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.completed-transaction-heading p { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.completed-transaction-amount { color: var(--gold); font-size: var(--text-lg); white-space: nowrap; }
+.completed-transaction-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-2); margin: var(--space-3) 0; }
+.completed-transaction-details div { padding: var(--space-2); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-raised); }
+.completed-transaction-details dt { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.completed-transaction-details dd { margin: 3px 0 0; color: var(--text-primary); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.completed-transaction-audit { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--border); color: var(--text-muted); font-size: var(--text-xs); }
+.publishing-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.manual-stat-entry { margin: var(--space-4) 0; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.manual-stat-entry summary { color: var(--gold); font-weight: 800; cursor: pointer; }
+.manual-stat-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-3); }
+.manual-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.manual-stat-grid label span { display: block; min-height: 28px; color: var(--text-muted); font-size: var(--text-xs); }
+.manual-checkbox { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }

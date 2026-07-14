@@ -62,7 +62,7 @@ export async function getCurrentLeagueContext(guildId: string): Promise<CurrentL
 const MAX_LINKED_USERS = 32;
 
 export type LeagueHeaderSummary = {
-  league: { name: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
+  league: { name: string; game: string; leaguePassword: string | null; seasonNumber: number; currentWeek: number | null; weekLabel: string };
   teams: { linked: number; cap: number; availableTeams: number };
   isGuildOwner: boolean;
 };
@@ -92,6 +92,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
   return {
     league: {
       name: context.rec_leagues.name ?? "",
+      game: String(context.rec_leagues.game ?? "cfb_27"),
       leaguePassword: context.rec_leagues.league_password ?? null,
       seasonNumber: Number(context.rec_leagues.season_number ?? 1),
       currentWeek,
