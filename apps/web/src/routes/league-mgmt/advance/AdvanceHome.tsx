@@ -194,7 +194,7 @@ export function AdvanceHome() {
           </div>
         </div>
         <div style={{ marginTop: "var(--space-4)" }}>
-          <Button variant="primary" onClick={handleAdvance} disabled={advancing || !nextWeekNumber}>
+          <Button variant="tactical" onClick={handleAdvance} disabled={advancing || !nextWeekNumber}>
             {advancing ? "Advancing…" : "Complete Advance"}
           </Button>
         </div>

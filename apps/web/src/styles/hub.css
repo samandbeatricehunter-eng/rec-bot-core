@@ -106,8 +106,6 @@
 .hub-reactions button { display: inline-flex; align-items: center; gap: 4px; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-raised); color: var(--text-secondary); font-size: 11px; cursor: pointer; }
 .hub-reactions button.active { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,.1); }
 .hub-reactions button.award { font-weight: 700; }
-.hub-interview { display: flex; align-items: center; justify-content: space-between; min-height: 150px; background: linear-gradient(120deg, rgba(26,26,26,.96), rgba(64,52,0,.5)); }
-.hub-interview p { color: var(--text-secondary); }
 .hub-stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 .hub-stat-grid article { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); }
 .hub-stat-grid span { color: var(--text-muted); font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; }

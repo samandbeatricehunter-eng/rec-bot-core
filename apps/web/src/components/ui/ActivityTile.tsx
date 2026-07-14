@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import { Badge } from "./Badge.js";
+import { IconWell } from "../design-system/IconWell.js";
 
 type ActivityTileProps = {
   to?: string;
@@ -19,7 +20,7 @@ export function ActivityTile({ to, icon: Icon, title, description, badgeCount, d
           <Badge status="pending">{badgeCount}</Badge>
         </span>
       )}
-      <Icon size={32} className="activity-tile-icon" />
+      <IconWell size="lg" tone="gold" icon={<Icon size={22} />} />
       <div>
         <div style={{ fontWeight: 700, fontSize: "var(--text-md)" }}>{title}</div>
         <div style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>

@@ -1,11 +1,35 @@
-/* Card */
+/* Card — evolved to carry the same layered-panel treatment as FootballPanel (metal top
+   edge + subtle texture) so every existing Card call site across League Management picks
+   up the premium look without a call-site-by-call-site migration to FootballPanel. */
 .card {
+  position: relative;
   min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
+  overflow: hidden;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: var(--edge-steel);
+  opacity: 0.9;
+}
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.015) 0px, rgba(255, 255, 255, 0.015) 1px, transparent 1px, transparent 3px);
+  opacity: 0.5;
+}
+.card > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Table */
