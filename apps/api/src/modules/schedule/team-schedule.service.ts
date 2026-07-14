@@ -276,13 +276,33 @@ export async function commitTeamScheduleDecisions(input: {
 
     const existing = await supabase
       .from("rec_games")
-      .select("id")
+      .select("id,week_number,home_team_id,away_team_id")
       .eq("league_id", leagueId)
       .eq("season_id", seasonId)
       .eq("week_number", decision.weekNumber)
       .or(`home_team_id.in.(${awayTeamId},${homeTeamId}),away_team_id.in.(${awayTeamId},${homeTeamId})`);
     if (existing.error) throw new ApiError(500, "Failed to check existing schedule matchups.", existing.error);
-    if ((existing.data ?? []).length) {
+    const conflicts = existing.data ?? [];
+    const exactMatch = conflicts.find((game: any) => game.home_team_id === homeTeamId && game.away_team_id === awayTeamId);
+    if (exactMatch) {
+      saved.push({ weekNumber: decision.weekNumber, skipped: false });
+      continue;
+    }
+    if (conflicts.length) {
+      const gameDescriptors = conflicts.map((game: any) => ({ id: game.id, weekNumber: game.week_number, homeTeamId: game.home_team_id, awayTeamId: game.away_team_id }));
+      const locked = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
+      const lockedConflict = gameDescriptors.find((game: any) => {
+        const extra = locked.get(game.id);
+        return extra?.result || extra?.pendingBoxScoreSubmissionId;
+      });
+      if (lockedConflict) {
+        saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "locked_result_or_box_score" });
+        continue;
+      }
+      const removal = await supabase.from("rec_games").delete().in("id", conflicts.map((game: any) => game.id));
+      if (removal.error) throw new ApiError(500, "Failed to clear conflicting unlocked schedule games.", removal.error);
+    }
+    if (false && (existing.data ?? []).length) {
       // Already confirmed (from this or an earlier team's upload) — leave it alone rather
       // than risk a slot-conflict error or overwriting an already-approved matchup.
       saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "already_confirmed" });
