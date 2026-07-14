@@ -314,14 +314,27 @@ async function refreshDiscordMediaUrl(highlight: any) {
   } catch { return current; }
 }
 
-async function loadHubHeadlines(leagueId: string) {
+async function loadHubHeadlines(input: { leagueId: string; seasonNumber: number; currentWeek: number; seasonStage: string | null }) {
   const richSelect = "id,season,week,headline,body,image_url,media_kind,author_discord_id,primary_angle,notes,story_type,roundtable,created_at";
   const baseSelect = "id,season,week,headline,body,primary_angle,notes,story_type,roundtable,created_at";
-  const rich = await supabase.from("rec_game_stories").select(richSelect).eq("league_id", leagueId).order("created_at", { ascending: false }).limit(12);
+  const stage = String(input.seasonStage ?? "preseason").toLowerCase();
+  if (stage === "preseason") return { data: [], error: null };
+
+  const applyCurrentWindow = (select: string) => supabase
+    .from("rec_game_stories")
+    .select(select)
+    .eq("league_id", input.leagueId)
+    .eq("season", input.seasonNumber)
+    .lte("week", input.currentWeek)
+    .order("week", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  const rich = await applyCurrentWindow(richSelect);
   if (!rich.error) return rich;
   const message = JSON.stringify(rich.error);
   if (!message.includes("image_url") && !message.includes("media_kind") && !message.includes("author_discord_id")) return rich;
-  const fallback = await supabase.from("rec_game_stories").select(baseSelect).eq("league_id", leagueId).order("created_at", { ascending: false }).limit(12);
+  const fallback = await applyCurrentWindow(baseSelect);
   if (fallback.error) return fallback;
   return {
     ...fallback,
@@ -339,10 +352,12 @@ export async function getHub(guildId: string, discordId: string) {
   const userId = await userIdForDiscord(discordId);
   const canManageLeague = await assertGuildPermission(guildId, discordId, "co_commissioner").then(() => true).catch(() => false);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
 
   const [announcements, headlines, highlights, matchups, myTeam, powerRankings] = await Promise.all([
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).order("published_at", { ascending: false }).limit(8),
-    loadHubHeadlines(context.leagueId),
+    loadHubHeadlines({ leagueId: context.leagueId, seasonNumber, currentWeek, seasonStage }),
     supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
@@ -407,8 +422,8 @@ export async function getHub(guildId: string, discordId: string) {
       name: context.rec_leagues.name,
       game: context.rec_leagues.game,
       seasonNumber,
-      weekNumber: Number(context.rec_leagues.current_week ?? 1),
-      seasonStage: context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason",
+      weekNumber: currentWeek,
+      seasonStage,
     },
     canManageLeague,
     store: {
