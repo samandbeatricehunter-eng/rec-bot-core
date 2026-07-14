@@ -206,6 +206,26 @@ async function refreshDiscordMediaUrl(highlight: any) {
   } catch { return current; }
 }
 
+async function loadHubHeadlines(leagueId: string) {
+  const richSelect = "id,season,week,headline,body,image_url,media_kind,author_discord_id,primary_angle,notes,story_type,roundtable,created_at";
+  const baseSelect = "id,season,week,headline,body,primary_angle,notes,story_type,roundtable,created_at";
+  const rich = await supabase.from("rec_game_stories").select(richSelect).eq("league_id", leagueId).order("created_at", { ascending: false }).limit(12);
+  if (!rich.error) return rich;
+  const message = JSON.stringify(rich.error);
+  if (!message.includes("image_url") && !message.includes("media_kind") && !message.includes("author_discord_id")) return rich;
+  const fallback = await supabase.from("rec_game_stories").select(baseSelect).eq("league_id", leagueId).order("created_at", { ascending: false }).limit(12);
+  if (fallback.error) return fallback;
+  return {
+    ...fallback,
+    data: (fallback.data ?? []).map((story: any) => ({
+      ...story,
+      image_url: null,
+      media_kind: null,
+      author_discord_id: null,
+    })),
+  };
+}
+
 export async function getHub(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const userId = await userIdForDiscord(discordId);
@@ -214,7 +234,7 @@ export async function getHub(guildId: string, discordId: string) {
 
   const [announcements, headlines, highlights, matchups, myTeam, powerRankings] = await Promise.all([
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).order("published_at", { ascending: false }).limit(8),
-    supabase.from("rec_game_stories").select("id,season,week,headline,body,image_url,media_kind,author_discord_id,primary_angle,notes,story_type,roundtable,created_at").eq("league_id", context.leagueId).order("created_at", { ascending: false }).limit(12),
+    loadHubHeadlines(context.leagueId),
     supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
