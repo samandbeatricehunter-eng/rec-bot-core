@@ -32,6 +32,8 @@ export function AdvanceHome() {
   const [nextSeasonStage, setNextSeasonStage] = useState("regular_season");
   const [advancing, setAdvancing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [creatingChannels, setCreatingChannels] = useState(false);
+  const [settingGotw, setSettingGotw] = useState<string | null>(null);
 
   const [divisions, setDivisions] = useState<DivisionWinnerOptions | null>(null);
   const [winners, setWinners] = useState<Record<string, string>>({});
@@ -78,13 +80,14 @@ export function AdvanceHome() {
       }];
     });
     try {
-      await recApi.completeAdvanceWeek({
+      const result = await recApi.completeAdvanceWeek({
         guildId,
         nextWeekNumber: Number(nextWeekNumber),
         nextSeasonStage,
         results,
       });
-      setNotice(`Advanced to Week ${nextWeekNumber} (${nextSeasonStage}).`);
+      const relay = result.discord;
+      setNotice(`Advanced to Week ${nextWeekNumber} (${nextSeasonStage}).${relay ? ` Discord announcement ${relay.announcementPosted ? "posted" : "not posted"}; ${relay.dmsSent} coach DM${relay.dmsSent === 1 ? "" : "s"} sent${relay.error ? ` (${relay.error})` : ""}.` : ""}`);
       setEntries({});
       load();
     } catch (err) {
@@ -143,6 +146,33 @@ export function AdvanceHome() {
       .finally(() => setLoadingDms(false));
   }
 
+  async function handleCreateChannels() {
+    setCreatingChannels(true);
+    setError(null);
+    try {
+      const result = await recApi.createCurrentWeekGameChannels(guildId);
+      setNotice(result.created.length ? `Created ${result.created.length} Discord game channel${result.created.length === 1 ? "" : "s"}.` : `All ${result.eligible} eligible game channels already exist.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create Discord game channels.");
+    } finally {
+      setCreatingChannels(false);
+    }
+  }
+
+  async function handleSetGotw(game: AdvanceWeekGames["games"][number]) {
+    if (!game.awayTeamId || !game.homeTeamId) return;
+    setSettingGotw(game.gameId);
+    setError(null);
+    try {
+      await recApi.createGotwPoll({ guildId, gameId: game.gameId, awayTeamId: game.awayTeamId, homeTeamId: game.homeTeamId, awayUserId: game.awayUserId, homeUserId: game.homeUserId, awayTeamName: game.awayTeamName, homeTeamName: game.homeTeamName, weekNumber: data?.currentWeek ?? game.weekNumber });
+      setNotice(`${game.awayTeamName} at ${game.homeTeamName} is now the Game of the Week.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to assign Game of the Week.");
+    } finally {
+      setSettingGotw(null);
+    }
+  }
+
   if (error && !data) return <div><PageHeader title="Advance" subtitle="Weekly league advance." /><ErrorState message={error} /></div>;
   if (!data) return <LoadingState />;
 
@@ -163,6 +193,7 @@ export function AdvanceHome() {
                   <span>{g.awayTeamName} @ {g.homeTeamName}</span>
                   {!g.needsInput && <Badge status="approved">{g.existingResultSource ?? "Has result"}</Badge>}
                   {g.needsInput && <Badge status="pending">Needs input</Badge>}
+                  {g.isH2h && <Button variant="secondary" size="compact" onClick={() => void handleSetGotw(g)} disabled={settingGotw === g.gameId}>{settingGotw === g.gameId ? "Assigning…" : "Set GOTW"}</Button>}
                 </div>
                 {g.needsInput && (
                   <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>
@@ -194,6 +225,9 @@ export function AdvanceHome() {
           </div>
         </div>
         <div style={{ marginTop: "var(--space-4)" }}>
+          <Button variant="secondary" onClick={() => void handleCreateChannels()} disabled={creatingChannels} style={{ marginRight: "var(--space-2)" }}>
+            {creatingChannels ? "Creating Channels…" : "Create Discord Game Channels"}
+          </Button>
           <Button variant="tactical" onClick={handleAdvance} disabled={advancing || !nextWeekNumber}>
             {advancing ? "Advancing…" : "Complete Advance"}
           </Button>

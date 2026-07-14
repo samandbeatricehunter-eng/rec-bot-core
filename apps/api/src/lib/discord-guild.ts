@@ -84,6 +84,15 @@ export async function sendDiscordDirectMessage(discordId: string, content: strin
   if (!sent.ok) throw new Error(`Failed to send Discord DM (${sent.status})`);
 }
 
+export async function sendDiscordChannelMessage(channelId: string, content: string, allowEveryone = false): Promise<void> {
+  const sent = await discordBotFetch(`/channels/${channelId}/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content, allowed_mentions: { parse: allowEveryone ? ["everyone"] : [] } }),
+  });
+  if (!sent.ok) throw new ApiError(502, `Discord rejected the channel message (${sent.status}).`);
+}
+
 async function getGuildRoles(guildId: string): Promise<Map<string, { name: string; permissions: bigint }>> {
   const cached = fromCache(roleListCache, guildId);
   if (cached) return cached;

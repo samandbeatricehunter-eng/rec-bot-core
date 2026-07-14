@@ -34,7 +34,8 @@
     line-height: 1.35;
   }
   .hub-page {
-    width: min(100%, 390px);
+    width: 100%;
+    max-width: 100%;
     margin-inline: auto;
     align-items: stretch;
   }
@@ -96,7 +97,19 @@
   .hub-week-select { display: grid; gap: var(--space-1); margin-bottom: var(--space-4); }
   .hub-week-select span { color: var(--gold); font-size: var(--text-xs); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
   .hub-section { padding: var(--space-4); }
-  .hub-highlight-carousel { padding: 0 0 58px; }
+  .hub-highlight-carousel { width: 100%; max-width: 100%; min-width: 0; padding: 0 0 54px; }
+  .hub-highlight-feature { border-radius: 13px; }
+  .hub-video-frame { aspect-ratio: 16 / 9; }
+  .hub-highlight-meta { padding: 12px 12px 6px; gap: 4px; }
+  .hub-highlight-meta strong { font-size: 17px; }
+  .hub-highlight-views { justify-content: center; padding-bottom: 10px; }
+  .hub-reaction-groups { padding: 0 10px 10px; gap: 7px; text-align: left; }
+  .hub-reaction-group { padding: 10px; overflow: hidden; }
+  .hub-reaction-label { margin-bottom: 7px; }
+  .hub-pill-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+  .hub-pill-row button { width: 100%; min-width: 0; justify-content: center; padding: 8px 6px; white-space: normal; line-height: 1.15; }
+  .hub-reactions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .hub-reactions button { justify-content: center; }
   .hub-highlight-arrow { top: auto; bottom: 0; }
   .hub-highlight-arrow.previous { left: calc(50% - 54px); }
   .hub-highlight-arrow.next { right: calc(50% - 54px); }

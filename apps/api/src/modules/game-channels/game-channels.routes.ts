@@ -1,11 +1,21 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { getGameChannelMatchup, getGameChannelMatchupsForGuild } from "./game-channel-matchup.service.js";
-import { listTrackedGameChannelDiscordIds, markTrackedGameChannelsDeleted, registerGameChannel } from "./game-channels.service.js";
+import { createCurrentWeekGameChannels, listTrackedGameChannelDiscordIds, markTrackedGameChannelsDeleted, registerGameChannel } from "./game-channels.service.js";
 
 export async function gameChannelRoutes(app: FastifyInstance) {
+  app.post("/v1/game-channels/create-current-week", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "commissioner" });
+      return reply.send(await createCurrentWeekGameChannels(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
   app.post("/v1/game-channels/matchup", async (request, reply) => {
     try {
       requireInternalApiKey(request);

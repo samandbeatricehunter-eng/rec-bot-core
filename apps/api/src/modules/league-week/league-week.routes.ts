@@ -13,6 +13,20 @@ import { generateAdvanceDms } from "./advance-dm.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { sendDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+
+async function relayWebAdvanceToDiscord(guildId: string, weekNumber: number, seasonStage: string) {
+  const [context, dmPayload] = await Promise.all([getCurrentLeagueContext(guildId), generateAdvanceDms({ guildId })]);
+  const announcementChannelId = String((context.routes as any)?.announcements_channel_id ?? "");
+  const announcement = announcementChannelId
+    ? await sendDiscordChannelMessage(announcementChannelId, `@everyone **REC has advanced to Week ${weekNumber}** (${seasonStage.replace(/_/g, " ")}). Check the Hub and your game channel for this week's matchup.`, true).then(() => true).catch(() => false)
+    : false;
+  const deliveries = await Promise.allSettled(dmPayload.users.map((user) => {
+    const sections = [user.sections.transactions, user.sections.badges, user.sections.eosProgress, user.sections.powerRanking].filter(Boolean);
+    return sendDiscordDirectMessage(user.discordId, `**REC Weekly Advance — Week ${weekNumber}**\n${sections.length ? sections.join("\n\n") : "Your league has advanced. Check the Hub for your latest matchup and league updates."}`);
+  }));
+  return { announcementPosted: announcement, dmsSent: deliveries.filter((item) => item.status === "fulfilled").length, dmsFailed: deliveries.filter((item) => item.status === "rejected").length };
+}
 
 // EOS award polls are fetched/settled by pollId, not guildId, so the combined guard's usual
 // "claimed guildId matches session" check only proves the caller belongs to *some* guild —
@@ -94,7 +108,11 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
-      return reply.send(await completeAdvanceWeek(body));
+      const result = await completeAdvanceWeek(body);
+      const discord = auth.mode === "user"
+        ? await relayWebAdvanceToDiscord(body.guildId, body.nextWeekNumber, body.nextSeasonStage).catch((error) => ({ announcementPosted: false, dmsSent: 0, dmsFailed: 0, error: error instanceof Error ? error.message : "Discord relay failed." }))
+        : null;
+      return reply.send({ ...result, discord });
     } catch (error) {
       return sendError(reply, error);
     }

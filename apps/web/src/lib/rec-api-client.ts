@@ -331,7 +331,11 @@ export const recApi = {
   getAdvanceWeekGames: (guildId: string) =>
     recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[] }) =>
-    recApiFetch<unknown>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
+    recApiFetch<{ discord?: { announcementPosted: boolean; dmsSent: number; dmsFailed: number; error?: string } | null }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
+  createCurrentWeekGameChannels: (guildId: string) =>
+    recApiFetch<{ created: Array<{ gameId: string; discordChannelId: string; name: string }>; existing: number; eligible: number }>("/v1/game-channels/create-current-week", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createGotwPoll: (input: { guildId: string; gameId: string; awayTeamId: string; homeTeamId: string; awayUserId?: string | null; homeUserId?: string | null; awayTeamName: string; homeTeamName: string; weekNumber: number }) =>
+    recApiFetch<unknown>("/v1/gotw/poll/create", { method: "POST", body: JSON.stringify(input) }),
   getDivisionWinnerOptions: (guildId: string) =>
     recApiFetch<DivisionWinnerOptions>("/v1/league-week/division-winner-options", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveDivisionWinners: (input: { guildId: string; seasonNumber: number; winners: Array<{ divisionKey: string; teamId: string }> }) =>

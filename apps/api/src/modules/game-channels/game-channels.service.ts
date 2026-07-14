@@ -1,6 +1,8 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { createGuildChannel } from "../../lib/discord-guild.js";
+import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
 
 export async function getGameChannelByDiscordId(discordChannelId: string) {
   const { data, error } = await supabase
@@ -75,4 +77,30 @@ export async function markTrackedGameChannelsDeleted(discordChannelIds: string[]
     .select("id");
   if (result.error) throw new ApiError(500, "Failed to mark game channels deleted.", result.error);
   return { updated: result.data?.length ?? 0 };
+}
+
+function channelSlug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42);
+}
+
+export async function createCurrentWeekGameChannels(guildId: string) {
+  const [context, week] = await Promise.all([getCurrentLeagueContext(guildId), getAdvanceWeekGames(guildId)]);
+  const categoryId = String((context.routes as any)?.game_channels_category_id ?? "");
+  if (!categoryId) throw new ApiError(400, "Assign the Game Channels category in Settings before creating game channels.");
+  const h2hGames = week.games.filter((game) => game.isH2h);
+  const gameIds = h2hGames.map((game) => game.gameId);
+  const existing = gameIds.length
+    ? await supabase.from("rec_game_channels").select("game_id,discord_channel_id").eq("league_id", context.leagueId).in("game_id", gameIds).in("status", ["active", "archived"])
+    : { data: [], error: null };
+  if (existing.error) throw new ApiError(500, "Failed to check existing game channels.", existing.error);
+  const existingByGame = new Map((existing.data ?? []).map((row) => [String(row.game_id), String(row.discord_channel_id)]));
+  const created: Array<{ gameId: string; discordChannelId: string; name: string }> = [];
+  for (const game of h2hGames) {
+    if (existingByGame.has(game.gameId)) continue;
+    const name = `wk-${week.currentWeek}-${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
+    const channel = await createGuildChannel(guildId, { name, type: "text", parentChannelId: categoryId });
+    await registerGameChannel({ guildId, gameId: game.gameId, discordChannelId: channel.id, seasonNumber: week.seasonNumber, weekNumber: week.currentWeek, awayTeamId: game.awayTeamId, homeTeamId: game.homeTeamId, awayUserId: game.awayUserId, homeUserId: game.homeUserId });
+    created.push({ gameId: game.gameId, discordChannelId: channel.id, name: channel.name });
+  }
+  return { created, existing: existingByGame.size, eligible: h2hGames.length };
 }

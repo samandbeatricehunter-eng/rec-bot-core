@@ -9,7 +9,6 @@ import { Button } from "../../components/ui/Button.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
 import { IconWell } from "../../components/design-system/IconWell.js";
 import { StatusChip } from "../../components/design-system/StatusChip.js";
-import { MobileBottomNav } from "../../components/design-system/MobileBottomNav.js";
 import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
@@ -87,7 +86,7 @@ export function HubHome() {
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
-  const [section, setSection] = useState<"league" | "store" | "team" | "wagers">("league");
+  const [section, setSection] = useState<"league" | "store" | "team" | "wagers" | "openTeams" | "schedules">("league");
   const [subTab, setSubTab] = useState<LeagueSubTab>("buzz");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
@@ -323,7 +322,7 @@ export function HubHome() {
   }
   async function viewOpenTeams() {
     if (auth.status !== "ready") return;
-    setShowOpenTeams(true); setOpenTeamsError(null);
+    setShowOpenTeams(false); setSection("openTeams"); setOpenTeamsError(null);
     setMobileNavOpen(false);
     if (openTeams) return;
     try { setOpenTeams((await recApi.listOpenTeams(auth.guildId)).openTeams); }
@@ -343,7 +342,7 @@ export function HubHome() {
 
   async function openTeamSchedulePicker() {
     if (auth.status !== "ready") return;
-    setShowTeamSchedule(true); setMobileNavOpen(false);
+    setShowTeamSchedule(false); setSection("schedules"); setMobileNavOpen(false);
     setTeamScheduleTeamId(null); setTeamSchedule(null); setTeamScheduleError(null);
     if (linkedTeams) return;
     try { setLinkedTeams((await recApi.listLinkedUsersTeams(auth.guildId)).linked); }
@@ -544,32 +543,25 @@ export function HubHome() {
         </div>
       </aside>
     </section>
-    <button className="hub-nav-toggle" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}><Menu size={20} /> Menu</button>
+    <button className="hub-nav-toggle" aria-label="Tap to open menu" onClick={() => setMobileNavOpen(true)}><Menu size={19} /><span>Tap to Open Menu</span></button>
     <div className="hub-body">
       {mobileNavOpen && <div className="hub-sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />}
       <aside className={mobileNavOpen ? "hub-sidebar open" : "hub-sidebar"}>
         <button className="hub-sidebar-close" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}><X size={18} /></button>
         <nav className="hub-sidebar-nav">
-          <div className="hub-sidebar-item-group">
-            <button className={section === "league" ? "active" : ""} onClick={() => selectSection("league")}><Trophy size={18} /> League</button>
-            {section === "league" && !isMobile && (
-              <div className="hub-sidebar-subnav">
-                <button className={subTab === "buzz" ? "active" : ""} onClick={() => selectSubTab("buzz")}><Newspaper size={15} /> Campus Buzz</button>
-                <button className={subTab === "matchups" ? "active" : ""} onClick={() => selectSubTab("matchups")}><CalendarDays size={15} /> Matchups{hub.liveStreams?.length ? <i className="hub-live-dot" title="Live streams" /> : null}</button>
-                <button className={subTab === "rankings" ? "active" : ""} onClick={() => selectSubTab("rankings")}><Trophy size={15} /> Rankings</button>
-              </div>
-            )}
-          </div>
-          <button onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button>
+          <button className={section === "league" && subTab === "buzz" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("buzz"); }}><Newspaper size={18} /> Campus Buzz</button>
+          <button className={section === "league" && subTab === "matchups" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("matchups"); }}><CalendarDays size={18} /> Matchups{hub.liveStreams?.length ? <i className="hub-live-dot" title="Live streams" /> : null}</button>
+          <button className={section === "league" && subTab === "rankings" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("rankings"); }}><Trophy size={18} /> Rankings</button>
+          <button className={section === "openTeams" ? "active" : ""} onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button>
           <button className={section === "store" ? "active" : ""} onClick={() => selectSection("store")}><ShoppingBag size={18} /> Store</button>
           <button className={section === "team" ? "active" : ""} onClick={() => selectSection("team")}><UserRound size={18} /> My Team</button>
           <button className={section === "wagers" ? "active" : ""} onClick={() => selectSection("wagers")}><Coins size={18} /> Wagers</button>
-          <button onClick={() => void openTeamSchedulePicker()}><CalendarDays size={18} /> Team Schedules</button>
+          <button className={section === "schedules" ? "active" : ""} onClick={() => void openTeamSchedulePicker()}><CalendarDays size={18} /> Team Schedules</button>
         </nav>
         {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={18} /> League Mgmt</Link>}
       </aside>
       <main className="hub-content">
-    {section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
+    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong><small>{team.division || "Conference team"}</small></span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
       <div className="hub-my-team-shortcuts">
         <button className="hub-shortcut-card" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={18} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : "$100 on approval"}</span></div></button>
         <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : "$50 on approval"}</span></div></button>
@@ -717,17 +709,6 @@ export function HubHome() {
         </SectionFrame>
       )}
 
-      {isMobile && (
-        <MobileBottomNav
-          tabs={[
-            { key: "buzz", label: "Campus Buzz", icon: <IconWell size="sm" icon={<Newspaper size={14} />} /> },
-            { key: "matchups", label: "Matchups", icon: <IconWell size="sm" icon={<CalendarDays size={14} />} /> },
-            { key: "rankings", label: "Rankings", icon: <IconWell size="sm" icon={<Trophy size={14} />} /> },
-          ]}
-          active={subTab}
-          onChange={setSubTab}
-        />
-      )}
     </div>}
       </main>
     </div>
