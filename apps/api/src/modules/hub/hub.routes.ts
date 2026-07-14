@@ -3,7 +3,29 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { addHubStoryComment, getHub, HUB_REACTION_KEYS, listHubStoryComments, publishHubStory, recordHubAnnouncement, recordHubHighlightView, toggleHubGameReaction, toggleHubHighlightReaction, toggleHubStoryReaction } from "./hub.service.js";
+import {
+  addHubStoryComment,
+  closeGameOfWeekVoting,
+  createCommissionerMediaArticle,
+  getHub,
+  getHubMatchupSchedule,
+  getHubMediaPortal,
+  HUB_REACTION_KEYS,
+  listHubStoryComments,
+  persistMediaImageBuffer,
+  publishHubStory,
+  recordHubAnnouncement,
+  recordHubHighlightView,
+  reviewMediaSubmission,
+  submitInterview,
+  submitUserMediaArticle,
+  toggleHubGameReaction,
+  toggleHubHighlightReaction,
+  toggleHubStoryReaction,
+  voteGameOfWeek,
+} from "./hub.service.js";
+
+const ImageUrl = z.string().url().optional().nullable();
 
 export async function hubRoutes(app: FastifyInstance) {
   app.post("/v1/hub/view", async (request, reply) => {
@@ -91,6 +113,95 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "bot") throw new ApiError(400, "League stories require a commissioner session.");
       return reply.send(await publishHubStory({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/upload-image", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.query);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Media uploads require a user session.");
+      const file = await request.file();
+      if (!file) throw new ApiError(400, "Missing file.");
+      const buffer = await file.toBuffer();
+      const url = await persistMediaImageBuffer(guildId, buffer, file.mimetype);
+      return reply.send({ url });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/portal", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Media portal requires a user session.");
+      return reply.send(await getHubMediaPortal(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/article/submit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), title: z.string().trim().min(1).max(180), body: z.string().trim().min(1).max(8000), imageUrl: ImageUrl }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Article submissions require a user session.");
+      return reply.send(await submitUserMediaArticle({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/interview/submit", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        tagOpponent: z.boolean().optional(),
+        answers: z.array(z.object({ questionId: z.string().min(1), question: z.string().min(1).max(280), answer: z.string().trim().min(1).max(1400) })).length(3),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Interview submissions require a user session.");
+      return reply.send(await submitInterview({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/commissioner-article", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), title: z.string().trim().min(1).max(180), body: z.string().trim().min(1).max(10000), imageUrl: ImageUrl, immediatePost: z.boolean().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Commissioner media publishing requires a user session.");
+      return reply.send(await createCommissionerMediaArticle({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/review", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), reviewId: z.string().uuid(), action: z.enum(["approve", "deny"]), deniedReason: z.string().optional().nullable(), reviewedByDiscordId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
+      return reply.send(await reviewMediaSubmission(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/matchups/schedule", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(0).max(30).optional().nullable() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Matchup schedule requires a user session.");
+      return reply.send(await getHubMatchupSchedule({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/gotw/vote", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), pollId: z.string().uuid(), selectedTeamId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "GOTW voting requires a user session.");
+      return reply.send(await voteGameOfWeek({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/gotw/close", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), pollId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "GOTW close requires a user session.");
+      return reply.send(await closeGameOfWeekVoting({ ...body, closedByDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

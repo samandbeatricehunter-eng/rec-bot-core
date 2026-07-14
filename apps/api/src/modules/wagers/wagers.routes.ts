@@ -17,6 +17,7 @@ import {
   placeCounterWager,
   getWagerResolvability,
   listChallengeableCoaches,
+  listPeerWagerBoard,
   listConfirmableWagers,
   listWagerableGames,
   placeHouseWager,
@@ -26,11 +27,18 @@ import {
 } from "./wagers.service.js";
 
 export async function wagerRoutes(app: FastifyInstance) {
+  const resolvedDiscordId = (body: { discordId?: string }) => {
+    if (!body.discordId) throw new Error("Missing Discord id.");
+    return body.discordId;
+  };
+
   app.post("/v1/wagers/games", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
-      return reply.send(await listWagerableGames(body.guildId, body.discordId));
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await listWagerableGames(body.guildId, resolvedDiscordId(body)));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -38,8 +46,8 @@ export async function wagerRoutes(app: FastifyInstance) {
 
   app.post("/v1/wagers/options", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await getGameWagerOptions(body.guildId, body.gameId));
     } catch (error) {
       return sendError(reply, error);
@@ -48,17 +56,19 @@ export async function wagerRoutes(app: FastifyInstance) {
 
   app.post("/v1/wagers/place-house", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
-        discordId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
         gameId: z.string().uuid(),
         market: z.string().min(1),
         pick: z.string().min(1),
         stake: z.number().int().positive(),
         customLine: z.number().min(-10).max(10).nullable().optional(),
       }).parse(request.body);
-      return reply.send(await placeHouseWager(body));
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await placeHouseWager({ ...body, discordId: resolvedDiscordId(body) }));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -66,10 +76,9 @@ export async function wagerRoutes(app: FastifyInstance) {
 
   app.post("/v1/wagers/place-parlay", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
-        discordId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
         stake: z.number().int().positive(),
         legs: z.array(z.object({
           gameId: z.string().uuid(),
@@ -78,7 +87,10 @@ export async function wagerRoutes(app: FastifyInstance) {
           customLine: z.number().min(-10).max(10).nullable().optional(),
         })).min(2).max(3),
       }).parse(request.body);
-      return reply.send(await placeParlay(body));
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await placeParlay({ ...body, discordId: resolvedDiscordId(body) }));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -86,10 +98,9 @@ export async function wagerRoutes(app: FastifyInstance) {
 
   app.post("/v1/wagers/place-peer", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
-        discordId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
         gameId: z.string().uuid(),
         market: z.string().min(1),
         pick: z.string().min(1),
@@ -98,7 +109,10 @@ export async function wagerRoutes(app: FastifyInstance) {
         targetUserId: z.string().uuid().optional().nullable(),
         customLine: z.number().min(-10).max(10).nullable().optional(),
       }).parse(request.body);
-      return reply.send(await placePeerWager(body));
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await placePeerWager({ ...body, discordId: resolvedDiscordId(body) }));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -106,9 +120,11 @@ export async function wagerRoutes(app: FastifyInstance) {
 
   app.post("/v1/wagers/accept-peer", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), wagerId: z.string().uuid() }).parse(request.body);
-      return reply.send(await acceptPeerWager(body));
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional(), wagerId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await acceptPeerWager({ ...body, discordId: resolvedDiscordId(body) }));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -170,9 +186,23 @@ export async function wagerRoutes(app: FastifyInstance) {
 
   app.post("/v1/wagers/challengeable-coaches", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
-      return reply.send(await listChallengeableCoaches(body.guildId, body.discordId));
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await listChallengeableCoaches(body.guildId, resolvedDiscordId(body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/peer-board", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await listPeerWagerBoard(body.guildId, resolvedDiscordId(body)));
     } catch (error) {
       return sendError(reply, error);
     }

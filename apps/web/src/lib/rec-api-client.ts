@@ -32,6 +32,11 @@ import type {
   WeeklyH2hGamesResponse,
   HubReactionKey,
   HubResponse,
+  HubMatchupSchedule,
+  MediaPortalResponse,
+  WagerOptionsResponse,
+  PeerWagerBoardResponse,
+  ChallengeableCoachesResponse,
   OpenTeamsResponse,
   RoleMgmtMember,
   RoleMgmtRoleKey,
@@ -87,6 +92,41 @@ export const recApi = {
     recApiFetch<{ recorded: true }>("/v1/hub/announcements/publish", { method: "POST", body: JSON.stringify(input) }),
   publishHubStory: (input: { guildId: string; headline: string; body: string; storyType: "headline" | "article" }) =>
     recApiFetch<{ published: true; id: string }>("/v1/hub/stories/publish", { method: "POST", body: JSON.stringify(input) }),
+  uploadHubMediaImage: (guildId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return recApiFetch<UploadImageResponse>(`/v1/hub/media/upload-image?guildId=${encodeURIComponent(guildId)}`, { method: "POST", body: formData });
+  },
+  getHubMediaPortal: (guildId: string) =>
+    recApiFetch<MediaPortalResponse>("/v1/hub/media/portal", { method: "POST", body: JSON.stringify({ guildId }) }),
+  submitHubMediaArticle: (input: { guildId: string; title: string; body: string; imageUrl?: string | null }) =>
+    recApiFetch<{ submitted: true; id: string }>("/v1/hub/media/article/submit", { method: "POST", body: JSON.stringify(input) }),
+  submitHubInterview: (input: { guildId: string; tagOpponent?: boolean; answers: Array<{ questionId: string; question: string; answer: string }> }) =>
+    recApiFetch<{ submitted: true; id: string }>("/v1/hub/media/interview/submit", { method: "POST", body: JSON.stringify(input) }),
+  publishCommissionerMediaArticle: (input: { guildId: string; title: string; body: string; imageUrl?: string | null; immediatePost?: boolean }) =>
+    recApiFetch<{ published?: true; scheduled?: true; id: string; storyId?: string }>("/v1/hub/media/commissioner-article", { method: "POST", body: JSON.stringify(input) }),
+  reviewMedia: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
+    recApiFetch<unknown>("/v1/hub/media/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null }) =>
+    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
+  voteGameOfWeek: (input: { guildId: string; pollId: string; selectedTeamId: string }) =>
+    recApiFetch<{ voted: true }>("/v1/hub/gotw/vote", { method: "POST", body: JSON.stringify(input) }),
+  closeGameOfWeekVoting: (input: { guildId: string; pollId: string }) =>
+    recApiFetch<{ closed: true }>("/v1/hub/gotw/close", { method: "POST", body: JSON.stringify(input) }),
+  getWagerOptions: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<WagerOptionsResponse>("/v1/wagers/options", { method: "POST", body: JSON.stringify(input) }),
+  placeHouseWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; customLine?: number | null }) =>
+    recApiFetch<{ wager: unknown; walletBalance: number; payout: number; marketLabel: string; sideLabel: string }>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
+  placeParlay: (input: { guildId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }> }) =>
+    recApiFetch<{ wager: unknown; payout: number; combinedOdds: number; legs: string[] }>("/v1/wagers/place-parlay", { method: "POST", body: JSON.stringify(input) }),
+  placePeerWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; challengeType: "open" | "direct"; targetUserId?: string | null; customLine?: number | null }) =>
+    recApiFetch<{ wager: unknown; payout: number; marketLabel: string; proposerPickLabel: string }>("/v1/wagers/place-peer", { method: "POST", body: JSON.stringify(input) }),
+  acceptPeerWager: (input: { guildId: string; wagerId: string }) =>
+    recApiFetch<{ wager: unknown }>("/v1/wagers/accept-peer", { method: "POST", body: JSON.stringify(input) }),
+  getPeerWagerBoard: (guildId: string) =>
+    recApiFetch<PeerWagerBoardResponse>("/v1/wagers/peer-board", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listChallengeableCoaches: (guildId: string) =>
+    recApiFetch<ChallengeableCoachesResponse>("/v1/wagers/challengeable-coaches", { method: "POST", body: JSON.stringify({ guildId }) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
     recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
   toggleHubGameReaction: (input: { guildId: string; gameId: string; reactionKey: "like" | "dislike" }) =>

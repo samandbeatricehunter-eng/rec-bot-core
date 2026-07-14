@@ -17,6 +17,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score", purchase: "Purchase", highlight: "Highlight", stream: "Stream",
   eos_payout: "EOS Payout", eos_award: "EOS Award", active_check: "Active Check",
   weekly_score_review: "Weekly Scores", wager: "Wager", team_request: "Team Request",
+  media: "Media",
 };
 const ALL_TYPES = Object.keys(TYPE_LABELS) as CommissionerNotificationType[];
 

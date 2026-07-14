@@ -4,15 +4,38 @@
    header. Also fades out the photo's own baked-in "REC LEAGUES" wordmark before it
    collides with the header's own logo. */
 .app-backdrop {
+  position: relative;
   min-height: 100%;
+  overflow-x: clip;
   background-image:
-    linear-gradient(180deg, rgba(15, 15, 15, 0.62) 0%, rgba(15, 15, 15, 0.9) 38%, var(--bg) 72%),
-    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 215, 0, 0.1), transparent 55%),
+    linear-gradient(180deg, rgba(4, 5, 4, 0.7) 0%, rgba(9, 10, 8, 0.92) 42%, var(--bg) 76%),
+    radial-gradient(ellipse 80% 36% at 50% 0%, var(--stadium-light, rgba(255, 215, 0, 0.12)), transparent 62%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 1px, transparent 1px 88px),
+    linear-gradient(90deg, rgba(255,255,255,.04), transparent 10%, transparent 90%, rgba(255,255,255,.04)),
     url("../assets/hero-bg.png");
-  background-size: cover, cover, cover;
-  background-position: center top, center top, center 25%;
-  background-repeat: no-repeat, no-repeat, no-repeat;
-  background-attachment: fixed, fixed, fixed;
+  background-size: cover, cover, auto, cover, cover;
+  background-position: center top, center top, center top, center top, center 25%;
+  background-repeat: no-repeat, no-repeat, repeat, no-repeat, no-repeat;
+  background-attachment: fixed, fixed, fixed, fixed, fixed;
+}
+.app-backdrop::before,
+.app-backdrop::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.app-backdrop::before {
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(255,255,255,.08) 50%, transparent calc(50% + 1px)),
+    repeating-linear-gradient(0deg, transparent 0 76px, rgba(255,255,255,.045) 76px 77px, transparent 77px 154px);
+  mask-image: linear-gradient(180deg, transparent 0, black 18%, transparent 76%);
+  opacity: .24;
+}
+.app-backdrop::after {
+  background:
+    radial-gradient(ellipse 70% 42% at 50% 0%, transparent 0, transparent 52%, var(--stadium-shadow, rgba(0,0,0,.82)) 100%),
+    radial-gradient(ellipse 115% 70% at 50% 100%, rgba(0,0,0,.78), transparent 56%);
 }
 
 /* Header bar (AppShell) — sits directly on the hero photo, so it gets its own solid scrim
@@ -28,6 +51,8 @@
   box-shadow: var(--shadow-card);
 }
 .app-shell-container {
+  position: relative;
+  z-index: 1;
   width: 100%;
   max-width: var(--content-width);
   margin: 0 auto;

@@ -186,7 +186,8 @@ export type CommissionerNotificationType =
   | "active_check"
   | "weekly_score_review"
   | "wager"
-  | "team_request";
+  | "team_request"
+  | "media";
 
 export type CommissionerNotification = {
   id: string;
@@ -303,9 +304,10 @@ export type HubResponse = {
   canManageLeague: boolean;
   store: { enabled: boolean; cfbSeasonOneLocked: boolean; products: Array<{ type: "age_reset" | "dev_upgrade" | "contract" | "player_trait" | "attribute" | "legend" | "custom_player"; label: string; locked: boolean }> };
   announcements: Array<{ id: string; title: string; body: string; season_number: number | null; week_number: number | null; published_at: string }>;
-  headlines: Array<{ id: string; season: number; week: number; headline: string | null; body: string | null; primary_angle: string | null; story_type: "headline" | "article" | "game_article"; notes: string[] | null; roundtable: Array<{ speaker: string; role: string; take: string }> | null; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null; commentCount: number; created_at: string }>;
+  headlines: Array<{ id: string; season: number; week: number; headline: string | null; body: string | null; image_url?: string | null; media_kind?: string | null; author_discord_id?: string | null; primary_angle: string | null; story_type: "headline" | "article" | "game_article"; notes: string[] | null; roundtable: Array<{ speaker: string; role: string; take: string }> | null; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null; commentCount: number; created_at: string }>;
   matchups: WeeklyH2hGamesResponse;
   myTeam: any;
+  powerRankings: null | { completedWeekNumber: number | null; hasPreviousWeek: boolean; teams: Array<{ teamId: string; teamName: string; abbr: string | null; isHuman: boolean; rank: number; score: number; prevRank: number | null; change: number | null }> };
   highlights: Array<{
     id: string; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
     videoUrl: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
@@ -336,6 +338,37 @@ export type WeeklyH2hGame = {
 };
 export type WeeklyH2hGamesResponse = { weekLabel: string; games: WeeklyH2hGame[] };
 export type StoryComment = { id: string; body: string; authorName: string; created_at: string };
+
+export type InterviewQuestion = { id: string; context: string; category: string; question: string };
+export type MediaPortalResponse = {
+  questions: InterviewQuestion[];
+  limits: { articleSubmitted: boolean; articleStatus: string | null; interviewSubmitted: boolean; interviewStatus: string | null };
+  opponent: null | { gameId: string; userId: string; discordId: string | null; teamId: string; teamName: string; seasonNumber: number; weekNumber: number };
+};
+export type HubMatchupSchedule = {
+  currentWeek: number;
+  selectedWeek: number;
+  weekNumbers: number[];
+  usersByConference: Array<{ conference: string; users: Array<{ userId: string; displayName: string; teamName: string; division: string | null }> }>;
+  gotw: null | { pollId: string; gameId: string; status: "open" | "closed"; awayTeamId: string; homeTeamId: string; awayTeamName: string; homeTeamName: string; awayVotes: number; homeVotes: number; myVote: string | null };
+  games: Array<{ gameId: string; weekNumber: number; matchupType: "h2h" | "cpu"; involvesMe: boolean; isGameOfWeek: boolean; homeTeamName: string; awayTeamName: string; homeConference: string | null; awayConference: string | null }>;
+};
+
+export type WagerOptionsResponse = {
+  gameId: string;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  homeLabel: string;
+  awayLabel: string;
+  humanInvolved: boolean;
+  markets: Array<{ market: string; label: string; kind: string; line: number | null; unit?: string; sides: Array<{ pick: string; label: string; odds: number }> }>;
+};
+export type PeerWagerBoardResponse = {
+  wagers: Array<{ id: string; gameId: string; gameLabel: string; challengeType: string; market: string; pick: string; line: number | null; odds: number; stake: number; potentialPayout: number; placedByDiscordId: string; isMine: boolean; canAccept: boolean; createdAt: string }>;
+};
+export type ChallengeableCoachesResponse = {
+  coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;
+};
 
 export type MentionableCommissioner = { discordId: string; displayName: string };
 export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };

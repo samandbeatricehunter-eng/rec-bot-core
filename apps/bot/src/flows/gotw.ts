@@ -10,7 +10,7 @@ import {
 import { isRegularSeasonWeek, stageLabel } from "@rec/shared";
 import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
-import { getRouteChannels, getVotingPollsChannel } from "../lib/route-channels.js";
+import { getRouteChannels } from "../lib/route-channels.js";
 import { MENU_CUSTOM_IDS } from "../ui/menu.js";
 
 export const GOTW_CUSTOM_IDS = {
@@ -48,8 +48,8 @@ export async function handleGotwPollsMenu(interaction: ButtonInteraction, buildA
     embeds: [new EmbedBuilder()
       .setTitle("GOTW Polls")
       .setDescription([
-        "**Set GOTW** lets commissioners pick the current week's GOTW matchup.",
-        "**Rerun Poll(s)** reposts current-week polls. In playoffs, it reruns every scheduled playoff game poll."
+        "**Set GOTW** lets commissioners pick the current week's GOTW matchup and open web voting.",
+        "**Rerun Poll(s)** refreshes the current web voting record."
       ].join("\n"))],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -95,10 +95,8 @@ export async function handleSetGotw(interaction: ButtonInteraction) {
 export async function handleGotwSelect(interaction: any, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set GOTW");
-  // Selecting a matchup does NOT post immediately. Discord only fires this
-  // interaction when the selected value changes, so re-picking the same option
-  // would silently do nothing. We render an explicit Confirm step instead, which
-  // also guards against accidentally publishing an @everyone poll.
+  // Keep an explicit confirm step so commissioners do not accidentally replace
+  // the current web Game of the Week vote.
   await interaction.deferUpdate();
   const selectedGameId = interaction.values[0];
   const { currentWeek, stage, game: leagueGame, games } = await currentSchedule(interaction as any);
@@ -113,11 +111,11 @@ export async function handleGotwSelect(interaction: any, buildAdvanceRows: () =>
       `**${awayLabel} at ${homeLabel}**`,
       stageLabel(stage, currentWeek, leagueGame),
       "",
-      "Confirming posts an @everyone poll to the voting polls channel asking members to pick the winner.",
+      "Confirming opens Game of the Week voting on the web Hub. No Discord poll will be posted.",
     ].join("\n"))],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(`${GOTW_CUSTOM_IDS.confirmPrefix}:${selectedGameId}`).setLabel("Confirm & Post GOTW").setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(`${GOTW_CUSTOM_IDS.confirmPrefix}:${selectedGameId}`).setLabel("Confirm GOTW").setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetGotw).setLabel("Pick Different Matchup").setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Secondary),
       ),
@@ -128,32 +126,16 @@ export async function handleGotwSelect(interaction: any, buildAdvanceRows: () =>
 // Posts one native Discord GOTW poll (away vs home) to the voting-polls channel
 // and records it so the advance can settle it. Shared by the manual Set GOTW
 // flow and the postseason auto-create. Returns true on success.
-export async function postGotwPollForGame(args: { guildId: string; channel: any; game: any; weekNumber: number }): Promise<boolean> {
-  const { guildId, channel, game, weekNumber } = args;
+export async function postGotwPollForGame(args: { guildId: string; channel?: any; game: any; weekNumber: number }): Promise<boolean> {
+  const { guildId, game, weekNumber } = args;
   const gameId = game.id;
   const awayTeamId = game.away_team?.id ?? game.away_team_id;
   const homeTeamId = game.home_team?.id ?? game.home_team_id;
   if (!gameId || !awayTeamId || !homeTeamId) return false;
   const awayLabel = teamDisplay(game.away_team).slice(0, 55);
   const homeLabel = teamDisplay(game.home_team).slice(0, 55);
-  const pollDurationHours = 8;
-  const expiresAt = new Date(Date.now() + pollDurationHours * 60 * 60 * 1000).toISOString();
-  const pollMsg = await channel.send({
-    content: "@everyone",
-    poll: {
-      question: { text: `Who will win this week's GOTW? ${awayLabel} at ${homeLabel}`.slice(0, 300) },
-      answers: [
-        { text: awayLabel },  // answer_id 1 = away
-        { text: homeLabel },  // answer_id 2 = home
-      ],
-      duration: pollDurationHours,
-      allowMultiselect: false,
-    },
-    allowedMentions: { parse: ["everyone"] },
-  } as any).catch((err: unknown) => { console.error("[ERROR] Failed to post GOTW poll:", err); return null; });
-  if (!pollMsg) return false;
-  // Create DB record so the advance can settle this poll and pay out correct guessers.
-  await recApi.createGotwPoll({
+  const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+  const result = await recApi.createGotwPoll({
     guildId,
     gameId,
     awayTeamId,
@@ -162,12 +144,15 @@ export async function postGotwPollForGame(args: { guildId: string; channel: any;
     homeUserId: game.home_user_id ?? null,
     awayTeamName: awayLabel,
     homeTeamName: homeLabel,
-    discordChannelId: channel.id,
-    discordMessageId: pollMsg.id,
+    discordChannelId: null,
+    discordMessageId: null,
     weekNumber,
     expiresAt,
-  }).catch((err: unknown) => console.error("[ERROR] Failed to create GOTW poll record (non-fatal):", err));
-  return true;
+  }).catch((err: unknown) => {
+    console.error("[ERROR] Failed to create GOTW poll record:", err);
+    return null;
+  });
+  return Boolean(result);
 }
 
 export async function handleGotwConfirm(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
@@ -177,16 +162,14 @@ export async function handleGotwConfirm(interaction: ButtonInteraction, buildAdv
   const selectedGameId = interaction.customId.slice(`${GOTW_CUSTOM_IDS.confirmPrefix}:`.length);
   const { currentWeek, stage, game: leagueGame, games } = await currentSchedule(interaction as any);
   const game = games.find((g: any) => g.id === selectedGameId);
-  const routes = await getRouteChannels(interaction.guildId);
-  const channel = await getVotingPollsChannel(interaction.guild, routes);
-  if (!game || !channel) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceRows() });
+  if (!game) {
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to set GOTW. Check the selected game.")], components: buildAdvanceRows() });
   }
-  const posted = await postGotwPollForGame({ guildId: interaction.guildId, channel, game, weekNumber: currentWeek });
+  const posted = await postGotwPollForGame({ guildId: interaction.guildId, game, weekNumber: currentWeek });
   if (!posted) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to post GOTW poll. Check the selected game and voting polls channel.")], components: buildAdvanceRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to open GOTW voting on the web Hub.")], components: buildAdvanceRows() });
   }
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Posted").setDescription(`Posted GOTW poll to the voting polls channel for ${stageLabel(stage, currentWeek, leagueGame)}.`)], components: buildAdvanceRows() });
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Voting Open").setDescription(`Opened web voting for ${stageLabel(stage, currentWeek, leagueGame)}. Users can vote from /hub.`)], components: buildAdvanceRows() });
 }
 
 export async function handleRerunGotwPolls(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {
@@ -207,12 +190,6 @@ export async function handleRerunGotwPolls(interaction: ButtonInteraction, build
     if (!channel?.isTextBased() || !("messages" in channel)) continue;
     const deleted = await channel.messages.delete(messageId).then(() => true).catch(() => false);
     if (deleted) deletedMessages += 1;
-  }
-
-  const routes = await getRouteChannels(interaction.guildId);
-  const channel = await getVotingPollsChannel(interaction.guild, routes);
-  if (!channel) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Rerun GOTW Polls").setDescription("No voting polls channel is configured.")], components: buildAdvanceRows() });
   }
 
   const isPlayoff = !isRegularSeasonWeek(currentWeek, leagueGame);
@@ -237,7 +214,7 @@ export async function handleRerunGotwPolls(interaction: ButtonInteraction, build
   let posted = 0;
   const skipped: string[] = [];
   for (const game of gamesToPost) {
-    const ok = await postGotwPollForGame({ guildId: interaction.guildId, channel, game, weekNumber: currentWeek });
+    const ok = await postGotwPollForGame({ guildId: interaction.guildId, game, weekNumber: currentWeek });
     if (ok) posted += 1;
     else skipped.push(`${teamDisplay(game.away_team)} at ${teamDisplay(game.home_team)}`);
   }
@@ -249,7 +226,7 @@ export async function handleRerunGotwPolls(interaction: ButtonInteraction, build
         `Week: **${stageLabel(stage, currentWeek, leagueGame)}**`,
         `Cleared DB records: **${cleared.cleared ?? 0}**`,
         `Deleted old Discord messages: **${deletedMessages}**`,
-        `Posted replacement polls: **${posted}**`,
+        `Refreshed web GOTW votes: **${posted}**`,
         skipped.length ? `Skipped: ${skipped.join(", ")}` : "Skipped: none",
       ].join("\n"))],
     components: buildAdvanceRows(),

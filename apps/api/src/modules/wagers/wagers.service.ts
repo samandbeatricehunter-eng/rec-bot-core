@@ -18,6 +18,7 @@ function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string |
 
 const CUSTOM_SPREAD_MIN = -10;
 const CUSTOM_SPREAD_MAX = 10;
+const HOUSE_WAGER_MAX = 5000;
 
 // A custom spread applies directly to the bettor's chosen side (no sign flip — the
 // number they enter is their line), clamped to the house's allowed range. Odds stay
@@ -57,6 +58,23 @@ async function activeTeamId(leagueId: string, userId: string): Promise<string | 
 async function walletBalance(userId: string): Promise<number> {
   const { data } = await supabase.from("rec_wallets").select("wallet_balance").eq("user_id", userId).maybeSingle();
   return Number(data?.wallet_balance ?? 0);
+}
+
+async function assertHouseWeeklyCap(leagueId: string, seasonNumber: number, weekNumber: number, userId: string, stake: number) {
+  const { data, error } = await supabase
+    .from("rec_wagers")
+    .select("stake")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .eq("placed_by_user_id", userId)
+    .eq("wager_kind", "house")
+    .in("status", ["pending", "confirmed"]);
+  if (error) throw new ApiError(500, "Failed to check weekly house wager cap.", error);
+  const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
+  if (activeTotal + stake > HOUSE_WAGER_MAX) {
+    throw new ApiError(400, `House wagers are capped at $${HOUSE_WAGER_MAX.toLocaleString()} total per week. You already have $${activeTotal.toLocaleString()} active.`);
+  }
 }
 
 // Games for the current week the bettor may wager on (their own game excluded).
@@ -129,6 +147,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
 
   const stake = Math.floor(Number(input.stake));
   if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
+  await assertHouseWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
 
   const marketDef = WAGER_MARKET_BY_KEY.get(input.market);
   if (!marketDef) throw new ApiError(400, "Unknown wager market.");
@@ -612,6 +631,56 @@ export async function listChallengeableCoaches(guildId: string, discordId: strin
   return { coaches };
 }
 
+export async function listPeerWagerBoard(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const viewerUserId = await userIdFromDiscord(discordId);
+
+  const { data, error } = await supabase
+    .from("rec_wagers")
+    .select("id,game_id,wager_kind,challenge_type,counterparty_user_id,placed_by_user_id,placed_by_discord_id,market,pick,line,odds,stake,potential_payout,status,created_at")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber)
+    .eq("wager_kind", "peer")
+    .eq("status", "awaiting_accept")
+    .order("created_at", { ascending: false });
+  if (error) throw new ApiError(500, "Failed to load wager board.", error);
+
+  const rows = (data ?? []).filter((w: any) => {
+    if (w.placed_by_user_id === viewerUserId) return true;
+    if (w.challenge_type === "direct") return w.counterparty_user_id === viewerUserId;
+    if (w.challenge_type === "counter") return w.counterparty_user_id === viewerUserId;
+    return true;
+  });
+  const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
+  const games = gameIds.length
+    ? await supabase.from("rec_games").select("id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
+    : { data: [] };
+  const gameById = new Map((games.data ?? []).map((game: any) => [game.id, `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}`]));
+
+  return {
+    wagers: rows.map((w: any) => ({
+      id: w.id,
+      gameId: w.game_id,
+      gameLabel: gameById.get(w.game_id) ?? "Scheduled game",
+      challengeType: w.challenge_type,
+      market: w.market,
+      pick: w.pick,
+      line: w.line,
+      odds: w.odds,
+      stake: Number(w.stake ?? 0),
+      potentialPayout: Number(w.potential_payout ?? 0),
+      placedByDiscordId: w.placed_by_discord_id,
+      isMine: w.placed_by_user_id === viewerUserId,
+      canAccept: w.placed_by_user_id !== viewerUserId && (w.challenge_type !== "direct" || w.counterparty_user_id === viewerUserId),
+      createdAt: w.created_at,
+    })),
+  };
+}
+
 export async function attachWagerAnnouncementMessage(input: { wagerId: string; channelId: string; messageId: string }) {
   const { error } = await supabase
     .from("rec_wagers")
@@ -650,6 +719,7 @@ export async function placeParlay(input: PlaceParlayInput) {
 
   const stake = Math.floor(Number(input.stake));
   if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
+  await assertHouseWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
   const balance = await walletBalance(userId);
   if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes $${stake} and you have $${balance}.`);
 

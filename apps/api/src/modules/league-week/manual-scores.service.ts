@@ -8,6 +8,7 @@ import { rebuildSeasonDisplayRecords } from "../display-records/display-records.
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
+import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { randomUUID } from "node:crypto";
 
 const MANUAL_SOURCE = "manual";
@@ -179,6 +180,9 @@ export async function recordManualGameResult(input: {
 
   const result = await supabase.from("rec_game_results").upsert(row, { onConflict: "records_apply_key", ignoreDuplicates: false });
   if (result.error) throw new ApiError(500, "Failed to save the manual game result.", result.error);
+  await settleGotwPollsForGame({ guildId: input.guildId, gameId: input.gameId, winningTeamId }).catch((err) => {
+    console.error("[ERROR] settleGotwPollsForGame failed after manual score entry (non-fatal):", err);
+  });
 
   const homeStats = input.manualStats?.home ?? {};
   const awayStats = input.manualStats?.away ?? {};

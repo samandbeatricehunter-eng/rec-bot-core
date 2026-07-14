@@ -17,11 +17,11 @@ export async function gotwRoutes(app: FastifyInstance) {
         homeUserId: z.string().uuid().nullable().optional(),
         awayTeamName: z.string().min(1),
         homeTeamName: z.string().min(1),
-        discordChannelId: z.string().min(1),
-        discordMessageId: z.string().min(1),
+        discordChannelId: z.string().min(1).nullable().optional(),
+        discordMessageId: z.string().min(1).nullable().optional(),
         // CFB regular season starts at Week 0.
         weekNumber: z.number().int().min(0),
-        expiresAt: z.string().min(1),
+        expiresAt: z.string().min(1).nullable().optional(),
       }).parse(request.body);
       return reply.send(await createGotwPoll(body));
     } catch (error) {

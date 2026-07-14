@@ -331,8 +331,8 @@ export const recApi = {
     guildId: string; gameId: string; awayTeamId: string; homeTeamId: string;
     awayUserId?: string | null; homeUserId?: string | null;
     awayTeamName: string; homeTeamName: string;
-    discordChannelId: string; discordMessageId: string;
-    weekNumber: number; expiresAt: string;
+    discordChannelId?: string | null; discordMessageId?: string | null;
+    weekNumber: number; expiresAt?: string | null;
   }) => recFetch<any>("/v1/gotw/poll/create", { method: "POST", body: JSON.stringify(input) }),
 
   getActiveGotwPoll: (input: { guildId: string; weekNumber: number }) =>

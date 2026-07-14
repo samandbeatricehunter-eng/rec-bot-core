@@ -17,6 +17,7 @@ import { convertSeasonBadgesToTrophies } from "../box-score-intelligence/season-
 import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
+import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
 
 type AdvanceGameResultInput = {
   gameId: string;
@@ -305,6 +306,10 @@ export async function completeAdvanceWeek(input: {
     advancedByDiscordId: input.advancedByDiscordId,
   }).catch((err) => {
     console.error("[ERROR] recordAdvanceDmRun failed after advance (non-fatal):", err);
+  });
+
+  await publishScheduledMediaForAdvance(input.guildId).catch((err) => {
+    console.error("[ERROR] publishScheduledMediaForAdvance failed after advance (non-fatal):", err);
   });
 
   // Season end (advancing out of the Super Bowl into the offseason): convert every

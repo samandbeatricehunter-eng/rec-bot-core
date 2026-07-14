@@ -31,7 +31,7 @@ export const WAGER_MARKET_BY_KEY = new Map(WAGER_MARKETS.map((m) => [m.key, m]))
 
 /** Markets available for a game given whether a human coach is involved (box score expected). */
 export function marketsForGame(humanInvolved: boolean): WagerMarket[] {
-  return WAGER_MARKETS.filter((m) => humanInvolved || !m.requiresBoxScore);
+  return humanInvolved ? WAGER_MARKETS : WAGER_MARKETS.filter((m) => m.kind === "moneyline");
 }
 
 // House margin (vig) baked into derived odds; standard -110-style price for

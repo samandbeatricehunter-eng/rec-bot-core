@@ -15,6 +15,7 @@ import { rebuildSeasonDisplayRecords } from "../display-records/display-records.
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -1173,6 +1174,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     sub.home_score != null && sub.away_score != null && sub.home_score !== sub.away_score
       ? (sub.home_score > sub.away_score ? sub.home_user_id : sub.away_user_id)
       : null;
+  const warnings: string[] = [];
 
   // Write game result if we have matched teams and scores
   if (sub.home_team_id && sub.away_team_id && sub.home_score != null && sub.away_score != null) {
@@ -1186,6 +1188,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       ? `boxscore:game:${sub.game_id}`
       : `boxscore:${sub.league_id}:${sub.season_number}:${sub.week_number}:${sub.home_team_id}:${sub.away_team_id}`;
 
+    const winningTeamId = isTie ? null : (sub.home_score > sub.away_score ? sub.home_team_id : sub.away_team_id);
     const { error: resultError } = await supabase.from("rec_game_results").upsert(
       {
         league_id: sub.league_id,
@@ -1201,7 +1204,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
         away_score: sub.away_score,
         winning_user_id: winningUserId,
         losing_user_id: losingUserId,
-        winning_team_id: isTie ? null : (sub.home_score > sub.away_score ? sub.home_team_id : sub.away_team_id),
+        winning_team_id: winningTeamId,
         losing_team_id: isTie ? null : (sub.home_score > sub.away_score ? sub.away_team_id : sub.home_team_id),
         is_user_h2h: Boolean(sub.home_user_id && sub.away_user_id),
         is_cpu_game: !(sub.home_user_id && sub.away_user_id),
@@ -1216,6 +1219,12 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       { onConflict: "records_apply_key", ignoreDuplicates: false },
     );
     if (resultError) throw new ApiError(500, "Failed to record box score game result.", resultError);
+    if (sub.game_id) {
+      await settleGotwPollsForGame({ guildId: sub.discord_guild_id, gameId: sub.game_id, winningTeamId }).catch((error) => {
+        console.error("[ERROR] settleGotwPollsForGame failed after box score approval (non-fatal):", error);
+        warnings.push("Failed to settle GOTW voting.");
+      });
+    }
   }
 
   await syncUsersAfterBoxScoreApproval(sub);
@@ -1223,8 +1232,6 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // Non-fatal post-processing: a failure here must never block the payout/approval,
   // but should still be visible to the reviewing commissioner (not just server logs),
   // since a silent failure here leaves records/badges/CPU stats stale with no signal.
-  const warnings: string[] = [];
-
   // Record flat per-team-per-game stats (two rows, offense + generated/allowed)
   // before rebuilding stat rollups.
   await recordTeamGameStats(sub);

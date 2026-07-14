@@ -10,8 +10,14 @@
 }
 
 @media (max-width: 600px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
   .app-shell-container {
-    padding: var(--space-3);
+    width: 100%;
+    max-width: 430px;
+    padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) max(var(--space-3), env(safe-area-inset-right, 0px)) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)) max(var(--space-3), env(safe-area-inset-left, 0px));
   }
   .app-header-bar {
     flex-wrap: wrap;
@@ -26,6 +32,11 @@
     white-space: normal;
     overflow-wrap: anywhere;
     line-height: 1.35;
+  }
+  .hub-page {
+    width: min(100%, 390px);
+    margin-inline: auto;
+    align-items: stretch;
   }
   .hub-page, .hub-hero, .hub-section, .hub-section-heading, .hub-highlight-meta, .hub-story-open { text-align: center; }
   .hub-hero, .hub-section-heading, .hub-highlight-meta { align-items: center; flex-direction: column; }
@@ -68,11 +79,13 @@
     padding: var(--space-4);
   }
   .hub-page { gap: var(--space-4); }
-  .hub-hero { min-height: 0; flex-direction: column; align-items: stretch; padding: var(--space-5); }
-  .hub-hero h1 { font-size: 34px; }
+  .hub-hero { width: 100%; min-height: 0; flex-direction: column; align-items: stretch; padding: var(--space-5); border-radius: 14px; }
+  .hub-hero h1 { font-size: 38px; }
   .hub-manage-button { width: 100%; }
-  .hub-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: var(--radius-lg); }
+  .hub-tabs { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; border-radius: var(--radius-lg); }
   .hub-tabs button { min-width: 0; padding: var(--space-3); }
+  .hub-subtabs { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-self: stretch; border-radius: var(--radius-lg); }
+  .hub-subtabs button { justify-content: center; min-width: 0; padding: var(--space-3) var(--space-2); }
   .hub-section { padding: var(--space-4); }
   .hub-highlight-carousel { padding: 0 0 58px; }
   .hub-highlight-arrow { top: auto; bottom: 0; }

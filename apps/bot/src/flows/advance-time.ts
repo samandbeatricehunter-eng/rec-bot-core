@@ -288,10 +288,13 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
   try {
     const cfg = await recApi.getEconomyConfig(guildId).catch(() => null);
     const channel = await getAnnouncementsChannel(guild, cfg?.routes ?? {});
-    const lines = [headline];
-    if (epochSeconds != null) {
-      lines.push("", `**Next advance** (<t:${epochSeconds}:R>):`, formatAllZones(epochSeconds));
-    }
+    const weekMatch = headline.match(/to \*\*(.*?)\*\*/);
+    const weekLabel = weekMatch?.[1] ?? "the next week";
+    const lines = [
+      `The league has progressed to **${weekLabel}**.`,
+      "Check matchups, Game of the Week voting, wagers, power rankings, headlines, and team updates with **/hub**.",
+    ];
+    if (epochSeconds != null) lines.push(`Next advance: <t:${epochSeconds}:R>.`);
     const message = channel ? await channel.send({
       content: "@everyone",
       embeds: [new EmbedBuilder().setTitle("📣 League Advanced").setColor(COLORS.success).setDescription(lines.join("\n"))],
@@ -544,10 +547,7 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, _buil
 
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
 
-  const headlines = await publishAdvanceHeadlines(interaction.guild, session);
-  const powerRankings = await publishPowerRankings(interaction.guild, session);
   const announced = await announceAdvance(interaction.guild, session.guildId, session.headline, result.epochSeconds);
-  const xfPosted = await publishSeasonXfSummary(interaction.guild, session);
   const announcementLine = announced
     ? "\n\nPosted to the announcements channel."
     : "\n\nNo announcements channel is configured, so the advance announcement was not posted.";
@@ -558,13 +558,9 @@ export async function handleAdvanceTimeSet(interaction: ButtonInteraction, _buil
       .setColor(COLORS.success)
       .setDescription(
         `${session.headline}\n\n**Next advance** (<t:${result.epochSeconds}:R>):\n${formatAllZones(result.epochSeconds)}` +
-        announcementLine +
-        headlinePublishLine(headlines) +
-        powerRankingsPublishLine(powerRankings) +
-        (xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : "") +
-        advanceDmPromptLine(),
+        announcementLine,
       )],
-    components: [buildAdvanceDmConfirmRow(session.completedSeasonNumber, session.completedWeekNumber)],
+    components: _buildAdvanceRows(),
   });
 }
 
@@ -574,16 +570,13 @@ export async function handleAdvanceTimeSkip(interaction: ButtonInteraction, _bui
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
-  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
-  const powerRankings = session ? await publishPowerRankings(interaction.guild, session) : { posted: false, configured: true, accessible: true, count: 0 };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
-  const xfPosted = session ? await publishSeasonXfSummary(interaction.guild, session) : 0;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(COLORS.neutral)
-      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}${advanceDmPromptLine()}`)],
-    components: [buildAdvanceDmConfirmRow(session?.completedSeasonNumber ?? 0, session?.completedWeekNumber ?? 0)],
+      .setDescription(`${headline}\n\nNo next advance time was set. The advance was announced to @everyone.`)],
+    components: _buildAdvanceRows(),
   });
 }
 
@@ -593,16 +586,13 @@ export async function handleAdvanceTimeBack(interaction: ButtonInteraction, _bui
   const headline = session?.headline ?? "League advanced.";
   sessions.delete(sessionKey(interaction.guildId, interaction.user.id));
   await interaction.deferUpdate();
-  const headlines = session ? await publishAdvanceHeadlines(interaction.guild, session) : { posted: 0, configured: true, accessible: true };
-  const powerRankings = session ? await publishPowerRankings(interaction.guild, session) : { posted: false, configured: true, accessible: true, count: 0 };
   await announceAdvance(interaction.guild, interaction.guildId, headline, null);
-  const xfPosted = session ? await publishSeasonXfSummary(interaction.guild, session) : 0;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
       .setTitle("Week Advanced")
       .setColor(COLORS.neutral)
-      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.${headlinePublishLine(headlines)}${powerRankingsPublishLine(powerRankings)}${xfPosted ? `\n\nPosted **${xfPosted}** XF season badge announcement${xfPosted === 1 ? "" : "s"}.` : ""}${advanceDmPromptLine()}`)],
-    components: [buildAdvanceDmConfirmRow(session?.completedSeasonNumber ?? 0, session?.completedWeekNumber ?? 0)],
+      .setDescription(`${headline}\n\nReturned without setting a next advance time. The advance was announced to @everyone.`)],
+    components: _buildAdvanceRows(),
   });
 }
 

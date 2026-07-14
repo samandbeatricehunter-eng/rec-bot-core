@@ -66,6 +66,8 @@
   --glass-bg: rgba(20, 20, 20, 0.72);
   --glass-blur: 14px;
   --glass-border: rgba(255, 255, 255, 0.06);
+  --playbook-overlay: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='160' viewBox='0 0 220 160'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.18' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='32' cy='34' r='11'/%3E%3Cpath d='M90 22l20 20M110 22L90 42'/%3E%3Ccircle cx='174' cy='36' r='12'/%3E%3Cpath d='M28 118l20 20M48 118l-20 20'/%3E%3Ccircle cx='108' cy='122' r='11'/%3E%3Cpath d='M152 116h38m0 0-10-10m10 10-10 10'/%3E%3Cpath d='M42 72c36-22 76-22 120 0m0 0-11-9m11 9-14 4' stroke-opacity='.13'/%3E%3Cpath d='M62 92h96' stroke-dasharray='4 10' stroke-opacity='.1'/%3E%3C/g%3E%3C/svg%3E");
+  --yardline-overlay: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cg stroke='%23ffffff' stroke-opacity='.11' stroke-width='1'%3E%3Cpath d='M30 0v180M90 0v180M150 0v180'/%3E%3Cpath d='M0 45h180M0 135h180' stroke-dasharray='12 18'/%3E%3C/g%3E%3C/svg%3E");
 
   /* Team hooks — not wired to real per-team data yet, aliased to REC gold/charcoal so
      components can consume --team-primary/--team-secondary today without a rewrite later. */

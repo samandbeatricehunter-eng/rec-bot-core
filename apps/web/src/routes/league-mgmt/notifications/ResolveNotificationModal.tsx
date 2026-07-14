@@ -27,6 +27,8 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "stream":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
+    case "media":
+      return { kind: "approve_deny", reasonField: true, approveLabel: "Approve & Publish", denyLabel: "Deny" };
     case "team_request":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Approve", denyLabel: "Reject" };
     case "weekly_score_review":
@@ -53,6 +55,8 @@ async function resolveAction(guildId: string, notification: CommissionerNotifica
       return recApi.reviewHighlight({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "stream":
       return recApi.reviewStream({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
+    case "media":
+      return recApi.reviewMedia({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "team_request":
       return action === "approve"
         ? recApi.approveTeamRequest({ guildId, requestId: sourceId })
@@ -102,6 +106,17 @@ export function ResolveNotificationModal({
     <Modal title={notification.title} onClose={onClose}>
       {error && <ErrorState message={error} />}
       <p style={{ color: "var(--text-secondary)", marginTop: 0 }}>{notification.subtitle}</p>
+      {notification.type === "media" && notification.payload && (
+        <div className="media-review-preview">
+          <h3>{String(notification.payload.title ?? notification.title)}</h3>
+          {typeof notification.payload.imageUrl === "string" && notification.payload.imageUrl && <img src={notification.payload.imageUrl} alt="" />}
+          {Array.isArray(notification.payload.answers) ? (
+            <div>{(notification.payload.answers as any[]).map((answer, index) => <article key={index}><strong>{answer.question}</strong><p>{answer.answer}</p></article>)}</div>
+          ) : (
+            <p>{String(notification.payload.body ?? "")}</p>
+          )}
+        </div>
+      )}
       {notification.amount != null && (
         <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</p>
       )}

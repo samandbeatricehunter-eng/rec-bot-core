@@ -52,6 +52,7 @@ export function ExpandedArticleView({ stories, activeIndex, onIndexChange, onClo
         <div className="expanded-article-body">
           <time>Week {story.week}</time>
           <h2>{story.headline ?? "League Story"}</h2>
+          {story.image_url && <img className="expanded-article-image" src={story.image_url} alt="" />}
           <p className="roundtable-lede">{story.body}</p>
           {story.roundtable?.length ? (
             <div className="roundtable-panel">
