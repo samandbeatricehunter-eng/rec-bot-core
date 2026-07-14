@@ -230,9 +230,11 @@
 .hub-highlight-arrow:hover { border-color: var(--gold); background: var(--surface-hover); }
 .hub-highlight-arrow.previous { left: 0; }
 .hub-highlight-arrow.next { right: 0; }
-.hub-video-frame { aspect-ratio: 16 / 9; display: grid; place-items: center; background: #050505; }
+.hub-video-frame { position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center; background: #050505; overflow: hidden; }
 .hub-video-frame video { width: 100%; height: 100%; object-fit: contain; }
 .hub-video-frame a { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); color: var(--gold); text-decoration: none; }
+.hub-video-reaction-badges { position: absolute; left: var(--space-3); right: var(--space-3); top: var(--space-3); display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.hub-video-reaction-badges span { padding: 6px 9px; border: 1px solid rgba(255,215,0,.34); border-radius: 999px; background: rgba(5,6,5,.78); color: var(--gold); font-size: 11px; font-weight: 950; box-shadow: 0 8px 18px rgba(0,0,0,.38); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 .hub-highlight-meta { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); }
 .hub-highlight-meta span { color: var(--text-muted); font-size: var(--text-xs); }
 .hub-highlight-views { display: flex; align-items: center; gap: 5px; padding: 0 var(--space-3) var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
@@ -240,6 +242,9 @@
 .hub-reaction-group { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.02); }
 .hub-reaction-label { display: block; margin-bottom: var(--space-2); color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .hub-poty-reactions { border-color: rgba(255,215,0,.3); background: rgba(255,215,0,.035); }
+.hub-sideline-reactions { border-color: rgba(255,255,255,.14); }
+.hub-sideline-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--space-2); }
+.hub-sideline-summary span { display: inline-flex; align-items: center; padding: 5px 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; color: var(--text-secondary); background: rgba(255,255,255,.045); font-size: 11px; font-weight: 800; }
 .hub-reactions { display: flex; flex-wrap: wrap; gap: 6px; }
 .hub-reactions button { display: inline-flex; align-items: center; gap: 4px; padding: 7px 9px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-raised); color: var(--text-secondary); font-size: 11px; cursor: pointer; }
 .hub-reactions button.active { border-color: var(--gold); color: var(--gold); background: rgba(255,215,0,.1); }

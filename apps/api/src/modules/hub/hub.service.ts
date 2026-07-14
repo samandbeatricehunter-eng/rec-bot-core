@@ -11,8 +11,10 @@ import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 
-export const HUB_REACTION_KEYS = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY"] as const;
+export const HUB_REACTION_KEYS = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA"] as const;
 export type HubReactionKey = (typeof HUB_REACTION_KEYS)[number];
+const HIGHLIGHT_AWARD_REACTION_KEYS: HubReactionKey[] = ["TOTY", "COTY", "ROTY", "IOTY", "HOTY"];
+const HIGHLIGHT_SIDELINE_REACTION_KEYS: HubReactionKey[] = ["COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA"];
 const MEDIA_BUCKET = "rec-media";
 const MEDIA_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const USER_ARTICLE_PAYOUT = 100;
@@ -408,7 +410,11 @@ export async function toggleHubHighlightReaction(input: { guildId: string; disco
     const removed = await supabase.from("rec_highlight_reactions").delete().eq("id", existing.data.id);
     if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
   } else {
-    const mutuallyExclusive = input.reactionKey === "like" || input.reactionKey === "dislike" ? ["like", "dislike"] : ["TOTY", "COTY", "ROTY", "IOTY", "HOTY"];
+    const mutuallyExclusive = input.reactionKey === "like" || input.reactionKey === "dislike"
+      ? ["like", "dislike"]
+      : HIGHLIGHT_AWARD_REACTION_KEYS.includes(input.reactionKey)
+        ? HIGHLIGHT_AWARD_REACTION_KEYS
+        : HIGHLIGHT_SIDELINE_REACTION_KEYS;
     const cleared = await supabase.from("rec_highlight_reactions").delete().eq("highlight_post_id", input.highlightId).eq("user_id", userId).in("reaction_key", mutuallyExclusive);
     if (cleared.error) throw new ApiError(500, "Failed to update reaction.", cleared.error);
     const inserted = await supabase.from("rec_highlight_reactions").insert({ id: randomUUID(), highlight_post_id: input.highlightId, user_id: userId, reaction_key: input.reactionKey, created_at: new Date().toISOString() });

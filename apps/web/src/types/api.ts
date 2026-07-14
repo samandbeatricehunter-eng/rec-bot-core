@@ -298,7 +298,7 @@ export type AdvanceDmPreview = {
 // Commissioner Chat + Voting
 export type ChatMessage = { id: string; author_discord_id: string; author_display_name: string | null; body: string; created_at: string };
 
-export type HubReactionKey = "like" | "dislike" | "TOTY" | "COTY" | "ROTY" | "IOTY" | "HOTY";
+export type HubReactionKey = "like" | "dislike" | "TOTY" | "COTY" | "ROTY" | "IOTY" | "HOTY" | "COOKED" | "SKILL_ISSUE" | "CLIPPED" | "NO_SHOT" | "GG_ENERGY" | "AURA";
 export type HubResponse = {
   league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string };
   canManageLeague: boolean;

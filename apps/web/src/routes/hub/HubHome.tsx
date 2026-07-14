@@ -18,8 +18,17 @@ const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "TOTY", label: "Throw of the Year" }, { key: "COTY", label: "Catch of the Year" }, { key: "ROTY", label: "Run of the Year" },
   { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" },
 ];
-const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY"];
+const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
+  { key: "COOKED", label: "Cooked" },
+  { key: "SKILL_ISSUE", label: "Skill issue" },
+  { key: "CLIPPED", label: "Got clipped" },
+  { key: "NO_SHOT", label: "No shot" },
+  { key: "GG_ENERGY", label: "GG energy" },
+  { key: "AURA", label: "Aura play" },
+];
+const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
+const SIDELINE_KEYS = SIDELINE_REACTIONS.map((reaction) => reaction.key);
 type Story = HubResponse["headlines"][number];
 type LeagueSubTab = "feed" | "highlights" | "matchups" | "rankings";
 type WagerMode = "single" | "parlay" | "peer";
@@ -140,7 +149,7 @@ export function HubHome() {
 
   async function highlightReact(highlightId: string, reactionKey: HubReactionKey) {
     if (auth.status !== "ready") return;
-    const mutuallyExclusive = reactionKey === "like" || reactionKey === "dislike" ? ["like", "dislike"] : AWARD_KEYS;
+        const mutuallyExclusive = reactionKey === "like" || reactionKey === "dislike" ? ["like", "dislike"] : AWARD_KEYS.includes(reactionKey) ? AWARD_KEYS : SIDELINE_KEYS;
     setHub((current) => current ? { ...current, highlights: current.highlights.map((highlight) => {
       if (highlight.id !== highlightId) return highlight;
       const has = highlight.myReactions.includes(reactionKey);
@@ -517,10 +526,11 @@ export function HubHome() {
               onPointerUp={highlightSwipe.handlers.onPointerUp}
               onPointerCancel={highlightSwipe.handlers.onPointerCancel}
             >
-              <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="metadata" onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
+              <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="metadata" onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}{SIDELINE_REACTIONS.some((reaction) => activeHighlight.reactionCounts[reaction.key] > 0) && <div className="hub-video-reaction-badges">{SIDELINE_REACTIONS.filter((reaction) => activeHighlight.reactionCounts[reaction.key] > 0).map((reaction) => <span key={reaction.key}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</span>)}</div>}</div>
               <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
               <div className="hub-reaction-groups"><div className="hub-reaction-group"><span className="hub-reaction-label">Community reactions</span><div className="hub-reactions"><button className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={16} /> Like {activeHighlight.reactionCounts.like}</button><button className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={16} /> Dislike {activeHighlight.reactionCounts.dislike}</button></div></div>
-                <div className="hub-reaction-group hub-poty-reactions"><span className="hub-reaction-label">Play of the Year nominations</span><div className="hub-reactions">{AWARD_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active award" : "award"} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</button>)}</div></div></div>
+                <div className="hub-reaction-group hub-sideline-reactions"><span className="hub-reaction-label">Sideline reactions</span><select className="form-input" value={SIDELINE_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key ?? ""} onChange={(event) => { const current = SIDELINE_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key; const next = event.target.value as HubReactionKey | ""; if (next) void highlightReact(activeHighlight.id, next); else if (current) void highlightReact(activeHighlight.id, current); }}><option value="">Pick a reaction</option>{SIDELINE_REACTIONS.map((reaction) => <option key={reaction.key} value={reaction.key}>{reaction.label} ({activeHighlight.reactionCounts[reaction.key]})</option>)}</select><div className="hub-sideline-summary">{SIDELINE_REACTIONS.filter((reaction) => activeHighlight.reactionCounts[reaction.key] > 0).map((reaction) => <span key={reaction.key}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</span>)}</div></div>
+                <div className="hub-reaction-group hub-poty-reactions"><span className="hub-reaction-label">Play of the Year nominations</span><select className="form-input" value={AWARD_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key ?? ""} onChange={(event) => { const current = AWARD_REACTIONS.find((reaction) => activeHighlight.myReactions.includes(reaction.key))?.key; const next = event.target.value as HubReactionKey | ""; if (next) void highlightReact(activeHighlight.id, next); else if (current) void highlightReact(activeHighlight.id, current); }}><option value="">Don't Nominate</option>{AWARD_REACTIONS.map((reaction) => <option key={reaction.key} value={reaction.key}>{reaction.label} ({activeHighlight.reactionCounts[reaction.key]})</option>)}</select><div className="hub-sideline-summary">{AWARD_REACTIONS.filter((reaction) => activeHighlight.reactionCounts[reaction.key] > 0).map((reaction) => <span key={reaction.key}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</span>)}</div></div></div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Videos posted in Discord will roll in here.</p>}
         </SectionFrame>
       )}
