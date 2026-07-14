@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trophy, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { useAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, StoryComment, TeamScheduleManualState, WagerOptionsResponse } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, TeamScheduleManualState, WagerOptionsResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
@@ -87,11 +87,14 @@ export function HubHome() {
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
-  const [section, setSection] = useState<"league" | "store" | "team">("league");
+  const [section, setSection] = useState<"league" | "store" | "team" | "wagers">("league");
   const [subTab, setSubTab] = useState<LeagueSubTab>("buzz");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
+  const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
+  const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
+  const [wagersBoardNotice, setWagersBoardNotice] = useState<string | null>(null);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
   const [mediaModal, setMediaModal] = useState<"article" | "interview" | null>(null);
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
@@ -164,9 +167,14 @@ export function HubHome() {
   useEffect(() => { void load(); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
 
   useEffect(() => {
-    if (auth.status !== "ready" || subTab !== "matchups") return;
+    if (auth.status !== "ready" || (subTab !== "matchups" && section !== "wagers")) return;
     recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupWeek }).then(setMatchupSchedule).catch(() => setMatchupSchedule(null));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, matchupWeek]);
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek]);
+
+  useEffect(() => {
+    if (auth.status !== "ready" || section !== "wagers") return;
+    recApi.getPeerWagerBoard(auth.guildId).then((result) => setWagersBoard(result.wagers)).catch(() => setWagersBoard([]));
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, section]);
 
   useEffect(() => {
     if (auth.status !== "ready" || section !== "team" || mediaPortal) return;
@@ -479,6 +487,22 @@ export function HubHome() {
     }
   }
 
+  async function acceptFromWagersBoard(wagerId: string) {
+    if (auth.status !== "ready") return;
+    setWagersBoardBusy(true); setWagersBoardNotice(null);
+    try {
+      await recApi.acceptPeerWager({ guildId: auth.guildId, wagerId });
+      const board = await recApi.getPeerWagerBoard(auth.guildId);
+      setWagersBoard(board.wagers);
+      setWagersBoardNotice("Peer wager accepted.");
+      await load();
+    } catch (cause) {
+      setWagersBoardNotice(cause instanceof Error ? cause.message : "Could not accept wager.");
+    } finally {
+      setWagersBoardBusy(false);
+    }
+  }
+
   if (error) return <div className="hub-state"><h1>League Hub</h1><p>{error}</p><button className="btn btn-primary" onClick={() => void load()}>Try again</button></div>;
   if (setupAccess && !setupAccess.leagueExists) return <div className="hub-state">
     <h1>Welcome to REC League</h1>
@@ -539,7 +563,7 @@ export function HubHome() {
           <button onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button>
           <button className={section === "store" ? "active" : ""} onClick={() => selectSection("store")}><ShoppingBag size={18} /> Store</button>
           <button className={section === "team" ? "active" : ""} onClick={() => selectSection("team")}><UserRound size={18} /> My Team</button>
-          <button onClick={() => { selectSection("league"); selectSubTab("matchups"); }}><Coins size={18} /> Wagers</button>
+          <button className={section === "wagers" ? "active" : ""} onClick={() => selectSection("wagers")}><Coins size={18} /> Wagers</button>
           <button onClick={() => void openTeamSchedulePicker()}><CalendarDays size={18} /> Team Schedules</button>
         </nav>
         {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={18} /> League Mgmt</Link>}
@@ -577,6 +601,18 @@ export function HubHome() {
           <Button variant="primary" disabled={purchaseBusy || (purchaseType === "legend" ? !purchaseDetails.legendId : !purchaseDetails.playerName)} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button>{purchaseStatus && <p className="hub-transfer-status">{purchaseStatus}</p>}
         </div>}
       </>}
+    </section> : section === "wagers" ? <section className="hub-section hub-wagers-section"><div className="hub-section-heading"><div><p className="hub-eyebrow"><Coins size={14} /> Sportsbook</p><h2>Wagers</h2><p>Wallet balance: <strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></p></div></div>
+      <h3 className="hub-wagers-subhead">This Week's Games</h3>
+      {!matchupSchedule ? <p className="hub-empty">Loading games...</p> : matchupSchedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{matchupSchedule.games.map((game) => (
+        <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
+          <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
+          <div className="hub-matchup-actions"><Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button></div>
+        </article>
+      ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {matchupSchedule.selectedWeek}.</p>}
+
+      <h3 className="hub-wagers-subhead">Peer Wager Board</h3>
+      {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
+      <div className="hub-peer-board">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? wagersBoard.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · ${wager.stake.toLocaleString()} · {wager.challengeType}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>
     </section> : <div className="hub-league-tab">
       <nav className="hub-subtabs">
         <button className={subTab === "buzz" ? "active" : ""} onClick={() => setSubTab("buzz")}><Newspaper size={16} /> Campus Buzz</button>
