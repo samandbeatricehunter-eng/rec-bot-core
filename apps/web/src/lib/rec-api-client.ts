@@ -1,7 +1,6 @@
 import { REC_API_ROUTES } from "@rec/shared";
 import type {
   ActiveCheckReview,
-  AdvanceDmPreview,
   AdvanceResultInput,
   AdvanceWeekGames,
   BoxScoreJobStatus,
@@ -331,19 +330,13 @@ export const recApi = {
   getAdvanceWeekGames: (guildId: string) =>
     recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[] }) =>
-    recApiFetch<{ discord?: { announcementPosted: boolean; dmsSent: number; dmsFailed: number; error?: string } | null }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
-  createCurrentWeekGameChannels: (guildId: string) =>
-    recApiFetch<{ created: Array<{ gameId: string; discordChannelId: string; name: string }>; existing: number; eligible: number }>("/v1/game-channels/create-current-week", { method: "POST", body: JSON.stringify({ guildId }) }),
-  createGotwPoll: (input: { guildId: string; gameId: string; awayTeamId: string; homeTeamId: string; awayUserId?: string | null; homeUserId?: string | null; awayTeamName: string; homeTeamName: string; weekNumber: number }) =>
-    recApiFetch<unknown>("/v1/gotw/poll/create", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<{ discord?: { announcementPosted: boolean; error?: string } | null }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
   getDivisionWinnerOptions: (guildId: string) =>
     recApiFetch<DivisionWinnerOptions>("/v1/league-week/division-winner-options", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveDivisionWinners: (input: { guildId: string; seasonNumber: number; winners: Array<{ divisionKey: string; teamId: string }> }) =>
     recApiFetch<unknown>("/v1/league-week/division-winners", { method: "POST", body: JSON.stringify({ ...input, selectedByDiscordId: "web-dashboard" }) }),
   setNextAdvanceTime: (input: { guildId: string; year: number; month: number; day: number; hour: number; minute: number; tzLabel: string }) =>
     recApiFetch<unknown>("/v1/league-week/set-next-advance", { method: "POST", body: JSON.stringify(input) }),
-  previewAdvanceDms: (guildId: string) =>
-    recApiFetch<AdvanceDmPreview>("/v1/league-week/advance-dms", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // Commissioner Chat + Voting
   listChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>

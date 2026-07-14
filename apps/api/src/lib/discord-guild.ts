@@ -84,13 +84,17 @@ export async function sendDiscordDirectMessage(discordId: string, content: strin
   if (!sent.ok) throw new Error(`Failed to send Discord DM (${sent.status})`);
 }
 
-export async function sendDiscordChannelMessage(channelId: string, content: string, allowEveryone = false): Promise<void> {
+export async function sendDiscordAdvanceAnnouncement(channelId: string, destinationLabel: string): Promise<void> {
   const sent = await discordBotFetch(`/channels/${channelId}/messages`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ content, allowed_mentions: { parse: allowEveryone ? ["everyone"] : [] } }),
+    body: JSON.stringify({
+      content: "@everyone",
+      embeds: [{ title: "📣 League Advanced", color: 0xd9a521, description: `The league has advanced to **${destinationLabel}**.\n\nNavigate to **/hub** for league options and details.` }],
+      allowed_mentions: { parse: ["everyone"] },
+    }),
   });
-  if (!sent.ok) throw new ApiError(502, `Discord rejected the channel message (${sent.status}).`);
+  if (!sent.ok) throw new ApiError(502, `Discord rejected the advance announcement (${sent.status}).`);
 }
 
 async function getGuildRoles(guildId: string): Promise<Map<string, { name: string; permissions: bigint }>> {

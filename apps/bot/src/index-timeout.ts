@@ -100,7 +100,6 @@ import {
 } from "./flows/advance-wizard.js";
 import {
   ADVANCE_TIME_CUSTOM_IDS,
-  ADVANCE_DM_CUSTOM_IDS,
   HEADLINES_CUSTOM_IDS,
   handleAdvanceTimeDateSelect,
   handleAdvanceTimeTzSelect,
@@ -108,8 +107,6 @@ import {
   handleAdvanceTimeSet,
   handleAdvanceTimeSkip,
   handleAdvanceTimeBack,
-  handleAdvanceDmSend,
-  handleAdvanceDmSkip,
   handleHeadlinesNav,
 } from "./flows/advance-time.js";
 import { handleEosAwards, recoverOpenEosAwardPolls } from "./flows/eos-awards.js";
@@ -847,8 +844,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.setBtn) return handleAdvanceTimeSet(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.skipBtn) return handleAdvanceTimeSkip(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.backBtn) return handleAdvanceTimeBack(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId.startsWith(ADVANCE_DM_CUSTOM_IDS.send)) return handleAdvanceDmSend(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId.startsWith(ADVANCE_DM_CUSTOM_IDS.skip)) return handleAdvanceDmSkip(interaction, buildAdvanceMgmtRows);
       if (interaction.customId.startsWith(HEADLINES_CUSTOM_IDS.prevPrefix)) return handleHeadlinesNav(interaction, "prev");
       if (interaction.customId.startsWith(HEADLINES_CUSTOM_IDS.nextPrefix)) return handleHeadlinesNav(interaction, "next");
       if (interaction.customId === MENU_CUSTOM_IDS.teamsBack) return renderMainMenuFromComponent(interaction);
