@@ -143,6 +143,8 @@ export const recApi = {
     guildId: string;
     pendingEconomyChannelId?: string;
     boxScoresChannelId?: string;
+    weeklySubmissionsChannelId?: string;
+    recGuideChannelId?: string;
     powerRankingsChannelId?: string;
     gameChannelsCategoryId?: string;
     streamsChannelId?: string;

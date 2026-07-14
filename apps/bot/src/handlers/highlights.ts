@@ -5,13 +5,9 @@ import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
 export const HIGHLIGHT_REVIEW_PREFIX = "rec:highlight_review:";
 
-export const HIGHLIGHT_VOTE_EMOJIS = {
-  TOTY: { label: "Throw of the Year", name: "BestThrow", id: "1519426233019011162" },
-  COTY: { label: "Catch of the Year", name: "BestCatch", id: "1519426404213588148" },
-  ROTY: { label: "Run of the Year", name: "BestRun", id: "1519427393364824217" },
-  IOTY: { label: "Interception of the Year", name: "BestINT", id: "1519427729361997864" },
-  HOTY: { label: "Hit of the Year", name: "BestHit", id: "1519429778761846914" },
-} as const;
+import { HIGHLIGHT_AWARD_EMOJIS } from "@rec/shared";
+
+export const HIGHLIGHT_VOTE_EMOJIS = HIGHLIGHT_AWARD_EMOJIS;
 
 // Emoji ids only — used to detect/restrict the one-vote-per-highlight reactions.
 export const HIGHLIGHT_VOTE_EMOJI_IDS = new Set<string>(Object.values(HIGHLIGHT_VOTE_EMOJIS).map((e) => e.id));

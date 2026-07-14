@@ -18,6 +18,7 @@ import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
+import { publishWeeklySubmissionsPanel } from "./weekly-submissions.js";
 
 // Final step of the advance flow: set (or skip) the next scheduled advance time.
 // Three dropdowns — date (next 7 days), timezone, and time (remaining hours) — plus
@@ -300,6 +301,7 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
       embeds: [new EmbedBuilder().setTitle("📣 League Advanced").setColor(COLORS.success).setDescription(lines.join("\n"))],
       allowedMentions: { parse: ["everyone"] },
     }) : null;
+    await publishWeeklySubmissionsPanel(guild).catch((error) => console.error("[WARN] Weekly Submissions panel publish failed:", error));
     return Boolean(message);
   } catch {
     return false;

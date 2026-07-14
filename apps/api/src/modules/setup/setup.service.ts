@@ -37,6 +37,13 @@ function buildRoutePayload(input: Record<string, unknown>, existing: Record<stri
   for (const config of Object.values(REC_ROUTE_CHANNELS)) {
     payload[config.dbField] = preserveWhenOmitted(input[config.inputField], existing[config.dbField]);
   }
+  const weekly = input.weeklySubmissionsChannelId ?? input.boxScoresChannelId;
+  if (weekly !== undefined) {
+    payload.weekly_submissions_channel_id = weekly;
+    payload.box_scores_channel_id = weekly;
+  } else if (!payload.weekly_submissions_channel_id && existing.box_scores_channel_id) {
+    payload.weekly_submissions_channel_id = existing.box_scores_channel_id;
+  }
   return payload;
 }
 
@@ -617,7 +624,9 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     powerRankingsChannelId: r.power_rankings_channel_id ?? null,
     streamsChannelId: r.streams_channel_id ?? null,
     highlightsChannelId: r.highlights_channel_id ?? null,
-    boxScoresChannelId: r.box_scores_channel_id ?? null,
+    weeklySubmissionsChannelId: r.weekly_submissions_channel_id ?? r.box_scores_channel_id ?? null,
+    recGuideChannelId: r.rec_guide_channel_id ?? null,
+    boxScoresChannelId: r.box_scores_channel_id ?? r.weekly_submissions_channel_id ?? null,
     gameChannelsCategoryId: r.game_channels_category_id ?? null,
     seedDefaultSchedule: c.default_schedule_seed_requested ?? false,
     linkTeamsAfterSetup: false,

@@ -19,10 +19,15 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "highlightsChannelId",
     dbField: "highlights_channel_id",
   },
-  box_scores: {
-    label: "Box Scores",
-    inputField: "boxScoresChannelId",
-    dbField: "box_scores_channel_id",
+  weekly_submissions: {
+    label: "Weekly Submissions",
+    inputField: "weeklySubmissionsChannelId",
+    dbField: "weekly_submissions_channel_id",
+  },
+  rec_guide: {
+    label: "REC Guide",
+    inputField: "recGuideChannelId",
+    dbField: "rec_guide_channel_id",
   },
   game_channels_category: {
     label: "Game Channels Category",

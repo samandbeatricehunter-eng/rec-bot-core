@@ -12,6 +12,8 @@ const SetConfigSchema = z.object({
   guildId: z.string().min(1),
   pendingEconomyChannelId: z.string().optional().nullable(),
   boxScoresChannelId: z.string().optional().nullable(),
+  weeklySubmissionsChannelId: z.string().optional().nullable(),
+  recGuideChannelId: z.string().optional().nullable(),
   powerRankingsChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
   streamsChannelId: z.string().optional().nullable(),

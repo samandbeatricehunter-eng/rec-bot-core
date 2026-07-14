@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 
-export type RecruitStatus = "uncommitted" | "committed" | "decommitted";
+export type RecruitStatus = "uncommitted" | "committed" | "decommitted" | "flipped" | "withdrawn" | "signed";
 export type Recruit = {
   id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
   starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;
@@ -43,9 +43,64 @@ export async function createRecruit(input: { guildId: string; discordId: string;
   return { recruit: mapRow(result.data) };
 }
 
+export async function submitRecruitCommit(input: { guildId: string; discordId: string; playerName: string; position: string; homeCity: string; homeState: string; starRating: number }): Promise<{ recruit: Recruit }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  if (context.rec_leagues.game !== "cfb_27") throw new ApiError(400, "Recruiting commits are available only in College Football leagues.");
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
+  if (!account.data?.user_id) throw new ApiError(400, "Link a REC team before submitting a recruit.");
+  const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", context.leagueId).eq("user_id", account.data.user_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  if (assignment.error) throw new ApiError(500, "Failed to load your team assignment.", assignment.error);
+  if (!assignment.data?.team_id) throw new ApiError(400, "Link a team before submitting a recruit.");
+
+  const now = new Date().toISOString();
+  const playerName = input.playerName.trim().replace(/\s+/g, " ");
+  const [firstName, ...lastParts] = playerName.split(" ");
+  if (!firstName || !lastParts.length) throw new ApiError(400, "Enter the recruit's first and last name.");
+  const id = randomUUID();
+  const row = {
+    id, league_id: context.leagueId, season_number: Number(context.rec_leagues.season_number ?? 1),
+    player_name: playerName, first_name: firstName, last_name: lastParts.join(" "), normalized_full_name: playerName.toLowerCase(),
+    position: input.position, home_city: input.homeCity.trim(), home_state: input.homeState.trim(), star_rating: input.starRating,
+    status: "committed", committed_team_id: assignment.data.team_id, commit_date: now.slice(0, 10), committed_at: now,
+    created_by_discord_id: input.discordId, submitted_by_user_id: account.data.user_id, submitted_by_discord_id: input.discordId,
+    created_at: now, updated_at: now,
+  };
+  const result = await supabase.from("rec_recruiting_profiles").insert(row).select(SELECT_COLUMNS).single();
+  if (result.error) throw new ApiError(500, "Failed to save the recruiting commitment.", result.error);
+  await supabase.from("rec_recruiting_commitment_history").insert({ recruit_id: id, league_id: context.leagueId, to_status: "committed", to_team_id: assignment.data.team_id, changed_by_discord_id: input.discordId, snapshot: row });
+  const team = await supabase.from("rec_teams").select("name").eq("id", assignment.data.team_id).maybeSingle();
+  const story = await publishTransitionStory({ guildId: input.guildId, headline: `${playerName} Commits to ${team.data?.name ?? "a new program"}`, body: `${input.starRating}-star ${input.position} ${playerName} from ${input.homeCity}, ${input.homeState} has committed to ${team.data?.name ?? "the program"}.`, primaryAngle: "recruit_commitment" });
+  await supabase.from("rec_recruiting_profiles").update({ story_id: story.storyId }).eq("id", id);
+  return { recruit: { ...mapRow(result.data), storyId: story.storyId } };
+}
+
+// Commissioner-only edit of the recruit's own details (name/position/star rating/hometown)
+// — separate from updateRecruitStatus, which only ever touches status/commit fields. Doesn't
+// republish a headline; a details correction (fixing a typo'd name, etc.) isn't news.
+export async function updateRecruitDetails(input: { guildId: string; id: string; playerName: string; position: string; starRating: number; homeCity?: string | null; homeState?: string | null }): Promise<{ recruit: Recruit }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const existing = await supabase.from("rec_recruiting_profiles").select("id,league_id").eq("id", input.id).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load the recruit.", existing.error);
+  if (!existing.data || existing.data.league_id !== context.leagueId) throw new ApiError(404, "Recruit not found.");
+
+  const result = await supabase
+    .from("rec_recruiting_profiles")
+    .update({
+      player_name: input.playerName.trim(), position: input.position.trim(), star_rating: input.starRating,
+      home_city: input.homeCity?.trim() || null, home_state: input.homeState?.trim() || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.id)
+    .select(SELECT_COLUMNS)
+    .single();
+  if (result.error) throw new ApiError(500, "Failed to update the recruit's details.", result.error);
+  return { recruit: mapRow(result.data) };
+}
+
 export async function updateRecruitStatus(input: { guildId: string; id: string; status: RecruitStatus; committedTeamId?: string | null; committedTeamExternal?: string | null; commitDate?: string | null }): Promise<{ recruit: Recruit }> {
   const context = await getCurrentLeagueContext(input.guildId);
-  const existing = await supabase.from("rec_recruiting_profiles").select("id,league_id,player_name,status").eq("id", input.id).maybeSingle();
+  const existing = await supabase.from("rec_recruiting_profiles").select("id,league_id,player_name,status,committed_team_id").eq("id", input.id).maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load the recruit.", existing.error);
   if (!existing.data || existing.data.league_id !== context.leagueId) throw new ApiError(404, "Recruit not found.");
 
@@ -73,6 +128,11 @@ export async function updateRecruitStatus(input: { guildId: string; id: string; 
 
   const result = await supabase.from("rec_recruiting_profiles").update(patch).eq("id", input.id).select(SELECT_COLUMNS).single();
   if (result.error) throw new ApiError(500, "Failed to update the recruit.", result.error);
+  await supabase.from("rec_recruiting_commitment_history").insert({
+    recruit_id: input.id, league_id: context.leagueId, from_status: existing.data.status, to_status: input.status,
+    from_team_id: existing.data.committed_team_id, to_team_id: input.committedTeamId ?? existing.data.committed_team_id,
+    snapshot: result.data,
+  });
   return { recruit: mapRow(result.data) };
 }
 

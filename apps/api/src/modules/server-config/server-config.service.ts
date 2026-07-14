@@ -7,6 +7,8 @@ type SetServerConfigInput = {
   guildId: string;
   pendingEconomyChannelId?: string | null;
   boxScoresChannelId?: string | null;
+  weeklySubmissionsChannelId?: string | null;
+  recGuideChannelId?: string | null;
   powerRankingsChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   streamsChannelId?: string | null;
@@ -21,18 +23,33 @@ function compactDefined(input: Record<string, unknown>) {
 }
 
 function routePayload(input: Record<string, unknown>) {
-  return Object.fromEntries(
+  const payload = Object.fromEntries(
     Object.values(REC_ROUTE_CHANNELS).map((config) => [config.dbField, input[config.inputField]])
   );
+  // Preserve old callers while the deployed clients move to canonical naming.
+  if (payload.weekly_submissions_channel_id === undefined && input.boxScoresChannelId !== undefined) {
+    payload.weekly_submissions_channel_id = input.boxScoresChannelId;
+  }
+  if (payload.weekly_submissions_channel_id !== undefined) {
+    payload.box_scores_channel_id = payload.weekly_submissions_channel_id;
+  }
+  return payload;
 }
 
 export async function getServerConfig(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
+  const configuration = await supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle();
   return {
     server: context.rec_discord_servers,
     league: context.rec_leagues,
-    routes: context.routes ?? {}
+    routes: normalizeRouteAliases(context.routes ?? {}),
+    configuration: configuration.data ?? {},
   };
+}
+
+function normalizeRouteAliases(routes: Record<string, any>) {
+  const weekly = routes.weekly_submissions_channel_id ?? routes.box_scores_channel_id ?? null;
+  return { ...routes, weekly_submissions_channel_id: weekly, box_scores_channel_id: routes.box_scores_channel_id ?? weekly };
 }
 
 export async function setServerConfig(input: SetServerConfigInput) {
@@ -55,7 +72,7 @@ export async function setServerConfig(input: SetServerConfigInput) {
     return {
       server: context.rec_discord_servers,
       league: context.rec_leagues,
-      routes: existing.data ?? {}
+      routes: normalizeRouteAliases(existing.data ?? {})
     };
   }
 
@@ -77,6 +94,6 @@ export async function setServerConfig(input: SetServerConfigInput) {
   return {
     server: context.rec_discord_servers,
     league: context.rec_leagues,
-    routes: result.data
+    routes: normalizeRouteAliases(result.data)
   };
 }

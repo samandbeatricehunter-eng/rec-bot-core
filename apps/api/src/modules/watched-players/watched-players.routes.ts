@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { CLASS_YEARS, createWatchedPlayer, listWatchedPlayers, removeWatchedPlayer, updateWatchedPlayer } from "./watched-players.service.js";
+import { CLASS_YEARS, createWatchedPlayer, listWatchedPlayers, removeWatchedPlayer, submitPlayerStatLine, updateWatchedPlayer } from "./watched-players.service.js";
 
 const ClassYearSchema = z.enum(CLASS_YEARS).optional().nullable();
 
@@ -36,6 +37,23 @@ export async function watchedPlayersRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), id: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await removeWatchedPlayer(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only, self-serve: the Discord "Player Stats" button submits directly on behalf of
+  // whichever coach clicked it — eligibility (linked team, scheduled game, existing box
+  // score) is resolved server-side from discordId, same trust model as box-score/append-image.
+  app.post("/v1/watched-players/submit-stat-line", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1),
+        playerName: z.string().trim().min(1).max(80),
+        category: z.string().trim().min(1).max(40),
+        statLines: z.array(z.object({ statKey: z.string(), label: z.string(), value: z.number() })).min(1).max(10),
+      }).parse(request.body);
+      return reply.send(await submitPlayerStatLine(body));
     } catch (error) { return sendError(reply, error); }
   });
 }

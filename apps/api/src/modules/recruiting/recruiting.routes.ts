@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { createRecruit, deleteRecruit, listRecruits, updateRecruitStatus } from "./recruiting.service.js";
+import { requireInternalApiKey } from "../../lib/auth.js";
+import { CFB_POSITIONS } from "@rec/shared";
+import { createRecruit, deleteRecruit, listRecruits, submitRecruitCommit, updateRecruitDetails, updateRecruitStatus } from "./recruiting.service.js";
 
 export async function recruitingRoutes(app: FastifyInstance) {
   app.post("/v1/recruiting/list", async (request, reply) => {
@@ -29,12 +31,28 @@ export async function recruitingRoutes(app: FastifyInstance) {
   app.post("/v1/recruiting/update-status", async (request, reply) => {
     try {
       const body = z.object({
-        guildId: z.string().min(1), id: z.string().uuid(), status: z.enum(["uncommitted", "committed", "decommitted"]),
+        guildId: z.string().min(1), id: z.string().uuid(), status: z.enum(["uncommitted", "committed", "decommitted", "flipped", "withdrawn", "signed"]),
         committedTeamId: z.string().uuid().optional().nullable(), committedTeamExternal: z.string().trim().max(120).optional().nullable(),
         commitDate: z.string().optional().nullable(),
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await updateRecruitStatus(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/recruiting/submit-commit", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), playerName: z.string().trim().min(3).max(80), position: z.enum(CFB_POSITIONS), starRating: z.number().int().min(1).max(5), homeCity: z.string().trim().min(1).max(80), homeState: z.string().trim().min(2).max(40) }).parse(request.body);
+      return reply.send(await submitRecruitCommit(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/recruiting/update-details", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), id: z.string().uuid(), playerName: z.string().trim().min(3).max(80), position: z.enum(CFB_POSITIONS), starRating: z.number().int().min(1).max(5), homeCity: z.string().trim().max(80).optional().nullable(), homeState: z.string().trim().max(40).optional().nullable() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await updateRecruitDetails(body));
     } catch (error) { return sendError(reply, error); }
   });
 

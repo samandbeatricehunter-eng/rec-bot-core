@@ -6,6 +6,8 @@ import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
+import { handleGuideOpenTeams, publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
+import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
 import { GAME_CHANNEL_PAGE_PREFIX, handleGameChannelPage } from "./flows/game-channel-pages.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
 import { GOTW_CUSTOM_IDS, handleGotwConfirm, handleGotwPollsMenu, handleGotwSelect, handleRerunGotwPolls, handleSetGotw } from "./flows/gotw.js";
@@ -462,6 +464,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       await handleLeagueMgmtOpenDashboard(interaction);
       return;
     }
+
+    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.hub) return handleHubOpenDashboard(interaction);
+    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.openTeams) return handleGuideOpenTeams(interaction);
+    if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.boxScores) return handleWeeklyBoxScores(interaction);
+    if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats) return handleWeeklyPlayerStats(interaction);
+    if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting) return handleWeeklyRecruiting(interaction);
 
     if (interaction.isButton() && interaction.customId.startsWith("rec:stream_review:")) {
       await handleStreamReviewButton(interaction);
@@ -963,7 +971,7 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
   await interaction.editReply(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
 }
 
-async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction) {
+async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   try {
     const profile = await recApi.getMenuProfile(interaction.user.id, interaction.guildId).catch((error) => {
@@ -1675,9 +1683,16 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
 
     await recApi.setEconomyConfig({ guildId: interaction.guildId, [routeChannel.inputField]: channelId });
 
+    // Every route update can change guide mentions or feature instructions. Publishing is
+    // idempotent, and assigning REC Guide for the first time also locks its permissions.
+    const guideResult = await publishRecGuide(interaction.guild).catch((error) => {
+      console.error("[WARN] REC Guide refresh failed after route assignment:", error);
+      return null;
+    });
+
     serverSetupChannelSessions.delete(interaction.user.id);
 
-    return interaction.editReply(buildServerSetupPanel(`Assigned <#${channelId}> to **${channelType.replace(/_/g, " ")}**.`));
+    return interaction.editReply(buildServerSetupPanel(`Assigned <#${channelId}> to **${channelType.replace(/_/g, " ")}**.${guideResult ? ` REC Guide refreshed in <#${guideResult.channelId}>.` : ""}`));
   } catch (error) {
     console.error("[ERROR] Server setup channel assignment failed:", error);
     return interaction.editReply({ content: `Error assigning channel: ${userFacingError(error)}`, embeds: [], components: [] });

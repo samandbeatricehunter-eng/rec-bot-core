@@ -4,6 +4,7 @@ import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
 import { ensureRecBaseRoles } from "../lib/role-sync.js";
+import { publishRecGuide } from "./rec-guide.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildSetupDangerModal, MENU_CUSTOM_IDS, type SetupDangerAction } from "../ui/menu.js";
 import {
   applyLeagueSetupDependencies,
@@ -725,11 +726,23 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
         powerRankingsChannelId: draft.powerRankingsChannelId ?? undefined,
         streamsChannelId: draft.streamsChannelId ?? undefined,
         highlightsChannelId: draft.highlightsChannelId ?? undefined,
-        boxScoresChannelId: draft.boxScoresChannelId ?? undefined,
+        weeklySubmissionsChannelId: draft.weeklySubmissionsChannelId ?? draft.boxScoresChannelId ?? undefined,
+        recGuideChannelId: draft.recGuideChannelId ?? undefined,
         gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
       });
     } catch (error) {
       console.error("[ERROR] Failed to save server setup routes:", error);
+    }
+
+    if (draft.recGuideChannelId) {
+      try {
+        await publishRecGuide(interaction.guild);
+      } catch (error) {
+        console.error("[WARN] Initial REC Guide publish failed (setup remains complete):", error);
+        roleWarnings.push("REC Guide could not be published. Reassign the REC Guide route in Server Setup to retry.");
+      }
+    } else {
+      roleWarnings.push("REC Guide channel is not assigned yet. Assign it later in Server Setup and the guide will publish automatically.");
     }
 
     const isCfb = draft.game === "cfb_27";
