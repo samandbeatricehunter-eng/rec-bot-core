@@ -530,7 +530,7 @@ const CORRECTABLE_STAT_KEYS = [
 
 // CFB-only fields from box-score-cfb.parser.ts, correctable in addition to the
 // reused keys above. Decimal fields (yards/play/rush/pass, punt avg) and
-// time_of_possession_seconds are deliberately excluded — correctionStatValue()
+// time_of_possession are deliberately excluded — correctionStatValue()
 // strips input to bare digits, which would corrupt a decimal or a mm:ss value.
 const CFB_CORRECTABLE_STAT_KEYS = [
   "total_plays",

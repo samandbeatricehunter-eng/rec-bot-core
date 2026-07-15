@@ -79,6 +79,15 @@ function parseSimple(raw: string): string | null {
   return matches.reduce((best, m) => (m.replace(/[^0-9]/g, "").length > best.replace(/[^0-9]/g, "").length ? m : best));
 }
 
+function parseYardsPer(raw: string): string | null {
+  const simple = parseSimple(raw);
+  if (!simple) return null;
+  let value = Number(simple);
+  if (!Number.isFinite(value)) return null;
+  while (value > 20) value /= 10;
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 // "29-137-3" -> [attempts, yards, tds]. OCR sometimes drops the middle hyphen,
 // fusing yards+TD digits (e.g. "21-271" for the true "21-27-1") — the TD count is
 // always a single trailing digit, so recover it by peeling the last digit off.
@@ -126,10 +135,10 @@ function parseConversion(raw: string): string | null {
   return m ? `${m[1]}/${m[2]}` : null;
 }
 
-function parseClock(raw: string): number | null {
+function parseClock(raw: string): string | null {
   const m = raw.match(/(\d+):(\d{2})/);
   if (!m) return null;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  return `${parseInt(m[1], 10)}:${m[2].padStart(2, "0")}`;
 }
 
 // ─── Row model ───────────────────────────────────────────────────────────────
@@ -146,7 +155,7 @@ const ROW_DEFS: RowDef[] = [
   { index: 1, anchors: ["first down"], apply: (raw, side, map) => { const v = parseSimple(raw); if (v) setStat(map, "off_first_down", side, v); } },
   { index: 2, anchors: ["total offense"], apply: (raw, side, map) => { const v = parseSimple(raw); if (v) setStat(map, "off_yards_gained", side, v); } },
   { index: 3, anchors: ["total plays"], apply: (raw, side, map) => { const v = parseSimple(raw); if (v) setStat(map, "total_plays", side, v); } },
-  { index: 4, anchors: ["yards per play"], apply: (raw, side, map) => { const v = parseSimple(raw); if (v) setStat(map, "yards_per_play", side, v); } },
+  { index: 4, anchors: ["yards per play"], apply: (raw, side, map) => { const v = parseYardsPer(raw); if (v) setStat(map, "yards_per_play", side, v); } },
   {
     index: 5,
     anchors: ["rushes"],
@@ -158,7 +167,7 @@ const ROW_DEFS: RowDef[] = [
       setStat(map, "off_rush_tds", side, t[2]);
     },
   },
-  { index: 6, anchors: ["yards per rush"], apply: (raw, side, map) => { const v = parseSimple(raw); if (v) setStat(map, "yards_per_rush", side, v); } },
+  { index: 6, anchors: ["yards per rush"], apply: (raw, side, map) => { const v = parseYardsPer(raw); if (v) setStat(map, "yards_per_rush", side, v); } },
   {
     index: 7,
     anchors: ["comp"],
@@ -170,7 +179,7 @@ const ROW_DEFS: RowDef[] = [
       setStat(map, "off_pass_tds", side, t[2]);
     },
   },
-  { index: 8, anchors: ["yards per pass"], apply: (raw, side, map) => { const v = parseSimple(raw); if (v) setStat(map, "yards_per_pass", side, v); } },
+  { index: 8, anchors: ["yards per pass"], apply: (raw, side, map) => { const v = parseYardsPer(raw); if (v) setStat(map, "yards_per_pass", side, v); } },
   { index: 9, anchors: ["passing yards"], apply: (raw, side, map) => { const v = parseSimple(raw); if (v) setStat(map, "off_pass_yards", side, v); } },
   { index: 10, anchors: ["3rd down", "third down"], apply: (raw, side, map) => { const v = parseConversion(raw); if (v) setStat(map, "third_down_conversions", side, v); } },
   { index: 11, anchors: ["4th down", "fourth down"], apply: (raw, side, map) => { const v = parseConversion(raw); if (v) setStat(map, "fourth_down_conversions", side, v); } },
@@ -212,7 +221,7 @@ const ROW_DEFS: RowDef[] = [
       setStat(map, "penalty_yards", side, p[1]);
     },
   },
-  { index: 22, anchors: ["top", "time of possession"], apply: (raw, side, map) => { const s = parseClock(raw); if (s != null) setStat(map, "time_of_possession_seconds", side, String(s)); } },
+  { index: 22, anchors: ["top", "time of possession"], apply: (raw, side, map) => { const s = parseClock(raw); if (s != null) setStat(map, "time_of_possession", side, s); } },
 ];
 
 const DEFAULT_ROW_STEP = 0.0425;
