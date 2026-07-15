@@ -23,9 +23,36 @@ const SMALL_ARROW_STAT_KEYS = new Set([
   "two_point_conversions",
 ]);
 
+const CONVERSION_STAT_KEYS = new Set([
+  "third_down_conversions",
+  "fourth_down_conversions",
+  "two_point_conversions",
+]);
+
+function normalizeConversionDigits(digits: string): string {
+  if (!/^\d{2,4}$/.test(digits)) return "";
+  const splits = digits.length === 4 ? [2, 1] : [1];
+  for (const split of splits) {
+    const made = parseInt(digits.slice(0, split), 10);
+    const attempts = parseInt(digits.slice(split), 10);
+    if (attempts >= made && attempts <= 25) return `${made}-${attempts}`;
+  }
+  return "";
+}
+
 function validateStatValue(key: string, value: string): string {
   const v = value.trim();
   if (!v) return "";
+
+  if (CONVERSION_STAT_KEYS.has(key)) {
+    const ratio = v.match(/^(\d{1,2})\s*[\-/:]\s*(\d{1,2})$/);
+    if (ratio) {
+      const made = parseInt(ratio[1], 10);
+      const attempts = parseInt(ratio[2], 10);
+      return attempts >= made && attempts <= 25 ? `${made}-${attempts}` : "";
+    }
+    return normalizeConversionDigits(v.replace(/\D/g, ""));
+  }
 
   if (key.includes("percentage")) {
     const n = parseInt(v, 10);
@@ -40,8 +67,8 @@ function cleanStatValue(raw: string, opts: { side: "left" | "right"; key: string
     .replace(/[>▶◀◁▷◄]/g, "");
 
   const cleaned = stripped
-    .replace(/^[^0-9:]+/, "")
-    .replace(/[^0-9:]+$/, "")
+    .replace(/^[^0-9:/-]+/, "")
+    .replace(/[^0-9:/-]+$/, "")
     .trim();
 
   // Fused expander/better-stat arrows read as a trailing 4: 0◄ -> 04, 3◄ -> 34.
@@ -226,8 +253,8 @@ function findConversionValue(
     .sort((a, b) => a.x - b.x)
     .map((w) => w.text.replace(/[Oo]/g, "0").replace(/[>▶◀◁▷◄]/g, ""))
     .join("");
-  const ratio = joined.match(/(\d+)\s*[\/:]\s*(\d+)/);
-  if (ratio) return validateStatValue(key, `${ratio[1]}/${ratio[2]}`);
+  const ratio = joined.match(/(\d+)\s*[\-\/:]\s*(\d+)/);
+  if (ratio) return validateStatValue(key, `${ratio[1]}-${ratio[2]}`);
 
   for (const w of sameRow.sort((a, b) => (side === "left" ? b.x - a.x : a.x - b.x))) {
     const v = validateStatValue(key, cleanStatValue(w.text, { side, key }));
@@ -240,7 +267,7 @@ function findConversionValue(
     .map((w) => cleanStatValue(w.text, { side, key }))
     .filter(Boolean);
   if (parts.length >= 2 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1])) {
-    return validateStatValue(key, `${parts[0]}/${parts[1]}`);
+    return validateStatValue(key, `${parts[0]}-${parts[1]}`);
   }
 
   return parts[0] ? validateStatValue(key, parts[0]) : "";

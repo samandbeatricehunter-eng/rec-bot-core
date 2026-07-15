@@ -127,12 +127,25 @@ function parsePair(raw: string): [string, string] | null {
   return m ? [m[1], m[2]] : null;
 }
 
-// "5-9 (55%)" -> "5/9", matching the format the NFL parser already uses for the
-// same canonical keys (third/fourth_down_conversions, two_point_conversions).
+function normalizeConversionDigits(digits: string): string | null {
+  if (!/^\d{2,4}$/.test(digits)) return null;
+  const splits = digits.length === 4 ? [2, 1] : [1];
+  for (const split of splits) {
+    const made = parseInt(digits.slice(0, split), 10);
+    const attempts = parseInt(digits.slice(split), 10);
+    if (attempts >= made && attempts <= 25) return `${made}-${attempts}`;
+  }
+  return null;
+}
+
+// "5-9 (55%)" -> "5-9". OCR sometimes drops the separator ("210" for "2-10"),
+// so repair plausible fused made/attempt values before saving.
 function parseConversion(raw: string): string | null {
   const cleaned = raw.replace(/\s+/g, "");
-  const m = cleaned.match(/^(\d+)-(\d+)/);
-  return m ? `${m[1]}/${m[2]}` : null;
+  const m = cleaned.match(/^(\d+)[\-/:](\d+)/);
+  if (m) return `${parseInt(m[1], 10)}-${parseInt(m[2], 10)}`;
+  const digits = cleaned.replace(/\D/g, "");
+  return normalizeConversionDigits(digits);
 }
 
 function parseClock(raw: string): string | null {
