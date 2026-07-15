@@ -394,7 +394,7 @@ export type HubMatchupSchedule = {
   games: Array<{
     gameId: string;
     weekNumber: number;
-    matchupType: "h2h" | "cpu";
+    matchupType: "h2h" | "human_cpu" | "cpu";
     involvesMe: boolean;
     isGameOfWeek: boolean;
     homeTeamName: string;

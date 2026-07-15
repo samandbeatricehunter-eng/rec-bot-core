@@ -767,7 +767,7 @@ export function HubHome() {
         if (!schedule) return null;
         return schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
           <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
-            <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
+            <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
             <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button>}{hub.canManageLeague && !game.isFinal && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}</div>
           </article>
         ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
@@ -887,15 +887,15 @@ export function HubHome() {
             })()}
             {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
               <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
-                <div className="hub-matchup-card-head"><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><small>{[game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
+                <div className="hub-matchup-card-head"><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><small>{[game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
                 <div className="hub-matchup-board"><div className="hub-team-side"><span>Away</span><strong>{game.awayTeamName}</strong></div><div className="hub-score-center"><span>{game.isFinal ? "Final" : "at"}</span><strong>{game.isFinal && game.awayScore != null && game.homeScore != null ? `${game.awayScore} - ${game.homeScore}` : "-"}</strong></div><div className="hub-team-side"><span>Home</span><strong>{game.homeTeamName}</strong></div></div>
                 {game.streams.length > 0 && <div className="hub-live-streams"><strong>LIVE! TUNE IN!</strong>{game.streams.map((stream) => <span key={stream.streamLogId}><a href={`${apiBaseUrl}${stream.watchPath}`} target="_blank" rel="noreferrer">{stream.teamName} stream</a><small>{stream.viewCount} views</small><button className={stream.myReaction === "like" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "like")}><ThumbsUp size={13} /> {stream.reactionCounts.like}</button><button className={stream.myReaction === "dislike" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "dislike")}><ThumbsDown size={13} /> {stream.reactionCounts.dislike}</button></span>)}</div>}
                 <div className="hub-matchup-actions">
-                  {game.matchupType === "h2h" && <StatusChip status="info" label={game.involvesMe ? "Your game" : "User matchup"} />}
+                  {game.matchupType !== "cpu" && <StatusChip status="info" label={game.involvesMe ? "Your game" : "User matchup"} />}
                   {game.involvesMe && game.boxScoreSubmissionId && <StatusChip status="locked" label={`Box score ${game.boxScoreStatus ?? "submitted"}`} />}
                   {game.involvesMe && !game.isFinal && !game.boxScoreSubmissionId && <Button variant="primary" size="compact" onClick={() => setBoxScoreUploadGame(game)}>Submit Box Score</Button>}
                   {game.involvesMe && <Button variant="secondary" size="compact" onClick={() => void openPlayerStats(game)}>Player Stats</Button>}
-                  {!game.involvesMe && game.matchupType === "h2h" && !game.isFinal && <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button>}
+                  {!game.involvesMe && !game.isFinal && <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button>}
                   {hub.canManageLeague && !game.isFinal && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}
                 </div>
               </article>

@@ -261,13 +261,14 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
   if (!userId) {
     // Look up the real Discord nickname/username instead of stashing the raw snowflake as
     // a placeholder — that placeholder was never getting corrected later, so it just showed
-    // up permanently as a number in every team/roster/chat display.
+    // up permanently as a number in every team/roster/chat display. Leave the name columns
+    // null on a failed/missed lookup rather than falling back to the raw ID; a later login
+    // or hub read can still resolve a real name, but a written snowflake never self-heals.
     const liveName = await getGuildMemberDisplayNameMap(input.guildId).then((names) => names.get(input.discordId) ?? null).catch(() => null);
-    const displayName = liveName ?? input.discordId;
 
     const user = await supabase
       .from("rec_users")
-      .insert({ display_name: displayName, status: "active" })
+      .insert({ display_name: liveName, status: "active" })
       .select("id")
       .single();
 
@@ -275,7 +276,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
 
     const created = await supabase
       .from("rec_discord_accounts")
-      .insert({ user_id: user.data.id, discord_id: input.discordId, username: displayName, global_name: displayName })
+      .insert({ user_id: user.data.id, discord_id: input.discordId, username: liveName, global_name: liveName })
       .select("user_id")
       .single();
 

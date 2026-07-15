@@ -959,14 +959,17 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     : { data: [], error: null };
   if (accounts.error) throw new ApiError(500, "Failed to load matchup user names.", accounts.error);
   const accountByUserId = new Map((accounts.data ?? []).map((account: any) => [account.user_id, account]));
+  const isSnowflake = (value: unknown) => /^\d{15,}$/.test(String(value ?? ""));
   const displayNameForUser = (row: any) => {
     const account = accountByUserId.get(row.user_id) as any;
     const storedName = row.user?.display_name ?? null;
     // The matchup directory is an account directory, not a guild roster. Use the
     // immutable Discord username instead of a server nickname/global display name.
-    if (account?.username) return account.username;
-    if (account?.global_name) return account.global_name;
-    if (storedName && !/^\d{15,}$/.test(String(storedName))) return storedName;
+    // Guard every source against a raw snowflake — accounts can be poisoned with the
+    // Discord ID as a placeholder when the live lookup fails at link time.
+    if (account?.username && !isSnowflake(account.username)) return account.username;
+    if (account?.global_name && !isSnowflake(account.global_name)) return account.global_name;
+    if (storedName && !isSnowflake(storedName)) return storedName;
     return "REC Member";
   };
   const usersByConference = new Map<string, any[]>();
@@ -1046,7 +1049,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       return {
         gameId: game.id,
         weekNumber: Number(game.week_number),
-        matchupType: game.home_user_id && game.away_user_id ? "h2h" : "cpu",
+        matchupType: game.home_user_id && game.away_user_id ? "h2h" : game.home_user_id || game.away_user_id ? "human_cpu" : "cpu",
         involvesMe: game.home_user_id === userId || game.away_user_id === userId,
         isGameOfWeek: poll?.game_id === game.id,
         homeTeamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
