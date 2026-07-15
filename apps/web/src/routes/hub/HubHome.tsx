@@ -57,6 +57,13 @@ function gameLabel(game: string | null | undefined) {
   return String(game ?? "League").replaceAll("_", " ").replace(/\bcfb\b/ig, "CFB").toUpperCase();
 }
 
+function leagueTimelineLabel(league: HubResponse["league"]) {
+  const stage = String(league.seasonStage ?? "regular_season");
+  const stageLabel = displayLabel(stage);
+  const weekLabel = stage === "regular_season" ? `Week ${league.weekNumber}` : stageLabel;
+  return `Season ${league.seasonNumber} · ${weekLabel}`;
+}
+
 function ProfileStats({ values }: { values: Record<string, unknown> | null | undefined }) {
   const hidden = new Set(["userId", "leagueId", "seasonNumber"]);
   const rows = Object.entries(values ?? {}).filter(([key, value]) => !hidden.has(key) && value != null && typeof value !== "object");
@@ -529,7 +536,7 @@ export function HubHome() {
 
   return <div className="hub-page">
     <section className="hub-hero">
-      <div className="hub-hero-main"><p className="hub-eyebrow">Season {hub.league.seasonNumber} · Week {hub.league.weekNumber}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p></div>
+      <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p></div>
       <aside className="hub-hero-snapshot">
         <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong><small>{heroGotw}</small></div>
         <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong><small>School: {heroSchool}</small></div>
