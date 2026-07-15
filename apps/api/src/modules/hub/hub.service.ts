@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
@@ -922,14 +923,13 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const selectedWeek = input.weekNumber ?? currentWeek;
-  const season = await supabase.from("rec_seasons").select("id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).maybeSingle();
-  if (season.error) throw new ApiError(500, "Failed to load season.", season.error);
+  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   let gamesQuery = supabase
     .from("rec_games")
     .select("id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference)")
     .eq("league_id", context.leagueId)
     .eq("week_number", selectedWeek);
-  if (season.data?.id) gamesQuery = gamesQuery.eq("season_id", season.data.id);
+  if (seasonId) gamesQuery = gamesQuery.eq("season_id", seasonId);
   const [games, weeks, results, streamLogs, streamViewsForWeek, streamReactionsForWeek, assignments, gotwPoll] = await Promise.all([
     gamesQuery,
     supabase.from("rec_games").select("week_number").eq("league_id", context.leagueId).order("week_number", { ascending: true }),

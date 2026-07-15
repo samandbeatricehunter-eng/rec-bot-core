@@ -579,7 +579,7 @@ export function HubHome() {
   const heroRecord = profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0";
   const heroStreak = profile.seasonRecord?.activeStreak ?? "—";
   const heroDifferential = Number(my.leagueSeasonPointDifferential ?? profile.seasonRecord?.pointDifferential ?? 0);
-  const heroGotw = my.gotwStatus ?? "Not GOTW";
+  const heroGotw = my.gotwStatus && !["No", "Not GOTW"].includes(String(my.gotwStatus)) ? String(my.gotwStatus) : "";
   const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
   const heroSchool = my.schoolName ?? profile.schoolName ?? my.teamName ?? profile.teamName ?? "School unavailable";
   const activeHighlight = hub.highlights[activeHighlightIndex] ?? null;
@@ -595,7 +595,7 @@ export function HubHome() {
     <section className="hub-hero">
       <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p></div>
       <aside className="hub-hero-snapshot">
-        <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong><small>{heroGotw}</small></div>
+        <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong>{heroGotw && <small>{heroGotw}</small>}</div>
         <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong><small>School: {heroSchool}</small></div>
         <div className="hub-hero-metrics">
           <article><span>Record</span><strong>{heroRecord}</strong><small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff</small></article>
