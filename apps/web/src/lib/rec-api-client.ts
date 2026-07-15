@@ -221,6 +221,10 @@ export const recApi = {
   // Players to Watch (per-team persistent list, selectable when tagging a game result)
   listWatchedPlayers: (guildId: string, teamId: string) =>
     recApiFetch<{ players: WatchedPlayer[] }>("/v1/watched-players/list", { method: "POST", body: JSON.stringify({ guildId, teamId }) }),
+  listMyWatchedPlayers: (input: { guildId: string; discordId?: string }) =>
+    recApiFetch<{ players: WatchedPlayer[] }>("/v1/watched-players/my-list", { method: "POST", body: JSON.stringify(input) }),
+  submitPlayerStatLine: (input: { guildId: string; discordId?: string; playerName: string; category: string; statLines: Array<{ statKey: string; label: string; value: number }> }) =>
+    recApiFetch<{ ok: true }>("/v1/watched-players/submit-stat-line", { method: "POST", body: JSON.stringify(input) }),
   createWatchedPlayer: (input: { guildId: string; teamId: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
     recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/create", { method: "POST", body: JSON.stringify(input) }),
   updateWatchedPlayer: (input: { guildId: string; id: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
@@ -242,6 +246,8 @@ export const recApi = {
     recApiFetch<{ recruit: Recruit }>("/v1/recruiting/update-details", { method: "POST", body: JSON.stringify(input) }),
   deleteRecruit: (guildId: string, id: string) =>
     recApiFetch<{ deleted: true }>("/v1/recruiting/delete", { method: "POST", body: JSON.stringify({ guildId, id }) }),
+  submitRecruitCommit: (input: { guildId: string; discordId?: string; playerName: string; position: string; starRating: number; homeCity: string; homeState: string }) =>
+    recApiFetch<{ recruit: Recruit }>("/v1/recruiting/submit-commit", { method: "POST", body: JSON.stringify(input) }),
 
   // Transfer portal tracker
   listTransferEntries: (guildId: string) =>

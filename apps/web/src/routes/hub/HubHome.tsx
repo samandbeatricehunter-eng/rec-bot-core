@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trophy, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { CFB_POSITIONS } from "@rec/shared";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trophy, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { useAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, TeamScheduleManualState, WagerOptionsResponse } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
@@ -12,6 +13,7 @@ import { StatusChip } from "../../components/design-system/StatusChip.js";
 import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
+import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
 
 const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "TOTY", label: "Throw of the Year" }, { key: "COTY", label: "Catch of the Year" }, { key: "ROTY", label: "Run of the Year" },
@@ -28,6 +30,17 @@ const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
 const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
 const SIDELINE_KEYS = SIDELINE_REACTIONS.map((reaction) => reaction.key);
+const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
+  passing: [["completions", "Completions"], ["attempts", "Attempts"], ["yards", "Passing yards"], ["touchdowns", "Passing touchdowns"], ["interceptions", "Interceptions"]],
+  rushing: [["carries", "Carries"], ["yards", "Rushing yards"], ["touchdowns", "Rushing touchdowns"], ["fumbles", "Fumbles"], ["longest", "Longest rush"]],
+  receiving: [["receptions", "Receptions"], ["yards", "Receiving yards"], ["touchdowns", "Receiving touchdowns"], ["drops", "Drops"], ["longest", "Longest reception"]],
+  defense: [["tackles", "Total tackles"], ["tfl", "Tackles for loss"], ["sacks", "Sacks"], ["interceptions", "Interceptions"], ["forced_fumbles", "Forced fumbles"]],
+  kick_returns: [["returns", "Kick returns"], ["yards", "Return yards"], ["touchdowns", "Return touchdowns"], ["longest", "Longest return"]],
+  punt_returns: [["returns", "Punt returns"], ["yards", "Return yards"], ["touchdowns", "Return touchdowns"], ["longest", "Longest return"]],
+  kicking: [["fg_made", "Field goals made"], ["fg_attempted", "Field goals attempted"], ["longest", "Longest field goal"], ["xp_made", "Extra points made"], ["xp_attempted", "Extra points attempted"]],
+  punting: [["punts", "Punts"], ["yards", "Punt yards"], ["average", "Average"], ["inside_20", "Inside the 20"], ["touchbacks", "Touchbacks"]],
+};
+const PLAYER_STAT_CATEGORY_OPTIONS = Object.keys(PLAYER_STAT_FIELDS);
 type Story = HubResponse["headlines"][number];
 type LeagueSubTab = "buzz" | "matchups" | "rankings";
 type WagerMode = "single" | "parlay" | "peer";
@@ -120,6 +133,16 @@ export function HubHome() {
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaArticle, setMediaArticle] = useState({ title: "", body: "", imageUrl: "" });
+  const [boxScoreUploadGame, setBoxScoreUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
+  const [playerStatsGame, setPlayerStatsGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
+  const [myWatchedPlayers, setMyWatchedPlayers] = useState<WatchedPlayer[] | null>(null);
+  const [playerStatsDraft, setPlayerStatsDraft] = useState({ playerName: "", watchedPlayerId: "", category: "passing", values: {} as Record<string, string> });
+  const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
+  const [playerStatsBusy, setPlayerStatsBusy] = useState(false);
+  const [recruitModalOpen, setRecruitModalOpen] = useState(false);
+  const [recruitDraft, setRecruitDraft] = useState<{ playerName: string; position: string; starRating: string; homeCity: string; homeState: string }>({ playerName: "", position: CFB_POSITIONS[0] ?? "ATH", starRating: "3", homeCity: "", homeState: "" });
+  const [recruitNotice, setRecruitNotice] = useState<string | null>(null);
+  const [recruitBusy, setRecruitBusy] = useState(false);
   const [interviewAnswers, setInterviewAnswers] = useState([
     { questionId: "", answer: "" },
     { questionId: "", answer: "" },
@@ -470,6 +493,47 @@ export function HubHome() {
     finally { setMediaBusy(false); }
   }
 
+  async function openPlayerStats(game: HubMatchupSchedule["games"][number]) {
+    if (auth.status !== "ready") return;
+    setPlayerStatsGame(game);
+    setPlayerStatsNotice(null);
+    setPlayerStatsDraft({ playerName: "", watchedPlayerId: "", category: "passing", values: {} });
+    setMyWatchedPlayers(null);
+    try { setMyWatchedPlayers((await recApi.listMyWatchedPlayers({ guildId: auth.guildId })).players); }
+    catch (cause) { setPlayerStatsNotice(cause instanceof Error ? cause.message : "Could not load your players to watch."); setMyWatchedPlayers([]); }
+  }
+
+  async function submitPlayerStats() {
+    if (auth.status !== "ready" || !playerStatsGame) return;
+    const selectedPlayer = myWatchedPlayers?.find((player) => player.id === playerStatsDraft.watchedPlayerId);
+    const playerName = selectedPlayer?.playerName ?? playerStatsDraft.playerName.trim();
+    const statLines = (PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).flatMap(([statKey, label]) => {
+      const raw = playerStatsDraft.values[statKey]?.trim();
+      if (!raw) return [];
+      const value = Number(raw);
+      return Number.isFinite(value) ? [{ statKey, label, value }] : [];
+    });
+    if (!playerName || !statLines.length) { setPlayerStatsNotice("Pick or enter a player and add at least one stat."); return; }
+    setPlayerStatsBusy(true); setPlayerStatsNotice(null);
+    try {
+      await recApi.submitPlayerStatLine({ guildId: auth.guildId, playerName, category: playerStatsDraft.category, statLines });
+      setPlayerStatsNotice("Player stats submitted.");
+      setPlayerStatsDraft({ playerName: "", watchedPlayerId: "", category: playerStatsDraft.category, values: {} });
+    } catch (cause) { setPlayerStatsNotice(cause instanceof Error ? cause.message : "Player stats submission failed."); }
+    finally { setPlayerStatsBusy(false); }
+  }
+
+  async function submitRecruitCommit() {
+    if (auth.status !== "ready") return;
+    setRecruitBusy(true); setRecruitNotice(null);
+    try {
+      await recApi.submitRecruitCommit({ guildId: auth.guildId, playerName: recruitDraft.playerName.trim(), position: recruitDraft.position, starRating: Number(recruitDraft.starRating), homeCity: recruitDraft.homeCity.trim(), homeState: recruitDraft.homeState.trim() });
+      setRecruitDraft({ playerName: "", position: CFB_POSITIONS[0] ?? "ATH", starRating: "3", homeCity: "", homeState: "" });
+      setRecruitNotice("Recruit commit submitted.");
+    } catch (cause) { setRecruitNotice(cause instanceof Error ? cause.message : "Recruit commit failed."); }
+    finally { setRecruitBusy(false); }
+  }
+
   async function voteGotw(selectedTeamId: string) {
     if (auth.status !== "ready" || !matchupSchedule?.gotw) return;
     await recApi.voteGameOfWeek({ guildId: auth.guildId, pollId: matchupSchedule.gotw.pollId, selectedTeamId });
@@ -627,6 +691,7 @@ export function HubHome() {
       <div className="hub-my-team-shortcuts">
         <button className="hub-shortcut-card" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={18} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : "$100 on approval"}</span></div></button>
         <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : "$50 on approval"}</span></div></button>
+        {hub.league.game === "cfb_27" && <button className="hub-shortcut-card" onClick={() => setRecruitModalOpen(true)}><IconWell size="sm" icon={<GraduationCap size={18} />} /><div><strong>Confirmed Commit</strong><span>Log a recruit to your school</span></div></button>}
         <button className="hub-shortcut-card" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={18} />} /><div><strong>Full Season Schedule</strong><span>Results &amp; upcoming games</span></div></button>
       </div>
       <div className="hub-stat-grid">
@@ -665,7 +730,7 @@ export function HubHome() {
         return schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
           <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
             <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
-            <div className="hub-matchup-actions"><Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button></div>
+            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button>}</div>
           </article>
         ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
       })()}
@@ -786,7 +851,13 @@ export function HubHome() {
             {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
               <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
                 <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong><small>{[game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small>{game.isFinal && game.awayScore != null && game.homeScore != null && <b className="hub-final-score">Final: {game.awayScore} - {game.homeScore}</b>}{game.streams.length > 0 && <div className="hub-live-streams"><strong>LIVE! TUNE IN!</strong>{game.streams.map((stream) => <span key={stream.streamLogId}><a href={`${apiBaseUrl}${stream.watchPath}`} target="_blank" rel="noreferrer">{stream.teamName} stream</a><small>{stream.viewCount} views</small><button className={stream.myReaction === "like" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "like")}><ThumbsUp size={13} /> {stream.reactionCounts.like}</button><button className={stream.myReaction === "dislike" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "dislike")}><ThumbsDown size={13} /> {stream.reactionCounts.dislike}</button></span>)}</div>}</div>
-                <div className="hub-matchup-actions">{game.matchupType === "h2h" && <StatusChip status="info" label={game.involvesMe ? "Your game" : "User matchup"} />}<Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button></div>
+                <div className="hub-matchup-actions">
+                  {game.matchupType === "h2h" && <StatusChip status="info" label={game.involvesMe ? "Your game" : "User matchup"} />}
+                  {game.involvesMe && game.boxScoreSubmissionId && <StatusChip status="locked" label={`Box score ${game.boxScoreStatus ?? "submitted"}`} />}
+                  {game.involvesMe && !game.isFinal && !game.boxScoreSubmissionId && <Button variant="primary" size="compact" onClick={() => setBoxScoreUploadGame(game)}>Submit Box Score</Button>}
+                  {game.involvesMe && game.boxScoreSubmissionId && <Button variant="secondary" size="compact" onClick={() => void openPlayerStats(game)}>Players to Watch</Button>}
+                  {!game.involvesMe && game.matchupType === "h2h" && !game.isFinal && <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button>}
+                </div>
               </article>
             ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}
           </>;
@@ -815,7 +886,21 @@ export function HubHome() {
         <div className="story-comments"><h3><MessageCircle size={18} /> Comments</h3>{comments === null ? <p>Loading comments…</p> : comments.length ? comments.map((comment) => <article key={comment.id}><strong>{comment.authorName}</strong><time>{new Date(comment.created_at).toLocaleString()}</time><p>{comment.body}</p></article>) : <p className="hub-empty">No comments yet.</p>}<textarea className="form-input" rows={3} value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Add to the discussion…" /><Button variant="primary" disabled={!commentBody.trim()} onClick={() => void submitComment()}>Post Comment</Button></div>
       </div></Modal>
     ))}
-    {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
+    {boxScoreUploadGame && auth.status === "ready" && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={boxScoreUploadGame.weekNumber} seasonNumber={hub.league.seasonNumber} gameId={boxScoreUploadGame.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setBoxScoreUploadGame(null)} onSubmitted={async () => { const weekNumber = matchupSchedule?.selectedWeek ?? boxScoreUploadGame.weekNumber; setBoxScoreUploadGame(null); setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber })); }} />}
+    {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
+      {playerStatsNotice && <p className="hub-transfer-status">{playerStatsNotice}</p>}<p className="hub-muted">{playerStatsGame.awayTeamName} at {playerStatsGame.homeTeamName}</p>
+      <label className="form-field"><span className="form-label">Player</span><select className="form-input" value={playerStatsDraft.watchedPlayerId} onChange={(event) => { const player = myWatchedPlayers?.find((item) => item.id === event.target.value); setPlayerStatsDraft((current) => ({ ...current, watchedPlayerId: event.target.value, playerName: player?.playerName ?? "" })); }}><option value="">Enter a new player</option>{(myWatchedPlayers ?? []).map((player) => <option key={player.id} value={player.id}>{player.playerName} - {player.position}</option>)}</select></label>
+      {!playerStatsDraft.watchedPlayerId && <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={playerStatsDraft.playerName} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, playerName: event.target.value }))} /></label>}
+      <label className="form-field"><span className="form-label">Category</span><select className="form-input" value={playerStatsDraft.category} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, category: event.target.value, values: {} }))}>{PLAYER_STAT_CATEGORY_OPTIONS.map((category) => <option key={category} value={category}>{displayLabel(category)}</option>)}</select></label>
+      <div className="hub-submission-grid">{(PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).map(([key, label]) => <label className="form-field" key={key}><span className="form-label">{label}</span><input className="form-input" type="number" min="0" value={playerStatsDraft.values[key] ?? ""} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, values: { ...current.values, [key]: event.target.value } }))} /></label>)}</div>
+      <Button variant="primary" disabled={playerStatsBusy} onClick={() => void submitPlayerStats()}>{playerStatsBusy ? "Submitting..." : "Submit Player Stats"}</Button>
+    </div></Modal>}
+    {recruitModalOpen && <Modal title="Confirmed Commit" onClose={() => setRecruitModalOpen(false)}><div className="hub-submission-modal">
+      {recruitNotice && <p className="hub-transfer-status">{recruitNotice}</p>}<label className="form-field"><span className="form-label">Recruit name</span><input className="form-input" value={recruitDraft.playerName} onChange={(event) => setRecruitDraft((current) => ({ ...current, playerName: event.target.value }))} /></label>
+      <div className="hub-submission-grid"><label className="form-field"><span className="form-label">Position</span><select className="form-input" value={recruitDraft.position} onChange={(event) => setRecruitDraft((current) => ({ ...current, position: event.target.value }))}>{CFB_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}</select></label><label className="form-field"><span className="form-label">Stars</span><select className="form-input" value={recruitDraft.starRating} onChange={(event) => setRecruitDraft((current) => ({ ...current, starRating: event.target.value }))}>{[1, 2, 3, 4, 5].map((stars) => <option key={stars} value={stars}>{stars}</option>)}</select></label></div>
+      <div className="hub-submission-grid"><label className="form-field"><span className="form-label">City</span><input className="form-input" value={recruitDraft.homeCity} onChange={(event) => setRecruitDraft((current) => ({ ...current, homeCity: event.target.value }))} /></label><label className="form-field"><span className="form-label">State</span><input className="form-input" value={recruitDraft.homeState} onChange={(event) => setRecruitDraft((current) => ({ ...current, homeState: event.target.value }))} /></label></div>
+      <Button variant="primary" disabled={recruitBusy || !recruitDraft.playerName.trim() || !recruitDraft.homeCity.trim() || !recruitDraft.homeState.trim()} onClick={() => void submitRecruitCommit()}>{recruitBusy ? "Submitting..." : "Submit Commit"}</Button>
+    </div></Modal>}    {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
         <div className="hub-wager-mode"><button className={wagerPanel.mode === "single" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "single" })}>House Single</button><button className={wagerPanel.mode === "parlay" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "parlay" })}>3-Pick Parlay</button><button className={wagerPanel.mode === "peer" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "peer" })}>User Wager</button></div>
         <div className="hub-wager-lines">{wagerPanel.options.markets.map((market) => <article key={market.market} className={wagerPanel.market === market.market ? "active" : ""}><button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "" })}><strong>{market.label}</strong><span>{market.line != null ? `Line ${market.line}` : "Winner"}</span></button><div>{market.sides.map((side) => <button key={side.pick} className={wagerPanel.market === market.market && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.label}</b><small>{side.odds > 0 ? "+" : ""}{side.odds}</small></button>)}</div></article>)}</div>

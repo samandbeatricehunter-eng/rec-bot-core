@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
-import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { getGuildMemberDisplayNameMap, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
@@ -953,13 +953,30 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     home: (voteRows.data ?? []).filter((vote: any) => vote.selected_team_id === poll?.home_team_id).length,
   };
   const myGotwVote = (voteRows.data ?? []).find((vote: any) => vote.discord_id === input.discordId)?.selected_team_id ?? null;
+  const assignmentUserIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))] as string[];
+  const accounts = assignmentUserIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", assignmentUserIds)
+    : { data: [], error: null };
+  if (accounts.error) throw new ApiError(500, "Failed to load matchup user names.", accounts.error);
+  const accountByUserId = new Map((accounts.data ?? []).map((account: any) => [account.user_id, account]));
+  const guildNames = await getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>());
+  const displayNameForUser = (row: any) => {
+    const account = accountByUserId.get(row.user_id) as any;
+    const liveName = account?.discord_id ? guildNames.get(account.discord_id) : null;
+    const storedName = row.user?.display_name ?? null;
+    if (liveName) return liveName;
+    if (account?.global_name) return account.global_name;
+    if (account?.username) return account.username;
+    if (storedName && !/^\d{15,}$/.test(String(storedName))) return storedName;
+    return "REC Member";
+  };
   const usersByConference = new Map<string, any[]>();
   for (const row of assignments.data ?? []) {
     const team = Array.isArray(row.team) ? row.team[0] : row.team;
     const user = Array.isArray(row.user) ? row.user[0] : row.user;
     const conference = team?.conference ?? "Independent";
     const list = usersByConference.get(conference) ?? [];
-    list.push({ userId: row.user_id, displayName: user?.display_name ?? "REC Member", teamName: team?.name ?? team?.abbreviation ?? "Team", division: team?.division ?? null });
+    list.push({ userId: row.user_id, displayName: displayNameForUser({ ...row, user }), teamName: team?.name ?? team?.abbreviation ?? "Team", division: team?.division ?? null });
     usersByConference.set(conference, list);
   }
   const minimumMaxWeek = Math.max(14, currentWeek);
@@ -971,6 +988,14 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   for (const result of results.data ?? []) {
     if (result.home_team_id && result.away_team_id) resultByTeams.set(`${result.home_team_id}:${result.away_team_id}`, result);
   }
+  const gotwGame = poll ? (games.data ?? []).find((game: any) => game.id === poll.game_id) : null;
+  const gotwResult = poll ? resultByTeams.get(`${poll.home_team_id}:${poll.away_team_id}`) ?? null : null;
+  const gotwBoxScore = poll?.game_id
+    ? await supabase.from("rec_box_score_submissions").select("id,status").eq("game_id", poll.game_id).in("status", ["pending", "approved"]).limit(1).maybeSingle()
+    : { data: null, error: null };
+  if (gotwBoxScore.error) throw new ApiError(500, "Failed to load GOTW box-score status.", gotwBoxScore.error);
+  const gotwHasFinal = Boolean(gotwResult) || Boolean(gotwBoxScore.data) || (gotwGame && (["final", "completed", "played"].includes(String(gotwGame.status ?? "").toLowerCase()) || (gotwGame.home_score != null && gotwGame.away_score != null)));
+  const gotwVoteOpen = Boolean(poll && poll.status === "open" && !gotwHasFinal);
   const streamByUser = new Map<string, any>();
   for (const stream of streamLogs.data ?? []) {
     if (stream.user_id && stream.message_url && !streamByUser.has(stream.user_id)) streamByUser.set(stream.user_id, stream);
@@ -986,6 +1011,12 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       myReaction: reactions.find((reaction: any) => reaction.user_id === userId)?.reaction_key ?? null,
     };
   };
+  const gameIds = (games.data ?? []).map((game: any) => game.id).filter(Boolean);
+  const boxScores = gameIds.length
+    ? await supabase.from("rec_box_score_submissions").select("id,game_id,status").in("game_id", gameIds).in("status", ["pending", "approved"])
+    : { data: [], error: null };
+  if (boxScores.error) throw new ApiError(500, "Failed to load matchup box-score status.", boxScores.error);
+  const boxScoreByGameId = new Map<string, any>((boxScores.data ?? []).map((row: any) => [row.game_id, row]));
   return {
     currentWeek,
     selectedWeek,
@@ -994,7 +1025,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     gotw: poll ? {
       pollId: poll.id,
       gameId: poll.game_id,
-      status: poll.status,
+      status: gotwVoteOpen ? "open" : "closed",
+      canVote: gotwVoteOpen,
       awayTeamId: poll.away_team_id,
       homeTeamId: poll.home_team_id,
       awayTeamName: poll.away_team_name,
@@ -1011,6 +1043,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       const showStreams = !isFinal && game.home_user_id && game.away_user_id;
       const homeStream = showStreams ? streamByUser.get(game.home_user_id) ?? null : null;
       const awayStream = showStreams ? streamByUser.get(game.away_user_id) ?? null : null;
+      const boxScore = boxScoreByGameId.get(game.id) ?? null;
       return {
         gameId: game.id,
         weekNumber: Number(game.week_number),
@@ -1025,6 +1058,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         awayScore,
         isFinal,
         winnerTeamId: result?.winning_team_id ?? null,
+        boxScoreSubmissionId: boxScore?.id ?? null,
+        boxScoreStatus: boxScore?.status ?? null,
         streams: [
           awayStream ? { side: "away", userId: game.away_user_id, teamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away", streamLogId: awayStream.id, url: awayStream.message_url, watchPath: streamWatchPath(awayStream.id), postedAt: awayStream.posted_at ?? null, ...streamEngagement(awayStream) } : null,
           homeStream ? { side: "home", userId: game.home_user_id, teamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,

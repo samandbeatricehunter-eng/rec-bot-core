@@ -45,23 +45,27 @@ export async function watchedPlayersRoutes(app: FastifyInstance) {
   // score) is resolved server-side from discordId, same trust model as box-score/append-image.
   app.post("/v1/watched-players/submit-stat-line", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
       const body = z.object({
         guildId: z.string().min(1),
-        discordId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
         playerName: z.string().trim().min(1).max(80),
         category: z.string().trim().min(1).max(40),
         statLines: z.array(z.object({ statKey: z.string(), label: z.string(), value: z.number() })).min(1).max(10),
       }).parse(request.body);
-      return reply.send(await submitPlayerStatLine(body));
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      if (!discordId) throw new Error("Missing Discord user.");
+      return reply.send(await submitPlayerStatLine({ ...body, discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 
   app.post("/v1/watched-players/my-list", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
-      return reply.send(await listMyWatchedPlayers(body.guildId, body.discordId));
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      if (!discordId) throw new Error("Missing Discord user.");
+      return reply.send(await listMyWatchedPlayers(body.guildId, discordId));
     } catch (error) { return sendError(reply, error); }
   });
   app.post("/v1/watched-players/remove-stat-line",async(request,reply)=>{try{requireInternalApiKey(request);const b=z.object({guildId:z.string(),discordId:z.string(),playerName:z.string(),category:z.string()}).parse(request.body);return reply.send(await removeMyPlayerStatLine(b));}catch(e){return sendError(reply,e);}});

@@ -20,6 +20,8 @@ export function UploadBoxScoreModal({
   weekNumber,
   seasonNumber,
   gameId,
+  commissionerSubmission = true,
+  requireSecondImage = false,
   onClose,
   onSubmitted,
 }: {
@@ -28,6 +30,8 @@ export function UploadBoxScoreModal({
   weekNumber: number;
   seasonNumber: number;
   gameId: string;
+  commissionerSubmission?: boolean;
+  requireSecondImage?: boolean;
   onClose: () => void;
   onSubmitted: (submissionId: string) => void;
 }) {
@@ -37,7 +41,7 @@ export function UploadBoxScoreModal({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit() {
-    if (!file) return;
+    if (!file || (requireSecondImage && !secondFile)) return;
     setStatus("uploading");
     setError(null);
     try {
@@ -51,7 +55,7 @@ export function UploadBoxScoreModal({
         weekNumber,
         seasonNumber,
         expectedGameId: gameId,
-        commissionerSubmission: true,
+        commissionerSubmission,
       });
       setStatus("parsing");
       // eslint-disable-next-line no-constant-condition
@@ -94,7 +98,7 @@ export function UploadBoxScoreModal({
         </p>
       </div>
       <div className="form-field">
-        <label className="form-label" htmlFor="box-score-file-2">Second screenshot (optional)</label>
+        <label className="form-label" htmlFor="box-score-file-2">Second screenshot {requireSecondImage ? "(required)" : "(optional)"}</label>
         <input
           id="box-score-file-2"
           className="form-input"
@@ -103,9 +107,9 @@ export function UploadBoxScoreModal({
           disabled={busy}
           onChange={(e) => setSecondFile(e.target.files?.[0] ?? null)}
         />
-        <p className="form-hint">Add the other half of the stats page now, or add it later from the review screen.</p>
+        <p className="form-hint">{requireSecondImage ? "Add the other half of the stats page before submitting." : "Add the other half of the stats page now, or add it later from the review screen."}</p>
       </div>
-      <Button variant="primary" onClick={handleSubmit} disabled={!file || busy}>
+      <Button variant="primary" onClick={handleSubmit} disabled={!file || (requireSecondImage && !secondFile) || busy}>
         {busy ? "Submitting…" : "Submit"}
       </Button>
     </Modal>

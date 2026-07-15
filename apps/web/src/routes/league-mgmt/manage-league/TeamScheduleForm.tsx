@@ -203,7 +203,7 @@ export function TeamScheduleForm() {
               const pick = picks[week.weekNumber];
               const savedResult = resultByWeek.get(week.weekNumber);
               const resultLabel = resultLabelForDisplayedTeam(week);
-              const lockedForEdit = Boolean(week.result || week.pendingBoxScoreSubmissionId);
+              const lockedForEdit = Boolean(week.result || week.boxScoreSubmissionId);
               const showConfirmedView = week.alreadyConfirmed && (!editMode || lockedForEdit);
 
               if (showConfirmedView) {
@@ -224,6 +224,7 @@ export function TeamScheduleForm() {
                           </Tooltip>
                         )}
                         {week.pendingBoxScoreSubmissionId && <Badge status="pending">Box Score Pending Review</Badge>}
+                        {week.boxScoreStatus === "approved" && <Badge status="approved">Box Score Imported · Editable</Badge>}
                         <Tooltip text="This matchup was entered once and is shared between both teams' schedules — no need to enter it again on the other side.">
                           <Badge status="info">Shared with {week.confirmedOpponentName}'s schedule</Badge>
                         </Tooltip>
@@ -256,7 +257,12 @@ export function TeamScheduleForm() {
                                 Upload Box Score
                               </Button>
                             </Tooltip>
-                            <Button variant="secondary" onClick={() => setActiveModal({ type: "score", week })}>
+                            <Button
+                              variant="secondary"
+                              onClick={() => week.boxScoreSubmissionId
+                                ? setActiveModal({ type: "review", week, submissionId: week.boxScoreSubmissionId })
+                                : setActiveModal({ type: "score", week })}
+                            >
                               {week.result ? "Correct Results" : "Enter Results"}
                             </Button>
                           </>

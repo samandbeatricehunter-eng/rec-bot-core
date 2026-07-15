@@ -58,6 +58,8 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
 type GameResultAndSubmission = {
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
   pendingBoxScoreSubmissionId: string | null;
+  boxScoreSubmissionId: string | null;
+  boxScoreStatus: string | null;
 };
 
 export type GameResultLookupDescriptor = { id: string; weekNumber: number; homeTeamId: string; awayTeamId: string };
@@ -86,7 +88,7 @@ export async function loadResultsAndPendingSubmissions(
       .eq("league_id", leagueId)
       .eq("season_number", seasonNumber)
       .in("week_number", weekNumbers),
-    supabase.from("rec_box_score_submissions").select("id,game_id").eq("status", "pending").in("game_id", gameIds),
+    supabase.from("rec_box_score_submissions").select("id,game_id,status,updated_at,created_at").in("status", ["pending", "approved"]).in("game_id", gameIds),
   ]);
   if (resultsRes.error) throw new ApiError(500, "Failed to load existing game results.", resultsRes.error);
   if (submissionsRes.error) throw new ApiError(500, "Failed to load pending box score submissions.", submissionsRes.error);
@@ -94,15 +96,23 @@ export async function loadResultsAndPendingSubmissions(
   const resultByMatchup = new Map(
     (resultsRes.data ?? []).map((row: any) => [`${row.week_number}:${row.home_team_id}:${row.away_team_id}`, row]),
   );
-  const pendingByGameId = new Map(
-    (submissionsRes.data ?? []).filter((row: any) => row.game_id).map((row: any) => [row.game_id, row.id]),
-  );
+  const submissionByGameId = new Map<string, any>();
+  for (const row of submissionsRes.data ?? []) {
+    if (!row.game_id) continue;
+    const current = submissionByGameId.get(row.game_id);
+    if (!current || String(row.updated_at ?? row.created_at ?? "") > String(current.updated_at ?? current.created_at ?? "")) {
+      submissionByGameId.set(row.game_id, row);
+    }
+  }
 
   for (const g of games) {
     const row = resultByMatchup.get(`${g.weekNumber}:${g.homeTeamId}:${g.awayTeamId}`);
+    const submission = submissionByGameId.get(g.id) ?? null;
     byGameId.set(g.id, {
       result: row ? { homeScore: row.home_score, awayScore: row.away_score, isTie: row.is_tie, source: row.source } : null,
-      pendingBoxScoreSubmissionId: pendingByGameId.get(g.id) ?? null,
+      pendingBoxScoreSubmissionId: submission?.status === "pending" ? submission.id : null,
+      boxScoreSubmissionId: submission?.id ?? null,
+      boxScoreStatus: submission?.status ?? null,
     });
   }
   return byGameId;
@@ -210,6 +220,8 @@ export type TeamScheduleManualWeek = {
   gameId: string | null;
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
   pendingBoxScoreSubmissionId: string | null;
+  boxScoreSubmissionId: string | null;
+  boxScoreStatus: string | null;
   /** Persisted from rec_team_byes — stays checked across reloads until the commissioner unchecks and re-saves. */
   isBye: boolean;
 };
@@ -261,6 +273,8 @@ export async function getTeamScheduleManualState(input: {
       gameId: confirmed?.gameId ?? null,
       result: extra?.result ?? null,
       pendingBoxScoreSubmissionId: extra?.pendingBoxScoreSubmissionId ?? null,
+      boxScoreSubmissionId: extra?.boxScoreSubmissionId ?? null,
+      boxScoreStatus: extra?.boxScoreStatus ?? null,
       isBye: !confirmed && byeWeeks.has(weekNumber),
     });
   }
@@ -337,7 +351,7 @@ export async function commitTeamScheduleDecisions(input: {
       const locked = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
       const lockedConflict = gameDescriptors.find((game: any) => {
         const extra = locked.get(game.id);
-        return extra?.result || extra?.pendingBoxScoreSubmissionId;
+        return extra?.result || extra?.boxScoreSubmissionId;
       });
       if (lockedConflict) {
         saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "locked_result_or_box_score" });

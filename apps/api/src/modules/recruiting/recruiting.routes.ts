@@ -2,7 +2,6 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { requireInternalApiKey } from "../../lib/auth.js";
 import { CFB_POSITIONS } from "@rec/shared";
 import { createRecruit, deleteRecruit, listRecruits, submitRecruitCommit, updateRecruitDetails, updateRecruitStatus } from "./recruiting.service.js";
 
@@ -42,9 +41,11 @@ export async function recruitingRoutes(app: FastifyInstance) {
 
   app.post("/v1/recruiting/submit-commit", async (request, reply) => {
     try {
-      requireInternalApiKey(request);
-      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), playerName: z.string().trim().min(3).max(80), position: z.enum(CFB_POSITIONS), starRating: z.number().int().min(1).max(5), homeCity: z.string().trim().min(1).max(80), homeState: z.string().trim().min(2).max(40) }).parse(request.body);
-      return reply.send(await submitRecruitCommit(body));
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional(), playerName: z.string().trim().min(3).max(80), position: z.enum(CFB_POSITIONS), starRating: z.number().int().min(1).max(5), homeCity: z.string().trim().min(1).max(80), homeState: z.string().trim().min(2).max(40) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      if (!discordId) throw new Error("Missing Discord user.");
+      return reply.send(await submitRecruitCommit({ ...body, discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

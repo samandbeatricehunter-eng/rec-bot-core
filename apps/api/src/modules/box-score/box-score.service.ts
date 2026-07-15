@@ -1488,15 +1488,75 @@ function comebackUpdate(comeback: ComebackStats) {
   };
 }
 
+async function syncApprovedBoxScoreCorrection(sub: any) {
+  const now = new Date().toISOString();
+  if (sub.home_team_id && sub.away_team_id && sub.home_score != null && sub.away_score != null) {
+    const league = await supabase.from("rec_leagues").select("game").eq("id", sub.league_id).maybeSingle();
+    const game = league.data?.game ?? null;
+    const isTie = sub.home_score === sub.away_score;
+    const winningUserId = isTie ? null : (sub.home_score > sub.away_score ? sub.home_user_id : sub.away_user_id);
+    const losingUserId = isTie ? null : (sub.home_score > sub.away_score ? sub.away_user_id : sub.home_user_id);
+    const winningTeamId = isTie ? null : (sub.home_score > sub.away_score ? sub.home_team_id : sub.away_team_id);
+    const losingTeamId = isTie ? null : (sub.home_score > sub.away_score ? sub.away_team_id : sub.home_team_id);
+    const recordsApplyKey = sub.game_id
+      ? `boxscore:game:${sub.game_id}`
+      : `boxscore:${sub.league_id}:${sub.season_number}:${sub.week_number}:${sub.home_team_id}:${sub.away_team_id}`;
+
+    const { error } = await supabase.from("rec_game_results").upsert(
+      {
+        league_id: sub.league_id,
+        game_id: sub.game_id ?? null,
+        season_number: sub.season_number,
+        week_number: sub.week_number,
+        game_type: sub.phase ?? "regular_season",
+        home_team_id: sub.home_team_id,
+        away_team_id: sub.away_team_id,
+        home_user_id: sub.home_user_id,
+        away_user_id: sub.away_user_id,
+        home_score: sub.home_score,
+        away_score: sub.away_score,
+        winning_user_id: winningUserId,
+        losing_user_id: losingUserId,
+        winning_team_id: winningTeamId,
+        losing_team_id: losingTeamId,
+        is_user_h2h: Boolean(sub.home_user_id && sub.away_user_id),
+        is_cpu_game: !(sub.home_user_id && sub.away_user_id),
+        is_tie: isTie,
+        is_playoff: !isRegularSeasonWeek(Number(sub.week_number ?? 0), game),
+        is_super_bowl: isChampionshipWeek(sub.week_number, game),
+        source: "box_score_screenshot",
+        records_apply_key: recordsApplyKey,
+        updated_at: now,
+      },
+      { onConflict: "records_apply_key", ignoreDuplicates: false },
+    );
+    if (error) throw new ApiError(500, "Failed to refresh corrected box score result.", error);
+  }
+
+  await recordTeamGameStats(sub);
+  if (sub.league_id && sub.season_number) {
+    await rebuildOfficialRecordsAfterBoxScore({
+      leagueId: sub.league_id,
+      seasonNumber: sub.season_number,
+      homeUserId: sub.home_user_id,
+      awayUserId: sub.away_user_id,
+    });
+    await rebuildSeasonDisplayRecords(sub.league_id, sub.season_number);
+  }
+}
+
 export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Promise<CreateSubmissionResult> {
   const { data: sub, error } = await supabase
     .from("rec_box_score_submissions")
     .select("*")
     .eq("id", input.submissionId)
-    .eq("status", "pending")
+    .in("status", ["pending", "approved"])
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to load submission for correction.", error);
-  if (!sub) throw new ApiError(404, "No pending box score submission to correct (it may already be approved or denied).");
+  if (!sub) throw new ApiError(404, "No editable box score submission was found.");
+  if (sub.status === "approved" && input.field === "matchup") {
+    throw new ApiError(400, "Approved box scores cannot be re-linked to a different scheduled game.");
+  }
 
   const update: Record<string, any> = { updated_at: new Date().toISOString() };
 
@@ -1584,7 +1644,7 @@ export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Pr
     .from("rec_box_score_submissions")
     .update(update)
     .eq("id", sub.id)
-    .eq("status", "pending");
+    .in("status", ["pending", "approved"]);
   if (updateError) {
     if (updateError.code === "23505") {
       throw new ApiError(409, "Another box score payout is already pending or approved for that scheduled game.", updateError);
@@ -1592,7 +1652,12 @@ export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Pr
     throw new ApiError(500, "Failed to apply box score correction.", updateError);
   }
 
-  return shapeSubmissionForEmbed({ ...sub, ...update });
+  const corrected = { ...sub, ...update };
+  if (sub.status === "approved") {
+    await syncApprovedBoxScoreCorrection(corrected);
+  }
+
+  return shapeSubmissionForEmbed(corrected);
 }
 
 async function getBoxScorePaidPlayers(payouts: { userId: string; amount: number }[]): Promise<BoxScorePaidPlayer[]> {

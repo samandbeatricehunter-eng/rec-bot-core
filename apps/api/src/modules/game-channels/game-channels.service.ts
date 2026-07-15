@@ -90,10 +90,12 @@ function ruleLabel(value: unknown) {
 }
 
 function fourthDownText(draft: any, isPlayoff: boolean) {
-  const type = isPlayoff ? draft?.fourthDownRuleTypePlayoff : draft?.fourthDownRuleTypeRegular;
+  const rawType = isPlayoff ? draft?.fourthDownRuleTypePlayoff : draft?.fourthDownRuleTypeRegular;
+  const type = String(rawType ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   const custom = isPlayoff ? draft?.customFourthDownRulePlayoff : draft?.customFourthDownRuleRegular;
   if (type === "none") return "No special 4th down restriction is configured.";
   if (type === "custom") return String(custom ?? "").trim() || "Custom league 4th down rules apply.";
+  if (!type) return "Follow the current league 4th down rules.";
   return "Standard REC: past midfield on 4th & 3 or shorter; trailing in the second half may go anytime.";
 }
 

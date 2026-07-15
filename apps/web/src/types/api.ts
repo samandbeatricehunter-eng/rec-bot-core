@@ -20,6 +20,8 @@ export type TeamScheduleManualWeek = {
   gameId: string | null;
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
   pendingBoxScoreSubmissionId: string | null;
+  boxScoreSubmissionId: string | null;
+  boxScoreStatus: string | null;
   isBye: boolean;
 };
 
@@ -388,7 +390,7 @@ export type HubMatchupSchedule = {
   selectedWeek: number;
   weekNumbers: number[];
   usersByConference: Array<{ conference: string; users: Array<{ userId: string; displayName: string; teamName: string; division: string | null }> }>;
-  gotw: null | { pollId: string; gameId: string; status: "open" | "closed"; awayTeamId: string; homeTeamId: string; awayTeamName: string; homeTeamName: string; awayVotes: number; homeVotes: number; myVote: string | null };
+  gotw: null | { pollId: string; gameId: string; status: "open" | "closed"; canVote: boolean; awayTeamId: string; homeTeamId: string; awayTeamName: string; homeTeamName: string; awayVotes: number; homeVotes: number; myVote: string | null };
   games: Array<{
     gameId: string;
     weekNumber: number;
@@ -403,6 +405,8 @@ export type HubMatchupSchedule = {
     awayScore: number | null;
     isFinal: boolean;
     winnerTeamId: string | null;
+    boxScoreSubmissionId: string | null;
+    boxScoreStatus: string | null;
     streams: Array<{ side: "away" | "home"; userId: string; teamName: string; streamLogId: string; url: string; watchPath: string; postedAt: string | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   }>;
 };
