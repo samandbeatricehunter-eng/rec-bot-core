@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
-import { getGuildMemberDisplayNameMap, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
@@ -959,14 +959,13 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     : { data: [], error: null };
   if (accounts.error) throw new ApiError(500, "Failed to load matchup user names.", accounts.error);
   const accountByUserId = new Map((accounts.data ?? []).map((account: any) => [account.user_id, account]));
-  const guildNames = await getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>());
   const displayNameForUser = (row: any) => {
     const account = accountByUserId.get(row.user_id) as any;
-    const liveName = account?.discord_id ? guildNames.get(account.discord_id) : null;
     const storedName = row.user?.display_name ?? null;
-    if (liveName) return liveName;
-    if (account?.global_name) return account.global_name;
+    // The matchup directory is an account directory, not a guild roster. Use the
+    // immutable Discord username instead of a server nickname/global display name.
     if (account?.username) return account.username;
+    if (account?.global_name) return account.global_name;
     if (storedName && !/^\d{15,}$/.test(String(storedName))) return storedName;
     return "REC Member";
   };

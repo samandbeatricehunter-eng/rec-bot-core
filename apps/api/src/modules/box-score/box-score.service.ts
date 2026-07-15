@@ -16,6 +16,7 @@ import { processGameIntelligence } from "../box-score-intelligence/persistence.j
 import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
+import { closeWageringForGame } from "../wagers/wagers.service.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -1309,6 +1310,8 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     );
     if (resultError) throw new ApiError(500, "Failed to record box score game result.", resultError);
     if (sub.game_id) {
+      await closeWageringForGame({ guildId: sub.discord_guild_id, gameId: sub.game_id });
+      await supabase.from("rec_games").update({ status: "final", home_score: sub.home_score, away_score: sub.away_score, updated_at: now }).eq("id", sub.game_id);
       await settleGotwPollsForGame({ guildId: sub.discord_guild_id, gameId: sub.game_id, winningTeamId }).catch((error) => {
         console.error("[ERROR] settleGotwPollsForGame failed after box score approval (non-fatal):", error);
         warnings.push("Failed to settle GOTW voting.");

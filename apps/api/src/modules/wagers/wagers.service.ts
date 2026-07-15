@@ -88,7 +88,7 @@ export async function listWagerableGames(guildId: string, discordId: string) {
 
   const { data: games, error } = await supabase
     .from("rec_games")
-    .select("id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)")
+    .select("id,week_number,status,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)")
     .eq("league_id", leagueId)
     .eq("week_number", weekNumber)
     .order("external_game_id", { ascending: true });
@@ -104,7 +104,7 @@ export async function listWagerableGames(guildId: string, discordId: string) {
   const humanTeams = new Set((assignments ?? []).map((a) => a.team_id).filter(Boolean));
 
   const out = (games ?? [])
-    .filter((g: any) => g.home_team_id !== myTeamId && g.away_team_id !== myTeamId)
+    .filter((g: any) => g.status === "scheduled" && g.home_team_id !== myTeamId && g.away_team_id !== myTeamId)
     .map((g: any) => {
       const humanInvolved =
         Boolean(g.home_user_id) || Boolean(g.away_user_id) || humanTeams.has(g.home_team_id) || humanTeams.has(g.away_team_id);
@@ -155,12 +155,13 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   // Game must be this week and not the bettor's own game.
   const { data: game, error: gameErr } = await supabase
     .from("rec_games")
-    .select("id,week_number,home_team_id,away_team_id,home_user_id,away_user_id")
+    .select("id,week_number,status,home_team_id,away_team_id,home_user_id,away_user_id")
     .eq("league_id", leagueId)
     .eq("id", input.gameId)
     .maybeSingle();
   if (gameErr) throw new ApiError(500, "Failed to load the game.", gameErr);
   if (!game) throw new ApiError(404, "That game isn't on the schedule.");
+  if (game.status !== "scheduled") throw new ApiError(409, "Wagering is closed for this game.");
   if (Number(game.week_number) !== weekNumber) throw new ApiError(400, "You can only wager on this week's games.");
 
   const myTeamId = await activeTeamId(leagueId, userId);
@@ -1124,6 +1125,31 @@ export async function cancelWager(input: { wagerId: string }) {
   await refundWagerStake(wager, "Wager cancelled — refund");
   await supabase.from("rec_wagers").delete().eq("id", wager.id);
   return { ok: true, refunded: Number(wager.stake ?? 0), pendingChannelId: wager.pending_channel_id, pendingMessageId: wager.pending_message_id };
+}
+
+export async function cancelOwnWager(input: { guildId: string; discordId: string; wagerId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.discordId);
+  const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).eq("league_id", context.leagueId).maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (!wager || wager.placed_by_user_id !== userId) throw new ApiError(404, "Your open wager was not found.");
+  if (wager.status !== "awaiting_accept") throw new ApiError(409, "Accepted wagers cannot be deleted.");
+  return cancelWager({ wagerId: wager.id });
+}
+
+// Stops new bets immediately. Unaccepted challenges are refunded; accepted/house
+// wagers stay pending so their result can be settled through commissioner review.
+export async function closeWageringForGame(input: { guildId: string; gameId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const game = await supabase.from("rec_games").select("id,status").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (!game.data) throw new ApiError(404, "Scheduled game not found.");
+  const offers = await supabase.from("rec_wagers").select("*").eq("league_id", context.leagueId).eq("game_id", input.gameId).eq("status", "awaiting_accept");
+  if (offers.error) throw new ApiError(500, "Failed to close open wagers.", offers.error);
+  for (const wager of offers.data ?? []) await refundWagerStake(wager, "Wager refunded - game wagering closed");
+  if (offers.data?.length) await supabase.from("rec_wagers").update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in("id", offers.data.map((wager) => wager.id));
+  if (game.data.status === "scheduled") await supabase.from("rec_games").update({ status: "in_progress", updated_at: new Date().toISOString() }).eq("id", input.gameId);
+  return { closed: true, refundedCount: offers.data?.length ?? 0 };
 }
 
 async function refundWagerStake(wager: any, description: string) {

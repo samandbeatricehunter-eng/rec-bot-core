@@ -137,6 +137,10 @@ export const recApi = {
     recApiFetch<{ wager: unknown; payout: number; marketLabel: string; proposerPickLabel: string }>("/v1/wagers/place-peer", { method: "POST", body: JSON.stringify(input) }),
   acceptPeerWager: (input: { guildId: string; wagerId: string }) =>
     recApiFetch<{ wager: unknown }>("/v1/wagers/accept-peer", { method: "POST", body: JSON.stringify(input) }),
+  cancelMyWager: (input: { guildId: string; wagerId: string }) =>
+    recApiFetch<{ ok: true; refunded: number }>("/v1/wagers/cancel-mine", { method: "POST", body: JSON.stringify(input) }),
+  closeGameWagering: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ closed: true; refundedCount: number }>("/v1/wagers/close-game", { method: "POST", body: JSON.stringify(input) }),
   getPeerWagerBoard: (guildId: string) =>
     recApiFetch<PeerWagerBoardResponse>("/v1/wagers/peer-board", { method: "POST", body: JSON.stringify({ guildId }) }),
   listChallengeableCoaches: (guildId: string) =>

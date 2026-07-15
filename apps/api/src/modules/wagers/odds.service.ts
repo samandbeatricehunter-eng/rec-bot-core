@@ -102,12 +102,13 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
 
   const { data: game, error } = await supabase
     .from("rec_games")
-    .select("id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
+    .select("id,week_number,status,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
     .eq("league_id", leagueId)
     .eq("id", gameId)
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to load game for wager options.", error);
   if (!game) throw new ApiError(404, "Scheduled game not found.");
+  if (game.status !== "scheduled") throw new ApiError(409, "Wagering is closed for this game.");
 
   const home = game.home_team as unknown as TeamRow | null;
   const away = game.away_team as unknown as TeamRow | null;

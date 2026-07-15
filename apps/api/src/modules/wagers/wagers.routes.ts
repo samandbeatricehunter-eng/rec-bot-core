@@ -11,6 +11,8 @@ import {
   attachWagerAnnouncementMessage,
   attachWagerPendingMessage,
   cancelWager,
+  cancelOwnWager,
+  closeWageringForGame,
   declineCounter,
   declinePeerWager,
   getPeerWagerForCounter,
@@ -249,6 +251,24 @@ export async function wagerRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/wagers/cancel-mine", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), wagerId: z.string().uuid(), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await cancelOwnWager({ ...body, discordId: resolvedDiscordId(body) }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/wagers/close-game", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await closeWageringForGame(body));
+    } catch (error) { return sendError(reply, error); }
   });
 
   app.post("/v1/wagers/confirmable", async (request, reply) => {
