@@ -3,6 +3,7 @@
 const TZ_LABEL_TO_IANA: Record<string, string> = {
   EST: "America/New_York",
   CST: "America/Chicago",
+  MST: "America/Denver",
   PST: "America/Los_Angeles",
   AKST: "America/Anchorage",
 };

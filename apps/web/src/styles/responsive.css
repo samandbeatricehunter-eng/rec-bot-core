@@ -85,6 +85,20 @@
   .advance-time-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+  .modal-panel:has(.advance-modal-body) {
+    width: min(100%, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+  }
+  .modal-panel:has(.advance-modal-body) > div:first-child {
+    padding: var(--space-4);
+  }
+  .advance-modal-body {
+    padding: var(--space-4);
+  }
+  .advance-clock-row {
+    grid-template-columns: minmax(0, 1fr) minmax(74px, .8fr) minmax(74px, .8fr);
+  }
   .advance-control-row .form-select,
   .advance-target-panel .btn,
   .advance-modal-actions .btn {

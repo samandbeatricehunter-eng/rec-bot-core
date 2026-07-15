@@ -11,13 +11,34 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { Modal } from "../../../components/ui/Modal.js";
 
-const TZ_LABELS = ["EST", "CST", "PST", "AKST"];
+const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 
 type GameEntry = { outcome: "home" | "away" | "tie" | ""; homeScore: string; awayScore: string };
-type AdvanceTimeDraft = { year: string; month: string; day: string; hour: string; minute: string; tzLabel: string };
+type AdvanceTimeDraft = { date: string; hour: string; minute: string; meridiem: "AM" | "PM"; tzLabel: string };
 
 function titleCaseStage(stage: string) {
   return stage.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function localTzLabel(): string {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (zone === "America/New_York") return "EST";
+  if (zone === "America/Chicago") return "CST";
+  if (zone === "America/Denver" || zone === "America/Phoenix") return "MST";
+  if (zone === "America/Los_Angeles") return "PST";
+  if (zone === "America/Anchorage") return "AKST";
+  return "CST";
+}
+
+function blankAdvanceDate(): AdvanceTimeDraft {
+  return { date: "", hour: "", minute: "00", meridiem: "PM", tzLabel: localTzLabel() };
+}
+
+function toTwentyFourHour(hour: string, meridiem: "AM" | "PM"): number {
+  const numericHour = Number(hour);
+  if (meridiem === "AM") return numericHour === 12 ? 0 : numericHour;
+  return numericHour === 12 ? 12 : numericHour + 12;
 }
 
 export function AdvanceHome() {
@@ -30,7 +51,7 @@ export function AdvanceHome() {
   const [advancing, setAdvancing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
-  const [advanceDate, setAdvanceDate] = useState<AdvanceTimeDraft>({ year: "", month: "", day: "", hour: "", minute: "", tzLabel: "EST" });
+  const [advanceDate, setAdvanceDate] = useState<AdvanceTimeDraft>(() => blankAdvanceDate());
 
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
   const [gotwGameId, setGotwGameId] = useState("");
@@ -58,11 +79,11 @@ export function AdvanceHome() {
   }
 
   function hasAdvanceTimeDraft() {
-    return Boolean(advanceDate.year || advanceDate.month || advanceDate.day || advanceDate.hour || advanceDate.minute);
+    return Boolean(advanceDate.date || advanceDate.hour);
   }
 
   function completeAdvanceTimeDraft() {
-    return Boolean(advanceDate.year && advanceDate.month && advanceDate.day && advanceDate.hour && advanceDate.minute);
+    return Boolean(advanceDate.date && advanceDate.hour);
   }
 
   async function handleAdvance() {
@@ -93,20 +114,23 @@ export function AdvanceHome() {
       });
       const relay = result.discord;
       if (completeAdvanceTimeDraft()) {
+        const [year, month, day] = advanceDate.date.split("-").map(Number);
+        const hour = toTwentyFourHour(advanceDate.hour, advanceDate.meridiem);
+        const minute = Number(advanceDate.minute);
         await recApi.setNextAdvanceTime({
           guildId,
-          year: Number(advanceDate.year),
-          month: Number(advanceDate.month),
-          day: Number(advanceDate.day),
-          hour: Number(advanceDate.hour),
-          minute: Number(advanceDate.minute),
+          year,
+          month,
+          day,
+          hour,
+          minute,
           tzLabel: advanceDate.tzLabel,
         });
       }
       setNotice(`Advanced to ${data.nextLabel}. GOTW settled, EOS payouts checked, and the Weekly Submissions panel refreshed.${relay ? ` Discord announcement ${relay.announcementPosted ? "posted" : "not posted"}${relay.error ? ` (${relay.error})` : ""}.` : ""}`);
       setEntries({});
       setShowAdvanceModal(false);
-      setAdvanceDate({ year: "", month: "", day: "", hour: "", minute: "", tzLabel: "EST" });
+      setAdvanceDate(blankAdvanceDate());
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to complete the advance.");
@@ -290,17 +314,36 @@ export function AdvanceHome() {
         <Modal title="Complete Advance" onClose={() => !advancing && setShowAdvanceModal(false)}>
           <div className="advance-modal-body">
             <div className="advance-modal-target">
-              <span className="advance-eyebrow">Advancing To</span>
-              <strong>{data.nextLabel}</strong>
+              <div>
+                <span className="advance-eyebrow">Advancing To</span>
+                <strong>{data.nextLabel}</strong>
+              </div>
             </div>
-            <p className="form-hint">Set the next advance time now, or leave these fields blank to skip it.</p>
+            <div className="advance-modal-copy">
+              <h3>Next advance time</h3>
+              <p className="form-hint">Set the next advance deadline now, or leave date and time blank to skip.</p>
+            </div>
             <div className="advance-time-grid">
-              {(["year", "month", "day", "hour", "minute"] as const).map((field) => (
-                <div key={field} className="form-field">
-                  <label className="form-label" htmlFor={`adv-${field}`}>{field}</label>
-                  <input id={`adv-${field}`} className="form-input" type="number" value={advanceDate[field]} onChange={(e) => setAdvanceDate((prev) => ({ ...prev, [field]: e.target.value }))} />
+              <div className="form-field">
+                <label className="form-label" htmlFor="adv-date">Date</label>
+                <input id="adv-date" className="form-input" type="date" value={advanceDate.date} onChange={(e) => setAdvanceDate((prev) => ({ ...prev, date: e.target.value }))} />
+              </div>
+              <div className="form-field">
+                <label className="form-label" htmlFor="adv-hour">Time</label>
+                <div className="advance-clock-row">
+                  <select id="adv-hour" className="form-select" value={advanceDate.hour} onChange={(e) => setAdvanceDate((prev) => ({ ...prev, hour: e.target.value }))}>
+                    <option value="">Hour</option>
+                    {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((hour) => <option key={hour} value={hour}>{hour}</option>)}
+                  </select>
+                  <select aria-label="Advance minute" className="form-select" value={advanceDate.minute} onChange={(e) => setAdvanceDate((prev) => ({ ...prev, minute: e.target.value }))}>
+                    {MINUTE_OPTIONS.map((minute) => <option key={minute} value={minute}>{minute}</option>)}
+                  </select>
+                  <select aria-label="AM or PM" className="form-select" value={advanceDate.meridiem} onChange={(e) => setAdvanceDate((prev) => ({ ...prev, meridiem: e.target.value as AdvanceTimeDraft["meridiem"] }))}>
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
                 </div>
-              ))}
+              </div>
               <div className="form-field">
                 <label className="form-label" htmlFor="adv-tz">Timezone</label>
                 <select id="adv-tz" className="form-select" value={advanceDate.tzLabel} onChange={(e) => setAdvanceDate((prev) => ({ ...prev, tzLabel: e.target.value }))}>
@@ -310,7 +353,7 @@ export function AdvanceHome() {
             </div>
             <div className="advance-modal-actions">
               <Button variant="ghost" onClick={() => setShowAdvanceModal(false)} disabled={advancing}>Cancel</Button>
-              <Button variant="tactical" onClick={handleAdvance} disabled={advancing}>{advancing ? "Advancing..." : "Submit Advance"}</Button>
+              <Button variant="tactical" onClick={handleAdvance} disabled={advancing}>{advancing ? "Advancing..." : completeAdvanceTimeDraft() ? "Submit with Time" : "Submit and Skip Time"}</Button>
             </div>
           </div>
         </Modal>
