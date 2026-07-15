@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import type { BoxScoreSubmissionDetail } from "../../types/api.js";
@@ -30,6 +30,8 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
   const [stats, setStats] = useState<Record<string, { team1: string; team2: string }>>({});
   const [addingImage, setAddingImage] = useState(false);
   const [zoomed, setZoomed] = useState(false);
+  const lightboxRef = useRef<HTMLDivElement | null>(null);
+  const panRef = useRef<{ pointerId: number; startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
   const { guildId } = useReadyAuth();
 
   function hydrate(row: BoxScoreSubmissionDetail) {
@@ -56,6 +58,25 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
   }, [zoomed]);
 
   const statKeys = useMemo(() => Object.keys(stats).sort(), [stats]);
+
+  function startPan(event: PointerEvent<HTMLDivElement>) {
+    const box = lightboxRef.current;
+    if (!box) return;
+    panRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, scrollLeft: box.scrollLeft, scrollTop: box.scrollTop };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function movePan(event: PointerEvent<HTMLDivElement>) {
+    const box = lightboxRef.current;
+    const pan = panRef.current;
+    if (!box || !pan || pan.pointerId !== event.pointerId) return;
+    box.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+    box.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+  }
+
+  function endPan(event: PointerEvent<HTMLDivElement>) {
+    if (panRef.current?.pointerId === event.pointerId) panRef.current = null;
+  }
 
   async function handleReview(action: "approve" | "deny") {
     setBusy(true); setError(null);
@@ -111,8 +132,18 @@ export function ReviewBoxScoreModal({ submissionId, onClose, onResolved }: {
         <img className="box-score-review__image" src={submission.image_storage_url} alt="Submitted box score screenshot" />
         <span className="box-score-review__image-hint">Click to zoom</span>
       </button>}
-      {zoomed && submission.image_storage_url && <div className="box-score-review__lightbox" onClick={() => setZoomed(false)}>
-        <img src={submission.image_storage_url} alt="Submitted box score screenshot, zoomed in" />
+      {zoomed && submission.image_storage_url && <div className="box-score-review__lightbox" ref={lightboxRef} onClick={() => setZoomed(false)}>
+        <div
+          className="box-score-review__lightbox-stage"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={startPan}
+          onPointerMove={movePan}
+          onPointerUp={endPan}
+          onPointerCancel={endPan}
+        >
+          <img src={submission.image_storage_url} alt="Submitted box score screenshot, zoomed in" />
+        </div>
+        <span className="box-score-review__lightbox-hint">Scroll or drag to inspect the zoomed screenshot</span>
         <button type="button" className="box-score-review__lightbox-close" onClick={() => setZoomed(false)} aria-label="Close zoomed screenshot">×</button>
       </div>}
       {(submission.image_urls?.length ?? 0) < 2 && submission.status === "pending" && <label className="box-score-review__add-image">

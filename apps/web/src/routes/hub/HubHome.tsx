@@ -70,20 +70,32 @@ function ProfileStats({ values }: { values: Record<string, unknown> | null | und
   return rows.length ? <div className="hub-profile-stat-list">{rows.map(([key, value]) => <div key={key}><span>{displayLabel(key)}</span><strong>{typeof value === "number" ? value.toLocaleString() : String(value)}</strong></div>)}</div> : <p className="hub-empty">No stats recorded yet.</p>;
 }
 
+function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
+  const result = week.result;
+  if (!result || result.homeScore == null || result.awayScore == null) return null;
+  const teamScore = week.confirmedHomeAway === "home" ? result.homeScore : result.awayScore;
+  const opponentScore = week.confirmedHomeAway === "home" ? result.awayScore : result.homeScore;
+  if (result.isTie || teamScore === opponentScore) return `Tie ${teamScore}-${opponentScore}`;
+  return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
+}
+
 function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
   return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => <article key={`${badge.badge_key}-${badge.tier}-${badge.season_number}`} title={badge.badge_description ?? ""}><Award size={18} /><div><strong>{badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")}</strong><span>{badge.tier ? `${String(badge.tier).toUpperCase()} · ` : ""}Earned {badge.earned_count ?? badge.earned_value ?? 1}×</span></div></article>)}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
 
 function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }) {
   return <div className="hub-schedule-week-list">
-    {weeks.map((week) => <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}`}>
+    {weeks.map((week) => {
+      const resultLabel = scheduleResultLabel(week);
+      return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}`}>
       <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
       {week.alreadyConfirmed ? <>
         <strong>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</strong>
         <StatusChip status={week.confirmedMatchupType === "h2h" ? "info" : "locked"} label={week.confirmedMatchupType === "h2h" ? "H2H" : "CPU"} />
-        {week.result ? <b className="hub-final-score">{week.result.isTie ? "Tie" : "Final"} {week.result.homeScore}–{week.result.awayScore}</b> : <span className="hub-muted">Not yet played</span>}
+        {resultLabel ? <b className="hub-final-score">{resultLabel}</b> : <span className="hub-muted">Not yet played</span>}
       </> : week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
-    </article>)}
+    </article>;
+    })}
   </div>;
 }
 

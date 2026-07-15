@@ -347,26 +347,59 @@ function readHeaderRow(words: NormalizedWord[], yMin: number, yMax: number, colu
   });
 }
 
-// Best-effort only — if the summed quarters don't roughly match the (far more
-// reliable) "Score" row total, discard rather than show misleading partial data.
-function parseHeaderQuarters(words: NormalizedWord[], team1Final: number, team2Final: number): { team1Quarters: number[]; team2Quarters: number[] } {
+function scoreLooksPlausible(score: { team1: number; team2: number } | null) {
+  return Boolean(score && score.team1 >= 0 && score.team2 >= 0 && score.team1 <= 99 && score.team2 <= 99);
+}
+
+function sum(values: number[]) {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+function headerHasCoherentQuarters(header: { finalScore: { team1: number; team2: number } | null; team1Quarters: number[]; team2Quarters: number[] }) {
+  if (!header.finalScore || header.team1Quarters.length < 4 || header.team2Quarters.length < 4) return false;
+  return Math.abs(sum(header.team1Quarters) - header.finalScore.team1) <= 3
+    && Math.abs(sum(header.team2Quarters) - header.finalScore.team2) <= 3;
+}
+
+// Reads the center scoreboard header (quarters + Final). This is independent from the
+// "Score" stat row below the header, because in real screenshots one of those sources can
+// OCR cleanly while the other misses or swaps digits.
+function parseHeaderScoreboard(words: NormalizedWord[]): { finalScore: { team1: number; team2: number } | null; team1Quarters: number[]; team2Quarters: number[] } {
   // Both team rows share the same column positions, so pool digits from both when
   // locating columns — a column only one side actually scored in (e.g. a shutout
   // quarter for the other team) still gets located correctly.
   const headerWords = words.filter((w) => w.y >= HEADER_AWAY_Y.min && w.y <= HEADER_HOME_Y.max);
   const columnXs = clusterColumnXs(headerWords);
-  // The rightmost detected column is "Final," not a quarter — drop it.
-  const quarterColumnXs = columnXs.slice(0, -1);
-  if (quarterColumnXs.length < 4) return { team1Quarters: [], team2Quarters: [] };
+  if (columnXs.length < 5) return { finalScore: null, team1Quarters: [], team2Quarters: [] };
 
+  const quarterColumnXs = columnXs.slice(0, -1);
+  const finalColumnX = columnXs[columnXs.length - 1];
   const team1Quarters = readHeaderRow(words, HEADER_AWAY_Y.min, HEADER_AWAY_Y.max, quarterColumnXs);
   const team2Quarters = readHeaderRow(words, HEADER_HOME_Y.min, HEADER_HOME_Y.max, quarterColumnXs);
-  const sum1 = team1Quarters.reduce((s, n) => s + n, 0);
-  const sum2 = team2Quarters.reduce((s, n) => s + n, 0);
+  const [team1FinalRaw] = readHeaderRow(words, HEADER_AWAY_Y.min, HEADER_AWAY_Y.max, [finalColumnX]);
+  const [team2FinalRaw] = readHeaderRow(words, HEADER_HOME_Y.min, HEADER_HOME_Y.max, [finalColumnX]);
+  const quarterSum1 = sum(team1Quarters);
+  const quarterSum2 = sum(team2Quarters);
+
+  // If the final column is missing or obviously inconsistent, fall back to the quarter
+  // sums. If it matches, keep the displayed final column.
+  const team1Final = team1FinalRaw && Math.abs(team1FinalRaw - quarterSum1) <= 3 ? team1FinalRaw : quarterSum1;
+  const team2Final = team2FinalRaw && Math.abs(team2FinalRaw - quarterSum2) <= 3 ? team2FinalRaw : quarterSum2;
+  const finalScore = scoreLooksPlausible({ team1: team1Final, team2: team2Final }) ? { team1: team1Final, team2: team2Final } : null;
+
+  return { finalScore, team1Quarters, team2Quarters };
+}
+
+// Best-effort only — if the summed quarters don't roughly match the final score, discard
+// the quarter breakdown rather than show misleading partial data.
+function reconcileHeaderQuarters(header: { team1Quarters: number[]; team2Quarters: number[] }, team1Final: number, team2Final: number): { team1Quarters: number[]; team2Quarters: number[] } {
+  if (header.team1Quarters.length < 4 || header.team2Quarters.length < 4) return { team1Quarters: [], team2Quarters: [] };
+  const sum1 = sum(header.team1Quarters);
+  const sum2 = sum(header.team2Quarters);
   if (Math.abs(sum1 - team1Final) > 3 || Math.abs(sum2 - team2Final) > 3) {
     return { team1Quarters: [], team2Quarters: [] };
   }
-  return { team1Quarters, team2Quarters };
+  return header;
 }
 
 // ─── Team name panels ─────────────────────────────────────────────────────────
@@ -495,7 +528,7 @@ async function parseCfbImage(buffer: Buffer): Promise<CfbPassResult> {
   }
 
   const stats: StatsMap = {};
-  let finalScore: { team1: number; team2: number } | null = null;
+  let scoreRowFinal: { team1: number; team2: number } | null = null;
 
   for (const def of ROW_DEFS) {
     const rowY = positions.get(def.index);
@@ -506,14 +539,18 @@ async function parseCfbImage(buffer: Buffer): Promise<CfbPassResult> {
     if (def.index === 0) {
       const t1 = parseSimple(left);
       const t2 = parseSimple(right);
-      if (t1 && t2) finalScore = { team1: parseInt(t1, 10), team2: parseInt(t2, 10) };
+      if (t1 && t2) scoreRowFinal = { team1: parseInt(t1, 10), team2: parseInt(t2, 10) };
       continue;
     }
     if (left) def.apply(left, "team1", stats);
     if (right) def.apply(right, "team2", stats);
   }
 
-  const quarters = finalScore ? parseHeaderQuarters(words, finalScore.team1, finalScore.team2) : null;
+  const headerScoreboard = parseHeaderScoreboard(words);
+  const finalScore = headerHasCoherentQuarters(headerScoreboard)
+    ? headerScoreboard.finalScore
+    : scoreLooksPlausible(scoreRowFinal) ? scoreRowFinal : headerScoreboard.finalScore;
+  const quarters = finalScore ? reconcileHeaderQuarters(headerScoreboard, finalScore.team1, finalScore.team2) : null;
   const team1NameRaw = extractPanelName(words, (x) => x < AWAY_PANEL_X_MAX);
   const team2NameRaw = extractPanelName(words, (x) => x > HOME_PANEL_X_MIN);
   return { finalScore, quarters, stats, words, team1NameRaw, team2NameRaw };

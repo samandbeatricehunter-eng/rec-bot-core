@@ -41,6 +41,15 @@ function homeAwayTeamIds(week: TeamScheduleManualWeek, thisTeamId: string): { ho
   return week.confirmedHomeAway === "home" ? { homeTeamId: thisTeamId, awayTeamId: opponentId } : { homeTeamId: opponentId, awayTeamId: thisTeamId };
 }
 
+function resultLabelForDisplayedTeam(week: TeamScheduleManualWeek): string | null {
+  const result = week.result;
+  if (!result || result.homeScore == null || result.awayScore == null) return null;
+  const teamScore = week.confirmedHomeAway === "home" ? result.homeScore : result.awayScore;
+  const opponentScore = week.confirmedHomeAway === "home" ? result.awayScore : result.homeScore;
+  if (result.isTie || teamScore === opponentScore) return `Tie ${teamScore}-${opponentScore}`;
+  return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
+}
+
 // The whole-season, single-page form this Activity exists to demonstrate — every week is
 // a row here instead of Discord's forced one-week-at-a-time wizard (apps/bot/src/flows/
 // cfb-team-schedule-manual.ts), and there's no 25-option select cap to work around. Weeks
@@ -150,6 +159,7 @@ export function TeamScheduleForm() {
               const label = stageLabel(stageForWeek(week.weekNumber, game), week.weekNumber, game);
               const pick = picks[week.weekNumber];
               const savedResult = resultByWeek.get(week.weekNumber);
+              const resultLabel = resultLabelForDisplayedTeam(week);
 
               if (week.alreadyConfirmed) {
                 return (
@@ -158,9 +168,9 @@ export function TeamScheduleForm() {
                     <Td colSpan={4}>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
                         <span>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</span>
-                        {week.result && (
+                        {resultLabel && (
                           <Badge status="approved">
-                            {week.result.isTie ? `Tie ${week.result.homeScore}–${week.result.awayScore}` : `Final ${week.result.homeScore}–${week.result.awayScore}`}
+                            {resultLabel}
                           </Badge>
                         )}
                         {week.result?.source === "box_score_screenshot" && (
