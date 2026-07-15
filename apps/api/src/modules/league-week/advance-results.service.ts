@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isCfb, isRegularSeasonWeek, isTerminalSeasonStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
+import { isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -86,6 +86,8 @@ export async function getAdvanceWeekGames(guildId: string) {
   const seasonNumber = resolveSeasonNumber(context);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
+  const nextTarget = nextLeagueStage(currentWeek, currentStage, context.rec_leagues.game);
+  const nextLabel = stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game);
 
   if (!stageHasScheduledGames(currentStage, context.rec_leagues.game)) {
     return {
@@ -93,6 +95,9 @@ export async function getAdvanceWeekGames(guildId: string) {
       seasonNumber,
       currentWeek,
       currentStage,
+      nextWeekNumber: nextTarget.weekNumber,
+      nextSeasonStage: nextTarget.seasonStage,
+      nextLabel,
       games: [],
       gamesNeedingInput: [],
     };
@@ -161,6 +166,9 @@ export async function getAdvanceWeekGames(guildId: string) {
     seasonNumber,
     currentWeek,
     currentStage,
+    nextWeekNumber: nextTarget.weekNumber,
+    nextSeasonStage: nextTarget.seasonStage,
+    nextLabel,
     games: mapped,
     gamesNeedingInput: mapped.filter((game) => game.needsInput),
   };
@@ -267,6 +275,8 @@ export async function completeAdvanceWeek(input: {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
+  const nextTarget = nextLeagueStage(currentWeek, currentStage, context.rec_leagues.game);
   const now = new Date().toISOString();
 
   for (const result of input.results) {
@@ -329,14 +339,14 @@ export async function completeAdvanceWeek(input: {
 
   const advanceResult = await setLeagueWeek({
     guildId: input.guildId,
-    weekNumber: input.nextWeekNumber,
-    seasonStage: input.nextSeasonStage,
+    weekNumber: nextTarget.weekNumber,
+    seasonStage: nextTarget.seasonStage,
     seasonNumber,
   });
 
   // Bowl games / the national championship are automatic GOTW games in CFB leagues —
   // catches any flagged game in the week just advanced INTO that doesn't have a poll yet.
-  await autoAssignGotwForWeek({ guildId: input.guildId, weekNumber: input.nextWeekNumber }).catch((err) => {
+  await autoAssignGotwForWeek({ guildId: input.guildId, weekNumber: nextTarget.weekNumber }).catch((err) => {
     console.error("[ERROR] autoAssignGotwForWeek failed after advance (non-fatal):", err);
   });
 
@@ -347,8 +357,8 @@ export async function completeAdvanceWeek(input: {
   // a commissioner approves the ledger.
   const isMaddenPostseasonEnd = !isCfb(context.rec_leagues.game)
     && isTerminalSeasonStage(String(context.rec_leagues.season_stage ?? ""), context.rec_leagues.game)
-    && input.nextSeasonStage === "coach_hiring";
-  const isCfbPastWeek16 = isCfb(context.rec_leagues.game) && input.nextWeekNumber > 16;
+    && nextTarget.seasonStage === "coach_hiring";
+  const isCfbPastWeek16 = isCfb(context.rec_leagues.game) && nextTarget.weekNumber > 16;
   if (isMaddenPostseasonEnd || isCfbPastWeek16) {
     await autoPrepareEosPayouts({
       guildId: input.guildId,
@@ -366,8 +376,8 @@ export async function completeAdvanceWeek(input: {
     guildId: input.guildId,
     routes: context.routes,
     seasonNumber,
-    seasonStage: input.nextSeasonStage,
-    weekNumber: input.nextWeekNumber,
+    seasonStage: nextTarget.seasonStage,
+    weekNumber: nextTarget.weekNumber,
   }).catch((err) => console.error("[ERROR] republishWeeklySubmissionsPanel failed after advance (non-fatal):", err));
 
   // Five independent, non-fatal cleanup/rebuild steps — none feed data into another,
@@ -403,7 +413,7 @@ export async function completeAdvanceWeek(input: {
   // season-total badges (Winning Season, Ball Control Season, etc.) for every
   // active user. These are only valid once the full season is in the books.
   const playoffStages = postseasonPayoutStages(context.rec_leagues.game);
-  if (playoffStages.has(input.nextSeasonStage)) {
+  if (playoffStages.has(nextTarget.seasonStage)) {
     await issueSeasonTotalBadges(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] issueSeasonTotalBadges failed after advance to playoffs (non-fatal):", err);
     });
@@ -415,7 +425,7 @@ export async function completeAdvanceWeek(input: {
     leagueId: context.leagueId,
     seasonNumber,
     fromWeek: currentWeek,
-    toWeek: input.nextWeekNumber,
+    toWeek: nextTarget.weekNumber,
     advancedByDiscordId: input.advancedByDiscordId,
   }).catch((err) => {
     console.error("[ERROR] recordAdvanceDmRun failed after advance (non-fatal):", err);
@@ -429,8 +439,7 @@ export async function completeAdvanceWeek(input: {
   // active coach's season badges into permanent Career Trophies, then wipe their
   // weekly + season badges for next season. Runs after recordAdvanceDmRun so the
   // offseason DM snapshot still reflects this season's badges. Non-fatal.
-  const currentStage = String(context.rec_leagues.season_stage ?? "");
-  if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && input.nextSeasonStage === "coach_hiring") {
+  if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === "coach_hiring") {
     await convertSeasonBadgesToTrophies(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] convertSeasonBadgesToTrophies failed after advance (non-fatal):", err);
     });
@@ -444,7 +453,7 @@ export async function completeAdvanceWeek(input: {
     return { refundedCount: 0, refundedMessages: [] as any[] };
   });
 
-  return { ...advanceResult, wagerCleanup };
+  return { ...advanceResult, nextWeekNumber: nextTarget.weekNumber, nextSeasonStage: nextTarget.seasonStage, nextLabel: stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game), wagerCleanup };
 }
 
 export async function getDivisionWinnerOptions(guildId: string) {

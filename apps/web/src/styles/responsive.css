@@ -75,6 +75,21 @@
   .advance-shortcut-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .advance-card-heading,
+  .advance-target-panel,
+  .advance-modal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .advance-score-entry,
+  .advance-time-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .advance-control-row .form-select,
+  .advance-target-panel .btn,
+  .advance-modal-actions .btn {
+    width: 100%;
+  }
   .activity-grid {
     gap: var(--space-3);
   }

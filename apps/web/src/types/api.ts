@@ -289,6 +289,9 @@ export type AdvanceWeekGames = {
   seasonNumber: number;
   currentWeek: number;
   currentStage: string;
+  nextWeekNumber: number;
+  nextSeasonStage: string;
+  nextLabel: string;
   games: AdvanceGame[];
   gamesNeedingInput: AdvanceGame[];
 };

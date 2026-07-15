@@ -14,13 +14,13 @@ import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { sendDiscordAdvanceAnnouncement } from "../../lib/discord-guild.js";
+import { stageLabel } from "@rec/shared";
 
 async function relayWebAdvanceToDiscord(guildId: string, weekNumber: number, seasonStage: string) {
   const context = await getCurrentLeagueContext(guildId);
   const announcementChannelId = String((context.routes as any)?.announcements_channel_id ?? "");
   if (!announcementChannelId) return { announcementPosted: false, error: "No announcements channel is configured." };
-  const stage = seasonStage.replace(/_/g, " ");
-  const destinationLabel = seasonStage === "regular_season" ? `Week ${weekNumber}` : stage.replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const destinationLabel = stageLabel(seasonStage, weekNumber, context.rec_leagues.game ?? null);
   await sendDiscordAdvanceAnnouncement(announcementChannelId, destinationLabel);
   return { announcementPosted: true };
 }
@@ -124,7 +124,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
       const result = await completeAdvanceWeek(body);
       const discord = auth.mode === "user"
-        ? await relayWebAdvanceToDiscord(body.guildId, body.nextWeekNumber, body.nextSeasonStage).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
+        ? await relayWebAdvanceToDiscord(body.guildId, result.nextWeekNumber, result.nextSeasonStage).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;
       return reply.send({ ...result, discord });
     } catch (error) {
