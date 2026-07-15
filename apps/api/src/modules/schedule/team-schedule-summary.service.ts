@@ -4,7 +4,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
-import { listScheduleSeason, listScheduleTeams } from "./schedule.service.js";
+import { isSchedulePlaceholderTeam, listScheduleSeason, listScheduleTeams } from "./schedule.service.js";
 import { loadResultsAndPendingSubmissions } from "./team-schedule.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
@@ -48,7 +48,7 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
 
   const teamsRes = await listScheduleTeams(guildId);
-  const teamRows = teamsRes.teams.filter((team: any) => !team.is_schedule_placeholder);
+  const teamRows = teamsRes.teams.filter((team: any) => !isSchedulePlaceholderTeam(team));
 
   const assignmentsRes = await supabase
     .from("rec_team_assignments")

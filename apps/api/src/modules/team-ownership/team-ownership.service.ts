@@ -41,6 +41,12 @@ function cfbDisplayCity(team: CfbTeamOption) {
   return team.isSchedulePlaceholder ? "FCS" : team.name;
 }
 
+function isSchedulePlaceholderTeam(team: { name?: string | null; abbreviation?: string | null } | null | undefined) {
+  const normalizedName = String(team?.name ?? "").trim().toUpperCase();
+  const normalizedAbbr = String(team?.abbreviation ?? "").trim().toUpperCase();
+  return normalizedAbbr === "FCS" || normalizedName === "FCS TEAM" || normalizedName === "FCS";
+}
+
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
   const isCfb = league.game === "cfb_27";
@@ -55,7 +61,6 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     // `name` already carries the full "City Mascot" combo, so leave its display fields null.
     display_city: isCfb ? cfbDisplayCity(team as CfbTeamOption) : null,
     display_nick: isCfb ? (team as CfbTeamOption).mascot : null,
-    is_schedule_placeholder: Boolean((team as CfbTeamOption).isSchedulePlaceholder),
     source: "manual_admin_entry"
   }));
 
@@ -99,7 +104,6 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
     display_abbr: null,
     is_relocated: false,
     original_abbreviation: null,
-    is_schedule_placeholder: Boolean((team as CfbTeamOption).isSchedulePlaceholder),
     source: "manual_admin_entry" as const,
   }));
 
@@ -287,7 +291,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .single();
 
   if (team.error) throw new ApiError(404, "Team was not found in the current league.", team.error);
-  if (team.data.is_schedule_placeholder) throw new ApiError(400, "That schedule placeholder cannot be linked to a user.");
+  if (isSchedulePlaceholderTeam(team.data)) throw new ApiError(400, "That schedule placeholder cannot be linked to a user.");
 
   await supabase
     .from("rec_league_memberships")
@@ -363,7 +367,7 @@ export async function listLinkedUsersTeams(guildId: string) {
 export async function getTeamLinkMatrix(guildId: string) {
   const { league } = await getCurrentLeagueForGuild(guildId);
   const [teams, assignments, members] = await Promise.all([
-    supabase.from("rec_teams").select("id,name,abbreviation,conference,division,is_schedule_placeholder").eq("league_id", league.id).order("conference").order("name"),
+    supabase.from("rec_teams").select("id,name,abbreviation,conference,division").eq("league_id", league.id).order("conference").order("name"),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", league.id).eq("assignment_status", "active").is("ended_at", null),
     listGuildMembers(guildId),
   ]);
@@ -375,7 +379,7 @@ export async function getTeamLinkMatrix(guildId: string) {
   const assignmentByTeam = new Map((assignments.data ?? []).map((row) => [row.team_id, discordByUser.get(row.user_id) ?? null]));
   return {
     league: { id: league.id, name: league.name },
-    teams: (teams.data ?? []).filter((team: any) => !team.is_schedule_placeholder).map((team) => ({ ...team, discordId: assignmentByTeam.get(team.id) ?? null })),
+    teams: (teams.data ?? []).filter((team: any) => !isSchedulePlaceholderTeam(team)).map((team) => ({ ...team, discordId: assignmentByTeam.get(team.id) ?? null })),
     users: members.filter((member) => !member.isBot).map(({ discordId, displayName, username }) => ({ discordId, displayName, username })),
   };
 }
@@ -392,7 +396,7 @@ export async function listOpenTeams(guildId: string) {
   // totalTeams lets callers distinguish "this league truly has zero teams" (safe to auto-seed
   // defaults) from "every team is already linked" (openTeams.length === 0 too, but seeding here
   // would destructively wipe every existing team/conference/link).
-  const playableTeams = teams.data.filter((team: any) => !team.is_schedule_placeholder);
+  const playableTeams = teams.data.filter((team: any) => !isSchedulePlaceholderTeam(team));
   return { league, openTeams: playableTeams.filter((team) => !assigned.has(team.id)), totalTeams: playableTeams.length };
 }
 

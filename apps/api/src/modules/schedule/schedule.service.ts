@@ -57,13 +57,12 @@ type SchedulePlaceholderTeamRow = {
   id: string;
   name?: string | null;
   abbreviation?: string | null;
-  is_schedule_placeholder?: boolean | null;
 };
 
 export function isSchedulePlaceholderTeam(team: SchedulePlaceholderTeamRow | null | undefined) {
   const normalizedName = String(team?.name ?? "").trim().toUpperCase();
   const normalizedAbbr = String(team?.abbreviation ?? "").trim().toUpperCase();
-  return Boolean(team?.is_schedule_placeholder) || normalizedAbbr === "FCS" || normalizedName === "FCS TEAM" || normalizedName === "FCS";
+  return normalizedAbbr === "FCS" || normalizedName === "FCS TEAM" || normalizedName === "FCS";
 }
 
 export async function loadSchedulePlaceholderTeamIds(leagueId: string, teamIds: string[]) {
@@ -71,7 +70,7 @@ export async function loadSchedulePlaceholderTeamIds(leagueId: string, teamIds: 
   if (!uniqueIds.length) return new Set<string>();
   const teams = await supabase
     .from("rec_teams")
-    .select("id,name,abbreviation,is_schedule_placeholder")
+    .select("id,name,abbreviation")
     .eq("league_id", leagueId)
     .in("id", uniqueIds);
   if (teams.error) throw new ApiError(500, "Failed to validate schedule placeholder teams.", teams.error);
@@ -140,7 +139,7 @@ export async function listScheduleTeams(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_teams")
-    .select("id,name,abbreviation,display_city,display_nick,display_abbr,conference,division,is_relocated,is_schedule_placeholder")
+    .select("id,name,abbreviation,display_city,display_nick,display_abbr,conference,division,is_relocated")
     .eq("league_id", context.leagueId)
     .order("conference", { ascending: true })
     .order("division", { ascending: true })
@@ -252,7 +251,7 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
 
   const teams = await supabase
     .from("rec_teams")
-    .select("id,name,abbreviation,display_abbr,is_schedule_placeholder")
+    .select("id,name,abbreviation,display_abbr")
     .eq("league_id", leagueId)
     .in("id", [input.awayTeamId, input.homeTeamId]);
   if (teams.error) throw new ApiError(500, "Failed to validate matchup teams.", teams.error);
