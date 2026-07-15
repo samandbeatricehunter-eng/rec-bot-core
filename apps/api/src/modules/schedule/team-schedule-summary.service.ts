@@ -23,9 +23,9 @@ export type TeamManagementSummaryRow = {
   scheduleStatus: "empty" | "partial" | "complete";
   gamesScheduled: number;
   gamesExpected: number;
-  /** Confirmed regular-season games at or before the league's current week with no result and no pending box-score submission. */
+  /** Confirmed H2H regular-season games at or before the league's current week with no result and no pending box-score submission. */
   missingBoxScoreCount: number;
-  /** Confirmed regular-season games with a pending box-score submission awaiting review. */
+  /** Confirmed H2H regular-season games with a pending box-score submission awaiting review. */
   awaitingReviewCount: number;
   record: { wins: number; losses: number; ties: number };
 };
@@ -106,6 +106,7 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     let ties = 0;
     for (const g of teamGames) {
       const extra = resultsAndSubmissions.get(g.id);
+      const isH2hGame = Boolean(g.home_user_id && g.away_user_id);
       if (extra?.result) {
         if (extra.result.isTie) {
           ties++;
@@ -115,12 +116,12 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
           if (won) wins++;
           else losses++;
         }
-      } else if (extra?.pendingBoxScoreSubmissionId) {
+      } else if (isH2hGame && extra?.pendingBoxScoreSubmissionId) {
         awaitingReviewCount++;
-      } else if (g.week_number <= currentWeek) {
+      } else if (isH2hGame && g.week_number <= currentWeek) {
         // Only a game whose week has already been reached counts as "missing" — a
-        // confirmed-but-future matchup just hasn't been played yet, that's not the same
-        // thing as a commissioner forgetting to enter a result.
+        // confirmed-but-future matchup just hasn't been played yet. CPU/filler games
+        // can be entered manually, so they don't create missing box-score work.
         missingBoxScoreCount++;
       }
     }
