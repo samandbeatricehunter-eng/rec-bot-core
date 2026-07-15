@@ -9,12 +9,6 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "announcementsChannelId",
     dbField: "announcements_channel_id",
   },
-  power_rankings: {
-    label: "Power Rankings",
-    defaultName: "power-rankings",
-    inputField: "powerRankingsChannelId",
-    dbField: "power_rankings_channel_id",
-  },
   streams: {
     label: "Streams",
     defaultName: "streams",

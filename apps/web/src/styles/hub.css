@@ -357,7 +357,9 @@
 .hub-open-team-conferences article small { margin-top: 2px; color: var(--text-muted); }
 
 .hub-story-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.hub-story-carousel { position: relative; display: grid; place-items: center; padding-inline: 58px; }
 .hub-story-card { position: relative; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,.08); border-radius: var(--radius-md); background: linear-gradient(145deg, rgba(34,35,31,.96), rgba(13,14,13,.98)); overflow: hidden; box-shadow: 0 12px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.06); }
+.hub-story-feature { width: min(760px, 100%); min-height: 230px; }
 .hub-story-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--edge-steel); }
 .hub-story-card::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--playbook-overlay), repeating-linear-gradient(115deg, var(--card-grain, rgba(255,255,255,.025)) 0 1px, transparent 1px 4px); background-size: 330px 240px, auto; background-position: right -95px top -72px, 0 0; background-repeat: no-repeat, repeat; opacity: .68; }
 .hub-story-card > * { position: relative; z-index: 1; }

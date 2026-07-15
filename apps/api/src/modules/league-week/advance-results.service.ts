@@ -25,6 +25,18 @@ import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../li
 
 const WEEKLY_SUBMISSIONS_PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
 
+function weeklySubmissionsDescription(input: { seasonNumber: number; weekText: string }) {
+  return [
+    `Season ${input.seasonNumber} - ${input.weekText}`,
+    "",
+    "Use the buttons below to send this week's league submissions. Anything you type or upload during a submission is captured by REC Scout and removed from this channel so the panel stays easy to find.",
+    "",
+    "**Box Scores** - upload the required game screenshots. This creates a shared box-score submission for your current matchup and sends it to commissioner review for score/stat import and payout handling.",
+    "**Player Stats** - submit standout stat lines after a box score is pending or approved. These feed player tracking, stories, and league content.",
+    "**Recruiting Commits** - CFB only. Submit a recruit commitment to your school with position, star rating, and hometown so it can be logged and used in league news.",
+  ].join("\n");
+}
+
 // Server-side twin of the bot's publishWeeklySubmissionsPanel (apps/bot/src/flows/weekly-submissions.ts)
 // — posts straight to Discord's REST API instead of through a live gateway client, since
 // advance completion can now be triggered from the web with no bot process involved. Custom
@@ -37,6 +49,29 @@ async function republishWeeklySubmissionsPanel(input: { guildId: string; routes:
   await purgeDiscordChannelMessages(channelId);
   const stageText = input.seasonStage.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
   const weekText = input.seasonStage === "regular_season" ? `Week ${input.weekNumber}` : stageText;
+  {
+    const sent = await postDiscordChannelMessage(channelId, {
+      content: "@everyone",
+      embeds: [{
+        title: "REC Weekly Submissions",
+        color: 0xd9a521,
+        description: weeklySubmissionsDescription({ seasonNumber: input.seasonNumber, weekText }),
+      }],
+      components: [{
+        type: 1,
+        components: [
+          { type: 2, style: 1, custom_id: "rec:weekly_submissions:box_scores", label: "Box Scores" },
+          { type: 2, style: 2, custom_id: "rec:weekly_submissions:player_stats", label: "Player Stats" },
+          { type: 2, style: 3, custom_id: "rec:weekly_submissions:recruiting", label: "Recruiting Commits" },
+        ],
+      }],
+      allowed_mentions: { parse: ["everyone"] },
+    });
+    if (sent) {
+      await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: sent.id });
+    }
+    return;
+  }
   const sent = await postDiscordChannelMessage(channelId, {
     embeds: [{
       title: "REC Weekly Submissions",

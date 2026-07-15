@@ -22,9 +22,14 @@ function compactDefined(input: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
 }
 
+function normalizeRouteValue(value: unknown) {
+  if (value === "") return null;
+  return value;
+}
+
 function routePayload(input: Record<string, unknown>) {
   const payload = Object.fromEntries(
-    Object.values(REC_ROUTE_CHANNELS).map((config) => [config.dbField, input[config.inputField]])
+    Object.values(REC_ROUTE_CHANNELS).map((config) => [config.dbField, normalizeRouteValue(input[config.inputField])])
   );
   // Preserve old callers while the deployed clients move to canonical naming.
   if (payload.weekly_submissions_channel_id === undefined && input.boxScoresChannelId !== undefined) {

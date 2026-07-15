@@ -1,14 +1,21 @@
 export type RoundtablePanelist = { speaker: string; role: string; take: string };
 
+function cleanSentence(value: string | undefined, fallback: string) {
+  const text = value?.trim().replace(/\s+/g, " ");
+  return text ? text.replace(/[.?!]*$/, ".") : fallback;
+}
+
 export function buildRoundtableDiscussion(input: { headline: string; body: string; notes?: string[]; statsSummary?: string[] }): RoundtablePanelist[] {
   const notes = [...(input.notes ?? []), ...(input.statsSummary ?? [])].filter(Boolean);
-  const first = notes[0] ?? input.body;
-  const second = notes[1] ?? "The result changes the weekly picture and gives the rest of the league something to study.";
-  const third = notes[2] ?? "The next matchup will show whether this performance is repeatable.";
+  const lead = cleanSentence(input.body, "The box score gave the desk plenty to work through.");
+  const first = cleanSentence(notes[0], lead);
+  const second = cleanSentence(notes[1], "The numbers point to a matchup that turned on execution more than noise.");
+  const third = cleanSentence(notes[2], "The league will want to know whether this version shows up again next week.");
+  const fourth = cleanSentence(notes[3], "The film room is going to find a few details that mattered more than they looked live.");
   return [
-    { speaker: "Marcus Reed", role: "REC Desk Host", take: `${input.headline}. ${input.body}` },
-    { speaker: "Dana Cole", role: "Film Analyst", take: first },
-    { speaker: "Victor Banks", role: "Numbers Analyst", take: second },
-    { speaker: "Jenna Cross", role: "League Insider", take: third },
+    { speaker: "Caleb Cross", role: "REC Network Host", take: `${input.headline}. ${lead} That's the headline, but the bigger story is how the result changes the tone of this week.` },
+    { speaker: "Maya Raines", role: "Film Desk Analyst", take: `${first} On tape, that is not just a stat line. It tells you which side controlled the answers once the first script was gone.` },
+    { speaker: "Theo Grant", role: "Numbers Columnist", take: `${second} I care about the repeatable stuff: drive efficiency, turnovers, and whether the production came from one burst or four quarters of pressure.` },
+    { speaker: "Nina Vale", role: "League Insider", take: `${third} ${fourth} Coaches around the league are going to read this as a scouting report, not just a final score.` },
   ];
 }

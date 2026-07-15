@@ -6,6 +6,7 @@ import { getServerConfig, setServerConfig } from "./server-config.service.js";
 import { createGuildChannel, listGuildChannels } from "../../lib/discord-guild.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getRecRouteChannel } from "@rec/shared";
+import { publishRecGuideFromApi } from "./rec-guide-publisher.service.js";
 
 const ViewConfigSchema = z.object({
   guildId: z.string().min(1)
@@ -36,7 +37,10 @@ export async function serverConfigRoutes(app: FastifyInstance) {
     const ownTemplate = routes?.[route.dbField] ?? null;
     const parentRoute = "defaultParentRoute" in route ? getRecRouteChannel(route.defaultParentRoute as string) : null;
     const parentChannelId = parentRoute ? routes?.[parentRoute.dbField] ?? null : null;
-    return reply.send({ channel: await createGuildChannel(body.guildId, { ...body, name: route.defaultName, templateChannelId: ownTemplate ?? body.templateChannelId, parentChannelId }) });
+    const channel = await createGuildChannel(body.guildId, { ...body, name: route.defaultName, templateChannelId: ownTemplate ?? body.templateChannelId, parentChannelId });
+    await setServerConfig({ guildId: body.guildId, [route.inputField]: channel.id });
+    const guide = body.routeKey === "rec_guide" ? await publishRecGuideFromApi(body.guildId, channel.id) : null;
+    return reply.send({ channel, guide });
   } catch (error) { return sendError(reply, error); } });
   app.post("/v1/economy/config/view", async (request, reply) => {
     try {
@@ -51,7 +55,9 @@ export async function serverConfigRoutes(app: FastifyInstance) {
     try {
       const body = SetConfigSchema.parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      return reply.send(await setServerConfig(body));
+      const config = await setServerConfig(body);
+      const guide = body.recGuideChannelId ? await publishRecGuideFromApi(body.guildId, body.recGuideChannelId) : null;
+      return reply.send({ ...config, guide });
     } catch (error) {
       return sendError(reply, error);
     }

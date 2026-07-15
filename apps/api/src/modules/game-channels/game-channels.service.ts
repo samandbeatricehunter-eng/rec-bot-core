@@ -1,8 +1,10 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { createGuildChannel, deleteGuildChannel } from "../../lib/discord-guild.js";
+import { createGuildChannel, deleteGuildChannel, postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getAdvanceWeekGames } from "../league-week/advance-results.service.js";
+import { computePowerRankings } from "../schedule/power-rankings.service.js";
+import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 
 export async function getGameChannelByDiscordId(discordChannelId: string) {
   const { data, error } = await supabase
@@ -83,6 +85,80 @@ function channelSlug(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 42);
 }
 
+function ruleLabel(value: unknown) {
+  return String(value ?? "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function fourthDownText(draft: any, isPlayoff: boolean) {
+  const type = isPlayoff ? draft?.fourthDownRuleTypePlayoff : draft?.fourthDownRuleTypeRegular;
+  const custom = isPlayoff ? draft?.customFourthDownRulePlayoff : draft?.customFourthDownRuleRegular;
+  if (type === "none") return "No special 4th down restriction is configured.";
+  if (type === "custom") return String(custom ?? "").trim() || "Custom league 4th down rules apply.";
+  return "Standard REC: past midfield on 4th & 3 or shorter; trailing in the second half may go anytime.";
+}
+
+function streamingText(draft: any, isPlayoff: boolean) {
+  const requirement = isPlayoff ? draft?.postseasonStreamingRequirement : draft?.regularSeasonStreamingRequirement;
+  const side = isPlayoff ? draft?.postseasonStreamingSide : draft?.regularSeasonStreamingSide;
+  if (requirement === "disabled") return "Streaming is disabled for this stage.";
+  const verb = requirement === "required" ? "must" : "should";
+  const sideText = side === "home" ? `the home team ${verb} stream`
+    : side === "away" ? `the away team ${verb} stream`
+    : side === "both" ? `both teams ${verb} stream`
+    : `at least one team ${verb} stream`;
+  return `${ruleLabel(requirement || "recommended")}: ${sideText}.`;
+}
+
+function rankLine(teamName: string, teamId: string | null | undefined, ranks: Map<string, any>) {
+  const row = teamId ? ranks.get(teamId) : null;
+  if (!row) return `${teamName}: Unranked`;
+  const change = row.change == null ? "new" : row.change > 0 ? `+${row.change}` : row.change < 0 ? `${row.change}` : "0";
+  return `${teamName}: #${row.rank} (${change})`;
+}
+
+async function discordIdsByUserId(userIds: string[]) {
+  if (!userIds.length) return new Map<string, string>();
+  const { data, error } = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds);
+  if (error) throw new ApiError(500, "Failed to load coach Discord mentions for game channels.", error);
+  return new Map<string, string>((data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
+}
+
+async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string> }) {
+  const awayDiscordId = input.game.awayUserId ? input.discordByUserId.get(input.game.awayUserId) : null;
+  const homeDiscordId = input.game.homeUserId ? input.discordByUserId.get(input.game.homeUserId) : null;
+  const mentionIds = [awayDiscordId, homeDiscordId].filter(Boolean) as string[];
+  const mentions = mentionIds.map((id) => `<@${id}>`);
+  const isPlayoff = input.weekNumber > 16;
+  const fs = String(input.draft?.fairSimRequirements ?? "Fair Sims are the default when users do not complete a game before advance.");
+  const fw = String(input.draft?.forceWinRequirements ?? "Force Wins can be requested when scheduling rules are met and one user misses the agreed time.");
+  await postDiscordChannelMessage(input.channelId, {
+    content: mentions.join(" "),
+    embeds: [{
+      title: `${input.game.awayTeamName} at ${input.game.homeTeamName}`,
+      color: 0xd9a521,
+      description: [
+        `**Week ${input.weekNumber} H2H**`,
+        mentions.length ? `${mentions.join(" vs ")}, this is your head-to-head game channel.` : "This is the head-to-head game channel for this matchup.",
+        "",
+        "**Power Rankings**",
+        rankLine(input.game.awayTeamName, input.game.awayTeamId, input.ranks),
+        rankLine(input.game.homeTeamName, input.game.homeTeamId, input.ranks),
+        "",
+        "**Game Rules**",
+        `4th Down: ${fourthDownText(input.draft, isPlayoff)}`,
+        `Streaming: ${streamingText(input.draft, isPlayoff)}`,
+        "",
+        "**FS / FW**",
+        `Fair Sim: ${fs}`,
+        `Force Win: ${fw}`,
+        "",
+        "After the game, submit the box score through the Weekly Submissions panel so stats, payouts, records, and stories can update.",
+      ].join("\n").slice(0, 4096),
+    }],
+    allowed_mentions: { users: mentionIds },
+  });
+}
+
 // Commissioner "Create Game Channels" action in League Mgmt — deletes last week's tracked
 // game channels and creates one per current-week H2H matchup, same as the bot's old
 // Game Channels menu button, but driven from the web via Discord's REST API.
@@ -102,10 +178,16 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
 
   const week = await getAdvanceWeekGames(guildId);
   const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
+  const [draft, powerRankings, discordByUser] = await Promise.all([
+    getLeagueConfigAsDraft(guildId).catch(() => null),
+    computePowerRankings(guildId).catch(() => ({ teams: [] })),
+    discordIdsByUserId([...new Set(h2hGames.flatMap((game) => [game.awayUserId, game.homeUserId]).filter(Boolean))] as string[]),
+  ]);
+  const ranks = new Map<string, any>(((powerRankings as any)?.teams ?? []).map((team: any) => [String(team.teamId), team]));
 
   const created: Array<{ gameId: string; discordChannelId: string; name: string }> = [];
   for (const game of h2hGames) {
-    const name = `wk-${week.currentWeek}-${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
+    const name = `${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
     const channel = await createGuildChannel(guildId, { name, type: "text", parentChannelId: categoryId });
     await registerGameChannel({
       guildId,
@@ -118,6 +200,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
       awayUserId: game.awayUserId,
       homeUserId: game.homeUserId,
     });
+    await postGameChannelIntro({ channelId: channel.id, weekNumber: week.currentWeek, game, draft, ranks, discordByUserId: discordByUser });
     created.push({ gameId: game.gameId, discordChannelId: channel.id, name: channel.name });
   }
 

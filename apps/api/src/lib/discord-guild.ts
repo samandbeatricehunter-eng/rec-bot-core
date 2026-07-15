@@ -15,12 +15,23 @@ const DISCORD_API_BASE = "https://discord.com/api/v10";
 // 32 bits, hence bigint.
 const PERMISSION_ADMINISTRATOR = 1n << 3n;
 const PERMISSION_MANAGE_GUILD = 1n << 5n;
+const PERMISSION_ADD_REACTIONS = 1n << 6n;
+const PERMISSION_VIEW_CHANNEL = 1n << 10n;
+const PERMISSION_SEND_MESSAGES = 1n << 11n;
+const PERMISSION_EMBED_LINKS = 1n << 14n;
+const PERMISSION_ATTACH_FILES = 1n << 15n;
+const PERMISSION_MANAGE_MESSAGES = 1n << 13n;
+const PERMISSION_CREATE_PUBLIC_THREADS = 1n << 35n;
+const PERMISSION_CREATE_PRIVATE_THREADS = 1n << 36n;
+const PERMISSION_USE_EXTERNAL_STICKERS = 1n << 37n;
+const PERMISSION_SEND_MESSAGES_IN_THREADS = 1n << 38n;
 
 type CacheEntry<T> = { value: T; expiresAt: number };
 const CACHE_TTL_MS = 60_000;
 const roleListCache = new Map<string, CacheEntry<Map<string, { name: string; permissions: bigint }>>>();
 const guildOwnerCache = new Map<string, CacheEntry<string>>();
 const memberRoleIdsCache = new Map<string, CacheEntry<string[] | null>>();
+let botUserIdCache: CacheEntry<string> | undefined;
 
 function fromCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
   const entry = cache.get(key);
@@ -42,6 +53,41 @@ async function discordBotFetch(path: string, init?: RequestInit): Promise<Respon
     ...init,
     headers: { Authorization: `Bot ${env.DISCORD_TOKEN}`, ...(init?.headers ?? {}) },
   });
+}
+
+async function getBotUserId(): Promise<string> {
+  if (botUserIdCache && botUserIdCache.expiresAt > Date.now()) return botUserIdCache.value;
+  const res = await discordBotFetch("/users/@me");
+  if (!res.ok) throw new ApiError(502, `Discord rejected the bot identity request (${res.status}).`);
+  const user = await res.json() as { id: string };
+  botUserIdCache = { value: user.id, expiresAt: Date.now() + 10 * 60_000 };
+  return user.id;
+}
+
+async function putChannelPermissionOverwrite(channelId: string, overwriteId: string, type: 0 | 1, allow: bigint, deny: bigint) {
+  const res = await discordBotFetch(`/channels/${channelId}/permissions/${overwriteId}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-audit-log-reason": "REC Guide channel permissions" },
+    body: JSON.stringify({ type, allow: allow.toString(), deny: deny.toString() }),
+  });
+  if (!res.ok && res.status !== 204) throw new ApiError(502, `Discord rejected channel permission update (${res.status}).`);
+}
+
+export async function lockRecGuideChannel(guildId: string, channelId: string): Promise<void> {
+  await putChannelPermissionOverwrite(
+    channelId,
+    guildId,
+    0,
+    PERMISSION_VIEW_CHANNEL | PERMISSION_ADD_REACTIONS,
+    PERMISSION_SEND_MESSAGES | PERMISSION_CREATE_PUBLIC_THREADS | PERMISSION_CREATE_PRIVATE_THREADS | PERMISSION_SEND_MESSAGES_IN_THREADS | PERMISSION_ATTACH_FILES | PERMISSION_USE_EXTERNAL_STICKERS,
+  );
+  await putChannelPermissionOverwrite(
+    channelId,
+    await getBotUserId(),
+    1,
+    PERMISSION_VIEW_CHANNEL | PERMISSION_SEND_MESSAGES | PERMISSION_EMBED_LINKS | PERMISSION_ATTACH_FILES | PERMISSION_MANAGE_MESSAGES | PERMISSION_ADD_REACTIONS,
+    0n,
+  );
 }
 
 export async function listGuildChannels(guildId: string) {

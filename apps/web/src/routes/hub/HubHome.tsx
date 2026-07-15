@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trophy, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { useAuth } from "../../lib/auth-context.js";
@@ -98,7 +98,6 @@ function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }
     })}
   </div>;
 }
-
 export function HubHome() {
   const auth = useAuth();
   const isMobile = useIsMobile();
@@ -109,6 +108,9 @@ export function HubHome() {
   const [subTab, setSubTab] = useState<LeagueSubTab>("buzz");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
+  const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
+  const [matchupScheduleError, setMatchupScheduleError] = useState<string | null>(null);
+  const [matchupReloadKey, setMatchupReloadKey] = useState(0);
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
@@ -133,6 +135,7 @@ export function HubHome() {
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
   const [teamScheduleError, setTeamScheduleError] = useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const [storyCarouselIndex, setStoryCarouselIndex] = useState(0);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [comments, setComments] = useState<StoryComment[] | null>(null);
   const [commentBody, setCommentBody] = useState("");
@@ -156,12 +159,29 @@ export function HubHome() {
   useEffect(() => { highlightSwipe.setCurrentIndex(activeHighlightIndex); }, [activeHighlightIndex]);
 
   const headlineCount = hub?.headlines.length ?? 0;
-  const mobileStorySwipe = useSwipeNavigation({ itemCount: headlineCount, onIndexChange: (index) => setActiveStoryIndex(index) });
+  const currentWeekStoryIndexes = useMemo(() => {
+    const stories = hub?.headlines ?? [];
+    const currentWeek = hub?.league.weekNumber;
+    const indexes = stories.map((story, index) => story.week === currentWeek ? index : -1).filter((index) => index >= 0);
+    return indexes.length ? indexes : stories.map((_, index) => index);
+  }, [hub?.headlines, hub?.league.weekNumber]);
+  const mobileStorySwipe = useSwipeNavigation({ itemCount: headlineCount, onIndexChange: (index) => setStoryCarouselIndex(index) });
   useEffect(() => {
-    if (!isMobile || subTab !== "buzz" || headlineCount <= 1 || mobileStorySwipe.isDragging) return;
-    const timer = window.setInterval(() => setActiveStoryIndex((current) => ((current ?? 0) + 1) % headlineCount), 5000);
+    if (!headlineCount) return;
+    const firstCurrent = currentWeekStoryIndexes[0] ?? 0;
+    setStoryCarouselIndex((current) => current < headlineCount ? current : firstCurrent);
+  }, [headlineCount, currentWeekStoryIndexes]);
+  useEffect(() => { mobileStorySwipe.setCurrentIndex(storyCarouselIndex); }, [storyCarouselIndex]);
+  useEffect(() => {
+    if (subTab !== "buzz" || currentWeekStoryIndexes.length <= 1 || mobileStorySwipe.isDragging) return;
+    const timer = window.setInterval(() => {
+      setStoryCarouselIndex((current) => {
+        const currentSlot = currentWeekStoryIndexes.indexOf(current);
+        return currentWeekStoryIndexes[(currentSlot + 1) % currentWeekStoryIndexes.length] ?? currentWeekStoryIndexes[0] ?? 0;
+      });
+    }, 5000);
     return () => window.clearInterval(timer);
-  }, [isMobile, subTab, headlineCount, mobileStorySwipe.isDragging]);
+  }, [subTab, currentWeekStoryIndexes, mobileStorySwipe.isDragging]);
 
   async function load() {
     if (auth.status !== "ready") return;
@@ -184,8 +204,19 @@ export function HubHome() {
 
   useEffect(() => {
     if (auth.status !== "ready" || (subTab !== "matchups" && section !== "wagers")) return;
-    recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupWeek }).then(setMatchupSchedule).catch(() => setMatchupSchedule(null));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek]);
+    setMatchupScheduleLoading(true);
+    setMatchupScheduleError(null);
+    recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupWeek })
+      .then((schedule) => {
+        setMatchupSchedule(schedule);
+        setMatchupScheduleError(null);
+      })
+      .catch((cause) => {
+        setMatchupSchedule(null);
+        setMatchupScheduleError(cause instanceof Error ? cause.message : "Failed to load matchups.");
+      })
+      .finally(() => setMatchupScheduleLoading(false));
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek, matchupReloadKey]);
 
   useEffect(() => {
     if (auth.status !== "ready" || section !== "wagers") return;
@@ -303,6 +334,18 @@ export function HubHome() {
   }
   function openStory(index: number) { setActiveStoryIndex(index); }
   function closeStory() { setActiveStoryIndex(null); setComments(null); }
+  function retryMatchups() {
+    setMatchupSchedule(null);
+    setMatchupScheduleError(null);
+    setMatchupReloadKey((key) => key + 1);
+  }
+  function renderMatchupLoadState(label: string) {
+    if (matchupScheduleError) {
+      return <div className="hub-empty"><p>{matchupScheduleError}</p><Button variant="secondary" size="compact" onClick={retryMatchups}>Try again</Button></div>;
+    }
+    if (matchupScheduleLoading || !matchupSchedule) return <p className="hub-empty">{label}</p>;
+    return null;
+  }
   async function submitComment() {
     if (auth.status !== "ready" || activeStoryIndex == null || !hub) return;
     const story = hub.headlines[activeStoryIndex];
@@ -531,6 +574,8 @@ export function HubHome() {
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
   const heroRank = profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked";
+  const powerRankScore = profile.powerRank?.score != null ? `Score ${Number(profile.powerRank.score).toFixed(3)}` : "Pending";
+  const powerRankSos = profile.powerRank?.sosScore != null ? `SOS ${Number(profile.powerRank.sosScore).toFixed(3)}` : "SOS --";
   const heroRecord = profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0";
   const heroStreak = profile.seasonRecord?.activeStreak ?? "—";
   const heroDifferential = Number(my.leagueSeasonPointDifferential ?? profile.seasonRecord?.pointDifferential ?? 0);
@@ -555,7 +600,7 @@ export function HubHome() {
         <div className="hub-hero-metrics">
           <article><span>Record</span><strong>{heroRecord}</strong><small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff</small></article>
           <article><span>Streak</span><strong>{heroStreak}</strong><small>Current W/L</small></article>
-          <article><span>Power Rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.score ? `Score ${Number(profile.powerRank.score).toFixed(2)}` : "Pending"}</small></article>
+          <article><span>Power Rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small></article>
           <article><span>Wallet</span><strong>${Number(my.wallet ?? 0).toLocaleString()}</strong><small>Savings ${Number(my.savings ?? 0).toLocaleString()}</small></article>
         </div>
       </aside>
@@ -588,7 +633,7 @@ export function HubHome() {
       <article><span>Coach</span><strong>{my.discordUsername ?? "REC Member"}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></article><article><span>Savings</span><strong>${Number(my.savings ?? 0).toLocaleString()}</strong></article>
     </div><div className="hub-profile-sections">
       <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><p>Projected next-advance interest: <strong>${Number(my.projectedInterest ?? 0).toLocaleString()}</strong></p><p className="hub-muted">Savings interest continues to accrue when the league advances.</p><div className="hub-transfer-form"><select className="form-input" value={transferDirection} onChange={(event) => setTransferDirection(event.target.value as typeof transferDirection)}><option value="to_savings">Wallet → Savings</option><option value="from_savings">Savings → Wallet</option></select><input className="form-input" type="number" min="0.01" step="0.01" placeholder="Amount" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /><Button variant="primary" disabled={transferBusy || !transferAmount} onClick={() => void transferFunds()}>{transferBusy ? "Transferring…" : "Transfer Funds"}</Button></div>{transferStatus && <p className="hub-transfer-status">{transferStatus}</p>}</div></details>
-      <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time REC</span><strong>{profile.globalRecord?.text ?? my.globalRecordText ?? "0-0-0"}</strong><small>Playoffs {profile.globalRecord?.playoffText ?? "0-0"} · Championships {profile.globalRecord?.superbowlWins ?? 0}</small></article>{profile.gameGlobalRecord && <article><span>{profile.gameGlobalRecord.label}</span><strong>{profile.gameGlobalRecord.text}</strong><small>Playoffs {profile.gameGlobalRecord.playoffText} · Championships {profile.gameGlobalRecord.superbowlWins ?? 0}</small></article>}<article><span>Power ranking</span><strong>{profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked"}</strong><small>SOS {profile.powerRank?.sosScore ?? "—"}</small></article></div></details>
+      <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time REC</span><strong>{profile.globalRecord?.text ?? my.globalRecordText ?? "0-0-0"}</strong><small>Playoffs {profile.globalRecord?.playoffText ?? "0-0"} · Championships {profile.globalRecord?.superbowlWins ?? 0}</small></article>{profile.gameGlobalRecord && <article><span>{profile.gameGlobalRecord.label}</span><strong>{profile.gameGlobalRecord.text}</strong><small>Playoffs {profile.gameGlobalRecord.playoffText} · Championships {profile.gameGlobalRecord.superbowlWins ?? 0}</small></article>}<article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /></div></details>
       <details><summary><Award size={18} /> Badges &amp; Awards</summary><div className="hub-profile-panel"><BadgeShelf title="Weekly Badges" badges={profile.weeklyBadges ?? []} /><BadgeShelf title="Season Badges" badges={profile.seasonBadges ?? []} /><BadgeShelf title="Career Badges" badges={profile.globalBadges ?? []} />{profile.globalAwards?.length ? <div className="hub-badge-group"><h4>Awards</h4><div className="hub-badge-shelf">{profile.globalAwards.map((award: any) => <article key={award.awardName}><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : null}</div></details>
@@ -612,12 +657,18 @@ export function HubHome() {
       </>}
     </section> : section === "wagers" ? <section className="hub-section hub-wagers-section"><div className="hub-section-heading"><div><p className="hub-eyebrow"><Coins size={14} /> Sportsbook</p><h2>Wagers</h2><p>Wallet balance: <strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></p></div></div>
       <h3 className="hub-wagers-subhead">This Week's Games</h3>
-      {!matchupSchedule ? <p className="hub-empty">Loading games...</p> : matchupSchedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{matchupSchedule.games.map((game) => (
-        <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
-          <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
-          <div className="hub-matchup-actions"><Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button></div>
-        </article>
-      ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {matchupSchedule.selectedWeek}.</p>}
+      {(() => {
+        const state = renderMatchupLoadState("Loading games...");
+        if (state) return state;
+        const schedule = matchupSchedule;
+        if (!schedule) return null;
+        return schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
+          <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
+            <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
+            <div className="hub-matchup-actions"><Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button></div>
+          </article>
+        ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
+      })()}
 
       <h3 className="hub-wagers-subhead">Peer Wager Board</h3>
       {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
@@ -635,7 +686,7 @@ export function HubHome() {
             isMobile ? (
               <div className="hub-story-mobile-swipe" style={{ position: "relative" }}>
                 {(() => {
-                  const index = Math.min(activeStoryIndex ?? 0, headlineCount - 1);
+                  const index = Math.min(storyCarouselIndex, headlineCount - 1);
                   const story = hub.headlines[index];
                   if (!story) return null;
                   return (
@@ -651,19 +702,29 @@ export function HubHome() {
                       onPointerCancel={mobileStorySwipe.handlers.onPointerCancel}
                     >
                       {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" />}
-                      <button className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
-                      <div className="hub-social-actions"><button className={story.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button className={story.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
+                      <button type="button" className="hub-story-open" onPointerDown={(event) => event.stopPropagation()} onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
+                      <div className="hub-social-actions"><button type="button" className={story.myReaction === "like" ? "active" : ""} onPointerDown={(event) => event.stopPropagation()} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button type="button" className={story.myReaction === "dislike" ? "active" : ""} onPointerDown={(event) => event.stopPropagation()} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
                     </article>
                   );
                 })()}
-                <p className="hub-story-swipe-hint">Swipe for more · {(activeStoryIndex ?? 0) + 1} of {headlineCount}</p>
+                <p className="hub-story-swipe-hint">Swipe for more · {storyCarouselIndex + 1} of {headlineCount}</p>
               </div>
             ) : (
-              <div className="hub-story-grid">{hub.headlines.slice(0, 12).map((story, index) => <article className={story.story_type === "headline" ? "hub-story-card" : "hub-story-card article"} key={story.id}>
-                {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" />}
-                <button className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
-                <div className="hub-social-actions"><button className={story.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button className={story.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
-              </article>)}</div>
+              <div className="hub-story-carousel">
+                {headlineCount > 1 && <button type="button" className="hub-highlight-arrow previous" onClick={() => setStoryCarouselIndex((storyCarouselIndex - 1 + headlineCount) % headlineCount)}><ChevronLeft /></button>}
+                {(() => {
+                  const index = Math.min(storyCarouselIndex, headlineCount - 1);
+                  const story = hub.headlines[index];
+                  if (!story) return null;
+                  return <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
+                    {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" />}
+                    <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
+                    <div className="hub-social-actions"><button type="button" className={story.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button type="button" className={story.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button type="button" onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
+                  </article>;
+                })()}
+                {headlineCount > 1 && <button type="button" className="hub-highlight-arrow next" onClick={() => setStoryCarouselIndex((storyCarouselIndex + 1) % headlineCount)}><ChevronRight /></button>}
+                <p className="hub-story-swipe-hint">Showing {storyCarouselIndex + 1} of {headlineCount}</p>
+              </div>
             )
           ) : <p className="hub-empty">Headlines publish here after games or from League Publishing.</p>}
         </SectionFrame>
@@ -704,25 +765,32 @@ export function HubHome() {
 
       {subTab === "matchups" && (
         <SectionFrame eyebrow="Current slate" title="Weekly H2H Matchups">
-          {!matchupSchedule ? <p className="hub-empty">Loading matchups...</p> : <>
-            <div className="hub-conference-users">{matchupSchedule.usersByConference.map((group) => <article key={group.conference}><h3>{group.conference}</h3><div>{group.users.map((user) => <span key={user.userId}><strong>{user.teamName}</strong><small>{user.displayName}{user.division ? ` · ${user.division}` : ""}</small></span>)}</div></article>)}</div>
+          {(() => {
+            const state = renderMatchupLoadState("Loading matchups...");
+            if (state) return state;
+            const schedule = matchupSchedule;
+            if (!schedule) return null;
+            return <>
+            <div className="hub-conference-users">{schedule.usersByConference.map((group) => <article key={group.conference}><h3>{group.conference}</h3><div>{group.users.map((user) => <span key={user.userId}><strong>{user.teamName}</strong><small>{user.displayName}{user.division ? ` · ${user.division}` : ""}</small></span>)}</div></article>)}</div>
             <div className="hub-week-picker">
-              <div className="hub-week-strip">{matchupSchedule.weekNumbers.map((week) => <button key={week} className={week === matchupSchedule.selectedWeek ? "active" : week === matchupSchedule.currentWeek ? "current" : ""} onClick={() => setMatchupWeek(week)}>Week {week}</button>)}</div>
-              <label className="hub-week-select"><span>Week</span><select className="form-input" value={matchupSchedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{matchupSchedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === matchupSchedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
+              <div className="hub-week-strip">{schedule.weekNumbers.map((week) => <button key={week} className={week === schedule.selectedWeek ? "active" : week === schedule.currentWeek ? "current" : ""} onClick={() => setMatchupWeek(week)}>Week {week}</button>)}</div>
+              <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
             </div>
-            {matchupSchedule.gotw && (() => {
-              const totalVotes = matchupSchedule.gotw.awayVotes + matchupSchedule.gotw.homeVotes;
-              const awayPct = totalVotes ? Math.round((matchupSchedule.gotw.awayVotes / totalVotes) * 100) : 50;
+            {schedule.gotw && (() => {
+              const gotw = schedule.gotw;
+              const totalVotes = gotw.awayVotes + gotw.homeVotes;
+              const awayPct = totalVotes ? Math.round((gotw.awayVotes / totalVotes) * 100) : 50;
               const homePct = 100 - awayPct;
-              return <article className="hub-gotw-card"><div className="hub-gotw-banner"><span>Game of the Week</span>{matchupSchedule.gotw.status === "open" && <strong>Go vote now</strong>}</div><div className="hub-gotw-teams"><button className={matchupSchedule.gotw.myVote === matchupSchedule.gotw.awayTeamId ? "active" : ""} disabled={matchupSchedule.gotw.status !== "open"} onClick={() => void voteGotw(matchupSchedule.gotw!.awayTeamId)}><strong>{matchupSchedule.gotw.awayTeamName}</strong><span>{matchupSchedule.gotw.awayVotes} votes</span></button><em>at</em><button className={matchupSchedule.gotw.myVote === matchupSchedule.gotw.homeTeamId ? "active" : ""} disabled={matchupSchedule.gotw.status !== "open"} onClick={() => void voteGotw(matchupSchedule.gotw!.homeTeamId)}><strong>{matchupSchedule.gotw.homeTeamName}</strong><span>{matchupSchedule.gotw.homeVotes} votes</span></button></div><div className="hub-vote-meter" style={{ "--away": `${awayPct}%`, "--home": `${homePct}%` } as CSSProperties}><span>{awayPct}%</span><i /><span>{homePct}%</span></div><div className="hub-gotw-footer"><StatusChip status={matchupSchedule.gotw.status === "open" ? "pending" : "locked"} label={matchupSchedule.gotw.status === "open" ? "Voting open" : "Voting closed"} />{hub.canManageLeague && matchupSchedule.gotw.status === "open" && <Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button>}</div></article>;
+              return <article className="hub-gotw-card"><div className="hub-gotw-banner"><span>Game of the Week</span>{gotw.status === "open" && <strong>Go vote now</strong>}</div><div className="hub-gotw-teams"><button className={gotw.myVote === gotw.awayTeamId ? "active" : ""} disabled={gotw.status !== "open"} onClick={() => void voteGotw(gotw.awayTeamId)}><strong>{gotw.awayTeamName}</strong><span>{gotw.awayVotes} votes</span></button><em>at</em><button className={gotw.myVote === gotw.homeTeamId ? "active" : ""} disabled={gotw.status !== "open"} onClick={() => void voteGotw(gotw.homeTeamId)}><strong>{gotw.homeTeamName}</strong><span>{gotw.homeVotes} votes</span></button></div><div className="hub-vote-meter" style={{ "--away": `${awayPct}%`, "--home": `${homePct}%` } as CSSProperties}><span>{awayPct}%</span><i /><span>{homePct}%</span></div><div className="hub-gotw-footer"><StatusChip status={gotw.status === "open" ? "pending" : "locked"} label={gotw.status === "open" ? "Voting open" : "Voting closed"} />{hub.canManageLeague && gotw.status === "open" && <Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button>}</div></article>;
             })()}
-            {matchupSchedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{matchupSchedule.games.map((game) => (
+            {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
               <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
                 <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong><small>{[game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small>{game.isFinal && game.awayScore != null && game.homeScore != null && <b className="hub-final-score">Final: {game.awayScore} - {game.homeScore}</b>}{game.streams.length > 0 && <div className="hub-live-streams"><strong>LIVE! TUNE IN!</strong>{game.streams.map((stream) => <span key={stream.streamLogId}><a href={`${apiBaseUrl}${stream.watchPath}`} target="_blank" rel="noreferrer">{stream.teamName} stream</a><small>{stream.viewCount} views</small><button className={stream.myReaction === "like" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "like")}><ThumbsUp size={13} /> {stream.reactionCounts.like}</button><button className={stream.myReaction === "dislike" ? "active" : ""} onClick={() => void streamReact(stream.streamLogId, "dislike")}><ThumbsDown size={13} /> {stream.reactionCounts.dislike}</button></span>)}</div>}</div>
                 <div className="hub-matchup-actions">{game.matchupType === "h2h" && <StatusChip status="info" label={game.involvesMe ? "Your game" : "User matchup"} />}<Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button></div>
               </article>
-            ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {matchupSchedule.selectedWeek}.</p>}
-          </>}
+            ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}
+          </>;
+          })()}
         </SectionFrame>
       )}
 

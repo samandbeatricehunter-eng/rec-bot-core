@@ -166,7 +166,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  z-index: 100;
+  z-index: 2000;
 }
 .modal-panel {
   background: var(--surface);

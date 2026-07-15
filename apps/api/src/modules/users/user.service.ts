@@ -4,6 +4,8 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { computePowerRankings } from "../schedule/power-rankings.service.js";
+import { computeLeagueSos } from "../schedule/sos.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { rebuildOfficialGlobalRecords } from "../official-records/official-records.service.js";
 import { recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
@@ -654,7 +656,6 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     seasonBadges,
     globalBadges,
     gotwGuessRecord,
-    powerRankingRow,
     gotwCompetition,
     globalAwardWinners,
     eosPollWins,
@@ -694,17 +695,6 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
         .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
-    leagueId && teamId
-      ? supabase
-          .from("rec_power_rankings")
-          .select("rank,score,sos_score")
-          .eq("league_id", leagueId)
-          .eq("team_id", teamId)
-          .eq("season_number", seasonNumber)
-          .order("week_number", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
     leagueId
       ? supabase
           .from("rec_game_of_week_polls")
@@ -755,7 +745,14 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const gotwCorrect = gotwGuess?.correct_guesses ?? 0;
   const gotwWrong = gotwGuess?.wrong_guesses ?? 0;
   const gotwTotal = gotwCorrect + gotwWrong;
-  const rankRow = (powerRankingRow as any)?.data;
+  const [rankingResult, sosResult] = leagueId && teamId
+    ? await Promise.all([
+        computePowerRankings(guildId, targetDiscordId).catch(() => null),
+        computeLeagueSos(guildId, targetDiscordId).catch(() => null),
+      ])
+    : [null, null];
+  const rankRow = rankingResult?.teams?.find((team: any) => String(team.teamId) === String(teamId)) ?? null;
+  const sosRow = sosResult?.teams?.find((team: any) => String(team.teamId) === String(teamId)) ?? null;
 
   const globalAwardCounts = new Map<string, number>();
   for (const award of (globalAwardWinners as any)?.data ?? []) {
@@ -802,7 +799,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       activeStreak: careerStats?.activeStreak ?? "—",
     },
     gameGlobalRecord: leagueId ? buildGameGlobalRecordDisplay(gameGlobalRecord, leagueGame) : null,
-    powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: rankRow.sos_score } : null,
+    powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: sosRow?.sosFullPerGame ?? sosRow?.sosFull ?? null } : null,
     gotwGuessing: gotwTotal > 0 ? { correct: gotwCorrect, total: gotwTotal, accuracy: Math.round((gotwCorrect / gotwTotal) * 100) } : null,
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
     seasonStats,
@@ -1297,7 +1294,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
             .eq("week_number", currentWeek)
             .maybeSingle();
           if (byeCheck.error) throw new ApiError(500, "Failed to check bye week status", byeCheck.error);
-          currentMatchup = byeCheck.data ? "BYE WEEK" : "MISSING MATCHUP, NOTIFY COMMISSIONER";
+          currentMatchup = "BYE WEEK";
         } else if (isPostseason) {
           currentMatchup = "Season Concluded";
         } else {

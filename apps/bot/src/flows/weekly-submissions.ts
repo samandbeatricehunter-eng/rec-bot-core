@@ -38,6 +38,18 @@ const STAT_FIELDS: Record<string, Array<[string, string]>> = {
 
 const PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
 
+function weeklySubmissionsDescription(input: { seasonNumber: number; week: string }) {
+  return [
+    `Season ${input.seasonNumber} - ${input.week}`,
+    "",
+    "Use the buttons below to send this week's league submissions. Anything you type or upload during a submission is captured by REC Scout and removed from this channel so the panel stays easy to find.",
+    "",
+    "**Box Scores** - upload the required game screenshots. This creates a shared box-score submission for your current matchup and sends it to commissioner review for score/stat import and payout handling.",
+    "**Player Stats** - submit standout stat lines after a box score is pending or approved. These feed player tracking, stories, and league content.",
+    "**Recruiting Commits** - CFB only. Submit a recruit commitment to your school with position, star rating, and hometown so it can be logged and used in league news.",
+  ].join("\n");
+}
+
 export async function publishWeeklySubmissionsPanel(guild: Guild) {
   const cfg = await recApi.getEconomyConfig(guild.id);
   const league = cfg.league ?? {};
@@ -52,9 +64,16 @@ export async function publishWeeklySubmissionsPanel(guild: Guild) {
     new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats).setLabel("Player Stats").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting).setLabel("Recruiting Commits").setStyle(ButtonStyle.Success),
   );
-  const sent = await channel.send({ embeds: [new EmbedBuilder().setTitle("REC Weekly Submissions").setColor(COLORS.gold).setDescription(`Season ${league.season_number ?? 1} • ${week}\n\nUse the buttons below. Submission messages are captured and removed so this panel stays in focus.`)], components: [row] });
-  await recApi.saveWeeklyPanelState({ guildId: guild.id, seasonNumber: league.season_number ?? 1, seasonStage: league.season_stage, weekNumber: league.current_week ?? null, channelId: channel.id, messageId: sent.id });
-  return { posted: true, channelId: channel.id, messageId: sent.id };
+  {
+    const sent = await channel.send({
+      content: "@everyone",
+      embeds: [new EmbedBuilder().setTitle("REC Weekly Submissions").setColor(COLORS.gold).setDescription(weeklySubmissionsDescription({ seasonNumber: league.season_number ?? 1, week }))],
+      components: [row],
+      allowedMentions: { parse: ["everyone"] },
+    });
+    await recApi.saveWeeklyPanelState({ guildId: guild.id, seasonNumber: league.season_number ?? 1, seasonStage: league.season_stage, weekNumber: league.current_week ?? null, channelId: channel.id, messageId: sent.id });
+    return { posted: true, channelId: channel.id, messageId: sent.id };
+  }
 }
 
 function examplePath(name: string) {
