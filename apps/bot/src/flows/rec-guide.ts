@@ -42,7 +42,7 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
     base(4, "My Team, Wagers & Schedules").setDescription([
       `**My Team** shows coach/team details, current matchup, record, point differential, power rank, wallet/savings, projected interest, stats, badges, schedule, media submissions${cfb ? ", and recruiting class" : ""}.`,
       "**Wagers** covers current-week house bets, parlays, peer/open/direct challenges, and the wager board. A sufficient wallet balance is required and settlement uses recorded game results.",
-      "**Team Schedules** show linked-team results, upcoming games, CPU games, H2H games, and byes. Power rankings update in the Hub after each advance.",
+      "**Team Schedules** show linked-team results, upcoming games, CPU games, H2H games, and byes. Power rankings update after each advance in the Hub's **Rankings** tab.",
     ].join("\n\n")),
     base(5, economy ? "Store & Media Desk" : "Media Desk").setDescription([
       economy ? "**Store:** open /hub, choose an available product, complete its form, and submit. Funds are reserved during commissioner review. Products, costs, caps, game restrictions, and Season 1 availability come from league settings; check your wallet first." : "The Store is not active because the coin economy is disabled.",
