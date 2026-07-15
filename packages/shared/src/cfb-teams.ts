@@ -4,10 +4,11 @@ export type CfbTeamOption = {
   abbreviation: string;
   conference: string;
   division: string;
+  isSchedulePlaceholder?: boolean;
 };
 
-function team(name: string, mascot: string, abbreviation: string, conference: string): CfbTeamOption {
-  return { name, mascot, abbreviation, conference, division: "Teams" };
+function team(name: string, mascot: string, abbreviation: string, conference: string, isSchedulePlaceholder = false): CfbTeamOption {
+  return { name, mascot, abbreviation, conference, division: "Teams", isSchedulePlaceholder };
 }
 
 export const CFB_27_TEAMS: CfbTeamOption[] = [
@@ -157,4 +158,5 @@ export const CFB_27_TEAMS: CfbTeamOption[] = [
 
   team("Notre Dame", "Fighting Irish", "ND", "Independents"),
   team("UConn", "Huskies", "UCONN", "Independents"),
+  team("FCS TEAM", "TEAM", "FCS", "Independents", true),
 ];

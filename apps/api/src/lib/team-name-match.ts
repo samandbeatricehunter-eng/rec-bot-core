@@ -57,6 +57,7 @@ export function matchTeamByName(raw: string | null, candidates: TeamNameCandidat
     for (const label of candidate.labels) {
       const normLabel = normalizeName(label);
       if (!normLabel) continue;
+      if (normLabel === "fcs" && target.startsWith("fcs")) return { teamId: candidate.id, score: 1 };
       if (normLabel === target) return { teamId: candidate.id, score: 1 };
       const dist = levenshtein(target, normLabel);
       const maxLen = Math.max(target.length, normLabel.length);

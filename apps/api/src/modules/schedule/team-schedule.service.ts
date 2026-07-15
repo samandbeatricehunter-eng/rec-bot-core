@@ -8,7 +8,7 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_NAME_AUTO_MATCH_THRESHOLD as AUTO_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
-import { listScheduleSeason, saveManualScheduleGame } from "./schedule.service.js";
+import { listScheduleSeason, loadSchedulePlaceholderTeamIds, saveManualScheduleGame } from "./schedule.service.js";
 
 type ConfirmedWeek = {
   gameId: string;
@@ -310,13 +310,21 @@ export async function commitTeamScheduleDecisions(input: {
     const awayTeamId = decision.homeAway === "away" ? input.teamId : decision.opponentTeamId;
     const homeTeamId = decision.homeAway === "away" ? decision.opponentTeamId : input.teamId;
 
-    const existing = await supabase
-      .from("rec_games")
-      .select("id,week_number,home_team_id,away_team_id")
-      .eq("league_id", leagueId)
-      .eq("season_id", seasonId)
-      .eq("week_number", decision.weekNumber)
-      .or(`home_team_id.in.(${awayTeamId},${homeTeamId}),away_team_id.in.(${awayTeamId},${homeTeamId})`);
+    const placeholderTeamIds = await loadSchedulePlaceholderTeamIds(leagueId, [awayTeamId, homeTeamId]);
+    if (placeholderTeamIds.has(awayTeamId) && placeholderTeamIds.has(homeTeamId)) {
+      saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "placeholder_needs_real_opponent" });
+      continue;
+    }
+    const protectedTeamIds = [awayTeamId, homeTeamId].filter((teamId) => !placeholderTeamIds.has(teamId));
+    const existing = protectedTeamIds.length
+      ? await supabase
+          .from("rec_games")
+          .select("id,week_number,home_team_id,away_team_id")
+          .eq("league_id", leagueId)
+          .eq("season_id", seasonId)
+          .eq("week_number", decision.weekNumber)
+          .or(`home_team_id.in.(${protectedTeamIds.join(",")}),away_team_id.in.(${protectedTeamIds.join(",")})`)
+      : { data: [], error: null };
     if (existing.error) throw new ApiError(500, "Failed to check existing schedule matchups.", existing.error);
     const conflicts = existing.data ?? [];
     const exactMatch = conflicts.find((game: any) => game.home_team_id === homeTeamId && game.away_team_id === awayTeamId);

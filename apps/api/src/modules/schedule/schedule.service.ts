@@ -53,6 +53,31 @@ export function resolveScheduleAbbr(map: Map<string, string>, raw: string | null
   return map.get(MADDEN_ABBR_ALIASES[u] ?? u) ?? map.get(u) ?? null;
 }
 
+type SchedulePlaceholderTeamRow = {
+  id: string;
+  name?: string | null;
+  abbreviation?: string | null;
+  is_schedule_placeholder?: boolean | null;
+};
+
+export function isSchedulePlaceholderTeam(team: SchedulePlaceholderTeamRow | null | undefined) {
+  const normalizedName = String(team?.name ?? "").trim().toUpperCase();
+  const normalizedAbbr = String(team?.abbreviation ?? "").trim().toUpperCase();
+  return Boolean(team?.is_schedule_placeholder) || normalizedAbbr === "FCS" || normalizedName === "FCS TEAM" || normalizedName === "FCS";
+}
+
+export async function loadSchedulePlaceholderTeamIds(leagueId: string, teamIds: string[]) {
+  const uniqueIds = [...new Set(teamIds.filter(Boolean))];
+  if (!uniqueIds.length) return new Set<string>();
+  const teams = await supabase
+    .from("rec_teams")
+    .select("id,name,abbreviation,is_schedule_placeholder")
+    .eq("league_id", leagueId)
+    .in("id", uniqueIds);
+  if (teams.error) throw new ApiError(500, "Failed to validate schedule placeholder teams.", teams.error);
+  return new Set((teams.data ?? []).filter(isSchedulePlaceholderTeam).map((team: any) => team.id));
+}
+
 type SaveManualScheduleGameInput = {
   guildId: string;
   seasonNumber?: number | null;
@@ -115,7 +140,7 @@ export async function listScheduleTeams(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_teams")
-    .select("id,name,abbreviation,display_city,display_nick,display_abbr,conference,division,is_relocated")
+    .select("id,name,abbreviation,display_city,display_nick,display_abbr,conference,division,is_relocated,is_schedule_placeholder")
     .eq("league_id", context.leagueId)
     .order("conference", { ascending: true })
     .order("division", { ascending: true })
@@ -227,21 +252,29 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
 
   const teams = await supabase
     .from("rec_teams")
-    .select("id,name,abbreviation,display_abbr")
+    .select("id,name,abbreviation,display_abbr,is_schedule_placeholder")
     .eq("league_id", leagueId)
     .in("id", [input.awayTeamId, input.homeTeamId]);
   if (teams.error) throw new ApiError(500, "Failed to validate matchup teams.", teams.error);
   if ((teams.data ?? []).length !== 2) throw new ApiError(400, "Both teams must belong to the current league.");
 
-  const duplicates = await supabase
-    .from("rec_games")
-    .select("id,external_game_id,home_team_id,away_team_id")
-    .eq("league_id", leagueId)
-    .eq("season_id", seasonId)
-    .eq("week_number", input.weekNumber)
-    .or(`home_team_id.in.(${input.awayTeamId},${input.homeTeamId}),away_team_id.in.(${input.awayTeamId},${input.homeTeamId})`);
+  const placeholderTeamIds = new Set((teams.data ?? []).filter(isSchedulePlaceholderTeam).map((team: any) => team.id));
+  if (placeholderTeamIds.has(input.awayTeamId) && placeholderTeamIds.has(input.homeTeamId)) {
+    throw new ApiError(400, "A schedule placeholder needs a real opponent.");
+  }
+
+  const protectedTeamIds = [input.awayTeamId, input.homeTeamId].filter((teamId) => !placeholderTeamIds.has(teamId));
+  const duplicates = protectedTeamIds.length
+    ? await supabase
+        .from("rec_games")
+        .select("id,external_game_id,home_team_id,away_team_id")
+        .eq("league_id", leagueId)
+        .eq("season_id", seasonId)
+        .eq("week_number", input.weekNumber)
+        .or(`home_team_id.in.(${protectedTeamIds.join(",")}),away_team_id.in.(${protectedTeamIds.join(",")})`)
+    : { data: [], error: null };
   if (duplicates.error) throw new ApiError(500, "Failed to check existing schedule matchups.", duplicates.error);
-  const conflicting = (duplicates.data ?? []).filter((row) => row.external_game_id !== externalGameId);
+  const conflicting = (duplicates.data ?? []).filter((row: any) => row.external_game_id !== externalGameId);
   if (conflicting.length) throw new ApiError(409, "One of those teams is already scheduled for this week.");
 
   const assignments = await supabase
