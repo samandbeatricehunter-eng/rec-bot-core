@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
+import { PencilLine } from "lucide-react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { TeamScheduleManualState, TeamScheduleManualWeek, ScheduleTeam } from "../../../types/api.js";
@@ -24,6 +25,27 @@ type ActiveModal =
   | { type: "upload"; week: TeamScheduleManualWeek }
   | { type: "review"; week: TeamScheduleManualWeek; submissionId: string }
   | { type: "score"; week: TeamScheduleManualWeek };
+
+function pickForWeek(week: TeamScheduleManualWeek, teams: ScheduleTeam[], fallback?: WeekPick): WeekPick {
+  if (week.alreadyConfirmed && week.confirmedOpponentTeamId && week.confirmedHomeAway) {
+    const opponent = teams.find((team) => team.id === week.confirmedOpponentTeamId);
+    return {
+      isBye: false,
+      conference: opponent ? canonicalConferenceName(opponent.conference) : fallback?.conference ?? null,
+      opponentTeamId: week.confirmedOpponentTeamId,
+      homeAway: week.confirmedHomeAway,
+    };
+  }
+  return fallback ?? { isBye: week.isBye, conference: null, opponentTeamId: null, homeAway: null };
+}
+
+function buildPicks(manualState: TeamScheduleManualState, teams: ScheduleTeam[], previous: Record<number, WeekPick> = {}): Record<number, WeekPick> {
+  const next: Record<number, WeekPick> = {};
+  for (const week of manualState.weeks) {
+    next[week.weekNumber] = pickForWeek(week, teams, previous[week.weekNumber]);
+  }
+  return next;
+}
 
 // "home"/"away" describe the scheduled game's actual home/away team, not this row's team —
 // resolve real names once so the score-entry modal and result badge never show "Home Win"
@@ -69,6 +91,7 @@ export function TeamScheduleForm() {
   const [results, setResults] = useState<SavedResult[] | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
 
   const load = useCallback(() => {
     if (!teamId) return Promise.resolve();
@@ -76,13 +99,7 @@ export function TeamScheduleForm() {
       .then(([manualState, teamsRes]) => {
         setState(manualState);
         setTeams(teamsRes.teams);
-        setPicks((prev) => {
-          const next: Record<number, WeekPick> = {};
-          for (const week of manualState.weeks) {
-            next[week.weekNumber] = prev[week.weekNumber] ?? { isBye: week.isBye, conference: null, opponentTeamId: null, homeAway: null };
-          }
-          return next;
-        });
+        setPicks((prev) => buildPicks(manualState, teamsRes.teams, prev));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load schedule."));
   }, [guildId, teamId]);
@@ -115,6 +132,7 @@ export function TeamScheduleForm() {
       // Newly-confirmed weeks need to switch over to their populated, box-score-ready
       // display without a manual page reload.
       await load();
+      setEditMode(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save schedule.");
     } finally {
@@ -137,10 +155,35 @@ export function TeamScheduleForm() {
 
   const resultByWeek = new Map(results?.map((r) => [r.weekNumber, r]));
   const game = state.game;
+  const hasConfirmedWeeks = state.weeks.some((week) => week.alreadyConfirmed);
+
+  function cancelEditMode() {
+    if (!state || !teams) return;
+    setPicks(buildPicks(state, teams));
+    setEditMode(false);
+    setResults(null);
+  }
 
   return (
     <div>
-      <PageHeader title={`${state.team.name} — Season Schedule`} subtitle="Set matchups week by week, then resolve results as games are played." />
+      <PageHeader
+        title={`${state.team.name} - Season Schedule`}
+        subtitle={editMode ? "Edit unlocked matchups, then save the season again." : "Set matchups week by week, then resolve results as games are played."}
+        actions={hasConfirmedWeeks ? (
+          <Tooltip text={editMode ? "Cancel schedule editing" : "Edit weekly opponents and home/away"}>
+            <Button
+              variant={editMode ? "ghost" : "secondary"}
+              size="compact"
+              className="team-schedule-edit-button"
+              aria-label={editMode ? "Cancel schedule editing" : "Edit schedule"}
+              title={editMode ? "Cancel schedule editing" : "Edit schedule"}
+              onClick={editMode ? cancelEditMode : () => setEditMode(true)}
+            >
+              <PencilLine size={18} aria-hidden="true" />
+            </Button>
+          </Tooltip>
+        ) : null}
+      />
       {notice && <p style={{ color: "var(--success)", marginTop: 0 }}>{notice}</p>}
       <Card>
         <Table>
@@ -160,8 +203,10 @@ export function TeamScheduleForm() {
               const pick = picks[week.weekNumber];
               const savedResult = resultByWeek.get(week.weekNumber);
               const resultLabel = resultLabelForDisplayedTeam(week);
+              const lockedForEdit = Boolean(week.result || week.pendingBoxScoreSubmissionId);
+              const showConfirmedView = week.alreadyConfirmed && (!editMode || lockedForEdit);
 
-              if (week.alreadyConfirmed) {
+              if (showConfirmedView) {
                 return (
                   <tr key={week.weekNumber}>
                     <Td>{label}</Td>
@@ -233,6 +278,7 @@ export function TeamScheduleForm() {
                     <input
                       type="checkbox"
                       checked={pick?.isBye ?? false}
+                      disabled={week.alreadyConfirmed}
                       onChange={(e) => updatePick(week.weekNumber, { isBye: e.target.checked, opponentTeamId: null, homeAway: null })}
                     />
                   </Td>
@@ -289,7 +335,7 @@ export function TeamScheduleForm() {
                       savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>
                     ) : (
                       <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
-                        Pick an opponent and Save Season to unlock box score entry
+                        {week.alreadyConfirmed ? "Edit then Save Season to resubmit" : "Pick an opponent and Save Season to unlock box score entry"}
                       </span>
                     )}
                   </Td>
@@ -301,7 +347,7 @@ export function TeamScheduleForm() {
       </Card>
       <div style={{ marginTop: "var(--space-4)" }}>
         <Button variant="primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving…" : "Save Season"}
+          {saving ? "Saving..." : editMode ? "Save Schedule Changes" : "Save Season"}
         </Button>
       </div>
 

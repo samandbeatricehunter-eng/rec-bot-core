@@ -69,6 +69,16 @@
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
+.team-schedule-edit-button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+}
+.team-schedule-edit-button svg {
+  flex-shrink: 0;
+}
 
 /* A recessed double edge makes the message area read as a chat window rather than empty
    card space, while keeping the composer visually attached to the conversation. */
