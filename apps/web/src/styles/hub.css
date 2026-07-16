@@ -241,6 +241,8 @@
 .hub-power-rankings article > strong { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--gold); color: var(--text-on-gold); font-family: var(--font-display); }
 .hub-power-rankings span, .hub-power-rankings small { display: block; }
 .hub-power-rankings small { color: var(--text-muted); }
+.hub-coach-ratings article > div, .hub-sos-rankings article > div { flex: 1; min-width: 0; }
+.hub-rating-badge { flex: 0 0 auto; font-style: normal; font-family: var(--font-display); font-size: var(--text-lg); font-weight: 900; color: var(--gold); }
 .hub-gotw-banner { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); color: var(--gold); text-transform: uppercase; font-weight: 950; letter-spacing: .1em; }
 .hub-gotw-banner strong { padding: 5px 10px; border-radius: 999px; background: var(--gold); color: var(--text-on-gold); animation: gotwPulse 1s infinite alternate; }
 @keyframes gotwPulse { from { filter: brightness(1); transform: translateY(0); } to { filter: brightness(1.25); transform: translateY(-1px); } }

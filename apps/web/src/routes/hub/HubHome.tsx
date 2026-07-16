@@ -953,11 +953,37 @@ export function HubHome() {
       </>}
 
       {subTab === "rankings" && (
+        <>
         <SectionFrame eyebrow="Updated on advance" title="Power Rankings">
           {hub.powerRankings?.teams?.length ? <div className="hub-power-rankings">{hub.powerRankings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
             <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
           </article>)}</div> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
         </SectionFrame>
+
+        <SectionFrame eyebrow="Win%, point diff, schedule strength, playoff success" title="Coach Ratings">
+          {hub.coachRatings?.teams?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.coachRatings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.coachRatings?.viewerTeamId ? "human" : ""}>
+            <strong>#{team.rank}</strong>
+            <div><span>{team.teamName}</span><small>{team.record} · SOS {team.sos.toFixed(2)}{team.madePlayoffs ? " · Made playoffs" : ""}</small></div>
+            <em className="hub-rating-badge">{hub.coachRatings?.displayAsGrade ? team.grade : team.rating.toFixed(1)}</em>
+          </article>)}</div> : <p className="hub-empty">Coach ratings will appear after the first completed slate.</p>}
+        </SectionFrame>
+
+        <SectionFrame eyebrow="Individual skill, separate from win/loss record" title="User Ratings">
+          {hub.userRatings?.users?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.userRatings.users.slice(0, 16).map((user) => <article key={user.userId} className={user.userId === hub.userRatings?.viewerUserId ? "human" : ""}>
+            <strong>#{user.rank}</strong>
+            <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Stat {user.statScore.toFixed(1)} · Badges {user.badgeScore >= 0 ? "+" : ""}{user.badgeScore.toFixed(1)}</small></div>
+            <em className="hub-rating-badge">{hub.userRatings?.displayAsGrade ? user.grade : user.rating.toFixed(1)}</em>
+          </article>)}</div> : <p className="hub-empty">User ratings will appear after the first completed slate.</p>}
+        </SectionFrame>
+
+        <SectionFrame eyebrow="Toughest schedules this season" title="Strength of Schedule">
+          {hub.sos?.teams?.length ? <div className="hub-power-rankings hub-sos-rankings">{hub.sos.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
+            <strong>#{team.rank}</strong>
+            <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
+            <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
+          </article>)}</div> : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
+        </SectionFrame>
+        </>
       )}
 
       {subTab === "matchups" && (

@@ -10,6 +10,8 @@ import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
+import { computeLeagueSos } from "../schedule/sos.service.js";
+import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.service.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 
@@ -356,13 +358,16 @@ export async function getHub(guildId: string, discordId: string) {
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
 
-  const [announcements, headlines, highlights, matchups, myTeam, powerRankings] = await Promise.all([
+  const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, coachRatings, userRatings] = await Promise.all([
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).order("published_at", { ascending: false }).limit(8),
     loadHubHeadlines({ leagueId: context.leagueId, seasonNumber, currentWeek, seasonStage }),
     supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
     computePowerRankings(guildId, discordId).catch(() => null),
+    computeLeagueSos(guildId, discordId).catch(() => null),
+    computeCoachRatings(guildId, discordId).catch(() => null),
+    computeUserRatings(guildId, discordId).catch(() => null),
   ]);
   if (announcements.error) throw new ApiError(500, "Failed to load hub announcements.", announcements.error);
   if (headlines.error) throw new ApiError(500, "Failed to load hub headlines.", headlines.error);
@@ -455,6 +460,9 @@ export async function getHub(guildId: string, discordId: string) {
       return { ...game, reactionCounts: { like: reactions.filter((reaction: any) => reaction.reaction_key === "like").length, dislike: reactions.filter((reaction: any) => reaction.reaction_key === "dislike").length }, myReaction: reactions.find((reaction: any) => reaction.user_id === userId)?.reaction_key ?? null };
     }) },
     powerRankings,
+    sos,
+    coachRatings,
+    userRatings,
     liveStreams: (currentStreamLogs.data ?? []).map((stream: any) => {
       const streamRows = (streamReactions.data ?? []).filter((reaction: any) => reaction.stream_log_id === stream.id);
       return {

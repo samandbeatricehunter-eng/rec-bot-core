@@ -357,6 +357,9 @@ export type HubResponse = {
   matchups: WeeklyH2hGamesResponse;
   myTeam: any;
   powerRankings: null | { completedWeekNumber: number | null; hasPreviousWeek: boolean; teams: Array<{ teamId: string; teamName: string; abbr: string | null; isHuman: boolean; rank: number; score: number; prevRank: number | null; change: number | null }> };
+  sos: null | { totalTeams: number; viewerTeamId: string | null; teams: Array<{ teamId: string; teamName: string; abbr: string | null; isHuman: boolean; rank: number; sosFull: number; sosRemaining: number; humanCount: number; cpuCount: number; oppRecord: number }> };
+  coachRatings: null | { displayAsGrade: boolean; viewerTeamId: string | null; teams: Array<{ teamId: string; teamName: string; abbr: string | null; userId: string | null; rank: number; rating: number; grade: string; record: string; sos: number; madePlayoffs: boolean }> };
+  userRatings: null | { displayAsGrade: boolean; viewerUserId: string | null; users: Array<{ userId: string; displayName: string; teamId: string | null; teamName: string | null; rank: number; rating: number; grade: string; statScore: number; badgeScore: number }> };
   liveStreams: Array<{ id: string; url: string; watchPath: string; postedAt: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   highlights: Array<{
     id: string; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
