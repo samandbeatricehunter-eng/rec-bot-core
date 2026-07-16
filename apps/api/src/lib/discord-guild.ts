@@ -160,6 +160,19 @@ export async function deleteDiscordMessage(channelId: string, messageId: string)
   await discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }).catch(() => undefined);
 }
 
+/**
+ * Fetches one message's raw Discord payload — used to read its `reactions` array
+ * (each entry is `{ emoji: { id, name }, count, me }`) without needing a live
+ * gateway-cached discord.js Client. `me` reflects the REC bot's own account, so
+ * subtracting 1 when `me` is true excludes the bot's own seed reaction the same
+ * way the old client-cache-based tally did.
+ */
+export async function getDiscordMessage(channelId: string, messageId: string): Promise<{ reactions?: Array<{ emoji: { id: string | null; name: string | null }; count: number; me: boolean }>; author?: { id: string } } | null> {
+  const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}`).catch(() => null);
+  if (!res || !res.ok) return null;
+  return res.json() as any;
+}
+
 // Clears a channel's recent history the same way the bot's purgeChannelMessages does —
 // bulk-delete (2-100 at a time) for messages under 14 days old, individual deletes beyond
 // that. Capped at 200 fetched messages so a very chatty channel can't turn advance

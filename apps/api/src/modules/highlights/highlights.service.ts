@@ -1,7 +1,7 @@
-import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_KEYS, isRegularSeasonWeek } from "@rec/shared";
+import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWARD_KEYS, isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { deleteDiscordMessage } from "../../lib/discord-guild.js";
+import { deleteDiscordMessage, getDiscordMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 
@@ -356,17 +356,21 @@ export async function cleanupSeasonHighlights(guildId: string, leagueId: string,
       .eq("league_id", leagueId)
       .eq("season_number", seasonNumber)
       .eq("payout_kind", "season_award")
-      .in("status", ["approved", "issued"]),
+      .neq("status", "denied"),
   ]);
   if (postsResult.error) throw new ApiError(500, "Failed to load season highlights for cleanup.", postsResult.error);
   if (winsResult.error) throw new ApiError(500, "Failed to load Play of the Year winners.", winsResult.error);
 
   const posts = postsResult.data ?? [];
-  // Safety: POTY tallying (the commissioner's "Run POTY Tallies" action) is a separate
-  // manual step that may not have happened yet by the time the league advances. If
-  // this season had highlights but zero approved/issued season_award reviews, that's
-  // a strong signal tallying hasn't run — abort rather than hard-delete everything
-  // under the mistaken assumption that "no winners" means "nothing is exempt."
+  // "Winner" = any season_award review not denied — pending counts, since this runs
+  // right after settleSeasonHighlightAwards auto-creates the (still-pending, awaiting
+  // commissioner approval) reviews at the same advance-into-offseason trigger. Only a
+  // denied review means a highlight was reviewed and rejected as not qualifying.
+  //
+  // Safety: if this season had highlights but the settle step somehow produced zero
+  // reviews at all (e.g. it failed, or ran with a stale finalized flag), that's a
+  // strong signal something's wrong — abort rather than hard-delete everything under
+  // the mistaken assumption that "no winners" means "nothing is exempt."
   if (posts.length > 0 && (winsResult.data ?? []).length === 0) {
     console.warn(`[WARN] cleanupSeasonHighlights: league ${leagueId} season ${seasonNumber} has ${posts.length} highlight(s) but no settled Play of the Year winners — skipping cleanup (POTY tallies likely haven't been run yet).`);
     return { deleted: 0, winners: 0 };
@@ -450,6 +454,67 @@ export async function listHighlightAwardCandidates(guildId: string) {
     })),
     alreadyFinalized: (existingAwards.data ?? []).length > 0,
   };
+}
+
+/**
+ * Auto-tallies Play of the Year: per category, combines each highlight's Discord
+ * native-emoji reactions (read via REST — no live bot gateway client needed, matching
+ * the rest of this app's "web/API talks to Discord directly" advance architecture)
+ * with its web reaction pills, and creates a (pending, commissioner-approved)
+ * award review for whichever highlight(s) lead — ties split the payout evenly.
+ * Call this once when the league advances into the offseason, same trigger as the
+ * other season-end automations (EOS payouts, defense nicknames, highlight cleanup —
+ * which must run AFTER this, since it only preserves highlights with a season_award
+ * review already on record).
+ */
+export async function settleSeasonHighlightAwards(guildId: string): Promise<{ winners: number; alreadyFinalized: boolean }> {
+  const candidates = await listHighlightAwardCandidates(guildId);
+  if (candidates.alreadyFinalized) return { winners: 0, alreadyFinalized: true };
+
+  const leaders = new Map<string, { count: number; highlights: any[] }>();
+  for (const highlight of candidates.highlights) {
+    const message = highlight.discord_channel_id && highlight.discord_message_id
+      ? await getDiscordMessage(highlight.discord_channel_id, highlight.discord_message_id)
+      : null;
+    for (const category of HIGHLIGHT_AWARD_KEYS) {
+      const emoji = (HIGHLIGHT_AWARD_EMOJIS as Record<string, { id: string } | undefined>)[category];
+      const nativeReaction = emoji ? message?.reactions?.find((r) => r.emoji.id === emoji.id) : undefined;
+      // Discord's own count includes the bot's seed reaction — subtract it, same as
+      // the old client-cache-based tally did.
+      const nativeCount = nativeReaction ? Math.max(0, nativeReaction.count - (nativeReaction.me ? 1 : 0)) : 0;
+      const count = nativeCount + Number(highlight.webReactionCounts?.[category] ?? 0);
+      if (count <= 0) continue;
+      const entry = { ...highlight, authorId: message?.author?.id ?? null };
+      const current = leaders.get(category);
+      if (!current || count > current.count) leaders.set(category, { count, highlights: [entry] });
+      else if (count === current.count) current.highlights.push(entry);
+    }
+  }
+
+  let winners = 0;
+  for (const [category, { count, highlights: tied }] of leaders) {
+    const splitAmount = Math.round(HIGHLIGHT_AWARD_AMOUNT / tied.length);
+    for (const winner of tied) {
+      await createHighlightAwardReview({ guildId, category, highlightPostId: winner.id, voteCount: count, amount: splitAmount });
+      winners += 1;
+    }
+  }
+
+  if (winners > 0) {
+    const lines = [...leaders.entries()].map(([category, { count, highlights: tied }]) => {
+      const label = HIGHLIGHT_AWARD_CATEGORY_LABELS[category] ?? category;
+      const names = tied.map((h: any) => h.team?.name ?? h.user?.display_name ?? "a coach").join(", ");
+      return `**${label}:** ${names}${tied.length > 1 ? " (tie — split)" : ""} — ${count} vote${count === 1 ? "" : "s"}`;
+    });
+    await publishTransitionStory({
+      guildId,
+      headline: "Play of the Year Nominees Are In",
+      body: lines.join("\n"),
+      primaryAngle: "play_of_the_year_nominees",
+    }).catch((error) => console.error("[ERROR] Failed to publish POTY nominee headline (non-fatal):", error));
+  }
+
+  return { winners, alreadyFinalized: false };
 }
 
 export async function createHighlightAwardReview(input: CreateHighlightAwardReviewInput) {

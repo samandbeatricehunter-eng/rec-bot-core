@@ -20,7 +20,7 @@ import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
 import { autoAssignGotwForWeek, settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
-import { cleanupSeasonHighlights } from "../highlights/highlights.service.js";
+import { cleanupSeasonHighlights, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
 import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
 
@@ -480,13 +480,25 @@ export async function completeAdvanceWeek(input: {
     });
   }
 
+  // Play of the Year: auto-tallies every regular-season highlight's reactions (Discord +
+  // web) and creates a pending award review per category winner (commissioner still
+  // approves the payout in Pending Payouts, same as every other payout in this app —
+  // this step only auto-determines the winner and drafts the payout, never issues it
+  // itself). Same terminal-stage -> offseason boundary as the automations above, and
+  // must run BEFORE the highlight cleanup right below it, which only preserves
+  // highlights that already have a season_award review on record.
+  if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
+    await settleSeasonHighlightAwards(input.guildId).catch((err) => {
+      console.error("[ERROR] settleSeasonHighlightAwards failed after advance (non-fatal):", err);
+    });
+  }
+
   // Season-end highlight cleanup: hard-deletes every non-POTY-winning highlight
   // (Discord message + DB row), keeping POTY winners in the carousel permanently,
   // and posts one combined headline announcing every category winner. Same
-  // terminal-stage -> offseason boundary as the automations above. Run this AFTER
-  // the EOS payout auto-fire settles, since Play of the Year winners are approved
-  // through the same commissioner-inbox flow as other pending payouts and this
-  // cleanup only recognizes highlights whose award review is already approved/issued.
+  // terminal-stage -> offseason boundary as the automations above — must run AFTER
+  // settleSeasonHighlightAwards immediately above, which is what actually creates
+  // the season_award reviews this cleanup checks for.
   if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
     await cleanupSeasonHighlights(input.guildId, context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] cleanupSeasonHighlights failed after advance (non-fatal):", err);
