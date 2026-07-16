@@ -6,7 +6,7 @@ import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
 import { adjustEosPayoutItem, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
-import { cancelOpenEosAwardPolls, getEosAwardPoll, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
+import { cancelOpenEosAwardPolls, castEosAwardVote, getEosAwardPoll, getEosAwardVotingBlock, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
@@ -575,6 +575,30 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1), seasonNumber: z.number().int().optional().nullable() }).parse(request.body);
       return reply.send(await listSettledEosAwards(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // The web hub's collapsed voting block — every open poll, this coach's current pick,
+  // live tallies, and whether they've voted on everything (drives the flashing label).
+  app.post("/v1/league-week/eos-awards/voting-block", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await getEosAwardVotingBlock(body.guildId, body.discordId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/vote", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), pollId: z.string().uuid(), nomineeUserId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await castEosAwardVote(body));
     } catch (error) {
       return sendError(reply, error);
     }

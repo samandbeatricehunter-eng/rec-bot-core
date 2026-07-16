@@ -3,17 +3,26 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { computePowerRankings } from "../schedule/power-rankings.service.js";
+import { publishTransitionStory } from "../hub/story-publishing.js";
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 
-export const EOS_AWARD_DEFINITIONS = [
-  { key: "mvp", label: "MVP", amount: 1000, limit: 10 },
-  { key: "best_passing_game", label: "Best Passing Game", amount: 200, limit: 10 },
-  { key: "best_rushing_game", label: "Best Rushing Game", amount: 200, limit: 10 },
-  { key: "best_defense", label: "Best Defense", amount: 200, limit: 10 },
-  { key: "best_user_skills", label: "Best User Skills", amount: 350, limit: 10 },
-  { key: "most_heart", label: "Most Heart", amount: 500, limit: 10 },
+// Auto-issued at season end — no poll, straight to the top-1 team by the stat.
+export const EOS_AUTO_AWARD_DEFINITIONS = [
+  { key: "best_passing_game", label: "Best Passing Game", amount: 200 },
+  { key: "best_rushing_game", label: "Best Rushing Game", amount: 200 },
+  { key: "best_defense", label: "Best Defense", amount: 200 },
 ] as const;
+
+// Web-hub poll categories — the only 3 that still require a vote.
+export const EOS_POLL_AWARD_DEFINITIONS = [
+  { key: "mvp", label: "MVP", amount: 1000, limit: 5 },
+  { key: "best_user_skills", label: "Best User Skills", amount: 350, limit: 5 },
+  { key: "most_heart", label: "Most Heart", amount: 500, limit: 5 },
+] as const;
+
+export const EOS_AWARD_DEFINITIONS = [...EOS_AUTO_AWARD_DEFINITIONS, ...EOS_POLL_AWARD_DEFINITIONS];
 
 type AwardKey = (typeof EOS_AWARD_DEFINITIONS)[number]["key"];
 
@@ -94,7 +103,10 @@ async function statsByUser(leagueId: string, seasonNumber: number, game: string 
   return byUser;
 }
 
-async function resultAggByTeam(leagueId: string, seasonNumber: number, game: string | null) {
+type TeamGameLog = { opponentTeamId: string; won: boolean; margin: number };
+type TeamResultAgg = { wins: number; losses: number; ties: number; pf: number; pa: number; close: number; games: TeamGameLog[] };
+
+async function resultAggByTeam(leagueId: string, seasonNumber: number, game: string | null): Promise<Map<string, TeamResultAgg>> {
   const results = await supabase
     .from("rec_game_results")
     .select("home_team_id,away_team_id,home_user_id,away_user_id,home_score,away_score,winning_team_id,losing_team_id,is_tie,source")
@@ -102,31 +114,32 @@ async function resultAggByTeam(leagueId: string, seasonNumber: number, game: str
     .eq("season_number", seasonNumber)
     .lte("week_number", regularSeasonWeeks(game));
   if (results.error) throw new ApiError(500, "Failed to load EOS award results.", results.error);
-  const map = new Map<string, { wins: number; losses: number; ties: number; pf: number; pa: number; close: number }>();
+  const map = new Map<string, TeamResultAgg>();
   const get = (teamId: string) => {
     let row = map.get(teamId);
     if (!row) {
-      row = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, close: 0 };
+      row = { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, close: 0, games: [] };
       map.set(teamId, row);
     }
     return row;
   };
-  for (const game of results.data ?? []) {
-    const home = game.home_team_id;
-    const away = game.away_team_id;
+  for (const g of results.data ?? []) {
+    const home = g.home_team_id;
+    const away = g.away_team_id;
     if (!home || !away) continue;
-    const hs = num(game.home_score);
-    const as = num(game.away_score);
+    const hs = num(g.home_score);
+    const as = num(g.away_score);
     const margin = Math.abs(hs - as);
-    const isBox = BOX_SCORE_SOURCES.includes(String(game.source));
-    for (const [teamId, pf, pa] of [[home, hs, as], [away, as, hs]] as const) {
+    const isBox = BOX_SCORE_SOURCES.includes(String(g.source));
+    for (const [teamId, opponentTeamId, pf, pa] of [[home, away, hs, as], [away, home, as, hs]] as const) {
       const row = get(teamId);
       row.pf += pf;
       row.pa += pa;
-      if (game.is_tie) row.ties += 1;
-      else if (game.winning_team_id === teamId) row.wins += 1;
-      else if (game.losing_team_id === teamId) row.losses += 1;
+      if (g.is_tie) row.ties += 1;
+      else if (g.winning_team_id === teamId) row.wins += 1;
+      else if (g.losing_team_id === teamId) row.losses += 1;
       if (isBox && margin <= 7) row.close += 1;
+      if (!g.is_tie) row.games.push({ opponentTeamId, won: g.winning_team_id === teamId, margin });
     }
   }
   return map;
@@ -139,73 +152,147 @@ function sumRows(rows: any[], key: string) {
 function rankNominees(base: Array<Omit<Nominee, "metric" | "detail">>, metrics: Map<string, { metric: number; detail: string }>, limit: number) {
   return base
     .map((row) => ({ ...row, metric: metrics.get(row.userId)?.metric ?? metrics.get(row.teamId)?.metric ?? 0, detail: metrics.get(row.userId)?.detail ?? metrics.get(row.teamId)?.detail ?? "No data" }))
+    .filter((row) => metrics.has(row.userId) || metrics.has(row.teamId))
     .sort((a, b) => b.metric - a.metric || a.teamName.localeCompare(b.teamName))
     .slice(0, limit);
 }
 
+/**
+ * "Most Heart": teams that competed hard but didn't win enough (or didn't win the
+ * games that mattered) — not the league's best team, and not a true tank job either.
+ * Eligibility: win% between 30-60%. Score rewards close losses and close wins
+ * (competitive every week), a bonus for losing to a better-ranked opponent (a
+ * "quality loss" isn't a bad look), and a penalty for blowout losses (getting run
+ * over isn't heart). Uses only stats both Madden and CFB track identically
+ * (points, wins/losses, season-end power rank), so one formula covers both games.
+ */
+function mostHeartMetric(agg: TeamResultAgg, powerRankByTeam: Map<string, number>, teamId: string): { metric: number; detail: string } | null {
+  const games = agg.wins + agg.losses + agg.ties;
+  if (!games) return null;
+  const winPct = agg.wins / games;
+  if (winPct < 0.3 || winPct > 0.6) return null;
+
+  const myRank = powerRankByTeam.get(teamId) ?? 999;
+  let closeLosses = 0, closeWins = 0, qualityLosses = 0, blowoutLosses = 0;
+  for (const g of agg.games) {
+    if (g.won) {
+      if (g.margin <= 7) closeWins += 1;
+    } else {
+      if (g.margin <= 7) closeLosses += 1;
+      if (g.margin >= 21) blowoutLosses += 1;
+      const oppRank = powerRankByTeam.get(g.opponentTeamId) ?? 999;
+      if (oppRank < myRank) qualityLosses += 1;
+    }
+  }
+  const score = closeLosses * 3 + closeWins * 1 + qualityLosses * 2 - blowoutLosses * 1;
+  return { metric: score, detail: `${agg.wins}-${agg.losses}${agg.ties ? `-${agg.ties}` : ""}, ${closeLosses} close loss${closeLosses === 1 ? "" : "es"}, ${qualityLosses} quality loss${qualityLosses === 1 ? "" : "es"}` };
+}
+
+/** Builds nominees for the 3 poll categories only — MVP/Best User Skills from top-5 power rankings, Most Heart from the formula above. */
 export async function prepareEosAwardNominees(input: { guildId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const linked = await linkedTeams(context.leagueId);
-  const stats = await statsByUser(context.leagueId, seasonNumber, context.rec_leagues.game);
   const results = await resultAggByTeam(context.leagueId, seasonNumber, context.rec_leagues.game);
+  const rankings = await computePowerRankings(input.guildId).catch(() => ({ teams: [] as any[] }));
+  const powerRankByTeam = new Map<string, number>(rankings.teams.map((t: any): [string, number] => [t.teamId, t.rank]));
 
-  // Record + point differential are shown alongside every award's category-specific
-  // score, regardless of which stat that award ranks on.
   const base = linked.map((row) => {
-    const agg = results.get(row.teamId) ?? { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, close: 0 };
+    const agg = results.get(row.teamId) ?? { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, close: 0, games: [] };
     const record = `${agg.wins}-${agg.losses}${agg.ties ? `-${agg.ties}` : ""}`;
     const pointDifferential = agg.pf - agg.pa;
     return { userId: row.userId, discordId: row.discordId, teamId: row.teamId, teamName: row.teamName, record, pointDifferential };
   });
-  const byUserMetric = (fn: (rows: any[]) => { metric: number; detail: string }) => {
-    const map = new Map<string, { metric: number; detail: string }>();
-    for (const row of base) map.set(row.userId, fn(stats.get(row.userId) ?? []));
-    return map;
-  };
 
-  const mvp = new Map<string, { metric: number; detail: string }>();
+  // MVP and Best User Skills: the top-5 human teams by season-end power ranking.
+  const powerRankMetric = new Map<string, { metric: number; detail: string }>();
   for (const row of base) {
-    const agg = results.get(row.teamId) ?? { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, close: 0 };
-    const games = agg.wins + agg.losses + agg.ties;
-    const pct = games ? (agg.wins + 0.5 * agg.ties) / games : 0;
-    const pd = agg.pf - agg.pa;
-    mvp.set(row.teamId, { metric: pct * 1000 + pd, detail: `${agg.wins}-${agg.losses}${agg.ties ? `-${agg.ties}` : ""}, PD ${pd}` });
+    const rank = powerRankByTeam.get(row.teamId);
+    if (rank == null) continue;
+    powerRankMetric.set(row.teamId, { metric: -rank, detail: `Power Rank #${rank}` });
   }
 
-  const defense = byUserMetric((rows) => {
-    const pointsAgainst = sumRows(rows, "points_against");
-    const yardsAllowed = sumRows(rows, "yards_allowed");
-    const turnovers = sumRows(rows, "generated_turnovers");
-    return { metric: turnovers * 75 - pointsAgainst * 5 - yardsAllowed / 10, detail: `${pointsAgainst} PA, ${yardsAllowed} yds allowed, ${turnovers} takeaways` };
-  });
-
-  const close = new Map<string, { metric: number; detail: string }>();
+  const mostHeart = new Map<string, { metric: number; detail: string }>();
   for (const row of base) {
-    const agg = results.get(row.teamId) ?? { close: 0 };
-    close.set(row.teamId, { metric: agg.close, detail: `${agg.close} close box-score game${agg.close === 1 ? "" : "s"}` });
+    const agg = results.get(row.teamId);
+    if (!agg) continue;
+    const entry = mostHeartMetric(agg, powerRankByTeam, row.teamId);
+    if (entry) mostHeart.set(row.teamId, entry);
   }
 
-  const awards = EOS_AWARD_DEFINITIONS.map((definition) => {
-    let nominees: Nominee[];
-    if (definition.key === "mvp") nominees = rankNominees(base, mvp, definition.limit);
-    else if (definition.key === "best_passing_game") nominees = rankNominees(base, byUserMetric((rows) => ({ metric: sumRows(rows, "off_pass_yards"), detail: `${sumRows(rows, "off_pass_yards")} pass yards` })), definition.limit);
-    else if (definition.key === "best_rushing_game") nominees = rankNominees(base, byUserMetric((rows) => ({ metric: sumRows(rows, "off_rush_yards"), detail: `${sumRows(rows, "off_rush_yards")} rush yards` })), definition.limit);
-    else if (definition.key === "best_defense") nominees = rankNominees(base, defense, definition.limit);
-    else if (definition.key === "best_user_skills") nominees = rankNominees(base, defense, definition.limit);
-    else nominees = rankNominees(base, close, definition.limit);
+  const awards = EOS_POLL_AWARD_DEFINITIONS.map((definition) => {
+    const nominees = definition.key === "most_heart" ? rankNominees(base, mostHeart, definition.limit) : rankNominees(base, powerRankMetric, definition.limit);
     return { ...definition, label: awardLabel(definition.key, context.rec_leagues.game), nominees };
   });
 
   return { league: { id: context.leagueId, seasonNumber, currentWeek: Number(context.rec_leagues.current_week ?? 1) }, awards };
 }
 
+/** Auto-issues Best Passing/Rushing/Defense to the single top team each — no poll, no commissioner action needed. */
+export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issued: number }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const linked = await linkedTeams(context.leagueId);
+  const stats = await statsByUser(context.leagueId, seasonNumber, context.rec_leagues.game);
+
+  const metricFor = (key: (typeof EOS_AUTO_AWARD_DEFINITIONS)[number]["key"], rows: any[]) => {
+    if (key === "best_passing_game") return sumRows(rows, "off_pass_yards");
+    if (key === "best_rushing_game") return sumRows(rows, "off_rush_yards");
+    // best_defense: takeaways help, points/yards allowed hurt.
+    return sumRows(rows, "generated_turnovers") * 75 - sumRows(rows, "points_against") * 5 - sumRows(rows, "yards_allowed") / 10;
+  };
+
+  let issued = 0;
+  for (const definition of EOS_AUTO_AWARD_DEFINITIONS) {
+    const existing = await supabase.from("rec_eos_award_polls").select("id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("category_key", definition.key).maybeSingle();
+    if (existing.error) throw new ApiError(500, "Failed to check existing auto-issued award.", existing.error);
+    if (existing.data) continue; // already issued this season — never re-run
+
+    let best: { userId: string; teamId: string; metric: number } | null = null;
+    for (const row of linked) {
+      const metric = metricFor(definition.key, stats.get(row.userId) ?? []);
+      if (!best || metric > best.metric) best = { userId: row.userId, teamId: row.teamId, metric };
+    }
+    if (!best) continue;
+
+    const label = awardLabel(definition.key, context.rec_leagues.game);
+    const ledger = await supabase.rpc("add_to_wallet", {
+      p_user_id: best.userId,
+      p_amount: definition.amount,
+      p_league_id: context.leagueId,
+      p_description: `EOS Award - ${label}`,
+      p_transaction_type: "eos_award_payout",
+      p_source: "eos",
+      p_source_reference: { category: definition.key, season: seasonNumber, autoIssued: true },
+    });
+    if (ledger.error) throw new ApiError(500, `Failed to auto-issue ${label}.`, ledger.error);
+
+    const inserted = await supabase.from("rec_eos_award_polls").insert({
+      league_id: context.leagueId, season_number: seasonNumber, category_key: definition.key, category_label: label,
+      category_description: label, award_amount: definition.amount, nominee_user_ids: [best.userId], nominee_payloads: [],
+      status: "settled", winner_user_id: best.userId, opened_at: new Date().toISOString(), settled_at: new Date().toISOString(),
+      paid_ledger_id: ledger.data, vote_counts: {}, updated_at: new Date().toISOString(),
+    }).select("id").single();
+    if (inserted.error) throw new ApiError(500, `Failed to record auto-issued ${label}.`, inserted.error);
+
+    await publishTransitionStory({
+      guildId,
+      headline: `${label}: ${linked.find((t) => t.userId === best!.userId)?.teamName ?? "A program"}`,
+      body: `${label} is auto-awarded to ${linked.find((t) => t.userId === best!.userId)?.teamName ?? "the team"} for their season-long performance.`,
+      primaryAngle: "eos_award",
+    }).catch((error) => console.error(`[ERROR] Failed to publish ${label} headline (non-fatal):`, error));
+
+    issued += 1;
+  }
+  return { issued };
+}
+
 export async function recordEosAwardPoll(input: {
   guildId: string;
   categoryKey: AwardKey;
-  discordChannelId: string;
-  discordMessageId: string;
-  closesAt: string;
+  discordChannelId?: string | null;
+  discordMessageId?: string | null;
+  closesAt?: string | null;
   nominees: Nominee[];
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -225,9 +312,9 @@ export async function recordEosAwardPoll(input: {
       nominee_user_ids: input.nominees.map((nominee) => nominee.userId),
       nominee_payloads: input.nominees,
       status: "open",
-      discord_channel_id: input.discordChannelId,
-      discord_message_id: input.discordMessageId,
-      closes_at: input.closesAt,
+      discord_channel_id: input.discordChannelId ?? null,
+      discord_message_id: input.discordMessageId ?? null,
+      closes_at: input.closesAt ?? null,
       updated_at: new Date().toISOString(),
     }, { onConflict: "league_id,season_number,category_key" })
     .select("*")
@@ -250,10 +337,23 @@ export async function recordEosAwardPoll(input: {
     amount: definition.amount,
     source_table: "rec_eos_award_polls",
     source_id: row.data.id,
-    payload: { pollId: row.data.id, categoryKey: definition.key, discordChannelId: input.discordChannelId, discordMessageId: input.discordMessageId },
+    payload: { pollId: row.data.id, categoryKey: definition.key },
   });
 
   return { poll: row.data };
+}
+
+/** Opens the 3 web-vote polls for the season, plus auto-issues the 3 stat-based awards. Call once when the league advances into the offseason. */
+export async function autoPrepareEosAwards(guildId: string): Promise<{ autoIssued: number; pollsOpened: number }> {
+  const { issued: autoIssued } = await autoIssueStatBasedAwards(guildId);
+  const { awards } = await prepareEosAwardNominees({ guildId });
+  let pollsOpened = 0;
+  for (const award of awards) {
+    if (!award.nominees.length) continue;
+    await recordEosAwardPoll({ guildId, categoryKey: award.key, nominees: award.nominees });
+    pollsOpened += 1;
+  }
+  return { autoIssued, pollsOpened };
 }
 
 export async function listOpenEosAwardPolls() {
@@ -308,6 +408,71 @@ export async function cancelOpenEosAwardPolls(input: { guildId: string }) {
       .in("source_id", ids);
   }
   return { cancelled: existing.data ?? [] };
+}
+
+// ─── Web voting ─────────────────────────────────────────────────────────────────
+
+/** Casts (or changes) the calling user's vote for one open poll. One vote per user per category. */
+export async function castEosAwardVote(input: { guildId: string; discordId: string; pollId: string; nomineeUserId: string }): Promise<{ ok: true }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  if (!account.data?.user_id) throw new ApiError(404, "Discord account not linked.");
+
+  const poll = await supabase.from("rec_eos_award_polls").select("id,league_id,status,nominee_user_ids").eq("id", input.pollId).maybeSingle();
+  if (poll.error) throw new ApiError(500, "Failed to load award poll.", poll.error);
+  if (!poll.data || poll.data.league_id !== context.leagueId) throw new ApiError(404, "Award poll not found.");
+  if (poll.data.status !== "open") throw new ApiError(400, "Voting has closed for this award.");
+  const nomineeIds = Array.isArray(poll.data.nominee_user_ids) ? poll.data.nominee_user_ids : [];
+  if (!nomineeIds.includes(input.nomineeUserId)) throw new ApiError(400, "That nominee isn't part of this award.");
+
+  const upserted = await supabase.from("rec_eos_award_votes").upsert(
+    { poll_id: input.pollId, voter_user_id: account.data.user_id, nominee_user_id: input.nomineeUserId, updated_at: new Date().toISOString() },
+    { onConflict: "poll_id,voter_user_id" },
+  );
+  if (upserted.error) throw new ApiError(500, "Failed to cast vote.", upserted.error);
+  return { ok: true };
+}
+
+/**
+ * Drives the collapsed voting block on the hub main page: every open poll for the
+ * league, this user's current pick per poll, live tallies, and whether they've voted
+ * on everything yet (the flashing-label trigger).
+ */
+export async function getEosAwardVotingBlock(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
+  const userId = account.data?.user_id ?? null;
+
+  const polls = await supabase.from("rec_eos_award_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("status", "open");
+  if (polls.error) throw new ApiError(500, "Failed to load open EOS award polls.", polls.error);
+  const openPolls = polls.data ?? [];
+  if (!openPolls.length) return { polls: [], hasVotedAll: true };
+
+  const pollIds = openPolls.map((poll: any) => poll.id);
+  const votes = await supabase.from("rec_eos_award_votes").select("poll_id,voter_user_id,nominee_user_id").in("poll_id", pollIds);
+  if (votes.error) throw new ApiError(500, "Failed to load EOS award votes.", votes.error);
+
+  const tallyByPoll = new Map<string, Map<string, number>>();
+  const myVoteByPoll = new Map<string, string>();
+  for (const vote of votes.data ?? []) {
+    const tally = tallyByPoll.get(vote.poll_id) ?? new Map<string, number>();
+    tally.set(vote.nominee_user_id, (tally.get(vote.nominee_user_id) ?? 0) + 1);
+    tallyByPoll.set(vote.poll_id, tally);
+    if (userId && vote.voter_user_id === userId) myVoteByPoll.set(vote.poll_id, vote.nominee_user_id);
+  }
+
+  return {
+    polls: openPolls.map((poll: any) => ({
+      id: poll.id,
+      categoryKey: poll.category_key,
+      categoryLabel: poll.category_label,
+      amount: poll.award_amount,
+      nominees: (poll.nominee_payloads ?? []).map((nominee: any) => ({ ...nominee, votes: tallyByPoll.get(poll.id)?.get(nominee.userId) ?? 0 })),
+      myVote: myVoteByPoll.get(poll.id) ?? null,
+    })),
+    hasVotedAll: userId ? openPolls.every((poll: any) => myVoteByPoll.has(poll.id)) : false,
+  };
 }
 
 /**
@@ -391,6 +556,43 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
     .eq("source_id", poll.data.id);
 
   return { poll: updated.data, winner, amount, votes: topRawVotes, tiebreakerNeeded };
+}
+
+/** Tallies real web votes and settles every open poll for the league — call when the league advances OUT of the first offseason stage. Posts one headline per award. */
+export async function closeAndSettleEosAwardVoting(guildId: string): Promise<{ settled: number }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const openPolls = await supabase.from("rec_eos_award_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("status", "open");
+  if (openPolls.error) throw new ApiError(500, "Failed to load open EOS award polls.", openPolls.error);
+
+  let settled = 0;
+  for (const poll of openPolls.data ?? []) {
+    const votes = await supabase.from("rec_eos_award_votes").select("nominee_user_id").eq("poll_id", poll.id);
+    if (votes.error) throw new ApiError(500, "Failed to load EOS award votes.", votes.error);
+    const nominees = Array.isArray(poll.nominee_payloads) ? poll.nominee_payloads : [];
+    const voteCounts: Record<string, number> = {};
+    nominees.forEach((nominee: any, index: number) => {
+      voteCounts[String(index)] = (votes.data ?? []).filter((v) => v.nominee_user_id === nominee.userId).length;
+    });
+    // No votes cast at all: fall back to the underlying stat metric (already on each
+    // nominee) rather than leaving the award unpaid — someone still earned the nomination.
+    if (Object.values(voteCounts).every((count) => count === 0)) {
+      let bestIndex = 0;
+      nominees.forEach((nominee: any, index: number) => { if (Number(nominee.metric ?? 0) > Number(nominees[bestIndex]?.metric ?? -Infinity)) bestIndex = index; });
+      voteCounts[String(bestIndex)] = 1;
+    }
+    const result = await settleEosAwardPoll({ pollId: poll.id, voteCounts });
+    if ("winner" in result && result.winner) {
+      await publishTransitionStory({
+        guildId,
+        headline: `${poll.category_label}: ${result.winner.teamName ?? "A program"}`,
+        body: `${poll.category_label} goes to ${result.winner.teamName ?? "the winner"}${result.tiebreakerNeeded ? " after a tiebreaker" : ""} — $${result.amount}.`,
+        primaryAngle: "eos_award",
+      }).catch((error) => console.error(`[ERROR] Failed to publish ${poll.category_label} headline (non-fatal):`, error));
+      settled += 1;
+    }
+  }
+  return { settled };
 }
 
 export async function listSettledEosAwards(input: { guildId: string; seasonNumber?: number | null }) {

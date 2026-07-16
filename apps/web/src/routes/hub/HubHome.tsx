@@ -11,6 +11,7 @@ import { SectionFrame } from "../../components/design-system/SectionFrame.js";
 import { IconWell } from "../../components/design-system/IconWell.js";
 import { StatusChip } from "../../components/design-system/StatusChip.js";
 import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js";
+import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
@@ -865,6 +866,7 @@ export function HubHome() {
       </nav>
 
       {subTab === "buzz" && <>
+        <EosAwardVotingBlock />
         <SectionFrame eyebrow="Around the league" title="Headlines & Articles">
           {hub.headlines.length ? (
             isMobile ? (

@@ -245,6 +245,15 @@ export type EosAwardPoll = {
   status: string;
 };
 
+export type EosAwardVotingPoll = {
+  id: string;
+  categoryKey: string;
+  categoryLabel: string;
+  amount: number;
+  nominees: Array<EosAwardNominee & { votes: number }>;
+  myVote: string | null;
+};
+
 // Delete League (Phase 2)
 export type LeagueWeekView = {
   league: { id: string; name: string; current_week: number | null; season_stage: string | null } | null;

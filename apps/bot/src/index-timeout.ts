@@ -109,7 +109,7 @@ import {
   handleAdvanceTimeBack,
   handleHeadlinesNav,
 } from "./flows/advance-time.js";
-import { handleEosAwards, recoverOpenEosAwardPolls } from "./flows/eos-awards.js";
+import { recoverOpenEosAwardPolls } from "./flows/eos-awards.js";
 import {
   TEAM_REQUEST_CUSTOM_IDS,
   handleTeamRequestApprove,
@@ -764,7 +764,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TROUBLESHOOT_EOS_CUSTOM_IDS.eosNext) return handleEosProjectionPage(interaction, 1);
       if (interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.issueBatchPrefix)) return handleIssueEosPayoutBatch(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosPayouts) return handleEosPayouts(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtEosAwards) return handleEosAwards(interaction, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtPotyTallies) return handlePotyTallies(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvanceBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSettings) return handleLeagueMgmtSettings(interaction);
@@ -1372,10 +1371,9 @@ function buildEosActionsRows() {
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosPayouts).setLabel("Payouts").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtEosAwards).setLabel("Awards").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtPotyTallies).setLabel("POTY Votes").setStyle(ButtonStyle.Secondary),
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtPotyTallies).setLabel("POTY Votes").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary),
     ),
   ];
@@ -1395,8 +1393,9 @@ async function handleEosActions(interaction: ButtonInteraction) {
           : "**Postseason action gates are open.**",
         "",
         "**Payouts** issues end-of-season stat/award payouts for review.",
-        "**Awards** prepares end-of-season award reviews.",
         "**POTY Votes** tallies the Play of the Year emoji votes and prepares category payout reviews.",
+        "",
+        "EOS Awards (MVP, Best Passing/Rushing Game, Best Defense, Best User Skills, Most Heart) now run automatically when the league advances into the offseason — Best Passing/Rushing/Defense are paid out directly, and the other 3 open for voting on the web Hub instead of a Discord poll.",
       ].join("\n"))],
     components: buildEosActionsRows(),
   });

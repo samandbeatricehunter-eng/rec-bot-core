@@ -14,6 +14,7 @@ import type {
   DeleteLeagueResult,
   DivisionWinnerOptions,
   EosAwardPoll,
+  EosAwardVotingPoll,
   GotwPollStatus,
   PendingEosLedgers,
   RecPayoutTier,
@@ -180,6 +181,10 @@ export const recApi = {
     recApiFetch<{ teamId: string; nickname: string | null; needsName: boolean } | null>("/v1/league-week/defense-nickname/status", { method: "POST", body: JSON.stringify(input) }),
   setDefenseNickname: (input: { guildId: string; discordId: string; teamId: string; nickname: string }) =>
     recApiFetch<{ nickname: string }>("/v1/league-week/defense-nickname", { method: "POST", body: JSON.stringify(input) }),
+  getEosAwardVotingBlock: (input: { guildId: string; discordId: string }) =>
+    recApiFetch<{ polls: EosAwardVotingPoll[]; hasVotedAll: boolean }>("/v1/league-week/eos-awards/voting-block", { method: "POST", body: JSON.stringify(input) }),
+  castEosAwardVote: (input: { guildId: string; discordId: string; pollId: string; nomineeUserId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/league-week/eos-awards/vote", { method: "POST", body: JSON.stringify(input) }),
   linkUserToTeam: (input: { guildId: string; discordId: string; teamId: string }) =>
     recApiFetch<unknown>(REC_API_ROUTES.linkUserToTeam, { method: "POST", body: JSON.stringify(input) }),
   unlinkTeam: (input: { guildId: string; teamId: string }) =>

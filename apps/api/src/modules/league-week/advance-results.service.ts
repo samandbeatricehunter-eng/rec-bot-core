@@ -19,6 +19,7 @@ import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
 import { autoAssignGotwForWeek, settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
+import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { cleanupSeasonHighlights, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
@@ -400,6 +401,14 @@ export async function completeAdvanceWeek(input: {
     }).catch((err) => console.error("[ERROR] autoPrepareEosPayouts failed after advance (non-fatal):", err));
   }
 
+  // EOS Awards: auto-issues Best Passing/Rushing/Defense outright and opens the 3 web
+  // voting polls (MVP, Best User Skills, Most Heart) on the same postseason-end boundary
+  // as the EOS payouts above. Voting stays open for the whole first offseason stage —
+  // see the settle trigger further below, which fires when the league advances OUT of it.
+  if (isPostseasonEnd) {
+    await autoPrepareEosAwards(input.guildId).catch((err) => console.error("[ERROR] autoPrepareEosAwards failed after advance (non-fatal):", err));
+  }
+
   // Refresh the Weekly Submissions panel for the new week (same channel the bot used to
   // reset at the end of its wizard) — purges last week's submissions/chatter and posts a
   // fresh panel pointed at the new week.
@@ -490,6 +499,15 @@ export async function completeAdvanceWeek(input: {
   if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
     await settleSeasonHighlightAwards(input.guildId).catch((err) => {
       console.error("[ERROR] settleSeasonHighlightAwards failed after advance (non-fatal):", err);
+    });
+  }
+
+  // EOS Awards voting closes once the league leaves the first offseason stage (the
+  // window the 3 web polls stay open for) — tally real votes, settle every open poll,
+  // and post one headline per award.
+  if (currentStage === firstOffseasonStage(context.rec_leagues.game) && nextTarget.seasonStage !== firstOffseasonStage(context.rec_leagues.game)) {
+    await closeAndSettleEosAwardVoting(input.guildId).catch((err) => {
+      console.error("[ERROR] closeAndSettleEosAwardVoting failed after advance (non-fatal):", err);
     });
   }
 
