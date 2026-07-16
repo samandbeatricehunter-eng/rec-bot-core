@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { GraduationCap, Newspaper, SlidersHorizontal } from "lucide-react";
+import { FastForward, GraduationCap, Newspaper, SlidersHorizontal, Users } from "lucide-react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -17,6 +17,8 @@ const STATUS_BADGE: Record<WeeklyH2hGame["status"], { status: "denied" | "pendin
 };
 
 const SHORTCUTS = [
+  { icon: Users, label: "Manage League", detail: "Enter results and box scores", to: "/league-mgmt/manage-league", cfbOnly: false },
+  { icon: FastForward, label: "Advance", detail: "Advance the week", to: "/league-mgmt/advance", cfbOnly: false },
   { icon: SlidersHorizontal, label: "Settings", detail: "Rules and league setup", to: "/league-mgmt/settings", cfbOnly: false },
   { icon: Newspaper, label: "Media", detail: "Headlines and articles", to: "/league-mgmt/publishing", cfbOnly: false },
   { icon: GraduationCap, label: "Recruits", detail: "Recruiting and transfers", to: "/league-mgmt/recruiting", cfbOnly: true },
