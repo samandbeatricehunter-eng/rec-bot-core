@@ -1,19 +1,22 @@
 // @ts-nocheck
-import { evaluatePayoutTier, isRegularSeasonWeek, nextPayoutTier, type RecEndSeasonPayoutDefinition } from "@rec/shared";
+import { evaluatePayoutTier, isPayoutEligibleForGame, isRegularSeasonWeek, nextPayoutTier, type RecEndSeasonPayoutDefinition } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { TEAM_DEFINITIONS, evalTeamStat } from "./eos-payouts.service.js";
-import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
+import { CAREER_BADGES, CAREER_LADDER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 
 // Human label for any badge key, across all scopes.
-const BADGE_LABEL = new Map(
-  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label] as const),
-);
+const BADGE_LABEL = new Map([
+  ...GAME_BADGES.map((badge) => [badge.key, badge.label] as const),
+  ...SEASON_BADGES.map((badge) => [badge.key, badge.label] as const),
+  ...CAREER_BADGES.map((badge) => [badge.key, badge.label] as const),
+  ...CAREER_LADDER_BADGES.map((ladder) => [ladder.key, ladder.rungs[ladder.rungs.length - 1]?.label ?? ladder.key] as const),
+]);
 const badgeLabel = (key: string) => BADGE_LABEL.get(key) ?? key;
 
-type BadgeSnapshotEntry = { badge_key: string; badge_scope: string | null; tier: string | null; current_streak: number | null };
+type BadgeSnapshotEntry = { badge_key: string; badge_scope: string | null; tier: string | null; earned_count: number | null };
 type BadgeState = Record<string, BadgeSnapshotEntry[]>;
 
 // ─── Per-advance run marker (written at the end of completeAdvanceWeek) ─────────
@@ -30,10 +33,9 @@ export async function recordAdvanceDmRun(input: {
 }): Promise<void> {
   const { data: ownership, error } = await supabase
     .from("rec_badge_ownership")
-    .select("user_id,badge_key,badge_scope,tier,current_streak")
+    .select("user_id,badge_key,badge_scope,tier,earned_count")
     .eq("league_id", input.leagueId)
-    .eq("season", input.seasonNumber)
-    .eq("active", true);
+    .eq("season", input.seasonNumber);
   if (error) {
     console.error("[ERROR] Failed to snapshot badge ownership for advance DM run:", error);
   }
@@ -45,7 +47,7 @@ export async function recordAdvanceDmRun(input: {
       badge_key: row.badge_key,
       badge_scope: row.badge_scope,
       tier: row.tier,
-      current_streak: row.current_streak,
+      earned_count: row.earned_count,
     });
   }
 
@@ -167,7 +169,7 @@ export async function generateAdvanceDms(input: { guildId: string }): Promise<Ad
     const sections = {
       transactions: buildTransactionsSection(ledgerByUser.get(userId) ?? []),
       badges: buildBadgesSection(prevState[userId] ?? [], latestState[userId] ?? []),
-      eosProgress: eosApplicable ? buildEosProgressSection(statsByUser.get(userId) ?? []) : null,
+      eosProgress: eosApplicable ? buildEosProgressSection(statsByUser.get(userId) ?? [], context.rec_leagues.game) : null,
       powerRanking: teamId ? buildPowerRankingSection(rankByTeam.get(teamId)) : null,
     };
 
@@ -264,9 +266,9 @@ function tierTarget(def: RecEndSeasonPayoutDefinition, value: number): string {
   return `**${def.label}:** ${shown} — ${currentLabel} → need ${verb}${next.threshold} for Tier ${next.tier} ($${next.amount})`;
 }
 
-function buildEosProgressSection(rows: any[]): string | null {
+function buildEosProgressSection(rows: any[], game: string | null | undefined): string | null {
   if (!rows.length) return null;
-  const lines = TEAM_DEFINITIONS.map((def) => tierTarget(def, evalTeamStat(def.statKey, rows)));
+  const lines = TEAM_DEFINITIONS.filter((def) => isPayoutEligibleForGame(def, game)).map((def) => tierTarget(def, evalTeamStat(def.statKey, rows)));
   if (!lines.length) return null;
   return lines.join("\n").slice(0, 1024);
 }

@@ -9,8 +9,7 @@ import { computeLeagueSos } from "../schedule/sos.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { rebuildOfficialGlobalRecords } from "../official-records/official-records.service.js";
 import { recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
-import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
-import { loadLeagueCareerTrophies } from "../box-score-intelligence/season-trophies.service.js";
+import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -20,7 +19,7 @@ import {
   resolveTeamSchool,
 } from "./user-profile-stats.service.js";
 
-const ALL_BADGE_DEFS = [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES];
+const ALL_BADGE_DEFS = [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES];
 const BADGE_LABELS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.label]));
 const BADGE_DESCRIPTIONS = new Map<string, string>(ALL_BADGE_DEFS.map((badge: BadgeDef<any>) => [badge.key, badge.description]));
 const CFB_27_ONLY = ["cfb_27"];
@@ -151,7 +150,7 @@ const IDENTITY_GROUPS = [
   },
 ];
 
-const TIER_WEIGHT: Record<string, number> = { normal: 1, bronze: 2, silver: 3, gold: 4, xf: 7 };
+const TIER_WEIGHT: Record<string, number> = { normal: 1, bronze: 2, silver: 3, gold: 4, needs_work: 1, warning: 2, serious_problem: 3, shit_show: 4 };
 
 function mapOwnedBadge(row: any) {
   const badgeKey = row.badge_key ?? row.badge_name ?? "badge";
@@ -160,7 +159,7 @@ function mapOwnedBadge(row: any) {
     badge_name: badgeKey,
     badge_label: BADGE_LABELS.get(badgeKey) ?? badgeKey,
     badge_description: BADGE_DESCRIPTIONS.get(badgeKey) ?? null,
-    earned_value: row.earned_count ?? row.current_streak ?? 1,
+    earned_value: row.earned_count ?? 1,
     earned_at: row.updated_at ?? row.created_at ?? null,
     league_id: row.league_id ?? null,
     season_number: row.season ?? null,
@@ -274,7 +273,7 @@ export async function getRecentTransactionsByUserId(userId: string, limit = 25, 
 }
 
 function badgeScore(row: any) {
-  return Math.max(1, Number(row.earned_count ?? row.best_streak ?? row.current_streak ?? 1)) * (TIER_WEIGHT[String(row.tier ?? "normal")] ?? 1);
+  return Math.max(1, Number(row.earned_count ?? 1)) * (TIER_WEIGHT[String(row.tier ?? "normal")] ?? 1);
 }
 
 function clamp01(value: number) {
@@ -494,7 +493,7 @@ export async function getLeagueUserIdentities(guildId: string) {
       .is("ended_at", null),
     supabase
       .from("rec_badge_ownership")
-      .select("badge_key,badge_scope,tier,earned_count,current_streak,best_streak,last_earned_week,created_at,updated_at,league_id,season,week,user_id")
+      .select("badge_key,badge_scope,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week,user_id")
       .eq("league_id", leagueId)
       .or(`season.eq.${seasonNumber},season.is.null`),
   ]);
@@ -516,14 +515,16 @@ export async function getLeagueUserIdentities(guildId: string) {
     badgesByUser.set(badge.user_id, rows);
   }
 
-  const trophiesByUser = await loadLeagueCareerTrophies(leagueId);
-
   const identities = await Promise.all((assignments ?? []).map(async (assignment: any) => {
     const discordAcc = discordByUser.get(assignment.user_id) ?? null;
     const seasonStats = assignment.user_id
       ? await loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber).catch(() => null)
       : null;
-    const identity = buildIdentityFromSignals(badgesByUser.get(assignment.user_id) ?? [], seasonStats, league?.game);
+    const userBadges = badgesByUser.get(assignment.user_id) ?? [];
+    const identity = buildIdentityFromSignals(userBadges, seasonStats, league?.game);
+    const careerBadges = userBadges
+      .filter((b: any) => b.badge_scope === "career")
+      .map((b: any) => ({ ...b, badgeLabel: BADGE_LABELS.get(b.badge_key) ?? b.badge_key }));
     return {
       userId: assignment.user_id,
       teamId: assignment.team_id,
@@ -531,7 +532,7 @@ export async function getLeagueUserIdentities(guildId: string) {
       displayName: assignment.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
       teamName: formatTeamDisplayName(assignment.team) ?? assignment.team?.name ?? null,
       seasonStats,
-      careerTrophies: assignment.user_id ? trophiesByUser.get(assignment.user_id) ?? [] : [],
+      careerTrophies: careerBadges,
       ...identity,
     };
   }));
@@ -576,14 +577,18 @@ export async function getLeagueSeasonXfBadges(guildId: string, seasonNumber?: nu
   if (!leagueId) return { league: null, badges: [] };
 
   const season = Number(seasonNumber ?? league?.season_number ?? league?.display_season_number ?? 1);
+  // "XF" badges: the old streak-tiering system's top special tier. Repurposed to mean
+  // gold-tier positive game-scope badges (10+ occurrences this season) under the
+  // occurrence-count tiering model — same "call out an exceptional season" intent.
   const [{ data: rows, error }, { data: assignments }] = await Promise.all([
     supabase
       .from("rec_badge_ownership")
-      .select("user_id,team_id,badge_key,tier,earned_count,current_streak,best_streak,last_earned_week,updated_at")
+      .select("user_id,team_id,badge_key,tier,earned_count,last_earned_week,updated_at")
       .eq("league_id", leagueId)
       .eq("season", season)
-      .eq("badge_scope", "season")
-      .eq("tier", "xf")
+      .eq("badge_scope", "game")
+      .eq("polarity", "positive")
+      .eq("tier", "gold")
       .order("updated_at", { ascending: false }),
     supabase
       .from("rec_team_assignments")
@@ -677,20 +682,20 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     leagueId
       ? supabase
           .from("rec_badge_ownership")
-          .select("badge_key,badge_scope,tier,earned_count,current_streak,best_streak,last_earned_week,created_at,updated_at,league_id,season,week")
+          .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
           .eq("league_id", leagueId)
           .eq("season", seasonNumber)
           .eq("user_id", userId)
-          .in("badge_scope", ["weekly", "season"])
+          .in("badge_scope", ["game", "season"])
           .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     leagueId
       ? supabase
         .from("rec_badge_ownership")
-        .select("badge_key,badge_scope,tier,earned_count,current_streak,best_streak,last_earned_week,created_at,updated_at,league_id,season,week")
+        .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
         .eq("league_id", leagueId)
         .eq("user_id", userId)
-        .eq("badge_scope", "global")
+        .eq("badge_scope", "career")
         .is("season", null)
         .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] }),
@@ -805,7 +810,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     seasonStats,
     careerStats,
     seasonBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "season").map(mapOwnedBadge),
-    weeklyBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "weekly").map(mapOwnedBadge),
+    weeklyBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "game").map(mapOwnedBadge),
     globalBadges: ((globalBadges as any)?.data ?? []).map(mapOwnedBadge),
     globalAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
     financialSummary,
@@ -1128,7 +1133,7 @@ async function loadUserBadges(userId: string, leagueId: string) {
   try {
     const result = await supabase
       .from("rec_badge_ownership")
-      .select("badge_key,badge_scope,tier,earned_count,current_streak,best_streak,last_earned_week,created_at,updated_at,league_id,season,week")
+      .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
       .eq("league_id", leagueId)
       .eq("user_id", userId)
       .order("updated_at", { ascending: false });
@@ -1277,10 +1282,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
           } else if (isPostseason) {
             gotwStatus = "Yes - Playoff GOTW";
           }
-        } else if (stage === "cfp_bye_week") {
-          // Scheduled off week baked into the CFP bracket itself — applies to everyone, not
-          // a per-team bye, so it doesn't need the rec_team_byes lookup below.
-          currentMatchup = "BYE WEEK";
         } else if (isGameplayStage) {
           // A real gameplay week (regular season or postseason) with no rec_games row for
           // this team — distinguish a deliberately-scheduled bye from a matchup the

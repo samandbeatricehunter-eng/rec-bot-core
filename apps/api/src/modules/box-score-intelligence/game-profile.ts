@@ -1,11 +1,12 @@
 // Bridges stored data to the pure engine: maps a rec_team_game_stats row (one
 // team's view of one game) into the normalized GameStats input, and derives a
 // compact tactical profile. The conversion counts (third/fourth-down, two-point)
-// live in the offensive_stats/defensive_stats JSONB as strings, so they're parsed
-// here rather than read from dedicated columns.
+// live in the offensive_stats/defensive_stats JSONB as "made-attempts" strings
+// (e.g. "6-12"), so both halves are parsed here rather than read from dedicated
+// columns — only the "made" half was read before 2026-07-16.
 
-import { isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
-import { qualifyWeeklyBadges, type QualifiedBadge } from "./badge-rules.js";
+import { isCfb, isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
+import { qualifyGameBadges, type QualifiedBadge } from "./badge-rules.js";
 import { type GameStats, returnYards } from "./types.js";
 
 /** Subset of rec_team_game_stats consumed by the intelligence engine. */
@@ -31,6 +32,7 @@ export interface TeamGameStatsRow {
   kick_return_yards: number | null;
   punt_return_yards: number | null;
   generated_turnovers: number | null;
+  yards_allowed: number | null;
   first_downs_allowed: number | null;
   red_zone_def_percentage: number | null;
   offensive_stats: Record<string, string | number> | null;
@@ -47,6 +49,26 @@ const num = (v: unknown): number => {
 };
 
 const jsonNum = (j: Record<string, string | number> | null, key: string): number => num(j?.[key]);
+const jsonRaw = (j: Record<string, string | number> | null, key: string): string | null => (j?.[key] != null ? String(j[key]) : null);
+
+/** "made-attempts" -> [made, attempts]. Returns [made, null] if only the made half is present. */
+function madeAttempts(j: Record<string, string | number> | null, key: string): [number, number | null] {
+  const raw = jsonRaw(j, key);
+  if (!raw) return [0, null];
+  const m = raw.match(/^(-?\d+)-(-?\d+)$/);
+  if (m) return [parseInt(m[1], 10), parseInt(m[2], 10)];
+  return [num(raw), null];
+}
+
+/** Clamps a value to [min, max]; returns null (and flags quarantine) when out of range. */
+function sane(value: number | null, min: number, max: number, flags: { bad: boolean }): number | null {
+  if (value == null) return null;
+  if (value < min || value > max) {
+    flags.bad = true;
+    return null;
+  }
+  return value;
+}
 
 export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): GameStats {
   const pointsFor = num(row.points_for);
@@ -66,6 +88,28 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
       ? 100 - num(row.red_zone_def_percentage)
       : 0;
 
+  const [thirdMade, thirdAttempts] = madeAttempts(row.offensive_stats, "third_down_conversions");
+  const [fourthMade, fourthAttempts] = madeAttempts(row.offensive_stats, "fourth_down_conversions");
+  const [oppThirdMade, oppThirdAttempts] = madeAttempts(row.defensive_stats, "third_down_conversions");
+  const [oppFourthMade, oppFourthAttempts] = madeAttempts(row.defensive_stats, "fourth_down_conversions");
+
+  const flags = { bad: false };
+  const turnoversCommitted = sane(num(row.turnovers_committed), 0, 10, flags) ?? num(row.turnovers_committed);
+  const opponentTurnovers = sane(num(row.generated_turnovers), 0, 10, flags) ?? num(row.generated_turnovers);
+  if (thirdAttempts != null && thirdMade > thirdAttempts) flags.bad = true;
+  if (fourthAttempts != null && fourthMade > fourthAttempts) flags.bad = true;
+
+  const cfb = isCfb(game);
+  const rushAttempts = cfb ? jsonNum(row.offensive_stats, "off_rush_attempts") || null : null;
+  const passCompletions = cfb ? jsonNum(row.offensive_stats, "pass_completions") : null;
+  const passAttempts = cfb ? jsonNum(row.offensive_stats, "pass_attempts") : null;
+  if (cfb && passCompletions != null && passAttempts != null && passCompletions > passAttempts) flags.bad = true;
+  const yardsPerPlay = cfb ? sane(jsonNum(row.offensive_stats, "yards_per_play") || null, 0, 25, flags) : null;
+  const yardsPerRush = cfb ? sane(jsonNum(row.offensive_stats, "yards_per_rush") || null, 0, 25, flags) : null;
+  const yardsPerPass = cfb ? sane(jsonNum(row.offensive_stats, "yards_per_pass") || null, 0, 25, flags) : null;
+  const interceptionsThrown = cfb ? sane(jsonNum(row.offensive_stats, "interceptions_thrown") || null, 0, 10, flags) : null;
+  const fumblesLost = cfb ? sane(jsonNum(row.offensive_stats, "fumbles_lost") || null, 0, 10, flags) : null;
+
   return {
     leagueId: row.league_id,
     season: num(row.season_number),
@@ -82,28 +126,57 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
     pointsFor,
     pointsAgainst,
     margin: pointsFor - pointsAgainst,
-    // "SuperBowl" here means the season's final championship game — week 22 for
-    // NFL-style games (madden_26/27), week 20 (national_championship) for CFB.
+    // "Championship" here means the season's final game — week 22 for NFL-style
+    // games (madden_26/27), week 19 (national_championship) for CFB.
     isPlayoff: week > regularSeasonWeeks(game),
     isSuperBowl: isChampionshipWeek(week, game),
+    isConferenceChampionshipGame: week === 15,
+    isDivisionalRound: !cfb && week === 20,
 
     passingYards: pass,
     rushingYards: rush,
     offensiveYards,
     totalYards: row.total_yards_gained != null ? num(row.total_yards_gained) : offensiveYards,
     firstDowns: num(row.off_first_down),
-    thirdDownConversions: jsonNum(row.offensive_stats, "third_down_conversions"),
-    fourthDownConversions: jsonNum(row.offensive_stats, "fourth_down_conversions"),
+    thirdDownConversions: thirdMade,
+    fourthDownConversions: fourthMade,
     twoPointConversions: jsonNum(row.offensive_stats, "two_point_conversions"),
-    turnoversCommitted: num(row.turnovers_committed),
+    turnoversCommitted,
     redZoneOffensivePct: num(row.red_zone_off_percentage),
     kickReturnYards: num(row.kick_return_yards),
     puntReturnYards: num(row.punt_return_yards),
+    yardsAllowed: row.yards_allowed != null ? num(row.yards_allowed) : row.total_yards_gained != null ? num(row.total_yards_gained) : 0,
 
     opponentFirstDowns: row.first_downs_allowed != null ? num(row.first_downs_allowed) : jsonNum(row.defensive_stats, "off_first_down"),
-    opponentThirdDownConversions: jsonNum(row.defensive_stats, "third_down_conversions"),
-    opponentTurnovers: num(row.generated_turnovers),
+    opponentThirdDownConversions: oppThirdMade,
+    opponentThirdDownAttempts: oppThirdAttempts,
+    opponentFourthDownConversions: oppFourthMade,
+    opponentFourthDownAttempts: oppFourthAttempts,
+    opponentTurnovers,
     opponentRedZoneOffensivePct: oppRzFromDef,
+
+    totalPlays: cfb ? jsonNum(row.offensive_stats, "total_plays") || null : null,
+    yardsPerPlay,
+    rushAttempts,
+    rushTDs: cfb ? jsonNum(row.offensive_stats, "off_rush_tds") || null : null,
+    yardsPerRush,
+    passCompletions,
+    passAttempts,
+    passTDs: cfb ? jsonNum(row.offensive_stats, "off_pass_tds") || null : null,
+    yardsPerPass,
+    thirdDownAttempts: cfb ? thirdAttempts : null,
+    fourthDownAttempts: cfb ? fourthAttempts : null,
+    interceptionsThrown,
+    fumblesLost,
+    redZoneTDs: cfb ? jsonNum(row.offensive_stats, "red_zone_tds") || null : null,
+    redZoneFGs: cfb ? jsonNum(row.offensive_stats, "red_zone_fgs") || null : null,
+    punts: cfb ? jsonNum(row.offensive_stats, "punts") || null : null,
+    puntAvgYards: cfb ? jsonNum(row.offensive_stats, "punt_avg_yards") || null : null,
+    penalties: cfb ? jsonNum(row.offensive_stats, "penalties") || null : null,
+    penaltyYards: cfb ? jsonNum(row.offensive_stats, "penalty_yards") || null : null,
+    timeOfPossessionSeconds: cfb ? jsonNum(row.offensive_stats, "time_of_possession") || null : null,
+
+    statsQuarantined: flags.bad,
   };
 }
 
@@ -139,6 +212,6 @@ export function computeGameProfile(g: GameStats, game?: string | null): GameProf
     stoutDefense: g.pointsAgainst <= 14,
     redZoneSharp: g.redZoneOffensivePct >= 75,
     specialTeamsEdge: returnYards(g) >= 150,
-    qualifiedBadges: qualifyWeeklyBadges(g, game),
+    qualifiedBadges: qualifyGameBadges(g, game),
   };
 }

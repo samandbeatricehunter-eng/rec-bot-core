@@ -1,7 +1,7 @@
 import { isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
+import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
@@ -9,7 +9,7 @@ import { formatLeagueGameLabel, getLeagueUserIdentities } from "../users/user.se
 import { getGameChannelByDiscordId } from "./game-channels.service.js";
 
 const BADGE_LABEL = new Map<string, string>(
-  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((b) => [b.key, b.label]),
+  [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((b) => [b.key, b.label]),
 );
 
 function mapBadge(row: any) {
@@ -137,7 +137,7 @@ function buildSide(
       playoffText: `${Number(gr?.playoff_wins ?? 0)}-${Number(gr?.playoff_losses ?? 0)}`,
       superbowlWins: Number(gr?.superbowl_wins ?? 0),
     },
-    weeklyBadges: badges.filter((b) => b.badge_scope === "weekly").map(mapBadge),
+    weeklyBadges: badges.filter((b) => b.badge_scope === "game").map(mapBadge),
     seasonBadges: badges.filter((b) => b.badge_scope === "season").map(mapBadge),
   };
 }

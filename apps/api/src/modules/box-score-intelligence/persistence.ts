@@ -1,34 +1,42 @@
 // @ts-nocheck
 // Import-time orchestration: runs after a box score is approved and its
 // rec_team_game_stats rows are written. Computes game profiles, generates the
-// game story, and recomputes the participants' weekly/season/global badges, then
+// game story, and recomputes the participants' game/season/career badges, then
 // persists everything. Advance only READS these rows — it must not call this.
 //
 // Idempotent / re-import-safe: game-scoped derived rows (profile, story, events)
-// are deleted before re-insert, and season/global badge progress is recomputed
-// from the stored games rather than incremented, so re-uploading a corrected box
-// score self-heals instead of double-counting.
+// are deleted before re-insert, and game/season/career badge progress is
+// recomputed from the stored games rather than incremented, so re-uploading a
+// corrected box score self-heals instead of double-counting.
 //
 // Badge recompute across a whole league (recomputeActiveLeagueBadgeBaselines,
 // issueSeasonTotalBadges) is fully batched — one flat set of reads/writes for the
-// whole league regardless of roster size, not one round-trip per coach. This
-// matters at scale: a 100-league fleet firing per-coach queries on every advance
-// would multiply badly under concurrent load.
+// whole league regardless of roster size, not one round-trip per coach.
+//
+// Three independent badge tracks (see badge-rules.ts):
+//   game    — per-game personality/performance badges, tiered by this season's
+//             occurrence count (no streak tracking — just a tally).
+//   season  — per-season cumulative-total badges, always tier "normal".
+//   career  — all-time cumulative-total badges (never reset), including the
+//             ladder badges (wins/games/yardage milestones) that grade into
+//             bronze/silver/gold at the highest threshold crossed.
+// There is no career-trophy conversion step anymore — career badges are always
+// live/continuous, so nothing needs to be "converted" at season end.
 
+import { isCfb } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
-import { seasonTotalsFromGames, careerTotalsFromGames, weeklyStreaks } from "./aggregate.js";
+import { seasonTotalsFromGames, careerTotalsFromGames, gameBadgeOccurrences } from "./aggregate.js";
 import {
-  WEEKLY_BADGES,
-  getSeasonTier,
-  getWeeklyTier,
-  qualifyGlobalBadges,
+  qualifyCareerBadges,
+  qualifyGameBadges,
+  qualifyLadderBadges,
   qualifySeasonBadges,
-  qualifyWeeklyBadges,
+  tierForOccurrenceCount,
 } from "./badge-rules.js";
 import { computeGameProfile, rowToGameStats, type TeamGameStatsRow } from "./game-profile.js";
 import { generateGameStory } from "./story-angles.js";
 import { buildRoundtableDiscussion } from "../hub/roundtable.js";
-import { type CareerTotals, type GameStats } from "./types.js";
+import { type CareerTotals, type GameStats, type SeasonTotals } from "./types.js";
 
 /** The box-score submission row (rec_box_score_submissions). Loosely typed — only a few fields are read. */
 type SubmissionRow = {
@@ -38,8 +46,6 @@ type SubmissionRow = {
   week_number: number;
   game_id: string | null;
 };
-
-const WEEKLY_LABEL = new Map(WEEKLY_BADGES.map((b) => [b.key, b.label]));
 
 type PerformanceTagRow = {
   team_id: string;
@@ -120,7 +126,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
   const winner = games.find((g) => g.won);
   const loser = games.find((g) => g.lost);
   if (gameId && winner && loser) {
-    const winnerBadges = qualifyWeeklyBadges(winner, leagueGame).map((b) => b.label);
+    const winnerBadges = qualifyGameBadges(winner, leagueGame).filter((b) => b.polarity === "positive").map((b) => b.label);
     const story = generateGameStory(
       {
         winner,
@@ -173,9 +179,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
 
 // ─── Pure badge computation (no I/O) — shared by the single-user and batch paths ──
 
-type CareerRecordOverride = { wins: number; gamesPlayed: number; playoffWins: number; superBowlTitles: number };
-type PreviousSeasonBadge = { badge_key: string; tier: string | null; earned_count: number; best_streak: number };
-
+type CareerRecordOverride = { wins: number; gamesPlayed: number; playoffWins: number; championships: number };
 type UserBadgeComputeInput = {
   leagueId: string;
   userId: string;
@@ -184,20 +188,19 @@ type UserBadgeComputeInput = {
   leagueGame: string;
   allGames: GameStats[];
   careerRecordOverride: CareerRecordOverride | null;
-  previousSeasonBadges: Map<string, PreviousSeasonBadge>;
-  /** Only set on the single-game path (processGameIntelligence) — drives the game-scoped weekly-badge-event audit row. */
+  /** Only set on the single-game path (processGameIntelligence) — drives the game-scoped badge-event audit row. */
   current?: GameStats | null;
 };
 
 type UserBadgeComputeResult = {
-  weeklyRows: any[];
+  gameRows: any[];
   seasonRows: any[];
-  globalRows: any[];
+  careerRows: any[];
   eventRows: any[];
 };
 
 function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeResult {
-  const { leagueId, userId, teamId, season, leagueGame, allGames, careerRecordOverride, previousSeasonBadges, current } = input;
+  const { leagueId, userId, teamId, season, leagueGame, allGames, careerRecordOverride, current } = input;
   const seasonGames = allGames.filter((g) => g.season === season);
   const now = new Date().toISOString();
 
@@ -208,123 +211,90 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
       wins: Math.max(careerTotals.wins, careerRecordOverride.wins),
       gamesPlayed: Math.max(careerTotals.gamesPlayed, careerRecordOverride.gamesPlayed),
       playoffWins: Math.max(careerTotals.playoffWins, careerRecordOverride.playoffWins),
-      superBowlTitles: Math.max(careerTotals.superBowlTitles, careerRecordOverride.superBowlTitles),
+      championships: Math.max(careerTotals.championships, careerRecordOverride.championships),
     };
   }
 
-  const streaks = weeklyStreaks(seasonGames, leagueGame);
+  // Game-scope: one row per badge this user has earned at least once this season,
+  // tiered purely by how many times (no streaks).
+  const occurrences = gameBadgeOccurrences(seasonGames, leagueGame);
+  const polarityByKey = new Map<string, "positive" | "negative">();
+  for (const g of seasonGames) for (const b of qualifyGameBadges(g, leagueGame)) polarityByKey.set(b.key, b.polarity);
 
-  const weeklyRows = streaks.map((s) => ({
-    league_id: leagueId,
-    user_id: userId,
-    team_id: teamId,
-    badge_key: s.badgeKey,
-    badge_scope: "weekly",
-    tier: getWeeklyTier(s.currentStreak),
-    season,
-    week: s.lastEarnedWeek,
-    earned_count: s.earnedCount,
-    current_streak: s.currentStreak,
-    best_streak: s.bestStreak,
-    last_earned_week: s.lastEarnedWeek,
-    active: s.currentStreak > 0,
-    updated_at: now,
-  }));
-
-  // Season-long tiered versions of repeated weekly badges (bronze/silver/gold/xf).
-  // Use bestStreak (not currentStreak) so a broken streak doesn't erase the tier
-  // a user already earned — the badge is kept at the highest tier reached.
-  const seasonRows = streaks
-    .map((s) => ({ s, tier: getSeasonTier(s.bestStreak, s.earnedCount) }))
-    .filter((x): x is { s: typeof x.s; tier: NonNullable<typeof x.tier> } => x.tier !== null)
-    .map(({ s, tier }) => ({
+  const gameRows = occurrences.map((o) => {
+    const polarity = polarityByKey.get(o.badgeKey) ?? "positive";
+    return {
       league_id: leagueId,
       user_id: userId,
       team_id: teamId,
-      badge_key: s.badgeKey,
-      badge_scope: "season",
-      tier,
+      badge_key: o.badgeKey,
+      badge_scope: "game",
+      polarity,
+      tier: tierForOccurrenceCount(o.earnedCount, polarity),
       season,
-      earned_count: s.earnedCount,
-      current_streak: s.currentStreak,
-      best_streak: s.bestStreak,
-      last_earned_week: s.lastEarnedWeek,
-      active: s.currentStreak > 0,
+      week: null,
+      earned_count: o.earnedCount,
+      last_earned_week: o.lastEarnedWeek,
       updated_at: now,
-    }));
+    };
+  });
 
-  // NOTE: qualifySeasonBadges (season-total badges like "Winning Season",
-  // "Ball Control Season") are NOT issued here — they only apply once the
-  // regular season is complete. Call issueSeasonTotalBadges() from the
-  // advance service when the league transitions to playoffs.
-
-  // Global / career badges (per-league career; season is null).
-  const globalRows = qualifyGlobalBadges(careerTotals, leagueGame).map((b) => ({
+  // Season-scope: qualified straight from this season's cumulative totals, tier always "normal".
+  const seasonTotals = seasonTotalsFromGames(seasonGames);
+  const seasonRows = qualifySeasonBadges(seasonTotals, leagueGame).map((b) => ({
     league_id: leagueId,
     user_id: userId,
     team_id: teamId,
     badge_key: b.key,
-    badge_scope: "global",
+    badge_scope: "season",
+    polarity: b.polarity,
     tier: "normal",
-    season: null,
+    season,
+    week: null,
     earned_count: 1,
-    current_streak: 1,
-    best_streak: 1,
     last_earned_week: null,
-    active: true,
     updated_at: now,
   }));
 
+  // Career-scope: simple boolean/threshold badges (tier "normal") + graded ladder badges.
+  const careerRows = [
+    ...qualifyCareerBadges(careerTotals, leagueGame).map((b) => ({
+      league_id: leagueId, user_id: userId, team_id: teamId, badge_key: b.key, badge_scope: "career",
+      polarity: b.polarity, tier: "normal", season: null, week: null, earned_count: 1, last_earned_week: null, updated_at: now,
+    })),
+    ...qualifyLadderBadges(careerTotals, leagueGame).map((b) => ({
+      league_id: leagueId, user_id: userId, team_id: teamId, badge_key: b.key, badge_scope: "career",
+      polarity: "positive", tier: b.tier, season: null, week: null, earned_count: 1, last_earned_week: null, updated_at: now,
+    })),
+  ];
+
+  // Audit trail + badge-bonus economy: log one event per POSITIVE game-scope badge
+  // actually earned in THIS game (box-score.service.ts's issueBadgeBonusesForSubmission
+  // pays a real cash bonus per event row here — negative badges must never generate
+  // one). Only meaningful on the single-game import path (current is set); the
+  // whole-league batch recompute path never fires this (current is null there).
   const eventRows: any[] = [];
-
-  const newXfRows = seasonRows.filter((row) => {
-    if (row.tier !== "xf") return false;
-    const previous = previousSeasonBadges.get(row.badge_key);
-    return previous?.tier !== "xf";
-  });
-  eventRows.push(...newXfRows.map((row) => ({
-    league_id: leagueId,
-    user_id: userId,
-    team_id: teamId,
-    badge_key: row.badge_key,
-    badge_scope: "season",
-    tier: "xf",
-    season,
-    week: row.last_earned_week,
-    game_id: current?.gameId ?? null,
-    reason: `XF season badge earned: ${row.earned_count} total earns this season`,
-    stats_snapshot: {
-      earnedCount: row.earned_count,
-      currentStreak: row.current_streak,
-      bestStreak: row.best_streak,
-      lastEarnedWeek: row.last_earned_week,
-    },
-  })));
-
-  // Audit: weekly badges earned in THIS game (game-scoped, re-import-safe).
-  const earnedThisGame = current ? qualifyWeeklyBadges(current, leagueGame) : [];
-  if (current?.gameId && earnedThisGame.length) {
-    eventRows.push(...earnedThisGame.map((b) => ({
-      league_id: leagueId,
-      user_id: userId,
-      team_id: teamId,
-      badge_key: b.key,
-      badge_scope: "weekly",
-      tier: getWeeklyTier(streaks.find((s) => s.badgeKey === b.key)?.currentStreak ?? 1),
-      season,
-      week: current?.week,
-      game_id: current?.gameId,
-      reason: "Weekly badge earned",
-      stats_snapshot: {
-        pointsFor: current?.pointsFor,
-        pointsAgainst: current?.pointsAgainst,
-        passingYards: current?.passingYards,
-        rushingYards: current?.rushingYards,
-      },
-    })));
+  if (current?.gameId) {
+    const tierByKey = new Map(gameRows.map((row) => [row.badge_key, row.tier]));
+    for (const badge of qualifyGameBadges(current, leagueGame)) {
+      if (badge.polarity !== "positive") continue;
+      eventRows.push({
+        league_id: leagueId,
+        user_id: userId,
+        team_id: teamId,
+        badge_key: badge.key,
+        badge_scope: "game",
+        tier: tierByKey.get(badge.key) ?? "normal",
+        season,
+        week: current.week,
+        game_id: current.gameId,
+        reason: "Game badge earned",
+        stats_snapshot: { pointsFor: current.pointsFor, pointsAgainst: current.pointsAgainst, passingYards: current.passingYards, rushingYards: current.rushingYards },
+      });
+    }
   }
 
-  return { weeklyRows, seasonRows, globalRows, eventRows };
+  return { gameRows, seasonRows, careerRows, eventRows };
 }
 
 // ─── Single-user path (called per-team from processGameIntelligence) ─────────────
@@ -334,23 +304,20 @@ async function recomputeSingleUserBadges(current: GameStats, leagueGame: string)
   const userId = current.userId!;
   const season = current.season;
 
-  const [statsResult, recordResult, previousSeasonResult] = await Promise.all([
+  const [statsResult, recordResult] = await Promise.all([
     supabase.from("rec_team_game_stats").select("*").eq("league_id", leagueId).eq("user_id", userId),
     supabase.from("rec_global_user_game_records").select("wins,games_played,playoff_wins,superbowl_wins").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
-    supabase.from("rec_badge_ownership").select("badge_key,tier,earned_count,best_streak").eq("league_id", leagueId).eq("user_id", userId).eq("season", season).eq("badge_scope", "season"),
   ]);
   if (statsResult.error) throw statsResult.error;
-  if (previousSeasonResult.error) throw previousSeasonResult.error;
 
   const allGames = (statsResult.data ?? []).map((r) => rowToGameStats(r as TeamGameStatsRow, leagueGame));
   const careerRecordOverride = toCareerRecordOverride(recordResult.data);
-  const previousSeasonBadges = new Map((previousSeasonResult.data ?? []).map((row) => [row.badge_key, row as PreviousSeasonBadge]));
 
   const result = computeUserBadgeUpdate({
-    leagueId, userId, teamId: current.teamId, season, leagueGame, allGames, careerRecordOverride, previousSeasonBadges, current,
+    leagueId, userId, teamId: current.teamId, season, leagueGame, allGames, careerRecordOverride, current,
   });
 
-  await writeBadgeUpdates(leagueId, season, [userId], result.weeklyRows, result.seasonRows, result.globalRows, result.eventRows);
+  await writeBadgeUpdates(leagueId, season, [userId], result.gameRows, result.seasonRows, result.careerRows, result.eventRows);
 }
 
 function toCareerRecordOverride(record: { wins?: unknown; games_played?: unknown; playoff_wins?: unknown; superbowl_wins?: unknown } | null | undefined): CareerRecordOverride | null {
@@ -359,18 +326,18 @@ function toCareerRecordOverride(record: { wins?: unknown; games_played?: unknown
     wins: Number(record.wins ?? 0),
     gamesPlayed: Number(record.games_played ?? 0),
     playoffWins: Number(record.playoff_wins ?? 0),
-    superBowlTitles: Number(record.superbowl_wins ?? 0),
+    championships: Number(record.superbowl_wins ?? 0),
   };
 }
 
-// Replace the given users' weekly+season (this season) and global badge ownership
+// Replace the given users' game+season (this season) and career badge ownership
 // rows, then insert the freshly computed set, plus any new badge-event audit rows.
-async function writeBadgeUpdates(leagueId: string, season: number, userIds: string[], weeklyRows: any[], seasonRows: any[], globalRows: any[], eventRows: any[]): Promise<void> {
+async function writeBadgeUpdates(leagueId: string, season: number, userIds: string[], gameRows: any[], seasonRows: any[], careerRows: any[], eventRows: any[]): Promise<void> {
   await Promise.all([
-    supabase.from("rec_badge_ownership").delete().eq("league_id", leagueId).eq("season", season).in("badge_scope", ["weekly", "season"]).in("user_id", userIds),
-    supabase.from("rec_badge_ownership").delete().eq("league_id", leagueId).is("season", null).eq("badge_scope", "global").in("user_id", userIds),
+    supabase.from("rec_badge_ownership").delete().eq("league_id", leagueId).eq("season", season).in("badge_scope", ["game", "season"]).in("user_id", userIds),
+    supabase.from("rec_badge_ownership").delete().eq("league_id", leagueId).is("season", null).eq("badge_scope", "career").in("user_id", userIds),
   ]);
-  const ownership = [...weeklyRows, ...seasonRows, ...globalRows];
+  const ownership = [...gameRows, ...seasonRows, ...careerRows];
   if (ownership.length) {
     const { error: insErr } = await supabase.from("rec_badge_ownership").insert(ownership);
     if (insErr) throw insErr;
@@ -384,70 +351,6 @@ async function writeBadgeUpdates(leagueId: string, season: number, userIds: stri
 async function loadLeagueGame(leagueId: string): Promise<string> {
   const leagueResult = await supabase.from("rec_leagues").select("game").eq("id", leagueId).maybeSingle();
   return String(leagueResult.data?.game ?? "madden_26");
-}
-
-/**
- * Madden-only: the team with the best regular-season record in each conference/division
- * (rec_teams.conference + division, e.g. "AFC North") is that division's champion.
- * CFB has no equivalent sub-conference division structure, so callers should skip this
- * entirely for CFB leagues (the division_champion badge itself is also Madden-only).
- * Ties broken by point differential, then fewer losses.
- */
-async function computeDivisionChampions(leagueId: string, season: number): Promise<Set<string>> {
-  const [teamsRes, resultsRes] = await Promise.all([
-    supabase.from("rec_teams").select("id,conference,division").eq("league_id", leagueId),
-    supabase
-      .from("rec_game_results")
-      .select("home_team_id,away_team_id,winning_team_id,is_tie,home_score,away_score")
-      .eq("league_id", leagueId)
-      .eq("season_number", season)
-      .eq("is_playoff", false),
-  ]);
-  if (teamsRes.error || resultsRes.error || !teamsRes.data?.length) return new Set();
-
-  type Standing = { wins: number; losses: number; ties: number; pointDiff: number };
-  const standings = new Map<string, Standing>();
-  const get = (teamId: string) => {
-    let s = standings.get(teamId);
-    if (!s) { s = { wins: 0, losses: 0, ties: 0, pointDiff: 0 }; standings.set(teamId, s); }
-    return s;
-  };
-  for (const row of resultsRes.data ?? []) {
-    const home = row.home_team_id, away = row.away_team_id;
-    const homeScore = Number(row.home_score ?? 0), awayScore = Number(row.away_score ?? 0);
-    if (home) get(home).pointDiff += homeScore - awayScore;
-    if (away) get(away).pointDiff += awayScore - homeScore;
-    if (row.is_tie) {
-      if (home) get(home).ties++;
-      if (away) get(away).ties++;
-      continue;
-    }
-    if (row.winning_team_id === home && home) get(home).wins++;
-    else if (home) get(home).losses++;
-    if (row.winning_team_id === away && away) get(away).wins++;
-    else if (away) get(away).losses++;
-  }
-
-  const byDivision = new Map<string, { teamId: string; standing: Standing }[]>();
-  for (const team of teamsRes.data ?? []) {
-    if (!team.conference || !team.division) continue;
-    const key = `${team.conference}:${team.division}`;
-    const list = byDivision.get(key) ?? [];
-    list.push({ teamId: team.id, standing: standings.get(team.id) ?? { wins: 0, losses: 0, ties: 0, pointDiff: 0 } });
-    byDivision.set(key, list);
-  }
-
-  const champions = new Set<string>();
-  for (const teams of byDivision.values()) {
-    if (!teams.length) continue;
-    const best = teams.reduce((top, cur) =>
-      cur.standing.wins !== top.standing.wins ? (cur.standing.wins > top.standing.wins ? cur : top)
-      : cur.standing.pointDiff !== top.standing.pointDiff ? (cur.standing.pointDiff > top.standing.pointDiff ? cur : top)
-      : cur.standing.losses < top.standing.losses ? cur : top
-    );
-    champions.add(best.teamId);
-  }
-  return champions;
 }
 
 // ─── Whole-league batch recompute (advance / catch-up) ────────────────────────────
@@ -475,14 +378,12 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
   const userIds = uniqueAssignments.map((a) => a.user_id!);
   const leagueGame = await loadLeagueGame(leagueId);
 
-  const [statsResult, recordsResult, previousSeasonResult] = await Promise.all([
+  const [statsResult, recordsResult] = await Promise.all([
     supabase.from("rec_team_game_stats").select("*").eq("league_id", leagueId).in("user_id", userIds),
     supabase.from("rec_global_user_game_records").select("user_id,wins,games_played,playoff_wins,superbowl_wins").in("user_id", userIds).eq("game", leagueGame),
-    supabase.from("rec_badge_ownership").select("user_id,badge_key,tier,earned_count,best_streak").eq("league_id", leagueId).in("user_id", userIds).eq("season", season).eq("badge_scope", "season"),
   ]);
   if (statsResult.error) throw statsResult.error;
   if (recordsResult.error) throw recordsResult.error;
-  if (previousSeasonResult.error) throw previousSeasonResult.error;
 
   const gamesByUser = new Map<string, GameStats[]>();
   for (const row of statsResult.data ?? []) {
@@ -493,16 +394,10 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
     gamesByUser.set(g.userId, list);
   }
   const recordByUser = new Map((recordsResult.data ?? []).map((row) => [row.user_id, toCareerRecordOverride(row)]));
-  const previousSeasonByUser = new Map<string, Map<string, PreviousSeasonBadge>>();
-  for (const row of previousSeasonResult.data ?? []) {
-    const m = previousSeasonByUser.get(row.user_id) ?? new Map<string, PreviousSeasonBadge>();
-    m.set(row.badge_key, row as PreviousSeasonBadge);
-    previousSeasonByUser.set(row.user_id, m);
-  }
 
-  const allWeekly: any[] = [];
+  const allGame: any[] = [];
   const allSeason: any[] = [];
-  const allGlobal: any[] = [];
+  const allCareer: any[] = [];
   const allEvents: any[] = [];
   for (const { user_id: userId, team_id: teamId } of uniqueAssignments) {
     const result = computeUserBadgeUpdate({
@@ -513,16 +408,15 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
       leagueGame,
       allGames: gamesByUser.get(userId!) ?? [],
       careerRecordOverride: recordByUser.get(userId!) ?? null,
-      previousSeasonBadges: previousSeasonByUser.get(userId!) ?? new Map(),
       current: null,
     });
-    allWeekly.push(...result.weeklyRows);
+    allGame.push(...result.gameRows);
     allSeason.push(...result.seasonRows);
-    allGlobal.push(...result.globalRows);
+    allCareer.push(...result.careerRows);
     allEvents.push(...result.eventRows);
   }
 
-  await writeBadgeUpdates(leagueId, season, userIds, allWeekly, allSeason, allGlobal, allEvents);
+  await writeBadgeUpdates(leagueId, season, userIds, allGame, allSeason, allCareer, allEvents);
 
   return { usersUpdated: uniqueAssignments.length };
 }
@@ -541,11 +435,12 @@ async function loadTeamNames(teamIds: string[]): Promise<Map<string, string>> {
 }
 
 /**
- * Issues season-total badges (Winning Season, Ball Control Season, etc.) for
- * every active user in a league. Call this once when the league advances OUT of
- * the regular season (i.e. nextSeasonStage becomes "wild_card"/"cfp_first_round"
- * or any playoff stage). These badges are based on full-season totals and must
- * not be issued mid-season because the totals are still changing.
+ * Issues season-total badges (Prolific Passer, Perfect Regular Season, etc.) plus
+ * the "Reigning ___" badges (which depend on whether this user won the relevant
+ * game in the PRIOR season) for every active user in a league. Call this once when
+ * the league advances OUT of the regular season (i.e. nextSeasonStage becomes a
+ * playoff/CFP stage). These are based on full-season totals and must not be issued
+ * mid-season because the totals are still changing.
  *
  * Batched: one stats read for the whole roster, one upsert for all qualifying
  * badges, instead of one read per coach.
@@ -563,7 +458,7 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
   const userIds = [...new Set(assignments.map((a) => a.user_id).filter((id): id is string => Boolean(id)))];
   const now = new Date().toISOString();
   const leagueGame = await loadLeagueGame(leagueId);
-  const divisionChampionTeamIds = leagueGame === "cfb_27" ? new Set<string>() : await computeDivisionChampions(leagueId, season);
+  const cfb = isCfb(leagueGame);
 
   const { data: statsRows, error: statsError } = await supabase
     .from("rec_team_game_stats")
@@ -587,26 +482,31 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
   const badgeRows: any[] = [];
   for (const { user_id: userId, team_id: teamId } of assignments) {
     if (!userId) continue;
-    const seasonGames = (gamesByUser.get(userId) ?? []).filter((g) => g.season === season);
+    const games = gamesByUser.get(userId) ?? [];
+    const seasonGames = games.filter((g) => g.season === season);
+    const priorSeasonGames = games.filter((g) => g.season === season - 1);
     if (!seasonGames.length) continue;
-    const seasonTotals = { ...seasonTotalsFromGames(seasonGames), wonDivision: divisionChampionTeamIds.has(teamId) };
+
+    const seasonTotals = seasonTotalsFromGames(seasonGames);
     const qualified = qualifySeasonBadges(seasonTotals, leagueGame);
-    if (!qualified.length) continue;
-    badgeRows.push(...qualified.map((b) => ({
-      league_id: leagueId,
-      user_id: userId,
-      team_id: teamId,
-      badge_key: b.key,
-      badge_scope: "season",
-      tier: "normal",
-      season,
-      earned_count: 1,
-      current_streak: 1,
-      best_streak: 1,
-      last_earned_week: null,
-      active: true,
-      updated_at: now,
-    })));
+    const reigning = reigningChampionBadges(priorSeasonGames.length ? seasonTotalsFromGames(priorSeasonGames) : null, cfb);
+
+    for (const b of [...qualified, ...reigning]) {
+      badgeRows.push({
+        league_id: leagueId,
+        user_id: userId,
+        team_id: teamId,
+        badge_key: b.key,
+        badge_scope: "season",
+        polarity: "positive",
+        tier: "normal",
+        season,
+        week: null,
+        earned_count: 1,
+        last_earned_week: null,
+        updated_at: now,
+      });
+    }
   }
 
   if (!badgeRows.length) return;
@@ -615,4 +515,20 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
     .from("rec_badge_ownership")
     .upsert(badgeRows, { onConflict: "league_id,user_id,badge_key,badge_scope,season" });
   if (error) console.error("[ERROR] issueSeasonTotalBadges upsert failed:", error);
+}
+
+/** "Reigning ___" badges — earned for the season right after winning the relevant game. */
+function reigningChampionBadges(priorSeason: SeasonTotals | null, cfb: boolean): Array<{ key: string; label: string }> {
+  if (!priorSeason) return [];
+  if (cfb) {
+    const out: Array<{ key: string; label: string }> = [];
+    if (priorSeason.wonChampionship) out.push({ key: "national_champion", label: "Reigning National Champ" });
+    if (priorSeason.wonAnyBowlGame) out.push({ key: "bowl_winner", label: "Won Bowl Game" });
+    return out;
+  }
+  const out: Array<{ key: string; label: string }> = [];
+  if (priorSeason.wonChampionship) out.push({ key: "super_bowl_champion", label: "Reigning SB Champ" });
+  if (priorSeason.wonConferenceChampionship) out.push({ key: "conf_champion", label: "Reigning Conference Champ" });
+  if (priorSeason.wonDivisionalRound) out.push({ key: "div_champion", label: "Divisional Round Winner" });
+  return out;
 }

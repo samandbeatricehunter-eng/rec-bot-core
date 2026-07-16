@@ -13,7 +13,7 @@ import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-st
 import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
-import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
+import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
@@ -23,10 +23,10 @@ const BOX_SCORE_LOSS_PAYOUT = 50;
 const BADGE_BONUS_PAYOUT = 10;
 
 const BADGE_LABELS = new Map(
-  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label] as const),
+  [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.label] as const),
 );
 const BADGE_DESCRIPTIONS = new Map(
-  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.description] as const),
+  [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.description] as const),
 );
 
 type BoxScorePaidPlayer = {
@@ -1211,13 +1211,16 @@ async function loadXfSeasonBadgeEventsForSubmission(sub: {
   week_number: number;
   game_id: string | null;
 }) {
+  // "XF": the old streak-tiering system's top special tier, repurposed to mean a
+  // game-scope badge event logged at gold tier (10+ occurrences this season) —
+  // same "call out an exceptional performance right now" intent.
   let query = supabase
     .from("rec_badge_events")
     .select("id,user_id,team_id,badge_key,badge_scope,tier,season,week,game_id,reason,stats_snapshot,created_at")
     .eq("league_id", sub.league_id)
     .eq("season", sub.season_number)
-    .eq("badge_scope", "season")
-    .eq("tier", "xf");
+    .eq("badge_scope", "game")
+    .eq("tier", "gold");
 
   if (sub.game_id) query = query.eq("game_id", sub.game_id);
   else query = query.eq("week", sub.week_number).is("game_id", null);

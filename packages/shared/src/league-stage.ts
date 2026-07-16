@@ -4,14 +4,20 @@
 // scattered across Week 0 through Week 14 (real CFB has a "Week 0" slate the last week of
 // August, and — unlike a lockstep schedule — not every team plays every numbered week; a team
 // simply has no game logged for its bye weeks, same as the NFL model above), then Conference
-// Championship at week 15, then a 5-week CFP bracket at weeks 16-20 (first round, quarterfinals,
-// semifinals, a scheduled bye week with zero games, then the national championship).
+// Championship at week 15, then a 4-week "Bowl Week" bracket at weeks 16-19 (CFP First Round,
+// Quarterfinals, Semifinals, National Championship — no scheduled bye week between rounds).
 //
-// The weeks-15-20 postseason numbering is a best-effort extrapolation from a single non-playoff
-// team's in-game schedule screenshot (regular season confirmed through week 13, Conf Champ shown
-// as its own unnumbered slot, one more slot after it). It hasn't been verified against a playoff
-// team's actual CFP schedule yet — treat the exact week numbers for cfp_first_round onward as
-// provisional until confirmed.
+// After the National Championship, CFB abandons "Weeks" entirely for a 4-stage dynasty
+// offseason before looping back to Preseason -> Week 0: Players Leaving (roster
+// retention/graduation/draft declarations) -> Transfer Portal -> National Signing Day
+// (recruiting class signs + position changes) -> Training Results (progression + roster
+// cuts to reach the cap). This does not reuse Madden's franchise-mode offseason names
+// (coach_hiring/final_resigning/free_agency/draft), which are NFL-only.
+//
+// Source: community-aggregated CFP bowl-week structure (Reddit r/NCAAFBseries + EA's own
+// site), corroborated 2026-07-16. Superseded the prior provisional numbering, which was
+// extrapolated from a single non-playoff team's schedule screenshot and included an
+// unconfirmed bye week between semifinals and the championship.
 
 export type LeagueGame = "madden_26" | "madden_27" | "cfb_27" | string | null | undefined;
 
@@ -36,7 +42,7 @@ export function regularSeasonGamesPerTeam(game: LeagueGame): number {
 
 /** Last week number of the whole season (regular season + postseason) for this game. */
 export function maxSeasonWeek(game: LeagueGame): number {
-  return isCfb(game) ? 20 : 22;
+  return isCfb(game) ? 19 : 22;
 }
 
 /** Stages where the league plays scheduled games that may need commissioner advance input. */
@@ -46,10 +52,10 @@ export function gameplaySeasonStages(game: LeagueGame): Set<string> {
     : new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl"]);
 }
 
-/** Postseason stages eligible for EOS payouts/awards — includes the CFB bye week (no games, but still in-window). */
+/** Postseason stages eligible for EOS payouts/awards. */
 export function postseasonPayoutStages(game: LeagueGame): Set<string> {
   return isCfb(game)
-    ? new Set(["conference_championship", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "cfp_bye_week", "national_championship"])
+    ? new Set(["conference_championship", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"])
     : new Set(["wild_card", "divisional", "conference_championship", "super_bowl"]);
 }
 
@@ -74,9 +80,13 @@ export function nextLeagueStage(weekNumber: number, seasonStage: string, game: L
     if (stage === "conference_championship") return { weekNumber: 16, seasonStage: "cfp_first_round" };
     if (stage === "cfp_first_round") return { weekNumber: 17, seasonStage: "cfp_quarterfinals" };
     if (stage === "cfp_quarterfinals") return { weekNumber: 18, seasonStage: "cfp_semifinals" };
-    if (stage === "cfp_semifinals") return { weekNumber: 19, seasonStage: "cfp_bye_week" };
-    if (stage === "cfp_bye_week") return { weekNumber: 20, seasonStage: "national_championship" };
-    if (stage === "national_championship" || stage === "offseason") return { weekNumber: 1, seasonStage: "coach_hiring" };
+    if (stage === "cfp_semifinals") return { weekNumber: 19, seasonStage: "national_championship" };
+    // Dynasty offseason: no week numbers, just a 4-stage pipeline back to Preseason -> Week 0.
+    if (stage === "national_championship" || stage === "offseason") return { weekNumber: 1, seasonStage: "players_leaving" };
+    if (stage === "players_leaving") return { weekNumber: 1, seasonStage: "transfer_portal" };
+    if (stage === "transfer_portal") return { weekNumber: 1, seasonStage: "signing_day" };
+    if (stage === "signing_day") return { weekNumber: 1, seasonStage: "training_results" };
+    if (stage === "training_results") return { weekNumber: 1, seasonStage: "preseason" };
   } else {
     if (stage === "regular_season" && weekNumber < lastRegularWeek) return { weekNumber: weekNumber + 1, seasonStage: "regular_season" };
     if (stage === "regular_season" && weekNumber >= lastRegularWeek) return { weekNumber: 19, seasonStage: "wild_card" };
@@ -102,8 +112,11 @@ export function stageLabel(stage: string, week: number, game: LeagueGame = null)
     if (stage === "cfp_first_round") return "CFP First Round";
     if (stage === "cfp_quarterfinals") return "CFP Quarterfinals";
     if (stage === "cfp_semifinals") return "CFP Semifinals";
-    if (stage === "cfp_bye_week") return "Bye Week";
     if (stage === "national_championship") return "National Championship";
+    if (stage === "players_leaving") return "Players Leaving";
+    if (stage === "transfer_portal") return "Transfer Portal";
+    if (stage === "signing_day") return "National Signing Day";
+    if (stage === "training_results") return "Training Results";
   } else {
     if (stage === "wild_card") return "Wild Card";
     if (stage === "divisional") return "Divisional";
@@ -128,6 +141,11 @@ export function terminalSeasonStage(game: LeagueGame): string {
   return isCfb(game) ? "national_championship" : "super_bowl";
 }
 
+/** The first offseason stage entered right after the terminal (championship) stage — "coach_hiring" for NFL, "players_leaving" for CFB. */
+export function firstOffseasonStage(game: LeagueGame): string {
+  return isCfb(game) ? "players_leaving" : "coach_hiring";
+}
+
 /** True if this season_stage is the terminal (championship) stage for this game. */
 export function isTerminalSeasonStage(seasonStage: string, game: LeagueGame): boolean {
   return String(seasonStage ?? "") === terminalSeasonStage(game);
@@ -150,7 +168,6 @@ export function stageForWeek(weekNumber: number, game: LeagueGame): string {
     if (weekNumber === 16) return "cfp_first_round";
     if (weekNumber === 17) return "cfp_quarterfinals";
     if (weekNumber === 18) return "cfp_semifinals";
-    if (weekNumber === 19) return "cfp_bye_week";
     return "national_championship";
   }
   if (weekNumber === 19) return "wild_card";

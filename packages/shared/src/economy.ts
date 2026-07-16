@@ -17,7 +17,14 @@ export type RecEndSeasonPayoutDefinition = {
   eligiblePositions?: string[];
   minimums?: Record<string, number>;
   tiers: RecPayoutTierRule[];
+  /** Games this category applies to. Omit for shared/game-agnostic categories. */
+  games?: string[];
 };
+
+/** True if `definition` applies to `game` — no `games` list means shared across every game. */
+export function isPayoutEligibleForGame(definition: RecEndSeasonPayoutDefinition, game: string | null | undefined): boolean {
+  return !definition.games?.length || definition.games.includes(String(game ?? "madden_26"));
+}
 
 const higher = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRule[] =>
   tiers.map(([tier, threshold, amount]) => ({ tier, threshold, amount, operator: "greater_or_equal" }));
@@ -45,11 +52,18 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // Player-stat EOS payouts were removed: per-player stats are no longer stored
   // (box-score screenshot model is team-level only), so the league pays out solely
   // on team-scope categories and the power-ranking position bonus above.
+  //
+  // team_sacks was removed 2026-07-16: neither the Madden nor the CFB box-score parser
+  // ever produces a "sacks" stat, so this category always resolved to the bottom tier.
+  //
+  // team_def_ints is CFB-only: Madden's box score has no interceptions field at all
+  // (only a combined turnovers-forced number, already covered by turnover_diff below).
+  // CFB's box score does have one ("interceptions_thrown"), so a team's real defensive
+  // INTs = its opponent's interceptions_thrown for that game.
   { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 35, 200], ["A", 30, 150], ["B", 28, 100], ["C", 24, 75], ["D", 21, 50]]) },
   { key: "opp_ppg_allowed", label: "Opponent AVG PPG Defensive Bonus", scope: "team", direction: "lower_is_better", statKey: "points_allowed_per_game", tiers: lower([["S", 21, 200], ["A", 24, 150], ["B", 28, 100], ["C", 30, 75], ["D", 35, 50]]) },
-  { key: "team_def_ints", label: "Total Team Defensive INTs", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", tiers: higher([["S", 30, 200], ["A", 20, 150], ["B", 17, 100], ["C", 15, 75], ["D", 12, 50]]) },
+  { key: "team_def_ints", label: "Total Team Defensive INTs", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: ["cfb_27"], tiers: higher([["S", 30, 200], ["A", 20, 150], ["B", 17, 100], ["C", 15, 75], ["D", 12, 50]]) },
   { key: "team_def_yards_allowed", label: "Total Team Defensive Yards Allowed", scope: "team", direction: "lower_is_better", statKey: "total_yards_allowed", tiers: lower([["S", 4000, 200], ["A", 4500, 150], ["B", 5000, 100], ["C", 5500, 75], ["D", 6000, 50]]) },
-  { key: "team_sacks", label: "Team Defensive Sacks", scope: "team", direction: "higher_is_better", statKey: "team_sacks", tiers: higher([["S", 60, 200], ["A", 50, 150], ["B", 40, 100], ["C", 35, 75], ["D", 30, 50]]) },
   { key: "turnover_diff", label: "Turnover Differential", scope: "team", direction: "higher_is_better", statKey: "turnover_differential", tiers: higher([["S", 20, 200], ["A", 15, 150], ["B", 10, 100], ["C", 5, 75], ["D", 1, 50]]) },
   { key: "team_total_offense", label: "Team Total Offense", scope: "team", direction: "higher_is_better", statKey: "total_offense_yards", tiers: higher([["S", 7000, 200], ["A", 6500, 150], ["B", 6000, 100], ["C", 5500, 75], ["D", 5000, 50]]) },
   { key: "off_red_zone_td_rate", label: "Offensive Red-Zone TD Efficiency", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_rate", tiers: higher([["S", 70, 200], ["A", 65, 150], ["B", 60, 100], ["C", 55, 75], ["D", 50, 50]]) },

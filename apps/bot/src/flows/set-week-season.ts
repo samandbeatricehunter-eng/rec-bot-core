@@ -33,10 +33,12 @@ async function currentLeagueGame(guildId: string): Promise<LeagueGame> {
 }
 
 // CFB's postseason is conference_championship/cfp_first_round/cfp_quarterfinals/cfp_semifinals/
-// cfp_bye_week/national_championship at weeks 15-20, and it starts at "preseason" (no training
+// national_championship at weeks 15-19 (no bye week), and it starts at "preseason" (no training
 // camp). Madden's postseason is wild_card/divisional/conference_championship/super_bowl at weeks
-// 19-22, starting at "preseason_training_camp". The offseason pipeline (coach hiring through
-// draft) is shared across both games — see packages/shared/src/league-stage.ts.
+// 19-22, starting at "preseason_training_camp". CFB's offseason is its own dynasty-mode pipeline
+// (players_leaving -> transfer_portal -> signing_day -> training_results); Madden's is franchise
+// mode (coach_hiring -> final_resigning -> free_agency -> draft) — see
+// packages/shared/src/league-stage.ts.
 function buildSetWeekRows(game: LeagueGame) {
   const cfb = isCfb(game);
   const firstRegularWeek = cfb ? 0 : 1;
@@ -51,12 +53,11 @@ function buildSetWeekRows(game: LeagueGame) {
         ["CFP First Round", "cfp_first_round:16"],
         ["CFP Quarterfinals", "cfp_quarterfinals:17"],
         ["CFP Semifinals", "cfp_semifinals:18"],
-        ["Bye Week", "cfp_bye_week:19"],
-        ["National Championship", "national_championship:20"],
-        ["Coach Hiring", "coach_hiring:1"],
-        ["Final Re-Signing", "final_resigning:1"],
-        ["Free Agency", "free_agency:1"],
-        ["Draft", "draft:1"],
+        ["National Championship", "national_championship:19"],
+        ["Players Leaving", "players_leaving:1"],
+        ["Transfer Portal", "transfer_portal:1"],
+        ["National Signing Day", "signing_day:1"],
+        ["Training Results", "training_results:1"],
         ["Preseason", "preseason:1"],
       ]
     : [

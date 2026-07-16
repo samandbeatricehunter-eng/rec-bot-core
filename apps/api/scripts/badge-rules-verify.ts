@@ -1,22 +1,23 @@
-// Unit checks for the box-score intelligence engine (badges + tiers + stories).
+// Unit checks for the box-score intelligence engine (badges + occurrence tiering + stories).
 //
 //   pnpm --filter @rec/api exec tsx scripts/badge-rules-verify.ts
 //
 // Pure logic, no DB — runs in milliseconds. Exits non-zero on any failed check.
 import {
-  WEEKLY_BADGES,
+  GAME_BADGES,
   SEASON_BADGES,
-  GLOBAL_BADGES,
-  qualifyWeeklyBadges,
+  CAREER_BADGES,
+  CAREER_LADDER_BADGES,
+  qualifyGameBadges,
   qualifySeasonBadges,
-  qualifyGlobalBadges,
-  getWeeklyTier,
-  getSeasonTier,
+  qualifyCareerBadges,
+  qualifyLadderBadges,
+  tierForOccurrenceCount,
   generateGameStory,
   rowToGameStats,
   seasonTotalsFromGames,
   careerTotalsFromGames,
-  weeklyStreaks,
+  gameBadgeOccurrences,
   type GameStats,
   type SeasonTotals,
   type CareerTotals,
@@ -36,60 +37,83 @@ const check = (name: string, cond: boolean) => {
 const base: GameStats = {
   leagueId: "L", season: 1, week: 1, gameId: "g", teamId: "t", userId: "u", opponentTeamId: "o",
   won: true, lost: false, tied: false, homeAway: "home", pointsFor: 24, pointsAgainst: 17, margin: 7,
-  isPlayoff: false, isSuperBowl: false,
+  isPlayoff: false, isSuperBowl: false, isConferenceChampionshipGame: false, isDivisionalRound: false,
+  yardsAllowed: 300, statsQuarantined: false,
   passingYards: 200, rushingYards: 100, offensiveYards: 300, totalYards: 300, firstDowns: 18,
   thirdDownConversions: 5, fourthDownConversions: 0, twoPointConversions: 0, turnoversCommitted: 1,
   redZoneOffensivePct: 50, kickReturnYards: 0, puntReturnYards: 0,
-  opponentFirstDowns: 15, opponentThirdDownConversions: 4, opponentTurnovers: 0, opponentRedZoneOffensivePct: 50,
+  opponentFirstDowns: 15, opponentThirdDownConversions: 4, opponentThirdDownAttempts: null,
+  opponentFourthDownConversions: 0, opponentFourthDownAttempts: null, opponentTurnovers: 0, opponentRedZoneOffensivePct: 50,
+  totalPlays: null, yardsPerPlay: null, rushAttempts: null, rushTDs: null, yardsPerRush: null,
+  passCompletions: null, passAttempts: null, passTDs: null, yardsPerPass: null,
+  thirdDownAttempts: null, fourthDownAttempts: null, interceptionsThrown: null, fumblesLost: null,
+  redZoneTDs: null, redZoneFGs: null, punts: null, puntAvgYards: null, penalties: null, penaltyYards: null,
+  timeOfPossessionSeconds: null,
 };
 const g = (over: Partial<GameStats>): GameStats => ({ ...base, ...over });
-const wonWeekly = (gs: GameStats, key: string) => qualifyWeeklyBadges(gs).some((b) => b.key === key);
+const wonGame = (gs: GameStats, key: string, game: string | null = "madden_26") => qualifyGameBadges(gs, game).some((b) => b.key === key);
 
-// ── Set sizes ──────────────────────────────────────────────────────────────────
-check("30 weekly badges", WEEKLY_BADGES.length === 30);
-check("20 season badges", SEASON_BADGES.length === 20);
-check("50 global badges", GLOBAL_BADGES.length === 50);
-check("unique weekly keys", new Set(WEEKLY_BADGES.map((b) => b.key)).size === 30);
-check("unique global keys", new Set(GLOBAL_BADGES.map((b) => b.key)).size === 50);
+// ── Set sizes / uniqueness (positive game badges: shared 22 + Madden-only 10 + CFB-only 16) ──
+check("no duplicate (key,games) game badge pairs", (() => {
+  const seen = new Set<string>();
+  for (const b of GAME_BADGES) {
+    const bucket = b.games?.join(",") ?? "shared";
+    const k = `${b.key}:${bucket}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+  }
+  return true;
+})());
 
-// ── Weekly thresholds (boundary on/off) ──────────────────────────────────────────
-check("ground_and_pound @200", wonWeekly(g({ rushingYards: 200 }), "ground_and_pound"));
-check("ground_and_pound !@199", !wonWeekly(g({ rushingYards: 199 }), "ground_and_pound"));
-check("run_heavy @+75", wonWeekly(g({ rushingYards: 175, passingYards: 100 }), "run_heavy"));
-check("air_raid @375", wonWeekly(g({ passingYards: 375 }), "air_raid"));
-check("pass_heavy @+200", wonWeekly(g({ passingYards: 320, rushingYards: 120 }), "pass_heavy"));
-check("balanced_attack", wonWeekly(g({ passingYards: 225, rushingYards: 125 }), "balanced_attack"));
-check("total_control @450 off yards", wonWeekly(g({ offensiveYards: 450 }), "total_control"));
-check("nickel_and_dime", wonWeekly(g({ firstDowns: 24, thirdDownConversions: 8 }), "nickel_and_dime"));
-check("drive_extender @10", wonWeekly(g({ thirdDownConversions: 10 }), "drive_extender"));
-check("chain_mover @25", wonWeekly(g({ firstDowns: 25 }), "chain_mover"));
-check("fourth_down_gambler @3", wonWeekly(g({ fourthDownConversions: 3 }), "fourth_down_gambler"));
-check("perfect_red_zone @100", wonWeekly(g({ redZoneOffensivePct: 100 }), "perfect_red_zone"));
-check("red_zone_efficient @75", wonWeekly(g({ redZoneOffensivePct: 75 }), "red_zone_efficient"));
-check("red_zone_wall opp<=40", wonWeekly(g({ opponentRedZoneOffensivePct: 40 }), "red_zone_wall"));
-// Blueprint example
-check(
-  "bend_dont_break (blueprint example)",
-  wonWeekly(g({ won: true, margin: 6, opponentFirstDowns: 22, opponentThirdDownConversions: 7 }), "bend_dont_break"),
-);
-check("bend_dont_break needs win", !wonWeekly(g({ won: false, lost: true, margin: -6, opponentFirstDowns: 22, opponentThirdDownConversions: 7 }), "bend_dont_break"));
-check("ball_security @0 TO", wonWeekly(g({ turnoversCommitted: 0 }), "ball_security"));
-check("turnover_survivor", wonWeekly(g({ won: true, turnoversCommitted: 3 }), "turnover_survivor"));
-check("opportunistic", wonWeekly(g({ won: true, opponentTurnovers: 3 }), "opportunistic"));
-check("defensive_grind <=14", wonWeekly(g({ pointsAgainst: 14 }), "defensive_grind"));
-check("shootout_winner", wonWeekly(g({ won: true, pointsFor: 38 }), "shootout_winner"));
-check("statement_win >=28", wonWeekly(g({ won: true, margin: 28 }), "statement_win"));
-check("close_escape <=3", wonWeekly(g({ won: true, margin: 3 }), "close_escape"));
-check("heartbreaker lose by 3", wonWeekly(g({ won: false, lost: true, margin: -3 }), "heartbreaker"));
-check("heartbreaker !lose by 4", !wonWeekly(g({ won: false, lost: true, margin: -4 }), "heartbreaker"));
-check("offensive_explosion @45", wonWeekly(g({ pointsFor: 45 }), "offensive_explosion"));
-check("empty_yards 400 & <=21", wonWeekly(g({ totalYards: 400, pointsFor: 21 }), "empty_yards"));
-check("return_game_edge 150", wonWeekly(g({ kickReturnYards: 100, puntReturnYards: 50 }), "return_game_edge"));
-check("hidden_yardage 200", wonWeekly(g({ kickReturnYards: 120, puntReturnYards: 80 }), "hidden_yardage"));
-check("two_point_specialist @2", wonWeekly(g({ twoPointConversions: 2 }), "two_point_specialist"));
-check("road_warrior away +10", wonWeekly(g({ homeAway: "away", won: true, margin: 10 }), "road_warrior"));
-check("home_fortress home +10", wonWeekly(g({ homeAway: "home", won: true, margin: 10 }), "home_fortress"));
-check("road_warrior not at home", !wonWeekly(g({ homeAway: "home", won: true, margin: 10 }), "road_warrior"));
+// ── Game badge thresholds (boundary on/off) ──────────────────────────────────────
+check("big_play_energy @450", wonGame(g({ offensiveYards: 450 }), "big_play_energy"));
+check("nickel_and_dime", wonGame(g({ firstDowns: 18, thirdDownConversions: 6 }), "nickel_and_dime"));
+check("chain_mover (Madden) @20 FD", wonGame(g({ firstDowns: 20 }), "chain_mover", "madden_26"));
+check("chain_mover (CFB) needs 80% on attempts", wonGame(g({ firstDowns: 18, thirdDownConversions: 8, thirdDownAttempts: 10 }), "chain_mover", "cfb_27"));
+check("chain_mover (CFB) fails under 80%", !wonGame(g({ firstDowns: 18, thirdDownConversions: 7, thirdDownAttempts: 10 }), "chain_mover", "cfb_27"));
+check("perfect_red_zone @100", wonGame(g({ redZoneOffensivePct: 100 }), "perfect_red_zone"));
+check("red_zone_efficient excludes 100", !wonGame(g({ redZoneOffensivePct: 100 }), "red_zone_efficient"));
+check("red_zone_wall opp<=40", wonGame(g({ opponentRedZoneOffensivePct: 40 }), "red_zone_wall"));
+check("ball_security @0 TO", wonGame(g({ turnoversCommitted: 0 }), "ball_security"));
+check("opportunistic", wonGame(g({ won: true, opponentTurnovers: 3 }), "opportunistic"));
+check("bend_dont_break (new thresholds)", wonGame(g({ won: true, margin: 6, opponentFirstDowns: 18, opponentThirdDownConversions: 6 }), "bend_dont_break"));
+check("run_heavy (CFB) attempt-count based", wonGame(g({ rushAttempts: 30, passAttempts: 24 }), "run_heavy", "cfb_27"));
+check("run_heavy (Madden) yardage based", wonGame(g({ rushingYards: 175, passingYards: 100 }), "run_heavy", "madden_26"));
+
+// ── Negative game badges ─────────────────────────────────────────────────────────
+check("turnover_trouble (Madden)", wonGame(g({ turnoversCommitted: 3 }), "turnover_trouble", "madden_26"));
+check("yardage_flood Madden-only 450+ allowed", wonGame(g({ yardsAllowed: 450 }), "yardage_flood", "madden_26"));
+check("yardage_flood not on CFB", !wonGame(g({ yardsAllowed: 450 }), "yardage_flood", "cfb_27"));
+check("pick_parade CFB-only", wonGame(g({ interceptionsThrown: 3 }), "pick_parade", "cfb_27"));
+check("completion_crisis needs 20+ attempts", wonGame(g({ passAttempts: 20, passCompletions: 9 }), "completion_crisis", "cfb_27"));
+check("completion_crisis floor blocks 1-for-1", !wonGame(g({ passAttempts: 1, passCompletions: 0 }), "completion_crisis", "cfb_27"));
+check("blowout_victim (CFB) needs 28+", wonGame(g({ lost: true, won: false, margin: -28 }), "blowout_victim", "cfb_27"));
+check("blowout_victim (Madden) needs 22+", wonGame(g({ lost: true, won: false, margin: -22 }), "blowout_victim_m", "madden_26"));
+
+// ── Occurrence tiering ───────────────────────────────────────────────────────────
+check("occurrence 1 -> normal", tierForOccurrenceCount(1, "positive") === "normal");
+check("occurrence 3 -> normal", tierForOccurrenceCount(3, "positive") === "normal");
+check("occurrence 4 -> bronze", tierForOccurrenceCount(4, "positive") === "bronze");
+check("occurrence 6 -> bronze", tierForOccurrenceCount(6, "positive") === "bronze");
+check("occurrence 7 -> silver", tierForOccurrenceCount(7, "positive") === "silver");
+check("occurrence 10 -> gold", tierForOccurrenceCount(10, "positive") === "gold");
+check("negative occurrence 1 -> needs_work", tierForOccurrenceCount(1, "negative") === "needs_work");
+check("negative occurrence 4 -> warning", tierForOccurrenceCount(4, "negative") === "warning");
+check("negative occurrence 7 -> serious_problem", tierForOccurrenceCount(7, "negative") === "serious_problem");
+check("negative occurrence 10 -> shit_show", tierForOccurrenceCount(10, "negative") === "shit_show");
+
+// ── gameBadgeOccurrences (no streak concept — plain tally, quarantine skipped) ───
+const wk = (week: number, over: Partial<GameStats>): GameStats => ({ ...base, week, ...over });
+const seasonGames: GameStats[] = [
+  wk(1, { rushingYards: 210 }), // ground_and_pound doesn't exist anymore; use ball_security instead
+  wk(2, { turnoversCommitted: 0 }),
+  wk(3, { turnoversCommitted: 0 }),
+  wk(4, { turnoversCommitted: 0, statsQuarantined: true }), // must NOT count
+  wk(5, { turnoversCommitted: 0 }),
+];
+const occ = gameBadgeOccurrences(seasonGames, "madden_26");
+const ballSecurityOcc = occ.find((o) => o.badgeKey === "ball_security");
+check("quarantined game excluded from occurrence count", ballSecurityOcc?.earnedCount === 3);
 
 // ── Season badges ────────────────────────────────────────────────────────────────
 const sBase: SeasonTotals = {
@@ -97,114 +121,85 @@ const sBase: SeasonTotals = {
   passingYards: 3000, rushingYards: 1200, firstDowns: 300, thirdDownConversions: 90,
   fourthDownConversions: 10, twoPointConversions: 3, turnoversCommitted: 20, opponentTurnovers: 18,
   returnYards: 1000, pointsFor: 400, pointsAgainst: 380, seasonRedZoneOffPct: 60,
-  opponentSeasonRedZoneOffPct: 60, wonDivision: false, wonChampionship: false,
+  opponentSeasonRedZoneOffPct: 60, wonChampionship: false, wonConferenceChampionship: false,
+  wonDivisionalRound: false, wonAnyBowlGame: false, timeOfPossessionAvgSeconds: null,
 };
 const s = (over: Partial<SeasonTotals>) => ({ ...sBase, ...over });
-const wonSeason = (st: SeasonTotals, key: string) => qualifySeasonBadges(st).some((b) => b.key === key);
-check("ten_win_club @10", wonSeason(s({ wins: 10 }), "ten_win_club"));
+const wonSeason = (st: SeasonTotals, key: string, game: string | null = "madden_26") => qualifySeasonBadges(st, game).some((b) => b.key === key);
+check("prolific_passer (Madden) @5000", wonSeason(s({ passingYards: 5000 }), "prolific_passer", "madden_26"));
+check("prolific_passer (CFB) @4000", wonSeason(s({ passingYards: 4000 }), "prolific_passer", "cfb_27"));
 check("perfect_regular_season", wonSeason(s({ regularSeasonLosses: 0 }), "perfect_regular_season"));
-check("winning_season", wonSeason(s({ wins: 10, losses: 7 }), "winning_season"));
-check("air_commander 5000", wonSeason(s({ passingYards: 5000 }), "air_commander"));
-check("defensive_standard <=18 ppg", wonSeason(s({ pointsAgainst: 17 * 18, gamesPlayed: 17 }), "defensive_standard"));
-check("offensive_standard >=35 ppg", wonSeason(s({ pointsFor: 17 * 35, gamesPlayed: 17 }), "offensive_standard"));
-check("red_zone_defense opp<=45", wonSeason(s({ opponentSeasonRedZoneOffPct: 45 }), "red_zone_defense"));
-check("super_bowl_champion", wonSeason(s({ wonChampionship: true }), "super_bowl_champion"));
+check("winning_season Madden-only >8", wonSeason(s({ wins: 9 }), "winning_season", "madden_26"));
+check("clock_bleeder CFB-only", wonSeason(s({ timeOfPossessionAvgSeconds: 18 * 60 }), "clock_bleeder", "cfb_27"));
 
-// ── Global badges ────────────────────────────────────────────────────────────────
+// ── Career badges + ladders ──────────────────────────────────────────────────────
 const cBase: CareerTotals = {
   wins: 0, gamesPlayed: 0, seasonsCompleted: 0, passingYards: 0, rushingYards: 0, firstDowns: 0,
-  thirdDownConversions: 0, fourthDownConversions: 0, gamesRedZone75: 0, gamesOppRedZone40OrLess: 0,
-  turnoverFreeGames: 0, winsWith3PlusTurnovers: 0, winsOpp3PlusTurnovers: 0, winsScoring38Plus: 0,
-  games200PlusRush: 0, games375PlusPass: 0, gamesBalanced: 0, gamesNickelDime: 0, bendDontBreakWins: 0,
-  homeWins: 0, roadWins: 0, playoffWins: 0, superBowlTitles: 0,
+  fourthDownConversions: 0, gamesRedZone75Plus: 0, gamesOppRedZone40OrLess: 0,
+  games150PlusRush: 0, games350PlusPass: 0, playoffWins: 0, playoffLosses: 0, championships: 0,
 };
 const c = (over: Partial<CareerTotals>) => ({ ...cBase, ...over });
-const wonGlobal = (ct: CareerTotals, key: string) => qualifyGlobalBadges(ct).some((b) => b.key === key);
-check("first_win @1", wonGlobal(c({ wins: 1 }), "first_win"));
-check("wins_100", wonGlobal(c({ wins: 100 }), "wins_100"));
-check("wins_100 implies wins_50", wonGlobal(c({ wins: 100 }), "wins_50"));
-check("air_milestone_3 @50k", wonGlobal(c({ passingYards: 50000 }), "air_milestone_3"));
-check("turnover_free veteran 25", wonGlobal(c({ turnoverFreeGames: 25 }), "ball_security_veteran"));
-check("dynasty @3 titles", wonGlobal(c({ superBowlTitles: 3 }), "dynasty"));
-check("champion @1 but not dynasty", wonGlobal(c({ superBowlTitles: 1 }), "champion") && !wonGlobal(c({ superBowlTitles: 1 }), "dynasty"));
+const wonCareer = (ct: CareerTotals, key: string) => qualifyCareerBadges(ct).some((b) => b.key === key);
+check("veteran_coach @100 games", wonCareer(c({ gamesPlayed: 100 }), "veteran_coach"));
+check("dynasty_builder @3 titles", wonCareer(c({ championships: 3 }), "dynasty_builder"));
+check("playoff_winner needs min 4 playoff games", !wonCareer(c({ playoffWins: 1, playoffLosses: 0 }), "playoff_winner"));
+check("playoff_winner @50%+ with min games", wonCareer(c({ playoffWins: 2, playoffLosses: 2 }), "playoff_winner"));
 
-// ── Tiering ──────────────────────────────────────────────────────────────────────
-check("weekly tier 1=normal", getWeeklyTier(1) === "normal");
-check("weekly tier 2=bronze", getWeeklyTier(2) === "bronze");
-check("weekly tier 3=silver", getWeeklyTier(3) === "silver");
-check("weekly tier 4=gold", getWeeklyTier(4) === "gold");
-check("weekly tier 7=gold", getWeeklyTier(7) === "gold");
-check("season tier streak1 = none", getSeasonTier(1, 1) === null);
-check("season tier streak2 = bronze", getSeasonTier(2, 2) === "bronze");
-check("season tier streak3 = silver", getSeasonTier(3, 3) === "silver");
-check("season tier streak4 = gold", getSeasonTier(4, 4) === "gold");
-check("season tier 7 earns = xf", getSeasonTier(1, 7) === "xf");
-check("xf overrides streak", getSeasonTier(2, 7) === "xf");
+const ladderLow = qualifyLadderBadges(c({ wins: 50 }));
+const ladderHigh = qualifyLadderBadges(c({ wins: 1000 }));
+check("wins ladder @50 -> bronze", ladderLow.find((l) => l.key === "wins_milestone")?.tier === "bronze");
+check("wins ladder @1000 -> gold", ladderHigh.find((l) => l.key === "wins_milestone")?.tier === "gold");
+check("wins ladder count matches badge defs count", CAREER_LADDER_BADGES.length === 4);
 
-// ── Story angle selection ────────────────────────────────────────────────────────
+// ── Story angle selection (unchanged engine, still fed by GameStats) ─────────────
 const winner = g({ won: true, rushingYards: 230, pointsFor: 34, pointsAgainst: 10, margin: 24 });
 const loser = g({ won: false, lost: true, homeAway: "away", pointsFor: 10, pointsAgainst: 34, margin: -24, turnoversCommitted: 1 });
-const story1 = generateGameStory({ winner, loser, winnerName: "Cowboys", loserName: "Lions" }, ["Ground & Pound"]);
-check("story: ground-heavy win → ground_control", story1.primaryAngle === "ground_control");
+const story1 = generateGameStory({ winner, loser, winnerName: "Cowboys", loserName: "Lions" }, ["Big Play Energy"]);
+check("story: ground-heavy win -> ground_control", story1.primaryAngle === "ground_control");
 check("story headline names teams", story1.headline.includes("Cowboys") && story1.headline.includes("Lions"));
-check("story notes include earned badges", story1.notes.some((n) => n.includes("Ground & Pound")));
 
-const bWinner = g({ won: true, margin: 6, pointsFor: 20, pointsAgainst: 14 });
-const bLoser = g({ won: false, lost: true, margin: -6, pointsFor: 14, pointsAgainst: 20, firstDowns: 24, thirdDownConversions: 8, turnoversCommitted: 1 });
-const story2 = generateGameStory({ winner: bWinner, loser: bLoser, winnerName: "Ravens", loserName: "Bengals" });
-check("story: bend-dont-break wins the angle", story2.primaryAngle === "bend_dont_break");
-
-// ── Row → GameStats mapper ───────────────────────────────────────────────────────
+// ── Row -> GameStats mapper (made-attempts extraction + sanity clamping) ─────────
 const row: TeamGameStatsRow = {
   league_id: "L", season_number: 2, week_number: 5, game_id: "g1", team_id: "t1", user_id: "u1", opponent_team_id: "o1",
   is_home: false, result: "win", points_for: 31, points_against: 20,
   off_pass_yards: 280, off_rush_yards: 140, off_yards_gained: 420, total_yards_gained: 455, off_first_down: 26,
   turnovers_committed: 0, red_zone_off_percentage: 80, kick_return_yards: 90, punt_return_yards: 70,
-  generated_turnovers: 2, first_downs_allowed: 18, red_zone_def_percentage: 65,
-  offensive_stats: { third_down_conversions: "9", fourth_down_conversions: "1", two_point_conversions: "0" },
-  defensive_stats: { third_down_conversions: "5" },
+  generated_turnovers: 2, yards_allowed: 310, first_downs_allowed: 18, red_zone_def_percentage: 65,
+  offensive_stats: { third_down_conversions: "9-12", fourth_down_conversions: "1-1", two_point_conversions: "0" },
+  defensive_stats: { third_down_conversions: "5-11" },
 };
-const mapped = rowToGameStats(row);
-check("map: thirdDown from JSONB", mapped.thirdDownConversions === 9);
+const mapped = rowToGameStats(row, "cfb_27");
+check("map: thirdDown made from made-attempts string", mapped.thirdDownConversions === 9);
+check("map: thirdDown attempts recovered (CFB)", mapped.thirdDownAttempts === 12);
 check("map: opp third from defensive JSONB", mapped.opponentThirdDownConversions === 5);
 check("map: opp red zone from def% (100-65)", mapped.opponentRedZoneOffensivePct === 35);
 check("map: away + win", mapped.homeAway === "away" && mapped.won);
 check("map: margin", mapped.margin === 11);
-check("map: chain_mover qualifies (26 FD)", wonWeekly(mapped, "chain_mover"));
 
-// ── Aggregation: season / career totals + weekly streaks ─────────────────────────
-const wk = (week: number, over: Partial<GameStats>): GameStats => ({ ...base, week, ...over });
-const seasonGames: GameStats[] = [
+const badRow: TeamGameStatsRow = { ...row, turnovers_committed: 400 };
+const badMapped = rowToGameStats(badRow, "madden_26");
+check("sanity: turnovers=400 flags quarantine", badMapped.statsQuarantined === true);
+
+const goodRow: TeamGameStatsRow = { ...row, turnovers_committed: 2 };
+const goodMapped = rowToGameStats(goodRow, "madden_26");
+check("sanity: turnovers=2 does not flag quarantine", goodMapped.statsQuarantined === false);
+
+// ── Aggregation: season / career totals ──────────────────────────────────────────
+const aggGames: GameStats[] = [
   wk(1, { won: true, lost: false, rushingYards: 210, passingYards: 150, pointsFor: 30, pointsAgainst: 10, turnoversCommitted: 0 }),
   wk(2, { won: true, lost: false, rushingYards: 220, passingYards: 140, pointsFor: 24, pointsAgainst: 14, turnoversCommitted: 0 }),
   wk(3, { won: false, lost: true, rushingYards: 80, passingYards: 300, pointsFor: 17, pointsAgainst: 28, turnoversCommitted: 2 }),
   wk(4, { won: true, lost: false, rushingYards: 205, passingYards: 120, pointsFor: 31, pointsAgainst: 20, turnoversCommitted: 1 }),
 ];
-const st = seasonTotalsFromGames(seasonGames);
+const st = seasonTotalsFromGames(aggGames);
 check("season totals: wins", st.wins === 3);
 check("season totals: losses", st.losses === 1);
 check("season totals: rushing sum", st.rushingYards === 210 + 220 + 80 + 205);
 check("season totals: games", st.gamesPlayed === 4);
 
-const ct = careerTotalsFromGames(seasonGames);
-check("career: games200PlusRush = 3", ct.games200PlusRush === 3);
-check("career: turnoverFreeGames = 2", ct.turnoverFreeGames === 2);
+const ct = careerTotalsFromGames(aggGames);
+check("career: games150PlusRush = 3", ct.games150PlusRush === 3);
 check("career: wins = 3", ct.wins === 3);
-
-const streaks = weeklyStreaks(seasonGames);
-const gp = streaks.find((s) => s.badgeKey === "ground_and_pound");
-// Ground & Pound earned wk1,2,4 (not wk3) → earnedCount 3, best streak 2, current streak 1 (wk4 only).
-check("streak: ground_and_pound earnedCount 3", gp?.earnedCount === 3);
-check("streak: ground_and_pound bestStreak 2", gp?.bestStreak === 2);
-check("streak: ground_and_pound currentStreak 1", gp?.currentStreak === 1);
-check("streak: getSeasonTier(2 best not current) — current 1 → no season tier", getSeasonTier(gp?.currentStreak ?? 0, gp?.earnedCount ?? 0) === null);
-
-// A clean 4-week streak → gold weekly + gold season-long.
-const cleanStreak: GameStats[] = [1, 2, 3, 4].map((w) => wk(w, { rushingYards: 210, won: true, lost: false }));
-const csGp = weeklyStreaks(cleanStreak).find((s) => s.badgeKey === "ground_and_pound");
-check("streak: 4 straight → currentStreak 4", csGp?.currentStreak === 4);
-check("streak: 4 straight → weekly gold", getWeeklyTier(csGp?.currentStreak ?? 0) === "gold");
-check("streak: 4 straight → season gold", getSeasonTier(csGp?.currentStreak ?? 0, csGp?.earnedCount ?? 0) === "gold");
 
 console.log(`\n${pass}/${pass + fail} checks passed.`);
 if (fail) process.exit(1);

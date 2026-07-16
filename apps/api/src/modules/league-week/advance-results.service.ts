@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
+import { firstOffseasonStage, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -11,9 +11,8 @@ import { setLeagueWeek } from "./league-week.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { GLOBAL_BADGES, SEASON_BADGES, WEEKLY_BADGES } from "../box-score-intelligence/badge-rules.js";
+import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
-import { convertSeasonBadgesToTrophies } from "../box-score-intelligence/season-trophies.service.js";
 import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
@@ -112,9 +111,8 @@ const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 // manual = scores/outcomes entered via the Manual Scores tool.
 const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot", "manual"];
 const BADGE_LABELS = new Map(
-  [...WEEKLY_BADGES, ...SEASON_BADGES, ...GLOBAL_BADGES].map((badge) => [badge.key, badge.label]),
+  [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.label]),
 );
-const DIVISION_CHAMPION_BADGE = "division_champion";
 
 export async function getAdvanceWeekGames(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -385,16 +383,12 @@ export async function completeAdvanceWeek(input: {
     console.error("[ERROR] autoAssignGotwForWeek failed after advance (non-fatal):", err);
   });
 
-  // EOS payouts: automatic for every league. Madden fires once postseason play actually
-  // ends (advancing out of the terminal stage into the offseason pipeline); CFB has no
-  // offseason stages built yet, so — per commissioner direction — it fires from the moment
-  // the league advances past week 16 and keeps refreshing on every advance after that until
-  // a commissioner approves the ledger.
-  const isMaddenPostseasonEnd = !isCfb(context.rec_leagues.game)
-    && isTerminalSeasonStage(String(context.rec_leagues.season_stage ?? ""), context.rec_leagues.game)
-    && nextTarget.seasonStage === "coach_hiring";
-  const isCfbPastWeek16 = isCfb(context.rec_leagues.game) && nextTarget.weekNumber > 16;
-  if (isMaddenPostseasonEnd || isCfbPastWeek16) {
+  // EOS payouts: automatic for every league, firing once postseason play actually ends —
+  // advancing out of the terminal stage (super_bowl/national_championship) into the first
+  // offseason stage (coach_hiring for Madden, players_leaving for CFB's dynasty pipeline).
+  const isPostseasonEnd = isTerminalSeasonStage(String(context.rec_leagues.season_stage ?? ""), context.rec_leagues.game)
+    && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game);
+  if (isPostseasonEnd) {
     await autoPrepareEosPayouts({
       guildId: input.guildId,
       leagueId: context.leagueId,
@@ -470,15 +464,10 @@ export async function completeAdvanceWeek(input: {
     console.error("[ERROR] publishScheduledMediaForAdvance failed after advance (non-fatal):", err);
   });
 
-  // Season end (advancing out of the Super Bowl into the offseason): convert every
-  // active coach's season badges into permanent Career Trophies, then wipe their
-  // weekly + season badges for next season. Runs after recordAdvanceDmRun so the
-  // offseason DM snapshot still reflects this season's badges. Non-fatal.
-  if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === "coach_hiring") {
-    await convertSeasonBadgesToTrophies(context.leagueId, seasonNumber).catch((err) => {
-      console.error("[ERROR] convertSeasonBadgesToTrophies failed after advance (non-fatal):", err);
-    });
-  }
+  // Career badges are always computed continuously from all-time stored games (see
+  // box-score-intelligence/persistence.ts), and game/season-scope badges naturally
+  // start fresh once the next season's games begin — no season-end conversion or
+  // wipe step needed.
 
   // Refund + close any wager on the completed week whose result was never logged
   // (and any peer challenge nobody took). Returns Discord message coords so the bot
@@ -582,67 +571,15 @@ export async function saveDivisionWinners(input: {
     .select("team_id,conference,division_name,division_winner");
   if (upsert.error) throw new ApiError(500, "Failed to save division winners.", upsert.error);
 
-  const assignmentResult = await supabase
-    .from("rec_team_assignments")
-    .select("team_id,user_id")
-    .eq("league_id", context.leagueId)
-    .eq("assignment_status", "active")
-    .is("ended_at", null)
-    .in("team_id", teamIds);
-  if (assignmentResult.error) throw new ApiError(500, "Failed to load division winner users.", assignmentResult.error);
-
-  const winnerAssignments = assignmentResult.data ?? [];
-  await supabase
-    .from("rec_badge_ownership")
-    .delete()
-    .eq("league_id", context.leagueId)
-    .eq("season", input.seasonNumber)
-    .eq("badge_scope", "season")
-    .eq("badge_key", DIVISION_CHAMPION_BADGE);
-  await supabase
-    .from("rec_badge_events")
-    .delete()
-    .eq("league_id", context.leagueId)
-    .eq("season", input.seasonNumber)
-    .eq("badge_scope", "season")
-    .eq("badge_key", DIVISION_CHAMPION_BADGE);
-
-  if (winnerAssignments.length) {
-    const ownershipRows = winnerAssignments.map((assignment) => ({
-      league_id: context.leagueId,
-      user_id: assignment.user_id,
-      team_id: assignment.team_id,
-      badge_key: DIVISION_CHAMPION_BADGE,
-      badge_scope: "season",
-      tier: "normal",
-      season: input.seasonNumber,
-      earned_count: 1,
-      current_streak: 1,
-      best_streak: 1,
-      active: true,
-      updated_at: now,
-    }));
-    const ownership = await supabase.from("rec_badge_ownership").insert(ownershipRows);
-    if (ownership.error) throw new ApiError(500, "Failed to award division champion badges.", ownership.error);
-
-    const events = await supabase.from("rec_badge_events").insert(
-      winnerAssignments.map((assignment) => ({
-        league_id: context.leagueId,
-        user_id: assignment.user_id,
-        team_id: assignment.team_id,
-        badge_key: DIVISION_CHAMPION_BADGE,
-        badge_scope: "season",
-        tier: "normal",
-        season: input.seasonNumber,
-        reason: `Division winner selected by discord:${input.selectedByDiscordId}`,
-      })),
-    );
-    if (events.error) throw new ApiError(500, "Failed to record division champion badge events.", events.error);
-  }
-
+  // Division standings/seeding is still real structure for Madden's playoff bracket
+  // (rec_season_team_seeds.division_winner/made_playoffs above) — only the badge that
+  // used to piggyback on this selection is gone: the new badge set replaces
+  // division_champion with conf_champion/div_champion, which are earned automatically
+  // by actually winning the conference-championship/divisional-round game (see
+  // reigningChampionBadges in box-score-intelligence/persistence.ts), not hand-picked
+  // by a commissioner here.
   return {
     saved: upsert.data ?? [],
-    badgesAwarded: winnerAssignments.length,
   };
 }
 

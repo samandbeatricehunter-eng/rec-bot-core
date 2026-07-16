@@ -3,12 +3,19 @@
 // These types are the contract between the persistence layer (which reads
 // rec_team_game_stats: offensive columns + the opponent's mirrored stats +
 // offensive_stats/defensive_stats JSONB) and the pure rule functions in
-// badge-rules.ts / story-angles.ts. Only tracked box-score stats appear here —
-// no time of possession, individual players, TDs, attempts, or percentages we
-// don't store. Keep it that way.
+// badge-rules.ts / story-angles.ts.
+//
+// CFB-only fields are optional and null for Madden games — badges that need them
+// must be tagged `games: CFB_27_ONLY` in badge-rules.ts so they never evaluate
+// against a null on Madden.
 
-export type BadgeScope = "weekly" | "season" | "global";
-export type BadgeTier = "normal" | "bronze" | "silver" | "gold" | "xf";
+export type BadgePolarity = "positive" | "negative";
+/** Visual tier for a positive badge, driven by season occurrence count (see badge-rules.ts). */
+export type BadgeTier = "normal" | "bronze" | "silver" | "gold";
+/** Visual severity for a negative badge, driven by season occurrence count. */
+export type NegativeBadgeSeverity = "needs_work" | "warning" | "serious_problem" | "shit_show";
+/** Whether a badge's qualifying condition is checked per-game (resets each season) or against all-time career totals (never resets). */
+export type BadgeEvalScope = "game" | "career";
 
 /** One team's view of one game. `opponent*` fields are the opponent's offense. */
 export interface GameStats {
@@ -32,8 +39,16 @@ export interface GameStats {
   margin: number;
   isPlayoff: boolean;
   isSuperBowl: boolean;
+  isConferenceChampionshipGame: boolean;
+  /** Madden only — the divisional playoff round. */
+  isDivisionalRound: boolean;
 
-  // Team offense (tracked stats only)
+  /** Total yards this team's defense allowed (opponent's total_yards_gained). */
+  yardsAllowed: number;
+  /** True if any raw stat for this game failed sanity validation (see game-profile.ts) — badges never evaluate against a quarantined game. */
+  statsQuarantined: boolean;
+
+  // Team offense (tracked stats — shared by both games)
   passingYards: number;
   rushingYards: number;
   /** Offense only: passingYards + rushingYards (= off_yards_gained). */
@@ -41,6 +56,7 @@ export interface GameStats {
   /** total_yards_gained — offense + return yards. */
   totalYards: number;
   firstDowns: number;
+  /** Made count only (see thirdDownAttempts for the CFB-only attempts half). */
   thirdDownConversions: number;
   fourthDownConversions: number;
   twoPointConversions: number;
@@ -52,8 +68,35 @@ export interface GameStats {
   // Opponent offense (mirror — for defensive badges)
   opponentFirstDowns: number;
   opponentThirdDownConversions: number;
+  opponentThirdDownAttempts: number | null;
+  opponentFourthDownConversions: number;
+  opponentFourthDownAttempts: number | null;
   opponentTurnovers: number;
   opponentRedZoneOffensivePct: number;
+
+  // ── CFB-only (null for madden_26/madden_27) ──────────────────────────────
+  totalPlays: number | null;
+  yardsPerPlay: number | null;
+  rushAttempts: number | null;
+  rushTDs: number | null;
+  yardsPerRush: number | null;
+  passCompletions: number | null;
+  passAttempts: number | null;
+  passTDs: number | null;
+  yardsPerPass: number | null;
+  /** The "attempts" half of the third/fourth-down made-attempts pair, when recoverable. */
+  thirdDownAttempts: number | null;
+  fourthDownAttempts: number | null;
+  interceptionsThrown: number | null;
+  fumblesLost: number | null;
+  redZoneTDs: number | null;
+  redZoneFGs: number | null;
+  punts: number | null;
+  puntAvgYards: number | null;
+  penalties: number | null;
+  penaltyYards: number | null;
+  /** Seconds of possession this team held. */
+  timeOfPossessionSeconds: number | null;
 }
 
 /** Combined kick + punt return yards. */
@@ -61,7 +104,7 @@ export function returnYards(g: Pick<GameStats, "kickReturnYards" | "puntReturnYa
   return (g.kickReturnYards || 0) + (g.puntReturnYards || 0);
 }
 
-/** Season-to-date totals for one team/user (non-tiered season badges). */
+/** Season-to-date totals for one team/user (badges whose condition is a season sum/average, not per-game). */
 export interface SeasonTotals {
   wins: number;
   losses: number;
@@ -85,11 +128,16 @@ export interface SeasonTotals {
   seasonRedZoneOffPct: number;
   /** Opponents' season red-zone offense %, aggregated. */
   opponentSeasonRedZoneOffPct: number;
-  wonDivision: boolean;
   wonChampionship: boolean;
+  wonConferenceChampionship: boolean;
+  wonDivisionalRound: boolean;
+  /** CFB only — won any postseason bowl game. */
+  wonAnyBowlGame: boolean;
+  /** CFB only. */
+  timeOfPossessionAvgSeconds: number | null;
 }
 
-/** Career-long counters for one user (permanent global badges). */
+/** All-time cumulative totals for one user within one league (career-scope badges — never reset). */
 export interface CareerTotals {
   wins: number;
   gamesPlayed: number;
@@ -97,21 +145,12 @@ export interface CareerTotals {
   passingYards: number;
   rushingYards: number;
   firstDowns: number;
-  thirdDownConversions: number;
   fourthDownConversions: number;
-  gamesRedZone75: number;
+  gamesRedZone75Plus: number;
   gamesOppRedZone40OrLess: number;
-  turnoverFreeGames: number;
-  winsWith3PlusTurnovers: number;
-  winsOpp3PlusTurnovers: number;
-  winsScoring38Plus: number;
-  games200PlusRush: number;
-  games375PlusPass: number;
-  gamesBalanced: number;
-  gamesNickelDime: number;
-  bendDontBreakWins: number;
-  homeWins: number;
-  roadWins: number;
+  games150PlusRush: number;
+  games350PlusPass: number;
   playoffWins: number;
-  superBowlTitles: number;
+  playoffLosses: number;
+  championships: number;
 }

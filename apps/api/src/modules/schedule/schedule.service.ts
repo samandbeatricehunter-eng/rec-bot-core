@@ -107,8 +107,7 @@ function expectedGamesForWeek(weekNumber: number, game: LeagueGame, teamCount: n
       case 16: return 4; // CFP First Round (seeds 5-12; top 4 seeds bye)
       case 17: return 4; // CFP Quarterfinals
       case 18: return 2; // CFP Semifinals
-      case 19: return 0; // Bye week — no games scheduled
-      case 20: return 1; // National Championship
+      case 19: return 1; // National Championship
       default: return Math.floor(teamCount / 2);
     }
   }

@@ -1,4 +1,4 @@
-import { REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, type LeagueGame, type RecPayoutTier } from "@rec/shared";
+import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, type LeagueGame, type RecPayoutTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
@@ -37,9 +37,10 @@ export function evalTeamStat(statKey: string, rows: any[]) {
   const jsonSum = (sourceKey: string, key: string) => rows.reduce((total, row) => total + jsonNum(row[sourceKey], key), 0);
   if (statKey === "points_per_game") return games ? sum("points_for") / games : 0;
   if (statKey === "points_allowed_per_game") return games ? sum("points_against") / games : 0;
-  if (statKey === "team_interceptions") return jsonSum("defensive_stats", "interceptions") || sum("generated_turnovers");
+  // CFB-only: a team's defensive INTs = its opponent's interceptions_thrown, which
+  // recordTeamGameStats already mirrors into this team's defensive_stats JSONB.
+  if (statKey === "team_interceptions") return jsonSum("defensive_stats", "interceptions_thrown");
   if (statKey === "total_yards_allowed") return sum("yards_allowed");
-  if (statKey === "team_sacks") return jsonSum("defensive_stats", "sacks");
   if (statKey === "turnover_differential") return sum("generated_turnovers") - sum("turnovers_committed");
   if (statKey === "total_offense_yards") return sum("total_yards_gained") || sum("off_yards_gained");
   if (statKey === "red_zone_td_rate") {
@@ -153,7 +154,7 @@ async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: 
   const items: EosPayoutItem[] = [];
   for (const [userId, rows] of byUser.entries()) {
     const teamId = rows.find((row) => row.team_id)?.team_id ?? null;
-    for (const definition of TEAM_DEFINITIONS) {
+    for (const definition of TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game))) {
       const value = evalTeamStat(definition.statKey, rows);
       const tier = evaluatePayoutTier(value, definition.tiers);
       if (!tier) continue;

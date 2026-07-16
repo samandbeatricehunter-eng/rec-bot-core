@@ -2058,15 +2058,13 @@ export const recBadgeOwnership = pgTable("rec_badge_ownership", {
   userId: uuid("user_id").notNull(),
   teamId: uuid("team_id"),
   badgeKey: text("badge_key").notNull(),
-  badgeScope: text("badge_scope").notNull(),
+  badgeScope: text("badge_scope").notNull(), // "game" | "season" | "career"
+  polarity: text("polarity").notNull().default("positive"), // "positive" | "negative"
   tier: text("tier").notNull().default("normal"),
   season: integer("season"),
   week: integer("week"),
   earnedCount: integer("earned_count").notNull().default(1),
-  currentStreak: integer("current_streak").notNull().default(1),
-  bestStreak: integer("best_streak").notNull().default(1),
   lastEarnedWeek: integer("last_earned_week"),
-  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });

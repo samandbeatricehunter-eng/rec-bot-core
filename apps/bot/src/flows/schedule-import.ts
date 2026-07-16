@@ -25,7 +25,7 @@ import { getPendingPayoutsChannel } from "./schedule-scores.js";
 // league teams server-side. Bounds/labels are game-aware (CFB: 15 regular weeks +
 // 6-week postseason; Madden: 18 regular weeks + 4-week postseason) — the OCR
 // layout parsing itself is still Madden-shaped pending real CFB screenshot samples.
-const CFB_POSTSEASON_LABELS = ["Conference Championship", "CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "Bye Week", "National Championship"];
+const CFB_POSTSEASON_LABELS = ["Conference Championship", "CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "National Championship"];
 const NFL_POSTSEASON_LABELS = ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
 
 // CFB's regular season starts at Week 0; Madden's starts at Week 1.
@@ -135,9 +135,7 @@ export async function startScheduleImportOneWeek(interaction: ButtonInteraction,
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const game: string | null = week?.league?.game ?? null;
   const startWeek = firstImportWeek(game);
-  // CFB's bye week has zero scheduled games — no screenshot to import, so skip it.
-  const weekOptions = Array.from({ length: maxSingleImportWeek(game) - startWeek + 1 }, (_, i) => startWeek + i)
-    .filter((w) => !(isCfb(game) && w === 19));
+  const weekOptions = Array.from({ length: maxSingleImportWeek(game) - startWeek + 1 }, (_, i) => startWeek + i);
   const select = new StringSelectMenuBuilder()
     .setCustomId(SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect)
     .setPlaceholder("Select the week to import")

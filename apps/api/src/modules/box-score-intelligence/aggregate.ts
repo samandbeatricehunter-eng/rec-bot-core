@@ -1,9 +1,8 @@
 // Pure rollups from a list of per-game GameStats. Season and career totals are
 // RECOMPUTED from the stored games on every import (never incremented), which
-// makes badge progress idempotent and re-import-safe. Streaks are derived by
-// walking a user's weekly games in order.
+// makes badge progress idempotent and re-import-safe.
 
-import { qualifyWeeklyBadges } from "./badge-rules.js";
+import { qualifyGameBadges } from "./badge-rules.js";
 import { type CareerTotals, type GameStats, type SeasonTotals, returnYards } from "./types.js";
 
 const avg = (nums: number[]): number => (nums.length ? nums.reduce((s, n) => s + n, 0) / nums.length : 0);
@@ -11,6 +10,7 @@ const avg = (nums: number[]): number => (nums.length ? nums.reduce((s, n) => s +
 /** Aggregate one season's games for a single user/team into SeasonTotals. */
 export function seasonTotalsFromGames(games: GameStats[]): SeasonTotals {
   const reg = games.filter((g) => !g.isPlayoff);
+  const topGames = games.filter((g) => g.timeOfPossessionSeconds != null);
   return {
     wins: games.filter((g) => g.won).length,
     losses: games.filter((g) => g.lost).length,
@@ -31,11 +31,11 @@ export function seasonTotalsFromGames(games: GameStats[]): SeasonTotals {
     pointsAgainst: sum(games, (g) => g.pointsAgainst),
     seasonRedZoneOffPct: Math.round(avg(games.map((g) => g.redZoneOffensivePct))),
     opponentSeasonRedZoneOffPct: Math.round(avg(games.map((g) => g.opponentRedZoneOffensivePct))),
-    // Not derivable from a single user's games alone — division standings need every
-    // team's record. issueSeasonTotalBadges (persistence.ts) overrides this with a
-    // real league-wide computation for Madden leagues; CFB has no division structure.
-    wonDivision: false,
     wonChampionship: games.some((g) => g.isSuperBowl && g.won),
+    wonConferenceChampionship: games.some((g) => g.isConferenceChampionshipGame && g.won),
+    wonDivisionalRound: games.some((g) => g.isDivisionalRound && g.won),
+    wonAnyBowlGame: games.some((g) => g.isPlayoff && g.won),
+    timeOfPossessionAvgSeconds: topGames.length ? avg(topGames.map((g) => g.timeOfPossessionSeconds!)) : null,
   };
 }
 
@@ -49,66 +49,38 @@ export function careerTotalsFromGames(games: GameStats[]): CareerTotals {
     passingYards: sum(games, (g) => g.passingYards),
     rushingYards: sum(games, (g) => g.rushingYards),
     firstDowns: sum(games, (g) => g.firstDowns),
-    thirdDownConversions: sum(games, (g) => g.thirdDownConversions),
     fourthDownConversions: sum(games, (g) => g.fourthDownConversions),
-    gamesRedZone75: count((g) => g.redZoneOffensivePct >= 75),
+    gamesRedZone75Plus: count((g) => g.redZoneOffensivePct >= 75),
     gamesOppRedZone40OrLess: count((g) => g.opponentRedZoneOffensivePct <= 40),
-    turnoverFreeGames: count((g) => g.turnoversCommitted === 0),
-    winsWith3PlusTurnovers: count((g) => g.won && g.turnoversCommitted >= 3),
-    winsOpp3PlusTurnovers: count((g) => g.won && g.opponentTurnovers >= 3),
-    winsScoring38Plus: count((g) => g.won && g.pointsFor >= 38),
-    games200PlusRush: count((g) => g.rushingYards >= 200),
-    games375PlusPass: count((g) => g.passingYards >= 375),
-    gamesBalanced: count((g) => g.passingYards >= 225 && g.rushingYards >= 125),
-    gamesNickelDime: count((g) => g.firstDowns >= 24 && g.thirdDownConversions >= 8),
-    bendDontBreakWins: count((g) => g.won && g.margin <= 7 && g.opponentFirstDowns >= 22 && g.opponentThirdDownConversions >= 7),
-    homeWins: count((g) => g.homeAway === "home" && g.won),
-    roadWins: count((g) => g.homeAway === "away" && g.won),
+    games150PlusRush: count((g) => g.rushingYards >= 150),
+    games350PlusPass: count((g) => g.passingYards >= 350),
     playoffWins: count((g) => g.isPlayoff && g.won),
-    superBowlTitles: count((g) => g.isSuperBowl && g.won),
+    playoffLosses: count((g) => g.isPlayoff && g.lost),
+    championships: count((g) => g.isSuperBowl && g.won),
   };
 }
 
-export interface WeeklyStreak {
+export interface GameBadgeOccurrence {
   badgeKey: string;
-  earnedCount: number; // total weeks earned this season (not necessarily consecutive)
-  currentStreak: number; // uninterrupted consecutive earns ending at the latest game
-  bestStreak: number;
+  /** How many games this season qualified for this badge (no streak concept anymore). */
+  earnedCount: number;
   lastEarnedWeek: number | null;
 }
 
-/**
- * Per-weekly-badge streaks for one user's season, walking games in week order.
- * `currentStreak` is the consecutive run that includes the most recent game.
- */
-export function weeklyStreaks(seasonGames: GameStats[], game?: string | null): WeeklyStreak[] {
+/** Per-game-badge occurrence counts for one user's season — no streaks, just a tally. */
+export function gameBadgeOccurrences(seasonGames: GameStats[], game?: string | null): GameBadgeOccurrence[] {
   const ordered = [...seasonGames].sort((a, b) => a.week - b.week);
-  const out: WeeklyStreak[] = [];
-  const earnedByGame = ordered.map((g) => new Set(qualifyWeeklyBadges(g, game).map((b) => b.key)));
-
-  // Collect every key earned at least once.
-  const allKeys = new Set<string>();
-  for (const s of earnedByGame) for (const k of s) allKeys.add(k);
-
-  for (const key of allKeys) {
-    let earnedCount = 0;
-    let run = 0;
-    let best = 0;
-    let lastWeek: number | null = null;
-    for (let i = 0; i < ordered.length; i++) {
-      if (earnedByGame[i].has(key)) {
-        earnedCount++;
-        run++;
-        best = Math.max(best, run);
-        lastWeek = ordered[i].week;
-      } else {
-        run = 0;
-      }
+  const tally = new Map<string, GameBadgeOccurrence>();
+  for (const g of ordered) {
+    if (g.statsQuarantined) continue; // untrustworthy OCR data never counts toward a badge
+    for (const badge of qualifyGameBadges(g, game)) {
+      const entry = tally.get(badge.key) ?? { badgeKey: badge.key, earnedCount: 0, lastEarnedWeek: null };
+      entry.earnedCount += 1;
+      entry.lastEarnedWeek = g.week;
+      tally.set(badge.key, entry);
     }
-    // run now reflects the trailing consecutive streak (0 if the latest game missed it).
-    out.push({ badgeKey: key, earnedCount, currentStreak: run, bestStreak: best, lastEarnedWeek: lastWeek });
   }
-  return out;
+  return [...tally.values()];
 }
 
 function sum(games: GameStats[], pick: (g: GameStats) => number): number {

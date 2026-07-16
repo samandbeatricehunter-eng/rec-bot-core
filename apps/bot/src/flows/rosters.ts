@@ -149,33 +149,32 @@ function formatBadgeLines(badges: any[]) {
 }
 
 function formatWeeklyBadgeLines(badges: any[]) {
-  if (!badges.length) return "No weekly badges earned this season.";
+  if (!badges.length) return "No game badges earned this season.";
 
-  const active = badges.filter((b) => (b.current_streak ?? 0) > 0);
-  const inactive = badges.filter((b) => (b.current_streak ?? 0) === 0);
+  const positive = badges.filter((b) => b.polarity !== "negative").sort((a, b) => (b.earned_count ?? 0) - (a.earned_count ?? 0));
+  const negative = badges.filter((b) => b.polarity === "negative").sort((a, b) => (b.earned_count ?? 0) - (a.earned_count ?? 0));
 
   const lines: string[] = [];
 
-  if (active.length) {
-    lines.push("**Active Streaks**");
-    for (const badge of active.sort((a, b) => (b.current_streak ?? 0) - (a.current_streak ?? 0))) {
+  if (positive.length) {
+    lines.push("**Game Badges**");
+    for (const badge of positive) {
       const name = badge.badge_label ?? badge.badge_name ?? "Badge";
       const tier = formatTierEmojiPrefix(badge.tier);
-      const streak = badge.current_streak ?? 1;
-      const streakLabel = streak > 1 ? ` — ${streak}-week streak` : "";
+      const count = badge.earned_count ?? 1;
       const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
-      lines.push(`- ${tier}${name}${streakLabel}${desc}`);
+      lines.push(`- ${tier}${name} — ${count}x this season${desc}`);
     }
   }
 
-  if (inactive.length) {
+  if (negative.length) {
     if (lines.length) lines.push("");
-    lines.push("**Streak Lost**");
-    for (const badge of inactive) {
+    lines.push("**Negative Badges**");
+    for (const badge of negative) {
       const name = badge.badge_label ?? badge.badge_name ?? "Badge";
-      const lastWeek = badge.last_earned_week != null ? ` — last earned Wk ${badge.last_earned_week}` : "";
+      const count = badge.earned_count ?? 1;
       const desc = badge.badge_description ? ` *(${badge.badge_description})*` : "";
-      lines.push(`- ${name}${lastWeek}${desc}`);
+      lines.push(`- ${name} — ${count}x this season${desc}`);
     }
   }
 
