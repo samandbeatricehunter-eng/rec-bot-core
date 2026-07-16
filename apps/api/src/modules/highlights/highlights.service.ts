@@ -1,7 +1,9 @@
-import { HIGHLIGHT_AWARD_KEYS, isRegularSeasonWeek } from "@rec/shared";
+import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_KEYS, isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { deleteDiscordMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { publishTransitionStory } from "../hub/story-publishing.js";
 
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
@@ -336,6 +338,69 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
     amount,
     streamerDiscordId: account.data?.discord_id ?? null,
   };
+}
+
+/**
+ * Season-end cleanup: hard-deletes every highlight from the completed season except
+ * the ones that won a Play of the Year category (those stay in the carousel
+ * permanently). Fires one combined headline announcing every POTY category winner.
+ * Call this once when the league advances into the offseason, alongside the other
+ * season-end automations (EOS payouts, defense nicknames).
+ */
+export async function cleanupSeasonHighlights(guildId: string, leagueId: string, seasonNumber: number): Promise<{ deleted: number; winners: number }> {
+  const [postsResult, winsResult] = await Promise.all([
+    supabase.from("rec_highlight_posts").select("id,discord_channel_id,discord_message_id").eq("league_id", leagueId).eq("season_number", seasonNumber),
+    supabase
+      .from("rec_highlight_payout_reviews")
+      .select("highlight_post_id,award_category,user_id,team:rec_teams!rec_highlight_payout_reviews_team_id_fkey(name,abbreviation)")
+      .eq("league_id", leagueId)
+      .eq("season_number", seasonNumber)
+      .eq("payout_kind", "season_award")
+      .in("status", ["approved", "issued"]),
+  ]);
+  if (postsResult.error) throw new ApiError(500, "Failed to load season highlights for cleanup.", postsResult.error);
+  if (winsResult.error) throw new ApiError(500, "Failed to load Play of the Year winners.", winsResult.error);
+
+  const posts = postsResult.data ?? [];
+  // Safety: POTY tallying (the commissioner's "Run POTY Tallies" action) is a separate
+  // manual step that may not have happened yet by the time the league advances. If
+  // this season had highlights but zero approved/issued season_award reviews, that's
+  // a strong signal tallying hasn't run — abort rather than hard-delete everything
+  // under the mistaken assumption that "no winners" means "nothing is exempt."
+  if (posts.length > 0 && (winsResult.data ?? []).length === 0) {
+    console.warn(`[WARN] cleanupSeasonHighlights: league ${leagueId} season ${seasonNumber} has ${posts.length} highlight(s) but no settled Play of the Year winners — skipping cleanup (POTY tallies likely haven't been run yet).`);
+    return { deleted: 0, winners: 0 };
+  }
+
+  const winningHighlightIds = new Set((winsResult.data ?? []).map((row: any) => row.highlight_post_id).filter(Boolean));
+  const toDelete = posts.filter((post: any) => !winningHighlightIds.has(post.id));
+
+  await Promise.all(toDelete.map(async (post: any) => {
+    if (post.discord_channel_id && post.discord_message_id) {
+      await deleteDiscordMessage(post.discord_channel_id, post.discord_message_id).catch(() => undefined);
+    }
+  }));
+  if (toDelete.length) {
+    const deleted = await supabase.from("rec_highlight_posts").delete().in("id", toDelete.map((post: any) => post.id));
+    if (deleted.error) throw new ApiError(500, "Failed to delete non-winning season highlights.", deleted.error);
+  }
+
+  const winnerRows = winsResult.data ?? [];
+  if (winnerRows.length) {
+    const lines = winnerRows.map((row: any) => {
+      const label = HIGHLIGHT_AWARD_CATEGORY_LABELS[row.award_category] ?? row.award_category;
+      const teamName = row.team?.name ?? row.team?.abbreviation ?? "a program";
+      return `**${label}:** ${teamName}`;
+    });
+    await publishTransitionStory({
+      guildId,
+      headline: "Play of the Year Winners",
+      body: lines.join("\n"),
+      primaryAngle: "play_of_the_year",
+    }).catch((error) => console.error("[ERROR] Failed to publish Play of the Year headline (non-fatal):", error));
+  }
+
+  return { deleted: toDelete.length, winners: winnerRows.length };
 }
 
 export async function listHighlightAwardCandidates(guildId: string) {

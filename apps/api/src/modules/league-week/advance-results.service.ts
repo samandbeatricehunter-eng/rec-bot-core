@@ -20,6 +20,7 @@ import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
 import { autoAssignGotwForWeek, settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
+import { cleanupSeasonHighlights } from "../highlights/highlights.service.js";
 import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
 import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
 
@@ -476,6 +477,19 @@ export async function completeAdvanceWeek(input: {
   if (isCfb(context.rec_leagues.game) && isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
     await retireStaleDefenseNicknames(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] retireStaleDefenseNicknames failed after advance (non-fatal):", err);
+    });
+  }
+
+  // Season-end highlight cleanup: hard-deletes every non-POTY-winning highlight
+  // (Discord message + DB row), keeping POTY winners in the carousel permanently,
+  // and posts one combined headline announcing every category winner. Same
+  // terminal-stage -> offseason boundary as the automations above. Run this AFTER
+  // the EOS payout auto-fire settles, since Play of the Year winners are approved
+  // through the same commissioner-inbox flow as other pending payouts and this
+  // cleanup only recognizes highlights whose award review is already approved/issued.
+  if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
+    await cleanupSeasonHighlights(input.guildId, context.leagueId, seasonNumber).catch((err) => {
+      console.error("[ERROR] cleanupSeasonHighlights failed after advance (non-fatal):", err);
     });
   }
 
