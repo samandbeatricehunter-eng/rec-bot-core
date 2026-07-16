@@ -94,28 +94,18 @@ export async function listWagerableGames(guildId: string, discordId: string) {
     .order("external_game_id", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load games for wagering.", error);
 
-  // Active assignments → which team slots are human-controlled this week.
-  const { data: assignments } = await supabase
-    .from("rec_team_assignments")
-    .select("team_id")
-    .eq("league_id", leagueId)
-    .eq("assignment_status", "active")
-    .is("ended_at", null);
-  const humanTeams = new Set((assignments ?? []).map((a) => a.team_id).filter(Boolean));
-
+  // Only true head-to-head (both sides human-controlled) games are wagerable — human-vs-CPU
+  // and CPU-vs-CPU games are excluded entirely.
   const out = (games ?? [])
     .filter((g: any) => g.status === "scheduled" && g.home_team_id !== myTeamId && g.away_team_id !== myTeamId)
-    .map((g: any) => {
-      const humanInvolved =
-        Boolean(g.home_user_id) || Boolean(g.away_user_id) || humanTeams.has(g.home_team_id) || humanTeams.has(g.away_team_id);
-      return {
-        gameId: g.id,
-        weekNumber: g.week_number,
-        awayLabel: teamAbbr(g.away_team),
-        homeLabel: teamAbbr(g.home_team),
-        humanInvolved,
-      };
-    });
+    .filter((g: any) => Boolean(g.home_user_id) && Boolean(g.away_user_id))
+    .map((g: any) => ({
+      gameId: g.id,
+      weekNumber: g.week_number,
+      awayLabel: teamAbbr(g.away_team),
+      homeLabel: teamAbbr(g.home_team),
+      humanInvolved: true,
+    }));
 
   return { seasonNumber, weekNumber, games: out };
 }

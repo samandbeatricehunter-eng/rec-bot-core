@@ -371,6 +371,36 @@ setInterval(() => {
   pollCommissionerNotifications().catch((error) => console.error("[ERROR] Commissioner notification poll failed:", error));
 }, 150_000).unref();
 
+// Deletes the original box-score screenshot message(s) once a submission is approved or
+// denied. Approvals from the web dashboard never reach the bot directly (it runs no HTTP
+// server, so the API can't push to it) — this poll is how the bot learns to clean up either way.
+async function pollBoxScoreDiscordCleanup() {
+  for (const guild of client.guilds.cache.values()) {
+    let result: { submissions: Array<{ submissionId: string; discordChannelId: string; discordMessageId: string; extraDiscordMessageIds: string[] }> };
+    try {
+      result = await recApi.listBoxScoresPendingDiscordCleanup(guild.id);
+    } catch (error) {
+      console.error(`[ERROR] Failed to poll box score Discord cleanup for guild ${guild.id}:`, error);
+      continue;
+    }
+    for (const submission of result.submissions) {
+      const channel = await client.channels.fetch(submission.discordChannelId).catch(() => null);
+      if (channel?.isTextBased()) {
+        const messageIds = new Set([submission.discordMessageId, ...submission.extraDiscordMessageIds]);
+        for (const messageId of messageIds) {
+          await channel.messages.delete(messageId).catch(() => undefined);
+        }
+      }
+      await recApi.markBoxScoreDiscordCleanupDone(submission.submissionId)
+        .catch((error) => console.error(`[ERROR] Failed to mark box score Discord cleanup done for ${submission.submissionId}:`, error));
+    }
+  }
+}
+
+setInterval(() => {
+  pollBoxScoreDiscordCleanup().catch((error) => console.error("[ERROR] Box score Discord cleanup poll failed:", error));
+}, 150_000).unref();
+
 const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please run /hub again to proceed.";
 
 async function expireWindow(interaction: Interaction) {

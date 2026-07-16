@@ -494,6 +494,7 @@ async function finalizeExchange(ex: Exchange, opts: { timedOut: boolean }) {
       imageUrls: ex.imageUrls,
       discordChannelId: ex.channel.id,
       discordMessageId: ex.userMessageIds[0] ?? null,
+      extraDiscordMessageIds: ex.userMessageIds.slice(1),
     });
   } catch (err) {
     await deleteMessages(ex.channel, ex.botMessageIds);

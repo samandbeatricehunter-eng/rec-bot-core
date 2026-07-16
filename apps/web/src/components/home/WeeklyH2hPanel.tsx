@@ -17,7 +17,7 @@ const STATUS_BADGE: Record<WeeklyH2hGame["status"], { status: "denied" | "pendin
 };
 
 const SHORTCUTS = [
-  { icon: Users, label: "Manage League", detail: "Enter results and box scores", to: "/league-mgmt/manage-league", cfbOnly: false },
+  { icon: Users, label: "Manage League", detail: "Edit schedules, enter results, and box scores", to: "/league-mgmt/manage-league", cfbOnly: false },
   { icon: FastForward, label: "Advance", detail: "Advance the week", to: "/league-mgmt/advance", cfbOnly: false },
   { icon: SlidersHorizontal, label: "Settings", detail: "Rules and league setup", to: "/league-mgmt/settings", cfbOnly: false },
   { icon: Newspaper, label: "Media", detail: "Headlines and articles", to: "/league-mgmt/publishing", cfbOnly: false },

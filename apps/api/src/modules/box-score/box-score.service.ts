@@ -874,6 +874,7 @@ export type CreateSubmissionInput = {
   imageUrls: string[];
   discordChannelId?: string | null;
   discordMessageId?: string | null;
+  extraDiscordMessageIds?: string[] | null;
   ledgerDiscordMessageId?: string | null;
   seasonNumber?: number | null;
   weekNumber?: number | null;
@@ -980,6 +981,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       discord_guild_id: input.guildId,
       discord_channel_id: input.discordChannelId ?? null,
       discord_message_id: input.discordMessageId ?? null,
+      extra_discord_message_ids: input.extraDiscordMessageIds ?? [],
       ledger_discord_message_id: input.ledgerDiscordMessageId ?? null,
       image_urls: input.imageUrls,
       team1_abbr: displayTeam1Abbr,
@@ -1092,6 +1094,48 @@ export async function updateBoxScoreLedgerMessage(submissionId: string, ledgerDi
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to store box score ledger message id.", error);
   if (!data) throw new ApiError(404, "Submission not found.");
+  return { ok: true };
+}
+
+// ─── Discord message cleanup (bot polls this after approve/deny) ──────────────
+// Web-dashboard approvals never reach the bot directly (the bot runs no HTTP server,
+// so the API can't push to it) — the bot polls this list instead, deletes the source
+// screenshot message(s) it finds, then calls markBoxScoreDiscordCleanupDone.
+
+export type PendingDiscordCleanupSubmission = {
+  submissionId: string;
+  discordChannelId: string;
+  discordMessageId: string;
+  extraDiscordMessageIds: string[];
+  ledgerDiscordMessageId: string | null;
+};
+
+export async function listBoxScoresPendingDiscordCleanup(guildId: string): Promise<PendingDiscordCleanupSubmission[]> {
+  const { data, error } = await supabase
+    .from("rec_box_score_submissions")
+    .select("id,discord_channel_id,discord_message_id,extra_discord_message_ids,ledger_discord_message_id")
+    .eq("discord_guild_id", guildId)
+    .in("status", ["approved", "denied"])
+    .eq("discord_cleanup_done", false)
+    .not("discord_channel_id", "is", null)
+    .not("discord_message_id", "is", null)
+    .limit(50);
+  if (error) throw new ApiError(500, "Failed to list box scores pending Discord cleanup.", error);
+  return (data ?? []).map((row: any) => ({
+    submissionId: row.id,
+    discordChannelId: row.discord_channel_id,
+    discordMessageId: row.discord_message_id,
+    extraDiscordMessageIds: row.extra_discord_message_ids ?? [],
+    ledgerDiscordMessageId: row.ledger_discord_message_id,
+  }));
+}
+
+export async function markBoxScoreDiscordCleanupDone(submissionId: string) {
+  const { error } = await supabase
+    .from("rec_box_score_submissions")
+    .update({ discord_cleanup_done: true, updated_at: new Date().toISOString() })
+    .eq("id", submissionId);
+  if (error) throw new ApiError(500, "Failed to mark box score Discord cleanup done.", error);
   return { ok: true };
 }
 

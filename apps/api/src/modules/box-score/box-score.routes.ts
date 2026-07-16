@@ -10,8 +10,10 @@ import {
   correctBoxScoreSubmission,
   getBoxScoreSubmission,
   getBoxScoreUploadEligibility,
+  listBoxScoresPendingDiscordCleanup,
   listScheduledGamesForWeek,
   listPendingBoxScores,
+  markBoxScoreDiscordCleanupDone,
   parseBoxScorePreview,
   persistUploadedImageBuffer,
   reviewBoxScore,
@@ -47,6 +49,7 @@ const SubmitSchema = z.object({
   imageUrls: z.array(z.string().url()).min(1),
   discordChannelId: z.string().optional().nullable(),
   discordMessageId: z.string().optional().nullable(),
+  extraDiscordMessageIds: z.array(z.string()).optional().nullable(),
   ledgerDiscordMessageId: z.string().optional().nullable(),
   seasonNumber: z.number().int().positive().optional().nullable(),
   // CFB regular season starts at Week 0.
@@ -264,6 +267,30 @@ export async function boxScoreRoutes(app: FastifyInstance) {
         ledgerDiscordMessageId: z.string().min(1),
       }).parse(request.body);
       return reply.send(await updateBoxScoreLedgerMessage(submissionId, ledgerDiscordMessageId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Bot-only: polled on an interval to find approved/denied submissions whose source
+  // screenshot message(s) still need deleting from the Discord channel (covers both the
+  // Discord-native approve button and web-dashboard approvals, since the bot has no other
+  // way to learn a web approval happened).
+  app.post("/v1/box-score/pending-cleanup", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      return reply.send({ submissions: await listBoxScoresPendingDiscordCleanup(guildId) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/box-score/mark-cleanup-done", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { submissionId } = z.object({ submissionId: z.string().uuid() }).parse(request.body);
+      return reply.send(await markBoxScoreDiscordCleanupDone(submissionId));
     } catch (error) {
       return sendError(reply, error);
     }

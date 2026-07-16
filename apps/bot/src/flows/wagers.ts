@@ -152,7 +152,7 @@ async function buildGameSelectPayload(guildId: string, discordId: string, headli
       new StringSelectMenuOptionBuilder()
         .setLabel(`${g.awayLabel} at ${g.homeLabel}`.slice(0, 100))
         .setValue(g.gameId)
-        .setDescription(g.humanInvolved ? "Human game — full markets" : "CPU game — score markets only")));
+        .setDescription("H2H — full markets")));
   return { empty: false, embeds: [new EmbedBuilder().setTitle("Place a Wager").setColor(COLORS.info).setDescription(headline)], components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)] };
 }
 

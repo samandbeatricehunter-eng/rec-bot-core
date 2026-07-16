@@ -181,7 +181,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
   const week = await getAdvanceWeekGames(guildId);
   const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
   const [draft, powerRankings, discordByUser] = await Promise.all([
-    getLeagueConfigAsDraft(guildId).catch(() => null),
+    getLeagueConfigAsDraft(guildId).then((r) => (r as any)?.draft ?? null).catch(() => null),
     computePowerRankings(guildId).catch(() => ({ teams: [] })),
     discordIdsByUserId([...new Set(h2hGames.flatMap((game) => [game.awayUserId, game.homeUserId]).filter(Boolean))] as string[]),
   ]);

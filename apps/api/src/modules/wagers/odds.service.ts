@@ -109,6 +109,7 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   if (error) throw new ApiError(500, "Failed to load game for wager options.", error);
   if (!game) throw new ApiError(404, "Scheduled game not found.");
   if (game.status !== "scheduled") throw new ApiError(409, "Wagering is closed for this game.");
+  if (!(game.home_user_id && game.away_user_id)) throw new ApiError(409, "Wagering is only available for head-to-head (human vs. human) games.");
 
   const home = game.home_team as unknown as TeamRow | null;
   const away = game.away_team as unknown as TeamRow | null;

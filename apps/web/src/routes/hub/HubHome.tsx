@@ -20,14 +20,16 @@ const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" },
 ];
 const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
-  { key: "COOKED", label: "Cooked" },
-  { key: "SKILL_ISSUE", label: "Skill issue" },
-  { key: "CLIPPED", label: "Got clipped" },
-  { key: "NO_SHOT", label: "No shot" },
-  { key: "GG_ENERGY", label: "GG energy" },
-  { key: "AURA", label: "Aura play" },
+  { key: "COOKED", label: "Cooked!" },
+  { key: "SKILL_ISSUE", label: "Got EMMM!" },
+  { key: "CLIPPED", label: "FAFO .." },
+  { key: "NO_SHOT", label: "Oh, he tuff." },
+  { key: "GG_ENERGY", label: "Mossed!" },
+  { key: "AURA", label: "Gimme' Dat!" },
+  { key: "SHEEESH", label: "Sheeeeesh!" },
+  { key: "FAWK", label: "FAWKKKK" },
 ];
-const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA"];
+const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
 const SIDELINE_KEYS = SIDELINE_REACTIONS.map((reaction) => reaction.key);
 const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
@@ -768,7 +770,7 @@ export function HubHome() {
         return schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
           <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
             <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
-            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button>}{hub.canManageLeague && !game.isFinal && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}</div>
+            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}{hub.canManageLeague && !game.isFinal && game.matchupType === "h2h" && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}</div>
           </article>
         ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
       })()}
@@ -868,6 +870,7 @@ export function HubHome() {
 
       {subTab === "matchups" && (
         <SectionFrame eyebrow="Current slate" title="Weekly H2H Matchups">
+          {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
           {(() => {
             const state = renderMatchupLoadState("Loading matchups...");
             if (state) return state;
@@ -875,7 +878,6 @@ export function HubHome() {
             if (!schedule) return null;
             return <>
             <div className="hub-week-picker">
-              <div className="hub-week-strip">{schedule.weekNumbers.map((week) => <button key={week} className={week === schedule.selectedWeek ? "active" : week === schedule.currentWeek ? "current" : ""} onClick={() => setMatchupWeek(week)}>Week {week}</button>)}</div>
               <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
             </div>
             {schedule.gotw && (() => {
@@ -895,8 +897,8 @@ export function HubHome() {
                   {game.involvesMe && game.boxScoreSubmissionId && <StatusChip status="locked" label={`Box score ${game.boxScoreStatus ?? "submitted"}`} />}
                   {game.involvesMe && !game.isFinal && !game.boxScoreSubmissionId && <Button variant="primary" size="compact" onClick={() => setBoxScoreUploadGame(game)}>Submit Box Score</Button>}
                   {game.involvesMe && <Button variant="secondary" size="compact" onClick={() => void openPlayerStats(game)}>Player Stats</Button>}
-                  {!game.involvesMe && !game.isFinal && <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button>}
-                  {hub.canManageLeague && !game.isFinal && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}
+                  {!game.involvesMe && !game.isFinal && game.matchupType === "h2h" && <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button>}
+                  {hub.canManageLeague && !game.isFinal && game.matchupType === "h2h" && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}
                 </div>
               </article>
             ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}

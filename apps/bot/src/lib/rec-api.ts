@@ -496,6 +496,7 @@ export const recApi = {
     imageUrls: string[];
     discordChannelId?: string | null;
     discordMessageId?: string | null;
+    extraDiscordMessageIds?: string[] | null;
     ledgerDiscordMessageId?: string | null;
     seasonNumber?: number | null;
     weekNumber?: number | null;
@@ -561,6 +562,14 @@ export const recApi = {
 
   updateBoxScoreLedgerMessage: (input: { submissionId: string; ledgerDiscordMessageId: string }) =>
     recFetch<any>("/v1/box-score/ledger-message", { method: "POST", body: JSON.stringify(input) }),
+
+  listBoxScoresPendingDiscordCleanup: (guildId: string) =>
+    recFetch<{ submissions: Array<{ submissionId: string; discordChannelId: string; discordMessageId: string; extraDiscordMessageIds: string[]; ledgerDiscordMessageId: string | null }> }>(
+      "/v1/box-score/pending-cleanup",
+      { method: "POST", body: JSON.stringify({ guildId }) },
+    ),
+  markBoxScoreDiscordCleanupDone: (submissionId: string) =>
+    recFetch<any>("/v1/box-score/mark-cleanup-done", { method: "POST", body: JSON.stringify({ submissionId }) }),
 
   listScheduleTeams: (guildId: string) =>
     recFetch<any>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
