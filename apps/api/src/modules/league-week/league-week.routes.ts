@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
-import { completeAdvanceWeek, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
+import { completeAdvanceJump, completeAdvanceWeek, getAdvanceJumpPlan, getAdvanceJumpTargets, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, saveDivisionWinners, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
 import { adjustEosPayoutItem, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
 import { cancelOpenEosAwardPolls, castEosAwardVote, getEosAwardPoll, getEosAwardVotingBlock, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
@@ -149,6 +149,54 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const result = await completeAdvanceWeek(body);
       const discord = auth.mode === "user"
         ? await relayWebAdvanceToDiscord(body.guildId, result.nextWeekNumber, result.nextSeasonStage).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
+        : null;
+      return reply.send({ ...result, discord });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Multi-week/stage Advance Jump: lets a commissioner who's fallen behind catch up in
+  // one action instead of clicking through the single-week Advance flow repeatedly.
+  app.post("/v1/league-week/advance-jump/targets", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      return reply.send(await getAdvanceJumpTargets(body.guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/advance-jump/plan", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), targetWeekNumber: z.number().int().min(0).max(30), targetSeasonStage: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      return reply.send(await getAdvanceJumpPlan(body.guildId, body.targetWeekNumber, body.targetSeasonStage));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/advance-jump/complete", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        targetWeekNumber: z.number().int().min(0).max(30),
+        targetSeasonStage: z.string().min(1),
+        advancedByDiscordId: z.string().min(1),
+        results: z.array(z.object({
+          gameId: z.string().uuid(),
+          outcome: z.enum(["home", "away", "tie"]),
+          homeScore: z.number().int().min(0).max(200).optional().nullable(),
+          awayScore: z.number().int().min(0).max(200).optional().nullable(),
+        })),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
+      const result = await completeAdvanceJump(body);
+      const discord = auth.mode === "user"
+        ? await relayWebAdvanceToDiscord(body.guildId, body.targetWeekNumber, body.targetSeasonStage).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;
       return reply.send({ ...result, discord });
     } catch (error) {

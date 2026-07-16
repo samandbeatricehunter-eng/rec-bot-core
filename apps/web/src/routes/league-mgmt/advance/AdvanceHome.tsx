@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { AdvanceResultInput, AdvanceWeekGames, GotwPollStatus } from "../../../types/api.js";
+import type { AdvanceGame, AdvanceResultInput, AdvanceWeekGames, GotwPollStatus } from "../../../types/api.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
@@ -59,6 +59,73 @@ export function AdvanceHome() {
 
   const [creatingChannels, setCreatingChannels] = useState(false);
   const [flagBusyGameId, setFlagBusyGameId] = useState<string | null>(null);
+
+  const [jumpTargets, setJumpTargets] = useState<{ currentLabel: string; targets: Array<{ weekNumber: number; seasonStage: string; label: string }> } | null>(null);
+  const [jumpTargetKey, setJumpTargetKey] = useState("");
+  const [jumpPlan, setJumpPlan] = useState<{ steps: Array<{ weekNumber: number; seasonStage: string; label: string; gamesNeedingInput: AdvanceGame[] }>; targetLabel: string; reachable: boolean } | null>(null);
+  const [jumpPlanLoading, setJumpPlanLoading] = useState(false);
+  const [jumpEntries, setJumpEntries] = useState<Record<string, GameEntry>>({});
+  const [jumpBusy, setJumpBusy] = useState(false);
+  const [showJumpModal, setShowJumpModal] = useState(false);
+
+  function loadJumpTargets() {
+    recApi.getAdvanceJumpTargets(guildId).then(setJumpTargets).catch(() => setJumpTargets(null));
+  }
+
+  useEffect(loadJumpTargets, [guildId]);
+
+  async function loadJumpPlan(key: string) {
+    setJumpTargetKey(key);
+    setJumpPlan(null);
+    setJumpEntries({});
+    if (!key) return;
+    const [weekNumber, seasonStage] = key.split("::");
+    setJumpPlanLoading(true);
+    try {
+      const plan = await recApi.getAdvanceJumpPlan({ guildId, targetWeekNumber: Number(weekNumber), targetSeasonStage: seasonStage });
+      setJumpPlan(plan);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to preview the advance jump.");
+    } finally {
+      setJumpPlanLoading(false);
+    }
+  }
+
+  function setJumpEntry(gameId: string, patch: Partial<GameEntry>) {
+    setJumpEntries((prev) => ({ ...prev, [gameId]: { ...(prev[gameId] ?? emptyEntry), ...patch } }));
+  }
+
+  async function handleConfirmJump() {
+    if (!jumpPlan || !jumpTargetKey) return;
+    const [weekNumber, seasonStage] = jumpTargetKey.split("::");
+    setJumpBusy(true);
+    setError(null);
+    const results: AdvanceResultInput[] = jumpPlan.steps.flatMap((step) => step.gamesNeedingInput).flatMap((g): AdvanceResultInput[] => {
+      const entry = jumpEntries[g.gameId];
+      if (!entry?.outcome) return [];
+      return [{
+        gameId: g.gameId,
+        outcome: entry.outcome as "home" | "away" | "tie",
+        homeScore: entry.homeScore.trim() === "" ? null : Number(entry.homeScore),
+        awayScore: entry.awayScore.trim() === "" ? null : Number(entry.awayScore),
+      }];
+    });
+    try {
+      const result = await recApi.completeAdvanceJump({ guildId, targetWeekNumber: Number(weekNumber), targetSeasonStage: seasonStage, results });
+      const relay = result.discord;
+      setNotice(`Advanced ${result.steps} week${result.steps === 1 ? "" : "s"} to ${result.landedLabel}.${relay ? ` Discord announcement ${relay.announcementPosted ? "posted" : "not posted"}${relay.error ? ` (${relay.error})` : ""}.` : ""}`);
+      setJumpPlan(null);
+      setJumpEntries({});
+      setJumpTargetKey("");
+      setShowJumpModal(false);
+      loadJumpTargets();
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to complete the advance jump.");
+    } finally {
+      setJumpBusy(false);
+    }
+  }
 
   function load() {
     recApi
@@ -310,6 +377,22 @@ export function AdvanceHome() {
         </Button>
       </Card>
 
+      <Card className="advance-card">
+        <h2>Jump Ahead</h2>
+        <p className="form-hint">Fallen behind? Pick a target week or stage and catch up in one action — every skipped week still runs its normal advance (records, badges, payouts).</p>
+        <div className="advance-control-row">
+          <select className="form-select" value={jumpTargetKey} onChange={(e) => void loadJumpPlan(e.target.value)} disabled={!jumpTargets?.targets.length}>
+            <option value="">{jumpTargets?.targets.length ? "Select a target..." : "Loading targets..."}</option>
+            {jumpTargets?.targets.map((t) => <option key={`${t.weekNumber}::${t.seasonStage}`} value={`${t.weekNumber}::${t.seasonStage}`}>{t.label}</option>)}
+          </select>
+          <Button variant="tactical" disabled={!jumpPlan || !jumpPlan.reachable || jumpPlanLoading} onClick={() => setShowJumpModal(true)}>
+            Review Jump
+          </Button>
+        </div>
+        {jumpPlanLoading && <p className="form-hint">Loading skipped weeks...</p>}
+        {jumpPlan && !jumpPlan.reachable && <p className="advance-empty">Couldn't plan a path to that target — advance manually instead.</p>}
+      </Card>
+
       {showAdvanceModal && (
         <Modal title="Complete Advance" onClose={() => !advancing && setShowAdvanceModal(false)}>
           <div className="advance-modal-body">
@@ -354,6 +437,41 @@ export function AdvanceHome() {
             <div className="advance-modal-actions">
               <Button variant="ghost" onClick={() => setShowAdvanceModal(false)} disabled={advancing}>Cancel</Button>
               <Button variant="tactical" onClick={handleAdvance} disabled={advancing}>{advancing ? "Advancing..." : completeAdvanceTimeDraft() ? "Submit with Time" : "Submit and Skip Time"}</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showJumpModal && jumpPlan && (
+        <Modal title={`Jump Ahead to ${jumpPlan.targetLabel}`} onClose={() => !jumpBusy && setShowJumpModal(false)}>
+          <div className="advance-modal-body">
+            <p className="form-hint">Fill in any skipped week's games below — every step still runs its normal advance (records, badges, EOS payouts) in order.</p>
+            {jumpPlan.steps.map((step) => (
+              <div key={`${step.weekNumber}::${step.seasonStage}`} className="advance-jump-step">
+                <h3>{step.label}</h3>
+                {step.gamesNeedingInput.length ? step.gamesNeedingInput.map((g) => {
+                  const entry = jumpEntries[g.gameId];
+                  return (
+                    <div key={g.gameId} className="advance-game-row">
+                      <div className="advance-game-title"><strong>{g.awayTeamName} @ {g.homeTeamName}</strong></div>
+                      <div className="advance-score-entry">
+                        <select className="form-select" value={entry?.outcome ?? ""} onChange={(e) => setJumpEntry(g.gameId, { outcome: e.target.value as GameEntry["outcome"] })}>
+                          <option value="">Outcome...</option>
+                          <option value="home">{g.homeTeamName} Win</option>
+                          <option value="away">{g.awayTeamName} Win</option>
+                          <option value="tie">Tie</option>
+                        </select>
+                        <input className="form-input" type="number" placeholder="Home" value={entry?.homeScore ?? ""} onChange={(e) => setJumpEntry(g.gameId, { homeScore: e.target.value })} />
+                        <input className="form-input" type="number" placeholder="Away" value={entry?.awayScore ?? ""} onChange={(e) => setJumpEntry(g.gameId, { awayScore: e.target.value })} />
+                      </div>
+                    </div>
+                  );
+                }) : <p className="advance-empty">No games needing input this step.</p>}
+              </div>
+            ))}
+            <div className="advance-modal-actions">
+              <Button variant="ghost" onClick={() => setShowJumpModal(false)} disabled={jumpBusy}>Cancel</Button>
+              <Button variant="tactical" onClick={handleConfirmJump} disabled={jumpBusy}>{jumpBusy ? "Advancing..." : `Confirm Jump (${jumpPlan.steps.length} week${jumpPlan.steps.length === 1 ? "" : "s"})`}</Button>
             </div>
           </div>
         </Modal>

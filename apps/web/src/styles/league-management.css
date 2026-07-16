@@ -292,6 +292,21 @@
   margin: 0;
   color: var(--text-secondary);
 }
+.advance-jump-step {
+  padding-top: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.advance-jump-step:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+.advance-jump-step h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--gold);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
 .modal-panel:has(.advance-modal-body) {
   width: min(640px, calc(100vw - 32px));
   max-width: 640px;

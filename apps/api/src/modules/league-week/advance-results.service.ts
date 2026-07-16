@@ -117,27 +117,11 @@ const BADGE_LABELS = new Map(
   [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.label]),
 );
 
-export async function getAdvanceWeekGames(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const seasonNumber = resolveSeasonNumber(context);
-  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
-  const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
-  const nextTarget = nextLeagueStage(currentWeek, currentStage, context.rec_leagues.game);
-  const nextLabel = stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game);
-
-  if (!stageHasScheduledGames(currentStage, context.rec_leagues.game)) {
-    return {
-      league: context.rec_leagues,
-      seasonNumber,
-      currentWeek,
-      currentStage,
-      nextWeekNumber: nextTarget.weekNumber,
-      nextSeasonStage: nextTarget.seasonStage,
-      nextLabel,
-      games: [],
-      gamesNeedingInput: [],
-    };
-  }
+// Extracted so the multi-week Advance Jump preview can walk several future weeks'
+// worth of "games needing input" without mutating any league state (getAdvanceWeekGames
+// below always reads the league's live current week/stage; this takes them as params).
+async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNumber: number, seasonStage: string) {
+  if (!stageHasScheduledGames(seasonStage, context.rec_leagues.game)) return { games: [], gamesNeedingInput: [] };
 
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
 
@@ -146,7 +130,7 @@ export async function getAdvanceWeekGames(guildId: string) {
     .select("id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
     .eq("league_id", context.leagueId)
     .eq("season_id", seasonId)
-    .eq("week_number", currentWeek);
+    .eq("week_number", weekNumber);
   if (error) throw new ApiError(500, "Failed to load week schedule.", error);
 
   const [results, boxScores] = await Promise.all([
@@ -155,13 +139,13 @@ export async function getAdvanceWeekGames(guildId: string) {
       .select("id,external_game_id,home_team_id,away_team_id,source")
       .eq("league_id", context.leagueId)
       .eq("season_number", seasonNumber)
-      .eq("week_number", currentWeek),
+      .eq("week_number", weekNumber),
     supabase
       .from("rec_box_score_submissions")
       .select("id,game_id,status")
       .eq("league_id", context.leagueId)
       .eq("season_number", seasonNumber)
-      .eq("week_number", currentWeek)
+      .eq("week_number", weekNumber)
       .in("status", ["pending", "approved"]),
   ]);
 
@@ -197,6 +181,19 @@ export async function getAdvanceWeekGames(guildId: string) {
     };
   });
 
+  return { games: mapped, gamesNeedingInput: mapped.filter((game) => game.needsInput) };
+}
+
+export async function getAdvanceWeekGames(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");
+  const nextTarget = nextLeagueStage(currentWeek, currentStage, context.rec_leagues.game);
+  const nextLabel = stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game);
+
+  const { games, gamesNeedingInput } = await loadWeekGamesForStage(context, seasonNumber, currentWeek, currentStage);
+
   return {
     league: context.rec_leagues,
     seasonNumber,
@@ -205,9 +202,93 @@ export async function getAdvanceWeekGames(guildId: string) {
     nextWeekNumber: nextTarget.weekNumber,
     nextSeasonStage: nextTarget.seasonStage,
     nextLabel,
-    games: mapped,
-    gamesNeedingInput: mapped.filter((game) => game.needsInput),
+    games,
+    gamesNeedingInput,
   };
+}
+
+const MAX_ADVANCE_JUMP_STEPS = 20;
+
+/** Every stage the league could jump to, walking forward from its current position. */
+export async function getAdvanceJumpTargets(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  let week = Number(context.rec_leagues.current_week ?? 1);
+  let stage = String(context.rec_leagues.season_stage ?? "regular_season");
+  const targets: Array<{ weekNumber: number; seasonStage: string; label: string }> = [];
+  for (let i = 0; i < MAX_ADVANCE_JUMP_STEPS; i++) {
+    const next = nextLeagueStage(week, stage, context.rec_leagues.game);
+    targets.push({ weekNumber: next.weekNumber, seasonStage: next.seasonStage, label: stageLabel(next.seasonStage, next.weekNumber, context.rec_leagues.game) });
+    week = next.weekNumber;
+    stage = next.seasonStage;
+  }
+  return {
+    currentWeek: Number(context.rec_leagues.current_week ?? 1),
+    currentStage: String(context.rec_leagues.season_stage ?? "regular_season"),
+    currentLabel: stageLabel(String(context.rec_leagues.season_stage ?? "regular_season"), Number(context.rec_leagues.current_week ?? 1), context.rec_leagues.game),
+    targets,
+  };
+}
+
+/**
+ * Preview for the multi-week Advance Jump: walks forward from the league's current
+ * week/stage to the requested target WITHOUT touching any data, collecting each
+ * skipped week's games that still need a score entered (mirrors getAdvanceWeekGames'
+ * per-week shape, one entry per step). The commissioner fills these in once, up front,
+ * before confirming — completeAdvanceJump below then replays them one week at a time.
+ */
+export async function getAdvanceJumpPlan(guildId: string, targetWeekNumber: number, targetSeasonStage: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  let week = Number(context.rec_leagues.current_week ?? 1);
+  let stage = String(context.rec_leagues.season_stage ?? "regular_season");
+  const steps: Array<{ weekNumber: number; seasonStage: string; label: string; gamesNeedingInput: Awaited<ReturnType<typeof loadWeekGamesForStage>>["gamesNeedingInput"] }> = [];
+
+  for (let i = 0; i < MAX_ADVANCE_JUMP_STEPS; i++) {
+    if (week === targetWeekNumber && stage === targetSeasonStage) {
+      return { steps, targetLabel: stageLabel(targetSeasonStage, targetWeekNumber, context.rec_leagues.game), reachable: true };
+    }
+    const { gamesNeedingInput } = await loadWeekGamesForStage(context, seasonNumber, week, stage);
+    steps.push({ weekNumber: week, seasonStage: stage, label: stageLabel(stage, week, context.rec_leagues.game), gamesNeedingInput });
+    const next = nextLeagueStage(week, stage, context.rec_leagues.game);
+    week = next.weekNumber;
+    stage = next.seasonStage;
+  }
+  return { steps, targetLabel: stageLabel(targetSeasonStage, targetWeekNumber, context.rec_leagues.game), reachable: false };
+}
+
+/**
+ * Executes a multi-week jump: repeatedly calls the exact same single-week
+ * completeAdvanceWeek used by the normal Advance page (so every side effect — badges,
+ * EOS payouts, POTY, power-ranking snapshots, etc. — fires correctly for each
+ * intermediate week), landing on the requested target. `results` is a flat list
+ * covering every skipped week's games (from the getAdvanceJumpPlan preview); each
+ * step only submits the entries matching that step's own games needing input.
+ */
+export async function completeAdvanceJump(input: {
+  guildId: string;
+  targetWeekNumber: number;
+  targetSeasonStage: string;
+  advancedByDiscordId: string;
+  results: AdvanceGameResultInput[];
+}) {
+  const steps: Array<{ fromLabel: string; toLabel: string }> = [];
+  for (let i = 0; i < MAX_ADVANCE_JUMP_STEPS; i++) {
+    const weekGames = await getAdvanceWeekGames(input.guildId);
+    if (weekGames.currentWeek === input.targetWeekNumber && weekGames.currentStage === input.targetSeasonStage) {
+      return { landedLabel: stageLabel(weekGames.currentStage, weekGames.currentWeek, weekGames.league.game), steps: steps.length, stepLog: steps };
+    }
+    const fromLabel = stageLabel(weekGames.currentStage, weekGames.currentWeek, weekGames.league.game);
+    const stepResults = input.results.filter((r) => weekGames.gamesNeedingInput.some((g) => g.gameId === r.gameId));
+    const outcome = await completeAdvanceWeek({
+      guildId: input.guildId,
+      nextWeekNumber: weekGames.nextWeekNumber,
+      nextSeasonStage: weekGames.nextSeasonStage,
+      advancedByDiscordId: input.advancedByDiscordId,
+      results: stepResults,
+    });
+    steps.push({ fromLabel, toLabel: outcome.nextLabel });
+  }
+  throw new ApiError(400, "Advance jump did not reach the requested target within the step limit — check for a schedule gap and advance manually.");
 }
 
 // Commissioner marks a CFB postseason game as a bowl game / the national championship
