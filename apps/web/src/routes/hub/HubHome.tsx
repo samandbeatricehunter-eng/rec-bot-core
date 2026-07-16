@@ -214,15 +214,12 @@ export function HubHome() {
   }, [headlineCount, currentWeekStoryIndexes]);
   useEffect(() => { mobileStorySwipe.setCurrentIndex(storyCarouselIndex); }, [storyCarouselIndex]);
   useEffect(() => {
-    if (subTab !== "buzz" || currentWeekStoryIndexes.length <= 1 || mobileStorySwipe.isDragging) return;
+    if (subTab !== "buzz" || headlineCount <= 1 || mobileStorySwipe.isDragging) return;
     const timer = window.setInterval(() => {
-      setStoryCarouselIndex((current) => {
-        const currentSlot = currentWeekStoryIndexes.indexOf(current);
-        return currentWeekStoryIndexes[(currentSlot + 1) % currentWeekStoryIndexes.length] ?? currentWeekStoryIndexes[0] ?? 0;
-      });
+      setStoryCarouselIndex((current) => (current + 1) % headlineCount);
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [subTab, currentWeekStoryIndexes, mobileStorySwipe.isDragging]);
+  }, [subTab, headlineCount, mobileStorySwipe.isDragging]);
 
   async function load() {
     if (auth.status !== "ready") return;
@@ -807,8 +804,8 @@ export function HubHome() {
                       onPointerCancel={mobileStorySwipe.handlers.onPointerCancel}
                     >
                       {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" />}
-                      <button type="button" className="hub-story-open" onPointerDown={(event) => event.stopPropagation()} onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
-                      <div className="hub-social-actions"><button type="button" className={story.myReaction === "like" ? "active" : ""} onPointerDown={(event) => event.stopPropagation()} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button type="button" className={story.myReaction === "dislike" ? "active" : ""} onPointerDown={(event) => event.stopPropagation()} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button type="button" onPointerDown={(event) => event.stopPropagation()} onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
+                      <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
+                      <div className="hub-social-actions"><button type="button" className={story.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button type="button" className={story.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button type="button" onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
                     </article>
                   );
                 })()}

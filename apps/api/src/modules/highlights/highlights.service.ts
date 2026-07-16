@@ -28,11 +28,6 @@ export async function mirrorHighlightMedia(url: string, leagueId: string, discor
   const path = `${leagueId}/${discordMessageId}.${mediaExtension(url, contentType)}`;
   const uploaded = await supabase.storage.from(HIGHLIGHT_BUCKET).upload(path, body, { contentType, cacheControl: "31536000", upsert: true });
   if (uploaded.error) throw uploaded.error;
-  const stored = await supabase.storage.from(HIGHLIGHT_BUCKET).list(leagueId, { limit: 100, sortBy: { column: "name", order: "desc" } });
-  if (!stored.error && (stored.data ?? []).length > 5) {
-    const stalePaths = (stored.data ?? []).slice(5).map((file) => `${leagueId}/${file.name}`);
-    await supabase.storage.from(HIGHLIGHT_BUCKET).remove(stalePaths);
-  }
   return supabase.storage.from(HIGHLIGHT_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
