@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { qualifyDefenseNickname } from "./defense-nicknames.service.js";
 
 type EosPayoutItem = {
   league_id: string;
@@ -31,6 +32,22 @@ function jsonNum(raw: unknown, key: string) {
   return num((raw as Record<string, unknown>)[key]);
 }
 
+/** "16:22" -> 982 seconds; a plain jsonNum() would misparse this (strips the colon, giving 1622). */
+function jsonClockSeconds(raw: unknown, key: string): number | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = (raw as Record<string, unknown>)[key];
+  const m = value != null ? String(value).match(/^(\d+):(\d{2})$/) : null;
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+}
+
+/** "9-12" -> [9, 12]. Falls back to [made-only, null] if the attempts half wasn't recoverable. */
+function jsonMadeAttempts(raw: unknown, key: string): [number, number | null] {
+  if (!raw || typeof raw !== "object") return [0, null];
+  const value = (raw as Record<string, unknown>)[key];
+  const m = value != null ? String(value).match(/^(-?\d+)-(-?\d+)$/) : null;
+  return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [num(value), null];
+}
+
 export function evalTeamStat(statKey: string, rows: any[]) {
   const games = rows.length;
   const sum = (key: string) => rows.reduce((total, row) => total + num(row[key]), 0);
@@ -50,6 +67,48 @@ export function evalTeamStat(statKey: string, rows: any[]) {
   if (statKey === "red_zone_td_rate_allowed") {
     const values = rows.map((row) => row.red_zone_def_percentage).filter((value) => value != null).map(num);
     return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+  }
+  if (statKey === "avg_time_of_possession_seconds") {
+    const values = rows.map((row) => jsonClockSeconds(row.offensive_stats, "time_of_possession")).filter((v): v is number => v != null);
+    return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+  }
+  if (statKey === "total_penalties") return jsonSum("offensive_stats", "penalties");
+  if (statKey === "red_zone_td_finish_rate") {
+    const tds = jsonSum("offensive_stats", "red_zone_tds");
+    const fgs = jsonSum("offensive_stats", "red_zone_fgs");
+    return tds + fgs > 0 ? (tds / (tds + fgs)) * 100 : 0;
+  }
+  if (statKey === "rb_workhorse_score") {
+    const attempts = jsonSum("offensive_stats", "off_rush_attempts");
+    const tds = jsonSum("offensive_stats", "off_rush_tds");
+    const yardsPerRushValues = rows.map((row) => jsonNum(row.offensive_stats, "yards_per_rush")).filter((v) => v > 0);
+    const avgYardsPerRush = yardsPerRushValues.length ? yardsPerRushValues.reduce((total, v) => total + v, 0) / yardsPerRushValues.length : 0;
+    return attempts / 25 + avgYardsPerRush * 8 + tds * 4;
+  }
+  if (statKey === "defense_identity_score") {
+    const redZoneDefPct = (() => {
+      const values = rows.map((row) => row.red_zone_def_percentage).filter((value) => value != null).map(num);
+      return values.length ? values.reduce((total, value) => total + value, 0) / values.length : 0;
+    })();
+    const oppIntsThrown = jsonSum("defensive_stats", "interceptions_thrown");
+    const oppFumblesLost = jsonSum("defensive_stats", "fumbles_lost");
+    let oppThirdMade = 0, oppThirdAttempts = 0, oppFourthMade = 0, oppFourthAttempts = 0;
+    for (const row of rows) {
+      const [tm, ta] = jsonMadeAttempts(row.defensive_stats, "third_down_conversions");
+      const [fm, fa] = jsonMadeAttempts(row.defensive_stats, "fourth_down_conversions");
+      oppThirdMade += tm; if (ta != null) oppThirdAttempts += ta;
+      oppFourthMade += fm; if (fa != null) oppFourthAttempts += fa;
+    }
+    // No recoverable attempts data must never read as a 0% (perfect) allowed rate —
+    // that would reward missing OCR data with the max bonus. Skip the term instead.
+    const oppThirdPct = oppThirdAttempts > 0 ? (oppThirdMade / oppThirdAttempts) * 100 : null;
+    const oppFourthPct = oppFourthAttempts > 0 ? (oppFourthMade / oppFourthAttempts) * 100 : null;
+
+    const redZoneTerm = (redZoneDefPct / 10) * 5;
+    const takeawayTerm = games ? ((oppIntsThrown / games) + (oppFumblesLost / games)) * 10 : 0;
+    const thirdDownTerm = oppThirdPct != null ? (100 - oppThirdPct) * 10 : 0;
+    const fourthDownTerm = oppFourthPct != null ? (100 - oppFourthPct) * 10 : 0;
+    return redZoneTerm + takeawayTerm + thirdDownTerm + fourthDownTerm;
   }
   return 0;
 }
@@ -421,6 +480,13 @@ export async function reviewEosPayoutItem(input: { itemId: string; action: "appr
     .select("*")
     .single();
   if (issued.error) throw new ApiError(500, "Failed to mark EOS payout issued.", issued.error);
+
+  if (issued.data.payout_key === "defense_needs_a_name" && issued.data.team_id) {
+    await qualifyDefenseNickname({
+      leagueId: issued.data.league_id, teamId: issued.data.team_id, userId: issued.data.user_id, seasonNumber: issued.data.season_number,
+    }).catch((error) => console.error("[ERROR] qualifyDefenseNickname failed after EOS payout issue (non-fatal):", error));
+  }
+
   return { updated: true, item: issued.data };
 }
 

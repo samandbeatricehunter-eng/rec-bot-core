@@ -51,6 +51,15 @@ const num = (v: unknown): number => {
 const jsonNum = (j: Record<string, string | number> | null, key: string): number => num(j?.[key]);
 const jsonRaw = (j: Record<string, string | number> | null, key: string): string | null => (j?.[key] != null ? String(j[key]) : null);
 
+/** "16:22" -> 982 seconds. The generic num() strips the colon and would misparse this as 1622. */
+function jsonClockSeconds(j: Record<string, string | number> | null, key: string): number | null {
+  const raw = jsonRaw(j, key);
+  if (!raw) return null;
+  const m = raw.match(/^(\d+):(\d{2})$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
 /** "made-attempts" -> [made, attempts]. Returns [made, null] if only the made half is present. */
 function madeAttempts(j: Record<string, string | number> | null, key: string): [number, number | null] {
   const raw = jsonRaw(j, key);
@@ -174,7 +183,7 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
     puntAvgYards: cfb ? jsonNum(row.offensive_stats, "punt_avg_yards") || null : null,
     penalties: cfb ? jsonNum(row.offensive_stats, "penalties") || null : null,
     penaltyYards: cfb ? jsonNum(row.offensive_stats, "penalty_yards") || null : null,
-    timeOfPossessionSeconds: cfb ? jsonNum(row.offensive_stats, "time_of_possession") || null : null,
+    timeOfPossessionSeconds: cfb ? jsonClockSeconds(row.offensive_stats, "time_of_possession") : null,
 
     statsQuarantined: flags.bad,
   };

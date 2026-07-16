@@ -10,6 +10,7 @@ import { cancelOpenEosAwardPolls, getEosAwardPoll, listOpenEosAwardPolls, listSe
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
+import { getMyDefenseNicknameStatus, setDefenseNickname } from "./defense-nicknames.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -101,6 +102,29 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await getWeeklyH2hGames(body.guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // "This Defense Needs a Name" — a coach naming/renaming their own qualifying defense.
+  app.post("/v1/league-week/defense-nickname", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), teamId: z.string().uuid(), nickname: z.string().min(1).max(60) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await setDefenseNickname(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/defense-nickname/status", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await getMyDefenseNicknameStatus(body.guildId, body.discordId));
     } catch (error) {
       return sendError(reply, error);
     }

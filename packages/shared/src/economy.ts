@@ -67,7 +67,17 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   { key: "turnover_diff", label: "Turnover Differential", scope: "team", direction: "higher_is_better", statKey: "turnover_differential", tiers: higher([["S", 20, 200], ["A", 15, 150], ["B", 10, 100], ["C", 5, 75], ["D", 1, 50]]) },
   { key: "team_total_offense", label: "Team Total Offense", scope: "team", direction: "higher_is_better", statKey: "total_offense_yards", tiers: higher([["S", 7000, 200], ["A", 6500, 150], ["B", 6000, 100], ["C", 5500, 75], ["D", 5000, 50]]) },
   { key: "off_red_zone_td_rate", label: "Offensive Red-Zone TD Efficiency", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_rate", tiers: higher([["S", 70, 200], ["A", 65, 150], ["B", 60, 100], ["C", 55, 75], ["D", 50, 50]]) },
-  { key: "def_red_zone_td_rate", label: "Defensive Red-Zone TD Rate Allowed", scope: "team", direction: "lower_is_better", statKey: "red_zone_td_rate_allowed", tiers: lower([["S", 40, 200], ["A", 45, 150], ["B", 50, 100], ["C", 55, 75], ["D", 60, 50]]) }
+  { key: "def_red_zone_td_rate", label: "Defensive Red-Zone TD Rate Allowed", scope: "team", direction: "lower_is_better", statKey: "red_zone_td_rate_allowed", tiers: lower([["S", 40, 200], ["A", 45, 150], ["B", 50, 100], ["C", 55, 75], ["D", 60, 50]]) },
+
+  // CFB-only additions (2026-07-16), leveraging stat fields CFB's box score
+  // captures but Madden's doesn't (rush attempts/TDs, penalties, red-zone
+  // TD-vs-FG split, time of possession).
+  { key: "time_of_possession", label: "Time of Possession Bonus", scope: "team", direction: "higher_is_better", statKey: "avg_time_of_possession_seconds", games: ["cfb_27"], tiers: higher([["S", 18 * 60, 200], ["A", 17.5 * 60, 150], ["B", 17 * 60, 100], ["C", 16.5 * 60, 75], ["D", 16 * 60, 50]]) },
+  { key: "well_disciplined", label: "Well-Disciplined", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: ["cfb_27"], tiers: lower([["S", 5, 200], ["A", 10, 150], ["B", 15, 100], ["C", 20, 75], ["D", 25, 50]]) },
+  { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: ["cfb_27"], tiers: higher([["S", 80, 200], ["A", 72, 150], ["B", 65, 100], ["C", 58, 75], ["D", 50, 50]]) },
+  // Single-tier bonuses — either the composite score clears the bar or it doesn't, no partial credit.
+  { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "team", direction: "higher_is_better", statKey: "rb_workhorse_score", games: ["cfb_27"], tiers: [{ tier: "S", threshold: 140, amount: 200, operator: "greater_or_equal" }] },
+  { key: "defense_needs_a_name", label: "This Defense Needs a Name", scope: "team", direction: "higher_is_better", statKey: "defense_identity_score", games: ["cfb_27"], tiers: [{ tier: "S", threshold: 80, amount: 200, operator: "greater_or_equal" }] },
 ];
 
 function tierMatches(rule: RecPayoutTierRule, value: number): boolean {

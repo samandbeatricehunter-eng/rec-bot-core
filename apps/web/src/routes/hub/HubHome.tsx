@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Link } from "react-router-dom";
 import { CFB_POSITIONS } from "@rec/shared";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trash2, Trophy, UserRound, UsersRound, WalletCards, X } from "lucide-react";
-import { useAuth } from "../../lib/auth-context.js";
+import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -92,6 +92,43 @@ function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
   const opponentScore = week.confirmedHomeAway === "home" ? result.awayScore : result.homeScore;
   if (result.isTie || teamScore === opponentScore) return `Tie ${teamScore}-${opponentScore}`;
   return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
+}
+
+function DefenseNicknamePrompt() {
+  const { guildId, discordId } = useReadyAuth();
+  const [status, setStatus] = useState<{ teamId: string; nickname: string | null; needsName: boolean } | null>(null);
+  const [value, setValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    recApi.getDefenseNicknameStatus({ guildId, discordId }).then(setStatus).catch(() => setStatus(null));
+  }, [guildId, discordId]);
+
+  if (!status?.needsName) return null;
+
+  async function save() {
+    if (!status || !value.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await recApi.setDefenseNickname({ guildId, discordId, teamId: status.teamId, nickname: value.trim() });
+      setStatus({ ...status, nickname: result.nickname, needsName: false });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save nickname.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <div className="hub-defense-nickname-prompt">
+    <p><strong>Your defense earned "This Defense Needs a Name"!</strong> Give it a nickname — it'll show up in headlines about your defense until it stops qualifying.</p>
+    <div className="hub-defense-nickname-form">
+      <input className="form-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="e.g. The Iron Curtain" maxLength={60} />
+      <Button variant="primary" disabled={busy || !value.trim()} onClick={() => void save()}>{busy ? "Saving…" : "Name It"}</Button>
+    </div>
+    {error && <p className="hub-schedule-missing">{error}</p>}
+  </div>;
 }
 
 function FinancialLedger({ summary }: { summary: any }) {
@@ -751,6 +788,7 @@ export function HubHome() {
       </aside>
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
+      {hub.league.game === "cfb_27" && <DefenseNicknamePrompt />}
       <div className="hub-my-team-shortcuts">
         <button className="hub-shortcut-card" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={18} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : "$100 on approval"}</span></div></button>
         <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : "$50 on approval"}</span></div></button>

@@ -176,6 +176,10 @@ export const recApi = {
   listOpenTeams: (guildId: string) => recApiFetch<OpenTeamsResponse>(REC_API_ROUTES.openTeams(guildId)),
   listLeagueIdentities: (guildId: string) => recApiFetch<LeagueIdentitiesResponse>(`/v1/guilds/${guildId}/identities`),
   refreshBadgeBaselines: (guildId: string) => recApiFetch<{ ok: boolean; usersUpdated: number }>(`/v1/guilds/${guildId}/badges/refresh-baselines`, { method: "POST", body: JSON.stringify({}) }),
+  getDefenseNicknameStatus: (input: { guildId: string; discordId: string }) =>
+    recApiFetch<{ teamId: string; nickname: string | null; needsName: boolean } | null>("/v1/league-week/defense-nickname/status", { method: "POST", body: JSON.stringify(input) }),
+  setDefenseNickname: (input: { guildId: string; discordId: string; teamId: string; nickname: string }) =>
+    recApiFetch<{ nickname: string }>("/v1/league-week/defense-nickname", { method: "POST", body: JSON.stringify(input) }),
   linkUserToTeam: (input: { guildId: string; discordId: string; teamId: string }) =>
     recApiFetch<unknown>(REC_API_ROUTES.linkUserToTeam, { method: "POST", body: JSON.stringify(input) }),
   unlinkTeam: (input: { guildId: string; teamId: string }) =>
