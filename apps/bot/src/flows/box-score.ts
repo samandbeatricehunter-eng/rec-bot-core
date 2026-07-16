@@ -577,7 +577,9 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
     // This game now has a confirmed result — flip any pending wager embeds on it.
     if (interaction.inCachedGuild()) void refreshConfirmableWagerEmbeds(interaction.client, interaction.guildId);
     const paidPlayerList = formatPaidPlayers(result);
-    const badgeBonusText = result.badgeBonusCount ? `, including ${result.badgeBonusCount} badge bonus(es)` : "";
+    const badgeBonusText = result.badgeBonusCount
+      ? `, including ${result.badgeBonusCount} badge bonus/penalty adjustment(s) ($${result.badgeBonusPaid})`
+      : "";
     const warningsText = result.warnings?.length ? `\n⚠️ ${result.warnings.join(" ")}` : "";
     const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.${warningsText}`;
 

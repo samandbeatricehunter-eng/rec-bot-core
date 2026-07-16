@@ -11,6 +11,7 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { FirstTimeSetupHome } from "../first-time-setup/FirstTimeSetupHome.js";
 import { ChannelSettings } from "./ChannelSettings.js";
 import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
+import { BadgeMaintenance } from "./BadgeMaintenance.js";
 
 const FIRST_TIME_SETUP_KEY = "first-time-setup";
 const EOS_PAYOUTS_KEY = "eos-payouts";
@@ -99,7 +100,7 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <EosPayoutMaintenance /> : activeCategory === FIRST_TIME_SETUP_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><BadgeMaintenance /></> : activeCategory === FIRST_TIME_SETUP_KEY ? (
         <FirstTimeSetupHome />
       ) : (
         <>

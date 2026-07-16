@@ -28,6 +28,9 @@ const BADGE_LABELS = new Map(
 const BADGE_DESCRIPTIONS = new Map(
   [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES].map((badge) => [badge.key, badge.description] as const),
 );
+// First match wins — a badge_key shared between a Madden and a CFB variant (e.g.
+// turnover_trouble) never has conflicting polarity between the two, so this is safe.
+const BADGE_POLARITY = new Map(GAME_BADGES.map((badge) => [badge.key, badge.polarity] as const));
 
 type BoxScorePaidPlayer = {
   userId: string;
@@ -1178,12 +1181,14 @@ async function issueBadgeBonusesForSubmission(sub: {
   for (const event of data ?? []) {
     if (!event.user_id) continue;
     const badgeLabel = BADGE_LABELS.get(event.badge_key) ?? event.badge_key;
+    const isNegative = BADGE_POLARITY.get(event.badge_key) === "negative";
+    const amount = isNegative ? -BADGE_BONUS_PAYOUT : BADGE_BONUS_PAYOUT;
     await supabase.rpc("add_to_wallet", {
       p_user_id: event.user_id,
-      p_amount: BADGE_BONUS_PAYOUT,
+      p_amount: amount,
       p_league_id: sub.league_id,
-      p_description: `Badge bonus: ${badgeLabel} - Wk ${sub.week_number}`,
-      p_transaction_type: "badge_bonus",
+      p_description: `${isNegative ? "Badge penalty" : "Badge bonus"}: ${badgeLabel} - Wk ${sub.week_number}`,
+      p_transaction_type: isNegative ? "badge_penalty" : "badge_bonus",
       p_source: "box_score",
       p_source_reference: {
         idempotencyKey: badgeBonusIdempotencyKey(
@@ -1199,7 +1204,7 @@ async function issueBadgeBonusesForSubmission(sub: {
         ),
       },
     }).throwOnError();
-    paid.push({ userId: event.user_id, badgeKey: event.badge_key, badgeLabel, amount: BADGE_BONUS_PAYOUT });
+    paid.push({ userId: event.user_id, badgeKey: event.badge_key, badgeLabel, amount });
   }
 
   return paid;

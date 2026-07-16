@@ -155,7 +155,7 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   },
   // Special-cased in SettingsHome.tsx to render <EosPayoutMaintenance /> instead of the
   // generic field list.
-  { key: "eos-payouts", label: "EOS Payouts", fields: [] },
+  { key: "eos-payouts", label: "Maintenance", fields: [] },
   // Special-cased in SettingsHome.tsx to render <FirstTimeSetupHome /> instead of the
   // generic field list — a fundamentally different UI shape (a whole self-contained
   // create-league form/wizard, not a SettingsField[] list), so `fields` is unused here.

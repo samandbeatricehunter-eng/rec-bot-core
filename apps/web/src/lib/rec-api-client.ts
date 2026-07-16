@@ -175,6 +175,7 @@ export const recApi = {
   getTeamLinkMatrix: (guildId: string) => recApiFetch<TeamLinkMatrix>(`/v1/team-ownership/${guildId}/matrix`),
   listOpenTeams: (guildId: string) => recApiFetch<OpenTeamsResponse>(REC_API_ROUTES.openTeams(guildId)),
   listLeagueIdentities: (guildId: string) => recApiFetch<LeagueIdentitiesResponse>(`/v1/guilds/${guildId}/identities`),
+  refreshBadgeBaselines: (guildId: string) => recApiFetch<{ ok: boolean; usersUpdated: number }>(`/v1/guilds/${guildId}/badges/refresh-baselines`, { method: "POST", body: JSON.stringify({}) }),
   linkUserToTeam: (input: { guildId: string; discordId: string; teamId: string }) =>
     recApiFetch<unknown>(REC_API_ROUTES.linkUserToTeam, { method: "POST", body: JSON.stringify(input) }),
   unlinkTeam: (input: { guildId: string; teamId: string }) =>

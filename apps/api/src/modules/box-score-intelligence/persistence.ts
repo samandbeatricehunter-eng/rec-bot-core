@@ -278,16 +278,15 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
     })),
   ];
 
-  // Audit trail + badge-bonus economy: log one event per POSITIVE game-scope badge
-  // actually earned in THIS game (box-score.service.ts's issueBadgeBonusesForSubmission
-  // pays a real cash bonus per event row here — negative badges must never generate
-  // one). Only meaningful on the single-game import path (current is set); the
-  // whole-league batch recompute path never fires this (current is null there).
+  // Audit trail + badge-bonus economy: log one event per game-scope badge actually
+  // earned in THIS game (box-score.service.ts's issueBadgeBonusesForSubmission pays
+  // +$10 per positive event and charges -$10 per negative event). Only meaningful on
+  // the single-game import path (current is set); the whole-league batch recompute
+  // path never fires this (current is null there).
   const eventRows: any[] = [];
   if (current?.gameId) {
     const tierByKey = new Map(gameRows.map((row) => [row.badge_key, row.tier]));
     for (const badge of qualifyGameBadges(current, leagueGame)) {
-      if (badge.polarity !== "positive") continue;
       eventRows.push({
         league_id: leagueId,
         user_id: userId,
@@ -298,7 +297,7 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
         season,
         week: current.week,
         game_id: current.gameId,
-        reason: "Game badge earned",
+        reason: badge.polarity === "negative" ? "Negative game badge earned" : "Game badge earned",
         stats_snapshot: { pointsFor: current.pointsFor, pointsAgainst: current.pointsAgainst, passingYards: current.passingYards, rushingYards: current.rushingYards },
       });
     }
