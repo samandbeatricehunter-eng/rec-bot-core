@@ -1,4 +1,4 @@
-import { isRegularSeasonWeek } from "@rec/shared";
+import { HIGHLIGHT_AWARD_KEYS, isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -368,7 +368,7 @@ export async function listHighlightAwardCandidates(guildId: string) {
         .from("rec_highlight_reactions")
         .select("highlight_post_id,reaction_key")
         .in("highlight_post_id", highlightIds)
-        .in("reaction_key", ["TOTY", "COTY", "ROTY", "IOTY", "HOTY"])
+        .in("reaction_key", [...HIGHLIGHT_AWARD_KEYS])
     : { data: [], error: null };
   if (webReactions.error) throw new ApiError(500, "Failed to load League Hub award votes.", webReactions.error);
 
@@ -377,7 +377,7 @@ export async function listHighlightAwardCandidates(guildId: string) {
     highlights: (data ?? []).map((highlight: any) => ({
       ...highlight,
       webReactionCounts: Object.fromEntries(
-        ["TOTY", "COTY", "ROTY", "IOTY", "HOTY"].map((key) => [
+        HIGHLIGHT_AWARD_KEYS.map((key) => [
           key,
           (webReactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === highlight.id && reaction.reaction_key === key).length,
         ]),

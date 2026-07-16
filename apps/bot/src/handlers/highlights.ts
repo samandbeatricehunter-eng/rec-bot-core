@@ -5,7 +5,7 @@ import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
 export const HIGHLIGHT_REVIEW_PREFIX = "rec:highlight_review:";
 
-import { HIGHLIGHT_AWARD_EMOJIS } from "@rec/shared";
+import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWARD_KEYS } from "@rec/shared";
 
 export const HIGHLIGHT_VOTE_EMOJIS = HIGHLIGHT_AWARD_EMOJIS;
 
@@ -249,10 +249,13 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
     if (!channel?.isTextBased()) continue;
     const message = await channel.messages.fetch(highlight.discord_message_id).catch(() => null);
     if (!message) continue;
-    for (const [category, emoji] of Object.entries(HIGHLIGHT_VOTE_EMOJIS)) {
-      const reaction = message.reactions.cache.get(emoji.id) ?? message.reactions.cache.find((r) => r.emoji.id === emoji.id);
+    for (const category of HIGHLIGHT_AWARD_KEYS) {
+      const emoji = HIGHLIGHT_VOTE_EMOJIS[category as keyof typeof HIGHLIGHT_VOTE_EMOJIS] as { id: string } | undefined;
+      const reaction = emoji ? (message.reactions.cache.get(emoji.id) ?? message.reactions.cache.find((r) => r.emoji.id === emoji.id)) : undefined;
       // Hub category reactions count toward Play of the Year; general like/dislike
       // reactions are deliberately absent from webReactionCounts and never affect awards.
+      // Categories with no Discord voting emoji (see HIGHLIGHT_AWARD_WEB_ONLY) tally from
+      // web reactions alone.
       const count = Math.max(0, (reaction?.count ?? 0) - 1) + Number(highlight.webReactionCounts?.[category] ?? 0);
       if (count <= 0) continue;
       const entry = { ...highlight, messageUrl: message.url, authorId: message.author.id };
@@ -269,7 +272,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
   const pendingPayoutsChannel = pendingPayoutsChannelId ? await guild.channels.fetch(pendingPayoutsChannelId).catch(() => null) : null;
 
   for (const [category, { count, highlights: tied }] of leaders) {
-    const emoji = HIGHLIGHT_VOTE_EMOJIS[category as keyof typeof HIGHLIGHT_VOTE_EMOJIS];
+    const categoryLabel = HIGHLIGHT_AWARD_CATEGORY_LABELS[category] ?? category;
     const splitAmount = Math.round(POTY_AWARD_TOTAL / tied.length); // ties split the $500 evenly
     const tieNote = tied.length > 1 ? ` (tie — split ${tied.length} ways)` : "";
 
@@ -279,9 +282,9 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
       if (announcementsChannel?.isTextBased() && "send" in announcementsChannel) {
         await announcementsChannel.send({
           embeds: [new EmbedBuilder()
-            .setTitle(`${emoji.label} Winner${tieNote}`)
+            .setTitle(`${categoryLabel} Winner${tieNote}`)
             .setDescription([
-              `**${emoji.label} Winner:** ${winnerMention}`,
+              `**${categoryLabel} Winner:** ${winnerMention}`,
               `Votes: **${count}**`,
               "",
               `[Open winning highlight](${winner.messageUrl ?? winner.message_url})`,
@@ -293,7 +296,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
           embeds: [new EmbedBuilder()
             .setTitle("PLAY OF THE YEAR PAYOUT REVIEW")
             .setDescription([
-              `**Category:** ${emoji.label}${tieNote}`,
+              `**Category:** ${categoryLabel}${tieNote}`,
               `**Winner:** ${winnerMention}`,
               `**Bonus:** $${splitAmount}${tied.length > 1 ? ` (split of $${POTY_AWARD_TOTAL})` : ""}`,
               `**Votes:** ${count}`,

@@ -17,7 +17,7 @@ import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScore
 
 const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "TOTY", label: "Throw of the Year" }, { key: "COTY", label: "Catch of the Year" }, { key: "ROTY", label: "Run of the Year" },
-  { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" },
+  { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" }, { key: "MVP_PLAY", label: "Most Valuable Play" },
 ];
 const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "COOKED", label: "Cooked!" },
@@ -29,7 +29,7 @@ const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "SHEEESH", label: "Sheeeeesh!" },
   { key: "FAWK", label: "FAWKKKK" },
 ];
-const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
+const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
 const SIDELINE_KEYS = SIDELINE_REACTIONS.map((reaction) => reaction.key);
 const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {

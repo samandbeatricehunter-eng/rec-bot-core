@@ -13,9 +13,9 @@ import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 
-export const HUB_REACTION_KEYS = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"] as const;
+export const HUB_REACTION_KEYS = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"] as const;
 export type HubReactionKey = (typeof HUB_REACTION_KEYS)[number];
-const HIGHLIGHT_AWARD_REACTION_KEYS: HubReactionKey[] = ["TOTY", "COTY", "ROTY", "IOTY", "HOTY"];
+const HIGHLIGHT_AWARD_REACTION_KEYS: HubReactionKey[] = ["TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY"];
 const HIGHLIGHT_SIDELINE_REACTION_KEYS: HubReactionKey[] = ["COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
 const MEDIA_BUCKET = "rec-media";
 const MEDIA_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
