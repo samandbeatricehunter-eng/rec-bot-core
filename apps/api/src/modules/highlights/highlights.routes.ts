@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { createHighlightAwardReview, listHighlightAwardCandidates, recordHighlightPost, reviewHighlightPayout } from "./highlights.service.js";
+import { createHighlightAwardReview, listHighlightAwardCandidates, recordHighlightPost, reviewGameOfYearPayout, reviewHighlightPayout } from "./highlights.service.js";
 
 const RecordHighlightSchema = z.object({
   guildId: z.string().min(1),
@@ -67,6 +67,17 @@ export async function highlightRoutes(app: FastifyInstance) {
     try {
       requireInternalApiKey(request);
       return reply.send(await createHighlightAwardReview(AwardReviewSchema.parse(request.body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/highlights/game-of-the-year/review", async (request, reply) => {
+    try {
+      const body = ReviewHighlightSchema.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
+      const reviewedByDiscordId = auth.mode === "user" ? auth.discordId : body.reviewedByDiscordId;
+      return reply.send(await reviewGameOfYearPayout({ guildId: body.guildId ?? "", reviewId: body.reviewId, action: body.action, reviewedByDiscordId, deniedReason: body.deniedReason }));
     } catch (error) {
       return sendError(reply, error);
     }

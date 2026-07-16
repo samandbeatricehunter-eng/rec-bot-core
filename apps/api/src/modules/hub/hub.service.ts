@@ -1014,10 +1014,16 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     };
   };
   const gameIds = (games.data ?? []).map((game: any) => game.id).filter(Boolean);
-  const boxScores = gameIds.length
-    ? await supabase.from("rec_box_score_submissions").select("id,game_id,status").in("game_id", gameIds).in("status", ["pending", "approved"])
-    : { data: [], error: null };
+  const [boxScores, gameReactionsForWeek] = await Promise.all([
+    gameIds.length
+      ? supabase.from("rec_box_score_submissions").select("id,game_id,status").in("game_id", gameIds).in("status", ["pending", "approved"])
+      : Promise.resolve({ data: [], error: null }),
+    gameIds.length
+      ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key").in("game_id", gameIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
   if (boxScores.error) throw new ApiError(500, "Failed to load matchup box-score status.", boxScores.error);
+  if (gameReactionsForWeek.error) throw new ApiError(500, "Failed to load matchup reactions.", gameReactionsForWeek.error);
   const boxScoreByGameId = new Map<string, any>((boxScores.data ?? []).map((row: any) => [row.game_id, row]));
   return {
     currentWeek,
@@ -1046,6 +1052,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       const homeStream = showStreams ? streamByUser.get(game.home_user_id) ?? null : null;
       const awayStream = showStreams ? streamByUser.get(game.away_user_id) ?? null : null;
       const boxScore = boxScoreByGameId.get(game.id) ?? null;
+      const gameReactionRows = (gameReactionsForWeek.data ?? []).filter((reaction: any) => reaction.game_id === game.id);
       return {
         gameId: game.id,
         weekNumber: Number(game.week_number),
@@ -1062,6 +1069,11 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         winnerTeamId: result?.winning_team_id ?? null,
         boxScoreSubmissionId: boxScore?.id ?? null,
         boxScoreStatus: boxScore?.status ?? null,
+        reactionCounts: {
+          like: gameReactionRows.filter((reaction: any) => reaction.reaction_key === "like").length,
+          dislike: gameReactionRows.filter((reaction: any) => reaction.reaction_key === "dislike").length,
+        },
+        myReaction: gameReactionRows.find((reaction: any) => reaction.user_id === userId)?.reaction_key ?? null,
         streams: [
           awayStream ? { side: "away", userId: game.away_user_id, teamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away", streamLogId: awayStream.id, url: awayStream.message_url, watchPath: streamWatchPath(awayStream.id), postedAt: awayStream.posted_at ?? null, ...streamEngagement(awayStream) } : null,
           homeStream ? { side: "home", userId: game.home_user_id, teamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,

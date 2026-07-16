@@ -25,6 +25,8 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "highlight":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
+    case "game_of_the_year":
+      return { kind: "approve_deny", reasonField: true, approveLabel: "Crown Winner", denyLabel: "Deny" };
     case "stream":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "media":
@@ -51,6 +53,8 @@ async function resolveAction(guildId: string, notification: CommissionerNotifica
       return recApi.reviewPurchase({ guildId, purchaseId: sourceId, action, deniedReason: reason || undefined });
     case "highlight":
       return recApi.reviewHighlight({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
+    case "game_of_the_year":
+      return recApi.reviewGameOfYear({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "stream":
       return recApi.reviewStream({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "media":

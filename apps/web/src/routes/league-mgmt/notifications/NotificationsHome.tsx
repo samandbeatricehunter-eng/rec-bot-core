@@ -18,7 +18,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score", purchase: "Purchase", highlight: "Highlight", stream: "Stream",
   eos_payout: "EOS Payout", eos_award: "EOS Award", active_check: "Active Check",
   weekly_score_review: "Weekly Scores", wager: "Wager", team_request: "Team Request",
-  media: "Media",
+  media: "Media", game_of_the_year: "Game of the Year",
 };
 const ALL_TYPES = Object.keys(TYPE_LABELS) as CommissionerNotificationType[];
 // EOS Payout and Stream get their own tab regardless of whether anything is pending right

@@ -193,7 +193,8 @@ export type CommissionerNotificationType =
   | "weekly_score_review"
   | "wager"
   | "team_request"
-  | "media";
+  | "media"
+  | "game_of_the_year";
 
 export type CommissionerNotification = {
   id: string;
@@ -416,6 +417,8 @@ export type HubMatchupSchedule = {
     winnerTeamId: string | null;
     boxScoreSubmissionId: string | null;
     boxScoreStatus: string | null;
+    reactionCounts: { like: number; dislike: number };
+    myReaction: "like" | "dislike" | null;
     streams: Array<{ side: "away" | "home"; userId: string; teamName: string; streamLogId: string; url: string; watchPath: string; postedAt: string | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   }>;
 };

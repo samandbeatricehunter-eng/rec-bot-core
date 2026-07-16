@@ -286,6 +286,8 @@ export const recApi = {
     recApiFetch<unknown>("/v1/purchases/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   reviewHighlight: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/highlights/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  reviewGameOfYear: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
+    recApiFetch<unknown>("/v1/highlights/game-of-the-year/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   reviewStream: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/streams/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   approveTeamRequest: (input: { guildId: string; requestId: string }) =>

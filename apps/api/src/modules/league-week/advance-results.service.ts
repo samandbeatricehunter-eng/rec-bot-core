@@ -21,7 +21,7 @@ import { autoAssignGotwForWeek, settleGotwPollsForGame } from "../gotw/gotw.serv
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
-import { cleanupSeasonHighlights, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
+import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
 import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
 
@@ -499,6 +499,17 @@ export async function completeAdvanceWeek(input: {
   if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
     await settleSeasonHighlightAwards(input.guildId).catch((err) => {
       console.error("[ERROR] settleSeasonHighlightAwards failed after advance (non-fatal):", err);
+    });
+  }
+
+  // Game of the Year: tallies "like" reactions across every H2H game this season and
+  // creates a pending review per tied leader — commissioner picks the winner (approving
+  // one denies the rest) from Pending Payouts, same tie-break pattern as everywhere else.
+  // Same terminal-stage -> offseason boundary; order relative to POTY/highlight cleanup
+  // doesn't matter since it reads game reactions, not highlight posts.
+  if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
+    await settleGameOfTheYear(input.guildId).catch((err) => {
+      console.error("[ERROR] settleGameOfTheYear failed after advance (non-fatal):", err);
     });
   }
 

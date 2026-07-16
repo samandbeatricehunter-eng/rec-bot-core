@@ -3,11 +3,13 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { deleteDiscordMessage, getDiscordMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
 const HIGHLIGHT_AWARD_AMOUNT = 500;
+const GAME_OF_THE_YEAR_AMOUNT = 250;
 const HIGHLIGHT_BUCKET = "rec-highlights";
 
 function mediaExtension(url: string, contentType: string) {
@@ -595,4 +597,220 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
     commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
     compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
   };
+}
+
+/**
+ * Game of the Year: tallies "like" reactions (rec_game_reactions) across every
+ * H2H game played this season and creates a pending review for whichever game(s)
+ * lead. Unlike Play of the Year, ties are NOT auto-split — every tied game gets
+ * its own row and the commissioner picks the winner from the Pending Payouts
+ * inbox by approving one and denying the rest. Call this at the same season-end
+ * boundary as the other automations (POTY, EOS payouts).
+ */
+export async function settleGameOfTheYear(guildId: string): Promise<{ candidates: number; alreadyFinalized: boolean }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+
+  const existing = await supabase
+    .from("rec_game_of_year_reviews")
+    .select("id")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .limit(1);
+  if (existing.error) throw new ApiError(500, "Failed to check Game of the Year finalization.", existing.error);
+  if ((existing.data ?? []).length > 0) return { candidates: 0, alreadyFinalized: true };
+
+  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+  let gamesQuery = supabase
+    .from("rec_games")
+    .select("id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation)")
+    .eq("league_id", context.leagueId)
+    .not("home_user_id", "is", null)
+    .not("away_user_id", "is", null);
+  if (seasonId) gamesQuery = gamesQuery.eq("season_id", seasonId);
+  const games = await gamesQuery;
+  if (games.error) throw new ApiError(500, "Failed to load season games for Game of the Year.", games.error);
+  const gameIds = (games.data ?? []).map((game: any) => game.id);
+  if (!gameIds.length) return { candidates: 0, alreadyFinalized: false };
+
+  const reactions = await supabase.from("rec_game_reactions").select("game_id,reaction_key").in("game_id", gameIds);
+  if (reactions.error) throw new ApiError(500, "Failed to load game reactions for Game of the Year.", reactions.error);
+  const likeCounts = new Map<string, number>();
+  for (const row of reactions.data ?? []) {
+    if (row.reaction_key !== "like") continue;
+    likeCounts.set(row.game_id, (likeCounts.get(row.game_id) ?? 0) + 1);
+  }
+
+  const maxLikes = Math.max(0, ...[...likeCounts.values()]);
+  if (maxLikes <= 0) return { candidates: 0, alreadyFinalized: false };
+  const topGames = (games.data ?? []).filter((game: any) => (likeCounts.get(game.id) ?? 0) === maxLikes);
+
+  let candidates = 0;
+  for (const game of topGames) {
+    const homeTeam = Array.isArray(game.home_team) ? game.home_team[0] : game.home_team;
+    const awayTeam = Array.isArray(game.away_team) ? game.away_team[0] : game.away_team;
+    const inserted = await supabase.from("rec_game_of_year_reviews").upsert({
+      league_id: context.leagueId,
+      game_id: game.id,
+      season_number: seasonNumber,
+      like_count: maxLikes,
+      home_user_id: game.home_user_id,
+      home_team_id: homeTeam?.id ?? null,
+      home_team_label: homeTeam?.name ?? homeTeam?.abbreviation ?? "Home",
+      away_user_id: game.away_user_id,
+      away_team_id: awayTeam?.id ?? null,
+      away_team_label: awayTeam?.name ?? awayTeam?.abbreviation ?? "Away",
+      amount: GAME_OF_THE_YEAR_AMOUNT,
+      status: "pending",
+    }, { onConflict: "league_id,season_number,game_id" }).select("id").single();
+    if (inserted.error) throw new ApiError(500, "Failed to create Game of the Year review.", inserted.error);
+
+    await supabase.from("rec_commissioners_inbox").insert({
+      guild_id: guildId,
+      server_id: context.serverId,
+      league_id: context.leagueId,
+      season_number: seasonNumber,
+      week_number: null,
+      queue_type: "game_of_the_year",
+      status: "pending",
+      priority: 0,
+      header: `Game of the Year candidate: ${awayTeam?.name ?? "Away"} @ ${homeTeam?.name ?? "Home"}`,
+      summary: topGames.length > 1
+        ? `Tied at ${maxLikes} like${maxLikes === 1 ? "" : "s"} — approve this game to crown it Game of the Year (denies the others).`
+        : `Leads the season with ${maxLikes} like${maxLikes === 1 ? "" : "s"}.`,
+      requester_discord_id: null,
+      requester_user_id: null,
+      amount: GAME_OF_THE_YEAR_AMOUNT,
+      source_table: "rec_game_of_year_reviews",
+      source_id: inserted.data.id,
+      payload: { reviewId: inserted.data.id, gameId: game.id, likeCount: maxLikes, tied: topGames.length > 1 },
+    });
+    candidates += 1;
+  }
+
+  if (candidates > 0) {
+    const names = topGames.map((game: any) => {
+      const homeTeam = Array.isArray(game.home_team) ? game.home_team[0] : game.home_team;
+      const awayTeam = Array.isArray(game.away_team) ? game.away_team[0] : game.away_team;
+      return `${awayTeam?.name ?? "Away"} @ ${homeTeam?.name ?? "Home"}`;
+    });
+    await publishTransitionStory({
+      guildId,
+      headline: "Game of the Year Candidates Are In",
+      body: `${names.join(", ")} — ${maxLikes} like${maxLikes === 1 ? "" : "s"}${topGames.length > 1 ? ". Tied — the commissioner will pick the winner." : "."}`,
+      primaryAngle: "game_of_the_year_nominees",
+    }).catch((error) => console.error("[ERROR] Failed to publish Game of the Year headline (non-fatal):", error));
+  }
+
+  return { candidates, alreadyFinalized: false };
+}
+
+type ReviewGameOfYearInput = {
+  guildId: string;
+  reviewId: string;
+  action: "approve" | "deny";
+  reviewedByDiscordId: string;
+  deniedReason?: string | null;
+};
+
+export async function reviewGameOfYearPayout(input: ReviewGameOfYearInput) {
+  const existing = await supabase.from("rec_game_of_year_reviews").select("*").eq("id", input.reviewId).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load Game of the Year review.", existing.error);
+  if (!existing.data) throw new ApiError(404, "Game of the Year review was not found.");
+  if (existing.data.status !== "pending") {
+    return { updated: false, reason: `Review is already ${existing.data.status}.`, review: existing.data };
+  }
+
+  if (input.action === "deny") {
+    const denied = await supabase
+      .from("rec_game_of_year_reviews")
+      .update({
+        status: "denied",
+        reviewed_by_discord_id: input.reviewedByDiscordId,
+        denied_reason: input.deniedReason ?? "Denied by commissioner review.",
+        reviewed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.reviewId)
+      .select("*")
+      .single();
+    if (denied.error) throw new ApiError(500, "Failed to deny Game of the Year review.", denied.error);
+    await supabase.from("rec_commissioners_inbox").update({
+      status: "denied",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      reviewed_at: denied.data.reviewed_at,
+    }).eq("source_table", "rec_game_of_year_reviews").eq("source_id", input.reviewId);
+    return { updated: true, review: denied.data };
+  }
+
+  // Approving a winner denies every other tied candidate from the same season —
+  // the whole point of a manual commissioner tie-break.
+  const others = await supabase
+    .from("rec_game_of_year_reviews")
+    .select("id")
+    .eq("league_id", existing.data.league_id)
+    .eq("season_number", existing.data.season_number)
+    .eq("status", "pending")
+    .neq("id", input.reviewId);
+  if (others.error) throw new ApiError(500, "Failed to load other Game of the Year candidates.", others.error);
+
+  const amount = Number(existing.data.amount ?? GAME_OF_THE_YEAR_AMOUNT);
+  for (const [userId, label] of [[existing.data.home_user_id, existing.data.home_team_label], [existing.data.away_user_id, existing.data.away_team_label]] as const) {
+    if (!userId) continue;
+    const ledger = await supabase.rpc("add_to_wallet", {
+      p_user_id: userId,
+      p_amount: amount,
+      p_league_id: existing.data.league_id,
+      p_description: `Game of the Year payout (${label ?? "team"})`,
+      p_transaction_type: "game_of_the_year_payout",
+      p_source: "game_of_the_year",
+      p_source_reference: { reviewId: existing.data.id, gameId: existing.data.game_id },
+    });
+    if (ledger.error) throw new ApiError(500, "Failed to issue Game of the Year payout.", ledger.error);
+  }
+
+  const approved = await supabase
+    .from("rec_game_of_year_reviews")
+    .update({
+      status: "issued",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      reviewed_at: new Date().toISOString(),
+      issued_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.reviewId)
+    .select("*")
+    .single();
+  if (approved.error) throw new ApiError(500, "Failed to approve Game of the Year review.", approved.error);
+
+  if ((others.data ?? []).length > 0) {
+    const otherIds = (others.data ?? []).map((row: any) => row.id);
+    await supabase.from("rec_game_of_year_reviews").update({
+      status: "denied",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      denied_reason: "Another tied game was crowned Game of the Year.",
+      reviewed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).in("id", otherIds);
+    await supabase.from("rec_commissioners_inbox").update({
+      status: "denied",
+      reviewed_by_discord_id: input.reviewedByDiscordId,
+      reviewed_at: new Date().toISOString(),
+    }).eq("source_table", "rec_game_of_year_reviews").in("source_id", otherIds);
+  }
+
+  await supabase.from("rec_commissioners_inbox").update({
+    status: "approved",
+    reviewed_by_discord_id: input.reviewedByDiscordId,
+    reviewed_at: approved.data.reviewed_at,
+  }).eq("source_table", "rec_game_of_year_reviews").eq("source_id", input.reviewId);
+
+  await publishTransitionStory({
+    guildId: input.guildId,
+    headline: "Game of the Year",
+    body: `${existing.data.away_team_label ?? "Away"} @ ${existing.data.home_team_label ?? "Home"} takes it home with ${existing.data.like_count} like${existing.data.like_count === 1 ? "" : "s"}.`,
+    primaryAngle: "game_of_the_year",
+  }).catch((error) => console.error("[ERROR] Failed to publish Game of the Year winner headline (non-fatal):", error));
+
+  return { updated: true, review: approved.data, amount };
 }
