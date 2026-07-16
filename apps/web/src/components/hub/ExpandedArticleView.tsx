@@ -16,13 +16,14 @@ type ExpandedArticleViewProps = {
   onCommentBodyChange: (value: string) => void;
   onSubmitComment: () => void;
   onReact: (storyId: string, reactionKey: "like" | "dislike") => void;
+  onImageClick: (src: string) => void;
 };
 
 /** Full-screen mobile reading view for a headline/article — swiping left/right moves to
  * the adjacent story without closing the view (a dedicated component rather than an
  * extension of the generic Modal, which is used elsewhere for unrelated flows like Open
  * Teams that shouldn't gain swipe semantics by accident). */
-export function ExpandedArticleView({ stories, activeIndex, onIndexChange, onClose, comments, commentBody, onCommentBodyChange, onSubmitComment, onReact }: ExpandedArticleViewProps) {
+export function ExpandedArticleView({ stories, activeIndex, onIndexChange, onClose, comments, commentBody, onCommentBodyChange, onSubmitComment, onReact, onImageClick }: ExpandedArticleViewProps) {
   const story = stories[activeIndex];
   const { handlers, dragOffsetPx, isDragging, reducedMotion } = useSwipeNavigation({
     itemCount: stories.length,
@@ -52,7 +53,7 @@ export function ExpandedArticleView({ stories, activeIndex, onIndexChange, onClo
         <div className="expanded-article-body">
           <time>Week {story.week}</time>
           <h2>{story.headline ?? "League Story"}</h2>
-          {story.image_url && <img className="expanded-article-image" src={story.image_url} alt="" />}
+          {story.image_url && <img className="expanded-article-image" src={story.image_url} alt="" onClick={() => onImageClick(story.image_url!)} />}
           <p className="roundtable-lede">{story.body}</p>
           {story.roundtable?.length ? (
             <div className="roundtable-panel">

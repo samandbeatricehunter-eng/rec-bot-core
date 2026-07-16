@@ -68,6 +68,23 @@ function displayLabel(key: string) {
   return key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+// Card preview only — the full body always reads in the article modal. Breaks on a
+// word boundary so it never cuts mid-word.
+function snippet(body: string | null | undefined, maxLen = 160): string {
+  const text = (body ?? "").trim();
+  if (text.length <= maxLen) return text;
+  const cut = text.slice(0, maxLen);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${cut.slice(0, lastSpace > 40 ? lastSpace : maxLen)}…`;
+}
+
+function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  return <div className="hub-image-lightbox" onClick={onClose}>
+    <button type="button" className="hub-image-lightbox-close" onClick={onClose} aria-label="Close image"><X size={22} /></button>
+    <img src={src} alt="" onClick={(event) => event.stopPropagation()} />
+  </div>;
+}
+
 function gameLabel(game: string | null | undefined) {
   return String(game ?? "League").replaceAll("_", " ").replace(/\bcfb\b/ig, "CFB").toUpperCase();
 }
@@ -196,6 +213,7 @@ export function HubHome() {
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [mediaModal, setMediaModal] = useState<"article" | "interview" | null>(null);
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
@@ -867,9 +885,8 @@ export function HubHome() {
                       onPointerUp={mobileStorySwipe.handlers.onPointerUp}
                       onPointerCancel={mobileStorySwipe.handlers.onPointerCancel}
                     >
-                      {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" />}
-                      <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
-                      <div className="hub-social-actions"><button type="button" className={story.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button type="button" className={story.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button type="button" onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
+                      {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
+                      <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable →" : "Read more →"}</span></button>
                     </article>
                   );
                 })()}
@@ -883,9 +900,8 @@ export function HubHome() {
                   const story = hub.headlines[index];
                   if (!story) return null;
                   return <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
-                    {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" />}
-                    <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{story.body}</p>{story.story_type !== "headline" && <span className="hub-read-article">Open REC Network Roundtable →</span>}</button>
-                    <div className="hub-social-actions"><button type="button" className={story.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(story.id, "like")}><ThumbsUp size={15} /> {story.reactionCounts.like}</button><button type="button" className={story.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(story.id, "dislike")}><ThumbsDown size={15} /> {story.reactionCounts.dislike}</button><button type="button" onClick={() => openStory(index)}><MessageCircle size={15} /> {story.commentCount}</button></div>
+                    {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
+                    <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable →" : "Read more →"}</span></button>
                   </article>;
                 })()}
                 {headlineCount > 1 && <button type="button" className="hub-highlight-arrow next" onClick={() => setStoryCarouselIndex((storyCarouselIndex + 1) % headlineCount)}><ChevronRight /></button>}
@@ -984,12 +1000,17 @@ export function HubHome() {
         onCommentBodyChange={setCommentBody}
         onSubmitComment={() => void submitComment()}
         onReact={(storyId, key) => void storyReact(storyId, key)}
+        onImageClick={(src) => setLightboxImage(src)}
       />
     ) : (
-      <Modal title={activeStory.headline ?? "League Story"} onClose={closeStory}><div className="roundtable-story"><p className="roundtable-lede">{activeStory.body}</p>{activeStory.roundtable?.length ? <div className="roundtable-panel"><div className="roundtable-banner">REC NETWORK · LEAGUE ROUNDTABLE</div>{activeStory.roundtable.map((panelist) => <article key={`${panelist.speaker}-${panelist.role}`}><div className="roundtable-avatar">{panelist.speaker.split(" ").map((part) => part[0]).join("")}</div><div><strong>{panelist.speaker}</strong><span>{panelist.role}</span><p>{panelist.take}</p></div></article>)}</div> : null}
+      <Modal title={activeStory.headline ?? "League Story"} onClose={closeStory}><div className="roundtable-story">
+        {activeStory.image_url && <img className="expanded-article-image" src={activeStory.image_url} alt="" onClick={() => setLightboxImage(activeStory.image_url!)} />}
+        <p className="roundtable-lede">{activeStory.body}</p>{activeStory.roundtable?.length ? <div className="roundtable-panel"><div className="roundtable-banner">REC NETWORK · LEAGUE ROUNDTABLE</div>{activeStory.roundtable.map((panelist) => <article key={`${panelist.speaker}-${panelist.role}`}><div className="roundtable-avatar">{panelist.speaker.split(" ").map((part) => part[0]).join("")}</div><div><strong>{panelist.speaker}</strong><span>{panelist.role}</span><p>{panelist.take}</p></div></article>)}</div> : null}
+        <div className="hub-social-actions"><button type="button" className={activeStory.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(activeStory.id, "like")}><ThumbsUp size={15} /> {activeStory.reactionCounts.like}</button><button type="button" className={activeStory.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(activeStory.id, "dislike")}><ThumbsDown size={15} /> {activeStory.reactionCounts.dislike}</button></div>
         <div className="story-comments"><h3><MessageCircle size={18} /> Comments</h3>{comments === null ? <p>Loading comments…</p> : comments.length ? comments.map((comment) => <article key={comment.id}><strong>{comment.authorName}</strong><time>{new Date(comment.created_at).toLocaleString()}</time><p>{comment.body}</p></article>) : <p className="hub-empty">No comments yet.</p>}<textarea className="form-input" rows={3} value={commentBody} onChange={(event) => setCommentBody(event.target.value)} placeholder="Add to the discussion…" /><Button variant="primary" disabled={!commentBody.trim()} onClick={() => void submitComment()}>Post Comment</Button></div>
       </div></Modal>
     ))}
+    {lightboxImage && <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />}
     {boxScoreUploadGame && auth.status === "ready" && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={boxScoreUploadGame.weekNumber} seasonNumber={hub.league.seasonNumber} gameId={boxScoreUploadGame.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setBoxScoreUploadGame(null)} onSubmitted={async () => { const weekNumber = matchupSchedule?.selectedWeek ?? boxScoreUploadGame.weekNumber; setBoxScoreUploadGame(null); setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber })); }} />}
     {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
       {playerStatsNotice && <p className="hub-transfer-status">{playerStatsNotice}</p>}<p className="hub-muted">{playerStatsGame.awayTeamName} at {playerStatsGame.homeTeamName}</p>
