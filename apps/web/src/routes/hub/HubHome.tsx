@@ -94,6 +94,32 @@ function scheduleResultLabel(week: TeamScheduleManualState["weeks"][number]) {
   return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
 }
 
+function FinancialLedger({ summary }: { summary: any }) {
+  const last30 = summary?.last30Days;
+  const league = summary?.league;
+  return <div className="hub-financial-ledger">
+    {league && <div className="hub-profile-stat-list">
+      <div><span>Total Earned</span><strong>${Number(league.totalEarned ?? 0).toLocaleString()}</strong></div>
+      <div><span>Total Spent</span><strong>${Number(league.totalSpent ?? 0).toLocaleString()}</strong></div>
+      <div><span>Profit / Deficit</span><strong>{Number(league.profitDeficit ?? 0) >= 0 ? "+" : "-"}${Math.abs(Number(league.profitDeficit ?? 0)).toLocaleString()}</strong></div>
+    </div>}
+    <h4>Last 30 Days</h4>
+    {!last30 ? <p className="hub-empty">No recent activity.</p> : <>
+      <div className="hub-profile-stat-list hub-ledger-summary">
+        <div><span>Income</span><strong className="hub-ledger-positive">+${Number(last30.totalIncome ?? 0).toLocaleString()}</strong></div>
+        <div><span>Expenses</span><strong className="hub-ledger-negative">-${Number(last30.totalExpenses ?? 0).toLocaleString()}</strong></div>
+        <div><span>Net Cash Flow</span><strong className={Number(last30.netCashFlow ?? 0) >= 0 ? "hub-ledger-positive" : "hub-ledger-negative"}>{Number(last30.netCashFlow ?? 0) >= 0 ? "+" : "-"}${Math.abs(Number(last30.netCashFlow ?? 0)).toLocaleString()}</strong></div>
+      </div>
+      {!last30.transactions?.length ? <p className="hub-empty">No transactions in the last 30 days.</p> : <div className="hub-ledger-list">
+        {last30.transactions.map((tx: any) => <div key={tx.id} className="hub-ledger-row">
+          <div><strong>{tx.description ?? displayLabel(tx.transactionType ?? "transaction")}</strong><span className="hub-muted">{new Date(tx.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
+          <strong className={tx.amount >= 0 ? "hub-ledger-positive" : "hub-ledger-negative"}>{tx.amount >= 0 ? "+" : "-"}${Math.abs(tx.amount).toLocaleString()}</strong>
+        </div>)}
+      </div>}
+    </>}
+  </div>;
+}
+
 function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
   return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => <article key={`${badge.badge_key}-${badge.tier}-${badge.season_number}`} title={badge.badge_description ?? ""}><Award size={18} /><div><strong>{badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")}</strong><span>{badge.tier ? `${String(badge.tier).toUpperCase()} · ` : ""}Earned {badge.earned_count ?? badge.earned_value ?? 1}×</span></div></article>)}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
@@ -739,7 +765,7 @@ export function HubHome() {
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /></div></details>
       <details><summary><Award size={18} /> Badges &amp; Awards</summary><div className="hub-profile-panel"><BadgeShelf title="Weekly Badges" badges={profile.weeklyBadges ?? []} /><BadgeShelf title="Season Badges" badges={profile.seasonBadges ?? []} /><BadgeShelf title="Career Badges" badges={profile.globalBadges ?? []} />{profile.globalAwards?.length ? <div className="hub-badge-group"><h4>Awards</h4><div className="hub-badge-shelf">{profile.globalAwards.map((award: any) => <article key={award.awardName}><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : null}</div></details>
-      <details><summary><WalletCards size={18} /> Financial Profile</summary><div className="hub-profile-panel"><ProfileStats values={profile.financialSummary} /></div></details>
+      <details><summary><WalletCards size={18} /> Financial Profile</summary><div className="hub-profile-panel"><FinancialLedger summary={profile.financialSummary} /></div></details>
     </div></section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></p></div></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}

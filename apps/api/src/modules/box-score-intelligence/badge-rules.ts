@@ -274,6 +274,60 @@ export function qualifyLadderBadges(c: CareerTotals, game?: string | null): Qual
   return out;
 }
 
+/** The highest rung a plain numeric value crosses, or null. Shared by financial-badges.ts, which isn't derived from GameStats/CareerTotals at all (dollar ledger + purchases instead). */
+export function highestRungCrossed(value: number, rungs: LadderRung[]): LadderRung | null {
+  return [...rungs].reverse().find((rung) => value >= rung.value) ?? null;
+}
+
+/**
+ * Ladder badges rename per tier (e.g. "earner" is "Money Man" at bronze, "Big Bank" at
+ * gold) — a flat badge_key -> label map can't express that. Any consumer displaying a
+ * ladder-badge ownership row (which always has both badge_key and tier) should call
+ * this instead of a static label lookup.
+ */
+export function ladderLabelForTier(badgeKey: string, tier: string): string | null {
+  const ladders: Array<{ key: string; rungs: LadderRung[] }> = [
+    ...CAREER_LADDER_BADGES.map((l) => ({ key: l.key, rungs: l.rungs })),
+    { key: "earner", rungs: EARNER_RUNGS },
+    { key: "spender", rungs: SPENDER_RUNGS },
+    { key: "saver", rungs: SAVER_RUNGS },
+    { key: "attribute_purchase", rungs: ATTRIBUTE_PURCHASE_RUNGS },
+    { key: "dev_upgrade_purchase", rungs: DEV_UPGRADE_PURCHASE_RUNGS },
+  ];
+  const ladder = ladders.find((l) => l.key === badgeKey);
+  return ladder?.rungs.find((rung) => rung.tier === tier)?.label ?? null;
+}
+
+// Financial career badges (dollar ledger + purchases — not box-score derived).
+// Earner/Spender/Attribute/Dev-Upgrade are lifetime cumulative ladders, isolated per
+// game type (a user's Madden earning/spending never combines with their CFB totals).
+// Saver is a live balance check, not a cumulative ladder — see financial-badges.ts.
+export const EARNER_RUNGS: LadderRung[] = [
+  { value: 5000, tier: "bronze", label: "Money Man" },
+  { value: 10000, tier: "silver", label: "Bank Roll" },
+  { value: 30000, tier: "gold", label: "Big Bank" },
+];
+export const SPENDER_RUNGS: LadderRung[] = [
+  { value: 5000, tier: "bronze", label: "Steady Shopper" },
+  { value: 10000, tier: "silver", label: "Shopaholic" },
+  { value: 30000, tier: "gold", label: "Pay to Play" },
+];
+export const SAVER_RUNGS: LadderRung[] = [
+  { value: 5000, tier: "bronze", label: "Penny Pincher" },
+  { value: 10000, tier: "silver", label: "Stiff Wallet" },
+  { value: 30000, tier: "gold", label: "Heavy Hoarder" },
+];
+export const ATTRIBUTE_PURCHASE_RUNGS: LadderRung[] = [
+  { value: 1000, tier: "bronze", label: "Quality Trainer" },
+  { value: 2000, tier: "silver", label: "Heavy Investor" },
+  { value: 5000, tier: "gold", label: "Build-a-Baller" },
+];
+export const DEV_UPGRADE_PURCHASE_RUNGS: LadderRung[] = [
+  { value: 1000, tier: "bronze", label: "Cash for Comp" },
+  { value: 2000, tier: "silver", label: "Fantastic Facilitator" },
+  { value: 5000, tier: "gold", label: "Superstar Farm" },
+];
+
 // ─── Tiering ───────────────────────────────────────────────────────────────────
 
 export type PositiveOccurrenceTier = "normal" | "bronze" | "silver" | "gold";

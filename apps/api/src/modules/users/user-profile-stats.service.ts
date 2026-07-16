@@ -289,6 +289,14 @@ export type PurchaseCounts = {
   contracts: number;
 };
 
+export type LedgerEntry = {
+  id: string;
+  amount: number;
+  transactionType: string | null;
+  description: string | null;
+  createdAt: string;
+};
+
 export type FinancialSummaryScope = {
   totalEarned: number;
   totalSpent: number;
@@ -297,6 +305,13 @@ export type FinancialSummaryScope = {
   avgSpentPerWeek: number;
   weeksLogged: number;
   purchases: PurchaseCounts;
+};
+
+export type Last30DaysLedger = {
+  totalIncome: number;
+  totalExpenses: number;
+  netCashFlow: number;
+  transactions: LedgerEntry[];
 };
 
 function emptyPurchaseCounts(): PurchaseCounts {
@@ -345,8 +360,32 @@ function summarizeLedgerRows(rows: any[] | null | undefined, weeksLogged: number
   };
 }
 
+/** Last-30-days transaction ledger + income/expense/net cash flow, scoped to one league. */
+async function loadLast30DaysLedger(userId: string, leagueId: string): Promise<Last30DaysLedger> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("rec_dollar_ledger")
+    .select("id,amount,transaction_type,description,created_at")
+    .eq("user_id", userId)
+    .eq("league_id", leagueId)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  const transactions: LedgerEntry[] = (data ?? []).map((row: any) => {
+    const amount = num(row.amount);
+    if (amount > 0) totalIncome += amount;
+    else totalExpenses += Math.abs(amount);
+    return { id: row.id, amount, transactionType: row.transaction_type ?? null, description: row.description ?? null, createdAt: row.created_at };
+  });
+
+  return { totalIncome, totalExpenses, netCashFlow: totalIncome - totalExpenses, transactions };
+}
+
 export async function loadUserFinancialSummary(userId: string, leagueId: string | null) {
-  const [globalLedgerResult, leagueLedgerResult, globalPurchaseResult, leaguePurchaseResult, leagueWeeks, globalWeeks] = await Promise.all([
+  const [globalLedgerResult, leagueLedgerResult, globalPurchaseResult, leaguePurchaseResult, leagueWeeks, globalWeeks, last30Days] = await Promise.all([
     supabase.from("rec_dollar_ledger").select("amount,transaction_type,league_id").eq("user_id", userId),
     leagueId
       ? supabase.from("rec_dollar_ledger").select("amount,transaction_type").eq("user_id", userId).eq("league_id", leagueId)
@@ -357,6 +396,7 @@ export async function loadUserFinancialSummary(userId: string, leagueId: string 
       : Promise.resolve({ data: [], error: null }),
     leagueId ? countDistinctWeeksLogged(userId, leagueId) : Promise.resolve(0),
     countDistinctWeeksLogged(userId),
+    leagueId ? loadLast30DaysLedger(userId, leagueId) : Promise.resolve(null),
   ]);
 
   if (globalLedgerResult.error) throw globalLedgerResult.error;
@@ -373,7 +413,7 @@ export async function loadUserFinancialSummary(userId: string, leagueId: string 
     purchases: summarizePurchaseRows(globalPurchaseResult.data),
   };
 
-  return { league, global };
+  return { league, global, last30Days };
 }
 
 export function formatTeamDisplayName(team: {

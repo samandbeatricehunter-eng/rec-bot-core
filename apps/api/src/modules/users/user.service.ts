@@ -9,7 +9,7 @@ import { computeLeagueSos } from "../schedule/sos.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { rebuildOfficialGlobalRecords } from "../official-records/official-records.service.js";
 import { recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
-import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
+import { CAREER_BADGES, GAME_BADGES, ladderLabelForTier, SEASON_BADGES, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -157,7 +157,7 @@ function mapOwnedBadge(row: any) {
   return {
     ...row,
     badge_name: badgeKey,
-    badge_label: BADGE_LABELS.get(badgeKey) ?? badgeKey,
+    badge_label: ladderLabelForTier(badgeKey, row.tier) ?? BADGE_LABELS.get(badgeKey) ?? badgeKey,
     badge_description: BADGE_DESCRIPTIONS.get(badgeKey) ?? null,
     earned_value: row.earned_count ?? 1,
     earned_at: row.updated_at ?? row.created_at ?? null,

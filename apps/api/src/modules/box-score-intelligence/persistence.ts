@@ -33,6 +33,7 @@ import {
   qualifySeasonBadges,
   tierForOccurrenceCount,
 } from "./badge-rules.js";
+import { computeFinancialBadgeRows } from "./financial-badges.js";
 import { computeGameProfile, rowToGameStats, type TeamGameStatsRow } from "./game-profile.js";
 import { generateGameStory } from "./story-angles.js";
 import { buildRoundtableDiscussion } from "../hub/roundtable.js";
@@ -180,6 +181,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
 // ─── Pure badge computation (no I/O) — shared by the single-user and batch paths ──
 
 type CareerRecordOverride = { wins: number; gamesPlayed: number; playoffWins: number; championships: number };
+type CrossGameTotals = { wins: number; gamesPlayed: number };
 type UserBadgeComputeInput = {
   leagueId: string;
   userId: string;
@@ -188,6 +190,7 @@ type UserBadgeComputeInput = {
   leagueGame: string;
   allGames: GameStats[];
   careerRecordOverride: CareerRecordOverride | null;
+  crossGameTotals: CrossGameTotals | null;
   /** Only set on the single-game path (processGameIntelligence) — drives the game-scoped badge-event audit row. */
   current?: GameStats | null;
 };
@@ -200,7 +203,7 @@ type UserBadgeComputeResult = {
 };
 
 function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeResult {
-  const { leagueId, userId, teamId, season, leagueGame, allGames, careerRecordOverride, current } = input;
+  const { leagueId, userId, teamId, season, leagueGame, allGames, careerRecordOverride, crossGameTotals, current } = input;
   const seasonGames = allGames.filter((g) => g.season === season);
   const now = new Date().toISOString();
 
@@ -213,6 +216,13 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
       playoffWins: Math.max(careerTotals.playoffWins, careerRecordOverride.playoffWins),
       championships: Math.max(careerTotals.championships, careerRecordOverride.championships),
     };
+  }
+  // wins_milestone / games_milestone / veteran_coach are the only career badges that
+  // count across EVERY game a user has ever played, any game type, any league — not
+  // isolated like every other badge. crossGameTotals is the authoritative source for
+  // just these two fields; everything else on careerTotals stays per-league/per-game.
+  if (crossGameTotals) {
+    careerTotals = { ...careerTotals, wins: crossGameTotals.wins, gamesPlayed: crossGameTotals.gamesPlayed };
   }
 
   // Game-scope: one row per badge this user has earned at least once this season,
@@ -304,9 +314,11 @@ async function recomputeSingleUserBadges(current: GameStats, leagueGame: string)
   const userId = current.userId!;
   const season = current.season;
 
-  const [statsResult, recordResult] = await Promise.all([
+  const [statsResult, recordResult, crossGameByUser, financialRows] = await Promise.all([
     supabase.from("rec_team_game_stats").select("*").eq("league_id", leagueId).eq("user_id", userId),
     supabase.from("rec_global_user_game_records").select("wins,games_played,playoff_wins,superbowl_wins").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
+    loadCrossGameTotals([userId]),
+    computeFinancialBadgeRows(userId, leagueId, leagueGame),
   ]);
   if (statsResult.error) throw statsResult.error;
 
@@ -314,10 +326,11 @@ async function recomputeSingleUserBadges(current: GameStats, leagueGame: string)
   const careerRecordOverride = toCareerRecordOverride(recordResult.data);
 
   const result = computeUserBadgeUpdate({
-    leagueId, userId, teamId: current.teamId, season, leagueGame, allGames, careerRecordOverride, current,
+    leagueId, userId, teamId: current.teamId, season, leagueGame, allGames, careerRecordOverride,
+    crossGameTotals: crossGameByUser.get(userId) ?? null, current,
   });
 
-  await writeBadgeUpdates(leagueId, season, [userId], result.gameRows, result.seasonRows, result.careerRows, result.eventRows);
+  await writeBadgeUpdates(leagueId, season, [userId], result.gameRows, result.seasonRows, [...result.careerRows, ...financialRows], result.eventRows);
 }
 
 function toCareerRecordOverride(record: { wins?: unknown; games_played?: unknown; playoff_wins?: unknown; superbowl_wins?: unknown } | null | undefined): CareerRecordOverride | null {
@@ -328,6 +341,22 @@ function toCareerRecordOverride(record: { wins?: unknown; games_played?: unknown
     playoffWins: Number(record.playoff_wins ?? 0),
     championships: Number(record.superbowl_wins ?? 0),
   };
+}
+
+// wins_milestone / games_milestone / veteran_coach: summed across every game type
+// (madden_26 + madden_27 + cfb_27), unlike every other badge in the system.
+async function loadCrossGameTotals(userIds: string[]): Promise<Map<string, CrossGameTotals>> {
+  const map = new Map<string, CrossGameTotals>();
+  if (!userIds.length) return map;
+  const { data, error } = await supabase.from("rec_global_user_game_records").select("user_id,wins,games_played").in("user_id", userIds);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const entry = map.get(row.user_id) ?? { wins: 0, gamesPlayed: 0 };
+    entry.wins += Number(row.wins ?? 0);
+    entry.gamesPlayed += Number(row.games_played ?? 0);
+    map.set(row.user_id, entry);
+  }
+  return map;
 }
 
 // Replace the given users' game+season (this season) and career badge ownership
@@ -378,9 +407,10 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
   const userIds = uniqueAssignments.map((a) => a.user_id!);
   const leagueGame = await loadLeagueGame(leagueId);
 
-  const [statsResult, recordsResult] = await Promise.all([
+  const [statsResult, recordsResult, crossGameByUser] = await Promise.all([
     supabase.from("rec_team_game_stats").select("*").eq("league_id", leagueId).in("user_id", userIds),
     supabase.from("rec_global_user_game_records").select("user_id,wins,games_played,playoff_wins,superbowl_wins").in("user_id", userIds).eq("game", leagueGame),
+    loadCrossGameTotals(userIds),
   ]);
   if (statsResult.error) throw statsResult.error;
   if (recordsResult.error) throw recordsResult.error;
@@ -395,6 +425,13 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
   }
   const recordByUser = new Map((recordsResult.data ?? []).map((row) => [row.user_id, toCareerRecordOverride(row)]));
 
+  // Financial badges are per-user queries (ledger/purchases/wallet aren't batchable the
+  // way rec_team_game_stats is) — run them in parallel across the roster rather than
+  // sequentially, since this is the whole-league recompute path.
+  const financialRowsByUser = new Map(
+    await Promise.all(uniqueAssignments.map(async ({ user_id: userId }) => [userId!, await computeFinancialBadgeRows(userId!, leagueId, leagueGame)] as const)),
+  );
+
   const allGame: any[] = [];
   const allSeason: any[] = [];
   const allCareer: any[] = [];
@@ -408,11 +445,12 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
       leagueGame,
       allGames: gamesByUser.get(userId!) ?? [],
       careerRecordOverride: recordByUser.get(userId!) ?? null,
+      crossGameTotals: crossGameByUser.get(userId!) ?? null,
       current: null,
     });
     allGame.push(...result.gameRows);
     allSeason.push(...result.seasonRows);
-    allCareer.push(...result.careerRows);
+    allCareer.push(...result.careerRows, ...(financialRowsByUser.get(userId!) ?? []));
     allEvents.push(...result.eventRows);
   }
 
