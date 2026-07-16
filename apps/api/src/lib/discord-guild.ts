@@ -173,6 +173,12 @@ export async function getDiscordMessage(channelId: string, messageId: string): P
   return res.json() as any;
 }
 
+export async function getDiscordReactionUserIds(channelId: string, messageId: string, emojiId: string): Promise<string[]> {
+  const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emojiId)}?limit=100`).catch(() => null);
+  if (!res || !res.ok) return [];
+  return ((await res.json()) as Array<{ id: string }>).map((user) => user.id);
+}
+
 // Clears a channel's recent history the same way the bot's purgeChannelMessages does —
 // bulk-delete (2-100 at a time) for messages under 14 days old, individual deletes beyond
 // that. Capped at 200 fetched messages so a very chatty channel can't turn advance

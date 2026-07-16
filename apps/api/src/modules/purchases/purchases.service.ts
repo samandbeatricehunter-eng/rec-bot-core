@@ -359,3 +359,75 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
 
   return { seasonNumber, seasonActive, allTimeSuccessful };
 }
+
+const SEASON_CAP_COLUMNS: Partial<Record<RecPurchaseType, string>> = {
+  age_reset: "age_resets_season_cap",
+  dev_upgrade: "dev_upgrades_season_cap",
+  contract: "contract_purchases_season_cap",
+  player_trait: "player_trait_purchases_season_cap",
+  legend: "legends_season_cap",
+  custom_player: "custom_players_season_cap",
+};
+
+/**
+ * Everything the web Store needs to price and cap-check purchases client-side before
+ * submitting — core-attribute set, per-attribute cap overrides, non-core cap, this
+ * season's already-used points per attribute, and the simple count-based season caps
+ * for every other purchase type. The server still re-derives and re-enforces all of
+ * this authoritatively on submit (createPurchaseRequest above); this is a preview only.
+ */
+export async function getStorePurchaseContext(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const baseline = await getUserBaselineByDiscordId(discordId);
+  const seasonNumber = resolveSeasonNumber(context);
+
+  const config = await supabase
+    .from("rec_league_configuration")
+    .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,non_core_attribute_purchases_season_cap,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,player_trait_purchases_season_cap,legends_season_cap,custom_players_season_cap")
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (config.error) throw new ApiError(500, "Failed to load store configuration.", config.error);
+  const cfgRow = (config.data ?? {}) as Record<string, unknown>;
+
+  const [existingAttrs, counts] = await Promise.all([
+    supabase
+      .from("rec_purchases")
+      .select("details")
+      .eq("league_id", context.leagueId)
+      .eq("user_id", baseline.user.id)
+      .eq("purchase_type", "attribute")
+      .eq("season_number", seasonNumber)
+      .in("status", ACTIVE_STATUSES as unknown as string[]),
+    getUserPurchaseCounts(discordId, guildId),
+  ]);
+  if (existingAttrs.error) throw new ApiError(500, "Failed to load attribute purchase history.", existingAttrs.error);
+
+  const usedCoreByCode: Record<string, number> = {};
+  let usedNonCore = 0;
+  for (const row of existingAttrs.data ?? []) {
+    const allocs = ((row as any).details?.allocations as any[]) ?? [];
+    for (const a of allocs) {
+      const pts = Math.max(0, Number(a.points) || 0);
+      if (a.core) usedCoreByCode[a.code] = (usedCoreByCode[a.code] ?? 0) + pts;
+      else usedNonCore += pts;
+    }
+  }
+
+  const seasonCaps: Partial<Record<RecPurchaseType, number>> = {};
+  for (const [type, column] of Object.entries(SEASON_CAP_COLUMNS)) {
+    seasonCaps[type as RecPurchaseType] = Number(cfgRow[column as string] ?? 0);
+  }
+
+  return {
+    seasonNumber,
+    wallet: Number(baseline.wallet?.wallet_balance ?? 0),
+    coreAttributes: Array.isArray(cfgRow.core_attributes) ? (cfgRow.core_attributes as unknown[]).map(String) : [],
+    coreAttributeDefaultCap: Number(cfgRow.core_attribute_purchases_season_cap ?? 0),
+    coreAttributeCapOverrides: (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {},
+    nonCoreAttributeCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
+    usedCoreByCode,
+    usedNonCore,
+    seasonCaps,
+    seasonActive: counts.seasonActive,
+  };
+}

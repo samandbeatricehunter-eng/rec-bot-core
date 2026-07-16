@@ -201,6 +201,8 @@ export const recApi = {
     recApiFetch<{ transferred: number; direction: string; wallet_balance: number; savings_balance: number }>("/v1/users/me/wallet/transfer", { method: "POST", body: JSON.stringify(input) }),
   createMyPurchase: (input: { guildId: string; purchaseType: string; details: Record<string, unknown> }) =>
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
+  getStorePurchaseContext: (guildId: string) =>
+    recApiFetch<import("../types/api.js").StorePurchaseContext>("/v1/purchases/store-context", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegends: (guildId: string) => recApiFetch<{ legends: any[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegendAvailability: (guildId: string) => recApiFetch<{ soldLegendIds: string[] }>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
   purchaseHubLegend: (input: { guildId: string; legendId: string; replacePlayerRequest?: string | null }) =>

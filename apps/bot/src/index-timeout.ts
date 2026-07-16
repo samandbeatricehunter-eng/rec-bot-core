@@ -171,7 +171,6 @@ import {
   handleCounterDeny,
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
-import { handlePurchaseButton, handlePurchaseModal, handlePurchaseSelect, openPurchaseStore } from "./flows/purchases.js";
 import {
   LEGENDS_CUSTOM_IDS,
   handleLegendAvailableSelect,
@@ -670,7 +669,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignTargetSelect}:`)) return handleLeagueSetupSelect(interaction);
-      if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseSelect(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.groupSelect) return handleLegendGroupSelect(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.availableSelect) return handleLegendAvailableSelect(interaction);
     }
@@ -807,14 +805,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewNext) return handleScheduleViewPage(interaction, 1);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewPostPublicly) return handleScheduleViewPostPublicly(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.viewBack) return handleScheduleViewBack(interaction);
-      if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseButton(interaction);
       if (interaction.customId.startsWith(LEGENDS_CUSTOM_IDS.pagePrefix)) return handleLegendPageButton(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.detailPrev || interaction.customId === LEGENDS_CUSTOM_IDS.detailNext) return handleLegendDetailNav(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.backToBrowse) return handleLegendBackToBrowse(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.confirmPurchase) return handleLegendConfirmPurchase(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.placeWager) return handlePlaceWager(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.manageWallet) return handleManageWallet(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
@@ -877,7 +873,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.mainMenu) return renderMainMenuFromComponent(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.back) return handleManageWallet(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.pendingPurchases) return handleWalletPendingPurchases(interaction);
-      if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.makePurchase) return openPurchaseStore(interaction);
     }
 
     if (interaction.isModalSubmit()) {
@@ -904,7 +899,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       }
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction, buildAdvanceMgmtRows);
-      if (interaction.customId.startsWith("rec:purchase:")) return handlePurchaseModal(interaction);
       if (interaction.customId === LEGENDS_CUSTOM_IDS.replaceModal) return handleLegendReplaceModalSubmit(interaction);
     }
   } catch (error) {
@@ -1005,10 +999,21 @@ async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction |
       throw error;
     });
 
+    if (!profile) {
+      if (interaction.user.id === interaction.guild.ownerId || isFullLeagueAdminInteraction(interaction)) {
+        return interaction.showModal(buildSetupDangerModal("league_setup"));
+      }
+      await interaction.reply({
+        content: "League NOT set up yet, contact Commissioner or Server Owner",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
     // A Discord server admin always gets through to the Hub, team or no team — on a
     // brand new server there's no league (and so no team) yet, and they need the Hub
     // link to run First-Time Setup. Every other member still needs a linked team.
-    if (!profile?.team && !isFullLeagueAdminInteraction(interaction)) {
+    if (!profile.team && !isFullLeagueAdminInteraction(interaction)) {
       const conferenceData = await recApi.getLeagueConferences(interaction.guildId);
       const embeds = buildOpenTeamsEmbeds(conferenceData?.conferences ?? []).slice(0, 10);
       const allTeamsAssigned = embeds.length === 1 && embeds[0]?.data.title === "Open Teams";

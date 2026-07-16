@@ -1074,6 +1074,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         homeScore,
         awayScore,
         isFinal,
+        wageringOpen: String(game.status ?? "scheduled").toLowerCase() === "scheduled" && !isFinal,
         winnerTeamId: result?.winning_team_id ?? null,
         boxScoreSubmissionId: boxScore?.id ?? null,
         boxScoreStatus: boxScore?.status ?? null,

@@ -30,7 +30,6 @@ export const MENU_CUSTOM_IDS = {
   scheduleStatsTeamSelect: "rec:schedule:stats_team_select",
   scheduleHistory: "rec:schedule:history",
   scheduleBack: "rec:schedule:back",
-  makePurchase: "rec:menu:make_purchase",
   viewUserProfiles: "rec:menu:view_user_profiles",
   stream: "rec:menu:stream",
   streamBack: "rec:stream:back",
@@ -91,7 +90,6 @@ export const MANAGE_WALLET_CUSTOM_IDS = {
   toSavings: "rec:wallet:to_savings",
   fromSavings: "rec:wallet:from_savings",
   pendingPurchases: "rec:wallet:pending_purchases",
-  makePurchase: "rec:wallet:make_purchase",
   transfer: "rec:wallet:transfer",
   transferDirection: "rec:wallet:transfer_direction",
   transferAll: "rec:wallet:transfer_all",
@@ -232,6 +230,9 @@ export function buildLeagueMenuEmbed(input: {
 // League Mgmt used to have a button here for commissioners/co-commissioners; it's now
 // reached via the standalone /league-mgmt command instead (same isDiscordAdminInteraction
 // gate), which goes straight to the web dashboard now that it has full League Mgmt parity.
+// The Store purchase flow moved to the web Hub the same way (2026-07-16) — the REC Store
+// section there covers every purchase type with live pricing/cap previews, so there's no
+// "Purchase" button here any more; run /hub for it.
 export function buildLeagueMenuRows(isLinkedToTeam = true) {
   const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.openTeams).setLabel("Teams").setStyle(ButtonStyle.Secondary),
@@ -240,7 +241,6 @@ export function buildLeagueMenuRows(isLinkedToTeam = true) {
   );
   const row2 = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.manageWallet).setLabel("My Wallet").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.makePurchase).setLabel("Purchase").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.placeWager).setLabel("Wager").setStyle(ButtonStyle.Success)
   );
   const row3 = new ActionRowBuilder<ButtonBuilder>().addComponents(

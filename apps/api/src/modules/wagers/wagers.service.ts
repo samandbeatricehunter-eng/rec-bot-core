@@ -700,9 +700,15 @@ export async function placeParlay(input: PlaceParlayInput) {
   const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
   if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
 
-  if (!Array.isArray(input.legs) || input.legs.length < 2 || input.legs.length > 3) throw new ApiError(400, "A parlay needs 2 or 3 picks.");
+  if (!Array.isArray(input.legs) || input.legs.length !== 3) throw new ApiError(400, "A parlay needs exactly 3 stat-line picks.");
+  const gameIds = new Set(input.legs.map((leg) => leg.gameId));
+  if (gameIds.size !== 1) throw new ApiError(400, "All 3 parlay picks must come from the same game.");
   const gameMarketSeen = new Set<string>();
   for (const leg of input.legs) {
+    const definition = WAGER_MARKET_BY_KEY.get(leg.market);
+    if (definition?.kind !== "total" || !definition.statKey || definition.statKey === "points") {
+      throw new ApiError(400, "3-pick parlays only allow player/team stat-line over-under markets.");
+    }
     const key = `${leg.gameId}:${leg.market}`;
     if (gameMarketSeen.has(key)) throw new ApiError(400, "Each parlay leg must be a different game+market.");
     gameMarketSeen.add(key);

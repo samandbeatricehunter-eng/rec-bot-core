@@ -1,7 +1,7 @@
 import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWARD_KEYS, isRegularSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { deleteDiscordMessage, getDiscordMessage } from "../../lib/discord-guild.js";
+import { deleteDiscordMessage, getDiscordMessage, getDiscordReactionUserIds } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
@@ -437,7 +437,7 @@ export async function listHighlightAwardCandidates(guildId: string) {
   const webReactions = highlightIds.length
     ? await supabase
         .from("rec_highlight_reactions")
-        .select("highlight_post_id,reaction_key")
+        .select("highlight_post_id,user_id,reaction_key")
         .in("highlight_post_id", highlightIds)
         .in("reaction_key", [...HIGHLIGHT_AWARD_KEYS])
     : { data: [], error: null };
@@ -450,7 +450,7 @@ export async function listHighlightAwardCandidates(guildId: string) {
       webReactionCounts: Object.fromEntries(
         HIGHLIGHT_AWARD_KEYS.map((key) => [
           key,
-          (webReactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === highlight.id && reaction.reaction_key === key).length,
+            (webReactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === highlight.id && reaction.reaction_key === key && reaction.user_id !== highlight.user_id).length,
         ]),
       ),
     })),
@@ -483,7 +483,14 @@ export async function settleSeasonHighlightAwards(guildId: string): Promise<{ wi
       const nativeReaction = emoji ? message?.reactions?.find((r) => r.emoji.id === emoji.id) : undefined;
       // Discord's own count includes the bot's seed reaction — subtract it, same as
       // the old client-cache-based tally did.
-      const nativeCount = nativeReaction ? Math.max(0, nativeReaction.count - (nativeReaction.me ? 1 : 0)) : 0;
+      const reactionUsers = emoji && highlight.discord_channel_id && highlight.discord_message_id
+        ? await getDiscordReactionUserIds(highlight.discord_channel_id, highlight.discord_message_id, emoji.id)
+        : [];
+      const nativeCount = nativeReaction
+        ? reactionUsers.length
+          ? Math.max(0, reactionUsers.filter((id) => id !== message?.author?.id).length - (nativeReaction.me ? 1 : 0))
+          : Math.max(0, nativeReaction.count - (nativeReaction.me ? 1 : 0) - (message?.author?.id ? 1 : 0))
+        : 0;
       const count = nativeCount + Number(highlight.webReactionCounts?.[category] ?? 0);
       if (count <= 0) continue;
       const entry = { ...highlight, authorId: message?.author?.id ?? null };
@@ -495,7 +502,7 @@ export async function settleSeasonHighlightAwards(guildId: string): Promise<{ wi
 
   let winners = 0;
   for (const [category, { count, highlights: tied }] of leaders) {
-    const splitAmount = Math.round(HIGHLIGHT_AWARD_AMOUNT / tied.length);
+    const splitAmount = Math.floor(HIGHLIGHT_AWARD_AMOUNT / tied.length);
     for (const winner of tied) {
       await createHighlightAwardReview({ guildId, category, highlightPostId: winner.id, voteCount: count, amount: splitAmount });
       winners += 1;
@@ -633,11 +640,13 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
   const gameIds = (games.data ?? []).map((game: any) => game.id);
   if (!gameIds.length) return { candidates: 0, alreadyFinalized: false };
 
-  const reactions = await supabase.from("rec_game_reactions").select("game_id,reaction_key").in("game_id", gameIds);
+  const reactions = await supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key").in("game_id", gameIds);
   if (reactions.error) throw new ApiError(500, "Failed to load game reactions for Game of the Year.", reactions.error);
   const likeCounts = new Map<string, number>();
   for (const row of reactions.data ?? []) {
     if (row.reaction_key !== "like") continue;
+    const game = (games.data ?? []).find((candidate: any) => candidate.id === row.game_id);
+    if (row.user_id === game?.home_user_id || row.user_id === game?.away_user_id) continue;
     likeCounts.set(row.game_id, (likeCounts.get(row.game_id) ?? 0) + 1);
   }
 
@@ -660,7 +669,7 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
       away_user_id: game.away_user_id,
       away_team_id: awayTeam?.id ?? null,
       away_team_label: awayTeam?.name ?? awayTeam?.abbreviation ?? "Away",
-      amount: GAME_OF_THE_YEAR_AMOUNT,
+      amount: Math.floor(GAME_OF_THE_YEAR_AMOUNT / topGames.length),
       status: "pending",
     }, { onConflict: "league_id,season_number,game_id" }).select("id").single();
     if (inserted.error) throw new ApiError(500, "Failed to create Game of the Year review.", inserted.error);
@@ -676,11 +685,11 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
       priority: 0,
       header: `Game of the Year candidate: ${awayTeam?.name ?? "Away"} @ ${homeTeam?.name ?? "Home"}`,
       summary: topGames.length > 1
-        ? `Tied at ${maxLikes} like${maxLikes === 1 ? "" : "s"} — approve this game to crown it Game of the Year (denies the others).`
+        ? `Tied at ${maxLikes} eligible like${maxLikes === 1 ? "" : "s"} — the payout is split evenly across the tied games.`
         : `Leads the season with ${maxLikes} like${maxLikes === 1 ? "" : "s"}.`,
       requester_discord_id: null,
       requester_user_id: null,
-      amount: GAME_OF_THE_YEAR_AMOUNT,
+      amount: Math.floor(GAME_OF_THE_YEAR_AMOUNT / topGames.length),
       source_table: "rec_game_of_year_reviews",
       source_id: inserted.data.id,
       payload: { reviewId: inserted.data.id, gameId: game.id, likeCount: maxLikes, tied: topGames.length > 1 },
@@ -745,15 +754,6 @@ export async function reviewGameOfYearPayout(input: ReviewGameOfYearInput) {
 
   // Approving a winner denies every other tied candidate from the same season —
   // the whole point of a manual commissioner tie-break.
-  const others = await supabase
-    .from("rec_game_of_year_reviews")
-    .select("id")
-    .eq("league_id", existing.data.league_id)
-    .eq("season_number", existing.data.season_number)
-    .eq("status", "pending")
-    .neq("id", input.reviewId);
-  if (others.error) throw new ApiError(500, "Failed to load other Game of the Year candidates.", others.error);
-
   const amount = Number(existing.data.amount ?? GAME_OF_THE_YEAR_AMOUNT);
   for (const [userId, label] of [[existing.data.home_user_id, existing.data.home_team_label], [existing.data.away_user_id, existing.data.away_team_label]] as const) {
     if (!userId) continue;
@@ -782,22 +782,6 @@ export async function reviewGameOfYearPayout(input: ReviewGameOfYearInput) {
     .select("*")
     .single();
   if (approved.error) throw new ApiError(500, "Failed to approve Game of the Year review.", approved.error);
-
-  if ((others.data ?? []).length > 0) {
-    const otherIds = (others.data ?? []).map((row: any) => row.id);
-    await supabase.from("rec_game_of_year_reviews").update({
-      status: "denied",
-      reviewed_by_discord_id: input.reviewedByDiscordId,
-      denied_reason: "Another tied game was crowned Game of the Year.",
-      reviewed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).in("id", otherIds);
-    await supabase.from("rec_commissioners_inbox").update({
-      status: "denied",
-      reviewed_by_discord_id: input.reviewedByDiscordId,
-      reviewed_at: new Date().toISOString(),
-    }).eq("source_table", "rec_game_of_year_reviews").in("source_id", otherIds);
-  }
 
   await supabase.from("rec_commissioners_inbox").update({
     status: "approved",

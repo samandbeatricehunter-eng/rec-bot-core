@@ -702,7 +702,11 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
 
     const roleWarnings: string[] = [];
     try {
-      await ensureRecBaseRoles(interaction.guild);
+      const roles = await ensureRecBaseRoles(interaction.guild);
+      const owner = await interaction.guild.members.fetch(interaction.guild.ownerId);
+      if (!owner.roles.cache.has(roles.commissioner.id)) {
+        await owner.roles.add(roles.commissioner, "Server owner is the default REC commissioner after first-time setup");
+      }
     } catch (error) {
       console.error("[ERROR] Failed to create REC base roles:", error);
       roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);

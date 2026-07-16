@@ -417,6 +417,7 @@ export type HubMatchupSchedule = {
     homeScore: number | null;
     awayScore: number | null;
     isFinal: boolean;
+    wageringOpen: boolean;
     winnerTeamId: string | null;
     boxScoreSubmissionId: string | null;
     boxScoreStatus: string | null;
@@ -440,6 +441,19 @@ export type PeerWagerBoardResponse = {
 };
 export type ChallengeableCoachesResponse = {
   coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;
+};
+
+export type StorePurchaseContext = {
+  seasonNumber: number;
+  wallet: number;
+  coreAttributes: string[];
+  coreAttributeDefaultCap: number;
+  coreAttributeCapOverrides: Record<string, number>;
+  nonCoreAttributeCap: number;
+  usedCoreByCode: Record<string, number>;
+  usedNonCore: number;
+  seasonCaps: Partial<Record<"age_reset" | "dev_upgrade" | "contract" | "player_trait" | "legend" | "custom_player", number>>;
+  seasonActive: Record<string, number>;
 };
 
 export type MentionableCommissioner = { discordId: string; displayName: string };

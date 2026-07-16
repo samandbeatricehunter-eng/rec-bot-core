@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { CFB_POSITIONS } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, ShieldCheck, ShoppingBag, ThumbsDown, ThumbsUp, Trash2, Trophy, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, type RecPurchaseType } from "@rec/shared";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShieldCheck, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
@@ -44,6 +45,24 @@ const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
   punting: [["punts", "Punts"], ["yards", "Punt yards"], ["average", "Average"], ["inside_20", "Inside the 20"], ["touchbacks", "Touchbacks"]],
 };
 const PLAYER_STAT_CATEGORY_OPTIONS = Object.keys(PLAYER_STAT_FIELDS);
+const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> = {
+  age_reset: RefreshCw,
+  dev_upgrade: TrendingUp,
+  contract: ScrollText,
+  player_trait: Sparkles,
+  attribute: SlidersHorizontal,
+  legend: Star,
+  custom_player: UserPlus,
+};
+const STORE_PRODUCT_PRICE_LABEL: Record<RecPurchaseType, string> = {
+  age_reset: `$${REC_AGE_RESET_PRICE}`,
+  dev_upgrade: `$${REC_DEV_UPGRADE_PRICE.star}–$${REC_DEV_UPGRADE_PRICE.xfactor}`,
+  contract: `$${REC_CONTRACT_PRICE.salary_bonus_reduction}`,
+  player_trait: `$${REC_PLAYER_TRAIT_PRICE}`,
+  attribute: "$50–$100/pt",
+  legend: `$${REC_LEGEND_PRICE}`,
+  custom_player: `$${REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze}–$${REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold}`,
+};
 type Story = HubResponse["headlines"][number];
 type LeagueSubTab = "buzz" | "matchups" | "rankings";
 type WagerMode = "single" | "parlay" | "peer";
@@ -211,6 +230,8 @@ export function HubHome() {
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
   const [wagersBoardNotice, setWagersBoardNotice] = useState<string | null>(null);
+  const [closeWagersOpen, setCloseWagersOpen] = useState(false);
+  const [closeWagerGameIds, setCloseWagerGameIds] = useState<Set<string>>(new Set());
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
@@ -258,6 +279,7 @@ export function HubHome() {
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [legends, setLegends] = useState<any[] | null>(null);
   const [soldLegendIds, setSoldLegendIds] = useState<string[]>([]);
+  const [storeContext, setStoreContext] = useState<StorePurchaseContext | null>(null);
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
   const viewedHighlights = useRef(new Set<string>());
@@ -513,6 +535,10 @@ export function HubHome() {
     const [catalog, availability] = await Promise.all([recApi.listHubLegends(auth.guildId), recApi.listHubLegendAvailability(auth.guildId)]);
     setLegends(catalog.legends); setSoldLegendIds(availability.soldLegendIds);
   }
+  async function loadStoreContext() {
+    if (auth.status !== "ready" || storeContext) return;
+    try { setStoreContext(await recApi.getStorePurchaseContext(auth.guildId)); } catch { /* preview only — submit still works without it */ }
+  }
   async function viewOpenTeams() {
     if (auth.status !== "ready") return;
     setSection("openTeams"); setOpenTeamsError(null);
@@ -548,19 +574,18 @@ export function HubHome() {
     try { setTeamSchedule(await recApi.getTeamSchedule({ guildId: auth.guildId, teamId })); }
     catch (cause) { setTeamScheduleError(cause instanceof Error ? cause.message : "Schedule could not be loaded."); }
   }
-  async function submitPurchase() {
+  async function submitPurchase(overrideDetails?: Record<string, unknown>) {
     if (auth.status !== "ready" || !purchaseType) return;
     setPurchaseBusy(true); setPurchaseStatus(null);
     try {
-      let details: Record<string, unknown> = { ...purchaseDetails };
-      if (purchaseType === "attribute") details = { playerName: purchaseDetails.playerName, allocations: [{ code: purchaseDetails.attributeCode?.toUpperCase(), points: Number(purchaseDetails.points) }] };
+      const details: Record<string, unknown> = overrideDetails ?? { ...purchaseDetails };
       if (purchaseType === "legend") {
         await recApi.purchaseHubLegend({ guildId: auth.guildId, legendId: purchaseDetails.legendId, replacePlayerRequest: purchaseDetails.replacePlayerRequest });
       } else {
         await recApi.createMyPurchase({ guildId: auth.guildId, purchaseType, details });
       }
       setPurchaseStatus("Purchase submitted. Funds were reserved and a commissioner has been notified for approval.");
-      setPurchaseDetails({}); await load();
+      setPurchaseDetails({}); setStoreContext(null); await load();
     } catch (cause) { setPurchaseStatus(cause instanceof Error ? cause.message : "Purchase failed."); }
     finally { setPurchaseBusy(false); }
   }
@@ -675,7 +700,7 @@ export function HubHome() {
 
   function addParlayLeg() {
     if (!wagerPanel?.options || wagerPanel.parlay.length >= 3) return;
-    setWagerPanel({ ...wagerPanel, parlay: [...wagerPanel.parlay.filter((leg) => leg.gameId !== wagerPanel.gameId), { gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options, market: wagerPanel.market, pick: wagerPanel.pick }].slice(0, 3) });
+    setWagerPanel({ ...wagerPanel, parlay: [...wagerPanel.parlay.filter((leg) => leg.market !== wagerPanel.market), { gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options, market: wagerPanel.market, pick: wagerPanel.pick }].slice(0, 3) });
   }
 
   async function placeWager() {
@@ -756,6 +781,18 @@ export function HubHome() {
       setWagersBoardNotice(`Wagering closed${result.refundedCount ? `; ${result.refundedCount} open offer(s) refunded` : ""}.`);
     } catch (cause) { setWagersBoardNotice(cause instanceof Error ? cause.message : String(cause)); }
     finally { setWagersBoardBusy(false); }
+  }
+
+  function openCloseWagersModal() {
+    setCloseWagerGameIds(new Set((matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.wageringOpen).map((game) => game.gameId)));
+    setCloseWagersOpen(true);
+  }
+
+  async function submitClosedWagers() {
+    const games = (matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && game.wageringOpen && closeWagerGameIds.has(game.gameId));
+    for (const game of games) await closeGameWagers(game.gameId);
+    setCloseWagersOpen(false);
+    setMatchupReloadKey((value) => value + 1);
   }
 
   if (error) return <div className="hub-state"><h1>League Hub</h1><p>{error}</p><button className="btn btn-primary" onClick={() => void load()}>Try again</button></div>;
@@ -839,18 +876,57 @@ export function HubHome() {
     </div></section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></p></div></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
-        <div className="hub-store-products">{hub.store.products.map((product) => <button key={product.type} disabled={product.locked} className={purchaseType === product.type ? "active" : ""} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); if (product.type === "legend") void loadLegends(); }}><ShoppingBag size={19} /><strong>{product.label}</strong><span>{product.locked ? "Available Season 2" : "Open purchase form"}</span></button>)}</div>
+        <div className="hub-store-products">{hub.store.products.map((product) => {
+          const Icon = STORE_PRODUCT_ICONS[product.type] ?? ShoppingBag;
+          const used = storeContext?.seasonActive[product.type];
+          const cap = storeContext?.seasonCaps[product.type as keyof typeof storeContext.seasonCaps];
+          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); if (product.type === "legend") void loadLegends(); void loadStoreContext(); }}>
+            <Icon size={22} />
+            <strong>{product.label}</strong>
+            <span className="hub-store-card-price">{STORE_PRODUCT_PRICE_LABEL[product.type as RecPurchaseType] ?? ""}</span>
+            <span className="hub-store-card-status">{product.locked ? "Available Season 2" : used ? `${used} this season${cap ? ` / ${cap} cap` : ""}` : "Open purchase flow"}</span>
+          </button>;
+        })}</div>
+
         {purchaseType && !hub.store.products.find((product) => product.type === purchaseType)?.locked && <div className="hub-store-form"><h3>{hub.store.products.find((product) => product.type === purchaseType)?.label}</h3>
-          {purchaseType === "legend" ? <><label className="form-field"><span className="form-label">Available legend</span><select className="form-input" value={purchaseDetails.legendId ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, legendId: event.target.value }))}><option value="">Select a legend</option>{(legends ?? []).filter((legend) => !soldLegendIds.includes(legend.id)).map((legend) => <option key={legend.id} value={legend.id}>{legend.name} · {legend.position} · {legend.est_ovr ?? "?"} OVR</option>)}</select></label><label className="form-field"><span className="form-label">Player to replace (optional)</span><input className="form-input" value={purchaseDetails.replacePlayerRequest ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, replacePlayerRequest: event.target.value }))} /></label></> : <>
-            {purchaseType === "custom_player" && <label className="form-field"><span className="form-label">Package</span><select className="form-input" value={purchaseDetails.package ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, package: event.target.value }))}><option value="">Select package</option><option value="bronze">Bronze · $250</option><option value="silver">Silver · $750</option><option value="gold">Gold · $1,000</option></select></label>}
-            {purchaseType === "dev_upgrade" && <label className="form-field"><span className="form-label">Upgrade to</span><select className="form-input" value={purchaseDetails.targetTier ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, targetTier: event.target.value }))}><option value="">Select tier</option><option value="star">Star · $250</option><option value="superstar">Superstar · $750</option><option value="xfactor">X-Factor · $1,000</option></select></label>}
-            {purchaseType === "contract" && <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · $500</option><option value="extension">1-Year Extension · $500</option></select></label>}
-            {purchaseType === "attribute" && <div className="hub-store-row"><label className="form-field"><span className="form-label">Attribute code</span><input className="form-input" placeholder="SPD" value={purchaseDetails.attributeCode ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, attributeCode: event.target.value }))} /></label><label className="form-field"><span className="form-label">Points</span><input className="form-input" type="number" min="1" value={purchaseDetails.points ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, points: event.target.value }))} /></label></div>}
-            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
-            {purchaseType === "custom_player" && <label className="form-field"><span className="form-label">Position</span><input className="form-input" placeholder="QB, WR, CB…" value={purchaseDetails.position ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, position: event.target.value }))} /></label>}
-            {purchaseType === "player_trait" && <label className="form-field"><span className="form-label">Requested trait</span><input className="form-input" value={purchaseDetails.requestedTrait ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, requestedTrait: event.target.value }))} /></label>}
+
+          {purchaseType === "attribute" && <AttributePurchaseBuilder storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} onSubmit={(allocations, playerName) => void submitPurchase({ playerName, allocations })} />}
+
+          {purchaseType === "legend" && <><label className="form-field"><span className="form-label">Available legend</span><select className="form-input" value={purchaseDetails.legendId ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, legendId: event.target.value }))}><option value="">Select a legend</option>{(legends ?? []).filter((legend) => !soldLegendIds.includes(legend.id)).map((legend) => <option key={legend.id} value={legend.id}>{legend.name} · {legend.position} · {legend.est_ovr ?? "?"} OVR</option>)}</select></label><label className="form-field"><span className="form-label">Player to replace (optional)</span><input className="form-input" value={purchaseDetails.replacePlayerRequest ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, replacePlayerRequest: event.target.value }))} /></label>
+            <div className="hub-store-total"><span>Total: <strong>${REC_LEGEND_PRICE}</strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.legendId} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
-          <Button variant="primary" disabled={purchaseBusy || (purchaseType === "legend" ? !purchaseDetails.legendId : !purchaseDetails.playerName)} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button>{purchaseStatus && <p className="hub-transfer-status">{purchaseStatus}</p>}
+
+          {purchaseType === "custom_player" && <>
+            <label className="form-field"><span className="form-label">Package</span><select className="form-input" value={purchaseDetails.package ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, package: event.target.value }))}><option value="">Select package</option><option value="bronze">Bronze · ${REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.bronze} pts</option><option value="silver">Silver · ${REC_CUSTOM_PLAYER_PACKAGE_PRICE.silver} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.silver} pts</option><option value="gold">Gold · ${REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.gold} pts</option></select></label>
+            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
+            <label className="form-field"><span className="form-label">Position</span><input className="form-input" placeholder="QB, WR, CB…" value={purchaseDetails.position ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, position: event.target.value }))} /></label>
+            <div className="hub-store-total"><span>Total: <strong>${purchaseDetails.package ? REC_CUSTOM_PLAYER_PACKAGE_PRICE[purchaseDetails.package as keyof typeof REC_CUSTOM_PLAYER_PACKAGE_PRICE] : 0}</strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.package} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+          </>}
+
+          {purchaseType === "dev_upgrade" && <>
+            <label className="form-field"><span className="form-label">Upgrade to</span><select className="form-input" value={purchaseDetails.targetTier ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, targetTier: event.target.value }))}><option value="">Select tier</option><option value="star">Star · ${REC_DEV_UPGRADE_PRICE.star}</option><option value="superstar">Superstar · ${REC_DEV_UPGRADE_PRICE.superstar}</option><option value="xfactor">X-Factor · ${REC_DEV_UPGRADE_PRICE.xfactor}</option></select></label>
+            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
+            <div className="hub-store-total"><span>Total: <strong>${purchaseDetails.targetTier ? REC_DEV_UPGRADE_PRICE[purchaseDetails.targetTier as keyof typeof REC_DEV_UPGRADE_PRICE] : 0}</strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.targetTier} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+          </>}
+
+          {purchaseType === "contract" && <>
+            <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · ${REC_CONTRACT_PRICE.salary_bonus_reduction}</option><option value="extension">1-Year Extension · ${REC_CONTRACT_PRICE.extension}</option></select></label>
+            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
+            <div className="hub-store-total"><span>Total: <strong>${purchaseDetails.variant ? REC_CONTRACT_PRICE[purchaseDetails.variant as keyof typeof REC_CONTRACT_PRICE] : 0}</strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.variant} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+          </>}
+
+          {purchaseType === "player_trait" && <>
+            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
+            <label className="form-field"><span className="form-label">Requested trait</span><input className="form-input" value={purchaseDetails.requestedTrait ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, requestedTrait: event.target.value }))} /></label>
+            <div className="hub-store-total"><span>Total: <strong>${REC_PLAYER_TRAIT_PRICE}</strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+          </>}
+
+          {purchaseType === "age_reset" && <>
+            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
+            <div className="hub-store-total"><span>Total: <strong>${REC_AGE_RESET_PRICE}</strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
+          </>}
+
+          {purchaseStatus && <p className="hub-transfer-status">{purchaseStatus}</p>}
         </div>}
       </>}
     </section> : section === "wagers" ? <section className="hub-section hub-wagers-section"><div className="hub-section-heading"><div><p className="hub-eyebrow"><Coins size={14} /> Sportsbook</p><h2>Wagers</h2><p>Wallet balance: <strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></p></div></div>
@@ -863,7 +939,7 @@ export function HubHome() {
         return schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
           <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
             <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
-            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}{hub.canManageLeague && !game.isFinal && game.matchupType === "h2h" && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}</div>
+            <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}</div>
           </article>
         ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
       })()}
@@ -1013,7 +1089,7 @@ export function HubHome() {
                   </div>;
                 })()}
                 <div className="hub-matchup-card-head"><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><small>{[game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
-                <div className="hub-matchup-board"><div className="hub-team-side"><span>Away</span><strong>{game.awayTeamName}</strong></div><div className="hub-score-center"><span>{game.isFinal ? "Final" : "at"}</span><strong>{game.isFinal && game.awayScore != null && game.homeScore != null ? `${game.awayScore} - ${game.homeScore}` : "-"}</strong></div><div className="hub-team-side"><span>Home</span><strong>{game.homeTeamName}</strong></div></div>
+                <div className="hub-matchup-board"><div className="hub-team-side"><span>Away</span><div className="hub-team-wordmark">{game.awayTeamName}</div></div><div className="hub-score-center"><span>{game.isFinal ? "Final" : "at"}</span><strong>{game.isFinal && game.awayScore != null && game.homeScore != null ? `${game.awayScore} - ${game.homeScore}` : "-"}</strong></div><div className="hub-team-side"><span>Home</span><div className="hub-team-wordmark">{game.homeTeamName}</div></div></div>
                 {game.streams.length > 0 && (() => {
                   const awayStream = game.streams.find((stream) => stream.side === "away");
                   const homeStream = game.streams.find((stream) => stream.side === "home");
@@ -1038,7 +1114,7 @@ export function HubHome() {
                   {game.involvesMe && !game.isFinal && !game.boxScoreSubmissionId && <Button variant="primary" size="compact" onClick={() => setBoxScoreUploadGame(game)}>Submit Box Score</Button>}
                   {game.involvesMe && <Button variant="secondary" size="compact" onClick={() => void openPlayerStats(game)}>Player Stats</Button>}
                   {!game.involvesMe && !game.isFinal && game.matchupType === "h2h" && <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Wager</Button>}
-                  {hub.canManageLeague && !game.isFinal && game.matchupType === "h2h" && <Button variant="tactical" size="compact" disabled={wagersBoardBusy} onClick={() => void closeGameWagers(game.gameId)}>Close Wagers</Button>}
+                  {null}
                 </div>
                 <div className="hub-matchup-reactions">
                   <button className={game.myReaction === "like" ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}><ThumbsUp size={14} /> {game.reactionCounts.like}</button>
@@ -1092,13 +1168,17 @@ export function HubHome() {
       <div className="hub-submission-grid"><label className="form-field"><span className="form-label">Position</span><select className="form-input" value={recruitDraft.position} onChange={(event) => setRecruitDraft((current) => ({ ...current, position: event.target.value }))}>{CFB_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}</select></label><label className="form-field"><span className="form-label">Stars</span><select className="form-input" value={recruitDraft.starRating} onChange={(event) => setRecruitDraft((current) => ({ ...current, starRating: event.target.value }))}>{[1, 2, 3, 4, 5].map((stars) => <option key={stars} value={stars}>{stars}</option>)}</select></label></div>
       <div className="hub-submission-grid"><label className="form-field"><span className="form-label">City</span><input className="form-input" value={recruitDraft.homeCity} onChange={(event) => setRecruitDraft((current) => ({ ...current, homeCity: event.target.value }))} /></label><label className="form-field"><span className="form-label">State</span><input className="form-input" value={recruitDraft.homeState} onChange={(event) => setRecruitDraft((current) => ({ ...current, homeState: event.target.value }))} /></label></div>
       <Button variant="primary" disabled={recruitBusy || !recruitDraft.playerName.trim() || !recruitDraft.homeCity.trim() || !recruitDraft.homeState.trim()} onClick={() => void submitRecruitCommit()}>{recruitBusy ? "Submitting..." : "Submit Commit"}</Button>
-    </div></Modal>}    {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
+    </div></Modal>}
+    {hub.canManageLeague && (section === "wagers" || subTab === "matchups") && <button className="hub-close-wagers-corner" onClick={openCloseWagersModal}>Close Wagers</button>}
+    {closeWagersOpen && <Modal title="Manage Wagering" onClose={() => setCloseWagersOpen(false)}><div className="hub-close-wagers-list">{(matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.isFinal).map((game) => <label key={game.gameId}><span>{game.awayTeamName} at {game.homeTeamName}</span><input type="checkbox" checked={closeWagerGameIds.has(game.gameId)} disabled={!game.wageringOpen} onChange={(event) => setCloseWagerGameIds((current) => { const next = new Set(current); event.target.checked ? next.add(game.gameId) : next.delete(game.gameId); return next; })} /><b>{closeWagerGameIds.has(game.gameId) ? "Closed" : "Open"}</b></label>)}<Button variant="primary" disabled={wagersBoardBusy} onClick={() => void submitClosedWagers()}>Apply Changes</Button></div></Modal>}
+    {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
         <div className="hub-wager-mode"><button className={wagerPanel.mode === "single" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "single" })}>House Single</button><button className={wagerPanel.mode === "parlay" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "parlay" })}>3-Pick Parlay</button><button className={wagerPanel.mode === "peer" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "peer" })}>User Wager</button></div>
-        <div className="hub-wager-lines">{wagerPanel.options.markets.map((market) => <article key={market.market} className={wagerPanel.market === market.market ? "active" : ""}><button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "" })}><strong>{market.label}</strong><span>{market.line != null ? `Line ${market.line}` : "Winner"}</span></button><div>{market.sides.map((side) => <button key={side.pick} className={wagerPanel.market === market.market && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.label}</b><small>{side.odds > 0 ? "+" : ""}{side.odds}</small></button>)}</div></article>)}</div>
+        {wagerPanel.mode === "parlay" && <p className="hub-muted">Choose exactly three different stat-line Over/Under picks from this game. Each side is a separate selection.</p>}
+        <div className="hub-wager-lines">{wagerPanel.options.markets.filter((market) => wagerPanel.mode !== "parlay" || (!["moneyline", "spread", "total_points"].includes(market.market))).map((market) => <article key={market.market} className={wagerPanel.market === market.market ? "active" : ""}><button onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: market.sides[0]?.pick ?? "" })}><strong>{market.label}</strong><span>{market.line != null ? `Stat line: ${market.line}` : "Pick a winner"}</span></button><div>{market.sides.map((side) => <button key={side.pick} aria-label={`${market.label}: ${side.label}`} className={wagerPanel.market === market.market && wagerPanel.pick === side.pick ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, market: market.market, pick: side.pick })}><b>{side.pick === "over" ? `OVER ${market.line ?? ""}` : side.pick === "under" ? `UNDER ${market.line ?? ""}` : side.label}</b><small>{side.label} · odds {side.odds > 0 ? "+" : ""}{side.odds}</small></button>)}</div></article>)}</div>
         {wagerPanel.mode === "parlay" && <div className="hub-parlay-slip"><div><strong>Parlay slip</strong><span>{wagerPanel.parlay.length}/3 picks</span></div><Button variant="secondary" size="compact" disabled={wagerPanel.parlay.length >= 3} onClick={addParlayLeg}>Add Pick</Button>{wagerPanel.parlay.map((leg) => <p key={`${leg.gameId}-${leg.market}`}>{leg.label}: {leg.market}</p>)}</div>}
         {wagerPanel.mode === "peer" && <div className="hub-peer-controls"><select className="form-input" value={wagerPanel.challengeType} onChange={(event) => setWagerPanel({ ...wagerPanel, challengeType: event.target.value as "open" | "direct" })}><option value="open">Post to board</option><option value="direct">Direct challenge</option></select>{wagerPanel.challengeType === "direct" && <select className="form-input" value={wagerPanel.targetUserId} onChange={(event) => setWagerPanel({ ...wagerPanel, targetUserId: event.target.value })}><option value="">Select coach</option>{wagerPanel.coaches.map((coach) => <option key={coach.userId} value={coach.userId}>{coach.teamAbbr} · {coach.conference}</option>)}</select>}</div>}
-        <div className="hub-wager-submit"><label className="form-field"><span className="form-label">Stake</span><input className="form-input" type="number" min="1" value={wagerPanel.stake} onChange={(event) => setWagerPanel({ ...wagerPanel, stake: event.target.value })} /></label><Button variant="primary" disabled={wagerPanel.busy || !wagerPanel.market || !wagerPanel.pick || (wagerPanel.mode === "peer" && wagerPanel.challengeType === "direct" && !wagerPanel.targetUserId) || (wagerPanel.mode === "parlay" && wagerPanel.parlay.length < 2)} onClick={() => void placeWager()}>{wagerPanel.busy ? "Submitting..." : wagerPanel.mode === "peer" ? "Post User Wager" : wagerPanel.mode === "parlay" ? "Place Parlay" : "Bet House"}</Button></div>
+        <div className="hub-wager-submit"><label className="form-field"><span className="form-label">Stake</span><input className="form-input" type="number" min="1" value={wagerPanel.stake} onChange={(event) => setWagerPanel({ ...wagerPanel, stake: event.target.value })} /></label><Button variant="primary" disabled={wagerPanel.busy || !wagerPanel.market || !wagerPanel.pick || (wagerPanel.mode === "peer" && wagerPanel.challengeType === "direct" && !wagerPanel.targetUserId) || (wagerPanel.mode === "parlay" && wagerPanel.parlay.length !== 3)} onClick={() => void placeWager()}>{wagerPanel.busy ? "Submitting..." : wagerPanel.mode === "peer" ? "Post User Wager" : wagerPanel.mode === "parlay" ? "Place 3-Pick Parlay" : "Bet House"}</Button></div>
         {wagerPanel.notice && <p className="hub-transfer-status">{wagerPanel.notice}</p>}
         <div className="hub-peer-board"><h3>Peer Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · ${wager.stake.toLocaleString()} · {wager.challengeType}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>
       </>}

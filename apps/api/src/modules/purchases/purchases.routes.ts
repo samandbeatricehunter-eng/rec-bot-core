@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
-import { createPurchaseRequest, getUserPurchaseCounts, listPendingPurchases, reviewPurchase } from "./purchases.service.js";
+import { ApiError, sendError } from "../../lib/errors.js";
+import { createPurchaseRequest, getStorePurchaseContext, getUserPurchaseCounts, listPendingPurchases, reviewPurchase } from "./purchases.service.js";
 
 const PurchaseTypeSchema = z.enum([
   "age_reset",
@@ -70,6 +70,19 @@ export async function purchaseRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const { discordId, guildId } = z.object({ discordId: z.string().min(1), guildId: z.string().min(1) }).parse(request.body);
       return reply.send(await getUserPurchaseCounts(discordId, guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Web Store's pricing/cap preview — member-permission (unlike /counts above, which is
+  // bot-only) so every coach can see their own remaining budget before submitting.
+  app.post("/v1/purchases/store-context", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Store context is a browser-only endpoint.");
+      return reply.send(await getStorePurchaseContext(body.guildId, auth.discordId));
     } catch (error) {
       return sendError(reply, error);
     }
