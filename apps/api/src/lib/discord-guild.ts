@@ -31,15 +31,15 @@ const CACHE_TTL_MS = 60_000;
 const roleListCache = new Map<string, CacheEntry<Map<string, { name: string; permissions: bigint }>>>();
 const guildOwnerCache = new Map<string, CacheEntry<string>>();
 const memberRoleIdsCache = new Map<string, CacheEntry<string[] | null>>();
+const roleListInflight = new Map<string, Promise<Map<string, { name: string; permissions: bigint }>>>();
+const memberRoleIdsInflight = new Map<string, Promise<string[] | null>>();
 let botUserIdCache: CacheEntry<string> | undefined;
+const STALE_AUTH_CACHE_MS = 10 * 60_000;
 
 function fromCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
   const entry = cache.get(key);
   if (!entry) return undefined;
-  if (entry.expiresAt < Date.now()) {
-    cache.delete(key);
-    return undefined;
-  }
+  if (entry.expiresAt < Date.now()) return undefined;
   return entry.value;
 }
 
@@ -173,6 +173,20 @@ export async function getDiscordMessage(channelId: string, messageId: string): P
   return res.json() as any;
 }
 
+function staleCacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
+  const entry = cache.get(key);
+  return entry && entry.expiresAt + STALE_AUTH_CACHE_MS > Date.now() ? entry.value : undefined;
+}
+
+async function retryAfterRateLimit(path: string, response: Response): Promise<Response> {
+  if (response.status !== 429) return response;
+  const payload = await response.clone().json().catch(() => ({})) as { retry_after?: number };
+  const headerSeconds = Number(response.headers.get("retry-after") ?? 0);
+  const delayMs = Math.min(5_000, Math.max(100, Math.ceil(Number(payload.retry_after ?? headerSeconds ?? 1) * 1000)));
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+  return discordBotFetch(path);
+}
+
 export async function getDiscordReactionUserIds(channelId: string, messageId: string, emojiId: string): Promise<string[]> {
   const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emojiId)}?limit=100`).catch(() => null);
   if (!res || !res.ok) return [];
@@ -228,12 +242,23 @@ export async function deleteGuildChannel(channelId: string, reason: string): Pro
 async function getGuildRoles(guildId: string): Promise<Map<string, { name: string; permissions: bigint }>> {
   const cached = fromCache(roleListCache, guildId);
   if (cached) return cached;
-  const res = await discordBotFetch(`/guilds/${guildId}/roles`);
-  if (!res.ok) throw new Error(`Failed to fetch guild roles (${res.status})`);
-  const roles = (await res.json()) as Array<{ id: string; name: string; permissions: string }>;
-  const map = new Map(roles.map((r) => [r.id, { name: r.name, permissions: BigInt(r.permissions) }]));
-  toCache(roleListCache, guildId, map);
-  return map;
+  const active = roleListInflight.get(guildId);
+  if (active) return active;
+  const pending = (async () => {
+    const path = `/guilds/${guildId}/roles`;
+    const res = await retryAfterRateLimit(path, await discordBotFetch(path));
+    if (!res.ok) {
+      const stale = staleCacheValue(roleListCache, guildId);
+      if (res.status === 429 && stale) return stale;
+      throw new ApiError(res.status === 429 ? 503 : 502, `Failed to fetch guild roles (${res.status})`);
+    }
+    const roles = (await res.json()) as Array<{ id: string; name: string; permissions: string }>;
+    const map = new Map(roles.map((r) => [r.id, { name: r.name, permissions: BigInt(r.permissions) }]));
+    toCache(roleListCache, guildId, map);
+    return map;
+  })();
+  roleListInflight.set(guildId, pending);
+  try { return await pending; } finally { roleListInflight.delete(guildId); }
 }
 
 async function getGuildOwnerId(guildId: string): Promise<string> {
@@ -260,15 +285,26 @@ async function getMemberRoleIds(guildId: string, discordId: string): Promise<str
   const cacheKey = `${guildId}:${discordId}`;
   const cached = fromCache(memberRoleIdsCache, cacheKey);
   if (cached !== undefined) return cached;
-  const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}`);
-  if (res.status === 404) {
-    toCache(memberRoleIdsCache, cacheKey, null);
-    return null;
-  }
-  if (!res.ok) throw new Error(`Failed to fetch guild member (${res.status})`);
-  const member = (await res.json()) as { roles: string[] };
-  toCache(memberRoleIdsCache, cacheKey, member.roles);
-  return member.roles;
+  const active = memberRoleIdsInflight.get(cacheKey);
+  if (active) return active;
+  const pending = (async () => {
+    const path = `/guilds/${guildId}/members/${discordId}`;
+    const res = await retryAfterRateLimit(path, await discordBotFetch(path));
+    if (res.status === 404) {
+      toCache(memberRoleIdsCache, cacheKey, null);
+      return null;
+    }
+    if (!res.ok) {
+      const stale = staleCacheValue(memberRoleIdsCache, cacheKey);
+      if (res.status === 429 && stale !== undefined) return stale;
+      throw new ApiError(res.status === 429 ? 503 : 502, `Failed to fetch guild member (${res.status})`);
+    }
+    const member = (await res.json()) as { roles: string[] };
+    toCache(memberRoleIdsCache, cacheKey, member.roles);
+    return member.roles;
+  })();
+  memberRoleIdsInflight.set(cacheKey, pending);
+  try { return await pending; } finally { memberRoleIdsInflight.delete(cacheKey); }
 }
 
 // Role names for classifyGuildRoleNames (@rec/shared) — the same name-matching the bot
