@@ -1066,6 +1066,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         weekNumber: Number(game.week_number),
         matchupType: game.home_user_id && game.away_user_id ? "h2h" : game.home_user_id || game.away_user_id ? "human_cpu" : "cpu",
         involvesMe: game.home_user_id === userId || game.away_user_id === userId,
+        viewerSide: game.home_user_id === userId ? "home" : game.away_user_id === userId ? "away" : null,
         isGameOfWeek: poll?.game_id === game.id,
         homeTeamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
         awayTeamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away",

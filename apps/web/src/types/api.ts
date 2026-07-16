@@ -409,6 +409,7 @@ export type HubMatchupSchedule = {
     weekNumber: number;
     matchupType: "h2h" | "human_cpu" | "cpu";
     involvesMe: boolean;
+    viewerSide: "away" | "home" | null;
     isGameOfWeek: boolean;
     homeTeamName: string;
     awayTeamName: string;
