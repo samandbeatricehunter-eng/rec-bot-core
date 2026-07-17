@@ -2050,7 +2050,7 @@ export const recGameReactions = pgTable("rec_game_reactions", {
   seasonNumber: integer("season_number").notNull(),
   reactionKey: text("reaction_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-}, (table) => ({ gameUserKey: uniqueIndex("rec_game_reactions_game_user_key").on(table.gameId, table.userId) }));
+}, (table) => ({ gameUserReactionKey: uniqueIndex("rec_game_reactions_game_user_reaction_key").on(table.gameId, table.userId, table.reactionKey) }));
 
 export const recBadgeOwnership = pgTable("rec_badge_ownership", {
   id: uuid("id").primaryKey(),

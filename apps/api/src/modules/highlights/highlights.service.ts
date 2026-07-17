@@ -475,25 +475,11 @@ export async function settleSeasonHighlightAwards(guildId: string): Promise<{ wi
 
   const leaders = new Map<string, { count: number; highlights: any[] }>();
   for (const highlight of candidates.highlights) {
-    const message = highlight.discord_channel_id && highlight.discord_message_id
-      ? await getDiscordMessage(highlight.discord_channel_id, highlight.discord_message_id)
-      : null;
     for (const category of HIGHLIGHT_AWARD_KEYS) {
-      const emoji = (HIGHLIGHT_AWARD_EMOJIS as Record<string, { id: string } | undefined>)[category];
-      const nativeReaction = emoji ? message?.reactions?.find((r) => r.emoji.id === emoji.id) : undefined;
-      // Discord's own count includes the bot's seed reaction — subtract it, same as
-      // the old client-cache-based tally did.
-      const reactionUsers = emoji && highlight.discord_channel_id && highlight.discord_message_id
-        ? await getDiscordReactionUserIds(highlight.discord_channel_id, highlight.discord_message_id, emoji.id)
-        : [];
-      const nativeCount = nativeReaction
-        ? reactionUsers.length
-          ? Math.max(0, reactionUsers.filter((id) => id !== message?.author?.id).length - (nativeReaction.me ? 1 : 0))
-          : Math.max(0, nativeReaction.count - (nativeReaction.me ? 1 : 0) - (message?.author?.id ? 1 : 0))
-        : 0;
-      const count = nativeCount + Number(highlight.webReactionCounts?.[category] ?? 0);
+      // Only an explicit POTY category submission in the Hub is a nomination.
+      const count = Number(highlight.webReactionCounts?.[category] ?? 0);
       if (count <= 0) continue;
-      const entry = { ...highlight, authorId: message?.author?.id ?? null };
+      const entry = { ...highlight };
       const current = leaders.get(category);
       if (!current || count > current.count) leaders.set(category, { count, highlights: [entry] });
       else if (count === current.count) current.highlights.push(entry);
@@ -607,7 +593,7 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
 }
 
 /**
- * Game of the Year: tallies "like" reactions (rec_game_reactions) across every
+ * Game of the Year: tallies explicit "goty" nominations across every
  * H2H game played this season and creates a pending review for whichever game(s)
  * lead. Unlike Play of the Year, ties are NOT auto-split — every tied game gets
  * its own row and the commissioner picks the winner from the Pending Payouts
@@ -644,9 +630,7 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
   if (reactions.error) throw new ApiError(500, "Failed to load game reactions for Game of the Year.", reactions.error);
   const likeCounts = new Map<string, number>();
   for (const row of reactions.data ?? []) {
-    if (row.reaction_key !== "like") continue;
-    const game = (games.data ?? []).find((candidate: any) => candidate.id === row.game_id);
-    if (row.user_id === game?.home_user_id || row.user_id === game?.away_user_id) continue;
+    if (row.reaction_key !== "goty") continue;
     likeCounts.set(row.game_id, (likeCounts.get(row.game_id) ?? 0) + 1);
   }
 

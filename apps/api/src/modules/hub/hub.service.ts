@@ -15,7 +15,7 @@ import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 
-export const HUB_REACTION_KEYS = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"] as const;
+export const HUB_REACTION_KEYS = ["love", "like", "dislike", "poop", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"] as const;
 export type HubReactionKey = (typeof HUB_REACTION_KEYS)[number];
 const HIGHLIGHT_AWARD_REACTION_KEYS: HubReactionKey[] = ["TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY"];
 const HIGHLIGHT_SIDELINE_REACTION_KEYS: HubReactionKey[] = ["COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
@@ -531,8 +531,8 @@ export async function toggleHubHighlightReaction(input: { guildId: string; disco
     const removed = await supabase.from("rec_highlight_reactions").delete().eq("id", existing.data.id);
     if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
   } else {
-    const mutuallyExclusive = input.reactionKey === "like" || input.reactionKey === "dislike"
-      ? ["like", "dislike"]
+    const mutuallyExclusive = ["love", "like", "dislike", "poop"].includes(input.reactionKey)
+      ? ["love", "like", "dislike", "poop"]
       : HIGHLIGHT_AWARD_REACTION_KEYS.includes(input.reactionKey)
         ? HIGHLIGHT_AWARD_REACTION_KEYS
         : HIGHLIGHT_SIDELINE_REACTION_KEYS;
@@ -569,13 +569,22 @@ export async function toggleHubStoryReaction(input: { guildId: string; discordId
   return toggleBinaryReaction({ table: "rec_story_reactions", foreignKey: "story_id", targetId: input.storyId, userId, seasonNumber: Number(story.data.season), reactionKey: input.reactionKey });
 }
 
-export async function toggleHubGameReaction(input: { guildId: string; discordId: string; gameId: string; reactionKey: "like" | "dislike" }) {
+export async function toggleHubGameReaction(input: { guildId: string; discordId: string; gameId: string; reactionKey: "love" | "like" | "goty" | "dislike" | "poop" }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const game = await supabase.from("rec_games").select("id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to verify game.", game.error);
   if (!game.data) throw new ApiError(404, "Game not found.");
-  return toggleBinaryReaction({ table: "rec_game_reactions", foreignKey: "game_id", targetId: input.gameId, userId, seasonNumber: Number(context.rec_leagues.season_number ?? 1), reactionKey: input.reactionKey });
+  const existing = await supabase.from("rec_game_reactions").select("id").eq("game_id", input.gameId).eq("user_id", userId).eq("reaction_key", input.reactionKey).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to read reaction.", existing.error);
+  if (existing.data) {
+    const removed = await supabase.from("rec_game_reactions").delete().eq("id", existing.data.id);
+    if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
+  } else {
+    const inserted = await supabase.from("rec_game_reactions").insert({ id: randomUUID(), game_id: input.gameId, user_id: userId, season_number: Number(context.rec_leagues.season_number ?? 1), reaction_key: input.reactionKey, created_at: new Date().toISOString() });
+    if (inserted.error) throw new ApiError(500, "Failed to save reaction.", inserted.error);
+  }
+  return { ok: true };
 }
 
 export async function recordHubStreamView(input: { guildId: string; discordId: string; streamLogId: string }) {
@@ -1079,17 +1088,14 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         winnerTeamId: result?.winning_team_id ?? null,
         boxScoreSubmissionId: boxScore?.id ?? null,
         boxScoreStatus: boxScore?.status ?? null,
-        reactionCounts: {
-          like: gameReactionRows.filter((reaction: any) => reaction.reaction_key === "like").length,
-          dislike: gameReactionRows.filter((reaction: any) => reaction.reaction_key === "dislike").length,
-        },
-        myReaction: gameReactionRows.find((reaction: any) => reaction.user_id === userId)?.reaction_key ?? null,
+        reactionCounts: Object.fromEntries(["love", "like", "goty", "dislike", "poop"].map((key) => [key, gameReactionRows.filter((reaction: any) => reaction.reaction_key === key).length])),
+        myReactions: gameReactionRows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key),
         streams: [
           awayStream ? { side: "away", userId: game.away_user_id, teamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away", streamLogId: awayStream.id, url: awayStream.message_url, watchPath: streamWatchPath(awayStream.id), postedAt: awayStream.posted_at ?? null, ...streamEngagement(awayStream) } : null,
           homeStream ? { side: "home", userId: game.home_user_id, teamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,
         ].filter(Boolean),
       };
-    }).sort((a: any, b: any) => Number(b.involvesMe) - Number(a.involvesMe) || Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName)),
+    }).sort((a: any, b: any) => Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.involvesMe) - Number(a.involvesMe) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName)),
   };
 }
 

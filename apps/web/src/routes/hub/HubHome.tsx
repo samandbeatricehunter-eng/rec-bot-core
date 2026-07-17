@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShieldCheck, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShieldCheck, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -22,16 +22,14 @@ const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" }, { key: "MVP_PLAY", label: "Most Valuable Play" },
 ];
 const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
-  { key: "COOKED", label: "Cooked!" },
-  { key: "SKILL_ISSUE", label: "Got EMMM!" },
-  { key: "CLIPPED", label: "FAFO .." },
-  { key: "NO_SHOT", label: "Oh, he tuff." },
   { key: "GG_ENERGY", label: "Mossed!" },
-  { key: "AURA", label: "Gimme' Dat!" },
-  { key: "SHEEESH", label: "Sheeeeesh!" },
+  { key: "SKILL_ISSUE", label: "Steamroller!" },
   { key: "FAWK", label: "FAWKKKK" },
+  { key: "CLIPPED", label: "Snatched!" },
+  { key: "COOKED", label: "R.I.P." },
 ];
-const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = ["like", "dislike", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
+const COMMUNITY_REACTION_KEYS: HubReactionKey[] = ["love", "like", "dislike", "poop"];
+const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = [...COMMUNITY_REACTION_KEYS, "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
 const SIDELINE_KEYS = SIDELINE_REACTIONS.map((reaction) => reaction.key);
 const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
@@ -86,6 +84,11 @@ type WagerPanel = {
 
 function displayLabel(key: string) {
   return key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function matchupWordmarkSize(name: string) {
+  const length = name.replace(/\s+/g, "").length;
+  return `clamp(${length > 16 ? 12 : length > 12 ? 14 : length > 9 ? 16 : 18}px, ${length > 16 ? 3.5 : length > 12 ? 4.2 : length > 9 ? 5 : 6.1}vw, ${length > 16 ? 30 : length > 12 ? 38 : length > 9 ? 48 : 64}px)`;
 }
 
 // Card preview only — the full body always reads in the article modal. Breaks on a
@@ -265,6 +268,8 @@ export function HubHome() {
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
   const [teamScheduleError, setTeamScheduleError] = useState<string | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
+  const [potyCategory, setPotyCategory] = useState<HubReactionKey | "">("");
   const [storyCarouselIndex, setStoryCarouselIndex] = useState(0);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [comments, setComments] = useState<StoryComment[] | null>(null);
@@ -382,7 +387,7 @@ export function HubHome() {
 
   async function highlightReact(highlightId: string, reactionKey: HubReactionKey) {
     if (auth.status !== "ready") return;
-        const mutuallyExclusive = reactionKey === "like" || reactionKey === "dislike" ? ["like", "dislike"] : AWARD_KEYS.includes(reactionKey) ? AWARD_KEYS : SIDELINE_KEYS;
+    const mutuallyExclusive = COMMUNITY_REACTION_KEYS.includes(reactionKey) ? COMMUNITY_REACTION_KEYS : AWARD_KEYS.includes(reactionKey) ? AWARD_KEYS : SIDELINE_KEYS;
     setHub((current) => current ? { ...current, highlights: current.highlights.map((highlight) => {
       if (highlight.id !== highlightId) return highlight;
       const has = highlight.myReactions.includes(reactionKey);
@@ -427,15 +432,15 @@ export function HubHome() {
     try { await recApi.toggleHubGameReaction({ guildId: auth.guildId, gameId, reactionKey }); }
     catch { await load(); }
   }
-  async function matchupGameReact(gameId: string, reactionKey: "like" | "dislike") {
+  async function matchupGameReact(gameId: string, reactionKey: "love" | "like" | "goty" | "dislike" | "poop") {
     if (auth.status !== "ready") return;
     setMatchupSchedule((current) => current ? { ...current, games: current.games.map((game) => {
       if (game.gameId !== gameId) return game;
       const counts = { ...game.reactionCounts };
-      const isSame = game.myReaction === reactionKey;
-      if (game.myReaction) counts[game.myReaction] = Math.max(0, counts[game.myReaction] - 1);
+      const isSame = game.myReactions.includes(reactionKey);
       if (!isSame) counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
-      return { ...game, myReaction: isSame ? null : reactionKey, reactionCounts: counts };
+      else counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
+      return { ...game, myReactions: isSame ? game.myReactions.filter((key) => key !== reactionKey) : [...game.myReactions, reactionKey], reactionCounts: counts };
     }) } : current);
     try { await recApi.toggleHubGameReaction({ guildId: auth.guildId, gameId, reactionKey }); }
     catch { if (matchupSchedule) setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek })); }
@@ -995,11 +1000,20 @@ export function HubHome() {
               onPointerUp={highlightSwipe.handlers.onPointerUp}
               onPointerCancel={highlightSwipe.handlers.onPointerCancel}
             >
-              <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="metadata" onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}{SIDELINE_REACTIONS.some((reaction) => activeHighlight.reactionCounts[reaction.key] > 0) && <div className="hub-video-reaction-badges">{SIDELINE_REACTIONS.filter((reaction) => activeHighlight.reactionCounts[reaction.key] > 0).map((reaction) => <span key={reaction.key}>{reaction.label} {activeHighlight.reactionCounts[reaction.key]}</span>)}</div>}</div>
+              <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="metadata" onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
               <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
-              <div className="hub-reaction-groups"><div className="hub-reaction-group"><span className="hub-reaction-label">Community reactions</span><div className="hub-reactions"><button className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={16} /> Like {activeHighlight.reactionCounts.like}</button><button className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={16} /> Dislike {activeHighlight.reactionCounts.dislike}</button></div></div>
-                <div className="hub-reaction-group hub-sideline-reactions"><span className="hub-reaction-label">Sideline reactions</span><div className="hub-pill-row">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` · ${activeHighlight.reactionCounts[reaction.key]}` : ""}</button>)}</div></div>
-                <div className="hub-reaction-group hub-poty-reactions"><span className="hub-reaction-label">Play of the Year nominations</span><div className="hub-pill-row">{AWARD_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` · ${activeHighlight.reactionCounts[reaction.key]}` : ""}</button>)}</div></div></div>
+              <div className="hub-highlight-reaction-deck">
+                <span className="hub-reaction-label">Community Reactions</span>
+                <div className="hub-highlight-community-bar">
+                  <button className={activeHighlight.myReactions.includes("love") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "love")}><Heart /><b>Love</b><small>{activeHighlight.reactionCounts.love || ""}</small></button>
+                  <button className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp /><b>Like</b><small>{activeHighlight.reactionCounts.like || ""}</small></button>
+                  <button className={`poty${AWARD_KEYS.some((key) => activeHighlight.myReactions.includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => activeHighlight.myReactions.includes(key)) ?? ""); }}><Award /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + activeHighlight.reactionCounts[key], 0)}</small></button>
+                  <button className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown /><b>Dislike</b><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
+                  <button className={activeHighlight.myReactions.includes("poop") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "poop")}><span className="hub-poop">💩</span><b>Hate</b><small>{activeHighlight.reactionCounts.poop || ""}</small></button>
+                </div>
+                <span className="hub-reaction-label sideline">Sideline Reactions</span>
+                <div className="hub-highlight-sideline-bar">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` (${activeHighlight.reactionCounts[reaction.key]})` : ""}</button>)}</div>
+              </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Videos posted in Discord will roll in here.</p>}
         </SectionFrame>
 
@@ -1043,7 +1057,7 @@ export function HubHome() {
       )}
 
       {subTab === "matchups" && (
-        <SectionFrame eyebrow="Current slate" title="Weekly H2H Matchups">
+        <SectionFrame eyebrow="Current slate" title="Weekly Matchups">
           {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
           {(() => {
             const state = renderMatchupLoadState("Loading matchups...");
@@ -1054,15 +1068,15 @@ export function HubHome() {
             <div className="hub-week-picker">
               <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
             </div>
-            {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
-              <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
-                <div className="hub-matchup-card-head"><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "Matchup" : game.matchupType === "human_cpu" ? "User vs CPU" : "CPU Matchup"}</span><strong>Week {game.weekNumber} · Season {hub.league.seasonNumber}</strong><small>{game.isGameOfWeek && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
+            {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className="hub-matchup-stack" key={game.gameId}>
+              <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
+                <div className="hub-matchup-card-head"><span>{game.isGameOfWeek ? "★ Game of the Week ★" : game.matchupType === "h2h" ? "★ H2H Matchup ★" : "★ Human vs CPU ★"}</span><strong>Week {game.weekNumber}</strong><small>{game.isGameOfWeek && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
                 <div className="hub-matchup-board">
-                  <div className="hub-team-side"><span>Away</span>{game.isGameOfWeek && schedule.gotw ? <button className={`hub-team-name-vote${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)}><b>{game.awayTeamName}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small></button> : <div className="hub-team-wordmark">{game.awayTeamName}</div>}<small>{game.awayConference ?? "Visiting team"}</small></div>
+                  <div className="hub-team-side"><span>Away</span>{game.isGameOfWeek && schedule.gotw ? <button className={`hub-team-name-vote${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)}><b style={{ fontSize: matchupWordmarkSize(game.awayTeamName) }}>{game.awayTeamName}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small></button> : <div className="hub-team-wordmark" style={{ fontSize: matchupWordmarkSize(game.awayTeamName) }}>{game.awayTeamName}</div>}<small>{game.awayConference ?? "Visiting team"}</small></div>
                   <div className="hub-score-center"><span>{game.isFinal ? "Final" : "Versus"}</span><strong>{game.isFinal && game.awayScore != null && game.homeScore != null ? `${game.awayScore}–${game.homeScore}` : "VS"}</strong></div>
-                  <div className="hub-team-side"><span>Home</span>{game.isGameOfWeek && schedule.gotw ? <button className={`hub-team-name-vote${schedule.gotw.myVote === schedule.gotw.homeTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.homeTeamId)}><b>{game.homeTeamName}</b><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small></button> : <div className="hub-team-wordmark">{game.homeTeamName}</div>}<small>{game.homeConference ?? "Home team"}</small></div>
+                  <div className="hub-team-side"><span>Home</span>{game.isGameOfWeek && schedule.gotw ? <button className={`hub-team-name-vote${schedule.gotw.myVote === schedule.gotw.homeTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.homeTeamId)}><b style={{ fontSize: matchupWordmarkSize(game.homeTeamName) }}>{game.homeTeamName}</b><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small></button> : <div className="hub-team-wordmark" style={{ fontSize: matchupWordmarkSize(game.homeTeamName) }}>{game.homeTeamName}</div>}<small>{game.homeConference ?? "Home team"}</small></div>
                 </div>
-                <div className="hub-matchup-rails"><div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div><div className="hub-center-control-rail">{!game.involvesMe && !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : <StatusChip status="info" label={game.involvesMe ? "Your game" : game.isFinal ? "Final" : "Matchup"} />}</div><div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div></div>
+                <div className="hub-matchup-rails"><div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div><div className="hub-center-control-rail">{!game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div><div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div></div>
                 {game.streams.length > 0 && (() => {
                   const awayStream = game.streams.find((stream) => stream.side === "away");
                   const homeStream = game.streams.find((stream) => stream.side === "home");
@@ -1076,13 +1090,17 @@ export function HubHome() {
                     {homeStream ? streamPanel(homeStream) : <div className="hub-team-stream home empty" />}
                   </div>;
                 })()}
-                <div className="hub-matchup-bottom"><div className="hub-matchup-reactions">
-                  <button className={game.myReaction === "like" ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}><ThumbsUp size={14} /> {game.reactionCounts.like}</button>
-                  <button className={game.myReaction === "dislike" ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}><ThumbsDown size={14} /> {game.reactionCounts.dislike}</button>
-                </div><span /><div className="hub-matchup-admin-slot">{game.isGameOfWeek && schedule.gotw && hub.canManageLeague && schedule.gotw.status === "open" && <Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button>}</div></div>
+                {game.isGameOfWeek && schedule.gotw && hub.canManageLeague && schedule.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button></div>}
                 {game.isGameOfWeek && schedule.gotw && (() => { const total = schedule.gotw.awayVotes + schedule.gotw.homeVotes; const away = total ? Math.round(schedule.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge"><span>{game.awayTeamName} {away}%</span><i style={{ background: `linear-gradient(90deg,var(--gold) 0 ${away}%,#363636 ${away}% 100%)` }} /><span>{100 - away}% {game.homeTeamName}</span></div>; })()}
               </article>
-            ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}
+              <div className="hub-game-reaction-bar" aria-label={`Reactions for ${game.awayTeamName} at ${game.homeTeamName}`}>
+                <button aria-label="Love" className={game.myReactions.includes("love") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "love")}><Heart />{game.reactionCounts.love > 0 && <span>{game.reactionCounts.love}</span>}</button>
+                <button aria-label="Like" className={game.myReactions.includes("like") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}><ThumbsUp />{game.reactionCounts.like > 0 && <span>{game.reactionCounts.like}</span>}</button>
+                <button className={`goty${game.myReactions.includes("goty") ? " active" : ""}`} onClick={() => void matchupGameReact(game.gameId, "goty")}>GOTY ({game.reactionCounts.goty})</button>
+                <button aria-label="Dislike" className={game.myReactions.includes("dislike") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}><ThumbsDown />{game.reactionCounts.dislike > 0 && <span>{game.reactionCounts.dislike}</span>}</button>
+                <button aria-label="Poop" className={game.myReactions.includes("poop") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "poop")}><span className="hub-poop">💩</span>{game.reactionCounts.poop > 0 && <span>{game.reactionCounts.poop}</span>}</button>
+              </div>
+            </div>))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}
             {schedule.usersByConference.length > 0 && (() => { const group = schedule.usersByConference[conferenceIndex % schedule.usersByConference.length]; return <div className="hub-conference-carousel"><button className="hub-highlight-arrow" aria-label="Previous conference" onClick={() => setConferenceIndex((conferenceIndex - 1 + schedule.usersByConference.length) % schedule.usersByConference.length)}><ChevronLeft /></button><article><h3>{group.conference}</h3><div>{group.users.map((user) => <span key={user.userId}><strong>{user.teamName}</strong><small>{user.displayName}</small></span>)}</div><p>{conferenceIndex % schedule.usersByConference.length + 1} / {schedule.usersByConference.length}</p></article><button className="hub-highlight-arrow" aria-label="Next conference" onClick={() => setConferenceIndex((conferenceIndex + 1) % schedule.usersByConference.length)}><ChevronRight /></button></div>; })()}
           </>;
           })()}
@@ -1093,6 +1111,11 @@ export function HubHome() {
       </main>
     </div>
 
+    {potyHighlightId && <Modal title="Play of the Year Nomination" onClose={() => { setPotyHighlightId(null); setPotyCategory(""); }}><div className="hub-poty-modal">
+      <p>Select exactly one category. This submission is the only action that counts as a POTY nomination.</p>
+      <div>{AWARD_REACTIONS.map((reaction) => <label key={reaction.key} className={potyCategory === reaction.key ? "active" : ""}><input type="radio" name="poty-category" value={reaction.key} checked={potyCategory === reaction.key} onChange={() => setPotyCategory(reaction.key)} /><span>{reaction.label}</span></label>)}</div>
+      <Button variant="primary" disabled={!potyCategory} onClick={async () => { if (!potyCategory) return; await highlightReact(potyHighlightId, potyCategory); setPotyHighlightId(null); setPotyCategory(""); }}>Submit Nomination</Button>
+    </div></Modal>}
     {activeStory && (isMobile ? (
       <ExpandedArticleView
         stories={hub.headlines}
