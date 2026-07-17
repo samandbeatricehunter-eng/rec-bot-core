@@ -9,18 +9,20 @@
 }
 .hub-page::before {
   content: "";
-  position: absolute;
-  inset: -18px -26px auto;
-  height: 360px;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
   pointer-events: none;
   background:
-    var(--playbook-overlay),
-    radial-gradient(ellipse 42% 22% at 50% 0%, rgba(255,215,0,.17), transparent 70%),
-    linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
-  background-size: 420px 305px, auto, auto;
+    radial-gradient(ellipse 62% 42% at 50% 18%, rgba(8,18,10,.22), rgba(3,7,4,.64) 72%, rgba(1,2,1,.84)),
+    linear-gradient(180deg, rgba(7,18,8,.28), rgba(5,9,5,.16)),
+    url("/assets/hub/field-background.png");
+  background-size: cover, cover, cover;
   background-repeat: no-repeat, no-repeat, no-repeat;
-  background-position: center 4px, center, center;
-  opacity: .9;
+  background-position: center, center, center;
+  opacity: .98;
+  transform: translateZ(0);
+  will-change: transform;
 }
 .hub-page > * { position: relative; z-index: 1; }
 .hub-league-tab { display: flex; flex-direction: column; gap: var(--space-5); }
@@ -461,14 +463,68 @@
 /* Unified rendered badge shelf. Badge qualification scopes remain internal; users see
    one all-time badge per key with its current material tier. */
 .hub-badge-group h4 { text-align:center; }
-.hub-badge-shelf { grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); overflow:visible; }
-.hub-badge-shelf article {
-  position:relative; isolation:isolate; min-height:94px; padding:20px 7% 20px 31%;
-  border:0; border-radius:0; background:transparent url("/assets/hub/badge-normal-v3.png") center / 100% 100% no-repeat;
-  color:#f6f1df; text-align:center; overflow:visible; filter:drop-shadow(0 9px 12px rgba(0,0,0,.58));
+.hub-badge-shelf {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,220px));
+  justify-content:center;
+  gap:14px;
+  overflow:visible;
 }
-.hub-badge-shelf article > div { width:100%; }
-.hub-badge-shelf article strong { display:block; font-family:var(--font-display); font-size:clamp(13px,2vw,19px); text-shadow:0 2px 3px #000; }
+.hub-badge-shelf article {
+  position:relative;
+  isolation:isolate;
+  width:100%;
+  aspect-ratio:4.2 / 1;
+  min-height:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:transparent url("/assets/hub/badge-normal-v3.png") center / 100% 100% no-repeat;
+  color:#f6f1df;
+  text-align:center;
+  overflow:visible;
+  filter:drop-shadow(0 9px 12px rgba(0,0,0,.58));
+}
+.hub-badge-shelf article:not(.hub-badge-award) > div { display:none; }
+.hub-badge-shelf article.hub-badge-award {
+  aspect-ratio:auto;
+  min-height:94px;
+  padding:20px 7% 20px 31%;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:12px;
+}
+.hub-badge-shelf article.hub-badge-award > div {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:2px;
+  width:auto;
+}
+.hub-badge-shelf article.hub-badge-award strong {
+  display:block;
+  font-family:var(--font-display);
+  font-size:clamp(13px,2vw,19px);
+  text-shadow:0 2px 3px #000;
+}
+.hub-badge-shelf article.hub-badge-award span {
+  color:inherit;
+  font-size:var(--text-xs);
+  font-weight:800;
+}
+.hub-badge-shelf article:not(.hub-badge-award) strong { display:none; }
+.hub-badge-shelf article::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  pointer-events:none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0) 35%),
+    radial-gradient(circle at 50% 18%, rgba(255,216,106,.15), transparent 42%);
+  mix-blend-mode:screen;
+}
 .hub-badge-shelf article::after {
   content:attr(data-tooltip); position:absolute; z-index:30; left:6%; right:6%; bottom:calc(100% - 5px);
   padding:10px 12px; border:1px solid #d7a124; background:linear-gradient(145deg,#171815,#050606);
@@ -661,7 +717,7 @@
   isolation:isolate; grid-template-columns:1fr !important; grid-template-rows:auto 1fr auto auto !important;
   width:100%; aspect-ratio:2 / 3; min-height:0; padding:clamp(58px,8vw,118px) clamp(34px,5vw,72px) clamp(72px,9vw,132px) !important;
   border:0 !important; border-radius:clamp(18px,2.4vw,34px) !important;
-  background:transparent url("/assets/hub/matchup-chassis-v2.png") center / 100% 100% no-repeat !important;
+  background:transparent url("/assets/hub/matchup-h2h-chassis-v1.png") center / 100% 100% no-repeat !important;
   box-shadow:0 22px 54px rgba(0,0,0,.48),0 0 24px rgba(217,165,33,.12) !important;
 }
 .hub-matchup-schedule .hub-matchup-card::before { display:none; }
