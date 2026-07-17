@@ -1135,6 +1135,72 @@
 .hub-matchup-stack .hub-game-reaction-bar { margin-top:-2px; }
 .hub-matchup-stack.gotw .hub-game-reaction-bar { margin-top:24px; }
 
+/* Weekly Matchups should float directly over the field background. The older panel
+   shell, textures, and overlays are removed only for this section so the new chassis
+   art can render cleanly and stay clickable. */
+.hub-matchup-section.fp-panel {
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  overflow:visible !important;
+}
+.hub-matchup-section.fp-panel::before,
+.hub-matchup-section.fp-panel::after {
+  display:none !important;
+}
+.hub-matchup-section .fp-panel-inner {
+  padding:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+.hub-matchup-section .section-frame-heading {
+  margin-bottom: clamp(12px, 2vw, 18px);
+}
+.hub-matchup-section .hub-matchup-schedule,
+.hub-matchup-section .hub-matchup-stack,
+.hub-matchup-section .hub-matchup-card {
+  background:transparent !important;
+}
+.hub-matchup-section .hub-matchup-card {
+  position:relative;
+  z-index:1;
+  border:0 !important;
+  box-shadow:none !important;
+  background:transparent url("/assets/hub/matchup-h2h-chassis-v1.png") center / 100% 100% no-repeat !important;
+  pointer-events:auto;
+}
+.hub-matchup-section .hub-matchup-card.gotw {
+  background-image:url("/assets/hub/matchup-gotw-chassis-v3.png") !important;
+}
+.hub-matchup-section .hub-matchup-card::before,
+.hub-matchup-section .hub-matchup-card::after {
+  pointer-events:none !important;
+}
+.hub-matchup-section .hub-matchup-card button,
+.hub-matchup-section .hub-matchup-card a,
+.hub-matchup-section .hub-matchup-card .btn {
+  position:relative;
+  z-index:2;
+  pointer-events:auto;
+}
+.hub-matchup-section .hub-team-side-vote,
+.hub-matchup-section .hub-team-name-vote,
+.hub-matchup-section .hub-team-control-rail button,
+.hub-matchup-section .hub-game-reaction-bar button,
+.hub-matchup-section .hub-stream-sides a,
+.hub-matchup-section .hub-matchup-admin-slot .btn {
+  pointer-events:auto;
+}
+.hub-matchup-section .hub-team-side-vote:active:not(:disabled),
+.hub-matchup-section .hub-team-name-vote:active:not(:disabled),
+.hub-matchup-section .hub-team-control-rail button:active:not(:disabled),
+.hub-matchup-section .hub-game-reaction-bar button:active,
+.hub-matchup-section .hub-stream-sides a:active,
+.hub-matchup-section .hub-matchup-admin-slot .btn:active {
+  transform:translateY(2px) scale(.985);
+  filter:brightness(.98);
+}
+
 /* iOS video layers are unreliable inside clipped ancestors. The decorative
    corners live on the frame pseudo-element while the playable surface stays rectangular. */
 .hub-highlight-feature .hub-video-frame { clip-path:none; border-radius:6px; }
