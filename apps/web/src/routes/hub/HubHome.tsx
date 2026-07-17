@@ -22,14 +22,14 @@ const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" }, { key: "MVP_PLAY", label: "Most Valuable Play" },
 ];
 const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
-  { key: "GG_ENERGY", label: "Mossed!" },
-  { key: "SKILL_ISSUE", label: "Steamroller!" },
-  { key: "FAWK", label: "FAWKKKK" },
-  { key: "CLIPPED", label: "Snatched!" },
-  { key: "COOKED", label: "R.I.P." },
+  { key: "MOSSED", label: "Mossed!" },
+  { key: "STEAMROLLER", label: "Steamroller!" },
+  { key: "FAWKKKK", label: "FAWKKKK" },
+  { key: "SNATCHED", label: "Snatched!" },
+  { key: "RIP", label: "R.I.P." },
 ];
 const COMMUNITY_REACTION_KEYS: HubReactionKey[] = ["love", "like", "dislike", "poop"];
-const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = [...COMMUNITY_REACTION_KEYS, "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "COOKED", "SKILL_ISSUE", "CLIPPED", "NO_SHOT", "GG_ENERGY", "AURA", "SHEEESH", "FAWK"];
+const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = [...COMMUNITY_REACTION_KEYS, "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "MOSSED", "STEAMROLLER", "FAWKKKK", "SNATCHED", "RIP"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
 const SIDELINE_KEYS = SIDELINE_REACTIONS.map((reaction) => reaction.key);
 const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
@@ -198,7 +198,7 @@ function FinancialLedger({ summary }: { summary: any }) {
 }
 
 function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
-  return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => <article key={`${badge.badge_key}-${badge.tier}-${badge.season_number}`} title={badge.badge_description ?? ""}><Award size={18} /><div><strong>{badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")}</strong><span>{badge.tier ? `${String(badge.tier).toUpperCase()} · ` : ""}Earned {badge.earned_count ?? badge.earned_value ?? 1}×</span></div></article>)}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
+  return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => { const count = Number(badge.earned_count ?? badge.earned_value ?? 1); const tooltip = `${badge.badge_description ?? "Badge qualification met"} · Current league: ${Number(badge.league_earned_count ?? 0)} · Current season: ${Number(badge.season_earned_count ?? 0)}${badge.last_earned_week ? ` · Last earned Week ${badge.last_earned_week}` : ""}`; return <article key={badge.badge_key} className={`badge-key-${String(badge.badge_key).replaceAll("_", "-")} badge-tier-${String(badge.tier ?? "normal").replaceAll("_", "-")}`} data-tooltip={tooltip} tabIndex={0}><div><strong>{badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")} × {count}</strong></div></article>; })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
 
 function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }) {
@@ -303,10 +303,10 @@ export function HubHome() {
 
   useEffect(() => {
     const count = wagersBoard?.length ?? 0;
-    if (section !== "wagers" || count < 2) return;
+    if (section !== "league" || subTab !== "buzz" || count < 2) return;
     const timer = window.setInterval(() => setWagerBoardIndex((current) => (current + 1) % count), 6000);
     return () => window.clearInterval(timer);
-  }, [section, wagersBoard?.length]);
+  }, [section, subTab, wagersBoard?.length]);
 
   const headlineCount = hub?.headlines.length ?? 0;
   const currentWeekStoryIndexes = useMemo(() => {
@@ -823,11 +823,10 @@ export function HubHome() {
         </div>
       </aside>
     </section>
-    {!mobileNavOpen && <button className="hub-nav-toggle" aria-label="Tap to open menu" onClick={() => setMobileNavOpen(true)}><Menu size={19} /><span>Tap to Open Menu</span></button>}
+    <button className={`hub-nav-toggle${mobileNavOpen ? " open" : ""}`} aria-label={mobileNavOpen ? "Close menu" : "Open menu"} onClick={() => setMobileNavOpen((open) => !open)}><Menu size={26} /></button>
     <div className="hub-body">
       {mobileNavOpen && <div className="hub-sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />}
       <aside className={mobileNavOpen ? "hub-sidebar open" : "hub-sidebar"}>
-        <button className="hub-sidebar-close" aria-label="Close navigation" onClick={() => setMobileNavOpen(false)}><X size={18} /></button>
         <nav className="hub-sidebar-nav">
           <button className={section === "league" && subTab === "buzz" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("buzz"); }}><Newspaper size={18} /> Campus Buzz</button>
           <button className={section === "league" && subTab === "matchups" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("matchups"); }}><CalendarDays size={18} /> Matchups{hub.liveStreams?.length ? <i className="hub-live-dot" title="Live streams" /> : null}</button>
@@ -835,10 +834,8 @@ export function HubHome() {
           <button className={section === "openTeams" ? "active" : ""} onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button>
           <button className={section === "store" ? "active" : ""} onClick={() => selectSection("store")}><ShoppingBag size={18} /> Store</button>
           <button className={section === "team" ? "active" : ""} onClick={() => selectSection("team")}><UserRound size={18} /> My Team</button>
-          <button className={section === "wagers" ? "active" : ""} onClick={() => selectSection("wagers")}><Coins size={18} /> Wagers</button>
-          <button className={section === "schedules" ? "active" : ""} onClick={() => void openTeamSchedulePicker()}><CalendarDays size={18} /> Team Schedules</button>
+          {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={18} /> League Mgmt</Link>}
         </nav>
-        {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={18} /> League Mgmt</Link>}
       </aside>
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
@@ -856,7 +853,7 @@ export function HubHome() {
       <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time REC</span><strong>{profile.globalRecord?.text ?? my.globalRecordText ?? "0-0-0"}</strong><small>Playoffs {profile.globalRecord?.playoffText ?? "0-0"} · Championships {profile.globalRecord?.superbowlWins ?? 0}</small></article>{profile.gameGlobalRecord && <article><span>{profile.gameGlobalRecord.label}</span><strong>{profile.gameGlobalRecord.text}</strong><small>Playoffs {profile.gameGlobalRecord.playoffText} · Championships {profile.gameGlobalRecord.superbowlWins ?? 0}</small></article>}<article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /></div></details>
-      <details><summary><Award size={18} /> Badges &amp; Awards</summary><div className="hub-profile-panel"><BadgeShelf title="Weekly Badges" badges={profile.weeklyBadges ?? []} /><BadgeShelf title="Season Badges" badges={profile.seasonBadges ?? []} /><BadgeShelf title="Career Badges" badges={profile.globalBadges ?? []} />{profile.globalAwards?.length ? <div className="hub-badge-group"><h4>Awards</h4><div className="hub-badge-shelf">{profile.globalAwards.map((award: any) => <article key={award.awardName}><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : null}</div></details>
+      <details><summary><Award size={18} /> Badges &amp; Awards</summary><div className="hub-profile-panel"><BadgeShelf title="Badges" badges={profile.badges ?? [...(profile.weeklyBadges ?? []), ...(profile.seasonBadges ?? []), ...(profile.globalBadges ?? [])]} />{profile.globalAwards?.length ? <div className="hub-badge-group"><h4>Awards</h4><div className="hub-badge-shelf">{profile.globalAwards.map((award: any) => <article key={award.awardName}><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : null}</div></details>
       <details><summary><WalletCards size={18} /> Financial Profile</summary><div className="hub-profile-panel"><FinancialLedger summary={profile.financialSummary} /></div></details>
     </div></section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong>${Number(my.wallet ?? 0).toLocaleString()}</strong></p></div></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
@@ -986,7 +983,7 @@ export function HubHome() {
             )
           ) : <p className="hub-empty">Headlines publish here after games or from League Publishing.</p>}
         </SectionFrame>
-        <SectionFrame eyebrow="Community clips" title="Highlight Reel">
+        <SectionFrame eyebrow="Community clips" title="Highlight Reel" className="hub-highlight-section">
           {activeHighlight ? <div className="hub-highlight-carousel">
             {highlightCount > 1 && <button className="hub-highlight-arrow previous" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + highlightCount) % highlightCount)}><ChevronLeft /></button>}
             <article
@@ -1000,7 +997,8 @@ export function HubHome() {
               onPointerUp={highlightSwipe.handlers.onPointerUp}
               onPointerCancel={highlightSwipe.handlers.onPointerCancel}
             >
-              <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="metadata" onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
+              <header className="hub-highlight-chassis-heading"><span>Community Clips</span><strong>Highlight Reel</strong></header>
+              <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls muted playsInline preload="metadata" onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
               <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
               <div className="hub-highlight-reaction-deck">
                 <span className="hub-reaction-label">Community Reactions</span>
@@ -1015,6 +1013,16 @@ export function HubHome() {
                 <div className="hub-highlight-sideline-bar">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` (${activeHighlight.reactionCounts[reaction.key]})` : ""}</button>)}</div>
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Videos posted in Discord will roll in here.</p>}
+        </SectionFrame>
+
+        <SectionFrame eyebrow="Live market" title="Wager Board">
+          {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
+          <div className="hub-wager-board-feature">{wagersBoard === null ? <p className="hub-empty">Loading open wagers...</p> : wagersBoard.length ? <>
+            <button className="hub-wager-arrow" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>
+            {(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><span className="hub-wager-kicker">Open Challenge</span><strong>{wager.gameLabel}</strong><p>{displayLabel(wager.market)} · {wager.pick}</p><div><b>${wager.stake.toLocaleString()} stake</b><small>Potential payout ${wager.potentialPayout.toLocaleString()}</small></div>{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept Wager</Button>}</article>; })()}
+            <button className="hub-wager-arrow" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button>
+            <span className="hub-wager-position">{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</span>
+          </> : <div className="hub-wager-empty"><Coins size={30} /><strong>No Open Wagers</strong><p>New user challenges will appear here automatically.</p></div>}</div>
         </SectionFrame>
 
         <SectionFrame eyebrow="Official updates" title="Announcements">
@@ -1068,7 +1076,7 @@ export function HubHome() {
             <div className="hub-week-picker">
               <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
             </div>
-            {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className="hub-matchup-stack" key={game.gameId}>
+            {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${game.isGameOfWeek ? " gotw" : ""}`} key={game.gameId}>
               <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.isGameOfWeek ? " gotw" : "")}>
                 <div className="hub-matchup-card-head"><span>{game.isGameOfWeek ? "★ Game of the Week ★" : game.matchupType === "h2h" ? "★ H2H Matchup ★" : "★ Human vs CPU ★"}</span><strong>Week {game.weekNumber}</strong><small>{game.isGameOfWeek && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
                 <div className="hub-matchup-board">

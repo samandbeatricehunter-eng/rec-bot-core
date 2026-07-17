@@ -4,8 +4,65 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 
 const GOTW_CORRECT_GUESS_PAYOUT = 25;
+
+function gotwStreamingAnnouncement(draft: any, awayMention: string, homeMention: string) {
+  const requirement = draft?.gotwStreamingRequirement ?? "recommended";
+  const side = draft?.gotwStreamingSide ?? "either";
+  if (requirement === "disabled") return { text: "GOTW streaming is disabled for this league.", mentionIds: [] as string[] };
+  const verb = requirement === "required" ? "must" : "should";
+  const label = requirement === "required" ? "Required" : "Recommended";
+  if (side === "home") return { text: `${label}: ${homeMention} ${verb} stream this Game of the Week.`, mentionIds: [homeMention] };
+  if (side === "away") return { text: `${label}: ${awayMention} ${verb} stream this Game of the Week.`, mentionIds: [awayMention] };
+  if (side === "both") return { text: `${label}: ${awayMention} and ${homeMention} ${verb} both stream this Game of the Week.`, mentionIds: [awayMention, homeMention] };
+  return { text: `${label}: at least one of ${awayMention} or ${homeMention} ${verb} stream this Game of the Week.`, mentionIds: [awayMention, homeMention] };
+}
+
+async function announceGotwInExistingGameChannel(input: {
+  guildId: string;
+  leagueId: string;
+  gameId: string;
+  awayUserId?: string | null;
+  homeUserId?: string | null;
+  awayTeamName: string;
+  homeTeamName: string;
+  weekNumber: number;
+  discordChannelId?: string | null;
+}) {
+  let channelId = input.discordChannelId ?? null;
+  if (!channelId) {
+    const channel = await supabase.from("rec_game_channels").select("discord_channel_id")
+      .eq("league_id", input.leagueId).eq("game_id", input.gameId).eq("status", "active").limit(1).maybeSingle();
+    if (channel.error) throw new ApiError(500, "Failed to find the GOTW game channel.", channel.error);
+    channelId = channel.data?.discord_channel_id ?? null;
+  }
+  if (!channelId) return;
+
+  const userIds = [input.awayUserId, input.homeUserId].filter(Boolean) as string[];
+  const accounts = userIds.length
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
+    : { data: [], error: null };
+  if (accounts.error) throw new ApiError(500, "Failed to resolve GOTW streamer mentions.", accounts.error);
+  const ids = new Map((accounts.data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
+  const awayId = input.awayUserId ? ids.get(input.awayUserId) : null;
+  const homeId = input.homeUserId ? ids.get(input.homeUserId) : null;
+  const awayMention = awayId ? `<@${awayId}>` : "the away coach";
+  const homeMention = homeId ? `<@${homeId}>` : "the home coach";
+  const draft = await getLeagueConfigAsDraft(input.guildId).then((result) => (result as any)?.draft ?? null).catch(() => null);
+  const rule = gotwStreamingAnnouncement(draft, awayMention, homeMention);
+  const allowedIds = rule.mentionIds.map((mention) => mention.match(/^<@(\d+)>$/)?.[1]).filter(Boolean) as string[];
+  await postDiscordChannelMessage(channelId, {
+    embeds: [{
+      title: "GAME OF THE WEEK",
+      color: 0xd9a521,
+      description: [`**Week ${input.weekNumber}: ${input.awayTeamName} at ${input.homeTeamName}**`, "", rule.text].join("\n"),
+    }],
+    allowed_mentions: { users: allowedIds },
+  });
+}
 
 export async function createGotwPoll(input: {
   guildId: string;
@@ -24,6 +81,10 @@ export async function createGotwPoll(input: {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
   const now = new Date().toISOString();
+  const existing = await supabase.from("rec_game_of_week_polls").select("id")
+    .eq("league_id", context.leagueId).eq("season_number", seasonNumber)
+    .eq("week_number", input.weekNumber).eq("game_id", input.gameId).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to check the existing GOTW poll.", existing.error);
 
   const { data, error } = await supabase
     .from("rec_game_of_week_polls")
@@ -52,6 +113,19 @@ export async function createGotwPoll(input: {
     .select("id")
     .single();
   if (error) throw new ApiError(500, "Failed to create GOTW poll record.", error);
+  if (!existing.data) {
+    await announceGotwInExistingGameChannel({
+      guildId: input.guildId,
+      leagueId: context.leagueId,
+      gameId: input.gameId,
+      awayUserId: input.awayUserId,
+      homeUserId: input.homeUserId,
+      awayTeamName: input.awayTeamName,
+      homeTeamName: input.homeTeamName,
+      weekNumber: input.weekNumber,
+      discordChannelId: input.discordChannelId,
+    });
+  }
   return { pollId: data.id };
 }
 

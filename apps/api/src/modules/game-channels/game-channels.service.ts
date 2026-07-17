@@ -111,6 +111,20 @@ function streamingText(draft: any, isPlayoff: boolean) {
   return `${ruleLabel(requirement || "recommended")}: ${sideText}.`;
 }
 
+function gotwStreamingText(draft: any, awayMention?: string | null, homeMention?: string | null) {
+  const requirement = draft?.gotwStreamingRequirement ?? "recommended";
+  const side = draft?.gotwStreamingSide ?? "either";
+  if (requirement === "disabled") return "GOTW streaming is disabled.";
+  const verb = requirement === "required" ? "must" : "should";
+  const away = awayMention ?? "the away coach";
+  const home = homeMention ?? "the home coach";
+  const responsible = side === "home" ? `${home} ${verb} stream`
+    : side === "away" ? `${away} ${verb} stream`
+    : side === "both" ? `${away} and ${home} ${verb} both stream`
+    : `at least one of ${away} or ${home} ${verb} stream`;
+  return `${ruleLabel(requirement)}: ${responsible}.`;
+}
+
 function rankLine(teamName: string, teamId: string | null | undefined, ranks: Map<string, any>) {
   const row = teamId ? ranks.get(teamId) : null;
   if (!row) return `${teamName}: Unranked`;
@@ -125,7 +139,7 @@ async function discordIdsByUserId(userIds: string[]) {
   return new Map<string, string>((data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
 }
 
-async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string> }) {
+async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
   const awayDiscordId = input.game.awayUserId ? input.discordByUserId.get(input.game.awayUserId) : null;
   const homeDiscordId = input.game.homeUserId ? input.discordByUserId.get(input.game.homeUserId) : null;
   const mentionIds = [awayDiscordId, homeDiscordId].filter(Boolean) as string[];
@@ -133,13 +147,14 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
   const isPlayoff = input.weekNumber > 16;
   const fs = String(input.draft?.fairSimRequirements ?? "Fair Sims are the default when users do not complete a game before advance.");
   const fw = String(input.draft?.forceWinRequirements ?? "Force Wins can be requested when scheduling rules are met and one user misses the agreed time.");
+  const gotwRule = input.isGotw ? gotwStreamingText(input.draft, awayDiscordId ? `<@${awayDiscordId}>` : null, homeDiscordId ? `<@${homeDiscordId}>` : null) : null;
   await postDiscordChannelMessage(input.channelId, {
     content: mentions.join(" "),
     embeds: [{
       title: `${input.game.awayTeamName} at ${input.game.homeTeamName}`,
       color: 0xd9a521,
       description: [
-        `**Week ${input.weekNumber} H2H**`,
+        `**Week ${input.weekNumber} H2H${input.isGotw ? " · GAME OF THE WEEK" : ""}**`,
         mentions.length ? `${mentions.join(" vs ")}, this is your head-to-head game channel.` : "This is the head-to-head game channel for this matchup.",
         "",
         "**Power Rankings**",
@@ -149,6 +164,7 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
         "**Game Rules**",
         `4th Down: ${fourthDownText(input.draft, isPlayoff)}`,
         `Streaming: ${streamingText(input.draft, isPlayoff)}`,
+        ...(gotwRule ? [`GOTW Streaming: ${gotwRule}`] : []),
         "",
         "**FS / FW**",
         `Fair Sim: ${fs}`,
@@ -185,6 +201,10 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
     computePowerRankings(guildId).catch(() => ({ teams: [] })),
     discordIdsByUserId([...new Set(h2hGames.flatMap((game) => [game.awayUserId, game.homeUserId]).filter(Boolean))] as string[]),
   ]);
+  const gotwPolls = await supabase.from("rec_game_of_week_polls").select("game_id").eq("league_id", context.leagueId)
+    .eq("season_number", week.seasonNumber).eq("week_number", week.currentWeek).in("status", ["open", "closed"]);
+  if (gotwPolls.error) throw new ApiError(500, "Failed to load GOTW for game-channel publishing.", gotwPolls.error);
+  const gotwGameIds = new Set((gotwPolls.data ?? []).map((poll: any) => poll.game_id).filter(Boolean));
   const ranks = new Map<string, any>(((powerRankings as any)?.teams ?? []).map((team: any) => [String(team.teamId), team]));
 
   const created: Array<{ gameId: string; discordChannelId: string; name: string }> = [];
@@ -202,7 +222,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
       awayUserId: game.awayUserId,
       homeUserId: game.homeUserId,
     });
-    await postGameChannelIntro({ channelId: channel.id, weekNumber: week.currentWeek, game, draft, ranks, discordByUserId: discordByUser });
+    await postGameChannelIntro({ channelId: channel.id, weekNumber: week.currentWeek, game, draft, ranks, discordByUserId: discordByUser, isGotw: gotwGameIds.has(game.gameId) });
     created.push({ gameId: game.gameId, discordChannelId: channel.id, name: channel.name });
   }
 

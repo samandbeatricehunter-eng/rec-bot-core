@@ -1,6 +1,8 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
+import { closeWageringForGame } from "../wagers/wagers.service.js";
 
 const STREAM_PAYOUT_AMOUNT = 50;
 
@@ -46,6 +48,23 @@ async function getActiveAssignment(leagueId: string, userId: string) {
 
   if (assignment.error) throw new ApiError(500, "Failed to load active team assignment.", assignment.error);
   return assignment.data;
+}
+
+async function closeGameMarketsAfterStream(input: { guildId: string; leagueId: string; seasonNumber: number; weekNumber: number; teamId: string | null }) {
+  if (!input.teamId) return null;
+  const seasonId = await resolveSeasonId(input.leagueId, input.seasonNumber);
+  const game = await supabase.from("rec_games").select("id")
+    .eq("league_id", input.leagueId).eq("season_id", seasonId).eq("week_number", input.weekNumber)
+    .or(`home_team_id.eq.${input.teamId},away_team_id.eq.${input.teamId}`).maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to locate streamed matchup.", game.error);
+  if (!game.data?.id) return null;
+  await Promise.all([
+    closeWageringForGame({ guildId: input.guildId, gameId: game.data.id }),
+    supabase.from("rec_game_of_week_polls")
+      .update({ status: "closed", closed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("league_id", input.leagueId).eq("game_id", game.data.id).eq("status", "open"),
+  ]);
+  return game.data.id;
 }
 
 export async function recordStreamPost(input: RecordStreamPostInput) {
@@ -106,12 +125,20 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
 
   if (streamLog.error) throw new ApiError(500, "Failed to record stream post.", streamLog.error);
 
+  const lockedGameId = await closeGameMarketsAfterStream({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber,
+    teamId: assignment?.team_id ?? null,
+  });
+
   if ((alreadyPending.data ?? []).length > 0) {
-    return { recorded: true, alreadyPending: true, streamLog: streamLog.data };
+    return { recorded: true, alreadyPending: true, lockedGameId, streamLog: streamLog.data };
   }
 
   if ((alreadyPaidThisWeek.data ?? []).length > 0) {
-    return { recorded: true, alreadyPaid: true, streamLog: streamLog.data };
+    return { recorded: true, alreadyPaid: true, lockedGameId, streamLog: streamLog.data };
   }
 
   // Every stream (link or Discord Live) is eligible for one payout per week.
@@ -134,7 +161,7 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
 
   if (review.error) {
     if (review.error.code === "23505") {
-      return { recorded: true, alreadyPaid: true, streamLog: streamLog.data };
+      return { recorded: true, alreadyPaid: true, lockedGameId, streamLog: streamLog.data };
     }
     throw new ApiError(500, "Failed to create stream payout review.", review.error);
   }
@@ -163,6 +190,7 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     needsReview: true,
     review: review.data,
     streamLog: streamLog.data,
+    lockedGameId,
     watchPath: `/v1/hub/streams/open/${streamLog.data.id}`,
     pendingPayoutsChannelId: (context.routes as any)?.pending_payouts_channel_id ?? null,
     commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,

@@ -4,10 +4,14 @@
 .card {
   position: relative;
   min-width: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  background:
+    var(--playbook-overlay) right -100px top -70px / 330px 240px no-repeat,
+    repeating-linear-gradient(115deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px),
+    radial-gradient(circle at 50% 0,rgba(94,67,8,.15),transparent 38%),
+    linear-gradient(145deg,#171815,#050606 68%,#111008);
+  border:1px solid #8d6410;
+  border-radius:4px;
+  box-shadow:inset 0 0 0 3px #080909,inset 0 0 0 4px rgba(242,188,50,.35),inset 0 0 32px #000,0 18px 40px rgba(0,0,0,.5);
   padding: var(--space-5);
   overflow: hidden;
 }
@@ -15,8 +19,8 @@
   content: "";
   position: absolute;
   inset: 0 0 auto 0;
-  height: 2px;
-  background: var(--edge-steel);
+  height:3px;
+  background:linear-gradient(90deg,#2b2109,#f5bd2d 16%,#fff1a0 50%,#f5bd2d 84%,#2b2109);
   opacity: 0.9;
 }
 .card::after {
@@ -85,10 +89,10 @@
   z-index: 2000;
 }
 .modal-panel {
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  background:repeating-linear-gradient(115deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px),linear-gradient(145deg,#171815,#050606 72%);
+  border:1px solid #ad7910;
+  border-radius:4px;
+  box-shadow:inset 0 0 0 3px #090a09,inset 0 0 0 4px rgba(247,194,56,.38),inset 0 0 35px #000,0 20px 60px rgba(0,0,0,.78),0 0 24px rgba(217,165,33,.15);
   padding: var(--space-5);
   max-width: 480px;
   width: 100%;
@@ -127,9 +131,10 @@
 .form-input,
 .form-select {
   width: 100%;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  background:linear-gradient(180deg,#171817,#070808);
+  border:1px solid #6c4b09;
+  border-radius:3px;
+  box-shadow:inset 0 2px 8px #000,inset 0 0 0 1px rgba(255,216,91,.08);
   padding: var(--space-2) var(--space-3);
   color: var(--text-primary);
   font-size: var(--text-sm);

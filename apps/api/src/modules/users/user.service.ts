@@ -9,7 +9,7 @@ import { computeLeagueSos } from "../schedule/sos.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { rebuildOfficialGlobalRecords } from "../official-records/official-records.service.js";
 import { recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
-import { CAREER_BADGES, GAME_BADGES, ladderLabelForTier, SEASON_BADGES, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
+import { CAREER_BADGES, GAME_BADGES, ladderLabelForTier, SEASON_BADGES, tierForOccurrenceCount, type BadgeDef } from "../box-score-intelligence/badge-rules.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -164,6 +164,40 @@ function mapOwnedBadge(row: any) {
     league_id: row.league_id ?? null,
     season_number: row.season ?? null,
   };
+}
+
+function aggregateOwnedBadges(rows: any[], currentLeagueId: string | null, currentSeason: number) {
+  const byKey = new Map<string, any>();
+  for (const source of rows) {
+    const row = mapOwnedBadge(source);
+    const key = String(row.badge_key ?? row.badge_name);
+    const count = Number(row.earned_count ?? row.earned_value ?? 1);
+    const current = byKey.get(key);
+    if (!current) {
+      byKey.set(key, {
+        ...row,
+        earned_count: count,
+        earned_value: count,
+        league_earned_count: row.league_id === currentLeagueId ? count : 0,
+        season_earned_count: row.league_id === currentLeagueId && Number(row.season) === currentSeason ? count : 0,
+        scopes: [row.badge_scope],
+      });
+      continue;
+    }
+    current.earned_count += count;
+    current.earned_value = current.earned_count;
+    if (row.league_id === currentLeagueId) current.league_earned_count += count;
+    if (row.league_id === currentLeagueId && Number(row.season) === currentSeason) current.season_earned_count += count;
+    if (!current.scopes.includes(row.badge_scope)) current.scopes.push(row.badge_scope);
+    if ((TIER_WEIGHT[row.tier] ?? 0) > (TIER_WEIGHT[current.tier] ?? 0)) current.tier = row.tier;
+    if (Number(row.last_earned_week ?? 0) > Number(current.last_earned_week ?? 0)) current.last_earned_week = row.last_earned_week;
+  }
+  return [...byKey.values()].map((badge) => ({
+    ...badge,
+    tier: badge.scopes.includes("game")
+      ? tierForOccurrenceCount(badge.earned_count, badge.polarity === "negative" ? "negative" : "positive")
+      : badge.tier,
+  })).sort((a, b) => String(a.badge_label).localeCompare(String(b.badge_label)));
 }
 
 export async function getUserBaselineByDiscordId(discordId: string) {
@@ -655,6 +689,9 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const leagueInfo = leagueInfoResult.data;
   const seasonNumber = leagueInfo?.season_number ?? leagueInfo?.display_season_number ?? 1;
   const leagueGame = String(leagueInfo?.game ?? "madden_26");
+  const sameGameLeagues = await supabase.from("rec_leagues").select("id").eq("game", leagueGame);
+  if (sameGameLeagues.error) throw new ApiError(500, "Failed to load same-game badge leagues.", sameGameLeagues.error);
+  const sameGameLeagueIds = (sameGameLeagues.data ?? []).map((row: any) => row.id).filter(Boolean);
 
   const [
     seasonRecord,
@@ -683,8 +720,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       ? supabase
           .from("rec_badge_ownership")
           .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
-          .eq("league_id", leagueId)
-          .eq("season", seasonNumber)
+          .in("league_id", sameGameLeagueIds.length ? sameGameLeagueIds : [leagueId])
           .eq("user_id", userId)
           .in("badge_scope", ["game", "season"])
           .order("updated_at", { ascending: false })
@@ -693,10 +729,9 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       ? supabase
         .from("rec_badge_ownership")
         .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
-        .eq("league_id", leagueId)
+        .in("league_id", sameGameLeagueIds.length ? sameGameLeagueIds : [leagueId])
         .eq("user_id", userId)
         .eq("badge_scope", "career")
-        .is("season", null)
         .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
@@ -809,6 +844,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
     seasonStats,
     careerStats,
+    badges: aggregateOwnedBadges([...((seasonBadges as any)?.data ?? []), ...((globalBadges as any)?.data ?? [])], leagueId, Number(seasonNumber)),
     seasonBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "season").map(mapOwnedBadge),
     weeklyBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "game").map(mapOwnedBadge),
     globalBadges: ((globalBadges as any)?.data ?? []).map(mapOwnedBadge),
