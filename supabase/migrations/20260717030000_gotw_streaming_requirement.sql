@@ -15,7 +15,7 @@ alter table public.rec_league_configuration
 update public.rec_league_configuration c
 set gotw_streaming_requirement = 'required', gotw_streaming_side = 'home'
 from public.rec_leagues l
-where l.id = c.league_id and l.game = 'cfb_27' and l.status = 'active';
+where l.id = c.league_id and l.game = 'cfb_27';
 
 comment on column public.rec_league_configuration.gotw_streaming_requirement is
   'Whether streaming is required, recommended, or disabled specifically for Game of the Week.';
