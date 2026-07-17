@@ -1007,7 +1007,11 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   for (const result of results.data ?? []) {
     if (result.home_team_id && result.away_team_id) resultByTeams.set(`${result.home_team_id}:${result.away_team_id}`, result);
   }
-  const gotwGame = poll ? (games.data ?? []).find((game: any) => game.id === poll.game_id) : null;
+  const isPollGame = (game: any) => Boolean(poll && (
+    poll.game_id === game.id ||
+    (poll.home_team_id === game.home_team?.id && poll.away_team_id === game.away_team?.id)
+  ));
+  const gotwGame = poll ? (games.data ?? []).find(isPollGame) : null;
   const gotwResult = poll ? resultByTeams.get(`${poll.home_team_id}:${poll.away_team_id}`) ?? null : null;
   const gotwBoxScore = poll?.game_id
     ? await supabase.from("rec_box_score_submissions").select("id,status").eq("game_id", poll.game_id).in("status", ["pending", "approved"]).limit(1).maybeSingle()
@@ -1076,7 +1080,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         matchupType: game.home_user_id && game.away_user_id ? "h2h" : game.home_user_id || game.away_user_id ? "human_cpu" : "cpu",
         involvesMe: game.home_user_id === userId || game.away_user_id === userId,
         viewerSide: game.home_user_id === userId ? "home" : game.away_user_id === userId ? "away" : null,
-        isGameOfWeek: poll?.game_id === game.id,
+        // Older GOTW rows can point at a superseded rec_games id after a schedule
+        // refresh. Team identity is the durable fallback so the featured card is
+        // never silently omitted from the weekly slate.
+        isGameOfWeek: isPollGame(game),
         homeTeamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
         awayTeamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away",
         homeConference: game.home_team?.conference ?? null,
