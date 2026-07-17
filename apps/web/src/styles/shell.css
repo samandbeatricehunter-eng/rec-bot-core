@@ -9,13 +9,23 @@
   overflow-x: clip;
   background-image:
     linear-gradient(180deg,rgba(5,6,4,.08) 0%,rgba(7,8,6,.36) 48%,rgba(3,4,3,.9) 100%),
-    radial-gradient(circle at 50% 12%,rgba(190,135,20,.07),transparent 38%),
-    url("/assets/backgrounds/rec-mobile-stadium.png");
-  background-size:cover,cover,cover;
+    radial-gradient(circle at 50% 12%,rgba(190,135,20,.07),transparent 38%);
+  background-size:cover,cover;
   background-position:center top,center top,center top;
   background-repeat:no-repeat;
-  background-attachment:fixed;
+  background-attachment:scroll;
   background-color:#070806;
+}
+.app-backdrop--hub {
+  background-image:
+    linear-gradient(180deg,rgba(4,10,5,.2) 0%,rgba(4,10,5,.46) 48%,rgba(2,5,3,.88) 100%),
+    radial-gradient(circle at 50% 10%,rgba(190,135,20,.06),transparent 38%),
+    url("/assets/hub/field-background.png");
+  background-size: cover, cover, cover;
+  background-position: center top, center top, center top;
+  background-repeat: no-repeat;
+  background-attachment: scroll;
+  background-color: #071008;
 }
 .app-backdrop::before,
 .app-backdrop::after {
@@ -38,7 +48,7 @@
 }
 
 @media (min-width:900px) {
-  .app-backdrop { background-size:cover,cover,auto 100vh; background-color:#050604; }
+  .app-backdrop { background-size:cover,cover; background-color:#050604; }
 }
 
 /* Header bar (AppShell) — sits directly on the hero photo, so it gets its own solid scrim

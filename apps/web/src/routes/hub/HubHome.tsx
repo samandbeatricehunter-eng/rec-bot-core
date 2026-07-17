@@ -918,8 +918,8 @@ export function HubHome() {
         if (state) return state;
         const schedule = matchupSchedule;
         if (!schedule) return null;
-        return schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (
-          <article key={game.gameId} className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + ((game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : "")}>
+        return schedule.games.length ? <div className="hub-matchup-summary-list">{schedule.games.map((game) => (
+          <article key={game.gameId} className="hub-matchup-summary">
             <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
             <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}</div>
           </article>
@@ -1078,7 +1078,7 @@ export function HubHome() {
             </div>
             {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : ""}`} key={game.gameId}>
               <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + ((game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : "")}>
-                <div className="hub-matchup-card-head"><span>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? "? Game of the Week ?" : game.matchupType === "h2h" ? "? H2H Matchup ?" : "? Human vs CPU ?"}</span><strong>Week {game.weekNumber}</strong><small>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
+                <div className="hub-matchup-card-head"><span>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? "" : game.matchupType === "h2h" ? "" : "Human vs CPU"}</span><strong>Week {game.weekNumber}</strong><small>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
                 <div className="hub-matchup-board">
                   {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>Away</span><b style={{ fontSize: matchupWordmarkSize(game.awayTeamName) }}>{game.awayTeamName}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>Away</span><div className="hub-team-wordmark" style={{ fontSize: matchupWordmarkSize(game.awayTeamName) }}>{game.awayTeamName}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
                   <div className="hub-score-center"><span>{game.isFinal ? "Final" : "Versus"}</span><strong>{game.isFinal && game.awayScore != null && game.homeScore != null ? `${game.awayScore}–${game.homeScore}` : "VS"}</strong></div>

@@ -48,8 +48,6 @@
   .hub-reactions, .hub-social-actions { justify-content: center; }
   .hub-story-grid, .publishing-grid, .manual-stat-sides, .manual-stat-grid { grid-template-columns: minmax(0, 1fr); }
   .hub-story-carousel { padding-inline: 0; }
-  .hub-matchups article { flex-direction: column; text-align: center; }
-  .hub-matchups article > div { justify-content: center; }
   .card {
     padding: var(--space-4);
     overflow-wrap: anywhere;
@@ -150,8 +148,6 @@
   .hub-profile-panel, .hub-profile-sections summary { text-align: center; }
   .hub-profile-sections summary, .box-score-review__actions { justify-content: center; }
   .box-score-review__stat-head, .box-score-review__stat-row { grid-template-columns: minmax(110px, 1.2fr) repeat(2, minmax(68px, 1fr)); }
-  .hub-matchups article { align-items: stretch; flex-direction: column; text-align: left; }
-  .hub-matchups article > div { justify-content: flex-start; }
   .hub-live-streams span { grid-template-columns: minmax(0, 1fr) auto; }
   .hub-live-streams span button { justify-content: center; }
 }

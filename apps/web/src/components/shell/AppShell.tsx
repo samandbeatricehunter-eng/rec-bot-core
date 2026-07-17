@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <LeagueThemeProvider game={headerSummary?.league.game ?? null}>
-    <div className="app-backdrop">
+    <div className={`app-backdrop${isHome ? " app-backdrop--hub" : ""}`}>
       <div className="app-shell-container">
         <header
           className="app-header-bar"

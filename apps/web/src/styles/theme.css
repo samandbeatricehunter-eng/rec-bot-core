@@ -85,12 +85,11 @@ body {
   min-height: 100%;
   background-image:
     linear-gradient(180deg, rgba(15, 15, 15, 0.62) 0%, rgba(15, 15, 15, 0.9) 38%, var(--bg) 72%),
-    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 215, 0, 0.1), transparent 55%),
-    url("../assets/hero-bg.png");
-  background-size: cover, cover, cover;
-  background-position: center top, center top, center 25%;
-  background-repeat: no-repeat, no-repeat, no-repeat;
-  background-attachment: fixed, fixed, fixed;
+    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(255, 215, 0, 0.1), transparent 55%);
+  background-size: cover, cover;
+  background-position: center top, center top;
+  background-repeat: no-repeat, no-repeat;
+  background-attachment: scroll, scroll;
 }
 
 a {
