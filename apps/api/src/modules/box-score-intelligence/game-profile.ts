@@ -49,6 +49,19 @@ const num = (v: unknown): number => {
 };
 
 const jsonNum = (j: Record<string, string | number> | null, key: string): number => num(j?.[key]);
+
+// num()'s digit-stripping regex drops the decimal point, so "8.6" becomes 86 — fine for
+// integer counting stats, but silently mangles the per-play/rush/pass averages (which are
+// then range-checked by sane(0, 25, ...) and get quarantined for looking like garbage).
+const jsonFloat = (j: Record<string, string | number> | null, key: string): number => {
+  const v = j?.[key];
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  if (typeof v === "string") {
+    const n = parseFloat(v.replace(/[^0-9.-]/g, ""));
+    return Number.isNaN(n) ? 0 : n;
+  }
+  return 0;
+};
 const jsonRaw = (j: Record<string, string | number> | null, key: string): string | null => (j?.[key] != null ? String(j[key]) : null);
 
 /** "16:22" -> 982 seconds. The generic num() strips the colon and would misparse this as 1622. */
@@ -113,9 +126,9 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
   const passCompletions = cfb ? jsonNum(row.offensive_stats, "pass_completions") : null;
   const passAttempts = cfb ? jsonNum(row.offensive_stats, "pass_attempts") : null;
   if (cfb && passCompletions != null && passAttempts != null && passCompletions > passAttempts) flags.bad = true;
-  const yardsPerPlay = cfb ? sane(jsonNum(row.offensive_stats, "yards_per_play") || null, 0, 25, flags) : null;
-  const yardsPerRush = cfb ? sane(jsonNum(row.offensive_stats, "yards_per_rush") || null, 0, 25, flags) : null;
-  const yardsPerPass = cfb ? sane(jsonNum(row.offensive_stats, "yards_per_pass") || null, 0, 25, flags) : null;
+  const yardsPerPlay = cfb ? sane(jsonFloat(row.offensive_stats, "yards_per_play") || null, 0, 25, flags) : null;
+  const yardsPerRush = cfb ? sane(jsonFloat(row.offensive_stats, "yards_per_rush") || null, 0, 25, flags) : null;
+  const yardsPerPass = cfb ? sane(jsonFloat(row.offensive_stats, "yards_per_pass") || null, 0, 25, flags) : null;
   const interceptionsThrown = cfb ? sane(jsonNum(row.offensive_stats, "interceptions_thrown") || null, 0, 10, flags) : null;
   const fumblesLost = cfb ? sane(jsonNum(row.offensive_stats, "fumbles_lost") || null, 0, 10, flags) : null;
 
@@ -180,7 +193,7 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
     redZoneTDs: cfb ? jsonNum(row.offensive_stats, "red_zone_tds") || null : null,
     redZoneFGs: cfb ? jsonNum(row.offensive_stats, "red_zone_fgs") || null : null,
     punts: cfb ? jsonNum(row.offensive_stats, "punts") || null : null,
-    puntAvgYards: cfb ? jsonNum(row.offensive_stats, "punt_avg_yards") || null : null,
+    puntAvgYards: cfb ? jsonFloat(row.offensive_stats, "punt_avg_yards") || null : null,
     penalties: cfb ? jsonNum(row.offensive_stats, "penalties") || null : null,
     penaltyYards: cfb ? jsonNum(row.offensive_stats, "penalty_yards") || null : null,
     timeOfPossessionSeconds: cfb ? jsonClockSeconds(row.offensive_stats, "time_of_possession") : null,
