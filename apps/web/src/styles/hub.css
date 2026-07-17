@@ -570,10 +570,11 @@
 .hub-profile-stat-list span { color: var(--text-muted); font-size: var(--text-xs); }
 .hub-badge-group + .hub-badge-group { margin-top: var(--space-4); }
 .hub-badge-group h4 { margin: 0 0 var(--space-2); }
-.hub-badge-shelf { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: var(--space-2); }
-.hub-badge-shelf article { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); border: 1px solid rgba(255,215,0,.24); border-radius: var(--radius-sm); background: rgba(255,215,0,.035); }
-.hub-badge-shelf article svg { flex: 0 0 auto; color: var(--gold); }
-.hub-badge-shelf article span { display: block; color: var(--text-muted); font-size: var(--text-xs); }
+/* Pre-redesign flat badge-row styling used to live here (grid-template-columns, a plain
+   background, plus svg/span rules for a markup shape BadgeShelf no longer renders). Same
+   specificity as the rendered-art rules above but later in the file, so it was silently
+   winning for every "normal" tier badge (the one tier without its own more-specific
+   .badge-tier-* override) and replacing matchup-chassis-style PNG art with a flat box. */
 .hub-financial-ledger h4 { margin: var(--space-4) 0 var(--space-2); }
 .hub-ledger-summary { margin-bottom: var(--space-3); }
 .hub-ledger-positive { color: var(--success); }
@@ -757,7 +758,12 @@
 
 .hub-week-select { display: grid; grid-template-columns: auto minmax(180px, 260px); justify-content: end; align-items: center; gap: var(--space-2); }
 .hub-week-select span { color: var(--gold); font-size: var(--text-xs); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-.hub-matchup-schedule { display: grid; gap: var(--space-3); }
+/* Without an explicit column track, a single-column grid sizes its column to fit
+   content's max-content width — a long unwrapped team name (e.g. "MISSISSIPPI STATE" at
+   the wordmark's ~50px font) blew this column out past the viewport, and every
+   width:100% descendant (including the aspect-ratio-locked card) inflated right along
+   with it. minmax(0, 1fr) pins the column to the container's actual width instead. */
+.hub-matchup-schedule { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 .hub-matchup-schedule .hub-matchup-card { display: grid; gap: var(--space-3); padding: var(--space-4); }
 .hub-matchup-card-head { display: flex !important; flex-direction: row !important; justify-content: space-between; align-items: center !important; gap: var(--space-2) !important; }
 .hub-matchup-card-head span { color: var(--gold); font-size: var(--text-xs); font-weight: 950; letter-spacing: .08em; text-transform: uppercase; }
@@ -887,10 +893,20 @@
    expressed here as fractions of the space left after the top/bottom padding below,
    which matches the art's own blank top margin (y0-40) and its lower decorative band
    (y1090-1536, left for the absolutely-positioned stream/vote overlays instead of a
-   grid row so it doesn't stretch live content into empty art). */
+   grid row so it doesn't stretch live content into empty art). Padding percentages
+   always resolve against the box's *width* (CSS spec, all four sides) — on this 2:3
+   card, height = 1.5x width, so the top/bottom values below are the height-fractions
+   above scaled by 1.5x to land where they're actually meant to; left/right were already
+   measured as width-fractions and need no scaling. */
 .hub-matchup-schedule .hub-matchup-card {
   grid-template-rows:22.8% 59.6% 17.6% !important;
-  padding:2.6% 6.2% 29% !important;
+  padding:3.9% 6.2% 43.5% !important;
+  /* Grid items default to min-width/min-height:auto, i.e. "never shrink below your
+     content's min-content." Combined with aspect-ratio, that let a long team name (e.g.
+     "MISSISSIPPI STATE") force the whole card — width and height together — to balloon
+     to ~2400px trying to fit itself, instead of wrapping/shrinking within the card. */
+  min-width:0 !important;
+  min-height:0 !important;
 }
 .hub-matchup-card-head { align-self:center; width:58% !important; min-height:0 !important; margin:0 !important; }
 .hub-matchup-card.gotw .hub-matchup-card-head {
@@ -941,7 +957,7 @@
 
 @media (max-width:700px) {
   .hub-nav-toggle { min-width:62px !important; max-width:62px !important; width:62px !important; min-height:62px !important; max-height:62px !important; height:62px !important; }
-  .hub-matchup-schedule .hub-matchup-card { padding:2.6% 6.2% 29% !important; }
+  .hub-matchup-schedule .hub-matchup-card { padding:3.9% 6.2% 43.5% !important; }
   .hub-matchup-board { grid-template-columns:minmax(0,1fr) 15% minmax(0,1fr) !important; }
   .hub-matchup-board .hub-team-side { padding:8% 5% 3% !important; }
   .hub-matchup-board .hub-team-side > span { padding:3px 10px !important; font-size:8px !important; }
