@@ -484,6 +484,37 @@
 .hub-badge-shelf .badge-key-national-champion { background-image:url("/assets/badges/reigning-national-champ.png"); color:#231500; }
 .hub-badge-shelf .badge-key-bowl-winner { background-image:url("/assets/badges/bowl-winner.png"); color:#231500; }
 
+/* Baked badge textures are all rendered to the same transparent 960x250 canvas.
+   Keep the shelf geometry uniform so no source art can stretch a single badge or
+   leave a rectangular matte behind it.  The inline image supplied by BadgeShelf
+   intentionally wins over the legacy key/tier rules above. */
+.hub-badge-shelf {
+  grid-template-columns:repeat(auto-fit,minmax(190px,220px));
+  gap:16px;
+  align-items:center;
+}
+.hub-badge-shelf article:not(.hub-badge-award) {
+  width:100%;
+  aspect-ratio:960 / 250;
+  min-height:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background-color:transparent !important;
+  background-position:center;
+  background-repeat:no-repeat;
+  background-size:100% 100%;
+  box-shadow:none;
+  overflow:visible;
+}
+.hub-badge-shelf article:not(.hub-badge-award) > div,
+.hub-badge-shelf article:not(.hub-badge-award) strong { display:none !important; }
+
+@media (max-width:700px) {
+  .hub-badge-shelf { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .hub-badge-shelf article:not(.hub-badge-award) { width:100%; }
+}
+
 /* Global card/panel headings center by default; matchup geometry is purpose-built. */
 .card > h1,.card > h2,.card > h3,.card > h4,.card > h5,.card > h6,
 .fp-panel .section-frame-heading,.fp-panel .section-frame-title,.fp-panel .broadcast-label,

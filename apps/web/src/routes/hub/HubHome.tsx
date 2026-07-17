@@ -86,6 +86,29 @@ function displayLabel(key: string) {
   return key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const BAKED_BADGE_KEYS = new Set([
+  "prolific_passer", "prolific_rusher", "balanced_season", "fourth_down_menace", "dawgin_em", "two_point_identity", "clock_bleeder",
+  "perfect_regular_season", "winning_season", "return_threat", "veteran_coach", "fourth_down_legend", "red_zone_legend", "ground_and_pound_veteran",
+  "air_raid_veteran", "playoff_winner", "dynasty_builder", "super_bowl_champion", "conf_champion", "div_champion", "national_champion", "bowl_winner",
+]);
+const BAKED_LADDER_KEYS = new Set(["wins_milestone", "games_milestone", "air_milestone", "ground_milestone", "earner", "spender", "saver", "attribute_purchase", "dev_upgrade_purchase"]);
+const BAKED_NEGATIVE_KEYS = new Set([
+  "turnover_trouble", "heartbreaker", "offensive_stall", "ground_game_missing", "chain_stalled", "third_down_drought_m", "red_zone_woes", "defensive_collapse",
+  "yardage_flood", "blowout_victim_m", "pick_parade", "butterfingers", "completion_crisis", "failed_attempts", "third_down_drought", "fourth_down_futility",
+  "ground_game_grounded", "passing_in_mud", "inefficient_attack", "flag_factory", "punt_party", "red_zone_waste", "touchdown_drought", "wasted_volume", "blowout_victim",
+]);
+
+function badgeSlug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function bakedBadgeAsset(key: string, label: string, tier: string) {
+  if (BAKED_BADGE_KEYS.has(key)) return `/assets/badges/baked/${badgeSlug(key)}.png`;
+  if (BAKED_LADDER_KEYS.has(key)) return `/assets/badges/baked/label-${badgeSlug(label)}-${tier === "gold" || tier === "silver" ? tier : "bronze"}.png`;
+  if (BAKED_NEGATIVE_KEYS.has(key)) return `/assets/badges/baked/label-${badgeSlug(label)}-negative.png`;
+  return `/assets/badges/baked/label-${badgeSlug(label)}-positive.png`;
+}
+
 function matchupWordmarkSize(name: string) {
   const length = name.replace(/\s+/g, "").length;
   return `clamp(${length > 16 ? 11 : length > 12 ? 13 : length > 9 ? 15 : 17}px, ${length > 16 ? 3.1 : length > 12 ? 3.8 : length > 9 ? 4.6 : 5.8}vw, ${length > 16 ? 28 : length > 12 ? 34 : length > 9 ? 42 : 56}px)`;
@@ -197,8 +220,21 @@ function FinancialLedger({ summary }: { summary: any }) {
   </div>;
 }
 
-function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
+function LegacyBadgeShelf({ title, badges }: { title: string; badges: any[] }) {
   return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => { const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0); const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`]; if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`); const tooltip = tooltipParts.join(" · "); return <article key={badge.badge_key} className={`badge-key-${String(badge.badge_key).replaceAll("_", "-")} badge-tier-${String(badge.tier ?? "normal").replaceAll("_", "-")}`} data-tooltip={tooltip} aria-label={badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")} tabIndex={0} />; })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
+}
+
+function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
+  return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => {
+    const key = String(badge.badge_key ?? "badge");
+    const label = String(badge.badge_label ?? displayLabel(key));
+    const tier = String(badge.tier ?? "normal").replaceAll("_", "-");
+    const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0);
+    const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`];
+    if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`);
+    const tooltip = tooltipParts.join(" Â· ");
+    return <article key={`${key}-${tier}`} className={`badge-key-${key.replaceAll("_", "-")} badge-tier-${tier}`} style={{ backgroundImage: `url("${bakedBadgeAsset(key, label, tier)}")` }} data-badge-label={label} data-tooltip={tooltip} aria-label={label} tabIndex={0} />;
+  })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
 
 function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }) {
