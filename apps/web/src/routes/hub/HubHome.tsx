@@ -1046,7 +1046,7 @@ export function HubHome() {
                   <button aria-label="Hate" className={activeHighlight.myReactions.includes("poop") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "poop")}><span className="hub-highlight-poop">💩</span><b>Hate</b><small>{activeHighlight.reactionCounts.poop || ""}</small></button>
                 </div>
                 <span className="hub-reaction-label sideline">Sideline Reactions</span>
-                <div className="hub-highlight-sideline-bar">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` (${activeHighlight.reactionCounts[reaction.key]})` : ""}</button>)}</div>
+                <div className="hub-highlight-sideline-bar">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} aria-label={reaction.label} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}><small>{activeHighlight.reactionCounts[reaction.key] || ""}</small></button>)}</div>
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Videos posted in Discord will roll in here.</p>}
         </SectionFrame>
