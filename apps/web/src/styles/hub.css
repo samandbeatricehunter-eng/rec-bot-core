@@ -1854,3 +1854,83 @@
   box-shadow:inset 0 9px 17px rgba(0,0,0,.78) !important;
 }
 
+/* GOTW reaction rail: trace the five rendered wells instead of allowing the
+   generic reaction-button boxes to size themselves from their contents. */
+.hub-matchup-card.gotw > .hub-game-reaction-bar {
+  left:3.8% !important;
+  right:4.8% !important;
+  width:auto !important;
+  min-width:0 !important;
+  max-width:none !important;
+  padding:2.4% 2.2% !important;
+  display:grid !important;
+  grid-template-columns:1fr 1fr 1.38fr 1fr 1fr !important;
+  gap:1.15% !important;
+  align-items:stretch !important;
+  contain:layout paint;
+  overflow:hidden !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button {
+  position:relative !important;
+  width:100% !important;
+  min-width:0 !important;
+  max-width:100% !important;
+  height:100% !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  outline:0 !important;
+  clip-path:polygon(10% 0,90% 0,100% 11%,100% 89%,90% 100%,10% 100%,0 89%,0 11%) !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  filter:none !important;
+  overflow:hidden !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:first-child {
+  clip-path:polygon(13% 0,100% 0,100% 100%,13% 100%,0 83%,0 17%) !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:last-child {
+  clip-path:polygon(0 0,87% 0,100% 17%,100% 83%,87% 100%,0 100%) !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button.goty {
+  clip-path:polygon(13% 0,87% 0,100% 15%,100% 85%,87% 100%,13% 100%,0 85%,0 15%) !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button.active {
+  background:rgba(255,209,66,.105) !important;
+  filter:drop-shadow(0 0 2px #fff0a0) drop-shadow(0 0 6px rgba(255,211,74,.78)) !important;
+  box-shadow:inset 0 0 15px rgba(217,165,33,.18) !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:active {
+  transform:translateY(2px) scale(.975) !important;
+  filter:brightness(.78) !important;
+  box-shadow:inset 0 8px 15px rgba(0,0,0,.8) !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button > span {
+  position:absolute !important;
+  z-index:2;
+  top:2.5% !important;
+  right:2.5% !important;
+  width:clamp(13px,3.1vw,23px) !important;
+  min-width:0 !important;
+  max-width:20% !important;
+  height:auto !important;
+  aspect-ratio:1 !important;
+  padding:0 !important;
+  display:grid !important;
+  place-items:center !important;
+  border:1px solid #ffe071 !important;
+  border-radius:50% !important;
+  background:#090909 !important;
+  color:#ffe176 !important;
+  font-family:var(--font-display) !important;
+  font-size:clamp(7px,1.45vw,12px) !important;
+  font-weight:950 !important;
+  line-height:1 !important;
+  text-indent:0 !important;
+  box-sizing:border-box !important;
+  box-shadow:0 0 8px rgba(255,199,39,.5) !important;
+  overflow:hidden !important;
+}
+
