@@ -1014,3 +1014,112 @@
   .hub-matchup-card > .hub-game-reaction-bar,.hub-matchup-card > .hub-cpu-bottom { top:87%; left:3%; right:3%; height:10.5%; }
 }
 
+/* Mobile screenshot corrections. The chassis PNG is authoritative; HTML supplies only
+   live values and transparent hit targets measured against that artwork. */
+.hub-matchup-board .hub-team-wordmark,
+.hub-matchup-board .hub-team-side b {
+  min-height:0 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
+.hub-matchup-board .hub-team-side small,
+.hub-matchup-board .hub-team-side em { display:none !important; }
+.hub-matchup-board .hub-team-wordmark,
+.hub-matchup-board .hub-team-side b {
+  top:49% !important;
+  left:10% !important;
+  width:80% !important;
+  max-width:80% !important;
+  line-height:.9 !important;
+  overflow:visible !important;
+}
+.hub-matchup-card > .hub-matchup-card-head { top:0 !important; height:16.6% !important; }
+.hub-matchup-card-head strong {
+  inset:auto 12% 17% !important;
+  width:76% !important;
+  margin:0 !important;
+  text-align:center !important;
+}
+.hub-matchup-card > .hub-matchup-board { top:16.6% !important; height:42.5% !important; }
+.hub-matchup-card > .hub-matchup-rails {
+  top:59.05% !important;
+  height:9.35% !important;
+  display:block !important;
+  pointer-events:none;
+}
+.hub-team-control-rail,.hub-center-control-rail { position:absolute !important; top:0; height:100%; padding:0 !important; pointer-events:none; }
+.hub-team-control-rail.away { left:4.8%; width:30.3%; }
+.hub-team-control-rail.home { right:4.8%; width:30.3%; }
+.hub-center-control-rail { left:36%; width:28%; display:block !important; }
+.hub-team-control-rail {
+  display:grid !important;
+  grid-template-rows:45% 45% !important;
+  gap:10% !important;
+}
+.hub-team-control-rail button,
+.hub-center-control-rail .btn,
+.hub-center-control-rail .status-chip {
+  width:100% !important;
+  pointer-events:auto;
+  clip-path:polygon(8% 0,92% 0,100% 22%,100% 78%,92% 100%,8% 100%,0 78%,0 22%);
+  transition:transform 70ms ease,box-shadow 70ms ease,filter 70ms ease,background 70ms ease !important;
+}
+.hub-center-control-rail .btn,.hub-center-control-rail .status-chip { height:100% !important; }
+.hub-team-control-rail button:active:not(:disabled),
+.hub-center-control-rail .btn:active {
+  transform:translateY(2px) scale(.985) !important;
+  background:rgba(24,16,2,.34) !important;
+  box-shadow:inset 0 7px 14px rgba(0,0,0,.86),inset 0 0 0 2px rgba(255,209,75,.24) !important;
+  filter:brightness(.82) !important;
+}
+.hub-matchup-board .hub-team-side-vote:active:not(:disabled) {
+  transform:translateY(2px) scale(.992) !important;
+  box-shadow:inset 0 10px 24px rgba(0,0,0,.78),inset 0 0 0 3px rgba(255,210,70,.72) !important;
+  filter:brightness(.86) !important;
+}
+.hub-nav-toggle {
+  position:fixed !important;
+  inset:auto auto max(24px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left)) !important;
+  display:block !important;
+  flex:none !important;
+  width:68px !important;
+  min-width:68px !important;
+  max-width:68px !important;
+  height:68px !important;
+  min-height:68px !important;
+  max-height:68px !important;
+  aspect-ratio:1 / 1 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:50% !important;
+  background:transparent url("/assets/hub/menu-button-render.png") center / contain no-repeat !important;
+  box-shadow:0 13px 25px rgba(0,0,0,.62),0 0 14px rgba(217,165,33,.24) !important;
+  transform:none !important;
+  overflow:hidden !important;
+}
+
+@media (max-width:700px) {
+  .hub-page {
+    background-image:
+      linear-gradient(180deg,rgba(3,8,4,.08),rgba(2,6,3,.24)),
+      url("/assets/hub/field-background.png") !important;
+    background-size:100% auto,100% auto !important;
+    background-position:center top,center top !important;
+    background-repeat:repeat-y,repeat-y !important;
+  }
+  .app-backdrop--hub {
+    background-image:
+      linear-gradient(180deg,rgba(3,8,4,.04),rgba(2,6,3,.18)),
+      url("/assets/hub/field-background.png") !important;
+    background-size:100% auto,100% auto !important;
+    background-position:center top,center top !important;
+    background-repeat:repeat-y,repeat-y !important;
+  }
+  .hub-matchup-board .hub-team-wordmark,.hub-matchup-board .hub-team-side b {
+    font-size:clamp(16px,5.1vw,30px) !important;
+  }
+  .hub-nav-toggle { width:64px !important; min-width:64px !important; max-width:64px !important; height:64px !important; min-height:64px !important; max-height:64px !important; }
+}
+
