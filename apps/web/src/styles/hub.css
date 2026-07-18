@@ -2126,3 +2126,99 @@
   filter:drop-shadow(0 14px 22px rgba(0,0,0,.42));
 }
 
+/* Sideline wells share a right anchor; compressing from the left corrects the
+   progressively larger drift seen toward Mossed without moving R.I.P. */
+.hub-highlight-feature .hub-highlight-sideline-bar {
+  left:3.5% !important;
+  right:5% !important;
+}
+
+/* GOTW voting surfaces are positioned directly on the two rendered inner
+   panel faces. Their shapes no longer derive from the board's grid columns. */
+.hub-matchup-card.gotw > .hub-matchup-board { display:block !important; }
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote {
+  position:absolute !important;
+  top:4.5% !important;
+  width:38.2% !important;
+  height:79.5% !important;
+  margin:0 !important;
+  background:transparent !important;
+  filter:none !important;
+  box-shadow:none !important;
+  overflow:hidden !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.away {
+  left:5.7% !important;
+  clip-path:polygon(7% 0,77% 4%,95% 10%,100% 15%,100% 87%,90% 97%,10% 96%,0 88%,0 10%) !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.home {
+  right:5.7% !important;
+  clip-path:polygon(23% 4%,93% 0,100% 10%,100% 88%,90% 96%,10% 97%,0 87%,0 15%,5% 10%) !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote::before { display:none !important; }
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote:hover:not(:disabled),
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.active {
+  background:rgba(217,165,33,.075) !important;
+  filter:drop-shadow(0 0 2px #ffe27a) drop-shadow(0 0 5px rgba(225,171,38,.5)) !important;
+  box-shadow:inset 0 0 28px rgba(217,165,33,.16) !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-score-center {
+  position:absolute !important;
+  top:0 !important;
+  left:42% !important;
+  width:16% !important;
+  height:100% !important;
+}
+
+/* Matchup reaction wells use asset-specific coordinates: the H2H center well
+   is compact, while the GOTW center well is deliberately wider. */
+.hub-matchup-card.gotw > .hub-game-reaction-bar { top:84% !important; height:10.2% !important; }
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar { top:85.9% !important; height:9.8% !important; }
+.hub-matchup-card.gotw > .hub-game-reaction-bar button,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button {
+  top:3% !important;
+  height:90% !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:nth-child(1) { left:6.5% !important; width:13.7% !important; }
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:nth-child(2) { left:22.7% !important; width:14.8% !important; }
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:nth-child(3) { left:40.1% !important; width:19% !important; }
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:nth-child(4) { left:62.1% !important; width:15.1% !important; }
+.hub-matchup-card.gotw > .hub-game-reaction-bar button:nth-child(5) { left:80.3% !important; width:14.4% !important; }
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button:nth-child(1) { left:6.7% !important; width:15.9% !important; }
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button:nth-child(2) { left:24.9% !important; width:15.5% !important; }
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button:nth-child(3) { left:42.7% !important; width:14.7% !important; }
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button:nth-child(4) { left:60.6% !important; width:14.6% !important; }
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button:nth-child(5) { left:78.8% !important; width:14.2% !important; }
+
+/* Paint selection inside the recessed face, leaving the rendered metal bevel
+   untouched. The absolutely positioned button remains the full hit target. */
+.hub-matchup-card.gotw > .hub-game-reaction-bar button::before,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button::before {
+  display:block !important;
+  inset:3% 4% 6% !important;
+  clip-path:polygon(8% 0,92% 0,100% 9%,100% 91%,92% 100%,8% 100%,0 91%,0 9%) !important;
+  background:transparent !important;
+  filter:none !important;
+  box-shadow:none !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button.goty::before,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button.goty::before {
+  clip-path:polygon(12% 0,88% 0,100% 14%,100% 86%,88% 100%,12% 100%,0 86%,0 14%) !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button.active,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button.active {
+  background:transparent !important;
+  filter:none !important;
+  box-shadow:none !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button.active::before,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button.active::before {
+  background:rgba(255,209,66,.1) !important;
+  filter:drop-shadow(0 0 2px #fff0a0) drop-shadow(0 0 4px rgba(255,211,74,.48)) !important;
+  box-shadow:inset 0 0 14px rgba(217,165,33,.16) !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button {
+  top:2% !important;
+  height:82% !important;
+}
+
