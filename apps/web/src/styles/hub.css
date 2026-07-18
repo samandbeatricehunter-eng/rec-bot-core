@@ -1333,14 +1333,12 @@
   background-size:100% 100% !important;
   background-repeat:no-repeat !important;
 }
-.hub-matchup-card.h2h > .hub-stream-sides .hub-team-stream.away { background-image:url("/assets/hub/away-stream-control.png") !important; }
-.hub-matchup-card.h2h > .hub-stream-sides .hub-team-stream.home { background-image:url("/assets/hub/home-stream-control.png") !important; }
 .hub-matchup-card.h2h > .hub-game-reaction-bar {
   top:84.2% !important;
   left:4% !important;
   right:4% !important;
   height:12.1% !important;
-  background:transparent url("/assets/hub/goty-reaction-bar.png") center / 100% 100% no-repeat !important;
+  background:transparent !important;
 }
 .hub-matchup-card.gotw > .hub-game-reaction-bar { top:83.2% !important; height:13.2% !important; }
 
@@ -1535,5 +1533,69 @@
   .hub-highlight-feature .hub-highlight-reaction-deck .hub-reaction-label { font-size:clamp(8px,2.2vw,12px) !important; }
   .hub-highlight-feature .hub-highlight-community-bar button b { font-size:clamp(6px,1.85vw,10px) !important; }
   .hub-highlight-feature .hub-highlight-sideline-bar button { font-size:clamp(5px,1.55vw,8px) !important; }
+}
+
+/* Unified H2H render: stream and reaction frames are part of the chassis bitmap.
+   These elements provide only live links, counters and press feedback. */
+.hub-matchup-schedule .hub-matchup-card.h2h:not(.gotw) {
+  background-image:url("/assets/hub/matchup-h2h-chassis-v2.png") !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-stream-sides {
+  top:73.65% !important;
+  right:6.3% !important;
+  left:6.3% !important;
+  height:7.25% !important;
+  gap:14.8% !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-stream-sides .hub-team-stream {
+  background:none !important;
+  clip-path:polygon(8% 0,92% 0,100% 22%,100% 78%,92% 100%,8% 100%,0 78%,0 22%) !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-stream-sides .hub-team-stream:active {
+  transform:translateY(2px) scale(.985);
+  background:rgba(0,0,0,.24) !important;
+  filter:brightness(.78);
+  box-shadow:inset 0 8px 15px rgba(0,0,0,.82) !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-stream-sides .hub-team-stream-head small {
+  top:100% !important;
+  transform:translateY(12%);
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar {
+  top:85.75% !important;
+  right:5.8% !important;
+  left:5.8% !important;
+  height:11.25% !important;
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  gap:.4% !important;
+  padding:0 !important;
+  background:none !important;
+  overflow:visible !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button {
+  width:100% !important;
+  height:100% !important;
+  margin:0 !important;
+  padding:0 !important;
+  clip-path:polygon(9% 0,91% 0,100% 12%,100% 88%,91% 100%,9% 100%,0 88%,0 12%) !important;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button.active {
+  background:rgba(217,165,33,.07) !important;
+  filter:drop-shadow(0 0 2px #ffe783) drop-shadow(0 0 7px rgba(225,171,38,.7)) !important;
+  box-shadow:inset 0 0 16px rgba(217,165,33,.16) !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button:active {
+  transform:translateY(2px) scale(.98);
+  filter:brightness(.8) !important;
+  box-shadow:inset 0 9px 17px rgba(0,0,0,.8) !important;
+}
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button > span {
+  top:2% !important;
+  right:5% !important;
 }
 
