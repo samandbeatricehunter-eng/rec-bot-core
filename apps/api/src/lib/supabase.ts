@@ -106,14 +106,17 @@ function relationKey(alias: string): string {
 // node-postgres serializes any JS array as a Postgres array-literal ("{a,b,c}"), regardless
 // of the target column's real type — correct for a native `text[]`/`integer[]` column, but
 // broken for `jsonb` (its parser rejects array-literal syntax as invalid JSON), and this
-// schema has zero native array columns (confirmed: no `information_schema` ARRAY-typed
-// columns anywhere in `public`) — every array/object bound for a jsonb column must be
-// JSON-stringified here before it reaches the driver, or the insert/update silently fails
-// (this builder's `execute()` swallows the error into `{ error }` instead of throwing,
-// so callers that don't check `.error` never notice the row went unwritten).
-function serializeJsonValue(value: unknown): unknown {
+// most schema arrays are jsonb and must be JSON-stringified before reaching the driver.
+// Native Postgres array columns are explicitly allowlisted below so they retain the array
+// encoding node-postgres expects.
+const nativeArrayColumns = new Set([
+  "rec_box_score_submissions.extra_discord_message_ids",
+]);
+
+function serializeValue(table: string, column: string, value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value;
+  if (Array.isArray(value) && nativeArrayColumns.has(`${table}.${column}`)) return value;
   if (Array.isArray(value) || typeof value === "object") return JSON.stringify(value);
   return value;
 }
@@ -424,7 +427,7 @@ class PostgresQueryBuilder {
     const values: unknown[] = [];
     const tuples = rows.map((row) => {
       const placeholders = columns.map((column) => {
-        values.push(serializeJsonValue((row as Record<string, unknown>)[column] ?? null));
+        values.push(serializeValue(this.table, column, (row as Record<string, unknown>)[column] ?? null));
         return `$${values.length}`;
       });
       return `(${placeholders.join(", ")})`;
@@ -451,7 +454,7 @@ class PostgresQueryBuilder {
     const columns = Object.keys(row).map(assertIdent);
     const values: unknown[] = [];
     const setSql = columns.map((column) => {
-      values.push(serializeJsonValue(row[column]));
+      values.push(serializeValue(this.table, column, row[column]));
       return `${ident(column)} = $${values.length}`;
     });
     const sql = `UPDATE ${ident(this.table)} SET ${setSql.join(", ")}${this.whereSql(values)}${this.returningSql()}`;
