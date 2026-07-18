@@ -1307,7 +1307,9 @@
 .hub-gotw-meter-side small { font-size:clamp(7px,1.45vw,12px) !important; }
 .hub-gotw-meter-edge i {
   position:relative;
-  height:42% !important;
+  justify-self:center;
+  width:94% !important;
+  height:30% !important;
   overflow:hidden;
   border:1px solid rgba(255,223,119,.72) !important;
   border-radius:3px !important;
@@ -1317,7 +1319,7 @@
 .hub-gotw-meter-edge i::before {
   content:"";
   position:absolute;
-  inset:2px auto 2px 2px;
+  inset:2px auto 2px 0;
   width:var(--away-share,50%);
   background:
     repeating-linear-gradient(115deg,rgba(255,255,255,.11) 0 1px,transparent 1px 5px),
@@ -1407,7 +1409,7 @@
 .hub-gotw-meter-edge i::after {
   content:"";
   position:absolute;
-  inset:2px 2px 2px auto;
+  inset:2px 0 2px auto;
   width:calc(100% - var(--away-share,50%));
   background:
     repeating-linear-gradient(65deg,rgba(255,255,255,.11) 0 1px,transparent 1px 5px),
@@ -1418,6 +1420,9 @@
 .hub-matchup-card.h2h > .hub-game-reaction-bar,
 .hub-matchup-card.gotw > .hub-game-reaction-bar {
   box-sizing:border-box !important;
+  aspect-ratio:auto !important;
+  width:auto !important;
+  max-width:none !important;
   overflow:hidden !important;
 }
 .hub-matchup-card.h2h > .hub-game-reaction-bar {
@@ -1438,8 +1443,8 @@
   filter:drop-shadow(0 0 2px #fff2a0) drop-shadow(0 0 6px rgba(255,211,74,.85)) !important;
 }
 .hub-matchup-card.gotw > .hub-game-reaction-bar {
-  left:5.2% !important;
-  right:5.2% !important;
+  left:4.2% !important;
+  right:4.2% !important;
 }
 .hub-highlight-feature .hub-highlight-chassis-heading {
   width:100% !important;
