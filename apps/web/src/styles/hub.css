@@ -1934,3 +1934,40 @@
   overflow:hidden !important;
 }
 
+/* Keep the GOTW vote hit target generous, but paint its selected state inside
+   the rendered team-panel bevel rather than over the metal edge. */
+.hub-matchup-board .hub-team-side-vote {
+  isolation:isolate;
+  overflow:visible !important;
+}
+.hub-matchup-board .hub-team-side-vote::before {
+  content:"";
+  position:absolute;
+  z-index:0;
+  inset:2.8% 3.4% 3.2%;
+  pointer-events:none;
+  background:transparent;
+  box-shadow:none;
+}
+.hub-matchup-board .hub-team-side-vote.away::before {
+  clip-path:polygon(11% 0,86% 3.2%,96.5% 8.5%,100% 15%,100% 86.5%,96% 92.5%,87% 98.5%,11% 96%,3.5% 91%,0 84.5%,0 14%,4% 7.5%);
+}
+.hub-matchup-board .hub-team-side-vote.home::before {
+  clip-path:polygon(14% 3.2%,89% 0,96% 7.5%,100% 14%,100% 84.5%,96.5% 91%,89% 96%,13% 98.5%,4% 92.5%,0 86.5%,0 15%,3.5% 8.5%);
+}
+.hub-matchup-board .hub-team-side-vote:hover:not(:disabled),
+.hub-matchup-board .hub-team-side-vote.active {
+  background:transparent !important;
+  filter:none !important;
+  box-shadow:none !important;
+}
+.hub-matchup-board .hub-team-side-vote:hover:not(:disabled)::before,
+.hub-matchup-board .hub-team-side-vote.active::before {
+  background:rgba(217,165,33,.075) !important;
+  box-shadow:inset 0 0 30px rgba(217,165,33,.17) !important;
+  filter:drop-shadow(0 0 2px #ffe27a) drop-shadow(0 0 5px rgba(225,171,38,.58));
+}
+.hub-matchup-board .hub-team-side-vote > b,
+.hub-matchup-board .hub-team-side-vote > small,
+.hub-matchup-board .hub-team-side-vote > em { z-index:1; }
+
