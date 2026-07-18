@@ -1123,3 +1123,101 @@
   .hub-nav-toggle { width:64px !important; min-width:64px !important; max-width:64px !important; height:64px !important; min-height:64px !important; max-height:64px !important; }
 }
 
+/* Final chassis coordinate pass. */
+.hub-matchup-card-head strong {
+  top:62% !important;
+  right:13% !important;
+  bottom:auto !important;
+  left:13% !important;
+  width:74% !important;
+  transform:translateY(-50%) !important;
+  white-space:nowrap !important;
+  line-height:1 !important;
+  font-size:clamp(17px,4.5vw,38px) !important;
+}
+.hub-matchup-board .hub-team-wordmark,.hub-matchup-board .hub-team-side b {
+  color:#f5f3ed !important;
+  background:none !important;
+  -webkit-background-clip:initial !important;
+  background-clip:initial !important;
+  text-shadow:0 2px 0 #777,0 4px 0 #080808,0 8px 11px rgba(0,0,0,.78) !important;
+}
+.hub-matchup-card > .hub-gotw-meter-edge {
+  top:66.1% !important;
+  left:2.1% !important;
+  right:2.1% !important;
+  height:9.2% !important;
+  grid-template-columns:18.5% 63% 18.5% !important;
+}
+.hub-gotw-meter-side { height:100%; padding-top:13%; }
+.hub-gotw-meter-side strong { font-size:clamp(15px,4vw,32px) !important; }
+.hub-gotw-meter-side small { font-size:clamp(7px,1.45vw,12px) !important; }
+.hub-gotw-meter-edge i {
+  position:relative;
+  height:42% !important;
+  overflow:hidden;
+  border:1px solid rgba(255,223,119,.72) !important;
+  border-radius:3px !important;
+  background:linear-gradient(180deg,#17140c,#060707 58%,#21190a) !important;
+  box-shadow:inset 0 5px 11px rgba(0,0,0,.9),0 0 9px rgba(225,168,30,.22) !important;
+}
+.hub-gotw-meter-edge i::before {
+  content:"";
+  position:absolute;
+  inset:2px auto 2px 2px;
+  width:calc(var(--away-share,50%) - 2px);
+  background:
+    repeating-linear-gradient(115deg,rgba(255,255,255,.11) 0 1px,transparent 1px 5px),
+    linear-gradient(180deg,#ffe681,#c89113 48%,#6d4400 52%,#e9b528);
+  box-shadow:inset 0 1px rgba(255,255,255,.62),0 0 13px rgba(255,193,25,.62);
+  transition:width .28s ease;
+}
+.hub-matchup-card > .hub-stream-sides { top:76.2% !important; height:6.6% !important; }
+.hub-matchup-card.h2h > .hub-stream-sides { left:5% !important; right:5% !important; gap:20% !important; }
+.hub-matchup-card.h2h > .hub-stream-sides .hub-team-stream {
+  visibility:visible !important;
+  background-position:center !important;
+  background-size:100% 100% !important;
+  background-repeat:no-repeat !important;
+}
+.hub-matchup-card.h2h > .hub-stream-sides .hub-team-stream.away { background-image:url("/assets/hub/away-stream-control.png") !important; }
+.hub-matchup-card.h2h > .hub-stream-sides .hub-team-stream.home { background-image:url("/assets/hub/home-stream-control.png") !important; }
+.hub-matchup-card.h2h > .hub-game-reaction-bar {
+  top:84.2% !important;
+  left:4% !important;
+  right:4% !important;
+  height:12.1% !important;
+  background:transparent url("/assets/hub/goty-reaction-bar.png") center / 100% 100% no-repeat !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar { top:83.2% !important; height:13.2% !important; }
+
+/* Only the heading rendered inside the chassis is shown. */
+.hub-highlight-section .section-frame-heading { display:none !important; }
+.hub-highlight-feature .hub-highlight-chassis-heading {
+  min-height:14.5% !important;
+  padding:1% 5% 2% !important;
+  align-items:flex-start !important;
+  text-align:left !important;
+}
+.hub-highlight-feature .hub-highlight-meta { padding-top:5% !important; }
+.hub-highlight-feature .hub-highlight-meta strong { max-width:76%; text-align:center; line-height:1 !important; }
+
+/* One fixed field image spans the viewport while content scrolls over it. */
+.app-backdrop--hub { background:#071008 !important; }
+.app-backdrop--hub::before {
+  z-index:0;
+  opacity:1 !important;
+  mix-blend-mode:normal !important;
+  background:
+    linear-gradient(180deg,rgba(3,8,4,.08),rgba(2,6,3,.28)),
+    url("/assets/hub/field-background.png") center / cover no-repeat !important;
+}
+.hub-page { background:transparent !important; }
+
+@media (max-width:700px) {
+  .hub-matchup-card-head strong { top:62% !important; font-size:clamp(16px,4.4vw,26px) !important; }
+  .hub-gotw-meter-side { padding-top:10%; }
+  .hub-highlight-feature .hub-highlight-chassis-heading { padding-left:8% !important; }
+  .app-backdrop--hub::before { background-size:100vw 100dvh !important; }
+}
+

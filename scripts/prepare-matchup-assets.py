@@ -2,7 +2,7 @@
 
 from collections import deque
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 HUB = ROOT / "apps" / "web" / "public" / "assets" / "hub"
@@ -38,10 +38,57 @@ def clear_edge_matte(image: Image.Image, checkerboard: bool = False) -> Image.Im
     return image
 
 
+def seal_internal_alpha(image: Image.Image) -> Image.Image:
+    """Keep only transparency connected to the canvas edge.
+
+    The GOTW source contained semi-transparent black texture throughout the card. On a
+    green page that made the field bleed through and look dissolved. Interior pixels are
+    part of the rendered chassis and must be opaque; only the outside silhouette remains
+    transparent.
+    """
+    image = image.convert("RGBA")
+    width, height = image.size
+    pixels = image.load()
+    # The source silhouette reaches nearly every edge. This inset octagon follows its
+    # outside frame while deliberately sealing every transparent texture hole within it.
+    mask = Image.new("L", image.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.polygon([
+        (int(width * .21), int(height * .015)),
+        (int(width * .79), int(height * .015)),
+        (int(width * .965), int(height * .045)),
+        (int(width * .995), int(height * .075)),
+        (int(width * .995), int(height * .965)),
+        (int(width * .965), int(height * .985)),
+        (int(width * .035), int(height * .985)),
+        (int(width * .005), int(height * .965)),
+        (int(width * .005), int(height * .075)),
+        (int(width * .035), int(height * .045)),
+    ], fill=255)
+    mask_pixels = mask.load()
+    for y in range(height):
+        for x in range(width):
+            r, g, b, a = pixels[x, y]
+            pixels[x, y] = (r, g, b, max(a, mask_pixels[x, y]))
+    return image
+
+
 for filename, checkerboard in (
     ("matchup-gotw-chassis-v3.png", False),
     ("matchup-h2h-chassis-v1.png", False),
     ("menu-button-render.png", True),
 ):
     path = HUB / filename
-    clear_edge_matte(Image.open(path), checkerboard).save(path, format="PNG", optimize=True)
+    prepared = clear_edge_matte(Image.open(path), checkerboard)
+    if filename == "matchup-gotw-chassis-v3.png":
+        prepared = seal_internal_alpha(prepared)
+    prepared.save(path, format="PNG", optimize=True)
+
+# Reuse the exact rendered stream controls from the GOTW chassis on H2H cards. These
+# crops remain separate overlays so the live HTML anchors retain their semantics.
+gotw = Image.open(HUB / "matchup-gotw-chassis-v3.png").convert("RGBA")
+for filename, box in (
+    ("away-stream-control.png", (48, 1210, 392, 1302)),
+    ("home-stream-control.png", (580, 1210, 924, 1302)),
+):
+    gotw.crop(box).save(HUB / filename, format="PNG", optimize=True)
