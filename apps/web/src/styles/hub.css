@@ -2222,3 +2222,53 @@
   height:82% !important;
 }
 
+/* Full-resolution trace of the GOTW panel faces. Keep the broad button as the
+   accessible tap target, but paint selection only inside the inner metal lip. */
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote::before {
+  display:block !important;
+  inset:0 !important;
+  content:"";
+  position:absolute;
+  z-index:0;
+  pointer-events:none;
+  background:transparent !important;
+  filter:none !important;
+  box-shadow:none !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.away::before {
+  clip-path:polygon(
+    12.82% 2.98%,
+    75.84% 10.29%,
+    80.42% 13.76%,
+    92.28% 91.64%,
+    86.88% 96.03%,
+    14.16% 96.03%,
+    6.63% 92%,
+    6.9% 6.45%
+  ) !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.home::before {
+  clip-path:polygon(
+    23.35% 10.84%,
+    86.37% 1.51%,
+    92.03% 5.54%,
+    92.56% 91.46%,
+    87.99% 95.66%,
+    9.89% 95.66%,
+    4.5% 91.46%,
+    19.58% 13.58%
+  ) !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote:hover:not(:disabled),
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.active {
+  background:transparent !important;
+  filter:none !important;
+  box-shadow:none !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote:hover:not(:disabled)::before,
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.active::before {
+  background:rgba(217,165,33,.075) !important;
+  filter:drop-shadow(0 0 2px #ffe27a) drop-shadow(0 0 4px rgba(225,171,38,.48)) !important;
+  box-shadow:inset 0 0 26px rgba(217,165,33,.16) !important;
+}
+
