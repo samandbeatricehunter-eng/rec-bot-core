@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShieldCheck, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShieldCheck, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -1039,11 +1039,11 @@ export function HubHome() {
               <div className="hub-highlight-reaction-deck">
                 <span className="hub-reaction-label">Community Reactions</span>
                 <div className="hub-highlight-community-bar">
-                  <button aria-label="Love" className={activeHighlight.myReactions.includes("love") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "love")}><small>{activeHighlight.reactionCounts.love || ""}</small></button>
-                  <button aria-label="Like" className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><small>{activeHighlight.reactionCounts.like || ""}</small></button>
-                  <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => activeHighlight.myReactions.includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => activeHighlight.myReactions.includes(key)) ?? ""); }}><small>{AWARD_KEYS.reduce((sum, key) => sum + activeHighlight.reactionCounts[key], 0) || ""}</small></button>
-                  <button aria-label="Dislike" className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
-                  <button aria-label="Hate" className={activeHighlight.myReactions.includes("poop") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "poop")}><small>{activeHighlight.reactionCounts.poop || ""}</small></button>
+                  <button aria-label="Love" className={activeHighlight.myReactions.includes("love") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "love")}><Heart /><b>Love</b><small>{activeHighlight.reactionCounts.love || ""}</small></button>
+                  <button aria-label="Like" className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp /><b>Like</b><small>{activeHighlight.reactionCounts.like || ""}</small></button>
+                  <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => activeHighlight.myReactions.includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => activeHighlight.myReactions.includes(key)) ?? ""); }}><Award /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + activeHighlight.reactionCounts[key], 0) || ""}</small></button>
+                  <button aria-label="Dislike" className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown /><b>Dislike</b><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
+                  <button aria-label="Hate" className={activeHighlight.myReactions.includes("poop") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "poop")}><span className="hub-highlight-poop">💩</span><b>Hate</b><small>{activeHighlight.reactionCounts.poop || ""}</small></button>
                 </div>
                 <span className="hub-reaction-label sideline">Sideline Reactions</span>
                 <div className="hub-highlight-sideline-bar">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}>{reaction.label}{activeHighlight.reactionCounts[reaction.key] > 0 ? ` (${activeHighlight.reactionCounts[reaction.key]})` : ""}</button>)}</div>
