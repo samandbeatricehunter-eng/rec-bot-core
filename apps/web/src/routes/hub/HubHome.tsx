@@ -474,9 +474,19 @@ export function HubHome() {
       if (game.gameId !== gameId) return game;
       const counts = { ...game.reactionCounts };
       const isSame = game.myReactions.includes(reactionKey);
-      if (!isSame) counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
-      else counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
-      return { ...game, myReactions: isSame ? game.myReactions.filter((key) => key !== reactionKey) : [...game.myReactions, reactionKey], reactionCounts: counts };
+      if (isSame) {
+        counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
+        return { ...game, myReactions: game.myReactions.filter((key) => key !== reactionKey), reactionCounts: counts };
+      }
+      let nextReactions = [...game.myReactions];
+      if (reactionKey !== "goty") {
+        for (const key of ["love", "like", "dislike", "poop"] as const) {
+          if (nextReactions.includes(key)) counts[key] = Math.max(0, counts[key] - 1);
+        }
+        nextReactions = nextReactions.filter((key) => key === "goty");
+      }
+      counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
+      return { ...game, myReactions: [...nextReactions, reactionKey], reactionCounts: counts };
     }) } : current);
     try { await recApi.toggleHubGameReaction({ guildId: auth.guildId, gameId, reactionKey }); }
     catch { if (matchupSchedule) setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek })); }

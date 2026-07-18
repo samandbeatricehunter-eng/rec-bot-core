@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { bigint, boolean, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // ============================================================================
@@ -2050,7 +2050,12 @@ export const recGameReactions = pgTable("rec_game_reactions", {
   seasonNumber: integer("season_number").notNull(),
   reactionKey: text("reaction_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-}, (table) => ({ gameUserReactionKey: uniqueIndex("rec_game_reactions_game_user_reaction_key").on(table.gameId, table.userId, table.reactionKey) }));
+}, (table) => ({
+  gameUserReactionKey: uniqueIndex("rec_game_reactions_game_user_reaction_key").on(table.gameId, table.userId, table.reactionKey),
+  gameUserStandardReactionKey: uniqueIndex("rec_game_reactions_game_user_standard_key")
+    .on(table.gameId, table.userId)
+    .where(sql`${table.reactionKey} in ('love', 'like', 'dislike', 'poop')`),
+}));
 
 export const recBadgeOwnership = pgTable("rec_badge_ownership", {
   id: uuid("id").primaryKey(),

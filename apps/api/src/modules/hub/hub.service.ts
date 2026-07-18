@@ -578,9 +578,25 @@ export async function toggleHubGameReaction(input: { guildId: string; discordId:
   const existing = await supabase.from("rec_game_reactions").select("id").eq("game_id", input.gameId).eq("user_id", userId).eq("reaction_key", input.reactionKey).maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to read reaction.", existing.error);
   if (existing.data) {
-    const removed = await supabase.from("rec_game_reactions").delete().eq("id", existing.data.id);
+    const removed = input.reactionKey === "goty"
+      ? await supabase.from("rec_game_reactions").delete().eq("id", existing.data.id)
+      : await supabase
+        .from("rec_game_reactions")
+        .delete()
+        .eq("game_id", input.gameId)
+        .eq("user_id", userId)
+        .in("reaction_key", ["love", "like", "dislike", "poop"]);
     if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
   } else {
+    if (input.reactionKey !== "goty") {
+      const cleared = await supabase
+        .from("rec_game_reactions")
+        .delete()
+        .eq("game_id", input.gameId)
+        .eq("user_id", userId)
+        .in("reaction_key", ["love", "like", "dislike", "poop"]);
+      if (cleared.error) throw new ApiError(500, "Failed to update reaction.", cleared.error);
+    }
     const inserted = await supabase.from("rec_game_reactions").insert({ id: randomUUID(), game_id: input.gameId, user_id: userId, season_number: Number(context.rec_leagues.season_number ?? 1), reaction_key: input.reactionKey, created_at: new Date().toISOString() });
     if (inserted.error) throw new ApiError(500, "Failed to save reaction.", inserted.error);
   }
