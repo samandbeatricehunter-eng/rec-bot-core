@@ -1188,7 +1188,7 @@ export function HubHome() {
         onImageClick={(src) => setLightboxImage(src)}
       />
     ) : (
-      <Modal title={activeStory.headline ?? "League Story"} onClose={closeStory}><div className="roundtable-story">
+      <Modal title={activeStory.headline ?? "League Story"} onClose={closeStory} panelClassName="hub-article-modal"><div className="roundtable-story">
         {activeStory.image_url && <img className="expanded-article-image" src={activeStory.image_url} alt="" onClick={() => setLightboxImage(activeStory.image_url!)} />}
         <p className="roundtable-lede">{activeStory.body}</p>{activeStory.roundtable?.length ? <div className="roundtable-panel"><div className="roundtable-banner">REC NETWORK · LEAGUE ROUNDTABLE</div>{activeStory.roundtable.map((panelist) => <article key={`${panelist.speaker}-${panelist.role}`}><div className="roundtable-avatar">{panelist.speaker.split(" ").map((part) => part[0]).join("")}</div><div><strong>{panelist.speaker}</strong><span>{panelist.role}</span><p>{panelist.take}</p></div></article>)}</div> : null}
         <div className="hub-social-actions"><button type="button" className={activeStory.myReaction === "like" ? "active" : ""} onClick={() => void storyReact(activeStory.id, "like")}><ThumbsUp size={15} /> {activeStory.reactionCounts.like}</button><button type="button" className={activeStory.myReaction === "dislike" ? "active" : ""} onClick={() => void storyReact(activeStory.id, "dislike")}><ThumbsDown size={15} /> {activeStory.reactionCounts.dislike}</button></div>
