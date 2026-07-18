@@ -1387,15 +1387,16 @@
 }
 .hub-matchup-board .hub-team-side-vote {
   width:auto !important;
-  height:94% !important;
-  margin:2.5% 3% 3.5% !important;
+  height:auto !important;
   box-sizing:border-box !important;
 }
 .hub-matchup-board .hub-team-side-vote.away {
-  clip-path:polygon(10% 1%,85% 4%,100% 12%,100% 88%,87% 98%,10% 96%,0 88%,0 12%) !important;
+  margin:3.6% 5.8% 4.2% 7.2% !important;
+  clip-path:polygon(11% 0,86% 3.2%,96.5% 8.5%,100% 15%,100% 86.5%,96% 92.5%,87% 98.5%,11% 96%,3.5% 91%,0 84.5%,0 14%,4% 7.5%) !important;
 }
 .hub-matchup-board .hub-team-side-vote.home {
-  clip-path:polygon(15% 4%,90% 1%,100% 12%,100% 88%,90% 96%,13% 98%,0 88%,0 12%) !important;
+  margin:3.6% 7.2% 4.2% 5.8% !important;
+  clip-path:polygon(14% 3.2%,89% 0,96% 7.5%,100% 14%,100% 84.5%,96.5% 91%,89% 96%,13% 98.5%,4% 92.5%,0 86.5%,0 15%,3.5% 8.5%) !important;
 }
 .hub-matchup-board .hub-team-side-vote:hover:not(:disabled),
 .hub-matchup-board .hub-team-side-vote.active {
