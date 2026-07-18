@@ -2076,3 +2076,53 @@
 .hub-matchup-card.gotw > .hub-game-reaction-bar button > span,
 .hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button > span { z-index:2 !important; }
 
+/* Pixel-traced matchup reaction wells. Flexible grids drift at different card
+   widths, so each transparent hit surface is anchored to its rendered well. */
+.hub-matchup-card.gotw > .hub-game-reaction-bar,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar {
+  left:0 !important;
+  right:0 !important;
+  width:100% !important;
+  padding:0 !important;
+  display:block !important;
+  contain:none !important;
+  overflow:visible !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar { height:12.1% !important; }
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar { height:10.2% !important; }
+.hub-matchup-card.gotw > .hub-game-reaction-bar button,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button {
+  position:absolute !important;
+  top:3% !important;
+  height:90% !important;
+  margin:0 !important;
+  background:transparent !important;
+  filter:none !important;
+  box-shadow:none !important;
+  overflow:hidden !important;
+}
+.hub-matchup-card.gotw > .hub-game-reaction-bar button::before,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button::before { display:none !important; }
+.hub-matchup-card > .hub-game-reaction-bar button:nth-child(1) { left:4.4% !important; width:15.4% !important; }
+.hub-matchup-card > .hub-game-reaction-bar button:nth-child(2) { left:22.3% !important; width:15% !important; }
+.hub-matchup-card > .hub-game-reaction-bar button:nth-child(3) { left:40.4% !important; width:19.4% !important; }
+.hub-matchup-card > .hub-game-reaction-bar button:nth-child(4) { left:63.2% !important; width:15% !important; }
+.hub-matchup-card > .hub-game-reaction-bar button:nth-child(5) { left:80.2% !important; width:15% !important; }
+.hub-matchup-card.gotw > .hub-game-reaction-bar button.active,
+.hub-matchup-card.h2h:not(.gotw) > .hub-game-reaction-bar button.active {
+  background:rgba(255,209,66,.09) !important;
+  filter:drop-shadow(0 0 2px #fff0a0) drop-shadow(0 0 5px rgba(255,211,74,.5)) !important;
+  box-shadow:inset 0 0 14px rgba(217,165,33,.16) !important;
+}
+
+/* The team-vote glow follows the inner face, well clear of the outer bevel. */
+.hub-matchup-board .hub-team-side-vote::before {
+  inset:8% 9% 15% !important;
+}
+
+/* Use alpha-aware shadows; rectangular box shadows expose the PNG matte. */
+.hub-matchup-schedule .hub-matchup-card {
+  box-shadow:none !important;
+  filter:drop-shadow(0 14px 22px rgba(0,0,0,.42));
+}
+
