@@ -1127,15 +1127,7 @@ export function HubHome() {
                 </div>
                 {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && hub.canManageLeague && schedule.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button></div>}
                 {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && (() => { const total = schedule.gotw.awayVotes + schedule.gotw.homeVotes; const away = total ? Math.round(schedule.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
-                {game.matchupType === "human_cpu" ? <div className="hub-cpu-bottom">
-                  <div className="hub-game-reaction-bar hub-cpu-reaction-bar" aria-label={`Reactions for ${game.awayTeamName} at ${game.homeTeamName}`}>
-                    <button aria-label="Love" className={game.myReactions.includes("love") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "love")}>{game.reactionCounts.love > 0 && <span>{game.reactionCounts.love}</span>}</button>
-                    <button aria-label="Like" className={game.myReactions.includes("like") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}>{game.reactionCounts.like > 0 && <span>{game.reactionCounts.like}</span>}</button>
-                    <button aria-label="Nominate for Game of the Year" className={`goty${game.myReactions.includes("goty") ? " active" : ""}`} onClick={() => void matchupGameReact(game.gameId, "goty")}>{game.reactionCounts.goty > 0 && <span>{game.reactionCounts.goty}</span>}</button>
-                    <button aria-label="Dislike" className={game.myReactions.includes("dislike") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}>{game.reactionCounts.dislike > 0 && <span>{game.reactionCounts.dislike}</span>}</button>
-                    <button aria-label="Hate" className={game.myReactions.includes("poop") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "poop")}>{game.reactionCounts.poop > 0 && <span>{game.reactionCounts.poop}</span>}</button>
-                  </div>
-                </div> : <>
+                {game.matchupType === "human_cpu" ? null : <>
                   {(() => {
                     const awayStream = game.streams.find((stream) => stream.side === "away");
                     const homeStream = game.streams.find((stream) => stream.side === "home");
