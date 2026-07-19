@@ -2237,26 +2237,26 @@
 }
 .hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.away::before {
   clip-path:polygon(
-    12.82% 2.98%,
-    75.84% 10.29%,
-    80.42% 13.76%,
-    92.28% 91.64%,
-    86.88% 96.03%,
-    14.16% 96.03%,
-    6.63% 92%,
-    6.9% 6.45%
+    11.47% 1.33%,
+    77.45% 9.01%,
+    82.57% 12.85%,
+    95.25% 93.29%,
+    89.05% 98.95%,
+    12.01% 98.95%,
+    4.2% 93.47%,
+    5.01% 5.17%
   ) !important;
 }
 .hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.home::before {
   clip-path:polygon(
-    23.35% 10.84%,
-    86.37% 1.51%,
-    92.03% 5.54%,
-    92.56% 91.46%,
-    87.99% 95.66%,
-    9.89% 95.66%,
-    4.5% 91.46%,
-    19.58% 13.58%
+    20.66% 9.56%,
+    87.99% .05%,
+    94.45% 4.44%,
+    94.99% 93.47%,
+    89.6% 98.4%,
+    8.27% 98.4%,
+    1.81% 93.28%,
+    17.16% 13.03%
   ) !important;
 }
 .hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote:hover:not(:disabled),
@@ -2270,5 +2270,12 @@
   background:rgba(217,165,33,.075) !important;
   filter:drop-shadow(0 0 2px #ffe27a) drop-shadow(0 0 4px rgba(225,171,38,.48)) !important;
   box-shadow:inset 0 0 26px rgba(217,165,33,.16) !important;
+}
+@media (hover:none), (pointer:coarse) {
+  .hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote:hover:not(.active)::before {
+    background:transparent !important;
+    filter:none !important;
+    box-shadow:none !important;
+  }
 }
 
