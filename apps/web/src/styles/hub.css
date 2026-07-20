@@ -8,14 +8,14 @@
   min-height: 100dvh;
   margin-inline: auto;
   background:
-    radial-gradient(ellipse 62% 42% at 50% 18%, rgba(8,18,10,.22), rgba(3,7,4,.64) 72%, rgba(1,2,1,.84)),
-    linear-gradient(180deg, rgba(7,18,8,.28), rgba(5,9,5,.16)),
-    url("/assets/hub/field-background.png");
-  background-size: cover, cover, cover;
-  background-repeat: no-repeat, no-repeat, no-repeat;
+    radial-gradient(ellipse 120% 62% at 50% -12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.02) 0 1px, transparent 1px 90px),
+    linear-gradient(180deg, var(--surface) 0%, var(--bg) 55%, #000 150%);
+  background-size: cover, auto, cover;
+  background-repeat: no-repeat, repeat, no-repeat;
   background-position: center, center, center;
   background-attachment: scroll, scroll, scroll;
-  background-color: #071008;
+  background-color: var(--bg);
 }
 .hub-page::before {
   display: none;
@@ -1472,28 +1472,26 @@
   text-align:center !important;
 }
 
-/* A single fixed tunnel render supports the cards without repeating while scrolling. */
+/* League-themed backdrop — the field/tunnel photo is replaced by the active theme's palette
+   (see docs/theme-palettes.md): a soft accent glow up top, faint vertical yard-line texture,
+   and a deep surface→bg wash. Fixed so content scrolls over a stable field. */
 .app-backdrop--hub,
 .hub-page { background:transparent !important; }
 .app-backdrop--hub::before {
   opacity:1 !important;
   background:
-    linear-gradient(180deg,rgba(5,6,4,.08) 0%,rgba(7,8,6,.22) 48%,rgba(3,4,3,.72) 100%),
-    radial-gradient(circle at 50% 15%,rgba(190,135,20,.08),transparent 38%),
-    url("/assets/hub/stadium-tunnel-background-v2.png") top center / cover no-repeat !important;
+    radial-gradient(ellipse 120% 62% at 50% -12%, color-mix(in srgb,var(--accent) 14%,transparent), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.02) 0 1px, transparent 1px 90px),
+    linear-gradient(180deg, var(--surface) 0%, var(--bg) 55%, #000 150%) !important;
+  background-color:var(--bg) !important;
   background-attachment:fixed !important;
 }
 
 @media (max-width:700px) {
-  .hub-page,
-  .app-backdrop--hub { background-image:none !important; }
   .hub-matchup-card-head strong { font-size:clamp(16px,4.4vw,26px) !important; }
   .hub-highlight-feature .hub-highlight-chassis-heading { padding-inline:5% !important; }
-  .app-backdrop--hub::before {
-    background-size:auto 100dvh !important;
-    background-position:top center !important;
-    background-repeat:no-repeat !important;
-  }
+  /* Fixed attachment is unreliable on mobile; let the themed wash scroll with the page. */
+  .app-backdrop--hub::before { background-attachment:scroll !important; }
 }
 
 /* Final highlight chassis registration (kept last so legacy reaction-bar rules cannot
@@ -2352,29 +2350,33 @@
 .rec-matchup-card__team strong { position:relative; z-index:1; font-family:var(--font-display); font-size:clamp(1.05rem,3vw,2rem); line-height:1.02; text-transform:uppercase; text-wrap:balance; overflow-wrap:anywhere; text-shadow:0 2px 6px rgba(0,0,0,.35); }
 
 /* Center medallion — light score bug with glowing accent seams */
-.rec-matchup-card__center { position:relative; z-index:3; display:flex; flex-direction:column; justify-content:center; align-items:center; min-width:0; padding:10px 4px; color:#080a0c; text-align:center; background:linear-gradient(180deg,#fbf8ef,#f2eee3 60%,#e4ddca); box-shadow:inset 0 0 0 1px rgba(0,0,0,.12),inset 0 2px 6px rgba(255,255,255,.7); }
+.rec-matchup-card__center { position:relative; z-index:3; display:flex; flex-direction:column; justify-content:center; align-items:center; min-width:0; padding:24px 4px; color:#080a0c; text-align:center; background:linear-gradient(180deg,#fbf8ef,#f2eee3 60%,#e4ddca); box-shadow:inset 0 0 0 1px rgba(0,0,0,.12),inset 0 2px 6px rgba(255,255,255,.7); }
 .rec-matchup-card__center::before,.rec-matchup-card__center::after { content:""; position:absolute; top:12%; bottom:12%; width:3px; z-index:4; background:var(--accent-gradient,var(--accent)); box-shadow:0 0 10px color-mix(in srgb,var(--accent) 70%,transparent); }
 .rec-matchup-card__center::before { left:-1px; }
 .rec-matchup-card__center::after { right:-1px; }
-.rec-matchup-card__rivalry { display:flex; flex-direction:column; max-width:100%; margin-bottom:4px; text-transform:uppercase; }
-.rec-matchup-card__rivalry strong { overflow:hidden; color:#765616; font:700 clamp(.56rem,1.3vw,.8rem) var(--font-display); text-overflow:ellipsis; white-space:nowrap; }
-.rec-matchup-card__rivalry span { color:#080a0c; font:800 .52rem var(--font-sans); letter-spacing:.14em; }
 .rec-matchup-card__result { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; width:100%; font-family:var(--font-display); text-transform:uppercase; }
 .rec-matchup-card__result b { font-size:clamp(1.3rem,4vw,2.4rem); line-height:1; }
 .rec-matchup-card__result span { font-size:clamp(.66rem,1.7vw,.95rem); color:#6e5a1c; letter-spacing:.06em; }
 .rec-matchup-card__result .rec-matchup-card__at { grid-column:1/-1; font-size:clamp(1.55rem,4vw,2.6rem); color:#080a0c; }
 .rec-matchup-card__center > small { font:800 .54rem var(--font-sans); letter-spacing:.16em; text-transform:uppercase; color:#5b5341; }
 
-.rec-matchup-card__badges { position:absolute; z-index:6; top:8px; left:50%; display:flex; gap:5px; transform:translateX(-50%); pointer-events:none; }
-.rec-matchup-card__badges span { padding:3px 8px; border-radius:999px; color:var(--text-primary); background:rgba(8,10,12,.82); border:1px solid color-mix(in srgb,var(--accent) 40%,transparent); font:800 .5rem var(--font-sans); letter-spacing:.08em; text-transform:uppercase; white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,.4); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
-.rec-matchup-card__badges .live { color:#fff; background:var(--danger); border-color:transparent; animation:recLivePulse 1s infinite alternate; }
+/* Center @-section tag stacks — GOTW / Your Matchup / Rivalry, pinned top & bottom and
+   centered on the center column (may overhang the notches, like a broadcast score bug). */
+.rec-matchup-card__ctag { position:absolute; left:50%; z-index:6; display:flex; flex-direction:column; align-items:center; gap:3px; width:max-content; max-width:160%; transform:translateX(-50%); pointer-events:none; }
+.rec-matchup-card__ctag--top { top:7px; }
+.rec-matchup-card__ctag--bottom { bottom:7px; }
+.rec-tag { padding:2px 8px; border-radius:999px; font:800 clamp(.44rem,1.15vw,.56rem) var(--font-sans); letter-spacing:.09em; text-transform:uppercase; white-space:nowrap; box-shadow:0 3px 9px rgba(0,0,0,.32); }
+.rec-tag--gotw { color:var(--accent-contrast); background:var(--accent-gradient); border:1px solid color-mix(in srgb,var(--accent-dark) 65%,transparent); }
+.rec-tag--mine { color:var(--text-primary); background:rgba(8,10,12,.9); border:1px solid color-mix(in srgb,var(--accent) 55%,transparent); }
+.rec-tag--rivalry { color:#f6eccf; background:linear-gradient(180deg,#7a1414,#4a0c0c); border:1px solid rgba(255,120,90,.42); letter-spacing:.16em; }
+.rec-matchup-card__rivalry-name { max-width:150px; overflow:hidden; color:#6c4a12; font:700 clamp(.5rem,1.25vw,.72rem) var(--font-display); font-style:normal; letter-spacing:.02em; text-transform:uppercase; text-overflow:ellipsis; white-space:nowrap; }
+.rec-matchup-card__live { position:absolute; z-index:7; top:8px; right:10px; padding:2px 8px; border-radius:999px; color:#fff; background:var(--danger); font:800 .5rem var(--font-sans); letter-spacing:.08em; text-transform:uppercase; box-shadow:0 0 10px var(--danger); animation:recLivePulse 1s infinite alternate; }
 @keyframes recLivePulse { from { box-shadow:0 0 4px var(--danger); } to { box-shadow:0 0 14px var(--danger); } }
 
 /* Featured / Game of the Week / your-matchup accents */
 .rec-matchup-card--featured { min-height:158px; border-color:color-mix(in srgb,var(--accent) 45%,var(--border)); }
 .rec-matchup-card--mine { border-color:color-mix(in srgb,var(--accent) 34%,var(--border)); }
 .rec-matchup-card--gotw { border-color:color-mix(in srgb,var(--accent) 62%,var(--border)); box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent),0 12px 32px rgba(0,0,0,.46),0 0 30px color-mix(in srgb,var(--accent) 26%,transparent); }
-.rec-matchup-card--gotw .rec-matchup-card__badges span:first-child { color:var(--accent-contrast); background:var(--accent-gradient); border-color:transparent; }
 
 @media (prefers-reduced-motion:reduce) { .rec-matchup-card__sheen { animation:none; } }
 @media (max-width:640px) {
@@ -2385,9 +2387,10 @@
   .rec-matchup-card__team--home { padding-left:15%; }
   .rec-matchup-card__team strong { font-size:clamp(.74rem,3.7vw,1rem); overflow-wrap:normal; word-break:normal; }
   .rec-matchup-card__team small { font-size:.55rem; }
-  .rec-matchup-card__rivalry strong { max-width:84px; }
-  .rec-matchup-card__badges { top:4px; }
-  .rec-matchup-card__badges span { font-size:.45rem; }
+  .rec-matchup-card__rivalry-name { max-width:84px; }
+  .rec-matchup-card__ctag--top { top:4px; }
+  .rec-matchup-card__ctag--bottom { bottom:4px; }
+  .rec-tag { font-size:.45rem; padding:2px 6px; }
 }
 .matchup-detail-page { width:min(1180px,100%); margin:0 auto; padding:var(--space-4); }
 .matchup-detail-back { display:inline-flex; align-items:center; gap:7px; margin-bottom:var(--space-4); color:var(--text-muted); text-decoration:none; font-weight:700; }
