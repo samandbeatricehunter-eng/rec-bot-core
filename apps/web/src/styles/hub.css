@@ -2408,6 +2408,13 @@
 .matchup-chat form .btn { justify-self:end; }
 @media (max-width:760px) { .matchup-detail-page { padding:12px; } .matchup-detail-grid { grid-template-columns:1fr; } .matchup-detail-grid .matchup-chat { grid-row:1; } }
 
+/* Matchup action toolbar */
+.matchup-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:var(--space-4); }
+.matchup-action { display:inline-flex; align-items:center; gap:8px; padding:11px 16px; border:1px solid var(--border); border-radius:11px; background:var(--surface-raised); color:var(--text-primary); font-family:var(--font-display); font-size:.82rem; letter-spacing:.04em; text-transform:uppercase; font-weight:800; cursor:pointer; transition:border-color var(--duration-fast,120ms), background var(--duration-fast,120ms); }
+.matchup-action:hover:not(:disabled) { border-color:var(--accent); background:var(--surface-hover); }
+.matchup-action:disabled { opacity:.55; cursor:not-allowed; }
+.matchup-action--wager { border-color:var(--accent); color:var(--accent); }
+
 /* Matchup Preview card */
 .matchup-preview { margin-top:var(--space-4); padding:var(--space-4); border:1px solid var(--border); border-radius:16px; background:var(--surface); position:relative; overflow:hidden; }
 .matchup-preview__heading { display:flex; flex-direction:column; gap:2px; margin-bottom:var(--space-3); }

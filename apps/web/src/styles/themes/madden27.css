@@ -4,7 +4,11 @@
    here. See docs/theme-palettes.md for the authoritative spec. */
 [data-game-theme="madden_26"],
 [data-game-theme="madden_27"] {
-  --font-display: "REC Gridiron", "Arial Narrow", var(--font-sans);
+  /* Universal league face: REC Gridiron drives ALL text on Madden pages (body copy,
+     buttons, inputs, chat) via --font-sans, with the system stack as fallback. Headings
+     continue through --font-display. */
+  --font-sans: "REC Gridiron", "Arial Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "REC Gridiron", "Arial Narrow", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 
   /* Surfaces */
   --bg: #070809;

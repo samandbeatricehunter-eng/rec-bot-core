@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, MessageCircle, Radio, Send } from "lucide-react";
+import { ArrowLeft, BarChart3, ClipboardList, Coins, Film, MessageCircle, Radio, Send, Share2 } from "lucide-react";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { MatchupPreview } from "../../components/matchups/MatchupPreview.js";
 import { Button } from "../../components/ui/Button.js";
@@ -8,7 +8,42 @@ import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupDetail, MatchupPreview as MatchupPreviewData } from "../../types/api.js";
+import type { HubMatchupDetail, HubMatchupGame, MatchupPreview as MatchupPreviewData } from "../../types/api.js";
+
+// Matchup action toolbar. Visibility contract:
+//  - The two coaches in the matchup see Box Score, Player Stats, Share Stream, and
+//    Upload Highlight(s).
+//  - Everyone else (spectators) sees Wagers instead — the participants cannot wager on
+//    their own game.
+// NOTE: uploads/streams currently flow through Discord, so those buttons are placeholders
+// for now; Box Score / Player Stats / Wagers are scaffolded here pending their web flows.
+function MatchupActions({ matchup }: { matchup: HubMatchupGame }) {
+  const isParticipant = matchup.involvesMe;
+  return (
+    <div className="matchup-actions" role="group" aria-label="Matchup actions">
+      {isParticipant ? (
+        <>
+          <button type="button" className="matchup-action" disabled title="Box score review is coming to the web soon.">
+            <ClipboardList size={16} /> Box Score
+          </button>
+          <button type="button" className="matchup-action" disabled title="Player stats are coming to the web soon.">
+            <BarChart3 size={16} /> Player Stats
+          </button>
+          <button type="button" className="matchup-action" disabled title="Share your stream in the Discord game channel for now.">
+            <Share2 size={16} /> Share Stream
+          </button>
+          <button type="button" className="matchup-action" disabled title="Highlight uploads run through Discord for now.">
+            <Film size={16} /> Upload Highlight(s)
+          </button>
+        </>
+      ) : (
+        <button type="button" className="matchup-action matchup-action--wager" disabled title="Wagering on this matchup is coming to the web soon.">
+          <Coins size={16} /> Wagers
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function MatchupDetailPage() {
   const { gameId } = useParams<{ gameId: string }>();
@@ -44,6 +79,7 @@ export function MatchupDetailPage() {
     <Link className="matchup-detail-back" to="/"><ArrowLeft size={18}/> Back to matchups</Link>
     <MatchupCard game={detail.matchup} featured />
     {preview && <MatchupPreview preview={preview} />}
+    <MatchupActions matchup={detail.matchup} />
     <div className="matchup-detail-grid">
       <section className="matchup-detail-panel">
         <h2><Radio size={20}/> Active Streams</h2>
