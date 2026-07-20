@@ -9,7 +9,8 @@ function readableText(hex: string) {
 }
 
 export function MatchupCard({ game, featured = false }: { game: HubMatchupGame; featured?: boolean }) {
-  const card = <article className={`rec-matchup-card${featured ? " rec-matchup-card--featured" : ""}${game.involvesMe ? " rec-matchup-card--mine" : ""}`}>
+  const card = <article className={`rec-matchup-card${featured ? " rec-matchup-card--featured" : ""}${game.involvesMe ? " rec-matchup-card--mine" : ""}${game.isGameOfWeek ? " rec-matchup-card--gotw" : ""}`}>
+    <span className="rec-matchup-card__sheen" aria-hidden="true" />
     <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
       <small>Away</small><strong>{game.awayTeamName}</strong>
     </div>

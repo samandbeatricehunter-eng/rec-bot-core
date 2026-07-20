@@ -1,11 +1,48 @@
-/* Madden 27 presentation mode — no active Madden 27 league exists yet, so these values are
-   deliberately aliased to the CFB 27 theme rather than independently designed. Swap the
-   values here once a Madden 27 league is live and can be visually verified. */
+/* Madden presentation mode — "REC Platinum".
+   Cooler, more industrial than CFB: brushed-metal platinum accent on graphite surfaces,
+   with warm gold reserved as a premium/championship secondary. Both Madden identifiers map
+   here. See docs/theme-palettes.md for the authoritative spec. */
 [data-game-theme="madden_26"],
 [data-game-theme="madden_27"] {
   --font-display: "REC Gridiron", "Arial Narrow", var(--font-sans);
-  --accent-primary: var(--gold);
+
+  /* Surfaces */
+  --bg: #070809;
+  --surface: #141619;
+  --surface-hover: #232830;
+  --surface-raised: #1d2024;
+  --border: #353a40;
+  --border-strong: #626971;
+
+  /* Platinum accent (legacy --gold* tokens alias --accent, so they follow automatically) */
+  --accent: #b8bdc4;
+  --accent-bright: #e1e4e8;
+  --accent-dark: #737a82;
+  --accent-secondary: #d7a52a;
+  --accent-contrast: #070809;
+
+  /* Text */
+  --text-primary: #f4f5f6;
+  --text-secondary: #949aa1;
+  --text-muted: #6c727a;
+
+  /* Semantic */
+  --success: #45a46b;
+  --warning: #d59a35;
+  --error: #c7484b;
+
+  /* Gradients */
+  --accent-gradient: linear-gradient(180deg, #e1e4e8 0%, #b8bdc4 46%, #737a82 100%);
+  --panel-gradient: linear-gradient(145deg, #202328 0%, #121417 58%, #070809 100%);
+  --feature-gradient: radial-gradient(circle at 50% 0%, rgba(225, 228, 232, 0.12), transparent 52%);
+  --metal-line: linear-gradient(90deg, transparent, rgba(184, 189, 196, 0.75), transparent);
+
+  /* Field / stadium presentation — cooler, steel-lit */
   --field-line: #d4d4d4;
-  --turf-a: #14150f;
-  --turf-b: #0c0d09;
+  --turf-a: #14171b;
+  --turf-b: #0b0d10;
+  --stadium-shadow: rgba(2, 3, 4, 0.86);
+  --stadium-light: rgba(184, 189, 196, 0.18);
+  --paint-white: rgba(244, 245, 246, 0.12);
+  --card-grain: rgba(255, 255, 255, 0.028);
 }
