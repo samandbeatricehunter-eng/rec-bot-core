@@ -2279,3 +2279,28 @@
   }
 }
 
+/* Treat each team name as a centered text block inside the rendered panel face.
+   The custom size comes from the team name length; balanced wrapping keeps a
+   two-line university name centered as one unit instead of shrinking it flat. */
+.hub-matchup-board .hub-team-wordmark,
+.hub-matchup-board .hub-team-side > b {
+  font-size:var(--matchup-name-size,clamp(17px,5.1vw,38px)) !important;
+  white-space:normal !important;
+  overflow-wrap:normal !important;
+  word-break:normal !important;
+  text-wrap:balance !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote > b {
+  top:49% !important;
+  width:82% !important;
+  max-width:82% !important;
+  line-height:.92 !important;
+  transform:translateY(-50%) !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.away > b {
+  left:8.5% !important;
+}
+.hub-matchup-card.gotw .hub-matchup-board .hub-team-side-vote.home > b {
+  left:11.5% !important;
+}
+
