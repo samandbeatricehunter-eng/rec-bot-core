@@ -162,6 +162,8 @@ export const recApi = {
     recApiFetch<TeamScheduleManualState>(REC_API_ROUTES.teamScheduleManualState, { method: "POST", body: JSON.stringify(input) }),
   commitTeamScheduleDecisions: (input: { guildId: string; teamId: string; decisions: CommitDecision[]; byeWeeks?: number[] }) =>
     recApiFetch<CommitResult>(REC_API_ROUTES.teamScheduleCommit, { method: "POST", body: JSON.stringify(input) }),
+  setGameRivalry: (input: Record<string, unknown>) =>
+    recApiFetch<{ enabled: boolean }>(REC_API_ROUTES.setGameRivalry, { method: "POST", body: JSON.stringify(input) }),
   getTeamManagementSummary: (guildId: string) =>
     recApiFetch<TeamManagementSummary>(REC_API_ROUTES.teamManagementSummary, { method: "POST", body: JSON.stringify({ guildId }) }),
   getLinkedRoster: (guildId: string) =>

@@ -282,15 +282,6 @@ function videoUrl(content: string | null) {
   return urls.find((url) => /\.(mp4|mov|webm|mkv)(?:\?|$)/i.test(url)) ?? urls[0] ?? (/^https?:\/\//i.test(content) ? content : null);
 }
 
-function shuffled<T>(items: T[]) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const swapWith = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[swapWith]] = [copy[swapWith], copy[index]];
-  }
-  return copy;
-}
-
 function discordCdnUrlIsFresh(url: string | null) {
   if (!url || !url.includes("cdn.discordapp.com")) return Boolean(url);
   try {
@@ -402,7 +393,9 @@ export async function getHub(guildId: string, discordId: string) {
   ]);
   if (storyReactions.error || storyComments.error || gameReactions.error) throw new ApiError(500, "Failed to load Hub discussion activity.", storyReactions.error ?? storyComments.error ?? gameReactions.error);
 
-  const hydratedHighlights = await Promise.all(shuffled(highlights.data ?? []).map(async (item: any) => ({ ...item, videoUrl: await refreshDiscordMediaUrl(item) })));
+  // Preserve the query's newest-first ordering so the reel opens on the latest
+  // highlight and autoplay continues chronologically toward older clips.
+  const hydratedHighlights = await Promise.all((highlights.data ?? []).map(async (item: any) => ({ ...item, videoUrl: await refreshDiscordMediaUrl(item) })));
   const currentStreamLogs = await supabase
     .from("rec_stream_compliance_logs")
     .select("id,user_id,team_id,message_url,posted_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)")

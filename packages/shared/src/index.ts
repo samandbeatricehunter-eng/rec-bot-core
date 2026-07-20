@@ -2,6 +2,7 @@ export * from "./football-positions.js";
 export * from "./highlight-emojis.js";
 export * from "./nfl-teams.js";
 export * from "./cfb-teams.js";
+export * from "./cfb-rivalries.generated.js";
 export * from "./conferences.js";
 export * from "./league-stage.js";
 export * from "./discord-roles.js";
@@ -34,6 +35,7 @@ export const REC_API_ROUTES = {
   createCustomTeamReplacement: "/v1/team-ownership/custom-team-replacement",
   unlinkAllTeams: "/v1/team-ownership/unlink-all",
   unlinkTeam: "/v1/team-ownership/unlink-team",
+  setGameRivalry: "/v1/schedule/game-rivalry",
 
   serverConfigView: "/v1/economy/config/view",
   serverConfigSet: "/v1/economy/config/set",

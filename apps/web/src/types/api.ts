@@ -23,6 +23,16 @@ export type TeamScheduleManualWeek = {
   boxScoreSubmissionId: string | null;
   boxScoreStatus: string | null;
   isBye: boolean;
+  rivalry: {
+    enabled: boolean;
+    optedOut: boolean;
+    details: null | {
+      id: string; rivalry_name: string; team_a_id: string; team_b_id: string;
+      first_year_played: number | null; team_a_wins: number; team_b_wins: number; ties: number;
+      last_game_team_a_score: number | null; last_game_team_b_score: number | null;
+      streak_winner_team_id: string | null; streak_length: number; is_seeded: boolean;
+    };
+  };
 };
 
 export type TeamScheduleManualState = {

@@ -9,6 +9,7 @@ import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_N
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, loadSchedulePlaceholderTeamIds, saveManualScheduleGame } from "./schedule.service.js";
+import { assignKnownRivalryToGame, ensureLeagueRivalries, loadGameRivalries } from "../rivalries/rivalries.service.js";
 
 type ConfirmedWeek = {
   gameId: string;
@@ -125,6 +126,7 @@ export type TeamScheduleWeekPreview = {
   weekNumber: number | null;
   weekLabel: string;
   isBye: boolean;
+  rivalry: { enabled: boolean; optedOut: boolean; details: any | null };
   opponentRaw: string | null;
   opponentRank: number | null;
   homeAway: "home" | "away" | null;
@@ -161,6 +163,7 @@ export async function previewCfbTeamScheduleImport(input: {
   const teamRows = teams.data ?? [];
   const team = teamRows.find((t: any) => t.id === input.teamId);
   if (!team) throw new ApiError(404, "Team was not found in the current league.");
+  await ensureLeagueRivalries(leagueId, context.rec_leagues.game);
 
   const candidates = teamRows.filter((t: any) => t.id !== input.teamId).map(buildTeamCandidates);
 
@@ -248,6 +251,8 @@ export async function getTeamScheduleManualState(input: {
   const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
   const gameDescriptors = [...confirmedByWeek.values()].map((c) => ({ id: c.gameId, weekNumber: c.weekNumber, homeTeamId: c.homeTeamId, awayTeamId: c.awayTeamId }));
   const resultsAndSubmissions = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
+  await Promise.all(gameDescriptors.map((game) => assignKnownRivalryToGame(game.id)));
+  const rivalries = await loadGameRivalries(gameDescriptors.map((game) => game.id));
 
   const byeRows = await supabase.from("rec_team_byes").select("week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
   if (byeRows.error) throw new ApiError(500, "Failed to load bye weeks.", byeRows.error);
@@ -276,6 +281,7 @@ export async function getTeamScheduleManualState(input: {
       boxScoreSubmissionId: extra?.boxScoreSubmissionId ?? null,
       boxScoreStatus: extra?.boxScoreStatus ?? null,
       isBye: !confirmed && byeWeeks.has(weekNumber),
+      rivalry: confirmed ? (rivalries.get(confirmed.gameId) ?? { enabled: false, optedOut: false, details: null }) : { enabled: false, optedOut: false, details: null },
     });
   }
 
@@ -343,6 +349,7 @@ export async function commitTeamScheduleDecisions(input: {
     const conflicts = existing.data ?? [];
     const exactMatch = conflicts.find((game: any) => game.home_team_id === homeTeamId && game.away_team_id === awayTeamId);
     if (exactMatch) {
+      await assignKnownRivalryToGame(exactMatch.id);
       saved.push({ weekNumber: decision.weekNumber, skipped: false });
       continue;
     }
@@ -376,7 +383,7 @@ export async function commitTeamScheduleDecisions(input: {
         .eq("week_number", decision.weekNumber);
       if (weekGames.error) throw new ApiError(500, "Failed to load week slot count.", weekGames.error);
 
-      await saveManualScheduleGame({
+      const savedGame = await saveManualScheduleGame({
         guildId: input.guildId,
         seasonNumber,
         weekNumber: decision.weekNumber,
@@ -385,6 +392,7 @@ export async function commitTeamScheduleDecisions(input: {
         homeTeamId,
         requestedByDiscordId: input.requestedByDiscordId,
       });
+      await assignKnownRivalryToGame(savedGame.game.id);
       saved.push({ weekNumber: decision.weekNumber, skipped: false });
     } catch (err) {
       // One bad week (e.g. a race with another commissioner's concurrent save) shouldn't

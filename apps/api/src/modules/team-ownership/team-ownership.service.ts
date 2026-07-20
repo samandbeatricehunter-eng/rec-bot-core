@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
+import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
 import { addMemberRole, ensureManagedRoleId, getGuildMemberDisplayNameMap, listGuildMembers } from "../../lib/discord-guild.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 
@@ -72,6 +73,7 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
 
   const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "Failed to create default league teams.", result.error);
+  await ensureLeagueRivalries(league.id, league.game);
 
   await writeAuditLog({
     action: league.game === "cfb_27" ? "teams.default_cfb.upserted" : "teams.default_nfl.upserted",
@@ -115,6 +117,7 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
 
   const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "Failed to reset default league teams.", result.error);
+  await ensureLeagueRivalries(league.id, league.game);
 
   await writeAuditLog({
     action: league.game === "cfb_27" ? "teams.default_cfb.reset" : "teams.default_nfl.reset",
@@ -200,6 +203,7 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
   }
 
   if (result.error) throw new ApiError(500, "Failed to register custom team.", result.error);
+  await clearRivalriesForCustomTeam(league.id, result.data.id);
 
   await writeAuditLog({
     action: "team.custom_replacement.registered",

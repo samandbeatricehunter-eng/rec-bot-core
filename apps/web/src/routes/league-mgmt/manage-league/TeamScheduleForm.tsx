@@ -72,6 +72,54 @@ function resultLabelForDisplayedTeam(week: TeamScheduleManualWeek): string | nul
   return `${teamScore > opponentScore ? "W" : "L"} ${teamScore}-${opponentScore}`;
 }
 
+function RivalryEditor({ week, guildId, teamId, teamName, onSaved }: { week: TeamScheduleManualWeek; guildId: string; teamId: string; teamName: string; onSaved: () => Promise<void> }) {
+  const details = week.rivalry.details;
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ids = homeAwayTeamIds(week, teamId);
+  const labels = homeAwayLabels(week, teamName);
+  const teamAId = details?.team_a_id ?? ids.homeTeamId;
+  const teamBId = details?.team_b_id ?? ids.awayTeamId;
+  const teamALabel = teamAId === ids.homeTeamId ? labels.homeLabel : labels.awayLabel;
+  const teamBLabel = teamBId === ids.awayTeamId ? labels.awayLabel : labels.homeLabel;
+  const [form, setForm] = useState({
+    rivalryName: details?.rivalry_name ?? "", firstYearPlayed: details?.first_year_played?.toString() ?? "",
+    teamAWins: details?.team_a_wins?.toString() ?? "0", teamBWins: details?.team_b_wins?.toString() ?? "0", ties: details?.ties?.toString() ?? "0",
+    lastGameTeamAScore: details?.last_game_team_a_score?.toString() ?? "", lastGameTeamBScore: details?.last_game_team_b_score?.toString() ?? "",
+    streakWinnerTeamId: details?.streak_winner_team_id ?? "", streakLength: details?.streak_length?.toString() ?? "0",
+  });
+  async function toggle(enabled: boolean) {
+    if (enabled && !details) { setEditing(true); return; }
+    setBusy(true);
+    try { await recApi.setGameRivalry({ guildId, gameId: week.gameId, enabled }); await onSaved(); } finally { setBusy(false); }
+  }
+  async function save() {
+    if (!form.rivalryName.trim()) return;
+    setBusy(true);
+    try {
+      const nullableNumber = (value: string) => value === "" ? null : Number(value);
+      await recApi.setGameRivalry({ guildId, gameId: week.gameId, enabled: true, details: {
+        rivalryName: form.rivalryName, firstYearPlayed: nullableNumber(form.firstYearPlayed), teamAWins: Number(form.teamAWins), teamBWins: Number(form.teamBWins), ties: Number(form.ties),
+        lastGameTeamAScore: nullableNumber(form.lastGameTeamAScore), lastGameTeamBScore: nullableNumber(form.lastGameTeamBScore),
+        streakWinnerTeamId: form.streakWinnerTeamId || null, streakLength: Number(form.streakLength),
+      }}); setEditing(false); await onSaved();
+    } finally { setBusy(false); }
+  }
+  const field = (label: string, key: keyof typeof form, type = "number") => <label style={{ display: "grid", gap: 4 }}><span>{label}</span><input type={type} min={type === "number" ? 0 : undefined} maxLength={key === "rivalryName" ? 64 : undefined} value={form[key]} onChange={(e) => setForm((old) => ({ ...old, [key]: e.target.value }))} /></label>;
+  return <div style={{ width: "100%", marginTop: "var(--space-2)" }}>
+    <label style={{ display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={week.rivalry.enabled} disabled={busy} onChange={(e) => void toggle(e.target.checked)} /> Rivalry game {details ? `— ${details.rivalry_name}` : ""}</label>
+    {week.rivalry.enabled && details && <small>{teamALabel} {details.team_a_wins}-{details.team_b_wins}{details.ties ? `-${details.ties}` : ""} {teamBLabel} · Current streak: {details.streak_winner_team_id === teamAId ? teamALabel : details.streak_winner_team_id === teamBId ? teamBLabel : "None"} {details.streak_length}</small>}
+    {editing && <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(160px, 1fr))", gap: 10, padding: 12, marginTop: 8, border: "1px solid var(--border)" }}>
+      <div style={{ gridColumn: "1 / -1" }}>{field("Rivalry Name", "rivalryName", "text")}</div>
+      {field("First Year Played", "firstYearPlayed")}{field(`${teamALabel} Wins`, "teamAWins")}{field(`${teamBLabel} Wins`, "teamBWins")}{field("Ties", "ties")}
+      {field(`Last Game ${teamALabel} Score`, "lastGameTeamAScore")}{field(`Last Game ${teamBLabel} Score`, "lastGameTeamBScore")}
+      <label style={{ display: "grid", gap: 4 }}><span>Current Winning Streak</span><select value={form.streakWinnerTeamId} onChange={(e) => setForm((old) => ({ ...old, streakWinnerTeamId: e.target.value }))}><option value="">None</option><option value={teamAId ?? ""}>{teamALabel}</option><option value={teamBId ?? ""}>{teamBLabel}</option></select></label>
+      {field("Streak Length", "streakLength")}
+      <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}><Button onClick={() => void save()} disabled={busy || !form.rivalryName.trim()}>Save Rivalry</Button><Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button></div>
+    </div>}
+  </div>;
+}
+
 // The whole-season, single-page form this Activity exists to demonstrate — every week is
 // a row here instead of Discord's forced one-week-at-a-time wizard (apps/bot/src/flows/
 // cfb-team-schedule-manual.ts), and there's no 25-option select cap to work around. Weeks
@@ -228,6 +276,7 @@ export function TeamScheduleForm() {
                         <Tooltip text="This matchup was entered once and is shared between both teams' schedules — no need to enter it again on the other side.">
                           <Badge status="info">Shared with {week.confirmedOpponentName}'s schedule</Badge>
                         </Tooltip>
+                        {game === "cfb_27" && week.gameId && <RivalryEditor week={week} guildId={guildId} teamId={teamId!} teamName={state.team.name} onSaved={load} />}
                       </div>
                     </Td>
                     <Td>

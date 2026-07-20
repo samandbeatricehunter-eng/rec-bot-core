@@ -8,6 +8,8 @@ import { commitTeamScheduleDecisions, getTeamScheduleManualState, previewCfbTeam
 import { getLinkedRoster, getTeamManagementSummary } from "./team-schedule-summary.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
+import { setGameRivalry } from "../rivalries/rivalries.service.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
 const GuildSchema = z.object({ guildId: z.string().min(1) });
 
@@ -206,6 +208,23 @@ export async function scheduleRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/schedule/game-rivalry", async (request, reply) => {
+    try {
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({
+        guildId: z.string().min(1), gameId: z.string().uuid(), enabled: z.boolean(),
+        details: z.object({
+          rivalryName: z.string().trim().min(1).max(64), firstYearPlayed: z.number().int().min(1869).max(2100).nullable(),
+          teamAWins: z.number().int().min(0), teamBWins: z.number().int().min(0), ties: z.number().int().min(0).optional(),
+          lastGameTeamAScore: z.number().int().min(0).nullable(), lastGameTeamBScore: z.number().int().min(0).nullable(),
+          streakWinnerTeamId: z.string().uuid().nullable(), streakLength: z.number().int().min(0),
+        }).optional(),
+      }).parse(request.body);
+      const context = await getCurrentLeagueContext(input.guildId);
+      return reply.send(await setGameRivalry({ leagueId: context.leagueId, gameId: input.gameId, enabled: input.enabled, details: input.details }));
+    } catch (error) { return sendError(reply, error); }
   });
 
   // Manage League hub's list view: every team's ownership + schedule-completion +
