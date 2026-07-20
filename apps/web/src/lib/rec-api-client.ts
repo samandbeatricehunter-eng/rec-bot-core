@@ -123,6 +123,8 @@ export const recApi = {
     recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
   getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>
     recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),
+  getMatchupPreview: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<import("../types/api.js").MatchupPreview>("/v1/hub/matchups/preview", { method: "POST", body: JSON.stringify(input) }),
   sendHubMatchupMessage: (input: { guildId: string; gameId: string; body: string }) =>
     recApiFetch<{ message: import("../types/api.js").MatchupChatMessage }>("/v1/hub/matchups/chat/send", { method: "POST", body: JSON.stringify(input) }),
   getMyTeamSchedule: (guildId: string) =>

@@ -2,17 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, MessageCircle, Radio, Send } from "lucide-react";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
+import { MatchupPreview } from "../../components/matchups/MatchupPreview.js";
 import { Button } from "../../components/ui/Button.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupDetail } from "../../types/api.js";
+import type { HubMatchupDetail, MatchupPreview as MatchupPreviewData } from "../../types/api.js";
 
 export function MatchupDetailPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const { guildId } = useReadyAuth();
   const [detail, setDetail] = useState<HubMatchupDetail | null>(null);
+  const [preview, setPreview] = useState<MatchupPreviewData | null>(null);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -22,6 +24,12 @@ export function MatchupDetailPage() {
     catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to load matchup."); }
   }, [gameId, guildId]);
   useEffect(() => { void load(); const timer=window.setInterval(() => void load(),5000); return () => window.clearInterval(timer); }, [load]);
+  useEffect(() => {
+    if (!gameId) return;
+    let active = true;
+    recApi.getMatchupPreview({ guildId, gameId }).then((data) => { if (active) setPreview(data); }).catch(() => { if (active) setPreview(null); });
+    return () => { active = false; };
+  }, [gameId, guildId]);
   async function send() {
     if (!gameId || !body.trim()) return;
     setSending(true);
@@ -35,6 +43,7 @@ export function MatchupDetailPage() {
   return <main className="matchup-detail-page">
     <Link className="matchup-detail-back" to="/"><ArrowLeft size={18}/> Back to matchups</Link>
     <MatchupCard game={detail.matchup} featured />
+    {preview && <MatchupPreview preview={preview} />}
     <div className="matchup-detail-grid">
       <section className="matchup-detail-panel">
         <h2><Radio size={20}/> Active Streams</h2>

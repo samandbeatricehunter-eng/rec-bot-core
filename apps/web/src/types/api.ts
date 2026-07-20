@@ -455,6 +455,47 @@ export type HubMatchupGame = HubMatchupSchedule["games"][number];
 export type MatchupChatMessage = { id: string; author_user_id: string; author_display_name: string; body: string; created_at: string };
 export type HubMatchupDetail = { matchup: HubMatchupGame; gotw: HubMatchupSchedule["gotw"]; messages: MatchupChatMessage[] };
 
+export type MatchupTeamBreakdown = {
+  teamId: string;
+  teamName: string;
+  abbr: string | null;
+  primaryColor: string;
+  conference: string | null;
+  isHuman: boolean;
+  record: string;
+  wins: number;
+  losses: number;
+  ties: number;
+  gamesPlayed: number;
+  pointsPerGame: number;
+  pointsAllowedPerGame: number;
+  pointDifferential: number;
+  avgMargin: number;
+  last5: Array<"W" | "L" | "T">;
+  streak: string;
+  winPct: number;
+  coachRating: number | null;
+  coachGrade: string | null;
+  powerRank: number | null;
+};
+export type MatchupPreview = {
+  gameId: string;
+  weekNumber: number;
+  matchupType: "h2h" | "human_cpu" | "cpu";
+  displayAsGrade: boolean;
+  hasSeasonData: boolean;
+  away: MatchupTeamBreakdown;
+  home: MatchupTeamBreakdown;
+  prediction: {
+    awayWinProbability: number;
+    homeWinProbability: number;
+    favoredSide: "home" | "away" | "even";
+    predictedAwayScore: number;
+    predictedHomeScore: number;
+    summary: string;
+  };
+};
+
 export type WagerOptionsResponse = {
   gameId: string;
   homeTeamId: string | null;

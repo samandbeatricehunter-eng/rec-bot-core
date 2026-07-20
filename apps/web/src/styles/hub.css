@@ -2407,3 +2407,47 @@
 .matchup-chat form { display:grid; gap:8px; margin-top:12px; }
 .matchup-chat form .btn { justify-self:end; }
 @media (max-width:760px) { .matchup-detail-page { padding:12px; } .matchup-detail-grid { grid-template-columns:1fr; } .matchup-detail-grid .matchup-chat { grid-row:1; } }
+
+/* Matchup Preview card */
+.matchup-preview { margin-top:var(--space-4); padding:var(--space-4); border:1px solid var(--border); border-radius:16px; background:var(--surface); position:relative; overflow:hidden; }
+.matchup-preview__heading { display:flex; flex-direction:column; gap:2px; margin-bottom:var(--space-3); }
+.matchup-preview__heading span { font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--text-muted); }
+.matchup-preview__heading strong { font-family:var(--font-display); font-size:1.35rem; text-transform:uppercase; letter-spacing:.02em; }
+.matchup-preview__teams { display:grid; grid-template-columns:1fr auto 1fr; align-items:stretch; gap:var(--space-3); }
+.matchup-preview__vs { align-self:center; font-family:var(--font-display); font-size:1.1rem; color:var(--text-muted); letter-spacing:.1em; }
+.matchup-preview__team { display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:12px; border:1px solid var(--border); background:var(--surface-raised); border-top:3px solid var(--team-color,var(--accent)); }
+.matchup-preview__team--home { text-align:right; }
+.matchup-preview__team-head { display:flex; flex-direction:column; gap:2px; }
+.matchup-preview__team-head small { font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; color:var(--text-muted); }
+.matchup-preview__team-head strong { font-size:1.05rem; line-height:1.15; }
+.matchup-preview__record { font-size:.82rem; color:var(--text-muted); font-weight:700; }
+.matchup-preview__stats { display:grid; gap:6px; margin:0; }
+.matchup-preview__stats div { display:flex; justify-content:space-between; gap:12px; font-size:.85rem; }
+.matchup-preview__team--home .matchup-preview__stats div { flex-direction:row-reverse; }
+.matchup-preview__stats dt { color:var(--text-muted); margin:0; }
+.matchup-preview__stats dd { margin:0; font-weight:700; font-variant-numeric:tabular-nums; }
+.matchup-preview__form { display:flex; gap:5px; flex-wrap:wrap; }
+.matchup-preview__team--home .matchup-preview__form { justify-content:flex-end; }
+.matchup-preview__form-chip { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; font-size:.72rem; font-weight:800; color:#080A0C; }
+.matchup-preview__form-chip.is-w { background:var(--success,#4ba36a); }
+.matchup-preview__form-chip.is-l { background:var(--danger,#c64a43); color:#F4F5F6; }
+.matchup-preview__form-chip.is-t { background:var(--text-muted); }
+.matchup-preview__form-empty { font-size:.78rem; color:var(--text-muted); }
+.matchup-preview__prediction { margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--border); display:flex; flex-direction:column; gap:10px; }
+.matchup-preview__odds-head { display:flex; justify-content:space-between; align-items:center; font-weight:800; font-variant-numeric:tabular-nums; }
+.matchup-preview__odds-head em { font-style:normal; font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--text-muted); font-weight:700; }
+.matchup-preview__odds-head span { font-size:1.1rem; color:var(--text-muted); }
+.matchup-preview__odds-head span.is-favored { color:var(--text-primary); }
+.matchup-preview__odds-bar { display:flex; height:12px; border-radius:999px; overflow:hidden; background:var(--surface); border:1px solid var(--border); }
+.matchup-preview__odds-away, .matchup-preview__odds-home { display:block; height:100%; background:var(--team-color,var(--accent)); min-width:2px; }
+.matchup-preview__projection { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.matchup-preview__proj-label { font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--text-muted); }
+.matchup-preview__proj-score { font-family:var(--font-display); font-size:1.4rem; letter-spacing:.02em; font-variant-numeric:tabular-nums; }
+.matchup-preview__proj-score b { font-family:inherit; font-size:1rem; color:var(--text-muted); }
+.matchup-preview__proj-dash { margin:0 8px; color:var(--text-muted); }
+.matchup-preview__note { margin:0; font-size:.8rem; color:var(--text-muted); }
+@media (max-width:620px) {
+  .matchup-preview__teams { grid-template-columns:1fr; }
+  .matchup-preview__vs { justify-self:center; }
+  .matchup-preview__team--home, .matchup-preview__team--home .matchup-preview__stats div, .matchup-preview__team--home .matchup-preview__form { text-align:left; flex-direction:initial; justify-content:initial; }
+}

@@ -5,6 +5,7 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
+import { getMatchupPreview } from "./matchup-preview.service.js";
 import {
   addHubStoryComment,
   closeGameOfWeekVoting,
@@ -269,6 +270,15 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Matchup detail requires a user session.");
       return reply.send(await getHubMatchupDetail({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/matchups/preview", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Matchup preview requires a user session.");
+      return reply.send(await getMatchupPreview({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 
