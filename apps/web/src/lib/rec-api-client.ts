@@ -15,6 +15,7 @@ import type {
   DivisionWinnerOptions,
   EosAwardPoll,
   EosAwardVotingPoll,
+  GotwCandidate,
   GotwPollStatus,
   PendingEosLedgers,
   RecPayoutTier,
@@ -391,6 +392,9 @@ export const recApi = {
     recApiFetch<{ polls: GotwPollStatus[] }>("/v1/gotw/poll/active-all", { method: "POST", body: JSON.stringify(input) }),
   assignGotwPoll: (input: { guildId: string; gameId: string; awayTeamId: string; homeTeamId: string; awayUserId?: string | null; homeUserId?: string | null; awayTeamName: string; homeTeamName: string; weekNumber: number }) =>
     recApiFetch<{ pollId: string }>("/v1/gotw/poll/create", { method: "POST", body: JSON.stringify(input) }),
+  // Score-ranked GOTW candidates for the advance flow (top flagged `recommended`).
+  getGotwCandidates: (input: { guildId: string; weekNumber: number }) =>
+    recApiFetch<{ candidates: GotwCandidate[] }>("/v1/league-week/gotw-candidates", { method: "POST", body: JSON.stringify(input) }),
 
   // EOS Payouts — Pending Payouts inbox.
   listPendingEosLedgers: (guildId: string) =>

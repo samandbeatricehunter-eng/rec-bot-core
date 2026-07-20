@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { AdvanceGame, AdvanceResultInput, AdvanceWeekGames, GotwPollStatus } from "../../../types/api.js";
+import type { AdvanceGame, AdvanceResultInput, AdvanceWeekGames, GotwCandidate, GotwPollStatus } from "../../../types/api.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
@@ -14,11 +14,29 @@ import { Modal } from "../../../components/ui/Modal.js";
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 
-type GameEntry = { outcome: "home" | "away" | "tie" | ""; homeScore: string; awayScore: string };
+// Scores-only entry: the outcome is always derived from the two final scores (the score
+// always reflects the result), so there is no separate winner/tie selector.
+type GameEntry = { awayScore: string; homeScore: string };
 type AdvanceTimeDraft = { date: string; hour: string; minute: string; meridiem: "AM" | "PM"; tzLabel: string };
 
 function titleCaseStage(stage: string) {
   return stage.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function deriveOutcome(awayScore: string, homeScore: string): "home" | "away" | "tie" | null {
+  const away = Number(awayScore);
+  const home = Number(homeScore);
+  if (awayScore.trim() === "" || homeScore.trim() === "" || Number.isNaN(away) || Number.isNaN(home)) return null;
+  return home > away ? "home" : away > home ? "away" : "tie";
+}
+
+// Any game with at least one linked human requires a final score before advancing.
+function involvesHuman(g: AdvanceGame): boolean {
+  return Boolean(g.homeUserId || g.awayUserId);
+}
+
+function entryHasScores(entry?: GameEntry): boolean {
+  return Boolean(entry && deriveOutcome(entry.awayScore, entry.homeScore) !== null);
 }
 
 function localTzLabel(): string {
@@ -54,6 +72,7 @@ export function AdvanceHome() {
   const [advanceDate, setAdvanceDate] = useState<AdvanceTimeDraft>(() => blankAdvanceDate());
 
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
+  const [gotwCandidates, setGotwCandidates] = useState<GotwCandidate[] | null>(null);
   const [gotwGameId, setGotwGameId] = useState("");
   const [assigningGotw, setAssigningGotw] = useState(false);
 
@@ -98,17 +117,19 @@ export function AdvanceHome() {
   async function handleConfirmJump() {
     if (!jumpPlan || !jumpTargetKey) return;
     const [weekNumber, seasonStage] = jumpTargetKey.split("::");
+    const jumpGames = jumpPlan.steps.flatMap((step) => step.gamesNeedingInput);
+    const missing = jumpGames.filter((g) => involvesHuman(g) && !entryHasScores(jumpEntries[g.gameId]));
+    if (missing.length) {
+      setError(`Enter a final score for all ${missing.length} game${missing.length === 1 ? "" : "s"} involving a human across the skipped weeks before jumping.`);
+      return;
+    }
     setJumpBusy(true);
     setError(null);
-    const results: AdvanceResultInput[] = jumpPlan.steps.flatMap((step) => step.gamesNeedingInput).flatMap((g): AdvanceResultInput[] => {
+    const results: AdvanceResultInput[] = jumpGames.flatMap((g): AdvanceResultInput[] => {
       const entry = jumpEntries[g.gameId];
-      if (!entry?.outcome) return [];
-      return [{
-        gameId: g.gameId,
-        outcome: entry.outcome as "home" | "away" | "tie",
-        homeScore: entry.homeScore.trim() === "" ? null : Number(entry.homeScore),
-        awayScore: entry.awayScore.trim() === "" ? null : Number(entry.awayScore),
-      }];
+      const outcome = entry ? deriveOutcome(entry.awayScore, entry.homeScore) : null;
+      if (!outcome || !entry) return [];
+      return [{ gameId: g.gameId, outcome, homeScore: Number(entry.homeScore), awayScore: Number(entry.awayScore) }];
     });
     try {
       const result = await recApi.completeAdvanceJump({ guildId, targetWeekNumber: Number(weekNumber), targetSeasonStage: seasonStage, results });
@@ -133,13 +154,18 @@ export function AdvanceHome() {
       .then((res) => {
         setData(res);
         recApi.listGotwPollsForWeek({ guildId, weekNumber: res.currentWeek }).then((r) => setGotwPolls(r.polls)).catch(() => setGotwPolls([]));
+        recApi.getGotwCandidates({ guildId, weekNumber: res.currentWeek }).then((r) => {
+          setGotwCandidates(r.candidates);
+          const recommended = r.candidates.find((c) => c.recommended);
+          if (recommended) setGotwGameId((prev) => prev || recommended.gameId);
+        }).catch(() => setGotwCandidates([]));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load this week's games."));
   }
 
   useEffect(load, [guildId]);
 
-  const emptyEntry: GameEntry = { outcome: "", homeScore: "", awayScore: "" };
+  const emptyEntry: GameEntry = { awayScore: "", homeScore: "" };
 
   function setEntry(gameId: string, patch: Partial<GameEntry>) {
     setEntries((prev) => ({ ...prev, [gameId]: { ...(prev[gameId] ?? emptyEntry), ...patch } }));
@@ -159,18 +185,19 @@ export function AdvanceHome() {
       setError("Fill in the full next advance time, or leave it blank to skip.");
       return;
     }
+    const missing = data.gamesNeedingInput.filter((g) => involvesHuman(g) && !entryHasScores(entries[g.gameId]));
+    if (missing.length) {
+      setError(`Enter a final score for all ${missing.length} remaining game${missing.length === 1 ? "" : "s"} involving a human before advancing.`);
+      return;
+    }
     setAdvancing(true);
     setError(null);
     setNotice(null);
     const results: AdvanceResultInput[] = data.gamesNeedingInput.flatMap((g): AdvanceResultInput[] => {
       const entry = entries[g.gameId];
-      if (!entry?.outcome) return [];
-      return [{
-        gameId: g.gameId,
-        outcome: entry.outcome as "home" | "away" | "tie",
-        homeScore: entry.homeScore.trim() === "" ? null : Number(entry.homeScore),
-        awayScore: entry.awayScore.trim() === "" ? null : Number(entry.awayScore),
-      }];
+      const outcome = entry ? deriveOutcome(entry.awayScore, entry.homeScore) : null;
+      if (!outcome || !entry) return [];
+      return [{ gameId: g.gameId, outcome, homeScore: Number(entry.homeScore), awayScore: Number(entry.awayScore) }];
     });
     try {
       const result = await recApi.completeAdvanceWeek({
@@ -208,7 +235,7 @@ export function AdvanceHome() {
 
   async function handleAssignGotw() {
     if (!data || !gotwGameId) return;
-    const target = data.games.find((g) => g.gameId === gotwGameId);
+    const target = (gotwCandidates ?? []).find((c) => c.gameId === gotwGameId);
     if (!target) return;
     setAssigningGotw(true);
     setError(null);
@@ -216,8 +243,8 @@ export function AdvanceHome() {
       await recApi.assignGotwPoll({
         guildId,
         gameId: target.gameId,
-        awayTeamId: target.awayTeamId!,
-        homeTeamId: target.homeTeamId!,
+        awayTeamId: target.awayTeamId,
+        homeTeamId: target.homeTeamId,
         awayUserId: target.awayUserId,
         homeUserId: target.homeUserId,
         awayTeamName: target.awayTeamName,
@@ -273,7 +300,9 @@ export function AdvanceHome() {
 
   const pollByGameId = new Map((gotwPolls ?? []).map((p) => [p.game_id, p]));
   const isPostseasonWeek = data.currentStage !== "regular_season";
-  const h2hGames = data.games.filter((g) => g.isH2h);
+  const openCandidates = (gotwCandidates ?? []).filter((c) => !pollByGameId.has(c.gameId));
+  const missingScoreGames = data.gamesNeedingInput.filter((g) => involvesHuman(g) && !entryHasScores(entries[g.gameId]));
+  const readyToAdvance = missingScoreGames.length === 0;
   const currentLabel = data.currentStage === "regular_season" ? `Week ${data.currentWeek}` : titleCaseStage(data.currentStage);
 
   return (
@@ -306,14 +335,17 @@ export function AdvanceHome() {
                 </div>
                 {g.needsInput && (
                   <div className="advance-score-entry">
-                    <select className="form-select" value={entry?.outcome ?? ""} onChange={(e) => setEntry(g.gameId, { outcome: e.target.value as GameEntry["outcome"] })}>
-                      <option value="">Outcome...</option>
-                      <option value="home">{g.homeTeamName} Win</option>
-                      <option value="away">{g.awayTeamName} Win</option>
-                      <option value="tie">Tie</option>
-                    </select>
-                    <input className="form-input" type="number" placeholder="Home" value={entry?.homeScore ?? ""} onChange={(e) => setEntry(g.gameId, { homeScore: e.target.value })} />
-                    <input className="form-input" type="number" placeholder="Away" value={entry?.awayScore ?? ""} onChange={(e) => setEntry(g.gameId, { awayScore: e.target.value })} />
+                    <label className="advance-score-field">
+                      <span>{g.awayTeamName} <em>Away</em></span>
+                      <input className="form-input" type="number" inputMode="numeric" placeholder="Away score" value={entry?.awayScore ?? ""} onChange={(e) => setEntry(g.gameId, { awayScore: e.target.value })} />
+                    </label>
+                    <label className="advance-score-field">
+                      <span>{g.homeTeamName} <em>Home</em></span>
+                      <input className="form-input" type="number" inputMode="numeric" placeholder="Home score" value={entry?.homeScore ?? ""} onChange={(e) => setEntry(g.gameId, { homeScore: e.target.value })} />
+                    </label>
+                    {entryHasScores(entry)
+                      ? <span className="advance-derived-outcome">{deriveOutcome(entry!.awayScore, entry!.homeScore) === "tie" ? "Tie" : `${deriveOutcome(entry!.awayScore, entry!.homeScore) === "away" ? g.awayTeamName : g.homeTeamName} win`}</span>
+                      : involvesHuman(g) && <span className="advance-score-required">Score required</span>}
                   </div>
                 )}
                 {isCfb && isPostseasonWeek && g.isH2h && (
@@ -339,8 +371,9 @@ export function AdvanceHome() {
           <div>
             <span className="advance-eyebrow">Next Advance</span>
             <strong>{data.nextLabel}</strong>
+            {!readyToAdvance && <span className="form-hint">{missingScoreGames.length} game{missingScoreGames.length === 1 ? "" : "s"} involving a human still need a final score.</span>}
           </div>
-          <Button variant="tactical" onClick={() => setShowAdvanceModal(true)} disabled={advancing}>
+          <Button variant="tactical" onClick={() => setShowAdvanceModal(true)} disabled={advancing || !readyToAdvance}>
             Complete Advance
           </Button>
         </div>
@@ -348,7 +381,7 @@ export function AdvanceHome() {
 
       <Card className="advance-card">
         <h2>Game of the Week</h2>
-        <p className="form-hint">Assign this week's GOTW matchup. Voting and closing happen on the Hub matchup page.</p>
+        <p className="form-hint">Matchups are ranked by the GOTW nomination score (rivalry, parity, quality, recent form). The recommended game is <strong>bold</strong> at the top — pick it or override. Voting and closing happen on the Hub matchup page.</p>
         <div className="advance-stack">
           {(gotwPolls ?? []).map((poll) => (
             <div key={poll.id} className="advance-inline-row">
@@ -359,9 +392,13 @@ export function AdvanceHome() {
           {!(gotwPolls ?? []).length && <p className="advance-empty">No GOTW assigned this week yet.</p>}
         </div>
         <div className="advance-control-row">
-          <select className="form-select" value={gotwGameId} onChange={(e) => setGotwGameId(e.target.value)} disabled={!h2hGames.length}>
-            <option value="">{h2hGames.length ? "Select an H2H game..." : "No H2H games this week"}</option>
-            {h2hGames.filter((g) => !pollByGameId.has(g.gameId)).map((g) => <option key={g.gameId} value={g.gameId}>{g.awayTeamName} @ {g.homeTeamName}</option>)}
+          <select className="form-select advance-gotw-select" value={gotwGameId} onChange={(e) => setGotwGameId(e.target.value)} disabled={!openCandidates.length}>
+            <option value="">{gotwCandidates == null ? "Scoring matchups..." : openCandidates.length ? "Select the Game of the Week..." : "No eligible H2H matchups"}</option>
+            {openCandidates.map((c) => (
+              <option key={c.gameId} value={c.gameId} style={c.recommended ? { fontWeight: 700 } : undefined}>
+                {c.recommended ? "★ Recommended — " : ""}{c.awayTeamName} @ {c.homeTeamName} · {c.score}{c.isRivalry ? " · Rivalry" : ""}
+              </option>
+            ))}
           </select>
           <Button variant="primary" disabled={!gotwGameId || assigningGotw} onClick={handleAssignGotw}>
             {assigningGotw ? "Assigning..." : "Assign GOTW"}
@@ -455,14 +492,17 @@ export function AdvanceHome() {
                     <div key={g.gameId} className="advance-game-row">
                       <div className="advance-game-title"><strong>{g.awayTeamName} @ {g.homeTeamName}</strong></div>
                       <div className="advance-score-entry">
-                        <select className="form-select" value={entry?.outcome ?? ""} onChange={(e) => setJumpEntry(g.gameId, { outcome: e.target.value as GameEntry["outcome"] })}>
-                          <option value="">Outcome...</option>
-                          <option value="home">{g.homeTeamName} Win</option>
-                          <option value="away">{g.awayTeamName} Win</option>
-                          <option value="tie">Tie</option>
-                        </select>
-                        <input className="form-input" type="number" placeholder="Home" value={entry?.homeScore ?? ""} onChange={(e) => setJumpEntry(g.gameId, { homeScore: e.target.value })} />
-                        <input className="form-input" type="number" placeholder="Away" value={entry?.awayScore ?? ""} onChange={(e) => setJumpEntry(g.gameId, { awayScore: e.target.value })} />
+                        <label className="advance-score-field">
+                          <span>{g.awayTeamName} <em>Away</em></span>
+                          <input className="form-input" type="number" inputMode="numeric" placeholder="Away score" value={entry?.awayScore ?? ""} onChange={(e) => setJumpEntry(g.gameId, { awayScore: e.target.value })} />
+                        </label>
+                        <label className="advance-score-field">
+                          <span>{g.homeTeamName} <em>Home</em></span>
+                          <input className="form-input" type="number" inputMode="numeric" placeholder="Home score" value={entry?.homeScore ?? ""} onChange={(e) => setJumpEntry(g.gameId, { homeScore: e.target.value })} />
+                        </label>
+                        {entryHasScores(entry)
+                          ? <span className="advance-derived-outcome">{deriveOutcome(entry!.awayScore, entry!.homeScore) === "tie" ? "Tie" : `${deriveOutcome(entry!.awayScore, entry!.homeScore) === "away" ? g.awayTeamName : g.homeTeamName} win`}</span>
+                          : involvesHuman(g) && <span className="advance-score-required">Score required</span>}
                       </div>
                     </div>
                   );

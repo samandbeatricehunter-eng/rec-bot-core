@@ -10,6 +10,7 @@ import { cancelOpenEosAwardPolls, castEosAwardVote, getEosAwardPoll, getEosAward
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
+import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
 import { getMyDefenseNicknameStatus, setDefenseNickname } from "./defense-nicknames.service.js";
 import { SUPPORTED_TZ_LABELS } from "../../lib/timezone.js";
 import { ApiError } from "../../lib/errors.js";
@@ -73,6 +74,18 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       return reply.send(await getAdvanceWeekGames(body.guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Automated GOTW nomination — scores every eligible H2H matchup in the given week and
+  // returns them ranked (top flagged `recommended`) for the advance-flow dropdown.
+  app.post("/v1/league-week/gotw-candidates", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      return reply.send({ candidates: await scoreWeekGotwCandidates(body.guildId, body.weekNumber) });
     } catch (error) {
       return sendError(reply, error);
     }

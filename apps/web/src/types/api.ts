@@ -318,6 +318,15 @@ export type AdvanceWeekGames = {
   gamesNeedingInput: AdvanceGame[];
 };
 export type AdvanceResultInput = { gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null };
+export type GotwCandidateBreakdown = { rivalry: number; parity: number; quality: number; recentForm: number; repeatPenalty: number; total: number };
+export type GotwCandidate = {
+  gameId: string; weekNumber: number;
+  awayTeamId: string; homeTeamId: string;
+  awayTeamName: string; homeTeamName: string;
+  awayUserId: string | null; homeUserId: string | null;
+  isRivalry: boolean; rivalryName: string | null;
+  breakdown: GotwCandidateBreakdown; score: number; recommended: boolean;
+};
 export type DivisionWinnerOption = { key: string; conference: string; division: string; label: string; teams: { id: string; name: string; abbreviation: string | null }[] };
 export type DivisionWinnerOptions = { league: { id: string; seasonNumber: number }; divisions: DivisionWinnerOption[] };
 
