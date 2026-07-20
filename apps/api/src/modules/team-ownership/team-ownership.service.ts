@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { AFC_TEAMS, CFB_27_TEAMS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
+import { AFC_TEAMS, CFB_27_TEAMS, CFB_TEAM_PRIMARY_COLORS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -62,7 +62,8 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     // `name` already carries the full "City Mascot" combo, so leave its display fields null.
     display_city: isCfb ? cfbDisplayCity(team as CfbTeamOption) : null,
     display_nick: isCfb ? (team as CfbTeamOption).mascot : null,
-    source: "manual_admin_entry"
+    source: "manual_admin_entry",
+    primary_color: isCfb ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF") : "#FFFFFF"
   }));
 
   const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
@@ -93,6 +94,9 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
 
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
+  const customTeams = await supabase.from("rec_teams").select("id").eq("league_id", league.id).eq("is_relocated", true).limit(1);
+  if (customTeams.error) throw new ApiError(500, "Failed to validate permanent custom teams.", customTeams.error);
+  if (customTeams.data?.length) throw new ApiError(409, "Default teams cannot be reset after a custom replacement has been created in this league.");
   const isCfb = league.game === "cfb_27";
   const catalog = getDefaultTeamCatalog(league.game);
   const rows = catalog.map((team) => ({
@@ -107,6 +111,7 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
     is_relocated: false,
     original_abbreviation: null,
     source: "manual_admin_entry" as const,
+    primary_color: isCfb ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF") : "#FFFFFF",
   }));
 
   const clearedAssignments = await supabase.from("rec_team_assignments").delete().eq("league_id", league.id);
@@ -174,6 +179,9 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     display_abbr: input.customDisplayAbbr ?? null,
     is_relocated: true,
     original_abbreviation: originalAbbreviation,
+    // TODO(PWA team management): add a commissioner color editor. Until that
+    // workflow exists, every custom replacement intentionally starts white.
+    primary_color: "#FFFFFF",
     updated_at: new Date().toISOString()
   };
 

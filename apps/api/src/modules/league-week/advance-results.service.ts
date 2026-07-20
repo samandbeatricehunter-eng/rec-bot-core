@@ -504,6 +504,10 @@ export async function completeAdvanceWeek(input: {
   // Five independent, non-fatal cleanup/rebuild steps — none feed data into another,
   // so run them in parallel instead of one after another.
   await Promise.all([
+    // Matchup chat is intentionally ephemeral and is wiped as the week advances.
+    supabase.from("rec_matchup_chat_messages").delete().eq("league_id", context.leagueId).then(({ error }) => {
+      if (error) console.error("[ERROR] Failed to wipe matchup chat after advance (non-fatal):", error);
+    }),
     // The previously-scheduled advance just happened, so clear it. A fresh time is
     // set by the next-advance step (or left null if the commissioner skips).
     supabase

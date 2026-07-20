@@ -3,6 +3,7 @@
    values here once a Madden 27 league is live and can be visually verified. */
 [data-game-theme="madden_26"],
 [data-game-theme="madden_27"] {
+  --font-display: "REC Gridiron", "Arial Narrow", var(--font-sans);
   --accent-primary: var(--gold);
   --field-line: #d4d4d4;
   --turf-a: #14150f;

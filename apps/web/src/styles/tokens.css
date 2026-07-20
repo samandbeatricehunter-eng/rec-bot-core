@@ -83,7 +83,7 @@
   --status-neutral: var(--info);
 
   /* Display typography */
-  --font-display: "Oswald", var(--font-sans);
+  --font-display: "REC Victory Slab", Impact, var(--font-sans);
   --tracking-display: 0.01em;
 
   /* Motion */

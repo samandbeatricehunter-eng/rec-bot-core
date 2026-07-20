@@ -157,6 +157,7 @@ export const recTeams = pgTable("rec_teams", {
   isRelocated: boolean("is_relocated").notNull().default(false),
   originalAbbreviation: text("original_abbreviation"),
   isSchedulePlaceholder: boolean("is_schedule_placeholder").notNull().default(false)
+  ,primaryColor: text("primary_color").notNull().default("#FFFFFF")
 });
 
 export const recLeagueMemberships = pgTable("rec_league_memberships", {

@@ -19,6 +19,7 @@ import { RecruitingHome } from "./routes/league-mgmt/recruiting/RecruitingHome.j
 import { FirstTimeSetupHome } from "./routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";
 import { HubHome } from "./routes/hub/HubHome.js";
 import { recApi } from "./lib/rec-api-client.js";
+import { MatchupDetailPage } from "./routes/matchups/MatchupDetail.js";
 
 // This dashboard is only ever reached one way: an authorized user clicks "Open Web
 // Dashboard" in Discord's League Mgmt panel, which opens this app in a normal browser tab
@@ -78,6 +79,7 @@ export default function App() {
           <AppShell>
             <Routes>
               <Route path="/" element={<HubHome />} />
+              <Route path="/matchups/:gameId" element={<MatchupDetailPage />} />
               <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupGate><FirstTimeSetupHome /></FirstTimeSetupGate>} />
               <Route path="/league-mgmt" element={managed(<LeagueMgmtHome />)} />
               <Route path="/league-mgmt/notifications" element={managed(<NotificationsHome />)} />

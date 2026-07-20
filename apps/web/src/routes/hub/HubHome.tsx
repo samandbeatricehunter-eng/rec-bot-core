@@ -16,6 +16,7 @@ import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
+import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 
 const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "TOTY", label: "Throw of the Year" }, { key: "COTY", label: "Catch of the Year" }, { key: "ROTY", label: "Run of the Year" },
@@ -265,6 +266,7 @@ export function HubHome() {
   const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
   const [matchupScheduleError, setMatchupScheduleError] = useState<string | null>(null);
   const [matchupReloadKey, setMatchupReloadKey] = useState(0);
+  const [matchupView, setMatchupView] = useState<"h2h" | "cpu">("h2h");
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
@@ -1122,6 +1124,14 @@ export function HubHome() {
             <div className="hub-week-picker">
               <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
             </div>
+            <div className="rec-matchup-tabs" role="tablist" aria-label="Matchup type">
+              <button role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
+              <button role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
+            </div>
+            {(() => {
+              const visible = schedule.games.filter((game) => matchupView === "h2h" ? game.matchupType === "h2h" : game.matchupType === "human_cpu");
+              return visible.length ? <div className="rec-matchup-list">{visible.map((game, index) => <MatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />)}</div> : <p className="hub-empty">No {matchupView === "h2h" ? "H2H" : "human vs CPU"} games are scheduled for Week {schedule.selectedWeek}.</p>;
+            })()}
             {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : ""}`} key={game.gameId}>
               <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + ((game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : "")}>
                 <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>

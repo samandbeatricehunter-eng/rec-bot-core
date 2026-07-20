@@ -1,0 +1,8 @@
+REC Victory Slab is a width-customized derivative of Graduate.
+
+Graduate Copyright (c) 2011 by Eduardo Tunni (http://www.tipo.net.ar), with
+Reserved Font Name "Graduate". REC Victory Slab does not use that reserved name.
+
+The family is distributed under the SIL Open Font License, Version 1.1. See
+OFL.txt in this directory. REC-specific application artwork and branding remain
+separate from the font license.

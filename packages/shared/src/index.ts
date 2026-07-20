@@ -2,6 +2,7 @@ export * from "./football-positions.js";
 export * from "./highlight-emojis.js";
 export * from "./nfl-teams.js";
 export * from "./cfb-teams.js";
+export * from "./cfb-team-colors.generated.js";
 export * from "./cfb-rivalries.generated.js";
 export * from "./conferences.js";
 export * from "./league-stage.js";

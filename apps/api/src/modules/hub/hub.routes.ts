@@ -11,6 +11,7 @@ import {
   createCommissionerMediaArticle,
   getHub,
   getHubMatchupSchedule,
+  getHubMatchupDetail,
   getHubBootstrapStatus,
   getHubMediaPortal,
   getMyTeamSchedule,
@@ -26,6 +27,7 @@ import {
   STREAM_VIEWER_COOKIE,
   submitInterview,
   submitUserMediaArticle,
+  sendHubMatchupMessage,
   toggleHubGameReaction,
   toggleHubHighlightReaction,
   toggleHubStreamReaction,
@@ -258,6 +260,24 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Matchup schedule requires a user session.");
       return reply.send(await getHubMatchupSchedule({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/matchups/detail", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Matchup detail requires a user session.");
+      return reply.send(await getHubMatchupDetail({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/matchups/chat/send", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid(), body: z.string().trim().min(1).max(1000) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Matchup chat requires a user session.");
+      return reply.send(await sendHubMatchupMessage({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

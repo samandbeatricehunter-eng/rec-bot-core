@@ -1,7 +1,17 @@
-/* Display typography — imported here so --font-display has a real face to fall back to.
-   Not yet applied to any component (that lands with the design-system component pass);
-   importing it now is a no-op visually since nothing references --font-display yet. */
-@import url("https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap");
+/* Locally hosted REC athletic display family. Body copy remains on the system
+   sans stack; matchup cards and headings opt into --font-display. */
+@font-face { font-family: "REC Victory Slab"; src: url("/fonts/rec-victory-slab-condensed.woff2") format("woff2"); font-style: normal; font-weight: 700; font-stretch: condensed; font-display: swap; }
+@font-face { font-family: "REC Victory Slab"; src: url("/fonts/rec-victory-slab-regular.woff2") format("woff2"); font-style: normal; font-weight: 700; font-stretch: normal; font-display: swap; }
+@font-face { font-family: "REC Victory Slab"; src: url("/fonts/rec-victory-slab-wide.woff2") format("woff2"); font-style: normal; font-weight: 700; font-stretch: expanded; font-display: swap; }
+@font-face { font-family: "REC Gridiron"; src: url("/fonts/rec-gridiron-regular.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "REC Gridiron"; src: url("/fonts/rec-gridiron-bold.woff2") format("woff2"); font-style: normal; font-weight: 700; font-display: swap; }
+@font-face { font-family: "REC Gridiron"; src: url("/fonts/rec-gridiron-forward.woff2") format("woff2"); font-style: italic; font-weight: 700; font-display: swap; }
+
+.rec-display { font-family: "REC Victory Slab", Impact, sans-serif; font-weight: 700; text-transform: uppercase; }
+.rec-display--condensed { font-stretch: condensed; }
+.rec-display--wide { font-stretch: expanded; }
+.rec-gridiron { font-family: "REC Gridiron", "Arial Narrow", sans-serif; font-weight: 700; text-transform: uppercase; }
+.rec-gridiron--forward { font-style: italic; }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;

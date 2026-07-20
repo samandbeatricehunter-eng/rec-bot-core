@@ -120,6 +120,10 @@ export const recApi = {
     recApiFetch<unknown>("/v1/hub/media/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null }) =>
     recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
+  getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),
+  sendHubMatchupMessage: (input: { guildId: string; gameId: string; body: string }) =>
+    recApiFetch<{ message: import("../types/api.js").MatchupChatMessage }>("/v1/hub/matchups/chat/send", { method: "POST", body: JSON.stringify(input) }),
   getMyTeamSchedule: (guildId: string) =>
     recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
   getTeamSchedule: (input: { guildId: string; teamId: string }) =>

@@ -14,6 +14,8 @@ import { computeLeagueSos } from "../schedule/sos.service.js";
 import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.service.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
+import { CFB_TEAM_PRIMARY_COLORS } from "@rec/shared";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 
 export const HUB_REACTION_KEYS = ["love", "like", "dislike", "poop", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "MOSSED", "STEAMROLLER", "FAWKKKK", "SNATCHED", "RIP"] as const;
 export type HubReactionKey = (typeof HUB_REACTION_KEYS)[number];
@@ -950,9 +952,17 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const selectedWeek = input.weekNumber ?? currentWeek;
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+  if (context.rec_leagues.game === "cfb_27") {
+    const leagueTeams = await supabase.from("rec_teams").select("id,abbreviation,is_relocated,primary_color").eq("league_id", context.leagueId);
+    if (leagueTeams.error) throw new ApiError(500, "Failed to load matchup team colors.", leagueTeams.error);
+    await Promise.all((leagueTeams.data ?? []).map((team: any) => {
+      const color = team.is_relocated ? "#FFFFFF" : (CFB_TEAM_PRIMARY_COLORS[String(team.abbreviation ?? "").toUpperCase()] ?? "#FFFFFF");
+      return team.primary_color === color ? Promise.resolve() : supabase.from("rec_teams").update({ primary_color: color }).eq("id", team.id).then(() => undefined);
+    }));
+  }
   let gamesQuery = supabase
     .from("rec_games")
-    .select("id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference)")
+    .select("id,week_number,home_user_id,away_user_id,home_score,away_score,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,conference,display_city,display_nick,primary_color),rivalry:rec_league_rivalries(rivalry_name)")
     .eq("league_id", context.leagueId)
     .eq("week_number", selectedWeek);
   if (seasonId) gamesQuery = gamesQuery.eq("season_id", seasonId);
@@ -1093,8 +1103,13 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         // refresh. Team identity is the durable fallback so the featured card is
         // never silently omitted from the weekly slate.
         isGameOfWeek: isPollGame(game),
-        homeTeamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
-        awayTeamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away",
+        homeTeamId: game.home_team?.id ?? null,
+        awayTeamId: game.away_team?.id ?? null,
+        homeTeamName: formatTeamDisplayName(game.home_team) ?? game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
+        awayTeamName: formatTeamDisplayName(game.away_team) ?? game.away_team?.name ?? game.away_team?.abbreviation ?? "Away",
+        homeTeamColor: game.home_team?.primary_color ?? "#FFFFFF",
+        awayTeamColor: game.away_team?.primary_color ?? "#FFFFFF",
+        rivalryName: (Array.isArray(game.rivalry) ? game.rivalry[0] : game.rivalry)?.rivalry_name ?? null,
         homeConference: game.home_team?.conference ?? null,
         awayConference: game.away_team?.conference ?? null,
         homeScore,
@@ -1113,6 +1128,34 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       };
     }).sort((a: any, b: any) => Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.involvesMe) - Number(a.involvesMe) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName)),
   };
+}
+
+export async function getHubMatchupDetail(input: { guildId: string; discordId: string; gameId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const game = await supabase.from("rec_games").select("id,week_number,home_user_id,away_user_id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to load matchup.", game.error);
+  if (!game.data) throw new ApiError(404, "Matchup not found.");
+  if (!game.data.home_user_id || !game.data.away_user_id) throw new ApiError(400, "CPU matchups do not have game chat.");
+  const schedule = await getHubMatchupSchedule({ guildId: input.guildId, discordId: input.discordId, weekNumber: Number(game.data.week_number) });
+  const matchup = schedule.games.find((item: any) => item.gameId === input.gameId);
+  if (!matchup) throw new ApiError(404, "Matchup not found in this league week.");
+  const messages = await supabase.from("rec_matchup_chat_messages").select("id,author_user_id,author_display_name,body,created_at").eq("game_id", input.gameId).order("created_at", { ascending: true }).limit(300);
+  if (messages.error) throw new ApiError(500, "Failed to load matchup chat.", messages.error);
+  return { matchup, gotw: schedule.gotw?.gameId === input.gameId ? schedule.gotw : null, messages: messages.data ?? [] };
+}
+
+export async function sendHubMatchupMessage(input: { guildId: string; discordId: string; gameId: string; body: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdForDiscord(input.discordId);
+  const [game, user] = await Promise.all([
+    supabase.from("rec_games").select("id,home_user_id,away_user_id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle(),
+    supabase.from("rec_users").select("display_name").eq("id", userId).maybeSingle(),
+  ]);
+  if (game.error || user.error) throw new ApiError(500, "Failed to validate matchup chat.", game.error ?? user.error);
+  if (!game.data?.home_user_id || !game.data?.away_user_id) throw new ApiError(400, "CPU matchups do not have game chat.");
+  const inserted = await supabase.from("rec_matchup_chat_messages").insert({ id: randomUUID(), league_id: context.leagueId, game_id: input.gameId, author_user_id: userId, author_discord_id: input.discordId, author_display_name: user.data?.display_name ?? "REC Member", body: input.body.trim() }).select("id,author_user_id,author_display_name,body,created_at").single();
+  if (inserted.error) throw new ApiError(500, "Failed to send matchup message.", inserted.error);
+  return { message: inserted.data };
 }
 
 export async function voteGameOfWeek(input: { guildId: string; discordId: string; pollId: string; selectedTeamId: string }) {

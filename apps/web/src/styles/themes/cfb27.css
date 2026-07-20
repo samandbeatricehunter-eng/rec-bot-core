@@ -3,6 +3,7 @@
    file introduces zero visual change; it becomes the place CFB-specific accent/turf/field
    values get tuned as the football redesign lands. */
 [data-game-theme="cfb_27"] {
+  --font-display: "REC Victory Slab", Impact, var(--font-sans);
   --accent-primary: var(--gold);
   --field-line: #d4d4d4;
   --turf-a: #172016;
