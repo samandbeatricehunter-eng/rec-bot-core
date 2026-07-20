@@ -13,6 +13,8 @@ import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
 import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.service.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
+import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
+import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { CFB_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -155,6 +157,29 @@ async function activeAssignment(leagueId: string, userId: string) {
 
 function streamWatchPath(streamLogId: string) {
   return `/v1/hub/streams/open/${streamLogId}`;
+}
+
+function detectStreamService(rawUrl: string) {
+  const url = String(rawUrl ?? "").trim().toLowerCase();
+  if (!url) return null;
+  if (url.includes("twitch.tv")) return "twitch";
+  if (url.includes("youtu.be") || url.includes("youtube.com")) return "youtube";
+  if (url.includes("kick.com")) return "kick";
+  return "other";
+}
+
+function isPostseasonStage(value: unknown) {
+  const stage = String(value ?? "").toLowerCase();
+  return (
+    stage === "playoffs" ||
+    stage === "postseason" ||
+    stage === "wildcard" ||
+    stage === "divisional" ||
+    stage === "conference_championship" ||
+    stage === "super_bowl" ||
+    stage === "national_championship" ||
+    stage === "bowl_season"
+  );
 }
 
 function missingRelation(error: any, tableName: string) {
@@ -956,8 +981,17 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     const leagueTeams = await supabase.from("rec_teams").select("id,abbreviation,is_relocated,primary_color").eq("league_id", context.leagueId);
     if (leagueTeams.error) throw new ApiError(500, "Failed to load matchup team colors.", leagueTeams.error);
     await Promise.all((leagueTeams.data ?? []).map((team: any) => {
-      const color = team.is_relocated ? "#FFFFFF" : (CFB_TEAM_PRIMARY_COLORS[String(team.abbreviation ?? "").toUpperCase()] ?? "#FFFFFF");
-      return team.primary_color === color ? Promise.resolve() : supabase.from("rec_teams").update({ primary_color: color }).eq("id", team.id).then(() => undefined);
+      // Preserve any existing team color (including commissioner-assigned relocated colors).
+      // Only backfill when a team has no primary_color set.
+      if (String(team.primary_color ?? "").trim()) return Promise.resolve();
+      const color =
+        CFB_TEAM_PRIMARY_COLORS[String(team.abbreviation ?? "").toUpperCase()] ??
+        "#FFFFFF";
+      return supabase
+        .from("rec_teams")
+        .update({ primary_color: color })
+        .eq("id", team.id)
+        .then(() => undefined);
     }));
   }
   let gamesQuery = supabase
@@ -1132,6 +1166,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
 
 export async function getHubMatchupDetail(input: { guildId: string; discordId: string; gameId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
+  const viewerUserId = await userIdForDiscord(input.discordId);
   const game = await supabase.from("rec_games").select("id,week_number,home_user_id,away_user_id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to load matchup.", game.error);
   if (!game.data) throw new ApiError(404, "Matchup not found.");
@@ -1139,9 +1174,103 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
   const schedule = await getHubMatchupSchedule({ guildId: input.guildId, discordId: input.discordId, weekNumber: Number(game.data.week_number) });
   const matchup = schedule.games.find((item: any) => item.gameId === input.gameId);
   if (!matchup) throw new ApiError(404, "Matchup not found in this league week.");
+  const draft = await getLeagueConfigAsDraft(input.guildId)
+    .then((result) => (result as any)?.draft ?? null)
+    .catch(() => null);
+  const postseason = isPostseasonStage(context.rec_leagues.season_stage);
+  const streamingSide = postseason
+    ? String(draft?.postseasonStreamingSide ?? "either")
+    : String(draft?.regularSeasonStreamingSide ?? "either");
+  const streamLogs = await supabase
+    .from("rec_stream_compliance_logs")
+    .select("id,user_id,team_id,message_url,posted_at,game_id")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1))
+    .eq("week_number", Number(game.data.week_number))
+    .eq("status", "posted")
+    .not("message_url", "is", null)
+    .in("user_id", [game.data.away_user_id, game.data.home_user_id])
+    .order("posted_at", { ascending: true });
+  if (streamLogs.error) throw new ApiError(500, "Failed to load matchup streams.", streamLogs.error);
+  const streamRows = (streamLogs.data ?? []).filter((row: any) => !row.game_id || row.game_id === input.gameId);
+  const streamLogIds = streamRows.map((row: any) => row.id);
+  const [streamViews, streamReactions] = await Promise.all([
+    streamLogIds.length
+      ? supabase.from("rec_stream_views").select("stream_log_id").in("stream_log_id", streamLogIds)
+      : Promise.resolve({ data: [], error: null }),
+    streamLogIds.length
+      ? supabase
+          .from("rec_stream_reactions")
+          .select("stream_log_id,user_id,reaction_key")
+          .in("stream_log_id", streamLogIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (streamViews.error && !missingRelation(streamViews.error, "rec_stream_views")) {
+    throw new ApiError(500, "Failed to load stream views.", streamViews.error);
+  }
+  if (streamReactions.error && !missingRelation(streamReactions.error, "rec_stream_reactions")) {
+    throw new ApiError(500, "Failed to load stream reactions.", streamReactions.error);
+  }
+  const streams = streamRows.map((row: any) => {
+    const side =
+      row.user_id === game.data.away_user_id
+        ? "away"
+        : row.user_id === game.data.home_user_id
+          ? "home"
+          : row.team_id && row.team_id === matchup.awayTeamId
+            ? "away"
+            : "home";
+    const reactionRows = (streamReactions.data ?? []).filter(
+      (reaction: any) => reaction.stream_log_id === row.id,
+    );
+    const teamName = side === "away" ? matchup.awayTeamName : matchup.homeTeamName;
+    return {
+      side,
+      userId: row.user_id,
+      teamName,
+      streamLogId: row.id,
+      url: row.message_url,
+      watchPath: streamWatchPath(row.id),
+      postedAt: row.posted_at ?? null,
+      viewCount: (streamViews.data ?? []).filter((view: any) => view.stream_log_id === row.id)
+        .length,
+      reactionCounts: {
+        like: reactionRows.filter((reaction: any) => reaction.reaction_key === "like").length,
+        dislike: reactionRows.filter((reaction: any) => reaction.reaction_key === "dislike").length,
+      },
+      myReaction:
+        reactionRows.find((reaction: any) => reaction.user_id === viewerUserId)?.reaction_key ??
+        null,
+    };
+  });
+  const designatedSides =
+    streamingSide === "both"
+      ? new Set(["away", "home"])
+      : streamingSide === "away"
+        ? new Set(["away"])
+        : streamingSide === "home"
+          ? new Set(["home"])
+          : new Set<string>();
+  const designatedPool = designatedSides.size
+    ? streams.filter((stream: any) => designatedSides.has(stream.side))
+    : [];
+  const primaryStream = designatedPool.length
+    ? designatedPool[0]
+    : streams[0] ?? null;
+  const secondaryStream =
+    streams.find((stream: any) => stream.streamLogId !== primaryStream?.streamLogId) ?? null;
   const messages = await supabase.from("rec_matchup_chat_messages").select("id,author_user_id,author_display_name,body,created_at").eq("game_id", input.gameId).order("created_at", { ascending: true }).limit(300);
   if (messages.error) throw new ApiError(500, "Failed to load matchup chat.", messages.error);
-  return { matchup, gotw: schedule.gotw?.gameId === input.gameId ? schedule.gotw : null, messages: messages.data ?? [] };
+  return {
+    matchup: { ...matchup, streams },
+    streamFeature: {
+      streamingSide,
+      primaryStreamLogId: primaryStream?.streamLogId ?? null,
+      secondaryStreamLogId: secondaryStream?.streamLogId ?? null,
+    },
+    gotw: schedule.gotw?.gameId === input.gameId ? schedule.gotw : null,
+    messages: messages.data ?? [],
+  };
 }
 
 export async function sendHubMatchupMessage(input: { guildId: string; discordId: string; gameId: string; body: string }) {
@@ -1156,6 +1285,97 @@ export async function sendHubMatchupMessage(input: { guildId: string; discordId:
   const inserted = await supabase.from("rec_matchup_chat_messages").insert({ id: randomUUID(), league_id: context.leagueId, game_id: input.gameId, author_user_id: userId, author_discord_id: input.discordId, author_display_name: user.data?.display_name ?? "REC Member", body: input.body.trim() }).select("id,author_user_id,author_display_name,body,created_at").single();
   if (inserted.error) throw new ApiError(500, "Failed to send matchup message.", inserted.error);
   return { message: inserted.data };
+}
+
+export async function shareHubMatchupStream(input: {
+  guildId: string;
+  discordId: string;
+  gameId: string;
+  url: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdForDiscord(input.discordId);
+  const cleanedUrl = String(input.url ?? "").trim();
+  if (!/^https?:\/\//i.test(cleanedUrl)) {
+    throw new ApiError(400, "Enter a full stream URL (https://...).");
+  }
+
+  const game = await supabase
+    .from("rec_games")
+    .select(
+      "id,week_number,season_stage,home_user_id,away_user_id,home_team_id,away_team_id",
+    )
+    .eq("id", input.gameId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to load matchup stream context.", game.error);
+  if (!game.data) throw new ApiError(404, "Matchup not found.");
+
+  const isHome = game.data.home_user_id === userId;
+  const isAway = game.data.away_user_id === userId;
+  if (!isHome && !isAway) {
+    throw new ApiError(403, "Only matchup participants can post streams.");
+  }
+
+  const seasonNumber = Number(
+    context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1,
+  );
+  const weekNumber = Number(game.data.week_number ?? context.rec_leagues.current_week ?? 1);
+  const teamId = isHome ? game.data.home_team_id : game.data.away_team_id;
+  const side = isHome ? "home" : "away";
+  const service = detectStreamService(cleanedUrl);
+  const now = new Date().toISOString();
+
+  const inserted = await supabase
+    .from("rec_stream_compliance_logs")
+    .insert({
+      id: randomUUID(),
+      league_id: context.leagueId,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      game_id: input.gameId,
+      user_id: userId,
+      team_id: teamId ?? null,
+      required: false,
+      complied: true,
+      status: "posted",
+      message_url: cleanedUrl,
+      posted_at: now,
+      checked_at: now,
+      created_at: now,
+      updated_at: now,
+      details: {
+        service,
+        side,
+        source: "web_matchup_detail",
+        submissionType: "link",
+        content: cleanedUrl,
+      },
+    })
+    .select("id")
+    .single();
+  if (inserted.error) throw new ApiError(500, "Failed to save stream URL.", inserted.error);
+
+  await Promise.all([
+    closeWageringForGame({ guildId: input.guildId, gameId: input.gameId }),
+    supabase
+      .from("rec_game_of_week_polls")
+      .update({
+        status: "closed",
+        closed_at: now,
+        updated_at: now,
+      })
+      .eq("league_id", context.leagueId)
+      .eq("game_id", input.gameId)
+      .eq("status", "open"),
+  ]);
+
+  return {
+    posted: true,
+    streamLogId: inserted.data.id,
+    watchPath: streamWatchPath(inserted.data.id),
+    service,
+  };
 }
 
 export async function voteGameOfWeek(input: { guildId: string; discordId: string; pollId: string; selectedTeamId: string }) {

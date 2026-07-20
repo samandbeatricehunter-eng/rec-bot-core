@@ -28,6 +28,7 @@ import {
   STREAM_VIEWER_COOKIE,
   submitInterview,
   submitUserMediaArticle,
+  shareHubMatchupStream,
   sendHubMatchupMessage,
   toggleHubGameReaction,
   toggleHubHighlightReaction,
@@ -289,6 +290,28 @@ export async function hubRoutes(app: FastifyInstance) {
       if (auth.mode === "bot") throw new ApiError(400, "Matchup chat requires a user session.");
       return reply.send(await sendHubMatchupMessage({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/matchups/stream/share", async (request, reply) => {
+    try {
+      const body = z
+        .object({
+          guildId: z.string().min(1),
+          gameId: z.string().uuid(),
+          url: z.string().trim().min(1).max(500),
+        })
+        .parse(request.body);
+      const auth = await requireBotOrUserSession(request, {
+        resolveGuildId: () => body.guildId,
+        permission: "member",
+      });
+      if (auth.mode === "bot") {
+        throw new ApiError(400, "Matchup stream sharing requires a user session.");
+      }
+      return reply.send(await shareHubMatchupStream({ ...body, discordId: auth.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
   });
 
   app.post("/v1/hub/gotw/vote", async (request, reply) => {

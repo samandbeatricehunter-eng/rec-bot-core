@@ -318,6 +318,49 @@ async function getUserScheduledGameForWeek(
   return data ?? null;
 }
 
+async function assertSelfServeUploaderIsExpected(
+  leagueId: string,
+  game: {
+    id: string;
+    home_team_id: string | null;
+    away_team_id: string | null;
+    home_user_id: string | null;
+    away_user_id: string | null;
+  },
+  submitterTeamId: string,
+) {
+  const users = await activeUsersForTeams(leagueId, [game.home_team_id, game.away_team_id]);
+  const homeHasUser = Boolean(game.home_team_id && users.get(game.home_team_id));
+  const awayHasUser = Boolean(game.away_team_id && users.get(game.away_team_id));
+  const isH2h = homeHasUser && awayHasUser;
+  if (isH2h) {
+    if (!game.home_team_id || submitterTeamId !== game.home_team_id) {
+      throw new ApiError(
+        403,
+        "For H2H matchups, only the home team can upload the box score.",
+      );
+    }
+    return;
+  }
+  const humanTeamId = homeHasUser
+    ? game.home_team_id
+    : awayHasUser
+      ? game.away_team_id
+      : null;
+  if (!humanTeamId) {
+    throw new ApiError(
+      400,
+      "No human-controlled team is linked to this matchup yet.",
+    );
+  }
+  if (submitterTeamId !== humanTeamId) {
+    throw new ApiError(
+      403,
+      "For human vs CPU matchups, only the human-controlled team can upload the box score.",
+    );
+  }
+}
+
 export type ExistingBoxScoreSubmission = {
   id: string;
   status: "pending" | "approved";
@@ -840,6 +883,7 @@ export async function parseBoxScorePreview(input: PreviewInput): Promise<Preview
     if (!teamId) throw new ApiError(400, "You aren't linked to a team in this league, so you can't upload a box score here.");
     const game = await getUserScheduledGameForWeek(context.leagueId, teamId, seasonNumber, weekNumber);
     if (!game) throw new ApiError(400, `You don't have a scheduled game in Week ${weekNumber}.`);
+    await assertSelfServeUploaderIsExpected(context.leagueId, game, teamId);
     anchorGameId = game.id;
   }
 
@@ -929,6 +973,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
     if (!scheduledGame) {
       throw new ApiError(400, `You don't have a scheduled game in Week ${weekNumber}.`);
     }
+    await assertSelfServeUploaderIsExpected(leagueId, scheduledGame, teamId);
     selfServeGameId = scheduledGame.id;
   }
 

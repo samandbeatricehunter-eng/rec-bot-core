@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link, useParams } from "react-router-dom";
+import { americanFromDecimal } from "@rec/shared";
 import {
   ArrowLeft,
   BarChart3,
@@ -126,20 +127,41 @@ function displayLabel(key: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function displayOdds(odds: number) {
+  return americanFromDecimal(Number(odds));
+}
+
+function canViewerUploadBoxScore(matchup: HubMatchupGame) {
+  if (matchup.matchupType === "h2h") return matchup.viewerSide === "home";
+  if (matchup.matchupType === "human_cpu") return matchup.involvesMe;
+  return false;
+}
+
+function boxScoreExpectationText(matchup: HubMatchupGame) {
+  if (matchup.matchupType === "h2h") {
+    return `${matchup.homeTeamName} (home team) is responsible for uploading the box score.`;
+  }
+  if (matchup.matchupType === "human_cpu") {
+    return "The human-controlled team is responsible for uploading the box score.";
+  }
+  return "Box score uploads are only expected for human-involved matchups.";
+}
+
 function MatchupActions({
   matchup,
+  canUploadBoxScore,
   onOpenBoxScore,
   onOpenPlayerStats,
   onOpenWager,
 }: {
   matchup: HubMatchupGame;
+  canUploadBoxScore: boolean;
   onOpenBoxScore: () => void;
   onOpenPlayerStats: () => void;
   onOpenWager: () => void;
 }) {
   const isParticipant = matchup.involvesMe;
-  const canOpenBoxScore =
-    !matchup.isFinal && !Boolean(matchup.boxScoreSubmissionId);
+  const canOpenBoxScore = canUploadBoxScore;
   const canOpenPlayerStats = Boolean(matchup.boxScoreSubmissionId);
   const canOpenWager =
     !isParticipant &&
@@ -158,7 +180,9 @@ function MatchupActions({
             title={
               canOpenBoxScore
                 ? "Upload box score"
-                : "Box score already submitted or game is final."
+                : matchup.viewerSide !== "home" && matchup.matchupType === "h2h"
+                  ? "Only the home team can upload the box score for H2H matchups."
+                  : "Box score already submitted or game is final."
             }
           >
             <ClipboardList size={16} /> Box Score
@@ -590,8 +614,12 @@ export function MatchupDetailPage() {
   if (error && !detail) return <ErrorState message={error} />;
   if (!detail) return <LoadingState label="Loading matchup…" />;
   const matchup = detail.matchup;
-  const canUploadBoxScore =
-    seasonNumber != null && !matchup.isFinal && !Boolean(matchup.boxScoreSubmissionId);
+  const canUploadBoxScore = Boolean(
+    seasonNumber != null &&
+      !matchup.isFinal &&
+      !Boolean(matchup.boxScoreSubmissionId) &&
+      canViewerUploadBoxScore(matchup),
+  );
   const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
 
   return (
@@ -659,6 +687,7 @@ export function MatchupDetailPage() {
         })()}
       <MatchupActions
         matchup={matchup}
+        canUploadBoxScore={canUploadBoxScore}
         onOpenBoxScore={() => {
           if (!canUploadBoxScore) return;
           setBoxScoreUploadGame(matchup);
@@ -666,6 +695,10 @@ export function MatchupDetailPage() {
         onOpenPlayerStats={() => void openPlayerStats(matchup)}
         onOpenWager={() => void openWager(matchup)}
       />
+      <section className="matchup-boxscore-reminder">
+        <strong>Box score reminder</strong>
+        <p>{boxScoreExpectationText(matchup)}</p>
+      </section>
       <div className="matchup-detail-grid">
         <section className="matchup-detail-panel">
           <h2>
@@ -950,8 +983,7 @@ export function MatchupDetailPage() {
                                     : side.label}
                               </b>
                               <small>
-                                {side.label} · odds {side.odds > 0 ? "+" : ""}
-                                {side.odds}
+                                {side.label} · odds {displayOdds(side.odds)}
                               </small>
                             </button>
                           ))}

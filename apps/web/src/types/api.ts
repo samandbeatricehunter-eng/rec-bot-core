@@ -453,7 +453,16 @@ export type HubMatchupSchedule = {
 };
 export type HubMatchupGame = HubMatchupSchedule["games"][number];
 export type MatchupChatMessage = { id: string; author_user_id: string; author_display_name: string; body: string; created_at: string };
-export type HubMatchupDetail = { matchup: HubMatchupGame; gotw: HubMatchupSchedule["gotw"]; messages: MatchupChatMessage[] };
+export type HubMatchupDetail = {
+  matchup: HubMatchupGame;
+  streamFeature?: {
+    streamingSide: "home" | "away" | "either" | "both" | string;
+    primaryStreamLogId: string | null;
+    secondaryStreamLogId: string | null;
+  } | null;
+  gotw: HubMatchupSchedule["gotw"];
+  messages: MatchupChatMessage[];
+};
 
 export type MatchupTeamBreakdown = {
   teamId: string;
