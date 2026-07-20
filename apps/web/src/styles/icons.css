@@ -17,9 +17,9 @@
 .icon-well--lg { width: 56px; height: 56px; }
 
 .icon-well--gold {
-  background: rgba(255, 215, 0, 0.08);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
   color: var(--gold);
-  border-color: rgba(255, 215, 0, 0.28);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .icon-well--neutral {
   background: var(--surface-raised);
