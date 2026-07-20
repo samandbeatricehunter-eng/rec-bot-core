@@ -217,6 +217,8 @@ export function MatchupDetailPage() {
   const { guildId, discordId } = useReadyAuth();
   const [detail, setDetail] = useState<HubMatchupDetail | null>(null);
   const [preview, setPreview] = useState<MatchupPreviewData | null>(null);
+  const [previewWagerOptions, setPreviewWagerOptions] =
+    useState<WagerOptionsResponse | null>(null);
   const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -273,6 +275,26 @@ export function MatchupDetailPage() {
       active = false;
     };
   }, [gameId, guildId]);
+
+  useEffect(() => {
+    const matchup = detail?.matchup;
+    if (!gameId || !matchup || matchup.matchupType !== "h2h") {
+      setPreviewWagerOptions(null);
+      return;
+    }
+    let active = true;
+    recApi
+      .getWagerOptions({ guildId, gameId })
+      .then((options) => {
+        if (active) setPreviewWagerOptions(options);
+      })
+      .catch(() => {
+        if (active) setPreviewWagerOptions(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [detail?.matchup, gameId, guildId]);
 
   useEffect(() => {
     let active = true;
@@ -578,7 +600,9 @@ export function MatchupDetailPage() {
         <ArrowLeft size={18} /> Back to matchups
       </Link>
       <MatchupCard game={matchup} featured />
-      {preview && <MatchupPreview preview={preview} />}
+      {preview && (
+        <MatchupPreview preview={preview} wagerOptions={previewWagerOptions} />
+      )}
       {detail.gotw &&
         (() => {
           const gotw = detail.gotw;
