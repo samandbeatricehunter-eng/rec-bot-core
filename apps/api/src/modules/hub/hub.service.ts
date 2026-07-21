@@ -19,6 +19,14 @@ import { buildRoundtableDiscussion } from "./roundtable.js";
 import { CFB_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 
+// A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
+// stream runs longer than that, so anything older is treated as ended for display/watch.
+// This is a read-time window only; the compliance log itself is untouched (payouts still count).
+const STREAM_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+function streamLiveSince(): string {
+  return new Date(Date.now() - STREAM_LIVE_WINDOW_MS).toISOString();
+}
+
 export const HUB_REACTION_KEYS = ["love", "like", "dislike", "poop", "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "MOSSED", "STEAMROLLER", "FAWKKKK", "SNATCHED", "RIP"] as const;
 export type HubReactionKey = (typeof HUB_REACTION_KEYS)[number];
 const HIGHLIGHT_AWARD_REACTION_KEYS: HubReactionKey[] = ["TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY"];
@@ -431,6 +439,7 @@ export async function getHub(guildId: string, discordId: string) {
     .eq("week_number", Number(context.rec_leagues.current_week ?? 1))
     .eq("status", "posted")
     .not("message_url", "is", null)
+    .gte("posted_at", streamLiveSince())
     .order("posted_at", { ascending: false })
     .limit(16);
   if (currentStreamLogs.error) throw new ApiError(500, "Failed to load live streams.", currentStreamLogs.error);
@@ -1004,7 +1013,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     gamesQuery,
     supabase.from("rec_games").select("week_number").eq("league_id", context.leagueId).order("week_number", { ascending: true }),
     supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score,is_tie,winning_team_id,source").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
-    supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").order("posted_at", { ascending: false }),
+    supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").gte("posted_at", streamLiveSince()).order("posted_at", { ascending: false }),
     supabase.from("rec_stream_views").select("stream_log_id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_team_assignments").select("user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(display_name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
@@ -1189,6 +1198,7 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
     .eq("week_number", Number(game.data.week_number))
     .eq("status", "posted")
     .not("message_url", "is", null)
+    .gte("posted_at", streamLiveSince())
     .in("user_id", [game.data.away_user_id, game.data.home_user_id])
     .order("posted_at", { ascending: true });
   if (streamLogs.error) throw new ApiError(500, "Failed to load matchup streams.", streamLogs.error);
