@@ -6,6 +6,33 @@ real marketing main page + its branching pages, (3) tie in the league pages, (4)
 account creation to everyone for public testing, (5) go live as a PWA — at which point
 Discord auth is retired.
 
+## Approved account-linking flow (2026-07-21, Samuel — plan only, NOT implemented)
+
+This is the answer to the open question in "Tie in league pages" below. Onboarding
+sequence once built:
+
+1. New user registers with **email + password** (existing `SignUp` flow).
+2. **Link-to-Discord-identity screen** (new, not built): a dropdown listing every user
+   currently linked to a team across the leagues/database (i.e. everyone with a
+   `rec_discord_accounts` row / active `rec_team_assignments`), shown by their **Discord
+   display name**. The new user selects themselves from the list.
+3. Once selected, the new Supabase auth user (email) is linked to that existing user's
+   full history going forward — stats, badges, records, wallet, etc. all stay attached to
+   the same underlying `rec_users` row; only the identity/login method changes.
+4. User then **creates a unique username** (new field, doesn't exist yet — need to decide
+   where this lives, likely a new column on `rec_users` or a dedicated identity table)
+   and optionally sets other profile details.
+5. Account is created / onboarding complete.
+6. **Once Discord is fully removed later**, the Discord ID and any Discord-specific info
+   tied to that user gets deleted — this linking step is explicitly a *migration bridge*,
+   not a permanent second identity kept around forever.
+
+Not decided yet (don't need answers now, just flagging): exact matching/search UX for the
+dropdown at scale (many users across many leagues), what happens if two Supabase accounts
+try to claim the same Discord identity, uniqueness rules for the new username field, and
+where in the schema the Supabase `auth.users.id` ↔ `rec_users.id` link actually gets
+stored.
+
 ## Why a new app instead of touching `apps/web`
 
 `apps/web` is entirely gated behind the Discord flow today: `/hub` in Discord mints a
@@ -56,11 +83,10 @@ whenever convenient; it's inert (unconfirmed, no other data references it).
 2. **Real marketing site content + branching pages.** `Landing` today is a one-screen
    placeholder. Needs actual copy/design direction, plus whatever "branching pages" means
    concretely (About? Pricing? Features? Per-league public pages?).
-3. **Tie in league pages.** How a signed-up Supabase user gets linked to a `rec_users` /
-   `rec_team_assignments` record — this is the big design question, since today's identity
-   model is 100% Discord-account-keyed (`rec_discord_accounts`). Needs a plan for: does a
-   Supabase user always need a linked Discord account (transition period), or can someone
-   sign up with *just* email and get invited into a league independent of Discord?
+3. **Tie in league pages.** Flow is now approved (see "Approved account-linking flow"
+   above) — pick-your-Discord-identity dropdown → link → set unique username + optional
+   profile details → done. Not yet implemented: the link-to-identity screen, the username
+   field/uniqueness constraint, and the actual `auth.users` ↔ `rec_users` link storage.
 4. **RLS policies.** The moment `apps/site` needs to read/write any `rec_*` table directly
    from the browser (not just Supabase Auth's own `auth.users`), every table it touches
    needs real RLS policies — today RLS is enabled repo-wide but has zero policies (service
