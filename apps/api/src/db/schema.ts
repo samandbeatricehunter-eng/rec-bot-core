@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { bigint, boolean, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, check, index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // ============================================================================
 // Core identity / league / server tables
@@ -8,10 +8,23 @@ import { bigint, boolean, integer, jsonb, numeric, pgTable, text, timestamp, uni
 export const recUsers = pgTable("rec_users", {
   id: uuid("id").primaryKey(),
   displayName: text("display_name").notNull().default(""),
+  supabaseAuthUserId: uuid("supabase_auth_user_id"),
+  username: text("username"),
   status: text("status").notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
+}, (table) => [
+  check(
+    "rec_users_username_format_check",
+    sql`${table.username} is null or ${table.username} ~ '^[A-Za-z0-9_.]{3,24}$'`
+  ),
+  uniqueIndex("rec_users_supabase_auth_user_id_key")
+    .on(table.supabaseAuthUserId)
+    .where(sql`${table.supabaseAuthUserId} is not null`),
+  uniqueIndex("rec_users_username_lower_key")
+    .on(sql`lower(${table.username})`)
+    .where(sql`${table.username} is not null`)
+]);
 
 export const recDiscordAccounts = pgTable("rec_discord_accounts", {
   id: uuid("id").primaryKey(),
@@ -36,6 +49,37 @@ export const recAppAccounts = pgTable("rec_app_accounts", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
+
+export const recSiteIdentityClaims = pgTable("rec_site_identity_claims", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  authUserId: uuid("auth_user_id").notNull(),
+  recUserId: uuid("rec_user_id").notNull().references(() => recUsers.id, { onDelete: "restrict" }),
+  claimedAt: timestamp("claimed_at", { withTimezone: true, mode: "string" }).notNull().defaultNow()
+}, (table) => [
+  uniqueIndex("rec_site_identity_claims_auth_user_id_key").on(table.authUserId),
+  uniqueIndex("rec_site_identity_claims_rec_user_id_key").on(table.recUserId)
+]);
+
+export const recSiteIdentityClaimChallenges = pgTable("rec_site_identity_claim_challenges", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  authUserId: uuid("auth_user_id").notNull(),
+  recUserId: uuid("rec_user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  discordAccountId: uuid("discord_account_id").notNull().references(() => recDiscordAccounts.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" }).notNull(),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow()
+}, (table) => [
+  uniqueIndex("rec_site_identity_claim_challenges_auth_user_id_key").on(table.authUserId),
+  check(
+    "rec_site_identity_claim_challenges_attempt_count_check",
+    sql`${table.attemptCount} >= 0`
+  ),
+  index("rec_site_identity_claim_challenges_expires_idx").on(table.expiresAt),
+  index("rec_site_identity_claim_challenges_rec_updated_idx")
+    .on(table.recUserId, table.updatedAt.desc())
+]);
 
 export const recDiscordServers = pgTable("rec_discord_servers", {
   id: uuid("id").primaryKey(),
@@ -79,6 +123,102 @@ export const recServerLeagueLinks = pgTable("rec_server_league_links", {
   isPrimary: boolean("is_primary").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
+
+export const recSiteFriendships = pgTable("rec_site_friendships", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  requesterUserId: uuid("requester_user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  addresseeUserId: uuid("addressee_user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  status: text("status").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true, mode: "string" })
+}, (table) => [
+  check(
+    "rec_site_friendships_status_check",
+    sql`${table.status} in ('pending', 'accepted', 'declined')`
+  ),
+  check(
+    "rec_site_friendships_not_self_check",
+    sql`${table.requesterUserId} <> ${table.addresseeUserId}`
+  ),
+  uniqueIndex("rec_site_friendships_pair_uidx").on(
+    sql`least(${table.requesterUserId}, ${table.addresseeUserId})`,
+    sql`greatest(${table.requesterUserId}, ${table.addresseeUserId})`
+  ),
+  index("rec_site_friendships_requester_idx").on(table.requesterUserId, table.status),
+  index("rec_site_friendships_addressee_idx").on(table.addresseeUserId, table.status)
+]);
+
+export const recSiteConversations = pgTable("rec_site_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  kind: text("kind").notNull(),
+  leagueId: uuid("league_id").references(() => recLeagues.id, { onDelete: "cascade" }),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  dmUserLowId: uuid("dm_user_low_id").references(() => recUsers.id, { onDelete: "cascade" }),
+  dmUserHighId: uuid("dm_user_high_id").references(() => recUsers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true, mode: "string" })
+}, (table) => [
+  check(
+    "rec_site_conversations_kind_check",
+    sql`${table.kind} in ('dm', 'commissioner', 'support')`
+  ),
+  uniqueIndex("rec_site_conversations_dm_pair_uidx")
+    .on(table.dmUserLowId, table.dmUserHighId)
+    .where(sql`${table.kind} = 'dm'`),
+  uniqueIndex("rec_site_conversations_commissioner_uidx")
+    .on(table.leagueId, table.createdByUserId)
+    .where(sql`${table.kind} = 'commissioner'`),
+  index("rec_site_conversations_last_message_at_idx").on(table.lastMessageAt.desc())
+]);
+
+export const recSiteConversationMembers = pgTable("rec_site_conversation_members", {
+  conversationId: uuid("conversation_id").notNull().references(() => recSiteConversations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  joinedAt: timestamp("joined_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  lastReadAt: timestamp("last_read_at", { withTimezone: true, mode: "string" }),
+  hiddenAt: timestamp("hidden_at", { withTimezone: true, mode: "string" })
+}, (table) => [
+  uniqueIndex("rec_site_conversation_members_pair_uidx").on(table.conversationId, table.userId),
+  check(
+    "rec_site_conversation_members_role_check",
+    sql`${table.role} in ('member', 'commissioner', 'support_agent')`
+  ),
+  index("rec_site_conversation_members_user_idx").on(table.userId)
+]);
+
+export const recSiteMessages = pgTable("rec_site_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id").notNull().references(() => recSiteConversations.id, { onDelete: "cascade" }),
+  authorUserId: uuid("author_user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+  reportedAt: timestamp("reported_at", { withTimezone: true, mode: "string" })
+}, (table) => [
+  check(
+    "rec_site_messages_body_length_check",
+    sql`char_length(${table.body}) between 1 and 4000`
+  ),
+  index("rec_site_messages_conversation_created_idx").on(table.conversationId, table.createdAt)
+]);
+
+export const recSiteNotifications = pgTable("rec_site_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
+  leagueId: uuid("league_id").references(() => recLeagues.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  href: text("href").notNull(),
+  readAt: timestamp("read_at", { withTimezone: true, mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow()
+}, (table) => [
+  index("rec_site_notifications_user_created_idx").on(table.userId, table.createdAt.desc()),
+  index("rec_site_notifications_user_unread_idx")
+    .on(table.userId)
+    .where(sql`${table.readAt} is null`)
+]);
 
 export const recSeasons = pgTable("rec_seasons", {
   id: uuid("id").primaryKey(),

@@ -6,32 +6,98 @@ real marketing main page + its branching pages, (3) tie in the league pages, (4)
 account creation to everyone for public testing, (5) go live as a PWA — at which point
 Discord auth is retired.
 
-## Approved account-linking flow (2026-07-21, Samuel — plan only, NOT implemented)
+## Approved account-linking flow (2026-07-21, Samuel — **implemented**)
 
-This is the answer to the open question in "Tie in league pages" below. Onboarding
-sequence once built:
+Onboarding sequence:
 
 1. New user registers with **email + password** (existing `SignUp` flow).
-2. **Link-to-Discord-identity screen** (new, not built): a dropdown listing every user
-   currently linked to a team across the leagues/database (i.e. everyone with a
-   `rec_discord_accounts` row / active `rec_team_assignments`), shown by their **Discord
-   display name**. The new user selects themselves from the list.
-3. Once selected, the new Supabase auth user (email) is linked to that existing user's
-   full history going forward — stats, badges, records, wallet, etc. all stay attached to
-   the same underlying `rec_users` row; only the identity/login method changes.
-4. User then **creates a unique username** (new field, doesn't exist yet — need to decide
-   where this lives, likely a new column on `rec_users` or a dedicated identity table)
-   and optionally sets other profile details.
-5. Account is created / onboarding complete.
-6. **Once Discord is fully removed later**, the Discord ID and any Discord-specific info
-   tied to that user gets deleted — this linking step is explicitly a *migration bridge*,
-   not a permanent second identity kept around forever.
+2. **Link-to-Discord-identity screen**: searchable dropdown of every user currently linked
+   to a team (`rec_discord_accounts` + active `rec_team_assignments`), shown by their
+   **actual Discord username** (not server nickname/display name).
+3. User selects themselves → REC sends a 6-digit verification code by Discord DM to that
+   account (10-minute expiry, rate-limited, max 5 attempts).
+4. After successful code verification, the Supabase auth user is linked to that existing
+   `rec_users` row (`supabase_auth_user_id`). Stats, badges, records, wallet stay attached.
+5. Immediately after claim, that identity is no longer claimable and disappears from the
+   dropdown (`supabase_auth_user_id is null` filter + unique claim audit row).
+6. User creates a unique `rec_users.username` (live availability check) to finish setup.
+7. Account complete. **Once Discord is fully removed later**, Discord ID/info for that
+   user gets deleted — this linking step is a *migration bridge*, not a permanent second
+   identity.
 
-Not decided yet (don't need answers now, just flagging): exact matching/search UX for the
-dropdown at scale (many users across many leagues), what happens if two Supabase accounts
-try to claim the same Discord identity, uniqueness rules for the new username field, and
-where in the schema the Supabase `auth.users.id` ↔ `rec_users.id` link actually gets
-stored.
+Schema decisions locked in:
+- Link storage: `rec_users.supabase_auth_user_id` (unique) + `rec_site_identity_claims`
+- Username: `rec_users.username` with case-insensitive unique index + format check
+- Claim races: unique constraints + transactional claim + Discord DM proof-of-ownership
+
+## Implementation checklist for approved linking flow
+
+Items 1–5 are **done**. Remaining items are cutover / later-phase work.
+
+### 1) Data model: persistent auth-to-user link — done
+
+- `rec_users.supabase_auth_user_id` (unique) + `rec_site_identity_claims`
+- Migrations under `supabase/migrations/2026072114*_site_auth_*.sql`
+
+### 2) Identity claim lock (race-safe) — done
+
+- Transactional claim + unique constraints; claimed rows excluded from candidates
+- Discord DM challenge table with expiry, rate limit, attempt cap
+
+### 3) Link-to-identity API contract — done
+
+- `/v1/site-auth/link/candidates`, `request-code`, `verify` (Supabase bearer session)
+
+### 4) Dropdown UX at scale — done (v1)
+
+- Server-side Discord-username search + team label disambiguator
+- Claim progress via send-code → verify UI states
+
+### 5) Username policy + storage — done
+
+- `rec_users.username` (3–24 `[A-Za-z0-9_.]`, case-insensitive unique, reserved names)
+- Live `/username/check` + set endpoint + Account UI
+
+### 6) Migration bridge behavior — not started
+
+- Keep Discord linkage readable only as long as migration requires it.
+- Mark linked users with migration state (for example `unlinked`, `linked`, `retired`).
+- Define and document the final retirement job that removes Discord identifiers once
+  cutover is complete.
+
+Exit criteria:
+- There is a documented and testable path from bridge mode to Discord-retired mode.
+
+### 7) Security + RLS readiness — not started (blocked until browser reads `rec_*`)
+
+- Before any browser-side access to `rec_*` data from `apps/site`, implement explicit RLS
+  policies for each touched table.
+- Validate that service-role-only operations remain API-side and never move into client code.
+
+Exit criteria:
+- No direct browser query succeeds unless intentionally allowed by policy.
+- Authenticated users can only read/update allowed rows.
+
+### 8) Test plan (must-have) — partial (manual E2E still open)
+
+- Unit tests: validation, username normalization, claim conflict handling.
+- Integration tests: full signup -> link -> username set -> account usable.
+- Concurrency test: two claim attempts for same identity in parallel.
+- Regression tests: legacy Discord-auth app behavior unaffected before cutover.
+
+Exit criteria:
+- Tests cover success, conflict, and retry paths.
+- No regression in existing `apps/web` Discord flow before retirement.
+
+### 9) Rollout plan
+
+- Feature-flag linking flow in `apps/site`.
+- Internal test cohort first, then wider public enablement.
+- Instrument key metrics: claim success rate, collision rate, username rejection rate.
+
+Exit criteria:
+- We can enable/disable linking safely without schema rollback.
+- Failures are observable with actionable telemetry.
 
 ## Why a new app instead of touching `apps/web`
 
@@ -59,10 +125,11 @@ is never in a half-migrated state.
 - `src/lib/auth-context.tsx` — `AuthProvider`/`useAuth()`: tracks the Supabase session
   (`getSession` + `onAuthStateChange`), exposes `signUp` / `signIn` / `signOut`.
 - Pages: `Landing` (public, minimal placeholder copy), `SignUp`, `LogIn`, `Account`
-  (signed-in placeholder proving the session round-trips — this is where the real
-  dashboard/league-linking lands in a later phase). `RequireAuth` guards `/account`.
-- `.env.example` / `.env` — `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` (anon
-  key, safe client-side). `.env` is gitignored per repo convention.
+  (signed-in onboarding: Link identity → Choose username → Complete). `RequireAuth`
+  guards `/account`.
+- `.env.example` / `.env` — `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` +
+  `VITE_REC_CORE_API_URL` (anon key, safe client-side). `.env` is gitignored per repo
+  convention.
 - `.claude/launch.json` — `site-dev` config (port 5174) alongside `web-dev`/`api-dev`.
 
 **Verified live end-to-end** (2026-07-21, project `kyooxpjsxvsatrariafq`): signed up a
@@ -78,24 +145,45 @@ in this project — no provider config changes were needed or made.
 That leftover test user can be deleted from Supabase Dashboard → Authentication → Users
 whenever convenient; it's inert (unconfirmed, no other data references it).
 
-## Not built yet (later phases — need direction, not started blind)
+## Built: account linking (phase 1.5 — done)
 
-2. **Real marketing site content + branching pages.** `Landing` today is a one-screen
-   placeholder. Needs actual copy/design direction, plus whatever "branching pages" means
-   concretely (About? Pricing? Features? Per-league public pages?).
-3. **Tie in league pages.** Flow is now approved (see "Approved account-linking flow"
-   above) — pick-your-Discord-identity dropdown → link → set unique username + optional
-   profile details → done. Not yet implemented: the link-to-identity screen, the username
-   field/uniqueness constraint, and the actual `auth.users` ↔ `rec_users` link storage.
-4. **RLS policies.** The moment `apps/site` needs to read/write any `rec_*` table directly
-   from the browser (not just Supabase Auth's own `auth.users`), every table it touches
-   needs real RLS policies — today RLS is enabled repo-wide but has zero policies (service
-   role bypasses it). This is a deliberate, table-by-table security design task, not a
-   toggle.
-5. **Open signup to everyone for testing.** Trivial once (3)+(4) exist — signup itself is
-   already open in phase 1, there's just nothing behind it yet.
-6. **PWA + cutover.** Manifest, service worker, install prompts, and — the big one —
-   actually retiring the Discord-JWT flow in `apps/web` once this app fully replaces it.
+API (`apps/api`, Supabase bearer session via `requireSiteUserSession`):
+- `POST /v1/site-auth/me`
+- `POST /v1/site-auth/link/candidates` — Discord **username** search, unclaimed only
+- `POST /v1/site-auth/link/request-code` — Discord DM 6-digit challenge
+- `POST /v1/site-auth/link/verify` — verify code and claim once
+- `POST /v1/site-auth/username/check` — live availability
+- `POST /v1/site-auth/username/set`
+
+DB (applied on project `kyooxpjsxvsatrariafq`):
+- `rec_users.supabase_auth_user_id` + `rec_users.username`
+- `rec_site_identity_claims` (one auth ↔ one rec user)
+- `rec_site_identity_claim_challenges` (DM code challenges)
+
+UI (`apps/site` Account page):
+- Stepper: Link identity → Choose username → Complete
+- Searchable Discord-username dropdown + DM verification
+- Username availability check before save
+
+## Not built yet (later phases)
+
+Chrome (bottom nav, league selector, top-right notifications bell, Carbon Fiber + league
+themes, hub/league placeholder routes) is in place — see
+[site-chrome-and-theme.md](site-chrome-and-theme.md). APIs: `POST /v1/site-leagues/mine` +
+`retire`, `POST /v1/site-notifications/list` + `mark-read`. Remaining product work:
+
+2. **Real marketing site content + branching pages.** `Landing` is still a placeholder.
+3. **League pages behind site auth.** Linking + chrome/selector exist; real league
+   hub/content still mostly lives in Discord-gated `apps/web`. Site placeholders under
+   `/l/:leagueId/*` prove nav + theme switching.
+4. **Site Inbox / messaging** — Phase A API + `apps/site` UI scaffolded (`/inbox`,
+   `/friends`; friends + DM + commissioner threads + 30-day purge). Design:
+   `docs/site-inbox-messaging.md`. Reached from Account (not a bottom-nav tab); later
+   under Notifications. Mobile screens and unread badge still later.
+5. **RLS policies** if/when `apps/site` ever reads `rec_*` tables directly from the
+   browser (today all REC data access for linking goes through the API service role).
+6. **Open signup to everyone for public testing** once league pages are reachable.
+7. **PWA + Discord-auth cutover.**
 
 ## Notes for whoever picks this up next
 

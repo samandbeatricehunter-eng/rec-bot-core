@@ -27,6 +27,11 @@ import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.
 import { recruitingRoutes } from "./modules/recruiting/recruiting.routes.js";
 import { transferPortalRoutes } from "./modules/transfer-portal/transfer-portal.routes.js";
 import { submissionStateRoutes } from "./modules/submission-state/submission-state.routes.js";
+import { siteAuthRoutes } from "./modules/site-auth/site-auth.routes.js";
+import { siteFriendsRoutes } from "./modules/site-friends/site-friends.routes.js";
+import { siteInboxRoutes } from "./modules/site-inbox/site-inbox.routes.js";
+import { siteLeaguesRoutes } from "./modules/site-leagues/site-leagues.routes.js";
+import { siteNotificationsRoutes } from "./modules/site-notifications/site-notifications.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
@@ -59,4 +64,9 @@ export async function registerRoutes(app: FastifyInstance) {
   await recruitingRoutes(app);
   await transferPortalRoutes(app);
   await submissionStateRoutes(app);
+  await siteAuthRoutes(app);
+  await siteFriendsRoutes(app);
+  await siteInboxRoutes(app);
+  await siteLeaguesRoutes(app);
+  await siteNotificationsRoutes(app);
 }

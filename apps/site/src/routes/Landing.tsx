@@ -12,7 +12,7 @@ export function Landing() {
         <span className="site-wordmark">REC League</span>
         <nav>
           {auth.status === "signed-in"
-            ? <Link className="site-btn site-btn-primary" to="/account">My Account</Link>
+            ? <Link className="site-btn site-btn-primary" to="/home">Go to Home</Link>
             : <>
                 <Link className="site-btn site-btn-ghost" to="/login">Log In</Link>
                 <Link className="site-btn site-btn-primary" to="/signup">Sign Up</Link>
