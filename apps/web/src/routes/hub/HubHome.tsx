@@ -18,21 +18,14 @@ import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 
+// Highlight reactions are exactly three: Like, Dislike, and POTY. POTY opens the category
+// modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
 const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "TOTY", label: "Throw of the Year" }, { key: "COTY", label: "Catch of the Year" }, { key: "ROTY", label: "Run of the Year" },
   { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" }, { key: "MVP_PLAY", label: "Most Valuable Play" },
 ];
-const SIDELINE_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
-  { key: "MOSSED", label: "Mossed!" },
-  { key: "STEAMROLLER", label: "Steamroller!" },
-  { key: "FAWKKKK", label: "FAWKKKK" },
-  { key: "SNATCHED", label: "Snatched!" },
-  { key: "RIP", label: "R.I.P." },
-];
-const COMMUNITY_REACTION_KEYS: HubReactionKey[] = ["love", "like", "dislike", "poop"];
-const HIGHLIGHT_REACTION_KEYS: HubReactionKey[] = [...COMMUNITY_REACTION_KEYS, "TOTY", "COTY", "ROTY", "IOTY", "HOTY", "MVP_PLAY", "MOSSED", "STEAMROLLER", "FAWKKKK", "SNATCHED", "RIP"];
+const COMMUNITY_REACTION_KEYS: HubReactionKey[] = ["like", "dislike"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
-const SIDELINE_KEYS = SIDELINE_REACTIONS.map((reaction) => reaction.key);
 const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
   passing: [["completions", "Completions"], ["attempts", "Attempts"], ["yards", "Passing yards"], ["touchdowns", "Passing touchdowns"], ["interceptions", "Interceptions"]],
   rushing: [["carries", "Carries"], ["yards", "Rushing yards"], ["touchdowns", "Rushing touchdowns"], ["fumbles", "Fumbles"], ["longest", "Longest rush"]],
@@ -425,7 +418,7 @@ export function HubHome() {
 
   async function highlightReact(highlightId: string, reactionKey: HubReactionKey) {
     if (auth.status !== "ready") return;
-    const mutuallyExclusive = COMMUNITY_REACTION_KEYS.includes(reactionKey) ? COMMUNITY_REACTION_KEYS : AWARD_KEYS.includes(reactionKey) ? AWARD_KEYS : SIDELINE_KEYS;
+    const mutuallyExclusive = COMMUNITY_REACTION_KEYS.includes(reactionKey) ? COMMUNITY_REACTION_KEYS : AWARD_KEYS;
     setHub((current) => current ? { ...current, highlights: current.highlights.map((highlight) => {
       if (highlight.id !== highlightId) return highlight;
       const has = highlight.myReactions.includes(reactionKey);
@@ -1035,7 +1028,7 @@ export function HubHome() {
           {activeHighlight ? <div className="hub-highlight-carousel">
             {highlightCount > 1 && <button className="hub-highlight-arrow previous" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + highlightCount) % highlightCount)}><ChevronLeft /></button>}
             <article
-              className="hub-highlight hub-highlight-feature swipe-card-surface"
+              className="hub-highlight hub-highlight-embed swipe-card-surface"
               style={{
                 transform: highlightSwipe.isDragging ? `translateX(${highlightSwipe.dragOffsetPx}px)` : undefined,
                 transition: highlightSwipe.isDragging || highlightSwipe.reducedMotion ? "none" : "transform var(--duration-standard) var(--ease-standard)",
@@ -1045,20 +1038,12 @@ export function HubHome() {
               onPointerUp={highlightSwipe.handlers.onPointerUp}
               onPointerCancel={highlightSwipe.handlers.onPointerCancel}
             >
-              <header className="hub-highlight-chassis-heading"><span>Community Clips</span><strong>Highlight Reel</strong></header>
               <div className="hub-video-frame">{activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
               <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
-              <div className="hub-highlight-reaction-deck">
-                <span className="hub-reaction-label">Community Reactions</span>
-                <div className="hub-highlight-community-bar">
-                  <button aria-label="Love" className={activeHighlight.myReactions.includes("love") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "love")}><Heart /><b>Love</b><small>{activeHighlight.reactionCounts.love || ""}</small></button>
-                  <button aria-label="Like" className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp /><b>Like</b><small>{activeHighlight.reactionCounts.like || ""}</small></button>
-                  <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => activeHighlight.myReactions.includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => activeHighlight.myReactions.includes(key)) ?? ""); }}><Award /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + activeHighlight.reactionCounts[key], 0) || ""}</small></button>
-                  <button aria-label="Dislike" className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown /><b>Dislike</b><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
-                  <button aria-label="Hate" className={activeHighlight.myReactions.includes("poop") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "poop")}><span className="hub-highlight-poop">💩</span><b>Hate</b><small>{activeHighlight.reactionCounts.poop || ""}</small></button>
-                </div>
-                <span className="hub-reaction-label sideline">Sideline Reactions</span>
-                <div className="hub-highlight-sideline-bar">{SIDELINE_REACTIONS.map((reaction) => <button key={reaction.key} aria-label={reaction.label} className={activeHighlight.myReactions.includes(reaction.key) ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, reaction.key)}><small>{activeHighlight.reactionCounts[reaction.key] || ""}</small></button>)}</div>
+              <div className="hub-highlight-reactions">
+                <button aria-label="Like" className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={18} /><b>Like</b><small>{activeHighlight.reactionCounts.like || ""}</small></button>
+                <button aria-label="Dislike" className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
+                <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => activeHighlight.myReactions.includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => activeHighlight.myReactions.includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + activeHighlight.reactionCounts[key], 0) || ""}</small></button>
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Videos posted in Discord will roll in here.</p>}
         </SectionFrame>
