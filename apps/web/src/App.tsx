@@ -26,10 +26,11 @@ import { MatchupDetailPage } from "./routes/matchups/MatchupDetail.js";
 function AuthGate({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   if (auth.status === "loading") {
+    const site = (import.meta.env.VITE_SITE_PUBLIC_URL as string | undefined)?.replace(/\/$/, "") || "https://rec-leagues.com";
     return (
       <div className="hub-state">
         <h1>Opening REC Leagues…</h1>
-        <p>If nothing happens, visit <a href="https://rec-leagues.com">rec-leagues.com</a>.</p>
+        <p>If nothing happens, <a href={`${site}/login`}>sign in at REC Leagues</a> or run <strong>/app</strong> in Discord.</p>
       </div>
     );
   }

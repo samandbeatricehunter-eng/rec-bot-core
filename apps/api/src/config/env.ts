@@ -39,5 +39,7 @@ const EnvSchema = z.object({
   STRIPE_PRICE_GOLD_ANNUAL: z.string().optional(),
   STRIPE_PRICE_PLATINUM_ANNUAL: z.string().optional(),
   SITE_PUBLIC_URL: z.string().url().default("https://rec-leagues.com"),
+  // Discord Activity hub (apps/web) — used when exchanging a site session for a hub JWT.
+  WEB_APP_URL: z.string().url().optional(),
 });
 export const env = EnvSchema.parse(process.env);

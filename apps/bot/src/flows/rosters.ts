@@ -1,4 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { formatCoins } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
 import { ExpiringSessionStore } from "../lib/session-timeout.js";
@@ -205,11 +206,11 @@ function formatFinancialBlock(scopeLabel: string, summary: any) {
   if (!summary) return "No financial activity recorded yet.";
   const purchases = summary.purchases ?? {};
   return [
-    `**Total Cash Earned (${scopeLabel}):** $${summary.totalEarned.toLocaleString()}`,
-    `**Total Cash Spent (${scopeLabel}):** $${summary.totalSpent.toLocaleString()}`,
-    `**Total Profit/Deficit (${scopeLabel}):** $${summary.profitDeficit.toLocaleString()}`,
-    `**Avg Cash Earned / Week (${scopeLabel}):** $${summary.avgEarnedPerWeek.toLocaleString()}`,
-    `**Avg Cash Spent / Week (${scopeLabel}):** $${summary.avgSpentPerWeek.toLocaleString()}`,
+    `**Total Cash Earned (${scopeLabel}):** ${formatCoins(summary.totalEarned)}`,
+    `**Total Cash Spent (${scopeLabel}):** ${formatCoins(summary.totalSpent)}`,
+    `**Total Profit/Deficit (${scopeLabel}):** ${formatCoins(summary.profitDeficit)}`,
+    `**Avg Cash Earned / Week (${scopeLabel}):** ${formatCoins(summary.avgEarnedPerWeek)}`,
+    `**Avg Cash Spent / Week (${scopeLabel}):** ${formatCoins(summary.avgSpentPerWeek)}`,
     "",
     `Legends / Custom Players (${scopeLabel}): **${purchases.legends ?? 0}** / **${purchases.customPlayers ?? 0}**`,
     `Attributes — Core / Non-Core (${scopeLabel}): **${purchases.coreAttributes ?? 0}** / **${purchases.nonCoreAttributes ?? 0}**`,

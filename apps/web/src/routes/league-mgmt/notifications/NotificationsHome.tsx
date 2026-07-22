@@ -6,6 +6,7 @@ import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Badge } from "../../../components/ui/Badge.js";
 import { Button } from "../../../components/ui/Button.js";
+import { CoinAmount } from "../../../components/ui/CoinAmount.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { ReviewBoxScoreModal } from "../../../components/box-score/ReviewBoxScoreModal.js";
@@ -104,7 +105,7 @@ export function NotificationsHome() {
                   <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{notification.subtitle}</p>
                   <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
                 </div>
-                {notification.amount != null && <span style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</span>}
+                {notification.amount != null && <span style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}><CoinAmount amount={notification.amount} /></span>}
               </div>
             </Card>)}
           </div>
@@ -124,7 +125,7 @@ function CompletedTransactions({ transactions }: { transactions: CompletedCommis
   return <div className="completed-transaction-list">{transactions.map((transaction) => <Card key={transaction.id}>
     <div className="completed-transaction-heading">
       <div><div className="completed-transaction-title"><Badge status="approved">{transaction.statusLabel}</Badge><strong>{transaction.title}</strong></div><p>{transaction.subtitle}</p></div>
-      {transaction.amount != null && <strong className="completed-transaction-amount">${transaction.amount.toLocaleString()}</strong>}
+      {transaction.amount != null && <strong className="completed-transaction-amount"><CoinAmount amount={transaction.amount} /></strong>}
     </div>
     {transaction.details.length > 0 && <dl className="completed-transaction-details">{transaction.details.map((detail, index) => <div key={`${detail.label}-${index}`}><dt>{detail.label}</dt><dd>{detail.value}</dd></div>)}</dl>}
     <div className="completed-transaction-audit">

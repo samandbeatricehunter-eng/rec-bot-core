@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, type MaddenAttributeCode, type MaddenAttributeDropdownGroupKey } from "@rec/shared";
+import { MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, REC_ATTRIBUTE_POINT_PRICE, formatCoins, type MaddenAttributeCode, type MaddenAttributeDropdownGroupKey } from "@rec/shared";
 import { buildNavigationRow, NAV_CUSTOM_IDS } from "./navigation.js";
 import { LEAGUE_SETUP_CUSTOM_IDS, type LeagueSetupDraft, type LeagueSetupStep } from "./league-setup-types.js";
 import { option } from "./league-setup-shared.js";
@@ -171,7 +171,7 @@ function formatPurchaseCapSummary(draft: LeagueSetupDraft, step: PurchaseFeature
       `Default Core Cap: **${fmt(draft.coreAttributePurchasesSeasonCap)}**/season`,
       `Non-Core Total Cap: **${fmt(draft.nonCoreAttributePurchasesSeasonCap)}**/season`,
       `Core Attributes: **${draft.coreAttributes.length}** (per-attribute overrides: **${Object.keys(draft.coreAttributeCapOverrides ?? {}).length}**)`,
-      "_Caps are points per user, per season. Core/Non-Core pricing: $100 / $50 per point._",
+      `_Caps are points per user, per season. Core/Non-Core pricing: ${formatCoins(REC_ATTRIBUTE_POINT_PRICE.core)} / ${formatCoins(REC_ATTRIBUTE_POINT_PRICE.non_core)} per point._`,
     ].join("\n");
   }
   if (!config.seasonCapKey) return "";
@@ -316,7 +316,7 @@ export function buildAttributeCoreSelectionWindow(draft: LeagueSetupDraft) {
     .setDescription([
       `League: **${draft.name}**`,
       "",
-      "Select which player attributes count as **core** (priced $100/pt; others are non-core at $50/pt). The 53 attributes are split across three dropdowns:",
+      `Select which player attributes count as **core** (priced ${formatCoins(REC_ATTRIBUTE_POINT_PRICE.core)}/pt; others are non-core at ${formatCoins(REC_ATTRIBUTE_POINT_PRICE.non_core)}/pt). The 53 attributes are split across three dropdowns:`,
       "",
       ...groupDoc,
       "",

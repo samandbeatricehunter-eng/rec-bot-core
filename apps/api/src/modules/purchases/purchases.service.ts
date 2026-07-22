@@ -1,4 +1,4 @@
-import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, type RecPurchaseType } from "@rec/shared";
+import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, formatCoins, type RecPurchaseType } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -139,7 +139,7 @@ export async function createPurchaseRequest(input: {
   await assertSiteAccountForEconomy(userId);
   const walletBalance = Number(baseline.wallet?.wallet_balance ?? 0);
   if (walletBalance < price) {
-    throw new ApiError(400, `Insufficient wallet balance. This costs $${price} and you have $${walletBalance}.`);
+    throw new ApiError(400, `Insufficient wallet balance. This costs ${formatCoins(price)} and you have ${formatCoins(walletBalance)}.`);
   }
 
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
@@ -228,7 +228,7 @@ export async function createPurchaseRequest(input: {
     queue_type: "purchase",
     status: "pending",
     priority: 0,
-    header: `Purchase: ${label} — $${price}`,
+    header: `Purchase: ${label} — ${formatCoins(price)}`,
     summary: `${label} requested by <@${input.discordId}>.`,
     requester_discord_id: input.discordId,
     requester_user_id: userId,

@@ -1,4 +1,4 @@
-import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, type LeagueGame, type RecPayoutTier } from "@rec/shared";
+import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, type LeagueGame, type RecPayoutTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
@@ -412,9 +412,9 @@ export async function reviewEosPayoutsForUser(input: {
       ? [
           "**Your EOS payout ledger was approved.**",
           "",
-          ...processed.map((item) => `- ${item.payout_label}${item.qualified_tier ? ` (Tier ${item.qualified_tier})` : ""}: $${Number(item.amount ?? 0)}`),
+          ...processed.map((item) => `- ${item.payout_label}${item.qualified_tier ? ` (Tier ${item.qualified_tier})` : ""}: ${formatCoins(item.amount)}`),
           "",
-          `**Total: $${totalAmount}** — sent to your wallet.`,
+          `**Total: ${formatCoins(totalAmount)}** — sent to your wallet.`,
           `Approved by <@${input.reviewedByDiscordId}>.`,
         ].join("\n")
       : [

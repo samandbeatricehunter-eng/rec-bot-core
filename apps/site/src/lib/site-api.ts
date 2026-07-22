@@ -335,4 +335,10 @@ export const siteApi = {
       { ids },
     );
   },
+  exchangeAppHandoff(handoff: string) {
+    return request<
+      | { status: "ready"; hubUrl: string; expiresInSeconds: number }
+      | { status: "need_setup"; reason: "link_identity" | "username"; message: string }
+    >("/v1/web-session/handoff/exchange", { handoff });
+  },
 };

@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, isRegularSeasonWeek, stageForWeek, stageLabel } from "@rec/shared";
+import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, isRegularSeasonWeek, stageForWeek, stageLabel, formatCoins } from "@rec/shared";
 import { COLORS } from "../lib/colors.js";
 
 /**
@@ -173,9 +173,9 @@ export function buildLeagueMenuEmbed(input: {
 }) {
   const userInfo = [
     `**User:** ${input.discordUsername ?? "Unlinked User"}`,
-    `**Wallet:** ${typeof input.wallet === "string" ? input.wallet : `$${input.wallet ?? 0}`}`,
-    `**Savings:** ${typeof input.savings === "string" ? input.savings : `$${input.savings ?? 0}`}`,
-    `**Proj. Interest:** ${typeof input.projectedInterest === "string" ? input.projectedInterest : `$${input.projectedInterest ?? 0}`}`
+    `**Wallet:** ${typeof input.wallet === "string" ? input.wallet : formatCoins(input.wallet)}`,
+    `**Savings:** ${typeof input.savings === "string" ? input.savings : formatCoins(input.savings)}`,
+    `**Proj. Interest:** ${typeof input.projectedInterest === "string" ? input.projectedInterest : formatCoins(input.projectedInterest)}`
   ].join("\n");
 
   const leagueInfo = [

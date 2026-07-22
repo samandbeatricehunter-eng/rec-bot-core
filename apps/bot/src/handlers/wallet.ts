@@ -1,4 +1,5 @@
 import { EmbedBuilder, type ButtonInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { formatCoins } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import {
   buildManageWalletRows,
@@ -24,10 +25,9 @@ function formatRecDateTime(value?: string | null) {
 
 function formatTransactionLine(transaction: any) {
   const amount = Number(transaction?.amount ?? 0);
-  const sign = amount > 0 ? "+" : "";
   const type = String(transaction?.transaction_type ?? "transaction").replaceAll("_", " ");
   const reason = transaction?.description ?? transaction?.source ?? "No reason provided";
-  return `**${sign}$${amount}** - ${type}\n${formatRecDateTime(transaction?.created_at)} - ${reason}`;
+  return `**${formatCoins(amount, { signed: true })}** - ${type}\n${formatRecDateTime(transaction?.created_at)} - ${reason}`;
 }
 
 async function buildManageWalletPayload(userId: string, guildId: string | undefined) {
@@ -40,9 +40,9 @@ async function buildManageWalletPayload(userId: string, guildId: string | undefi
     .setTitle("My Wallet")
     .setDescription([
       `**User:** ${displayName}`,
-      `**Wallet:** $${wallet.wallet_balance ?? 0}`,
-      `**Savings:** $${wallet.savings_balance ?? 0}`,
-      `**Proj. Interest:** $${projectedInterest}`,
+      `**Wallet:** ${formatCoins(wallet.wallet_balance)}`,
+      `**Savings:** ${formatCoins(wallet.savings_balance)}`,
+      `**Proj. Interest:** ${formatCoins(projectedInterest)}`,
       "",
       "**Transfer** - Move funds between your wallet and savings.",
       "**Transactions** - View your last 10 global transactions and your last 10 league transactions.",
@@ -64,8 +64,8 @@ export async function handleWalletTransferOpen(interaction: ButtonInteraction) {
   const wallet = walletPayload?.wallet ?? { wallet_balance: 0, savings_balance: 0 };
   return interaction.editReply({
     embeds: [new EmbedBuilder().setTitle("Transfer").setDescription([
-      `**Wallet:** $${wallet.wallet_balance ?? 0}`,
-      `**Savings:** $${wallet.savings_balance ?? 0}`,
+      `**Wallet:** ${formatCoins(wallet.wallet_balance)}`,
+      `**Savings:** ${formatCoins(wallet.savings_balance)}`,
       "",
       "Select a transfer direction below."
     ].join("\n"))],
@@ -81,9 +81,9 @@ export async function handleWalletTransferDirection(interaction: StringSelectMen
   const label = direction === "to_savings" ? "Transfer To Savings" : "Transfer From Savings";
   return interaction.update({
     embeds: [new EmbedBuilder().setTitle(label).setDescription([
-      `**Wallet:** $${wallet.wallet_balance ?? 0}`,
-      `**Savings:** $${wallet.savings_balance ?? 0}`,
-      `**Available:** $${available}`,
+      `**Wallet:** ${formatCoins(wallet.wallet_balance)}`,
+      `**Savings:** ${formatCoins(wallet.savings_balance)}`,
+      `**Available:** ${formatCoins(available)}`,
       "",
       "Choose Transfer All or enter a custom amount."
     ].join("\n"))],
@@ -126,10 +126,10 @@ async function completeSavingsTransfer(interaction: ButtonInteraction | ModalSub
     const dirLabel = direction === "to_savings" ? "moved to savings" : "withdrawn from savings";
     return interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Transfer Complete").setDescription([
-        `**$${amount}** ${dirLabel}.`,
+        `**${formatCoins(amount)}** ${dirLabel}.`,
         "",
-        `**Wallet:** $${result.wallet_balance ?? 0}`,
-        `**Savings:** $${result.savings_balance ?? 0}`
+        `**Wallet:** ${formatCoins(result.wallet_balance)}`,
+        `**Savings:** ${formatCoins(result.savings_balance)}`
       ].join("\n"))],
       components: buildManageWalletRows()
     });
@@ -170,4 +170,3 @@ export async function handleWalletPendingPurchases(interaction: ButtonInteractio
     components: buildManageWalletRows()
   });
 }
-

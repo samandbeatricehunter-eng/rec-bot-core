@@ -52,7 +52,7 @@ After close-out: Discord-only users can still exist in bot leagues; to get site/
 
 ## Discord bot
 
-Platinum league owners may enable the Discord bot and receive an invite token. Admins claim it in Discord with `/claim-league`. Discord-only members get the **REC Discord Only** role and a `§ DC` nickname marker.
+Platinum league owners may enable the Discord bot from the site. Discord-only members get the **REC Discord Only** role and a `§ DC` nickname marker.
 
 ## API / Stripe env
 

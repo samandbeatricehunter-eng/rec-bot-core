@@ -1,6 +1,6 @@
 // @ts-nocheck
 import sharp from "sharp";
-import { isCfb, isChampionshipWeek, isRegularSeasonWeek } from "@rec/shared";
+import { isCfb, isChampionshipWeek, isRegularSeasonWeek, formatCoins } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -1454,7 +1454,8 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   const badgeBonuses = await issueBadgeBonusesForSubmission(sub);
   const xfSeasonBadgeEvents = await loadXfSeasonBadgeEventsForSubmission(sub);
 
-  // Issue payouts only to linked-user participants (winner $100, loser $50). A
+  // Issue payouts only to linked-user participants (winner 100 coins, loser 50). A
+  // Fair Sim / Force Win still records the result + intelligence but pays nothing.
   // CPU-vs-CPU game — no linked user on either team — is still recorded but pays
   // no one (the commissioner who uploaded it is never paid).
   const payouts: { userId: string; amount: number }[] = [];
@@ -1472,7 +1473,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       p_user_id: p.userId,
       p_amount: p.amount,
       p_league_id: sub.league_id,
-      p_description: `Box score payout ($${p.amount}) — Wk ${sub.week_number}`,
+      p_description: `Box score payout (${formatCoins(p.amount)}) — Wk ${sub.week_number}`,
       p_transaction_type: "box_score_payout",
       p_source: "box_score",
       p_source_reference: { submissionId: sub.id },

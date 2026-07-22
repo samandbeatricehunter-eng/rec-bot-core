@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { evaluatePayoutTier, isPayoutEligibleForGame, isRegularSeasonWeek, nextPayoutTier, type RecEndSeasonPayoutDefinition } from "@rec/shared";
+import { evaluatePayoutTier, isPayoutEligibleForGame, isRegularSeasonWeek, nextPayoutTier, formatCoins, type RecEndSeasonPayoutDefinition } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
@@ -202,7 +202,7 @@ async function loadTeamStatsByUser(leagueId: string, seasonNumber: number, throu
 
 // ─── Section formatters ─────────────────────────────────────────────────────────
 
-const money = (amount: number) => `${amount < 0 ? "-" : "+"}$${Math.abs(amount)}`;
+const money = (amount: number) => formatCoins(amount, { signed: true });
 
 function buildTransactionsSection(rows: any[]): string | null {
   if (!rows.length) return null;
@@ -260,10 +260,10 @@ function tierTarget(def: RecEndSeasonPayoutDefinition, value: number): string {
   const current = evaluatePayoutTier(value, def.tiers);
   const next = nextPayoutTier(value, def.tiers);
   const shown = Math.round(value * 10) / 10;
-  const currentLabel = current ? `Tier ${current.tier} ($${current.amount})` : "no tier yet";
+  const currentLabel = current ? `Tier ${current.tier} (${formatCoins(current.amount)})` : "no tier yet";
   if (!next) return `**${def.label}:** ${shown} — ${currentLabel} (max tier reached)`;
   const verb = def.direction === "lower_is_better" ? "≤" : "≥";
-  return `**${def.label}:** ${shown} — ${currentLabel} → need ${verb}${next.threshold} for Tier ${next.tier} ($${next.amount})`;
+  return `**${def.label}:** ${shown} — ${currentLabel} → need ${verb}${next.threshold} for Tier ${next.tier} (${formatCoins(next.amount)})`;
 }
 
 function buildEosProgressSection(rows: any[], game: string | null | undefined): string | null {

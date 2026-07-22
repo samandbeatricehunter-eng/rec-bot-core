@@ -15,12 +15,22 @@ type AuthState =
 const AuthContext = createContext<AuthState>({ status: "loading" });
 
 function readTokenFromUrl(): string | null {
-  return new URLSearchParams(window.location.search).get("token");
+  const fromSearch = new URLSearchParams(window.location.search).get("token");
+  if (fromSearch) return fromSearch;
+  // HashRouter: token may live on the hash query (#/?token=… or #/path?token=…).
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const qIndex = hash.indexOf("?");
+  if (qIndex >= 0) return new URLSearchParams(hash.slice(qIndex + 1)).get("token");
+  return null;
 }
 
 function sitePublicUrl() {
   return (import.meta.env.VITE_SITE_PUBLIC_URL as string | undefined)?.replace(/\/$/, "")
     || "https://rec-leagues.com";
+}
+
+function siteLoginUrl() {
+  return `${sitePublicUrl()}/login`;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -29,9 +39,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = readTokenFromUrl();
     if (!token) {
-      // Direct browser visits belong on the public site, not the Discord Activity hub.
-      window.location.replace(sitePublicUrl());
-      return;
+      const loginUrl = siteLoginUrl();
+      try {
+        if (new URL(loginUrl).origin === window.location.origin) {
+          // Misconfigured deploy: hub and site share an origin → replace() would loop forever.
+          setState({
+            status: "error",
+            message: "Open your league from Discord with /app. This hub URL needs a personal session link.",
+          });
+          return;
+        }
+      } catch {
+        // fall through to replace
+      }
+      window.location.replace(loginUrl);
+      const failsafe = window.setTimeout(() => {
+        setState((current) =>
+          current.status === "loading"
+            ? {
+                status: "error",
+                message: `Redirect stalled. Sign in at ${loginUrl}, then run /app again in Discord.`,
+              }
+            : current,
+        );
+      }, 2500);
+      return () => window.clearTimeout(failsafe);
     }
     try {
       const payload = decodeJwtPayload<{ discordId: string; guildId: string; exp: number }>(token);

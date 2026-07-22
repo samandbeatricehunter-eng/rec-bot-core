@@ -164,3 +164,49 @@ export function calculateGotwMatchupStrength(input: {
     (input.previousGotwUserFlag ? 3 : 0);
   return Math.round((base + modifiers) * 10) / 10;
 }
+
+/** League wallet currency display — coins (not Stripe USD). */
+export const COIN_EMOJI = "🪙";
+export const COIN_NAME = "coins";
+export const COIN_NAME_SINGULAR = "coin";
+
+function coerceCoinAmount(amount: number | null | undefined): number {
+  const n = Number(amount ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Grouped number only (for UI next to a coin icon). */
+export function coinsNumber(
+  amount: number | null | undefined,
+  options?: { signed?: boolean },
+): string {
+  const n = coerceCoinAmount(amount);
+  const abs = Math.abs(n).toLocaleString("en-US");
+  if (options?.signed) {
+    if (n > 0) return `+${abs}`;
+    if (n < 0) return `-${abs}`;
+    return abs;
+  }
+  return n < 0 ? `-${abs}` : abs;
+}
+
+/** Discord / plain text — e.g. "🪙 1,250" */
+export function formatCoins(
+  amount: number | null | undefined,
+  options?: { signed?: boolean },
+): string {
+  return `${COIN_EMOJI} ${coinsNumber(amount, options)}`;
+}
+
+/** Store price ranges — e.g. "🪙 500–2,000" */
+export function formatCoinsRange(min: number, max: number): string {
+  return `${COIN_EMOJI} ${coinsNumber(min)}–${coinsNumber(max)}`;
+}
+
+/** Spoken form — "1,250 coins" */
+export function formatCoinsWords(amount: number | null | undefined): string {
+  const n = Math.abs(coerceCoinAmount(amount));
+  const label = n === 1 ? COIN_NAME_SINGULAR : COIN_NAME;
+  const sign = coerceCoinAmount(amount) < 0 ? "-" : "";
+  return `${sign}${n.toLocaleString("en-US")} ${label}`;
+}

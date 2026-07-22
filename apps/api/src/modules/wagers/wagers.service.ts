@@ -4,7 +4,7 @@
 // funds), escrows the stake out of the wallet into holding, and stores a pending
 // wager whose payout the commissioner approves once the result is confirmed.
 
-import { canonicalConferenceName, WAGER_MARKET_BY_KEY, parlayOdds, potentialPayout } from "@rec/shared";
+import { canonicalConferenceName, WAGER_MARKET_BY_KEY, parlayOdds, potentialPayout, formatCoins } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -74,7 +74,7 @@ async function assertHouseWeeklyCap(leagueId: string, seasonNumber: number, week
   if (error) throw new ApiError(500, "Failed to check weekly house wager cap.", error);
   const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
   if (activeTotal + stake > HOUSE_WAGER_MAX) {
-    throw new ApiError(400, `House wagers are capped at $${HOUSE_WAGER_MAX.toLocaleString()} total per week. You already have $${activeTotal.toLocaleString()} active.`);
+    throw new ApiError(400, `House wagers are capped at ${formatCoins(HOUSE_WAGER_MAX)} total per week. You already have ${formatCoins(activeTotal)} active.`);
   }
 }
 
@@ -199,7 +199,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   }
 
   const balance = await walletBalance(userId);
-  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes $${stake} and you have $${balance}.`);
+  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
 
   const odds = Number(side.odds);
   const payout = potentialPayout(stake, odds);
@@ -298,7 +298,7 @@ async function prepareSingleWager(guildId: string, userId: string, leagueId: str
   line = resolveCustomLine(marketDef.kind, line, customLine);
 
   const balance = await walletBalance(userId);
-  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes $${stake} and you have $${balance}.`);
+  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
   return { game, options, marketDef, marketOption, side, line, balance };
 }
 
@@ -416,7 +416,7 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
 
   const stake = Number(wager.stake ?? 0);
   const balance = await walletBalance(accepterId);
-  if (balance < stake) throw new ApiError(400, `Insufficient funds. This wager stakes $${stake} and you have $${balance}.`);
+  if (balance < stake) throw new ApiError(400, `Insufficient funds. This wager stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
 
   const hold = await supabase.rpc("add_to_wallet", {
     p_user_id: accepterId,
@@ -539,7 +539,7 @@ export async function acceptCounter(input: { guildId: string; discordId: string;
   const originalStake = Number(original?.stake ?? 0);
   const balance = await walletBalance(proposerUserId);
   if (balance + originalStake < counterStake) {
-    throw new ApiError(400, `You need $${counterStake} to take this counter and only have $${balance + originalStake} available.`);
+    throw new ApiError(400, `You need ${formatCoins(counterStake)} to take this counter and only have ${formatCoins(balance + originalStake)} available.`);
   }
 
   // Refund + close the original offer.
@@ -725,7 +725,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
   await assertHouseWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
   const balance = await walletBalance(userId);
-  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes $${stake} and you have $${balance}.`);
+  if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
 
   const prepared = [];
   for (const leg of input.legs) {
@@ -979,7 +979,7 @@ async function recordWagerInbox(wager: any): Promise<void> {
     queue_type: "wager",
     status: "pending",
     priority: 0,
-    header: `Wager settle: ${wager.market} — $${wager.stake}`,
+    header: `Wager settle: ${wager.market} — ${formatCoins(wager.stake)}`,
     summary: `Wager placed by <@${wager.placed_by_discord_id}> is ready to settle.`,
     requester_discord_id: wager.placed_by_discord_id,
     requester_user_id: wager.placed_by_user_id ?? null,

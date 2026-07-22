@@ -6,7 +6,7 @@ import {
   MessageFlags,
   type ButtonInteraction,
 } from "discord.js";
-import { isEosPayoutEligibleStage } from "@rec/shared";
+import { isEosPayoutEligibleStage, formatCoins } from "@rec/shared";
 import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
 import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
@@ -28,7 +28,7 @@ export const TROUBLESHOOT_EOS_CUSTOM_IDS = {
 export const eosProjectionSessions = new ExpiringSessionStore<{ pages: any[]; page: number }>();
 
 function formatMoney(n: unknown) {
-  return `$${Number(n ?? 0).toLocaleString("en-US")}`;
+  return formatCoins(Number(n ?? 0));
 }
 
 function groupProjectionPages(items: any[]) {
@@ -102,7 +102,7 @@ export async function handleEosProjectionPage(interaction: ButtonInteraction, de
 function eosPayoutLine(item: any) {
   const tier = item.qualified_tier ? ` [${item.qualified_tier}]` : "";
   const value = item.qualified_value != null ? ` (${item.qualified_value})` : "";
-  return `- **$${Number(item.amount ?? 0)}** - ${item.payout_label}${tier}${value}`;
+  return `- **${formatCoins(item.amount)}** - ${item.payout_label}${tier}${value}`;
 }
 
 function eosUserGroups(items: any[]) {
@@ -133,7 +133,7 @@ async function postEosReviewEmbeds(interaction: ButtonInteraction, result: any) 
         .setDescription([
           `Coach: ${coach}`,
           `Season: **${result.batch.season_number}**`,
-          `Total pending: **$${total}**`,
+          `Total pending: **${formatCoins(total)}**`,
           "",
           lines.join("\n").slice(0, 3000),
         ].join("\n"))],
@@ -154,7 +154,7 @@ async function dmEosPayoutResult(interaction: ButtonInteraction, result: any) {
   if (!user) return;
   const lines = (result.items ?? []).map(eosPayoutLine);
   await user.send([
-    `Your EOS payouts were approved for **$${Number(result.totalAmount ?? 0)}**.`,
+    `Your EOS payouts were approved for **${formatCoins(result.totalAmount)}**.`,
     "",
     lines.join("\n").slice(0, 1800),
   ].join("\n")).catch(() => undefined);
@@ -187,7 +187,7 @@ export async function handleEosPayouts(interaction: ButtonInteraction) {
     row.amount += Number(item.amount ?? 0);
     byCategory.set(key, row);
   }
-  const categoryLines = [...byCategory.entries()].map(([key, row]) => `${key}: **${row.count}** item${row.count === 1 ? "" : "s"} / **$${row.amount}**`);
+  const categoryLines = [...byCategory.entries()].map(([key, row]) => `${key}: **${row.count}** item${row.count === 1 ? "" : "s"} / **${formatCoins(row.amount)}**`);
   const batchId = result?.batch?.id ? String(result.batch.id) : null;
   return interaction.editReply({
     embeds: [new EmbedBuilder()
@@ -198,7 +198,7 @@ export async function handleEosPayouts(interaction: ButtonInteraction) {
         "",
         `Pending review items: **${pending}**`,
         `Issued items: **${issued}**`,
-        `Total generated amount: **$${total}**`,
+        `Total generated amount: **${formatCoins(total)}**`,
         pending > 0 ? "Review the pending items in Commissioner Notifications." : "No review is required.",
         "",
         categoryLines.length ? categoryLines.join("\n") : "No qualifying EOS payouts were generated.",
@@ -252,7 +252,7 @@ export async function handleReviewEosUserPayouts(interaction: ButtonInteraction,
       .setColor(action === "approve" ? 0x2ecc71 : 0xe74c3c)
       .setDescription([
         `Processed **${result?.items?.length ?? 0}** payout item${(result?.items?.length ?? 0) === 1 ? "" : "s"}.`,
-        `Total: **$${Number(result?.totalAmount ?? 0)}**`,
+        `Total: **${formatCoins(result?.totalAmount)}**`,
         failed.length ? `Failed: **${failed.length}** item${failed.length === 1 ? "" : "s"}.` : "No failures reported.",
       ].join("\n"))],
   });
@@ -283,7 +283,7 @@ export async function handleIssueEosPayoutBatch(interaction: ButtonInteraction) 
     const user = await interaction.client.users.fetch(discordId).catch(() => null);
     const totalForUser = rows.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
     await user?.send([
-      `Your EOS payouts were issued for **$${totalForUser}**.`,
+      `Your EOS payouts were issued for **${formatCoins(totalForUser)}**.`,
       "",
       rows.map(eosPayoutLine).join("\n").slice(0, 1800),
     ].join("\n")).catch(() => undefined);

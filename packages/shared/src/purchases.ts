@@ -1,5 +1,5 @@
 // Store purchase types, fixed REC standard prices, and the position lists used by the
-// shared player-target sub-flow. Prices are whole coins ($ in the wallet). Pricing is fixed
+// shared player-target sub-flow. Prices are whole coins in the league wallet. Pricing is fixed
 // (not per-league configurable); per-league enabling and season caps live in
 // rec_league_configuration and are enforced API-side.
 

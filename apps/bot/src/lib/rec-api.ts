@@ -24,13 +24,13 @@ async function recFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const recApi = {
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),
-  claimBotInvite: (input: { token: string; guildId: string; serverName?: string; requestedByDiscordId?: string }) =>
-    recFetch<{ league: any; server: any; linked: true }>("/v1/subscriptions/bot/claim-invite", {
+  mintWebSession: (input: { guildId: string; discordId: string; username: string; globalName: string | null }) =>
+    recFetch<{ token: string; expiresInSeconds: number }>(REC_API_ROUTES.webSessionMint, { method: "POST", body: JSON.stringify(input) }),
+  mintAppHandoff: (input: { guildId: string; discordId: string; username: string; globalName: string | null }) =>
+    recFetch<{ token: string; expiresInSeconds: number }>(REC_API_ROUTES.webSessionHandoffMint, {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  mintWebSession: (input: { guildId: string; discordId: string; username: string; globalName: string | null }) =>
-    recFetch<{ token: string; expiresInSeconds: number }>(REC_API_ROUTES.webSessionMint, { method: "POST", body: JSON.stringify(input) }),
   recordHubAnnouncement: (input: { guildId: string; title: string; body: string; discordChannelId?: string | null; discordMessageId?: string | null }) =>
     recFetch<{ recorded: boolean }>("/v1/hub/announcements/record", { method: "POST", body: JSON.stringify(input) }),
   getWallet: (discordId: string, guildId?: string) => recFetch<any>(`/v1/users/${discordId}/wallet${guildId ? `?guildId=${guildId}` : ""}`),

@@ -1,5 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type ButtonInteraction } from "discord.js";
-import { stageLabel } from "@rec/shared";
+import { stageLabel, formatCoins } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { DEV_TIER_EMOJIS } from "../lib/tier-emojis.js";
 
@@ -9,6 +9,8 @@ import { DEV_TIER_EMOJIS } from "../lib/tier-emojis.js";
 export const GAME_CHANNEL_PAGE_PREFIX = "rec:gamech:page:";
 const GAME_CHANNEL_PAGE_COUNT = 5;
 const GAME_CHANNEL_PAGE_TITLES = ["Main Matchup", "Posting & Payouts", "Weekly Challenges", "Matchup Identities", "Matchup Breakdown"];
+
+const coin = (amount: number) => formatCoins(amount, { signed: true });
 
 export function gameRulesLines(draft: any, isPlayoff: boolean): string[] {
   const fourthType = isPlayoff ? draft?.fourthDownRuleTypePlayoff : draft?.fourthDownRuleTypeRegular;
@@ -47,23 +49,23 @@ function weeklyChallengesEmbed() {
   const xfactor = DEV_TIER_EMOJIS.xf;
   return new EmbedBuilder().setTitle("Weekly Challenges").setDescription([
     "**Tiered Challenges**",
-    `${star} Total Yards: 400 +$10 | ${superstar} 600 +$15 | ${xfactor} 800 +$25`,
-    `${star} Passing Yards: 250 +$10 | ${superstar} 400 +$15 | ${xfactor} 550 +$25`,
-    `${star} Rushing Yards: 150 +$10 | ${superstar} 250 +$15 | ${xfactor} 350 +$25`,
-    `${star} First Downs: 10 +$10 | ${superstar} 15 +$15 | ${xfactor} 20 +$25`,
-    `${star} Generated Turnovers: 1 +$10 | ${superstar} 2 +$15 | ${xfactor} 3 +$25`,
-    `${star} Committed Turnovers: 1 -$10 | ${superstar} 2 -$15 | ${xfactor} 3 -$25`,
-    "Differential: Positive +$25 | Negative -$25",
-    `Offensive Redzone: ${star} >65% +$10 | ${superstar} >85% +$15 | ${xfactor} 100% +$25`,
-    `Defensive Redzone Stop Rate: ${star} >65% +$10 | ${superstar} >85% +$15 | ${xfactor} 100% +$25`,
+    `${star} Total Yards: 400 ${coin(10)} | ${superstar} 600 ${coin(15)} | ${xfactor} 800 ${coin(25)}`,
+    `${star} Passing Yards: 250 ${coin(10)} | ${superstar} 400 ${coin(15)} | ${xfactor} 550 ${coin(25)}`,
+    `${star} Rushing Yards: 150 ${coin(10)} | ${superstar} 250 ${coin(15)} | ${xfactor} 350 ${coin(25)}`,
+    `${star} First Downs: 10 ${coin(10)} | ${superstar} 15 ${coin(15)} | ${xfactor} 20 ${coin(25)}`,
+    `${star} Generated Turnovers: 1 ${coin(10)} | ${superstar} 2 ${coin(15)} | ${xfactor} 3 ${coin(25)}`,
+    `${star} Committed Turnovers: 1 ${coin(-10)} | ${superstar} 2 ${coin(-15)} | ${xfactor} 3 ${coin(-25)}`,
+    `Differential: Positive ${coin(25)} | Negative ${coin(-25)}`,
+    `Offensive Redzone: ${star} >65% ${coin(10)} | ${superstar} >85% ${coin(15)} | ${xfactor} 100% ${coin(25)}`,
+    `Defensive Redzone Stop Rate: ${star} >65% ${coin(10)} | ${superstar} >85% ${coin(15)} | ${xfactor} 100% ${coin(25)}`,
     "",
     "**Game Bonuses And Penalties**",
-    "4th Quarter Comeback +$50 — win after trailing entering the 4th quarter.",
-    "Upset +$25 — beat any opponent ranked above you in the power rankings.",
-    "Major Upset +$50 — beat an opponent 10+ spots above you in the power rankings.",
-    "Shut-Out +$50 — hold your opponent to 0 points.",
-    "Slow-Starter -$10 — score 0 points in the 1st quarter.",
-    "Weak-Closer -$10 — lead entering the 4th quarter but lose by 14+ points."
+    `4th Quarter Comeback ${coin(50)} — win after trailing entering the 4th quarter.`,
+    `Upset ${coin(25)} — beat any opponent ranked above you in the power rankings.`,
+    `Major Upset ${coin(50)} — beat an opponent 10+ spots above you in the power rankings.`,
+    `Shut-Out ${coin(50)} — hold your opponent to 0 points.`,
+    `Slow-Starter ${coin(-10)} — score 0 points in the 1st quarter.`,
+    `Weak-Closer ${coin(-10)} — lead entering the 4th quarter but lose by 14+ points.`
   ].join("\n"));
 }
 
@@ -136,11 +138,11 @@ function gcPagePosting(m: any) {
     "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts.",
     "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
     "",
-    "__Stream Payout — $50/week__",
-    `Post your stream link or go Discord Live, then drop it in ${streams}. Worth **$50**, once per game week.`,
+    `__Stream Payout — ${formatCoins(50)}/week__`,
+    `Post your stream link or go Discord Live, then drop it in ${streams}. Worth **${formatCoins(50)}**, once per game week.`,
     "",
-    "__Highlight Payout — $25 each__",
-    `Post your in-game highlights in ${highlights}. Each is worth **$25**, with up to **2 paid highlights per week**.`,
+    `__Highlight Payout — ${formatCoins(25)} each__`,
+    `Post your in-game highlights in ${highlights}. Each is worth **${formatCoins(25)}**, with up to **2 paid highlights per week**.`,
     "Highlights also enter Play of the Year voting (regular season) for a shot at the season-end award.",
   ].join("\n").slice(0, 4096));
 }

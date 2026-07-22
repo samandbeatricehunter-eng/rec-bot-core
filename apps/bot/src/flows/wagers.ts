@@ -14,7 +14,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
-import { americanFromDecimal, CONFERENCE_ORDER } from "@rec/shared";
+import { americanFromDecimal, CONFERENCE_ORDER, formatCoins } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError as userError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -414,7 +414,7 @@ export async function handleWagerSideSelect(interaction: StringSelectMenuInterac
   session.at = Date.now();
 
   const components = [new ActionRowBuilder<TextInputBuilder>().addComponents(
-    new TextInputBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeInput).setLabel(`Stake on ${side.label}`.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("whole dollars, e.g. 100")),
+    new TextInputBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeInput).setLabel(`Stake on ${side.label}`.slice(0, 45)).setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("whole coins, e.g. 100")),
   ];
   if (session.marketKind === "spread") {
     components.push(new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -484,7 +484,7 @@ export async function handleWagerParlayPlace(interaction: ButtonInteraction) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Parlay").setColor(COLORS.error).setDescription("Pick at least 2 legs before placing your parlay.")], components: [] });
   }
   const rows: Array<ActionRowBuilder<TextInputBuilder>> = [new ActionRowBuilder<TextInputBuilder>().addComponents(
-    new TextInputBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeInput).setLabel(`Parlay stake (${session.parlayLegs.length} legs)`).setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("whole dollars, e.g. 100"))];
+    new TextInputBuilder().setCustomId(WAGER_CUSTOM_IDS.stakeInput).setLabel(`Parlay stake (${session.parlayLegs.length} legs)`).setStyle(TextInputStyle.Short).setRequired(true).setPlaceholder("whole coins, e.g. 100"))];
   session.parlayLegs.forEach((leg, i) => {
     if (leg.kind !== "spread" || rows.length >= 5) return;
     rows.push(new ActionRowBuilder<TextInputBuilder>().addComponents(
@@ -571,9 +571,9 @@ async function placeHouseAndPost(interaction: ModalSubmitInteraction, session: W
         `**${result.gameLabel}**`,
         `${result.marketLabel}: **${result.sideLabel}** (${americanFromDecimal(result.odds)})`,
         session.marketKind === "spread" && customLine != null ? `Custom line: **${result.line > 0 ? "+" : ""}${result.line}** (offered: ${session.line})` : "",
-        `Stake: **$${result.wager.stake}** → To win: **$${result.payout}**`,
+        `Stake: **${formatCoins(result.wager.stake)}** → To win: **${formatCoins(result.payout)}**`,
         "",
-        `$${result.wager.stake} was moved to holding. Wallet balance: **$${result.walletBalance}**.`,
+        `${formatCoins(result.wager.stake)} was moved to holding. Wallet balance: **${formatCoins(result.walletBalance)}**.`,
         "Sent to Commissioner Notifications for settlement once results are confirmed.",
       ].filter(Boolean).join("\n"))],
     components: [],
@@ -602,7 +602,7 @@ async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: 
         .addFields(
           { name: "BETTOR", value: `<@${interaction.user.id}>`, inline: true },
           { name: "LEGS (all must hit)", value: legs.map((l, i) => `${i + 1}. ${l}`).join("\n").slice(0, 1024), inline: false },
-          { name: "STAKE / TO WIN", value: `$${stake} → $${result.payout} (${americanFromDecimal(result.combinedOdds)})`, inline: true },
+          { name: "STAKE / TO WIN", value: `${formatCoins(stake)} → ${formatCoins(result.payout)} (${americanFromDecimal(result.combinedOdds)})`, inline: true },
           { name: "STATUS", value: "⏳ Awaiting all 3 results. **Approve** works once every leg's game is logged. **Cancel** refunds the held stake." },
         )
         .setFooter({ text: `Wager ${result.wager.id}` });
@@ -621,8 +621,8 @@ async function placeParlayAndPost(interaction: ModalSubmitInteraction, session: 
       .setDescription([
         legs.map((l, i) => `${i + 1}. ${l}`).join("\n"),
         "",
-        `Stake: **$${stake}** → To win: **$${result.payout}** (${americanFromDecimal(result.combinedOdds)}, boosted).`,
-        `$${stake} moved to holding. Wallet: **$${result.walletBalance}**.`,
+        `Stake: **${formatCoins(stake)}** → To win: **${formatCoins(result.payout)}** (${americanFromDecimal(result.combinedOdds)}, boosted).`,
+        `${formatCoins(stake)} moved to holding. Wallet: **${formatCoins(result.walletBalance)}**.`,
         "Sent to Commissioner Notifications; settles once all 3 results are confirmed.",
       ].join("\n").slice(0, 4096))],
     components: [],
@@ -672,9 +672,9 @@ async function proposePeerAndPost(interaction: ModalSubmitInteraction, session: 
       .setDescription([
         `**${result.gameLabel}**`,
         `Your pick — ${result.marketLabel}: **${result.proposerPickLabel}**`,
-        `Stake: **$${result.stake}** → Pot pays **$${result.payout}** to the winner.`,
+        `Stake: **${formatCoins(result.stake)}** → Pot pays **${formatCoins(result.payout)}** to the winner.`,
         "",
-        `$${result.stake} was moved to holding. Wallet balance: **$${result.walletBalance}**.`,
+        `${formatCoins(result.stake)} was moved to holding. Wallet balance: **${formatCoins(result.walletBalance)}**.`,
         posted ? (challengeType === "direct" ? "Sent to the coach to accept or decline." : "Posted as an open challenge for any coach to take.") : "No announcements channel is configured, so the challenge couldn't be posted.",
       ].join("\n"))],
     components: [],
@@ -691,7 +691,7 @@ function buildPeerChallengeEmbed(result: any, proposerDiscordId: string, targetD
       { name: "GAME", value: result.gameLabel ?? "—", inline: false },
       { name: "PROPOSER TAKES", value: `${result.marketLabel}: **${result.proposerPickLabel}**`, inline: false },
       { name: "YOU'D TAKE", value: `The other side of ${result.marketLabel}.`, inline: false },
-      { name: "STAKE / POT", value: `$${result.stake} each → winner takes **$${result.payout}**`, inline: false },
+      { name: "STAKE / POT", value: `${formatCoins(result.stake)} each → winner takes **${formatCoins(result.payout)}**`, inline: false },
     )
     .setFooter({ text: isDirect ? "Accept to lock it in." : "Click Take Wager to take the other side." });
 }
@@ -794,7 +794,7 @@ async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: W
       `<@${interaction.user.id}> countered your **${result.gameLabel}** wager.`,
       "",
       `Their pick — ${result.marketLabel}: **${result.counterPickLabel}**`,
-      `Stake: **$${result.stake} each** → winner takes **$${result.payout}**.`,
+      `Stake: **${formatCoins(result.stake)} each** → winner takes **${formatCoins(result.payout)}**.`,
       "",
       "Accept to lock it in (you take the other side), or Deny to keep your original offer open.",
     ].join("\n"));
@@ -828,8 +828,8 @@ async function placeCounterAndDM(interaction: ModalSubmitInteraction, session: W
       .setTitle("Counter Sent ✅")
       .setColor(COLORS.success)
       .setDescription([
-        `Your counter — ${result.marketLabel}: **${result.counterPickLabel}** for **$${result.stake}**.`,
-        `$${result.stake} moved to holding.`,
+        `Your counter — ${result.marketLabel}: **${result.counterPickLabel}** for **${formatCoins(result.stake)}**.`,
+        `${formatCoins(result.stake)} moved to holding.`,
         delivered ? `The poster was notified (${where}) to accept or deny.` : "Couldn't reach the poster — they'll be refunded if the counter isn't accepted before the next advance.",
       ].join("\n"))],
     components: [],
@@ -927,7 +927,7 @@ export function buildWagerPendingEmbed(result: any, confirmed: boolean): EmbedBu
       { name: "BETTOR", value: w.placed_by_discord_id ? `<@${w.placed_by_discord_id}>` : "Coach", inline: true },
       { name: "GAME", value: result.gameLabel ?? "—", inline: true },
       { name: "PICK", value: `${result.marketLabel ?? w.market} — **${result.sideLabel ?? w.pick}** (${americanFromDecimal(Number(w.odds))})${w.market === "spread" && w.line != null ? ` — Line: ${w.line > 0 ? "+" : ""}${w.line}` : ""}`, inline: false },
-      { name: "STAKE / TO WIN", value: `$${w.stake} → $${w.potential_payout}`, inline: true },
+      { name: "STAKE / TO WIN", value: `${formatCoins(w.stake)} → ${formatCoins(w.potential_payout)}`, inline: true },
     );
   embed.addFields({
     name: "STATUS",
@@ -970,9 +970,9 @@ export async function handleWagerApprove(interaction: ButtonInteraction) {
   const base = interaction.message.embeds[0];
   const embed = (base ? EmbedBuilder.from(base) : new EmbedBuilder().setTitle("Wager")).setColor(outcome === "won" ? 0x2ecc71 : outcome === "push" ? 0x95a5a6 : 0xe74c3c);
   const line = outcome === "won"
-    ? `✅ Won — $${result.credited} paid to the bettor.`
+    ? `✅ Won — ${formatCoins(result.credited)} paid to the bettor.`
     : outcome === "push"
-      ? `↩️ Push — $${result.credited} stake refunded.`
+      ? `↩️ Push — ${formatCoins(result.credited)} stake refunded.`
       : "❌ Lost — stake retained by the house.";
   embed.spliceFields(embed.data.fields ? embed.data.fields.length - 1 : 0, 1, { name: "RESULT", value: line });
   return interaction.editReply({ embeds: [embed], components: [] });

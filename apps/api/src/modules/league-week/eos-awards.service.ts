@@ -1,4 +1,4 @@
-import { regularSeasonWeeks } from "@rec/shared";
+import { regularSeasonWeeks, formatCoins } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -586,7 +586,7 @@ export async function closeAndSettleEosAwardVoting(guildId: string): Promise<{ s
       await publishTransitionStory({
         guildId,
         headline: `${poll.category_label}: ${result.winner.teamName ?? "A program"}`,
-        body: `${poll.category_label} goes to ${result.winner.teamName ?? "the winner"}${result.tiebreakerNeeded ? " after a tiebreaker" : ""} — $${result.amount}.`,
+        body: `${poll.category_label} goes to ${result.winner.teamName ?? "the winner"}${result.tiebreakerNeeded ? " after a tiebreaker" : ""} — ${formatCoins(result.amount)}.`,
         primaryAngle: "eos_award",
       }).catch((error) => console.error(`[ERROR] Failed to publish ${poll.category_label} headline (non-fatal):`, error));
       settled += 1;

@@ -2,6 +2,7 @@
 // see apps/api/src/modules/box-score/box-score.service.ts (the original source of this
 // table) and the other 9 sources' service files for the insert/update side that populates
 // it. This module only reads; the writes live next to each source's own business logic.
+import { formatCoins } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 
@@ -124,7 +125,7 @@ export async function listCompletedCommissionerTransactions(guildId: string) {
       const highlight: any = highlightMap.get(row.source_id);
       const stream: any = streamMap.get(row.source_id);
       if (purchase) {
-        details.push({ label: "Purchase", value: humanize(purchase.purchase_type) }, { label: "Cost", value: `$${Number(purchase.cost ?? row.amount ?? 0).toLocaleString()}` });
+        details.push({ label: "Purchase", value: humanize(purchase.purchase_type) }, { label: "Cost", value: formatCoins(purchase.cost ?? row.amount ?? 0) });
         details.push(...scalarDetails(purchase.details));
       } else if (highlight) {
         details.push({ label: "Payout", value: highlight.payout_kind === "season_award" ? "Play of the Year Award" : "Weekly Highlight" });

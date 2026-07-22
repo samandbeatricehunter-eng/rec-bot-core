@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link, useParams } from "react-router-dom";
-import { americanFromDecimal } from "@rec/shared";
+import { americanFromDecimal, formatCoins } from "@rec/shared";
 import {
   ArrowLeft,
   BarChart3,
@@ -17,6 +17,7 @@ import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { MatchupPreview } from "../../components/matchups/MatchupPreview.js";
 import { MatchupReactionBar } from "../../components/matchups/MatchupReactionBar.js";
 import { Button } from "../../components/ui/Button.js";
+import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -675,7 +676,7 @@ export function MatchupDetailPage() {
             pick: leg.pick,
           })),
         });
-        message = `Parlay placed. Potential payout $${Number(result.payout ?? 0).toLocaleString()}.`;
+        message = `Parlay placed. Potential payout ${formatCoins(result.payout)}.`;
       } else if (wagerPanel.mode === "peer") {
         const result = await recApi.placePeerWager({
           guildId,
@@ -687,7 +688,7 @@ export function MatchupDetailPage() {
           targetUserId:
             wagerPanel.challengeType === "direct" ? wagerPanel.targetUserId : null,
         });
-        message = `Peer wager posted. Pot payout $${Number(result.payout ?? 0).toLocaleString()}.`;
+        message = `Peer wager posted. Pot payout ${formatCoins(result.payout)}.`;
       } else {
         const result = await recApi.placeHouseWager({
           guildId,
@@ -696,7 +697,7 @@ export function MatchupDetailPage() {
           pick: wagerPanel.pick,
           stake: Math.floor(stake),
         });
-        message = `House wager placed. Potential payout $${Number(result.payout ?? 0).toLocaleString()}.`;
+        message = `House wager placed. Potential payout ${formatCoins(result.payout)}.`;
       }
       const board = await recApi
         .getPeerWagerBoard(guildId)
@@ -1260,7 +1261,7 @@ export function MatchupDetailPage() {
                         <div>
                           <strong>{wager.gameLabel}</strong>
                           <span>
-                            {wager.market} · ${wager.stake.toLocaleString()} ·{" "}
+                            {wager.market} · <CoinAmount amount={wager.stake} /> ·{" "}
                             {wager.challengeType}
                           </span>
                         </div>

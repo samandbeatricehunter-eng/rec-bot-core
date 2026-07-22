@@ -1,9 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
+import { safeInternalNext } from "../lib/safe-next.js";
 
 export function SignUp() {
   const auth = useAuth();
+  const [params] = useSearchParams();
+  const next = safeInternalNext(params.get("next")) ?? "/account";
+  const loginHref = next === "/account" ? "/login" : `/login?next=${encodeURIComponent(next)}`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -11,7 +15,7 @@ export function SignUp() {
   const [error, setError] = useState<string | null>(null);
   const [confirmationSent, setConfirmationSent] = useState(false);
 
-  if (auth.status === "signed-in") return <Navigate to="/account" replace />;
+  if (auth.status === "signed-in") return <Navigate to={next} replace />;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -23,7 +27,6 @@ export function SignUp() {
     setBusy(false);
     if (result.error) { setError(result.error); return; }
     if (result.needsEmailConfirmation) setConfirmationSent(true);
-    // Otherwise onAuthStateChange picks up the new session and the Navigate above fires.
   }
 
   if (confirmationSent) {
@@ -32,7 +35,7 @@ export function SignUp() {
         <div className="site-auth-card">
           <h1>Check your email</h1>
           <p>We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account, then come back and log in.</p>
-          <Link className="site-btn site-btn-ghost" to="/login">Back to log in</Link>
+          <Link className="site-btn site-btn-ghost" to={loginHref}>Back to log in</Link>
         </div>
       </div>
     );
@@ -56,7 +59,7 @@ export function SignUp() {
           <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
         </label>
         <button className="site-btn site-btn-primary site-btn-lg" type="submit" disabled={busy}>{busy ? "Creating account…" : "Sign Up"}</button>
-        <p className="site-auth-switch">Already have an account? <Link to="/login">Log in</Link></p>
+        <p className="site-auth-switch">Already have an account? <Link to={loginHref}>Log in</Link></p>
         <p className="site-auth-switch">See <Link to="/pricing">pricing</Link> before you join.</p>
       </form>
     </div>

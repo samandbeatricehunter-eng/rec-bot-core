@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { formatCoins } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { EosLedger, PendingEosLedgers, RecPayoutTier } from "../../../types/api.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Badge } from "../../../components/ui/Badge.js";
 import { Button } from "../../../components/ui/Button.js";
+import { CoinAmount } from "../../../components/ui/CoinAmount.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 // Embedded in Notifications as the "EOS Payout" tab — one collapsible receipt per linked
 // user, collapsed by default. Expanding shows every stat line the user's team qualified
-// for, the tier and dollar amount for each, and lets the commissioner bump any single line
+// for, the tier and coin amount for each, and lets the commissioner bump any single line
 // to a different tier (or clear it) before approving the whole ledger. Approve issues the
-// money and DMs the user the ledger + who approved it; reject DMs them the reason.
+// coins and DMs the user the ledger + who approved it; reject DMs them the reason.
 export function EosPayoutLedgers({ onResolved }: { onResolved: (message: string) => void }) {
   const { guildId } = useReadyAuth();
   const [data, setData] = useState<PendingEosLedgers | null>(null);
@@ -53,7 +55,7 @@ export function EosPayoutLedgers({ onResolved }: { onResolved: (message: string)
     setError(null);
     try {
       await recApi.reviewEosLedger({ guildId, batchId: data.batch.id, userId: ledger.userId, action: "approve" });
-      onResolved(`Approved ${ledger.displayName}'s ledger — $${ledger.total} issued.`);
+      onResolved(`Approved ${ledger.displayName}'s ledger — ${formatCoins(ledger.total)} issued.`);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to approve this ledger.");
@@ -111,7 +113,7 @@ export function EosPayoutLedgers({ onResolved }: { onResolved: (message: string)
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
                   <Badge status="pending">{ledger.items.length} line{ledger.items.length === 1 ? "" : "s"}</Badge>
-                  <strong style={{ fontSize: "var(--text-lg)" }}>${ledger.total.toLocaleString()}</strong>
+                  <strong style={{ fontSize: "var(--text-lg)" }}><CoinAmount amount={ledger.total} /></strong>
                 </div>
               </div>
 
@@ -131,10 +133,10 @@ export function EosPayoutLedgers({ onResolved }: { onResolved: (message: string)
                             value={item.qualifiedTier ?? ""}
                             onChange={(e) => adjustTier(item.id, (e.target.value || null) as RecPayoutTier | null)}
                           >
-                            <option value="">None — $0</option>
-                            {item.availableTiers.map((t) => <option key={t.tier} value={t.tier}>Tier {t.tier} — ${t.amount}</option>)}
+                            <option value="">None — {formatCoins(0)}</option>
+                            {item.availableTiers.map((t) => <option key={t.tier} value={t.tier}>Tier {t.tier} — {formatCoins(t.amount)}</option>)}
                           </select>
-                          <strong style={{ width: 60, textAlign: "right" }}>${item.amount}</strong>
+                          <strong style={{ minWidth: 72, textAlign: "right" }}><CoinAmount amount={item.amount} /></strong>
                         </div>
                       </div>
                     ))}
@@ -142,7 +144,7 @@ export function EosPayoutLedgers({ onResolved }: { onResolved: (message: string)
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-3)" }}>
                     <strong>Grand Total</strong>
-                    <strong style={{ fontSize: "var(--text-lg)" }}>${ledger.total.toLocaleString()}</strong>
+                    <strong style={{ fontSize: "var(--text-lg)" }}><CoinAmount amount={ledger.total} /></strong>
                   </div>
 
                   {rejecting === ledger.userId ? (

@@ -1,4 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, type ButtonInteraction, type Message, type ModalSubmitInteraction, type StringSelectMenuInteraction, type TextChannel } from "discord.js";
+import { formatCoins } from "@rec/shared";
 import { env } from "../config/env.js";
 import { recApi } from "../lib/rec-api.js";
 import { buildStreamLinkModal, buildStreamRows, STREAM_CUSTOM_IDS } from "../ui/menu.js";
@@ -66,7 +67,7 @@ async function postPendingReview(interaction: StringSelectMenuInteraction | Moda
         "",
         `<@${interaction.user.id}> requested a stream payout.`,
         streamUrl ? `Stream link: ${streamUrl}` : null,
-        "Approve to issue the **$50** stream payout if they did stream their game. Otherwise, deny the request."
+        `Approve to issue the **${formatCoins(50)}** stream payout if they did stream their game. Otherwise, deny the request.`
       ].filter(Boolean).join("\n"))],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`rec:stream_review:approve:${streamResult.review?.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
@@ -91,7 +92,7 @@ async function postPendingReviewFromMessage(message: Message, streamResult: any,
         "",
         `<@${message.author.id}> posted a stream link.`,
         `Stream link: ${link}`,
-        "Approve to issue the **$50** stream payout if they did stream their game. Otherwise, deny the request."
+        `Approve to issue the **${formatCoins(50)}** stream payout if they did stream their game. Otherwise, deny the request.`
       ].join("\n"))],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`rec:stream_review:approve:${streamResult.review?.id}`).setLabel("Approve").setStyle(ButtonStyle.Success),
@@ -171,7 +172,7 @@ export async function handleStreamMenu(interaction: ButtonInteraction) {
     embeds: [new EmbedBuilder().setTitle("Stream").setDescription([
       "Submit a stream for the current league week.",
       "",
-      "A posted stream creates a commissioner payout review for **$50**. Only one stream payout can be pending, approved, or issued for you per game week.",
+      `A posted stream creates a commissioner payout review for **${formatCoins(50)}**. Only one stream payout can be pending, approved, or issued for you per game week.`,
       "",
       "Choose **Discord Live Stream** if you are going live in Discord, or choose a service to paste a stream link."
     ].join("\n"))],
@@ -247,7 +248,7 @@ async function submitStream(interaction: StringSelectMenuInteraction | ModalSubm
   const status = streamResult?.alreadyPaid
     ? "Your stream was posted. You already have a stream payout pending or paid for this game week, so this one won't trigger another."
     : streamResult?.needsReview
-      ? "Your stream was posted and sent to commissioners for a **$50** payout review. You'll be paid and notified once it's approved."
+      ? `Your stream was posted and sent to commissioners for a **${formatCoins(50)}** payout review. You'll be paid and notified once it's approved.`
       : "Your stream was posted.";
   await postPendingReview(interaction, streamResult, streamResult?.matchup ?? matchup);
 

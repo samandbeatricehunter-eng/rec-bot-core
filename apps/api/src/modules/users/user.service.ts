@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks } from "@rec/shared";
+import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { supabase } from "../../lib/supabase.js";
@@ -268,13 +268,13 @@ export async function transferSavings(discordId: string, amount: number, directi
   const savings = Number(walletRow.savings_balance ?? 0);
 
   if (direction === "to_savings") {
-    if (wallet < amount) throw new ApiError(400, `Insufficient wallet balance. You have $${wallet}.`);
+    if (wallet < amount) throw new ApiError(400, `Insufficient wallet balance. You have ${formatCoins(wallet)}.`);
     const { error } = await supabase
       .from("rec_wallets")
       .upsert({ user_id: baseline.user.id, wallet_balance: wallet - amount, savings_balance: savings + amount, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
     if (error) throw new ApiError(500, "Transfer failed", error);
   } else {
-    if (savings < amount) throw new ApiError(400, `Insufficient savings balance. You have $${savings}.`);
+    if (savings < amount) throw new ApiError(400, `Insufficient savings balance. You have ${formatCoins(savings)}.`);
     const { error } = await supabase
       .from("rec_wallets")
       .upsert({ user_id: baseline.user.id, wallet_balance: wallet + amount, savings_balance: savings - amount, updated_at: new Date().toISOString() }, { onConflict: "user_id" });

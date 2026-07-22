@@ -15,6 +15,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { nextLeagueStage, stageLabel } from "../lib/league-stage.js";
+import { formatCoins } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { getBoxScoresChannel, getRouteChannels, purgeChannelMessages } from "../lib/route-channels.js";
 import { enterAdvanceTimeStep } from "./advance-time.js";
@@ -204,7 +205,7 @@ async function completeAdvanceFromSession(
 
   const interest = result?.savingsInterest;
   const interestLine = interest?.applied && interest.usersCredited > 0
-    ? `\n\nSavings interest credited: **$${interest.totalInterest}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
+    ? `\n\nSavings interest credited: **${formatCoins(interest.totalInterest)}** across **${interest.usersCredited}** user${interest.usersCredited === 1 ? "" : "s"} (3.5%, floored).`
     : "";
 
   // Clean up wagers whose results were never logged (refunded server-side on advance).

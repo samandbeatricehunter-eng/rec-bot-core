@@ -23,6 +23,7 @@ import {
 import { Pricing } from "./routes/Pricing.js";
 import { SignUp } from "./routes/SignUp.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
+import { OpenApp } from "./routes/OpenApp.js";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -64,6 +65,7 @@ function Routed() {
       <Route path="/" element={<RootEntry />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/login" element={<LogIn />} />
+      <Route path="/open-app" element={<OpenApp />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
       <Route path="/pricing" element={<Pricing />} />

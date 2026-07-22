@@ -54,6 +54,8 @@ export const REC_API_ROUTES = {
 
   // Web dashboard (apps/web) only.
   webSessionMint: "/v1/web-session/mint",
+  webSessionHandoffMint: "/v1/web-session/handoff/mint",
+  webSessionHandoffExchange: "/v1/web-session/handoff/exchange",
   teamScheduleManualState: "/v1/schedule/team-manual-preview",
   teamScheduleCommit: "/v1/schedule/team-schedule-commit",
   teamManagementSummary: "/v1/schedule/team-management-summary",

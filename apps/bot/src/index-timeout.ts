@@ -1,4 +1,4 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, PermissionFlagsBits, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChannelType, ChatInputCommandInteraction, Client, EmbedBuilder, GatewayIntentBits, Interaction, MessageFlags, ModalBuilder, ModalSubmitInteraction, Partials, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { env } from "./config/env.js";
 import { registerGuildCommands } from "./commands.js";
 import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdminInteraction, listGuildAdminDiscordIds, replyFullAdminOnly } from "./lib/admin.js";
@@ -30,7 +30,7 @@ import {
   handleSetWeek,
   handleSetWeekSelect,
 } from "./flows/set-week-season.js";
-import { isEosPayoutEligibleStage } from "@rec/shared";
+import { isEosPayoutEligibleStage, formatCoins } from "@rec/shared";
 import { REC_MANAGED_ROLES, ensureRecBaseRoles } from "./lib/role-sync.js";
 import { ExpiringSessionStore } from "./lib/session-timeout.js";
 import {
@@ -512,11 +512,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "schedule") {
       await handleScheduleSlash(interaction);
-      return;
-    }
-
-    if (interaction.isChatInputCommand() && interaction.commandName === "claim-league") {
-      await handleClaimLeagueCommand(interaction);
       return;
     }
 
@@ -1027,62 +1022,6 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
 }
 
 
-async function handleClaimLeagueCommand(interaction: ChatInputCommandInteraction) {
-  if (!interaction.inCachedGuild()) {
-    await interaction.reply({ content: "Run /claim-league inside a Discord server.", flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) && !isFullLeagueAdminInteraction(interaction)) {
-    await interaction.reply({
-      content: "You need Manage Server (or REC commissioner admin) permission to claim a league invite.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const token = interaction.options.getString("token", true).trim();
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  try {
-    const result = await recApi.claimBotInvite({
-      token,
-      guildId: interaction.guildId,
-      serverName: interaction.guild.name,
-      requestedByDiscordId: interaction.user.id,
-    });
-    const leagueName = result.league?.name ?? "league";
-    await interaction.editReply({
-      content: `Linked **${interaction.guild.name}** to **${leagueName}**. Run **/app** to open the REC Leagues app.`,
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    await interaction.editReply({
-      content: `Failed to claim league invite.\n${message.slice(0, 1500)}`,
-    });
-  }
-}
-
-function siteAuthAppLinkPayload() {
-  const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
-  const loginUrl = `${base}/login`;
-  const signupUrl = `${base}/signup`;
-  return {
-    embeds: [
-      new EmbedBuilder()
-        .setTitle("REC Leagues account required")
-        .setColor(COLORS.gold)
-        .setDescription(
-          "Link or create a REC Leagues account to open the app. Sign in if you already have one, or register to get started.",
-        ),
-    ],
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(loginUrl).setLabel("Sign In"),
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(signupUrl).setLabel("Register"),
-      ),
-    ],
-  };
-}
-
 async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   try {
@@ -1096,21 +1035,8 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
       if (interaction.user.id === interaction.guild.ownerId || isFullLeagueAdminInteraction(interaction)) {
         return interaction.showModal(buildSetupDangerModal("league_setup"));
       }
-      // No Discord↔REC identity yet — send them to site auth rather than a dead-end.
-      await interaction.reply({ ...siteAuthAppLinkPayload(), flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    // Incomplete / Discord-only: send to site sign-in or register (no hub JWT).
-    if (!profile.accountComplete) {
-      await interaction.reply({ ...siteAuthAppLinkPayload(), flags: MessageFlags.Ephemeral });
-      return;
-    }
-
-    // A Discord server admin always gets through to the app, team or no team — on a
-    // brand new server there's no league (and so no team) yet, and they need the app
-    // link to run First-Time Setup. Every other member still needs a linked team.
-    if (!profile.team && !isFullLeagueAdminInteraction(interaction)) {
+    } else if (!profile.team && !isFullLeagueAdminInteraction(interaction) && profile.accountComplete) {
+      // Members without a team still pick one here; admins go straight to Open my league.
       const conferenceData = await recApi.getLeagueConferences(interaction.guildId);
       const embeds = buildOpenTeamsEmbeds(conferenceData?.conferences ?? []).slice(0, 10);
       const allTeamsAssigned = embeds.length === 1 && embeds[0]?.data.title === "Open Teams";
@@ -1129,17 +1055,36 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
     await interaction.reply({ content: userFacingError(err), flags: MessageFlags.Ephemeral });
     return;
   }
-  if (!env.WEB_APP_URL) return interaction.reply({ content: "The REC Leagues app isn't configured yet for this bot.", flags: MessageFlags.Ephemeral });
-  await interaction.reply({ content: "Generating your personal app link…", flags: MessageFlags.Ephemeral });
+
+  const siteBase = env.SITE_PUBLIC_URL.replace(/\/$/, "");
+  await interaction.reply({ content: "Generating your league link…", flags: MessageFlags.Ephemeral });
   try {
-    const session = await recApi.mintWebSession({ guildId: interaction.guildId, discordId: interaction.user.id, username: interaction.user.username, globalName: interaction.user.globalName ?? null });
-    const url = `${env.WEB_APP_URL}/?token=${encodeURIComponent(session.token)}`;
+    const handoff = await recApi.mintAppHandoff({
+      guildId: interaction.guildId,
+      discordId: interaction.user.id,
+      username: interaction.user.username,
+      globalName: interaction.user.globalName ?? null,
+    });
+    const url = `${siteBase}/open-app?handoff=${encodeURIComponent(handoff.token)}`;
     await interaction.editReply({
       content: null,
-      embeds: [new EmbedBuilder().setTitle("REC Leagues App").setColor(COLORS.gold).setDescription("Your league, matchups, headlines, highlights, and team dashboard in the REC Leagues app. This personal link expires in 30 minutes.")],
-      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel("Open REC App"))],
+      embeds: [
+        new EmbedBuilder()
+          .setTitle("Open my league")
+          .setColor(COLORS.gold)
+          .setDescription(
+            "Opens your league for this Discord server. If you are not signed in, you will land on the sign-in page (Register is there for new accounts). Keep me logged in on the site to skip sign-in next time. This link expires in 10 minutes.",
+          ),
+      ],
+      components: [
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel("Open my league"),
+        ),
+      ],
     });
-  } catch (err) { await interaction.editReply({ content: userFacingError(err) }); }
+  } catch (err) {
+    await interaction.editReply({ content: userFacingError(err) });
+  }
 }
 
 async function renderMainMenuFromComponent(interaction: Extract<Interaction, { isButton(): boolean }>) {
@@ -1387,13 +1332,13 @@ async function handleTroubleshootMenu(interaction: ButtonInteraction) {
 }
 
 function formatMoney(n: unknown) {
-  return `$${Number(n ?? 0).toLocaleString("en-US")}`;
+  return formatCoins(Number(n ?? 0));
 }
 
 function formatTxnOption(txn: any) {
   const amount = Number(txn.amount ?? 0);
   const type = String(txn.transaction_type ?? "transaction").replaceAll("_", " ");
-  return `${amount >= 0 ? "+" : ""}$${amount} ${type}`.slice(0, 100);
+  return `${formatCoins(amount, { signed: true })} ${type}`.slice(0, 100);
 }
 
 async function handleReverseTransactionOpen(interaction: ButtonInteraction) {
@@ -1531,7 +1476,7 @@ async function handlePotyTallies(interaction: ButtonInteraction) {
   if (result.alreadyFinalized) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription("Play of the Year is already finalized for this season — reaction changes no longer affect results. It resets when the league advances to a new season.")] });
   }
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription(`Tallied Play of the Year reactions and prepared ${result.winners.length} category review(s). Ties split the $500 evenly.`)] });
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("POTY Tallies").setDescription(`Tallied Play of the Year reactions and prepared ${result.winners.length} category review(s). Ties split the ${formatCoins(500)} evenly.`)] });
 }
 
 async function handleLeagueMgmtSettings(interaction: ButtonInteraction) {
@@ -1855,7 +1800,7 @@ async function handleStreamReviewButton(interaction: any) {
   if (result.updated && action === "approve" && result.streamerDiscordId) {
     const amount = result.amount ?? 50;
     const streamer = await interaction.client.users.fetch(result.streamerDiscordId).catch(() => null);
-    await streamer?.send(`You've been paid **$${amount}** for streaming your game this week. Thanks for streaming!`).catch(() => undefined);
+    await streamer?.send(`You've been paid **${formatCoins(amount)}** for streaming your game this week. Thanks for streaming!`).catch(() => undefined);
   }
   if (result.updated && interaction.message?.editable) {
     await appendReviewActionToMessage(interaction, action === "approve" ? "Applied" : "Denied");

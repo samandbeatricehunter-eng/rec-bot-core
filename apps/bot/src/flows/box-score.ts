@@ -15,7 +15,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
-import { isCfb } from "@rec/shared";
+import { isCfb, formatCoins } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { COLORS } from "../lib/colors.js";
@@ -578,10 +578,10 @@ export async function handleBoxScoreApprove(interaction: ButtonInteraction) {
     if (interaction.inCachedGuild()) void refreshConfirmableWagerEmbeds(interaction.client, interaction.guildId);
     const paidPlayerList = formatPaidPlayers(result);
     const badgeBonusText = result.badgeBonusCount
-      ? `, including ${result.badgeBonusCount} badge bonus/penalty adjustment(s) ($${result.badgeBonusPaid})`
+      ? `, including ${result.badgeBonusCount} badge bonus/penalty adjustment(s) (${formatCoins(result.badgeBonusPaid)})`
       : "";
     const warningsText = result.warnings?.length ? `\n⚠️ ${result.warnings.join(" ")}` : "";
-    const statusValue = `✅ Approved by <@${interaction.user.id}> — $${result.totalPaid} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.${warningsText}`;
+    const statusValue = `✅ Approved by <@${interaction.user.id}> — ${formatCoins(result.totalPaid)} paid to ${result.playersPaid ?? result.playersPayd} player(s)${paidPlayerList ? `: ${paidPlayerList}` : ""}${badgeBonusText}.${warningsText}`;
 
     if (result.ledgerChannelId && result.ledgerMessageId && interaction.inCachedGuild()) {
       const ledgerChannel = await interaction.guild.channels.fetch(result.ledgerChannelId).catch(() => null);

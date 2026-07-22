@@ -5,7 +5,7 @@ import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
 export const HIGHLIGHT_REVIEW_PREFIX = "rec:highlight_review:";
 
-import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWARD_KEYS } from "@rec/shared";
+import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWARD_KEYS, formatCoins } from "@rec/shared";
 
 export const HIGHLIGHT_VOTE_EMOJIS = HIGHLIGHT_AWARD_EMOJIS;
 
@@ -132,7 +132,7 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
 
   if (result?.paidSlotAvailable === false) {
     await message.reply({
-      content: "Highlight recorded for voting. You already have two paid highlight reviews for this game week, so this one will not trigger another $25 payout.",
+      content: `Highlight recorded for voting. You already have two paid highlight reviews for this game week, so this one will not trigger another ${formatCoins(25)} payout.`,
       allowedMentions: { parse: [] },
     }).catch(() => undefined);
     return true;
@@ -277,7 +277,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
 
   for (const [category, { count, highlights: tied }] of leaders) {
     const categoryLabel = HIGHLIGHT_AWARD_CATEGORY_LABELS[category] ?? category;
-    const splitAmount = Math.round(POTY_AWARD_TOTAL / tied.length); // ties split the $500 evenly
+    const splitAmount = Math.round(POTY_AWARD_TOTAL / tied.length); // ties split the award evenly
     const tieNote = tied.length > 1 ? ` (tie — split ${tied.length} ways)` : "";
 
     for (const winner of tied) {
@@ -302,7 +302,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
             .setDescription([
               `**Category:** ${categoryLabel}${tieNote}`,
               `**Winner:** ${winnerMention}`,
-              `**Bonus:** $${splitAmount}${tied.length > 1 ? ` (split of $${POTY_AWARD_TOTAL})` : ""}`,
+              `**Bonus:** ${formatCoins(splitAmount)}${tied.length > 1 ? ` (split of ${formatCoins(POTY_AWARD_TOTAL)})` : ""}`,
               `**Votes:** ${count}`,
               "",
               `[Open Highlight](${winner.messageUrl ?? winner.message_url})`,

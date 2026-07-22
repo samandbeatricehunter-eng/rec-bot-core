@@ -21,7 +21,7 @@ import {
   type StringSelectMenuInteraction,
   type TextChannel,
 } from "discord.js";
-import { REC_LEGEND_PRICE } from "@rec/shared";
+import { REC_LEGEND_PRICE, formatCoins } from "@rec/shared";
 import { COLORS } from "../lib/colors.js";
 import { userFacingError as userError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
@@ -179,7 +179,7 @@ function buildBrowsePayload(session: LegendSession) {
     embeds: [new EmbedBuilder()
       .setTitle(`${storeName} — ${side === "offense" ? "Offense" : "Defense"} (Page ${side === "offense" ? 1 : 2} of 2)`)
       .setColor(COLORS.purple)
-      .setDescription([`$${REC_LEGEND_PRICE} each. ~~Struck-through~~ names are already purchased in this league.`, "", `_${LEGEND_RATINGS_DISCLAIMER}_`, "", ...lines].join("\n"))],
+      .setDescription([`${formatCoins(REC_LEGEND_PRICE)} each. ~~Struck-through~~ names are already purchased in this league.`, "", `_${LEGEND_RATINGS_DISCLAIMER}_`, "", ...lines].join("\n"))],
     components: [pageRow, new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(groupMenu), backRow()],
   };
 }
@@ -209,7 +209,7 @@ function buildDetailPayload(session: LegendSession) {
     .setTitle(`${legend.name} — ${legend.position} (Est. ${legend.est_ovr} OVR)`)
     .setColor(sold ? COLORS.neutral : COLORS.purple)
     .setDescription([
-      sold ? "**SOLD — already purchased in this league.**" : `**$${REC_LEGEND_PRICE}** — available for purchase.`,
+      sold ? "**SOLD — already purchased in this league.**" : `**${formatCoins(REC_LEGEND_PRICE)}** — available for purchase.`,
       "",
       legend.college ? `College: ${legend.college}` : "",
       `Height: ${legend.height ?? "—"}  |  Weight: ${legend.weight ?? "—"}  |  Hand: ${legend.hand ?? "—"}`,
@@ -361,7 +361,7 @@ export async function handleLegendReplaceModalSubmit(interaction: ModalSubmitInt
   const replacePlayerRequest = interaction.fields.getTextInputValue(LEGENDS_CUSTOM_IDS.replaceInput).trim() || null;
 
   await interaction.deferUpdate();
-  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Submitting Purchase...").setDescription(`Requesting **${legend.name}** ($${REC_LEGEND_PRICE}).`)], components: [] });
+  await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Submitting Purchase...").setDescription(`Requesting **${legend.name}** (${formatCoins(REC_LEGEND_PRICE)}).`)], components: [] });
 
   let result: any;
   try {
@@ -392,7 +392,7 @@ export async function handleLegendReplaceModalSubmit(interaction: ModalSubmitInt
       .setTitle("Legend Requested ✅")
       .setColor(COLORS.success)
       .setDescription([
-        `**${legend.name}** (${legend.position}) — $${result.price ?? REC_LEGEND_PRICE} deducted. Wallet: **$${result.walletBalance}**.`,
+        `**${legend.name}** (${legend.position}) — ${formatCoins(result.price ?? REC_LEGEND_PRICE)} deducted. Wallet: **${formatCoins(result.walletBalance)}**.`,
         "",
         replacePlayerRequest
           ? `Once a commissioner approves, they'll install the legend in-game, replacing **${replacePlayerRequest}** as you requested.`
@@ -422,7 +422,7 @@ function buildLegendPendingEmbed(purchase: any, buyerDiscordId: string): EmbedBu
       `**Dev Trait:** ${d.devTrait ?? "—"}  |  **Archetype:** ${d.archetype ?? "—"}`,
       d.buildNote ? `_${d.buildNote}_` : "",
       "",
-      `**Cost:** $${purchase.cost ?? REC_LEGEND_PRICE}`,
+      `**Cost:** ${formatCoins(purchase.cost ?? REC_LEGEND_PRICE)}`,
       "",
       d.replacePlayerRequest
         ? `**Replace:** ${d.replacePlayerRequest} (buyer's request)`

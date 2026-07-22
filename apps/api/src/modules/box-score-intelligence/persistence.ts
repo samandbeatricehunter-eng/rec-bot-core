@@ -280,7 +280,7 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
 
   // Audit trail + badge-bonus economy: log one event per game-scope badge actually
   // earned in THIS game (box-score.service.ts's issueBadgeBonusesForSubmission pays
-  // +$10 per positive event and charges -$10 per negative event). Only meaningful on
+  // +10 coins per positive event and charges -10 coins per negative event). Only meaningful on
   // the single-game import path (current is set); the whole-league batch recompute
   // path never fires this (current is null there).
   const eventRows: any[] = [];

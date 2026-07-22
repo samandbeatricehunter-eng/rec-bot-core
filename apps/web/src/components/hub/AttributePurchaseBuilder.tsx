@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, REC_ATTRIBUTE_POINT_PRICE } from "@rec/shared";
+import { MADDEN_ATTRIBUTE_BY_CODE, MADDEN_ATTRIBUTE_DROPDOWN_GROUPS, REC_ATTRIBUTE_POINT_PRICE, formatCoins } from "@rec/shared";
 import type { StorePurchaseContext } from "../../types/api.js";
 import { Button } from "../ui/Button.js";
+import { CoinAmount } from "../ui/CoinAmount.js";
 
 // Multi-attribute purchase builder: every one of the 53 Madden attributes gets its own
 // +/- counter starting at 0, priced live from the league's configured core-attribute set
-// (core = $100/pt, non-core = $50/pt — REC_ATTRIBUTE_POINT_PRICE). Caps and the final
+// (core = 100/pt, non-core = 50/pt — REC_ATTRIBUTE_POINT_PRICE). Caps and the final
 // core/non-core split are re-derived authoritatively server-side on submit; this is a
 // best-effort preview so the coach never submits something they can't afford or that's
 // already capped out.
@@ -47,7 +48,7 @@ export function AttributePurchaseBuilder({
   function increment(code: string) {
     setWarning(null);
     if (totalPrice + unitPrice(code) > wallet) {
-      setWarning(`You can't afford another point of ${code} — that would put this purchase at $${totalPrice + unitPrice(code)}, more than your $${wallet} wallet.`);
+      setWarning(`You can't afford another point of ${code} — that would put this purchase at ${formatCoins(totalPrice + unitPrice(code))}, more than your ${formatCoins(wallet)} wallet.`);
       return;
     }
     const remaining = remainingForCode(code);
@@ -82,7 +83,7 @@ export function AttributePurchaseBuilder({
               return (
                 <div key={code} className={`attr-builder-row${isCore(code) ? " core" : ""}`}>
                   <div className="attr-builder-name"><strong>{code}</strong><span>{def?.name ?? code}</span></div>
-                  <span className="attr-builder-tag">{isCore(code) ? "Core" : "Non-core"} · ${unitPrice(code)}/pt</span>
+                  <span className="attr-builder-tag">{isCore(code) ? "Core" : "Non-core"} · {formatCoins(unitPrice(code))}/pt</span>
                   <div className="attr-builder-counter">
                     <button type="button" disabled={pts === 0} onClick={() => decrement(code)}>−</button>
                     <span>{pts}</span>
@@ -99,7 +100,7 @@ export function AttributePurchaseBuilder({
       {warning && <p className="form-hint attr-builder-warning">{warning}</p>}
 
       <div className="attr-builder-total">
-        <span>Total: <strong>${totalPrice}</strong> of ${wallet} available</span>
+        <span>Total: <strong><CoinAmount amount={totalPrice} /></strong> of <CoinAmount amount={wallet} /> available</span>
         <Button variant="primary" disabled={!canSubmit} onClick={() => onSubmit(allocations, playerName)}>
           {busy ? "Submitting…" : `Submit (${allocations.reduce((sum, a) => sum + a.points, 0)} pts)`}
         </Button>

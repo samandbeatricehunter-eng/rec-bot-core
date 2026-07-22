@@ -1,4 +1,4 @@
-import { PermissionFlagsBits, REST, Routes, SlashCommandBuilder } from "discord.js";
+import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { env } from "./config/env.js";
 
 export const commands = [
@@ -17,17 +17,6 @@ export const commands = [
   new SlashCommandBuilder()
     .setName("schedule")
     .setDescription("Show your team's full season schedule.")
-    .toJSON(),
-  new SlashCommandBuilder()
-    .setName("claim-league")
-    .setDescription("Attach this Discord server to a Platinum-owned REC league using an invite token from the site.")
-    .addStringOption((option) =>
-      option
-        .setName("token")
-        .setDescription("Bot invite token from REC Leagues site")
-        .setRequired(true),
-    )
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .toJSON(),
 ];
 

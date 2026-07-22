@@ -16,6 +16,7 @@ import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.j
 import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { isCfb, regularSeasonWeeks, stageForWeek, stageLabel, type LeagueGame } from "../lib/league-stage.js";
+import { formatCoins } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { MENU_CUSTOM_IDS } from "../ui/menu.js";
 
@@ -110,7 +111,7 @@ function formatSavingsInterestSummary(result: any) {
   if (!interest?.applied || Number(interest.usersCredited ?? 0) <= 0) return "";
   const usersCredited = Number(interest.usersCredited ?? 0);
   const totalInterest = Number(interest.totalInterest ?? 0);
-  return `\n\nSavings interest credited: **$${totalInterest}** across **${usersCredited}** user${usersCredited === 1 ? "" : "s"} (3.5%, floored).`;
+  return `\n\nSavings interest credited: **${formatCoins(totalInterest)}** across **${usersCredited}** user${usersCredited === 1 ? "" : "s"} (3.5%, floored).`;
 }
 
 export async function handleSetWeekSelect(interaction: any, buildAdvanceMgmtRows: () => ActionRowBuilder<ButtonBuilder>[]) {

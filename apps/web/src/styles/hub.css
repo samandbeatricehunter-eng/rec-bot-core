@@ -2566,3 +2566,17 @@
 .hub-chrome-sidebar-nav-btn.is-active span {
   font-weight: 800;
 }
+
+.rec-coin-amount {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rec-coin-amount__icon {
+  flex-shrink: 0;
+  color: var(--gold, var(--accent-bright, #d9a521));
+  opacity: 0.95;
+}
+.rec-coin-amount__value { line-height: 1; }
