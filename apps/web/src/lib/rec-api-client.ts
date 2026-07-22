@@ -54,6 +54,26 @@ import type {
 
 const REC_API_TIMEOUT_MS = 30_000;
 
+declare global {
+  interface Window {
+    __REC_WEB_CONFIG__?: {
+      VITE_REC_CORE_API_URL?: string;
+      VITE_SITE_PUBLIC_URL?: string;
+    };
+  }
+}
+
+function apiBaseUrl(): string {
+  const fromRuntime = typeof window !== "undefined"
+    ? window.__REC_WEB_CONFIG__?.VITE_REC_CORE_API_URL?.trim()
+    : undefined;
+  return (
+    fromRuntime
+    || String(import.meta.env.VITE_REC_CORE_API_URL ?? "").trim()
+    || "https://recapi-production.up.railway.app"
+  );
+}
+
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
@@ -68,7 +88,7 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
   // FormData bodies (image uploads) need the browser to set its own multipart boundary
   // header — setting content-type: application/json here would break the parse server-side.
   const isFormData = init?.body instanceof FormData;
-  const response = await fetch(`${import.meta.env.VITE_REC_CORE_API_URL}${path}`, {
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
     ...init,
     signal: init?.signal ?? AbortSignal.timeout(REC_API_TIMEOUT_MS),
     headers: {
@@ -114,6 +134,7 @@ export const recApi = {
       iframeUrl: string | null;
       maxHeight: number | null;
       storageProvider: string;
+      failureReason?: string | null;
     }>("/v1/hub/highlights/status", { method: "POST", body: JSON.stringify(input) }),
   recordHubStreamView: (input: { guildId: string; streamLogId: string }) =>
     recApiFetch<{ viewCount: number }>("/v1/hub/streams/view", { method: "POST", body: JSON.stringify(input) }),

@@ -111,43 +111,87 @@ export function LeagueMatchupsPage() {
     };
   }, [leagueId]);
 
-  async function onFileSelected(file: File | null) {
-    if (!file || !leagueId || !gameId) return;
+  async function readVideoDurationSeconds(file: File): Promise<number> {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      return await new Promise<number>((resolve, reject) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => resolve(Number(video.duration) || 0);
+        video.onerror = () => reject(new Error(`Could not read duration for ${file.name}.`));
+        video.src = objectUrl;
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
+  async function uploadOne(file: File): Promise<void> {
+    if (!leagueId || !gameId) return;
+    const duration = await readVideoDurationSeconds(file);
+    if (duration > 45) {
+      throw new Error(
+        `${file.name} is ${Math.ceil(duration)}s. Crop to 45 seconds or less and try again.`,
+      );
+    }
+    const direct = await siteApi.createHighlightDirectUpload({
+      leagueId,
+      gameId,
+      fileName: file.name,
+    });
+    const form = new FormData();
+    form.append("file", file);
+    const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
+    if (!uploaded.ok) throw new Error(`Cloudflare upload failed for ${file.name} (${uploaded.status}).`);
+    await siteApi.markHighlightUploadReceived({ leagueId, highlightId: direct.highlightId });
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const status = await siteApi.getHighlightUploadStatus({
+        leagueId,
+        highlightId: direct.highlightId,
+      });
+      if (status.mediaStatus === "ready") return;
+      if (status.mediaStatus === "failed") {
+        throw new Error(
+          status.failureReason
+          ?? `${file.name} was rejected. Crop to 45 seconds or less and try again.`,
+        );
+      }
+    }
+  }
+
+  async function onFilesSelected(fileList: FileList | null) {
+    if (!fileList?.length || !leagueId || !gameId) return;
+    const files = Array.from(fileList).slice(0, 2);
     setBusy(true);
     setError(null);
-    setNotice(`Uploading ${file.name}…`);
-    try {
-      const direct = await siteApi.createHighlightDirectUpload({
-        leagueId,
-        gameId,
-        fileName: file.name,
-      });
-      const form = new FormData();
-      form.append("file", file);
-      const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
-      if (!uploaded.ok) throw new Error(`Cloudflare upload failed (${uploaded.status}).`);
-      await siteApi.markHighlightUploadReceived({ leagueId, highlightId: direct.highlightId });
-      setNotice("Uploaded — encoding to 720p. Commissioners will review before it appears in Highlights.");
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        const status = await siteApi.getHighlightUploadStatus({
-          leagueId,
-          highlightId: direct.highlightId,
-        });
-        if (status.mediaStatus === "ready") {
-          setNotice("Ready for commissioner review. You’ll be paid after they approve (if a payout slot is available).");
-          break;
-        }
-        if (status.mediaStatus === "failed") {
-          throw new Error("Encoding failed. Try another clip.");
-        }
+    setNotice(
+      files.length === 1
+        ? `Uploading ${files[0].name}…`
+        : `Uploading ${files.length} highlights…`,
+    );
+    const failures: string[] = [];
+    let succeeded = 0;
+    for (const file of files) {
+      try {
+        setNotice(`Uploading ${file.name}…`);
+        await uploadOne(file);
+        succeeded += 1;
+      } catch (err) {
+        failures.push(err instanceof Error ? err.message : `Upload failed for ${file.name}.`);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
-      setNotice(null);
-    } finally {
-      setBusy(false);
     }
+    if (succeeded > 0) {
+      setNotice(
+        succeeded === 1
+          ? "Uploaded — encoding to 720p. Commissioner approval publishes it and issues payout when a paid slot is available."
+          : `${succeeded} clips uploaded — encoding to 720p. Approve in commissioner inbox publishes + pays (when slots remain).`,
+      );
+    } else {
+      setNotice(null);
+    }
+    if (failures.length) setError(failures.join(" "));
+    setBusy(false);
   }
 
   return (
@@ -155,7 +199,7 @@ export function LeagueMatchupsPage() {
       title="Matchups"
       body={
         weekNumber
-          ? `Week ${weekNumber}. Upload an in-game highlight from your matchup (registered accounts only). Clips go to Cloudflare Stream and wait for commissioner approval before payout/display.`
+          ? `Week ${weekNumber}. Upload up to 2 highlight clips at once (45 seconds max each). Commissioner approval publishes them and issues payout when a paid weekly slot remains.`
           : "This week's slate. Upload highlights from your matchup once games load."
       }
     >
@@ -181,12 +225,16 @@ export function LeagueMatchupsPage() {
             </select>
           </label>
           <label className="site-field">
-            <span>Highlight clip (video)</span>
+            <span>Highlight clips (up to 2 videos, ≤45s each)</span>
             <input
               type="file"
               accept="video/*"
+              multiple
               disabled={busy || !gameId}
-              onChange={(e) => void onFileSelected(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                void onFilesSelected(e.target.files);
+                e.target.value = "";
+              }}
             />
           </label>
           {busy && <p className="site-muted">Working…</p>}
@@ -340,7 +388,6 @@ export function LeagueMgmtInboxPage() {
   >([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [migrateNotice, setMigrateNotice] = useState<string | null>(null);
 
   async function reload() {
     if (!leagueId) return;
@@ -379,30 +426,12 @@ export function LeagueMgmtInboxPage() {
     }
   }
 
-  async function migrateLegacy() {
-    if (!leagueId) return;
-    setMigrateNotice("Migrating mirrored clips to Cloudflare Stream…");
-    try {
-      const result = await siteApi.migrateHighlightsToStream({ leagueId, limit: 50 });
-      setMigrateNotice(`Stream migration: ${result.succeeded}/${result.attempted} succeeded (${result.failed} failed).`);
-    } catch (err) {
-      setMigrateNotice(null);
-      setError(err instanceof Error ? err.message : "Migration failed.");
-    }
-  }
-
   return (
     <PlaceholderCard
       title="Commissioner inbox"
-      body="Pending highlight reviews. Approve to publish the clip to Highlights and issue payout when a paid slot is available."
+      body="Pending highlight reviews. Approve publishes the clip to Highlights and issues the payout when a paid weekly slot is available."
     >
       {error && <p className="site-auth-error">{error}</p>}
-      {migrateNotice && <p className="site-muted">{migrateNotice}</p>}
-      <div className="site-profile-actions" style={{ marginBottom: 16 }}>
-        <button className="site-btn site-btn-ghost" type="button" onClick={() => void migrateLegacy()}>
-          Migrate mirrored clips to Stream
-        </button>
-      </div>
       {items.length === 0 ? (
         <p className="site-muted">No pending highlights right now.</p>
       ) : (

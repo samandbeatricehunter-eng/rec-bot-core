@@ -531,47 +531,93 @@ export function MatchupDetailPage() {
     }));
   }
 
+  async function readVideoDurationSeconds(file: File): Promise<number> {
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      return await new Promise<number>((resolve, reject) => {
+        const video = document.createElement("video");
+        video.preload = "metadata";
+        video.onloadedmetadata = () => resolve(Number(video.duration) || 0);
+        video.onerror = () => reject(new Error(`Could not read duration for ${file.name}.`));
+        video.src = objectUrl;
+      });
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+
   async function uploadHighlightFile(file: File) {
     if (!gameId) return;
-    setHighlightUploading(true);
-    setHighlightUploadNotice(`Uploading ${file.name}…`);
-    try {
-      const direct = await recApi.createHighlightDirectUpload({
-        guildId,
-        gameId,
-        fileName: file.name,
-      });
-      const form = new FormData();
-      form.append("file", file);
-      const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
-      if (!uploaded.ok) {
-        throw new Error(`Cloudflare upload failed (${uploaded.status}).`);
-      }
-      await recApi.markHighlightUploadReceived({ guildId, highlightId: direct.highlightId });
-      setHighlightUploadNotice("Uploaded — encoding to 720p. It will appear in Highlights when ready.");
-
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-        const status = await recApi.getHighlightUploadStatus({
-          guildId,
-          highlightId: direct.highlightId,
-        });
-        if (status.mediaStatus === "ready") {
-          setHighlightUploadNotice("Highlight is ready — check the Hub Highlights carousel.");
-          break;
-        }
-        if (status.mediaStatus === "failed") {
-          throw new Error("Highlight processing failed.");
-        }
-      }
-    } catch (cause) {
-      setHighlightUploadNotice(
-        cause instanceof Error ? cause.message : "Highlight upload failed.",
+    const duration = await readVideoDurationSeconds(file);
+    if (duration > 45) {
+      throw new Error(
+        `${file.name} is ${Math.ceil(duration)}s. Crop to 45 seconds or less and try again.`,
       );
-    } finally {
-      setHighlightUploading(false);
-      if (highlightFileInputRef.current) highlightFileInputRef.current.value = "";
     }
+    const direct = await recApi.createHighlightDirectUpload({
+      guildId,
+      gameId,
+      fileName: file.name,
+    });
+    const form = new FormData();
+    form.append("file", file);
+    const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
+    if (!uploaded.ok) {
+      throw new Error(`Cloudflare upload failed for ${file.name} (${uploaded.status}).`);
+    }
+    await recApi.markHighlightUploadReceived({ guildId, highlightId: direct.highlightId });
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const status = await recApi.getHighlightUploadStatus({
+        guildId,
+        highlightId: direct.highlightId,
+      });
+      if (status.mediaStatus === "ready") return;
+      if (status.mediaStatus === "failed") {
+        throw new Error(
+          status.failureReason
+          ?? `${file.name} was rejected. Crop to 45 seconds or less and try again.`,
+        );
+      }
+    }
+  }
+
+  async function uploadHighlightFiles(fileList: FileList | null) {
+    if (!fileList?.length || !gameId) return;
+    const files = Array.from(fileList).slice(0, 2);
+    setHighlightUploading(true);
+    setHighlightUploadNotice(
+      files.length === 1
+        ? `Uploading ${files[0].name}…`
+        : `Uploading ${files.length} highlights…`,
+    );
+    const failures: string[] = [];
+    let succeeded = 0;
+    for (const file of files) {
+      try {
+        setHighlightUploadNotice(`Uploading ${file.name}…`);
+        await uploadHighlightFile(file);
+        succeeded += 1;
+      } catch (cause) {
+        failures.push(cause instanceof Error ? cause.message : `Upload failed for ${file.name}.`);
+      }
+    }
+    if (succeeded > 0) {
+      setHighlightUploadNotice(
+        succeeded === 1
+          ? "Uploaded — encoding to 720p. Commissioner approval publishes it and issues payout when a paid slot is available."
+          : `${succeeded} clips uploaded — encoding to 720p. Approve in commissioner inbox publishes + pays (when slots remain).`,
+      );
+    } else if (failures.length) {
+      setHighlightUploadNotice(failures.join(" "));
+    }
+    if (failures.length && succeeded > 0) {
+      setHighlightUploadNotice(
+        `${succeeded} uploaded. ${failures.join(" ")}`,
+      );
+    }
+    setHighlightUploading(false);
+    if (highlightFileInputRef.current) highlightFileInputRef.current.value = "";
   }
 
   async function openWager(game: HubMatchupGame) {
@@ -761,7 +807,10 @@ export function MatchupDetailPage() {
       !Boolean(matchup.boxScoreSubmissionId) &&
       canViewerUploadBoxScore(matchup),
   );
-  const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
+  const apiBaseUrl =
+    (typeof window !== "undefined" ? window.__REC_WEB_CONFIG__?.VITE_REC_CORE_API_URL : undefined)
+    || import.meta.env.VITE_REC_CORE_API_URL
+    || "https://recapi-production.up.railway.app";
 
   return (
     <main className="matchup-detail-page">
@@ -852,10 +901,10 @@ export function MatchupDetailPage() {
         ref={highlightFileInputRef}
         type="file"
         accept="video/*"
+        multiple
         hidden
         onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void uploadHighlightFile(file);
+          void uploadHighlightFiles(event.target.files);
         }}
       />
       {highlightUploadNotice ? (

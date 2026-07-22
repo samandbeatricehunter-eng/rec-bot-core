@@ -15,7 +15,8 @@ for (let i = 1; i < filters.length; i += 1) {
   args.push("--filter", filters[i], "build");
 }
 
-// pnpm can take multiple --filter flags but each needs its own build; run sequentially.
+console.log(`[railway-build] service=${service || "(unset)"} → ${filters.join(", ")}`);
+
 async function run() {
   for (const pkg of filters) {
     await new Promise((resolve, reject) => {

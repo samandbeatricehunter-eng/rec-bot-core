@@ -1,12 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import {
   createHighlightDirectUpload,
   getHighlightUploadStatus,
   handleStreamWebhook,
   markHighlightUploadReceived,
+  migrateMirroredHighlightsToStream,
 } from "./media.service.js";
 
 export async function mediaRoutes(app: FastifyInstance) {
@@ -78,6 +80,23 @@ export async function mediaRoutes(app: FastifyInstance) {
       return reply.send(await handleStreamWebhook({
         rawBody,
         signatureHeader: Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader,
+      }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Bot/ops only — backfill mirrored Supabase/Discord CDN clips into Stream.
+  app.post("/v1/media/migrate-mirrored-highlights", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        leagueId: z.string().uuid().optional().nullable(),
+        limit: z.number().int().positive().max(100).optional(),
+      }).parse(request.body ?? {});
+      return reply.send(await migrateMirroredHighlightsToStream({
+        leagueId: body.leagueId,
+        limit: body.limit,
       }));
     } catch (error) {
       return sendError(reply, error);

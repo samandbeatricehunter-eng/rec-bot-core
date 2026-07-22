@@ -3,8 +3,8 @@ import { env } from "../config/env.js";
 import { ApiError } from "./errors.js";
 
 const STREAM_API = "https://api.cloudflare.com/client/v4";
-/** Highlights are short clips; reserve 3 minutes of Stream storage per direct upload. */
-export const HIGHLIGHT_MAX_DURATION_SECONDS = 180;
+/** Highlights are short clips; reject uploads longer than 45 seconds. */
+export const HIGHLIGHT_MAX_DURATION_SECONDS = 45;
 export const HIGHLIGHT_MAX_HEIGHT = 720;
 
 function requireStreamConfig() {

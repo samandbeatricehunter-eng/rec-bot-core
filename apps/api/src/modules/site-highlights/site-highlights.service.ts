@@ -1,11 +1,12 @@
 import { ApiError } from "../../lib/errors.js";
-import { copyStreamFromUrl, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
+import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { reviewHighlightPayout } from "../highlights/highlights.service.js";
 import {
   createHighlightDirectUpload,
   getHighlightUploadStatus,
   markHighlightUploadReceived,
+  migrateMirroredHighlightsToStream as migrateMirroredHighlightsInternal,
 } from "../media/media.service.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
@@ -208,74 +209,20 @@ export async function reviewSiteHighlightPayout(input: {
   });
 }
 
-/** Copy mirrored / Discord CDN highlight URLs into Cloudflare Stream. */
+/** Commissioner-gated wrapper around the internal Stream backfill. */
 export async function migrateMirroredHighlightsToStream(input: {
   authUserId: string;
   leagueId?: string | null;
   limit?: number;
 }) {
   const user = await requireLinkedRecUser(input.authUserId);
-  // Restrict to league commissioners when scoped; otherwise require any commissioner role elsewhere.
   if (input.leagueId) {
     if (!(await isLeagueCommissioner(input.leagueId, user.recUserId))) {
       throw new ApiError(403, "Only commissioners can migrate this league's highlights.");
     }
   }
-
-  let query = supabase
-    .from("rec_highlight_posts")
-    .select("id,league_id,content,playback_url,cloudflare_stream_uid,storage_provider,media_status,hub_visible")
-    .is("cloudflare_stream_uid", null)
-    .not("content", "is", null)
-    .neq("media_status", "deleted")
-    .order("created_at", { ascending: true })
-    .limit(Math.min(Math.max(input.limit ?? 25, 1), 100));
-  if (input.leagueId) query = query.eq("league_id", input.leagueId);
-
-  const rows = await query;
-  if (rows.error) throw new ApiError(500, "Failed to list mirrored highlights.", rows.error);
-
-  const results: Array<{ highlightId: string; ok: boolean; error?: string; streamUid?: string }> = [];
-  for (const row of rows.data ?? []) {
-    const url = String(row.playback_url || row.content || "").trim();
-    if (!url.startsWith("http")) {
-      results.push({ highlightId: row.id, ok: false, error: "No public media URL." });
-      continue;
-    }
-    try {
-      const copied = await copyStreamFromUrl({
-        url,
-        meta: { highlightId: row.id, leagueId: row.league_id, migrated: "1" },
-      });
-      const urls = streamPlaybackUrls(copied.uid);
-      const updated = await supabase
-        .from("rec_highlight_posts")
-        .update({
-          cloudflare_stream_uid: copied.uid,
-          storage_provider: "cloudflare_stream",
-          media_status: "ready",
-          playback_url: urls.hls,
-          content: urls.hls,
-          // Keep prior visibility for grandfathered clips.
-          hub_visible: row.hub_visible === true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", row.id);
-      if (updated.error) throw updated.error;
-      results.push({ highlightId: row.id, ok: true, streamUid: copied.uid });
-    } catch (error) {
-      results.push({
-        highlightId: row.id,
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  return {
-    attempted: results.length,
-    succeeded: results.filter((row) => row.ok).length,
-    failed: results.filter((row) => !row.ok).length,
-    results,
-  };
+  return migrateMirroredHighlightsInternal({
+    leagueId: input.leagueId,
+    limit: input.limit,
+  });
 }

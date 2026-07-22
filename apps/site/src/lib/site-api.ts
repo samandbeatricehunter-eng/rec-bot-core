@@ -1,6 +1,6 @@
-import { supabase } from "./supabase-client.js";
+import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 
-const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
+const apiBaseUrl = () => siteApiBaseUrl() || (import.meta.env.VITE_REC_CORE_API_URL as string | undefined);
 
 export type SubscriptionTier = "none" | "gold" | "platinum";
 export type BillingStatus =
@@ -53,10 +53,11 @@ export type RegistrationGate = {
 };
 
 function requireApiBaseUrl(): string {
-  if (!apiBaseUrl) {
+  const base = apiBaseUrl();
+  if (!base) {
     throw new Error("Missing VITE_REC_CORE_API_URL in apps/site/.env.");
   }
-  return apiBaseUrl;
+  return base;
 }
 
 async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
@@ -371,6 +372,7 @@ export const siteApi = {
       playbackUrl: string | null;
       streamUid: string | null;
       iframeUrl: string | null;
+      failureReason?: string | null;
     }>("/v1/site-highlights/status", input);
   },
   listPendingHighlights(leagueId: string) {
@@ -400,12 +402,5 @@ export const siteApi = {
       "/v1/site-highlights/review",
       input,
     );
-  },
-  migrateHighlightsToStream(input: { leagueId?: string; limit?: number } = {}) {
-    return request<{
-      attempted: number;
-      succeeded: number;
-      failed: number;
-    }>("/v1/site-highlights/migrate-to-stream", input);
   },
 };

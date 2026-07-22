@@ -1,12 +1,47 @@
 import { createClient, type SupportedStorage } from "@supabase/supabase-js";
 
 const KEEP_LOGGED_IN_KEY = "rec-site-keep-logged-in";
-const url = import.meta.env.VITE_SUPABASE_URL;
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+/** Public production defaults (anon/publishable only). Used when Vite env was not baked. */
+const PROD_DEFAULTS = {
+  VITE_SUPABASE_URL: "https://kyooxpjsxvsatrariafq.supabase.co",
+  VITE_SUPABASE_PUBLISHABLE_KEY:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5b294cGpzeHZzYXRyYXJpYWZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyOTkyMjksImV4cCI6MjA5NDg3NTIyOX0.AruGcjXxJlaRyPynMtzeCgsKkqfDJwQ2Ili-cZiSkuI",
+  VITE_REC_CORE_API_URL: "https://recapi-production.up.railway.app",
+  VITE_SITE_URL: "https://rec-leagues.com",
+} as const;
+
+type RuntimeConfig = {
+  VITE_SUPABASE_URL?: string;
+  VITE_SUPABASE_PUBLISHABLE_KEY?: string;
+  VITE_REC_CORE_API_URL?: string;
+  VITE_SITE_URL?: string;
+};
+
+declare global {
+  interface Window {
+    __REC_SITE_CONFIG__?: RuntimeConfig;
+  }
+}
+
+function runtimeConfig(): RuntimeConfig {
+  return typeof window !== "undefined" ? (window.__REC_SITE_CONFIG__ ?? {}) : {};
+}
+
+function envValue(key: keyof typeof PROD_DEFAULTS): string {
+  const fromRuntime = runtimeConfig()[key]?.trim();
+  if (fromRuntime) return fromRuntime;
+  const baked = (import.meta.env[key] as string | undefined)?.trim();
+  if (baked) return baked;
+  return PROD_DEFAULTS[key];
+}
+
+const url = envValue("VITE_SUPABASE_URL");
+const publishableKey = envValue("VITE_SUPABASE_PUBLISHABLE_KEY");
 
 if (!url || !publishableKey) {
   throw new Error(
-    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY — copy apps/site/.env.example to apps/site/.env and fill in the values.",
+    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY — set production env or apps/site/.env.",
   );
 }
 
@@ -64,3 +99,11 @@ export const supabase = createClient(url, publishableKey, {
     storage: authStorage,
   },
 });
+
+export function sitePublicUrl(): string {
+  return envValue("VITE_SITE_URL") || (typeof window !== "undefined" ? window.location.origin : "");
+}
+
+export function siteApiBaseUrl(): string {
+  return envValue("VITE_REC_CORE_API_URL");
+}

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { getKeepLoggedIn, setKeepLoggedIn, supabase } from "./supabase-client.js";
+import { getKeepLoggedIn, setKeepLoggedIn, sitePublicUrl, supabase } from "./supabase-client.js";
 
 type AuthState =
   | { status: "loading" }
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function signUp(email: string, password: string) {
-    const emailRedirectTo = `${import.meta.env.VITE_SITE_URL ?? window.location.origin}/auth/callback`;
+    const emailRedirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback`;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

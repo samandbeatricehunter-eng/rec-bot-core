@@ -242,6 +242,9 @@ export async function createHighlightDirectUpload(input: {
   };
 }
 
+const DURATION_REJECT_MESSAGE =
+  "Clip longer than 45 seconds. Crop to 45 seconds or less and upload again.";
+
 export async function getHighlightUploadStatus(input: {
   guildId: string;
   discordId: string;
@@ -266,6 +269,10 @@ export async function getHighlightUploadStatus(input: {
     iframeUrl: streamUid ? streamPlaybackUrls(streamUid).iframe : null,
     maxHeight: highlight.data.max_height,
     storageProvider: highlight.data.storage_provider,
+    failureReason:
+      highlight.data.media_status === "failed"
+        ? DURATION_REJECT_MESSAGE
+        : null,
   };
 }
 
@@ -293,10 +300,19 @@ export async function markHighlightUploadReceived(input: {
 type StreamWebhookBody = {
   uid?: string;
   readyToStream?: boolean;
-  status?: { state?: string };
+  duration?: number;
+  status?: { state?: string; errorReasonCode?: string; errorReasonText?: string };
   playback?: { hls?: string };
-  input?: { height?: number };
+  input?: { height?: number; duration?: number };
 };
+
+function isDurationReject(body: StreamWebhookBody): boolean {
+  const code = String(body.status?.errorReasonCode ?? "").toUpperCase();
+  const text = String(body.status?.errorReasonText ?? "").toLowerCase();
+  if (code.includes("DURATION") || text.includes("duration") || text.includes("maxduration")) return true;
+  const duration = Number(body.duration ?? body.input?.duration ?? 0);
+  return Number.isFinite(duration) && duration > HIGHLIGHT_MAX_DURATION_SECONDS;
+}
 
 export async function handleStreamWebhook(input: { rawBody: string; signatureHeader: string | undefined }) {
   if (!verifyStreamWebhookSignature(input.rawBody, input.signatureHeader)) {
@@ -324,12 +340,20 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
   const state = String(body.status?.state ?? "").toLowerCase();
   const now = new Date().toISOString();
 
-  if (state === "error") {
+  if (state === "error" || isDurationReject(body)) {
     await supabase
       .from("rec_highlight_posts")
       .update({ media_status: "failed", updated_at: now })
       .eq("id", row.data.id);
-    return { ok: true, matched: true, mediaStatus: "failed" };
+    await deleteStreamVideo(uid).catch((error) => {
+      console.error(`[ERROR] Failed to delete rejected Stream video ${uid}:`, error);
+    });
+    return {
+      ok: true,
+      matched: true,
+      mediaStatus: "failed",
+      reason: isDurationReject(body) ? DURATION_REJECT_MESSAGE : undefined,
+    };
   }
 
   if (state === "ready" || body.readyToStream) {
@@ -430,4 +454,66 @@ export async function deleteAllLeagueStreamHighlights(leagueId: string): Promise
       .not("cloudflare_stream_uid", "is", null);
   }
   return { deleted: posts.data?.length ?? 0 };
+}
+
+/** Copy mirrored / Discord CDN highlight URLs into Cloudflare Stream (batch). */
+export async function migrateMirroredHighlightsToStream(input: {
+  leagueId?: string | null;
+  limit?: number;
+}) {
+  let query = supabase
+    .from("rec_highlight_posts")
+    .select("id,league_id,content,playback_url,cloudflare_stream_uid,storage_provider,media_status,hub_visible")
+    .is("cloudflare_stream_uid", null)
+    .not("content", "is", null)
+    .neq("media_status", "deleted")
+    .order("created_at", { ascending: true })
+    .limit(Math.min(Math.max(input.limit ?? 25, 1), 100));
+  if (input.leagueId) query = query.eq("league_id", input.leagueId);
+
+  const rows = await query;
+  if (rows.error) throw new ApiError(500, "Failed to list mirrored highlights.", rows.error);
+
+  const results: Array<{ highlightId: string; ok: boolean; error?: string; streamUid?: string }> = [];
+  for (const row of rows.data ?? []) {
+    const url = String(row.playback_url || row.content || "").trim();
+    if (!url.startsWith("http")) {
+      results.push({ highlightId: row.id, ok: false, error: "No public media URL." });
+      continue;
+    }
+    try {
+      const copied = await copyStreamFromUrl({
+        url,
+        meta: { highlightId: row.id, leagueId: row.league_id, migrated: "1" },
+      });
+      const urls = streamPlaybackUrls(copied.uid);
+      const updated = await supabase
+        .from("rec_highlight_posts")
+        .update({
+          cloudflare_stream_uid: copied.uid,
+          storage_provider: "cloudflare_stream",
+          media_status: "ready",
+          playback_url: urls.hls,
+          content: urls.hls,
+          hub_visible: row.hub_visible === true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", row.id);
+      if (updated.error) throw updated.error;
+      results.push({ highlightId: row.id, ok: true, streamUid: copied.uid });
+    } catch (error) {
+      results.push({
+        highlightId: row.id,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    attempted: results.length,
+    succeeded: results.filter((row) => row.ok).length,
+    failed: results.filter((row) => !row.ok).length,
+    results,
+  };
 }
