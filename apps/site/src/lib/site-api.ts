@@ -100,16 +100,15 @@ export type SiteLeagueSummary = {
 
 export type SiteNotificationItem = {
   id: string;
-  section: "regular" | "commissioner";
-  kind: string;
   title: string;
   body: string | null;
   href: string;
-  leagueId: string | null;
-  leagueName: string | null;
-  createdAt: string;
   read: boolean;
+  createdAt: string;
+  kind: "regular" | "commissioner";
   isInboxLink?: boolean;
+  leagueId?: string | null;
+  leagueName?: string | null;
 };
 
 export const siteApi = {

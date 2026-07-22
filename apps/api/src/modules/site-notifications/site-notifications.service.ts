@@ -9,17 +9,17 @@ export { requireLinkedRecUser };
 
 export type SiteNotificationItem = {
   id: string;
-  section: "regular" | "commissioner";
-  kind: string;
   title: string;
   body: string | null;
   href: string;
-  leagueId: string | null;
-  leagueName: string | null;
-  createdAt: string;
   read: boolean;
+  createdAt: string;
+  /** Section discriminator for the site bell. */
+  kind: "regular" | "commissioner";
   /** When true, item is a synthetic link into that league's commissioner inbox. */
   isInboxLink?: boolean;
+  leagueId?: string | null;
+  leagueName?: string | null;
 };
 
 function humanizeQueueTitle(input: {
@@ -32,9 +32,9 @@ function humanizeQueueTitle(input: {
   const requester = input.requesterName?.trim() || "A member";
   switch (input.queueType) {
     case "stream":
-      return `${requester} has submitted a stream in ${input.leagueName}`;
+      return `${requester} submitted a stream in ${input.leagueName}`;
     case "highlight":
-      return `${requester} has submitted a highlight in ${input.leagueName}`;
+      return `${requester} submitted a highlight in ${input.leagueName}`;
     case "box_score":
       return `${requester} submitted a box score in ${input.leagueName}`;
     case "purchase":
@@ -105,8 +105,7 @@ export async function listSiteNotifications(input: {
     }>
   ).map((row) => ({
     id: row.id,
-    section: "regular",
-    kind: row.kind,
+    kind: "regular" as const,
     title: row.title,
     body: row.body,
     href: row.href,
@@ -126,8 +125,7 @@ export async function listSiteNotifications(input: {
     // without conflating it with the generic bell item list.
     commissioner.push({
       id: `inbox-link:${league.id}`,
-      section: "commissioner",
-      kind: "commissioner_inbox_link",
+      kind: "commissioner",
       title: `Open ${league.name} commissioner inbox`,
       body: "Review queue for this league (same inbox as Commissioners Office).",
       href: `/l/${league.id}/mgmt/inbox`,
@@ -168,8 +166,7 @@ export async function listSiteNotifications(input: {
     }>) {
       commissioner.push({
         id: `commish:${row.id}`,
-        section: "commissioner",
-        kind: row.queue_type,
+        kind: "commissioner",
         title: humanizeQueueTitle({
           queueType: row.queue_type,
           header: row.header,
@@ -205,7 +202,10 @@ export async function markSiteNotificationsRead(input: {
   recUserId: string;
   ids: string[];
 }): Promise<{ ok: true; updated: number }> {
-  const realIds = input.ids.filter((id) => !id.startsWith("commish:") && !id.startsWith("inbox-link:"));
+  // Commissioner inbox summaries + synthetic inbox links are navigation-only;
+  // mark-read only applies to UUID rows in rec_site_notifications.
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const realIds = input.ids.filter((id) => uuidRe.test(id));
   if (!realIds.length) return { ok: true, updated: 0 };
 
   const result = await getPgPool().query(

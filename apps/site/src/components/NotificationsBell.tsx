@@ -59,7 +59,8 @@ export function NotificationsBell() {
 
   async function openItem(item: SiteNotificationItem) {
     setOpen(false);
-    if (!item.read && !item.id.startsWith("commish:") && !item.id.startsWith("inbox-link:")) {
+    const isStoredUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.id);
+    if (!item.read && isStoredUuid) {
       try {
         await siteApi.markNotificationsRead([item.id]);
         setUnreadCount((count) => Math.max(0, count - 1));

@@ -75,26 +75,32 @@ items). Placeholder copy on the route notes this.
 ## Persistent notifications bell (top-right)
 
 Always visible in the authenticated `SiteShell` top bar for every signed-in user.
+Dropdown sections: **Updates** (member/regular) and **Commissioner** (only when the
+user is commissioner of at least one active league).
 
 | Concern | Behavior |
 | ------- | -------- |
-| Member notifications | `rec_site_notifications` rows → **Updates** section |
-| Commissioner items | Pending `rec_commissioners_inbox` for leagues where the user is commissioner → **Commissioner** section |
-| Copy style | Human sentences, e.g. `Georgia Dynasty has advanced` or `Alex has submitted a stream in REC OG` |
-| Deep links | Advance-style → `/l/:leagueId/matchups`; review-queue (stream, box score, etc.) → `/l/:leagueId/mgmt/inbox` |
-| Inbox link | Commissioner section always includes **Open {league} commissioner inbox** |
+| Member / Updates | Rows in `rec_site_notifications` for the linked user (`kind` returned as `regular`) |
+| Commissioner | Pending `rec_commissioners_inbox` for commissioner leagues (navigation summaries, not stored in `rec_site_notifications`) |
+| Example copy → deep link | `X League has advanced` → `/l/:leagueId/matchups`; `Y submitted a stream in X` → `/l/:leagueId/mgmt/inbox` |
+| Inbox link | Each commissioner league gets a synthetic row: `Open {leagueName} commissioner inbox` (`id` `inbox-link:{leagueId}`, `isInboxLink: true`, always read) |
+| Unread badge | Count of unread regular rows + pending commissioner queue items (inbox links excluded) |
+| Polling | Bell refreshes on open and about every 45s while signed in |
 
-**Important distinction:** This bell is **not** the Commissioners Office notification
-control in `apps/web` League Mgmt. That Office control still opens the review inbox UI
-there. On site, the bell only **summarizes** and deep-links into
-`/l/:leagueId/mgmt/inbox`. League Mgmt remains a separate destination for tools
-(retire as commissioner, demotion request, ownership transfer).
+**Site bell vs League Mgmt Office bell:** The site top-right bell is member + delineated
+commissioner summaries with deep links. The `apps/web` League Mgmt `NotificationBell`
+remains a **separate** control and still opens the Commissioners Office inbox UI. Do not
+merge their behavior.
+
+Writers (advance digests, friend events, etc.) insert into `rec_site_notifications`.
+Regular list may be empty until those producers land — that is expected for Phase 1.
 
 API:
 
-- `POST /v1/site-notifications/list`
-- `POST /v1/site-notifications/mark-read` (site notification UUIDs only; synthetic
-  commissioner ids are navigation-only)
+- `POST /v1/site-notifications/list` → `{ regular, commissioner, unreadCount }`
+- `POST /v1/site-notifications/mark-read` `{ ids: string[] }` — **UUID ids from
+  `rec_site_notifications` only**. Synthetic commissioner ids (`commish:…`,
+  `inbox-link:…`) are ignored.
 
 ## Account area (not bottom-nav tabs)
 
