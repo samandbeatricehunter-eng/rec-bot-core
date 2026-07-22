@@ -8,9 +8,10 @@
     "dev": "pnpm --parallel dev",
     "dev:api": "pnpm --filter @rec/api dev",
     "dev:bot": "pnpm --filter @rec/bot dev",
-    "build": "pnpm -r build",
+    "build": "node scripts/railway-build.mjs",
+    "build:all": "pnpm -r build",
     "build:site": "pnpm --filter @rec/shared build && pnpm --filter @rec/site build",
-    "start": "pnpm --filter @rec/site start",
+    "start": "node scripts/railway-start.mjs",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"
   },

@@ -83,6 +83,35 @@ export async function createStreamDirectUpload(input: {
   return { uid: payload.result.uid, uploadURL: payload.result.uploadURL };
 }
 
+/** Pull an existing public media URL into Cloudflare Stream (migration / backfill). */
+export async function copyStreamFromUrl(input: {
+  url: string;
+  meta?: Record<string, string>;
+}): Promise<{ uid: string }> {
+  const { accountId, apiToken } = requireStreamConfig();
+  const response = await fetch(`${STREAM_API}/accounts/${accountId}/stream/copy`, {
+    method: "POST",
+    headers: streamHeaders(apiToken),
+    body: JSON.stringify({
+      url: input.url,
+      meta: input.meta ?? {},
+      requireSignedURLs: false,
+      allowedOrigins: streamAllowedOrigins(),
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const payload = await response.json().catch(() => null) as {
+    success?: boolean;
+    result?: { uid?: string };
+    errors?: Array<{ message?: string }>;
+  } | null;
+  if (!response.ok || !payload?.success || !payload.result?.uid) {
+    const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
+    throw new ApiError(502, `Failed to copy media into Stream (${detail}).`);
+  }
+  return { uid: payload.result.uid };
+}
+
 export async function deleteStreamVideo(uid: string): Promise<void> {
   if (!uid.trim()) return;
   const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim();

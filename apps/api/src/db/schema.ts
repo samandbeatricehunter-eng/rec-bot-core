@@ -1479,6 +1479,7 @@ export const recHighlightPosts = pgTable("rec_highlight_posts", {
   playbackUrl: text("playback_url"),
   maxHeight: integer("max_height"),
   retainedAsPoty: boolean("retained_as_poty").notNull().default(false),
+  hubVisible: boolean("hub_visible").notNull().default(false),
   gameId: uuid("game_id").references(() => recGames.id),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()

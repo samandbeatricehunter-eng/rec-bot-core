@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
@@ -83,11 +83,116 @@ export function LeagueBuzzPage() {
 }
 
 export function LeagueMatchupsPage() {
+  const { leagueId = "" } = useParams();
+  const [games, setGames] = useState<Array<{ gameId: string; label: string }>>([]);
+  const [weekNumber, setWeekNumber] = useState<number | null>(null);
+  const [gameId, setGameId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!leagueId) return;
+    let active = true;
+    siteApi
+      .listHighlightGames(leagueId)
+      .then((result) => {
+        if (!active) return;
+        setWeekNumber(result.weekNumber);
+        setGames(result.games);
+        setGameId(result.games[0]?.gameId ?? "");
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Could not load matchups.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [leagueId]);
+
+  async function onFileSelected(file: File | null) {
+    if (!file || !leagueId || !gameId) return;
+    setBusy(true);
+    setError(null);
+    setNotice(`Uploading ${file.name}…`);
+    try {
+      const direct = await siteApi.createHighlightDirectUpload({
+        leagueId,
+        gameId,
+        fileName: file.name,
+      });
+      const form = new FormData();
+      form.append("file", file);
+      const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
+      if (!uploaded.ok) throw new Error(`Cloudflare upload failed (${uploaded.status}).`);
+      await siteApi.markHighlightUploadReceived({ leagueId, highlightId: direct.highlightId });
+      setNotice("Uploaded — encoding to 720p. Commissioners will review before it appears in Highlights.");
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const status = await siteApi.getHighlightUploadStatus({
+          leagueId,
+          highlightId: direct.highlightId,
+        });
+        if (status.mediaStatus === "ready") {
+          setNotice("Ready for commissioner review. You’ll be paid after they approve (if a payout slot is available).");
+          break;
+        }
+        if (status.mediaStatus === "failed") {
+          throw new Error("Encoding failed. Try another clip.");
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
+      setNotice(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <PlaceholderCard
       title="Matchups"
-      body="This week's slate. Rankings and Open Teams will be tabs on this page in a later pass."
-    />
+      body={
+        weekNumber
+          ? `Week ${weekNumber}. Upload an in-game highlight from your matchup (registered accounts only). Clips go to Cloudflare Stream and wait for commissioner approval before payout/display.`
+          : "This week's slate. Upload highlights from your matchup once games load."
+      }
+    >
+      {error && <p className="site-auth-error">{error}</p>}
+      {notice && <p className="site-auth-success">{notice}</p>}
+      {games.length === 0 ? (
+        <p className="site-muted">No uploadable matchup for you this week (need an active team assignment).</p>
+      ) : (
+        <div className="site-billing-panel">
+          <label className="site-field">
+            <span>Your matchup</span>
+            <select
+              className="site-select"
+              value={gameId}
+              onChange={(e) => setGameId(e.target.value)}
+              disabled={busy}
+            >
+              {games.map((game) => (
+                <option key={game.gameId} value={game.gameId}>
+                  {game.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="site-field">
+            <span>Highlight clip (video)</span>
+            <input
+              type="file"
+              accept="video/*"
+              disabled={busy || !gameId}
+              onChange={(e) => void onFileSelected(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          {busy && <p className="site-muted">Working…</p>}
+        </div>
+      )}
+    </PlaceholderCard>
   );
 }
 
@@ -221,10 +326,129 @@ export function LeagueMgmtPage() {
 }
 
 export function LeagueMgmtInboxPage() {
+  const { leagueId = "" } = useParams();
+  const [items, setItems] = useState<
+    Array<{
+      reviewId: string;
+      header: string;
+      summary: string;
+      amount: number;
+      uploaderName: string;
+      iframeUrl: string | null;
+      playbackUrl: string | null;
+    }>
+  >([]);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [migrateNotice, setMigrateNotice] = useState<string | null>(null);
+
+  async function reload() {
+    if (!leagueId) return;
+    const result = await siteApi.listPendingHighlights(leagueId);
+    setItems(result.items);
+  }
+
+  useEffect(() => {
+    let active = true;
+    reload()
+      .catch((err) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Could not load inbox.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [leagueId]);
+
+  async function review(reviewId: string, action: "approve" | "deny") {
+    if (!leagueId) return;
+    setBusyId(reviewId);
+    setError(null);
+    try {
+      await siteApi.reviewHighlight({
+        leagueId,
+        reviewId,
+        action,
+        deniedReason: action === "deny" ? "Denied by commissioner review." : undefined,
+      });
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Review failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function migrateLegacy() {
+    if (!leagueId) return;
+    setMigrateNotice("Migrating mirrored clips to Cloudflare Stream…");
+    try {
+      const result = await siteApi.migrateHighlightsToStream({ leagueId, limit: 50 });
+      setMigrateNotice(`Stream migration: ${result.succeeded}/${result.attempted} succeeded (${result.failed} failed).`);
+    } catch (err) {
+      setMigrateNotice(null);
+      setError(err instanceof Error ? err.message : "Migration failed.");
+    }
+  }
+
   return (
     <PlaceholderCard
       title="Commissioner inbox"
-      body="League review queue (streams, box scores, purchases, etc.). Distinct from the top-right notification bell, which only summarizes and deep-links here. Full review UI ports from Commissioners Office next."
-    />
+      body="Pending highlight reviews. Approve to publish the clip to Highlights and issue payout when a paid slot is available."
+    >
+      {error && <p className="site-auth-error">{error}</p>}
+      {migrateNotice && <p className="site-muted">{migrateNotice}</p>}
+      <div className="site-profile-actions" style={{ marginBottom: 16 }}>
+        <button className="site-btn site-btn-ghost" type="button" onClick={() => void migrateLegacy()}>
+          Migrate mirrored clips to Stream
+        </button>
+      </div>
+      {items.length === 0 ? (
+        <p className="site-muted">No pending highlights right now.</p>
+      ) : (
+        <div className="site-billing-panel" style={{ display: "grid", gap: 16 }}>
+          {items.map((item) => (
+            <article key={item.reviewId} style={{ borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+              <h2 style={{ margin: "0 0 6px", fontSize: 18 }}>{item.header}</h2>
+              <p className="site-muted" style={{ margin: "0 0 8px" }}>
+                {item.uploaderName} · {item.summary}
+                {item.amount > 0 ? ` · ${item.amount} coins if approved` : " · display-only (weekly payout slots full)"}
+              </p>
+              {item.iframeUrl ? (
+                <iframe
+                  title="Pending highlight"
+                  src={`${item.iframeUrl}?muted=true`}
+                  style={{ width: "100%", aspectRatio: "16 / 9", border: 0, borderRadius: 8 }}
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : item.playbackUrl ? (
+                <video src={item.playbackUrl} controls style={{ width: "100%", borderRadius: 8 }} />
+              ) : (
+                <p className="site-muted">Clip still encoding…</p>
+              )}
+              <div className="site-profile-actions" style={{ marginTop: 10 }}>
+                <button
+                  className="site-btn site-btn-primary"
+                  type="button"
+                  disabled={busyId === item.reviewId}
+                  onClick={() => void review(item.reviewId, "approve")}
+                >
+                  Approve
+                </button>
+                <button
+                  className="site-btn site-btn-ghost"
+                  type="button"
+                  disabled={busyId === item.reviewId}
+                  onClick={() => void review(item.reviewId, "deny")}
+                >
+                  Deny
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </PlaceholderCard>
   );
 }

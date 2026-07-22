@@ -34,6 +34,7 @@ import { siteInboxRoutes } from "./modules/site-inbox/site-inbox.routes.js";
 import { siteLeaguesRoutes } from "./modules/site-leagues/site-leagues.routes.js";
 import { siteNotificationsRoutes } from "./modules/site-notifications/site-notifications.routes.js";
 import { mediaRoutes } from "./modules/media/media.routes.js";
+import { siteHighlightsRoutes } from "./modules/site-highlights/site-highlights.routes.js";
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get("/health", async () => ({ ok: true, service: "rec-core-api" }));
@@ -73,4 +74,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await siteInboxRoutes(app);
   await siteLeaguesRoutes(app);
   await siteNotificationsRoutes(app);
+  await siteHighlightsRoutes(app);
 }

@@ -88,190 +88,11 @@ async function getActiveAssignment(leagueId: string, userId: string) {
   return assignment.data;
 }
 
-export async function recordHighlightPost(input: RecordHighlightInput) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const account = await getDiscordAccount(input.discordId);
-  const assignment = await getActiveAssignment(context.leagueId, account.user_id);
-  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
-  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
-  const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
-
-  // Highlights are only accepted during an active season: regular-season Week 1
-  // through the championship game. Voting emojis preload only in the regular
-  // season; in the postseason the payout is logged but POTY voting is closed.
-  const game = context.rec_leagues.game;
-  const isRegularSeason = seasonStage === "regular_season" && weekNumber >= 1 && isRegularSeasonWeek(weekNumber, game);
-  const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs", "national_championship"].includes(seasonStage);
-  const payoutEligible = isRegularSeason || isPostseason;
-  const preloadEmojis = isRegularSeason;
-
-  const existingPost = await supabase
-    .from("rec_highlight_posts")
-    .select("*")
-    .eq("league_id", context.leagueId)
-    .eq("discord_channel_id", input.discordChannelId)
-    .eq("discord_message_id", input.discordMessageId)
-    .maybeSingle();
-  if (existingPost.error) throw new ApiError(500, "Failed to check the existing highlight.", existingPost.error);
-  if (existingPost.data) {
-    // Reconciliation may revisit a clip after a deploy. Use that opportunity to
-    // create the durable Storage mirror if the row still points at Discord's CDN.
-    if (input.content && !String(existingPost.data.content ?? "").includes(`/storage/v1/object/public/${HIGHLIGHT_BUCKET}/`)) {
-      void mirrorHighlightMedia(input.content, context.leagueId, input.discordMessageId)
-        .then(async (durableUrl) => {
-          if (durableUrl === existingPost.data.content) return;
-          await supabase.from("rec_highlight_posts").update({ content: durableUrl, updated_at: new Date().toISOString() }).eq("id", existingPost.data.id);
-        })
-        .catch((error) => console.error("[ERROR] Failed to mirror reconciled highlight media to storage (non-fatal):", error));
-    }
-    const economyEligibleExisting = !(await isDiscordOnlyUser(account.user_id));
-    return {
-      recorded: true,
-      accepted: true,
-      preloadEmojis: economyEligibleExisting && preloadEmojis,
-      economyEligible: economyEligibleExisting,
-      votingEligible: economyEligibleExisting && preloadEmojis,
-      payoutEligible: economyEligibleExisting && Boolean(existingPost.data.payout_review_id),
-      paidSlotAvailable: Boolean(existingPost.data.payout_review_id),
-      highlight: existingPost.data,
-    };
-  }
-
-  if (isRegularSeason || isPostseason) {
-    const existingUploads = await supabase
-      .from("rec_highlight_posts")
-      .select("id,media_status")
-      .eq("league_id", context.leagueId)
-      .eq("user_id", account.user_id)
-      .eq("season_number", seasonNumber)
-      .eq("week_number", weekNumber);
-    if (existingUploads.error) throw new ApiError(500, "Failed to check weekly highlight upload limit.", existingUploads.error);
-    const uploadCount = (existingUploads.data ?? []).filter((row) => row.media_status !== "failed" && row.media_status !== "deleted").length;
-    if (uploadCount >= HIGHLIGHT_WEEKLY_UPLOAD_LIMIT) {
-      throw new ApiError(400, `You can upload at most ${HIGHLIGHT_WEEKLY_UPLOAD_LIMIT} highlights per week during the regular season and postseason.`);
-    }
-  }
-
-  const existingPaid = await supabase
-    .from("rec_highlight_payout_reviews")
-    .select("id")
-    .eq("league_id", context.leagueId)
-    .eq("user_id", account.user_id)
-    .eq("season_number", seasonNumber)
-    .eq("week_number", weekNumber)
-    .in("status", ["pending", "approved", "issued"])
-    .limit(HIGHLIGHT_WEEKLY_PAID_LIMIT);
-  if (existingPaid.error) throw new ApiError(500, "Failed to check highlight payout status.", existingPaid.error);
-
-  const paidSlotAvailable = (existingPaid.data ?? []).length < HIGHLIGHT_WEEKLY_PAID_LIMIT;
-
-  const highlight = await supabase
-    .from("rec_highlight_posts")
-    .insert({
-      league_id: context.leagueId,
-      user_id: account.user_id,
-      team_id: assignment?.team_id ?? null,
-      season_number: seasonNumber,
-      week_number: weekNumber,
-      season_stage: seasonStage,
-      discord_channel_id: input.discordChannelId,
-      discord_message_id: input.discordMessageId,
-      message_url: input.messageUrl ?? null,
-      content: input.content ?? null,
-      is_first_this_week: (existingPaid.data ?? []).length === 0,
-    })
-    .select("*")
-    .single();
-  if (highlight.error) throw new ApiError(500, "Failed to record highlight.", highlight.error);
-
-  // Discord attachment URLs expire. Mirror the file in the background while the fresh
-  // Discord URL remains immediately usable, then point the persisted record at storage.
-  if (input.content) {
-    void mirrorHighlightMedia(input.content, context.leagueId, input.discordMessageId)
-      .then(async (durableUrl) => {
-        if (durableUrl === input.content) return;
-        await supabase.from("rec_highlight_posts").update({ content: durableUrl, updated_at: new Date().toISOString() }).eq("id", highlight.data.id);
-      })
-      .catch((error) => console.error("[ERROR] Failed to mirror highlight media to storage (non-fatal):", error));
-  }
-
-  // Preseason/training-camp clips may still be retained as community media, but
-  // they never create a payout review. Weekly payouts begin with the regular
-  // season and remain available through the postseason.
-  const economyEligible = !(await isDiscordOnlyUser(account.user_id));
-  const votingEligible = economyEligible && preloadEmojis;
-
-  if (!economyEligible || !payoutEligible || !paidSlotAvailable) {
-    return {
-      recorded: true,
-      accepted: true,
-      preloadEmojis: votingEligible,
-      economyEligible,
-      votingEligible,
-      payoutEligible: false,
-      paidSlotAvailable: economyEligible ? paidSlotAvailable : false,
-      highlight: highlight.data,
-    };
-  }
-
-  const review = await supabase
-    .from("rec_highlight_payout_reviews")
-    .insert({
-      highlight_post_id: highlight.data.id,
-      league_id: context.leagueId,
-      user_id: account.user_id,
-      team_id: assignment?.team_id ?? null,
-      season_number: seasonNumber,
-      week_number: weekNumber,
-      payout_kind: "weekly_highlight",
-      status: "pending",
-      amount: HIGHLIGHT_PAYOUT_AMOUNT,
-      discord_channel_id: input.discordChannelId,
-      discord_message_id: input.discordMessageId,
-    })
-    .select("*")
-    .single();
-  if (review.error) throw new ApiError(500, "Failed to create highlight payout review.", review.error);
-
-  const postUpdate = await supabase
-    .from("rec_highlight_posts")
-    .update({ payout_review_id: review.data.id, updated_at: new Date().toISOString() })
-    .eq("id", highlight.data.id);
-  if (postUpdate.error) throw new ApiError(500, "Failed to attach highlight payout review.", postUpdate.error);
-
-  const inbox = await supabase.from("rec_commissioners_inbox").insert({
-    guild_id: input.guildId,
-    server_id: context.serverId,
-    league_id: context.leagueId,
-    season_number: seasonNumber,
-    week_number: weekNumber,
-    queue_type: "highlight",
-    status: "pending",
-    priority: 0,
-    header: `Highlight: Wk ${weekNumber}`,
-    summary: `Highlight submitted by <@${input.discordId}>.`,
-    requester_discord_id: input.discordId,
-    requester_user_id: account.user_id,
-    amount: HIGHLIGHT_PAYOUT_AMOUNT,
-    source_table: "rec_highlight_payout_reviews",
-    source_id: review.data.id,
-    payload: { reviewId: review.data.id, highlightPostId: highlight.data.id, payoutKind: "weekly_highlight" },
-  });
-  if (inbox.error) throw new ApiError(500, "Failed to create the commissioner highlight notification.", inbox.error);
-
-  return {
-    recorded: true,
-    accepted: true,
-    preloadEmojis: true,
-    economyEligible: true,
-    votingEligible: true,
-    payoutEligible: true,
-    paidSlotAvailable: true,
-    highlight: { ...highlight.data, payout_review_id: review.data.id },
-    review: review.data,
-    commissionerRoleId: (context.routes as any)?.commissioner_role_id ?? null,
-    compCommitteeRoleId: (context.routes as any)?.comp_committee_role_id ?? null,
-  };
+export async function recordHighlightPost(_input: RecordHighlightInput): Promise<never> {
+  throw new ApiError(
+    410,
+    "Discord highlight channel uploads are retired. Upload highlights from the REC Leagues website or PWA after signing in.",
+  );
 }
 
 export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
@@ -314,25 +135,29 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
   }
 
   const amount = Number(existing.data.amount ?? HIGHLIGHT_PAYOUT_AMOUNT);
-  const ledger = await supabase.rpc("add_to_wallet", {
-    p_user_id: existing.data.user_id,
-    p_amount: amount,
-    p_league_id: existing.data.league_id,
-    p_description: existing.data.payout_kind === "season_award"
-      ? `Play of the Year payout (${existing.data.award_category})`
-      : `Highlight payout - Wk ${existing.data.week_number}`,
-    p_transaction_type: existing.data.payout_kind === "season_award" ? "highlight_award_payout" : "highlight_payout",
-    p_source: "highlight",
-    p_source_reference: { reviewId: existing.data.id, highlightPostId: existing.data.highlight_post_id, awardCategory: existing.data.award_category ?? null },
-  });
-  if (ledger.error) throw new ApiError(500, "Failed to issue highlight payout.", ledger.error);
+  let ledgerId: string | null = null;
+  if (amount > 0) {
+    const ledger = await supabase.rpc("add_to_wallet", {
+      p_user_id: existing.data.user_id,
+      p_amount: amount,
+      p_league_id: existing.data.league_id,
+      p_description: existing.data.payout_kind === "season_award"
+        ? `Play of the Year payout (${existing.data.award_category})`
+        : `Highlight payout - Wk ${existing.data.week_number}`,
+      p_transaction_type: existing.data.payout_kind === "season_award" ? "highlight_award_payout" : "highlight_payout",
+      p_source: "highlight",
+      p_source_reference: { reviewId: existing.data.id, highlightPostId: existing.data.highlight_post_id, awardCategory: existing.data.award_category ?? null },
+    });
+    if (ledger.error) throw new ApiError(500, "Failed to issue highlight payout.", ledger.error);
+    ledgerId = ledger.data;
+  }
 
   const approved = await supabase
     .from("rec_highlight_payout_reviews")
     .update({
       status: "issued",
       reviewed_by_discord_id: input.reviewedByDiscordId,
-      issued_ledger_id: ledger.data,
+      issued_ledger_id: ledgerId,
       reviewed_at: new Date().toISOString(),
       issued_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -344,9 +169,13 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
 
   const postUpdate = await supabase
     .from("rec_highlight_posts")
-    .update({ payout_issued: true, updated_at: new Date().toISOString() })
+    .update({
+      payout_issued: amount > 0,
+      hub_visible: true,
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", existing.data.highlight_post_id);
-  if (postUpdate.error) throw new ApiError(500, "Failed to mark highlight payout issued.", postUpdate.error);
+  if (postUpdate.error) throw new ApiError(500, "Failed to mark highlight published.", postUpdate.error);
 
   await supabase
     .from("rec_commissioners_inbox")

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { isRegularSeasonWeek, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import {
+  copyStreamFromUrl,
   createStreamDirectUpload,
   deleteStreamVideo,
   HIGHLIGHT_MAX_DURATION_SECONDS,
@@ -73,7 +74,8 @@ async function maybeCreateWeeklyPayoutReview(input: {
     .in("status", ["pending", "approved", "issued"])
     .limit(HIGHLIGHT_WEEKLY_PAID_LIMIT);
   if (existingPaid.error) throw new ApiError(500, "Failed to check highlight payout status.", existingPaid.error);
-  if ((existingPaid.data ?? []).length >= HIGHLIGHT_WEEKLY_PAID_LIMIT) return;
+  const paidCount = (existingPaid.data ?? []).length;
+  const amount = paidCount >= HIGHLIGHT_WEEKLY_PAID_LIMIT ? 0 : HIGHLIGHT_PAYOUT_AMOUNT;
 
   const review = await supabase
     .from("rec_highlight_payout_reviews")
@@ -86,7 +88,7 @@ async function maybeCreateWeeklyPayoutReview(input: {
       week_number: input.weekNumber,
       payout_kind: "weekly_highlight",
       status: "pending",
-      amount: HIGHLIGHT_PAYOUT_AMOUNT,
+      amount,
       discord_channel_id: input.discordChannelId,
       discord_message_id: input.discordMessageId,
       updated_at: new Date().toISOString(),
@@ -99,7 +101,7 @@ async function maybeCreateWeeklyPayoutReview(input: {
     .from("rec_highlight_posts")
     .update({
       payout_review_id: review.data.id,
-      is_first_this_week: (existingPaid.data ?? []).length === 0,
+      is_first_this_week: paidCount === 0,
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.highlightId);
@@ -114,16 +116,16 @@ async function maybeCreateWeeklyPayoutReview(input: {
       queue_type: "highlight",
       status: "pending",
       priority: 0,
-      header: `Highlight: Wk ${input.weekNumber}`,
+      header: amount > 0 ? `Highlight payout: Wk ${input.weekNumber}` : `Highlight review: Wk ${input.weekNumber}`,
       summary: input.requesterDiscordId
-        ? `Web highlight uploaded by <@${input.requesterDiscordId}>.`
-        : "Web highlight uploaded.",
+        ? `Highlight uploaded by <@${input.requesterDiscordId}> — approve to publish${amount > 0 ? ` and pay ${amount}` : ""}.`
+        : `Highlight uploaded — approve to publish${amount > 0 ? ` and pay ${amount}` : ""}.`,
       requester_discord_id: input.requesterDiscordId,
       requester_user_id: input.userId,
-      amount: HIGHLIGHT_PAYOUT_AMOUNT,
+      amount,
       source_table: "rec_highlight_payout_reviews",
       source_id: review.data.id,
-      payload: { reviewId: review.data.id, highlightPostId: input.highlightId, payoutKind: "weekly_highlight" },
+      payload: { reviewId: review.data.id, highlightPostId: input.highlightId, payoutKind: "weekly_highlight", amount },
     });
     if (inbox.error) {
       console.error("[ERROR] Failed to create commissioners inbox row for weekly highlight payout:", inbox.error);
@@ -219,6 +221,7 @@ export async function createHighlightDirectUpload(input: {
       media_status: "uploading",
       max_height: HIGHLIGHT_MAX_HEIGHT,
       retained_as_poty: false,
+      hub_visible: false,
       content: null,
       created_at: now,
       updated_at: now,

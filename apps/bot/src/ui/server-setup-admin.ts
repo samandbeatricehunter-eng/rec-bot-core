@@ -8,15 +8,19 @@ export const SERVER_SETUP_CUSTOM_IDS = {
 } as const;
 
 export const CHANNEL_TYPE_OPTIONS = Object.fromEntries(
-  Object.entries(REC_ROUTE_CHANNELS).map(([key, config]) => [key, config.label])
-) as Record<keyof typeof REC_ROUTE_CHANNELS, string>;
+  Object.entries(REC_ROUTE_CHANNELS)
+    .filter(([key]) => key !== "highlights")
+    .map(([key, config]) => [key, config.label])
+) as Record<Exclude<keyof typeof REC_ROUTE_CHANNELS, "highlights">, string>;
 
 export function buildServerSetupPanel(note?: string) {
   const select = new StringSelectMenuBuilder()
     .setCustomId(SERVER_SETUP_CUSTOM_IDS.selectChannelType)
     .setPlaceholder("Select a channel or category to assign")
     .addOptions(
-      ...Object.entries(REC_ROUTE_CHANNELS).map(([key, config]) =>
+      ...Object.entries(REC_ROUTE_CHANNELS)
+        .filter(([key]) => key !== "highlights")
+        .map(([key, config]) =>
         new StringSelectMenuOptionBuilder().setLabel(config.label).setValue(key)
       )
     );

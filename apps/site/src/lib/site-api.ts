@@ -341,4 +341,71 @@ export const siteApi = {
       | { status: "need_setup"; reason: "link_identity" | "username"; message: string }
     >("/v1/web-session/handoff/exchange", { handoff });
   },
+  listHighlightGames(leagueId: string) {
+    return request<{
+      weekNumber: number;
+      seasonNumber: number;
+      seasonStage: string;
+      games: Array<{ gameId: string; weekNumber: number; label: string }>;
+    }>("/v1/site-highlights/games", { leagueId });
+  },
+  createHighlightDirectUpload(input: { leagueId: string; gameId: string; fileName?: string }) {
+    return request<{
+      highlightId: string;
+      uploadURL: string;
+      streamUid: string;
+      maxDurationSeconds: number;
+      maxHeight: number;
+    }>("/v1/site-highlights/direct-upload", input);
+  },
+  markHighlightUploadReceived(input: { leagueId: string; highlightId: string }) {
+    return request<{ highlightId: string; mediaStatus: string }>(
+      "/v1/site-highlights/upload-received",
+      input,
+    );
+  },
+  getHighlightUploadStatus(input: { leagueId: string; highlightId: string }) {
+    return request<{
+      highlightId: string;
+      mediaStatus: string;
+      playbackUrl: string | null;
+      streamUid: string | null;
+      iframeUrl: string | null;
+    }>("/v1/site-highlights/status", input);
+  },
+  listPendingHighlights(leagueId: string) {
+    return request<{
+      items: Array<{
+        inboxId: string;
+        reviewId: string;
+        header: string;
+        summary: string;
+        amount: number;
+        createdAt: string;
+        uploaderName: string;
+        mediaStatus: string | null;
+        playbackUrl: string | null;
+        iframeUrl: string | null;
+        streamUid: string | null;
+      }>;
+    }>("/v1/site-highlights/pending", { leagueId });
+  },
+  reviewHighlight(input: {
+    leagueId: string;
+    reviewId: string;
+    action: "approve" | "deny";
+    deniedReason?: string;
+  }) {
+    return request<{ updated: boolean; reason?: string }>(
+      "/v1/site-highlights/review",
+      input,
+    );
+  },
+  migrateHighlightsToStream(input: { leagueId?: string; limit?: number } = {}) {
+    return request<{
+      attempted: number;
+      succeeded: number;
+      failed: number;
+    }>("/v1/site-highlights/migrate-to-stream", input);
+  },
 };

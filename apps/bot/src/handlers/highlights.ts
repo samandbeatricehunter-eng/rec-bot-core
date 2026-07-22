@@ -9,7 +9,7 @@ import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWAR
 
 export const HIGHLIGHT_VOTE_EMOJIS = HIGHLIGHT_AWARD_EMOJIS;
 
-// Emoji ids only — used to detect/restrict the one-vote-per-highlight reactions.
+// Emoji ids only â€” used to detect/restrict the one-vote-per-highlight reactions.
 export const HIGHLIGHT_VOTE_EMOJI_IDS = new Set<string>(Object.values(HIGHLIGHT_VOTE_EMOJIS).map((e) => e.id));
 
 const CLIP_URL_RE = /https?:\/\/\S+/gi;
@@ -70,132 +70,14 @@ export async function handleHighlightReactionRestrict(
 }
 
 export async function handleHighlightChannelMessage(message: Message): Promise<boolean> {
-  if (!message.inGuild() || message.author.bot) return false;
-  const highlightsChannelId = await getHighlightsChannelId(message.guildId);
-  // Discord Media and Forum channels store each post in a child thread. Accept
-  // messages from either a normal configured channel or one of those child threads.
-  if (!highlightsChannelId || !isInHighlightsChannel(message, highlightsChannelId)) return false;
-
-  const clips = clipCount(message);
-  if (clips === 0) return false;
-  if (clips > 1) {
-    await message.delete().catch(() => undefined);
-    await message.channel.send({
-      content: `<@${message.author.id}> only one highlight can be posted at a time. Multiple entries require multiple posts.`,
-      allowedMentions: { users: [message.author.id] },
-    }).catch(() => undefined);
-    return true;
-  }
-
-  const result = await recApi.recordHighlightPost({
-    guildId: message.guildId,
-    discordId: message.author.id,
-    discordChannelId: message.channelId,
-    discordMessageId: message.id,
-    messageUrl: message.url,
-    // Persist the actual attachment URL even when the post also has a caption; captions
-    // are not playable and previously prevented the Hub from finding the video.
-    content: mediaAttachments(message)[0]?.url || message.content || null,
-  }).catch((error) => ({ recorded: false, reason: error instanceof Error ? error.message : String(error) }));
-
-  // Posted outside an active season (before regular-season Wk 1 or after the
-  // championship game) — highlights aren't accepted, so remove it and tell the user.
-  if (result?.accepted === false) {
-    await message.delete().catch(() => undefined);
-    const notice = await message.channel.send({
-      content: `<@${message.author.id}> ${result.reason ?? "Highlights are only accepted during an active season (regular-season Week 1 through the championship game)."}`,
-      allowedMentions: { users: [message.author.id] },
-    }).catch(() => null);
-    if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 12_000);
-    return true;
-  }
-
-  if (!result?.recorded) {
-    await message.reply({
-      content: `I couldn't record this highlight for payout review: ${result?.reason ?? "unknown error"}`,
-      allowedMentions: { parse: [] },
-    }).catch(() => undefined);
-    return true;
-  }
-
-  // Voting emojis only preload during the regular season (and only for site-linked
-  // accounts). Discord-only users can post highlights but are not payout/vote eligible.
-  const canVote =
-    result.economyEligible !== false &&
-    result.votingEligible !== false &&
-    result.preloadEmojis !== false;
-  if (canVote) {
-    for (const emoji of Object.values(HIGHLIGHT_VOTE_EMOJIS)) {
-      await message.react(emojiResolvable(emoji)).catch(() => undefined);
-    }
-  }
-
-  if (result?.paidSlotAvailable === false) {
-    await message.reply({
-      content: `Highlight recorded for voting. You already have two paid highlight reviews for this game week, so this one will not trigger another ${formatCoins(25)} payout.`,
-      allowedMentions: { parse: [] },
-    }).catch(() => undefined);
-    return true;
-  }
-
-  return true;
+  // Discord Highlights channel ingest is retired — registered users upload via site/PWA.
+  void message;
+  return false;
 }
 
 export async function syncRecentHighlightMessages(guild: Guild): Promise<void> {
-  const highlightsChannelId = await getHighlightsChannelId(guild.id);
-  if (!highlightsChannelId) return;
-  const channel = await guild.channels.fetch(highlightsChannelId).catch((error) => {
-    console.error(`[ERROR] Failed to fetch configured highlights channel ${highlightsChannelId} for guild ${guild.id}:`, error);
-    return null;
-  });
-  if (!channel) return;
-
-  const collected = new Map<string, Message>();
-  const collectMessages = async (source: { messages: { fetch(options: { limit: number }): Promise<Map<string, Message>> } }) => {
-    const messages = await source.messages.fetch({ limit: 10 });
-    for (const message of messages.values()) collected.set(message.id, message);
-  };
-
-  if (channel.isTextBased() && "messages" in channel) {
-    await collectMessages(channel).catch((error) => console.error(`[ERROR] Failed to fetch recent highlights from channel ${highlightsChannelId}:`, error));
-  }
-
-  // A Discord Media/Forum channel has no messages of its own: each upload is the
-  // starter message of a child thread. Reconcile both active and recently archived
-  // threads so clips posted while the bot was offline are still recorded.
-  if ("threads" in channel) {
-    const threadMap = new Map<string, AnyThreadChannel>();
-    const active = await channel.threads.fetchActive().catch((error) => {
-      console.error(`[ERROR] Failed to fetch active highlight threads from ${highlightsChannelId}:`, error);
-      return null;
-    });
-    for (const thread of active?.threads.values() ?? []) threadMap.set(thread.id, thread);
-    const archived = await channel.threads.fetchArchived({ limit: 10 }).catch((error) => {
-      console.error(`[ERROR] Failed to fetch archived highlight threads from ${highlightsChannelId}:`, error);
-      return null;
-    });
-    for (const thread of archived?.threads.values() ?? []) threadMap.set(thread.id, thread);
-    for (const thread of threadMap.values()) {
-      if (thread && "messages" in thread) {
-        await collectMessages(thread as Parameters<typeof collectMessages>[0]).catch((error) => console.error(`[ERROR] Failed to fetch messages from highlight thread ${"id" in thread ? thread.id : "unknown"}:`, error));
-      }
-    }
-  }
-
-  const recent = [...collected.values()].filter((message) => !message.author.bot && clipCount(message) === 1).sort((a, b) => a.createdTimestamp - b.createdTimestamp).slice(-5);
-  for (const message of recent) {
-    await recApi.recordHighlightPost({
-      guildId: guild.id,
-      discordId: message.author.id,
-      discordChannelId: message.channelId,
-      discordMessageId: message.id,
-      messageUrl: message.url,
-      content: mediaAttachments(message)[0]?.url || message.content || null,
-    }).catch((error) => {
-      console.error(`[ERROR] Failed to reconcile highlight ${message.id} for guild ${guild.id}:`, error);
-      return null;
-    });
-  }
+  // Discord channel reconciliation retired with channel ingest.
+  void guild;
 }
 
 export async function handleHighlightReviewButton(interaction: ButtonInteraction) {
@@ -239,7 +121,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return { winners: [], alreadyFinalized: false };
 
-  // Frozen: POTY already finalized this season — emoji changes no longer re-tally.
+  // Frozen: POTY already finalized this season â€” emoji changes no longer re-tally.
   if (result?.alreadyFinalized) {
     return { winners: [], alreadyFinalized: true };
   }
@@ -278,7 +160,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
   for (const [category, { count, highlights: tied }] of leaders) {
     const categoryLabel = HIGHLIGHT_AWARD_CATEGORY_LABELS[category] ?? category;
     const splitAmount = Math.round(POTY_AWARD_TOTAL / tied.length); // ties split the award evenly
-    const tieNote = tied.length > 1 ? ` (tie — split ${tied.length} ways)` : "";
+    const tieNote = tied.length > 1 ? ` (tie â€” split ${tied.length} ways)` : "";
 
     for (const winner of tied) {
       const review = await recApi.createHighlightAwardReview({ guildId, category, highlightPostId: winner.id, voteCount: count, amount: splitAmount });
