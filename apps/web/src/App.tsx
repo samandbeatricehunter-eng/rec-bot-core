@@ -30,7 +30,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return (
       <div className="hub-state">
         <h1>Opening REC Leagues…</h1>
-        <p>If nothing happens, <a href={`${site}/login`}>sign in at REC Leagues</a> or run <strong>/app</strong> in Discord.</p>
+        <p>If nothing happens, go to <a href={site}>{site.replace(/^https?:\/\//, "")}</a>.</p>
       </div>
     );
   }

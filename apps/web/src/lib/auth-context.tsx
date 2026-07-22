@@ -17,7 +17,6 @@ const AuthContext = createContext<AuthState>({ status: "loading" });
 function readTokenFromUrl(): string | null {
   const fromSearch = new URLSearchParams(window.location.search).get("token");
   if (fromSearch) return fromSearch;
-  // HashRouter: token may live on the hash query (#/?token=… or #/path?token=…).
   const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
   const qIndex = hash.indexOf("?");
   if (qIndex >= 0) return new URLSearchParams(hash.slice(qIndex + 1)).get("token");
@@ -29,36 +28,32 @@ function sitePublicUrl() {
     || "https://rec-leagues.com";
 }
 
-function siteLoginUrl() {
-  return `${sitePublicUrl()}/login`;
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: "loading" });
 
   useEffect(() => {
     const token = readTokenFromUrl();
     if (!token) {
-      const loginUrl = siteLoginUrl();
+      const siteUrl = sitePublicUrl();
       try {
-        if (new URL(loginUrl).origin === window.location.origin) {
-          // Misconfigured deploy: hub and site share an origin → replace() would loop forever.
+        if (new URL(siteUrl).origin === window.location.origin) {
+          // Public domain is still serving the Discord hub app (miswired deploy).
           setState({
             status: "error",
-            message: "Open your league from Discord with /app. This hub URL needs a personal session link.",
+            message: "This host is serving the Discord activity shell instead of the REC Leagues site. Open https://rec-leagues.com once the site service is attached to that domain.",
           });
           return;
         }
       } catch {
-        // fall through to replace
+        // fall through
       }
-      window.location.replace(loginUrl);
+      window.location.replace(siteUrl);
       const failsafe = window.setTimeout(() => {
         setState((current) =>
           current.status === "loading"
             ? {
                 status: "error",
-                message: `Redirect stalled. Sign in at ${loginUrl}, then run /app again in Discord.`,
+                message: `Could not reach the REC Leagues site. Try ${siteUrl} directly.`,
               }
             : current,
         );
@@ -68,13 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const payload = decodeJwtPayload<{ discordId: string; guildId: string; exp: number }>(token);
       if (payload.exp * 1000 < Date.now()) {
-        setState({ status: "error", message: "This link has expired — run /app again in Discord." });
+        setState({ status: "error", message: "This Discord app link has expired — run /app again, or open rec-leagues.com." });
         return;
       }
       setAuthToken(token);
       setState({ status: "ready", discordId: payload.discordId, guildId: payload.guildId });
     } catch {
-      setState({ status: "error", message: "This link is malformed — run /app again in Discord." });
+      setState({ status: "error", message: "This Discord app link is invalid — run /app again, or open rec-leagues.com." });
     }
   }, []);
 
