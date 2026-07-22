@@ -7,24 +7,29 @@ import {
   type SubscriptionTier,
 } from "../lib/site-api.js";
 
+type BillingInterval = "month" | "year";
+
 const PLANS: Array<{
   tier: "gold" | "platinum";
   name: string;
-  price: string;
+  monthlyPrice: string;
+  annualPrice: string;
   blurb: string;
   features: string[];
 }> = [
   {
     tier: "gold",
     name: "Gold",
-    price: "$3/mo",
+    monthlyPrice: "$3/mo",
+    annualPrice: "$30/yr",
     blurb: "Join leagues and compete across seasons.",
     features: ["Join up to 5 leagues per game", "Full site access", "Stats, inbox, and friends"],
   },
   {
     tier: "platinum",
     name: "Platinum",
-    price: "$6/mo",
+    monthlyPrice: "$6/mo",
+    annualPrice: "$60/yr",
     blurb: "Create leagues and run Discord with the bot.",
     features: [
       "Create up to 5 leagues per game",
@@ -45,6 +50,7 @@ export function Pricing() {
   const auth = useAuth();
   const [searchParams] = useSearchParams();
   const checkout = searchParams.get("checkout");
+  const [interval, setInterval] = useState<BillingInterval>("month");
   const [entitlements, setEntitlements] = useState<EntitlementSummary | null>(null);
   const [entitlementsLoading, setEntitlementsLoading] = useState(false);
   const [busyTier, setBusyTier] = useState<"gold" | "platinum" | null>(null);
@@ -64,7 +70,6 @@ export function Pricing() {
         if (active) setEntitlements(summary);
       })
       .catch(() => {
-        // Unlinked accounts may not have entitlements yet.
         if (active) setEntitlements(null);
       })
       .finally(() => {
@@ -79,7 +84,7 @@ export function Pricing() {
     setError(null);
     setBusyTier(tier);
     try {
-      const { url } = await siteApi.createCheckout(tier);
+      const { url } = await siteApi.createCheckout(tier, interval);
       window.location.assign(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed.");
@@ -140,6 +145,26 @@ export function Pricing() {
             Pick a subscription to unlock the REC League hub. Cancel anytime from
             Manage billing.
           </p>
+          <div className="site-billing-interval" role="tablist" aria-label="Billing interval">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={interval === "month"}
+              className={interval === "month" ? "is-active" : ""}
+              onClick={() => setInterval("month")}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={interval === "year"}
+              className={interval === "year" ? "is-active" : ""}
+              onClick={() => setInterval("year")}
+            >
+              Annual
+            </button>
+          </div>
           {checkout === "success" && (
             <p className="site-auth-success">
               Checkout complete. Your plan updates within a few seconds after Stripe
@@ -176,13 +201,14 @@ export function Pricing() {
         <div className="site-pricing-grid">
           {PLANS.map((plan) => {
             const isCurrent = entitlements?.tier === plan.tier;
+            const price = interval === "year" ? plan.annualPrice : plan.monthlyPrice;
             return (
               <article
                 key={plan.tier}
                 className={`site-page-card site-plan-card${isCurrent ? " is-current" : ""}`}
               >
                 <h2>{plan.name}</h2>
-                <p className="site-plan-price">{plan.price}</p>
+                <p className="site-plan-price">{price}</p>
                 <p className="site-muted">{plan.blurb}</p>
                 <ul className="site-plan-features">
                   {plan.features.map((feature) => (

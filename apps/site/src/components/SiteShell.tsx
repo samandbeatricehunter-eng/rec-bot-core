@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { BottomNav } from "./BottomNav.js";
+import { DesktopSidebar } from "./DesktopSidebar.js";
 import { LeagueSelector } from "./LeagueSelector.js";
 import { NotificationsBell } from "./NotificationsBell.js";
 import { useHub } from "../lib/hub-context.js";
@@ -20,10 +21,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         <NotificationsBell />
       </header>
 
-      <aside className="site-desktop-sidebar" aria-label="Global navigation">
-        <LeagueSelector />
-        <BottomNav variant="global" layout="sidebar" />
-      </aside>
+      <DesktopSidebar />
 
       <main className="site-shell-main">{children}</main>
 

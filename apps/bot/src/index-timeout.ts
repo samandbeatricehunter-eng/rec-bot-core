@@ -1061,6 +1061,28 @@ async function handleClaimLeagueCommand(interaction: ChatInputCommandInteraction
   }
 }
 
+function siteAuthAppLinkPayload() {
+  const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
+  const loginUrl = `${base}/login`;
+  const signupUrl = `${base}/signup`;
+  return {
+    embeds: [
+      new EmbedBuilder()
+        .setTitle("REC Leagues account required")
+        .setColor(COLORS.gold)
+        .setDescription(
+          "Link or create a REC Leagues account to open the app. Sign in if you already have one, or register to get started.",
+        ),
+    ],
+    components: [
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(loginUrl).setLabel("Sign In"),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(signupUrl).setLabel("Register"),
+      ),
+    ],
+  };
+}
+
 async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   try {
@@ -1074,15 +1096,19 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
       if (interaction.user.id === interaction.guild.ownerId || isFullLeagueAdminInteraction(interaction)) {
         return interaction.showModal(buildSetupDangerModal("league_setup"));
       }
-      await interaction.reply({
-        content: "League NOT set up yet, contact Commissioner or Server Owner",
-        flags: MessageFlags.Ephemeral,
-      });
+      // No Discord↔REC identity yet — send them to site auth rather than a dead-end.
+      await interaction.reply({ ...siteAuthAppLinkPayload(), flags: MessageFlags.Ephemeral });
       return;
     }
 
-    // A Discord server admin always gets through to the Hub, team or no team — on a
-    // brand new server there's no league (and so no team) yet, and they need the Hub
+    // Incomplete / Discord-only: send to site sign-in or register (no hub JWT).
+    if (!profile.accountComplete) {
+      await interaction.reply({ ...siteAuthAppLinkPayload(), flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    // A Discord server admin always gets through to the app, team or no team — on a
+    // brand new server there's no league (and so no team) yet, and they need the app
     // link to run First-Time Setup. Every other member still needs a linked team.
     if (!profile.team && !isFullLeagueAdminInteraction(interaction)) {
       const conferenceData = await recApi.getLeagueConferences(interaction.guildId);

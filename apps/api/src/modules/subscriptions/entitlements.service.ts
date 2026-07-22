@@ -386,6 +386,192 @@ export async function unfreezeOwnedLeagues(userId: string): Promise<void> {
   if (result.error) throw new ApiError(500, "Failed to unfreeze owned leagues.", result.error);
 }
 
+export type ClaimableFrozenLeague = {
+  id: string;
+  name: string;
+  game: string;
+  frozenAt: string | null;
+  previousOwnerUserId: string | null;
+};
+
+/**
+ * After grace expires and a league freezes, any active member with Platinum
+ * (including lifetime_comp) and an open create slot for that game can claim
+ * ownership. First successful claim wins and unfreezes the league.
+ */
+export async function listClaimableFrozenLeagues(userId: string): Promise<ClaimableFrozenLeague[]> {
+  const user = await loadUser(userId);
+  if (!canCreateLeague(user)) return [];
+
+  const { getPgPool } = await import("../../db/client.js");
+  const result = await getPgPool().query(
+    `
+      select
+        l.id,
+        l.name,
+        l.game,
+        l.subscription_frozen_at,
+        l.owner_user_id
+      from rec_team_assignments ta
+      inner join rec_leagues l on l.id = ta.league_id
+      where ta.user_id = $1
+        and ta.assignment_status = 'active'
+        and ta.ended_at is null
+        and coalesce(l.subscription_frozen, false) = true
+        and (l.owner_user_id is distinct from $1)
+      order by l.name asc
+    `,
+    [userId],
+  );
+
+  const claimable: ClaimableFrozenLeague[] = [];
+  for (const row of result.rows as Array<{
+    id: string;
+    name: string;
+    game: string;
+    subscription_frozen_at: string | null;
+    owner_user_id: string | null;
+  }>) {
+    const owned = await countOwnedLeagues(userId, row.game);
+    if (owned >= PLATINUM_OWN_LIMIT) continue;
+    claimable.push({
+      id: row.id,
+      name: row.name,
+      game: row.game,
+      frozenAt: row.subscription_frozen_at,
+      previousOwnerUserId: row.owner_user_id,
+    });
+  }
+  return claimable;
+}
+
+export async function claimFrozenLeagueOwnership(input: {
+  leagueId: string;
+  claimantUserId: string;
+}): Promise<{ id: string; name: string; game: string; ownerUserId: string }> {
+  const leagueResult = await supabase
+    .from("rec_leagues")
+    .select("id,name,game,owner_user_id,subscription_frozen")
+    .eq("id", input.leagueId)
+    .maybeSingle();
+  if (leagueResult.error) throw new ApiError(500, "Failed to load league.", leagueResult.error);
+  if (!leagueResult.data) throw new ApiError(404, "League was not found.");
+
+  const league = leagueResult.data as {
+    id: string;
+    name: string;
+    game: string;
+    owner_user_id: string | null;
+    subscription_frozen: boolean;
+  };
+
+  if (!league.subscription_frozen) {
+    throw new ApiError(409, "This league is not frozen, so ownership cannot be claimed.");
+  }
+  if (league.owner_user_id === input.claimantUserId) {
+    throw new ApiError(400, "You already own this league.");
+  }
+
+  const { getPgPool } = await import("../../db/client.js");
+  const memberCheck = await getPgPool().query(
+    `
+      select 1
+      from rec_team_assignments
+      where league_id = $1
+        and user_id = $2
+        and assignment_status = 'active'
+        and ended_at is null
+      limit 1
+    `,
+    [input.leagueId, input.claimantUserId],
+  );
+  if (!memberCheck.rows[0]) {
+    throw new ApiError(403, "Only active members of this league can claim ownership.");
+  }
+
+  await assertCanCreateLeague(input.claimantUserId, league.game);
+
+  const client = await getPgPool().connect();
+  try {
+    await client.query("begin");
+    const updated = await client.query(
+      `
+        update rec_leagues
+        set
+          owner_user_id = $1,
+          subscription_frozen = false,
+          subscription_frozen_at = null,
+          subscription_freeze_reason = null,
+          updated_at = now()
+        where id = $2
+          and coalesce(subscription_frozen, false) = true
+        returning id, name, game, owner_user_id
+      `,
+      [input.claimantUserId, input.leagueId],
+    );
+    if (!updated.rows[0]) {
+      throw new ApiError(409, "Another member already claimed this league, or it is no longer frozen.");
+    }
+
+    const now = new Date().toISOString();
+    const existingClaimant = await client.query(
+      `
+        select id from rec_league_memberships
+        where league_id = $1 and user_id = $2
+        limit 1
+      `,
+      [input.leagueId, input.claimantUserId],
+    );
+    if (existingClaimant.rows[0]) {
+      await client.query(
+        `
+          update rec_league_memberships
+          set role = 'commissioner', status = 'active', updated_at = $3
+          where league_id = $1 and user_id = $2
+        `,
+        [input.leagueId, input.claimantUserId, now],
+      );
+    } else {
+      await client.query(
+        `
+          insert into rec_league_memberships (
+            id, league_id, user_id, status, role, created_at, updated_at
+          ) values (
+            gen_random_uuid(), $1, $2, 'active', 'commissioner', $3, $3
+          )
+        `,
+        [input.leagueId, input.claimantUserId, now],
+      );
+    }
+
+    if (league.owner_user_id) {
+      await client.query(
+        `
+          update rec_league_memberships
+          set role = 'co_commissioner', updated_at = $3
+          where league_id = $1
+            and user_id = $2
+            and lower(role) = 'commissioner'
+        `,
+        [input.leagueId, league.owner_user_id, now],
+      );
+    }
+
+    await client.query("commit");
+    return {
+      id: String(updated.rows[0].id),
+      name: String(updated.rows[0].name),
+      game: String(updated.rows[0].game),
+      ownerUserId: String(updated.rows[0].owner_user_id),
+    };
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function refreshUserGraceState(userId: string): Promise<void> {
   const user = await loadUser(userId);
   const status = asBillingStatus(user.billing_status);

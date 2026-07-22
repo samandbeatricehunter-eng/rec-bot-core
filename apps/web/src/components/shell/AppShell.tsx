@@ -163,8 +163,38 @@ export function AppShell({ children }: { children: ReactNode }) {
         {showChrome ? (
           <>
             <aside className="hub-desktop-sidebar" aria-label="Global navigation">
-              <LeagueSelector />
+              <div className="hub-sidebar-brand">REC LEAGUES</div>
               <BottomNav variant="global" layout="sidebar" />
+              {hub.currentLeague ? (
+                <div className="hub-sidebar-leagues">
+                  <div className="hub-sidebar-section-label">MY LEAGUES</div>
+                  <button
+                    type="button"
+                    className={[
+                      "hub-sidebar-league-btn",
+                      hub.scope.kind === "league" ? "is-active" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={() => hub.selectLeague()}
+                  >
+                    <span className="hub-sidebar-league-name">{hub.currentLeague.name}</span>
+                    <span className="hub-sidebar-league-meta">
+                      {hub.currentLeague.gameLabel}
+                      {hub.currentLeague.isCommissioner ? " · Commish" : " · Member"}
+                    </span>
+                  </button>
+                  {hub.scope.kind === "league" ? (
+                    <button
+                      type="button"
+                      className="hub-sidebar-league-btn"
+                      onClick={() => hub.selectMainHub()}
+                    >
+                      <span className="hub-sidebar-league-name">Main Hub</span>
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </aside>
             <div className="hub-chrome-stack hub-chrome-stack-mobile">
               <LeagueSelector />

@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { useAuth } from "../lib/auth-context.js";
+import { getKeepLoggedIn, useAuth } from "../lib/auth-context.js";
 
 export function LogIn() {
   const auth = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [keepLoggedIn, setKeepLoggedInChecked] = useState(() => getKeepLoggedIn());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +16,7 @@ export function LogIn() {
     event.preventDefault();
     setError(null);
     setBusy(true);
-    const result = await auth.signIn(email, password);
+    const result = await auth.signIn(email, password, keepLoggedIn);
     setBusy(false);
     if (result.error) setError(result.error);
   }
@@ -27,14 +28,41 @@ export function LogIn() {
         {error && <p className="site-auth-error">{error}</p>}
         <label className="site-field">
           <span>Email</span>
-          <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </label>
         <label className="site-field">
           <span>Password</span>
-          <input type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </label>
-        <button className="site-btn site-btn-primary site-btn-lg" type="submit" disabled={busy}>{busy ? "Logging in…" : "Log In"}</button>
-        <p className="site-auth-switch">New here? <Link to="/signup">Create an account</Link></p>
+        <label className="site-field site-field-checkbox">
+          <input
+            type="checkbox"
+            checked={keepLoggedIn}
+            onChange={(e) => setKeepLoggedInChecked(e.target.checked)}
+          />
+          <span>Keep me logged in</span>
+        </label>
+        <p className="site-muted">
+          Leave unchecked to sign out when you close the browser or app.
+        </p>
+        <button className="site-btn site-btn-primary site-btn-lg" type="submit" disabled={busy}>
+          {busy ? "Logging in…" : "Log In"}
+        </button>
+        <p className="site-auth-switch">
+          New here? <Link to="/signup">Create an account</Link>
+        </p>
       </form>
     </div>
   );

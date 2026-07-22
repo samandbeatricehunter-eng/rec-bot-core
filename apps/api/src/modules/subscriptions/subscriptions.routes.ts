@@ -7,9 +7,11 @@ import { supabase } from "../../lib/supabase.js";
 import {
   canEnableDiscordBot,
   canCreateLeague,
+  claimFrozenLeagueOwnership,
   ensureRecUserForAuthUser,
   getEntitlementSummary,
   isIdentityClaimDropdownOpen,
+  listClaimableFrozenLeagues,
   resolveRecUserIdByAuthUserId,
   setIdentityClaimDropdownClosed,
 } from "./entitlements.service.js";
@@ -78,6 +80,7 @@ export async function subscriptionRoutes(app: FastifyInstance) {
       const body = z
         .object({
           tier: z.enum(["gold", "platinum"]),
+          interval: z.enum(["month", "year"]).optional().default("month"),
           successUrl: z.string().url().optional(),
           cancelUrl: z.string().url().optional(),
         })
@@ -88,6 +91,7 @@ export async function subscriptionRoutes(app: FastifyInstance) {
           userId: recUserId,
           email: session.email,
           tier: body.tier,
+          interval: body.interval,
           successUrl: body.successUrl,
           cancelUrl: body.cancelUrl,
         }),
@@ -275,6 +279,31 @@ export async function subscriptionRoutes(app: FastifyInstance) {
         .single();
       if (updated.error) throw new ApiError(500, "Failed to transfer league ownership.", updated.error);
       return reply.send({ league: updated.data });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.get("/v1/subscriptions/claimable-leagues", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const recUserId = await requireLinkedRecUserId(session.authUserId);
+      return reply.send({ leagues: await listClaimableFrozenLeagues(recUserId) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/subscriptions/leagues/:leagueId/claim-ownership", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const params = z.object({ leagueId: z.string().uuid() }).parse(request.params);
+      const recUserId = await requireLinkedRecUserId(session.authUserId);
+      const league = await claimFrozenLeagueOwnership({
+        leagueId: params.leagueId,
+        claimantUserId: recUserId,
+      });
+      return reply.send({ league });
     } catch (error) {
       return sendError(reply, error);
     }

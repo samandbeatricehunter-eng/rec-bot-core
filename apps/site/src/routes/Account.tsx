@@ -38,6 +38,12 @@ export function Account() {
   const [usernameCheckBusy, setUsernameCheckBusy] = useState(false);
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingError, setBillingError] = useState<string | null>(null);
+  const [claimableLeagues, setClaimableLeagues] = useState<
+    Array<{ id: string; name: string; game: string; frozenAt: string | null }>
+  >([]);
+  const [takeoverBusyId, setTakeoverBusyId] = useState<string | null>(null);
+  const [takeoverNotice, setTakeoverNotice] = useState<string | null>(null);
+  const [takeoverError, setTakeoverError] = useState<string | null>(null);
 
   useEffect(() => {
     if (auth.status !== "signed-in") return;
@@ -70,6 +76,23 @@ export function Account() {
       active = false;
     };
   }, [auth.status, authUserId]);
+
+  useEffect(() => {
+    if (auth.status !== "signed-in") return;
+    if (!linked?.linked || !linked.username) return;
+    let active = true;
+    siteApi
+      .listClaimableLeagues()
+      .then((response) => {
+        if (active) setClaimableLeagues(response.leagues);
+      })
+      .catch(() => {
+        if (active) setClaimableLeagues([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [auth.status, authUserId, linked?.linked, linked?.username, entitlements?.tier]);
 
   useEffect(() => {
     if (auth.status !== "signed-in") return;
@@ -239,6 +262,25 @@ export function Account() {
     }
   }
 
+  async function claimLeagueTakeover(leagueId: string) {
+    setTakeoverError(null);
+    setTakeoverNotice(null);
+    setTakeoverBusyId(leagueId);
+    try {
+      const { league } = await siteApi.claimLeagueOwnership(leagueId);
+      setTakeoverNotice(`You are now the owner of ${league.name}. The league is unfrozen.`);
+      setClaimableLeagues((current) => current.filter((row) => row.id !== leagueId));
+    } catch (error) {
+      setTakeoverError(
+        error instanceof Error ? error.message : "Could not claim league ownership.",
+      );
+      const refreshed = await siteApi.listClaimableLeagues().catch(() => null);
+      if (refreshed) setClaimableLeagues(refreshed.leagues);
+    } finally {
+      setTakeoverBusyId(null);
+    }
+  }
+
   if (profileLoading) {
     return (
       <div className="site-page site-auth-page">
@@ -367,6 +409,36 @@ export function Account() {
                   )}
                   {billingError && <p className="site-auth-error">{billingError}</p>}
                 </div>
+
+                {claimableLeagues.length > 0 && (
+                  <div className="site-billing-panel">
+                    <h2>Take over a frozen league</h2>
+                    <p className="site-muted">
+                      The previous owner&apos;s grace period ended. If you have Platinum and an
+                      open create slot for that game, you can become the new owner. First claim
+                      wins.
+                    </p>
+                    <ul className="site-claimable-leagues">
+                      {claimableLeagues.map((league) => (
+                        <li key={league.id}>
+                          <div>
+                            <strong>{league.name}</strong>
+                            <span className="site-muted"> · {league.game.replaceAll("_", " ")}</span>
+                          </div>
+                          <button
+                            className="site-btn site-btn-primary"
+                            disabled={takeoverBusyId != null}
+                            onClick={() => void claimLeagueTakeover(league.id)}
+                          >
+                            {takeoverBusyId === league.id ? "Claiming…" : "Take ownership"}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {takeoverNotice && <p className="site-auth-success">{takeoverNotice}</p>}
+                    {takeoverError && <p className="site-auth-error">{takeoverError}</p>}
+                  </div>
+                )}
 
                 <p className="site-muted">
                   Inbox and Friends live here for now. Notifications will join this

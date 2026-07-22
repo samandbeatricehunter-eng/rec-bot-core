@@ -25,8 +25,15 @@ import { MatchupDetailPage } from "./routes/matchups/MatchupDetail.js";
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
-  if (auth.status === "loading") return <p>Signing you in…</p>;
-  if (auth.status === "error") return <p>Couldn't sign in: {auth.message}</p>;
+  if (auth.status === "loading") {
+    return (
+      <div className="hub-state">
+        <h1>Opening REC Leagues…</h1>
+        <p>If nothing happens, visit <a href="https://rec-leagues.com">rec-leagues.com</a>.</p>
+      </div>
+    );
+  }
+  if (auth.status === "error") return <div className="hub-state"><h1>Session problem</h1><p>{auth.message}</p></div>;
   return <>{children}</>;
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -57,10 +57,11 @@ const STORE_PRODUCT_PRICE_LABEL: Record<RecPurchaseType, string> = {
 };
 type Story = HubResponse["headlines"][number];
 type HubSection = "league" | "store" | "team" | "wagers" | "openTeams" | "schedules";
-type LeagueSubTab = "buzz" | "matchups" | "rankings";
+type LeagueSubTab = "buzz" | "matchups";
+type MatchupView = "h2h" | "cpu" | "rankings";
 
 const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "openTeams", "schedules"]);
-const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups", "rankings"]);
+const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
   if (value && HUB_SECTIONS.has(value as HubSection)) return value as HubSection;
@@ -68,6 +69,8 @@ function parseHubSection(value: string | null): HubSection | null {
 }
 
 function parseLeagueSubTab(value: string | null): LeagueSubTab | null {
+  // Legacy deep-link: Rankings used to be its own sub-tab; it now lives under Matchups.
+  if (value === "rankings") return "matchups";
   if (value && LEAGUE_SUB_TABS.has(value as LeagueSubTab)) return value as LeagueSubTab;
   return null;
 }
@@ -274,7 +277,11 @@ export function HubHome() {
   const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
   const [matchupScheduleError, setMatchupScheduleError] = useState<string | null>(null);
   const [matchupReloadKey, setMatchupReloadKey] = useState(0);
-  const [matchupView, setMatchupView] = useState<"h2h" | "cpu">("h2h");
+  const [matchupView, setMatchupView] = useState<MatchupView>(() =>
+    searchParams.get("subTab") === "rankings" || searchParams.get("matchupView") === "rankings"
+      ? "rankings"
+      : "h2h",
+  );
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
@@ -341,9 +348,13 @@ export function HubHome() {
 
   useEffect(() => {
     const nextSection = parseHubSection(searchParams.get("section"));
-    const nextSubTab = parseLeagueSubTab(searchParams.get("subTab"));
+    const rawSub = searchParams.get("subTab");
+    const nextSubTab = parseLeagueSubTab(rawSub);
     if (nextSection) setSection(nextSection);
     if (nextSubTab) setSubTab(nextSubTab);
+    if (rawSub === "rankings" || searchParams.get("matchupView") === "rankings") {
+      setMatchupView("rankings");
+    }
     if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "openTeams" || nextSection === "schedules") {
       setSection(nextSection);
     } else if (nextSection === "league" || nextSubTab) {
@@ -620,11 +631,6 @@ export function HubHome() {
     setSection(next);
     writeHubParams(next, next === "league" ? subTab : undefined);
   }
-  function selectSubTab(next: LeagueSubTab) {
-    setSubTab(next);
-    setSection("league");
-    writeHubParams("league", next);
-  }
 
   async function openTeamSchedulePicker() {
     if (auth.status !== "ready") return;
@@ -883,6 +889,18 @@ export function HubHome() {
   const heroGotw = my.gotwStatus && !["No", "Not GOTW"].includes(String(my.gotwStatus)) ? String(my.gotwStatus) : "";
   const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
   const heroSchool = my.schoolName ?? profile.schoolName ?? my.teamName ?? profile.teamName ?? "School unavailable";
+  const viewerCoach = hub.coachRatings?.teams?.find((team) => team.teamId === hub.coachRatings?.viewerTeamId);
+  const viewerUser = hub.userRatings?.users?.find((user) => user.userId === hub.userRatings?.viewerUserId);
+  const heroCoachScore = viewerCoach
+    ? (hub.coachRatings?.displayAsGrade ? viewerCoach.grade : viewerCoach.rating.toFixed(1))
+    : "—";
+  const heroUserScore = viewerUser
+    ? (hub.userRatings?.displayAsGrade ? viewerUser.grade : viewerUser.rating.toFixed(1))
+    : "—";
+  const heroCoachMeta = viewerCoach ? `#${viewerCoach.rank} · ${viewerCoach.record}` : "Pending";
+  const heroUserMeta = viewerUser
+    ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
+    : "Pending";
   const activeHighlight = hub.highlights[activeHighlightIndex] ?? null;
   const activeStory = activeStoryIndex != null ? hub.headlines[activeStoryIndex] ?? null : null;
   const openTeamsByConference = (openTeams ?? []).reduce<Record<string, OpenTeam[]>>((groups, team) => {
@@ -902,6 +920,8 @@ export function HubHome() {
           <article><span>Record</span><strong>{heroRecord}</strong><small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff</small></article>
           <article><span>Streak</span><strong>{heroStreak}</strong><small>Current W/L</small></article>
           <article><span>Power Rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small></article>
+          <article><span>Coach Score</span><strong>{heroCoachScore}</strong><small>{heroCoachMeta}</small></article>
+          <article><span>User Score</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article>
           <article><span>Wallet</span><strong>${Number(my.wallet ?? 0).toLocaleString()}</strong><small>Savings ${Number(my.savings ?? 0).toLocaleString()}</small></article>
         </div>
       </aside>
@@ -1000,15 +1020,9 @@ export function HubHome() {
       {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · ${wager.stake.toLocaleString()} · {wager.challengeType}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.isMine && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
     </section> : <div className="hub-league-tab">
-      <nav className="hub-subtabs">
-        <button className={subTab === "buzz" ? "active" : ""} onClick={() => selectSubTab("buzz")}><Newspaper size={16} /> Campus Buzz</button>
-        <button className={subTab === "matchups" ? "active" : ""} onClick={() => selectSubTab("matchups")}><CalendarDays size={16} /> Matchups</button>
-        <button className={subTab === "rankings" ? "active" : ""} onClick={() => selectSubTab("rankings")}><Trophy size={16} /> Rankings</button>
-      </nav>
-
       {subTab === "buzz" && <>
         <EosAwardVotingBlock />
-        <SectionFrame eyebrow="Around the league" title="Headlines & Articles">
+        <SectionFrame eyebrow="Around the league" title={hub.league.game?.startsWith("madden") ? "Breaking News" : "Campus Buzz"}>
           {hub.headlines.length ? (
             isMobile ? (
               <div className="hub-story-mobile-swipe" style={{ position: "relative" }}>
@@ -1092,103 +1106,107 @@ export function HubHome() {
         </SectionFrame>
       </>}
 
-      {subTab === "rankings" && (
-        <>
-        <SectionFrame eyebrow="Updated on advance" title="Power Rankings">
-          {hub.powerRankings?.teams?.length ? <div className="hub-power-rankings">{hub.powerRankings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
-          </article>)}</div> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
-        </SectionFrame>
-
-        <SectionFrame eyebrow="Win%, point diff, schedule strength, playoff success" title="Coach Ratings">
-          {hub.coachRatings?.teams?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.coachRatings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.coachRatings?.viewerTeamId ? "human" : ""}>
-            <strong>#{team.rank}</strong>
-            <div><span>{team.teamName}</span><small>{team.record} · SOS {team.sos.toFixed(2)}{team.madePlayoffs ? " · Made playoffs" : ""}</small></div>
-            <em className="hub-rating-badge">{hub.coachRatings?.displayAsGrade ? team.grade : team.rating.toFixed(1)}</em>
-          </article>)}</div> : <p className="hub-empty">Coach ratings will appear after the first completed slate.</p>}
-        </SectionFrame>
-
-        <SectionFrame eyebrow="Individual skill, separate from win/loss record" title="User Ratings">
-          {hub.userRatings?.users?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.userRatings.users.slice(0, 16).map((user) => <article key={user.userId} className={user.userId === hub.userRatings?.viewerUserId ? "human" : ""}>
-            <strong>#{user.rank}</strong>
-            <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Stat {user.statScore.toFixed(1)} · Badges {user.badgeScore >= 0 ? "+" : ""}{user.badgeScore.toFixed(1)}</small></div>
-            <em className="hub-rating-badge">{hub.userRatings?.displayAsGrade ? user.grade : user.rating.toFixed(1)}</em>
-          </article>)}</div> : <p className="hub-empty">User ratings will appear after the first completed slate.</p>}
-        </SectionFrame>
-
-        <SectionFrame eyebrow="Toughest schedules this season" title="Strength of Schedule">
-          {hub.sos?.teams?.length ? <div className="hub-power-rankings hub-sos-rankings">{hub.sos.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
-            <strong>#{team.rank}</strong>
-            <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
-            <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
-          </article>)}</div> : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
-        </SectionFrame>
-        </>
-      )}
-
       {subTab === "matchups" && (
-        <SectionFrame eyebrow="Current slate" title="Weekly Matchups" className="hub-matchup-section">
-          {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
-          {(() => {
-            const state = renderMatchupLoadState("Loading matchups...");
-            if (state) return state;
-            const schedule = matchupSchedule;
-            if (!schedule) return null;
-            return <>
-            <div className="hub-week-picker">
-              <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
-            </div>
-            <div className="rec-matchup-tabs" role="tablist" aria-label="Matchup type">
-              <button role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
-              <button role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
-            </div>
-            {(() => {
-              const visible = schedule.games.filter((game) => matchupView === "h2h" ? game.matchupType === "h2h" : game.matchupType === "human_cpu");
-              return visible.length ? <div className="rec-matchup-list">{visible.map((game, index) => <MatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />)}</div> : <p className="hub-empty">No {matchupView === "h2h" ? "H2H" : "human vs CPU"} games are scheduled for Week {schedule.selectedWeek}.</p>;
-            })()}
-            {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : ""}`} key={game.gameId}>
-              <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + ((game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : "")}>
-                <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
-                <div className="hub-matchup-board">
-                  {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>Away</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamName) } as CSSProperties}>{game.awayTeamName}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>Away</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamName) } as CSSProperties}>{game.awayTeamName}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
-                  <div className="hub-score-center"><span aria-hidden="true" />{game.isFinal && game.awayScore != null && game.homeScore != null ? <strong>{`${game.awayScore}–${game.homeScore}`}</strong> : null}</div>
-                  {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote home${schedule.gotw.myVote === schedule.gotw.homeTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.homeTeamId)} aria-label={`Vote for ${game.homeTeamName}`}><span>Home</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamName) } as CSSProperties}>{game.homeTeamName}</b><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small><em>{game.homeConference ?? "Home team"}</em></button> : <div className="hub-team-side"><span>Home</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamName) } as CSSProperties}>{game.homeTeamName}</div><small>{game.homeConference ?? "Home team"}</small></div>}
+        <>
+          <div className="rec-matchup-tabs" role="tablist" aria-label="Matchups and rankings">
+            <button type="button" role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
+            <button type="button" role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
+            <button type="button" role="tab" aria-selected={matchupView === "rankings"} className={matchupView === "rankings" ? "active" : ""} onClick={() => setMatchupView("rankings")}>Rankings</button>
+          </div>
+
+          {matchupView === "rankings" ? (
+            <>
+              <SectionFrame eyebrow="Updated on advance" title="Power Rankings">
+                {hub.powerRankings?.teams?.length ? <div className="hub-power-rankings">{hub.powerRankings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
+                  <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+                </article>)}</div> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
+              </SectionFrame>
+
+              <SectionFrame eyebrow="Win%, point diff, schedule strength, playoff success" title="Coach Ratings">
+                {hub.coachRatings?.teams?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.coachRatings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.coachRatings?.viewerTeamId ? "human" : ""}>
+                  <strong>#{team.rank}</strong>
+                  <div><span>{team.teamName}</span><small>{team.record} · SOS {team.sos.toFixed(2)}{team.madePlayoffs ? " · Made playoffs" : ""}</small></div>
+                  <em className="hub-rating-badge">{hub.coachRatings?.displayAsGrade ? team.grade : team.rating.toFixed(1)}</em>
+                </article>)}</div> : <p className="hub-empty">Coach ratings will appear after the first completed slate.</p>}
+              </SectionFrame>
+
+              <SectionFrame eyebrow="Individual skill, separate from win/loss record" title="User Ratings">
+                {hub.userRatings?.users?.length ? <div className="hub-power-rankings hub-coach-ratings">{hub.userRatings.users.slice(0, 16).map((user) => <article key={user.userId} className={user.userId === hub.userRatings?.viewerUserId ? "human" : ""}>
+                  <strong>#{user.rank}</strong>
+                  <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Stat {user.statScore.toFixed(1)} · Badges {user.badgeScore >= 0 ? "+" : ""}{user.badgeScore.toFixed(1)}</small></div>
+                  <em className="hub-rating-badge">{hub.userRatings?.displayAsGrade ? user.grade : user.rating.toFixed(1)}</em>
+                </article>)}</div> : <p className="hub-empty">User ratings will appear after the first completed slate.</p>}
+              </SectionFrame>
+
+              <SectionFrame eyebrow="Toughest schedules this season" title="Strength of Schedule">
+                {hub.sos?.teams?.length ? <div className="hub-power-rankings hub-sos-rankings">{hub.sos.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.teamId === hub.sos?.viewerTeamId ? "human" : ""}>
+                  <strong>#{team.rank}</strong>
+                  <div><span>{team.teamName}</span><small>{team.humanCount}H/{team.cpuCount}C · Opponent record {(team.oppRecord * 100).toFixed(0)}%</small></div>
+                  <em className="hub-rating-badge">{team.sosFull.toFixed(2)}</em>
+                </article>)}</div> : <p className="hub-empty">Strength of schedule will appear once the season's slate is logged.</p>}
+              </SectionFrame>
+            </>
+          ) : (
+            <SectionFrame eyebrow="Current slate" title="Weekly Matchups" className="hub-matchup-section">
+              {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
+              {(() => {
+                const state = renderMatchupLoadState("Loading matchups...");
+                if (state) return state;
+                const schedule = matchupSchedule;
+                if (!schedule) return null;
+                return <>
+                <div className="hub-week-picker">
+                  <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
                 </div>
-                <div className="hub-matchup-rails">
-                  {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
-                  <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
-                  {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
-                </div>
-                {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && hub.canManageLeague && schedule.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button></div>}
-                {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && (() => { const total = schedule.gotw.awayVotes + schedule.gotw.homeVotes; const away = total ? Math.round(schedule.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
-                {game.matchupType === "human_cpu" ? null : <>
-                  {(() => {
-                    const awayStream = game.streams.find((stream) => stream.side === "away");
-                    const homeStream = game.streams.find((stream) => stream.side === "home");
-                    const streamPanel = (stream: typeof game.streams[number]) => (
-                      <div className={`hub-team-stream ${stream.side} live`} key={stream.streamLogId}>
-                        <div className="hub-team-stream-head"><span>{stream.side} stream · live</span><a href={`${apiBaseUrl}${stream.watchPath}`} target="_blank" rel="noreferrer">Watch {stream.teamName}</a><small>{stream.viewCount} viewer{stream.viewCount === 1 ? "" : "s"}</small></div>
+                {(() => {
+                  const visible = schedule.games.filter((game) => matchupView === "h2h" ? game.matchupType === "h2h" : game.matchupType === "human_cpu");
+                  return visible.length ? <div className="rec-matchup-list">{visible.map((game, index) => <MatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />)}</div> : <p className="hub-empty">No {matchupView === "h2h" ? "H2H" : "human vs CPU"} games are scheduled for Week {schedule.selectedWeek}.</p>;
+                })()}
+                {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : ""}`} key={game.gameId}>
+                  <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + ((game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : "")}>
+                    <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
+                    <div className="hub-matchup-board">
+                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>Away</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamName) } as CSSProperties}>{game.awayTeamName}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>Away</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamName) } as CSSProperties}>{game.awayTeamName}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
+                      <div className="hub-score-center"><span aria-hidden="true" />{game.isFinal && game.awayScore != null && game.homeScore != null ? <strong>{`${game.awayScore}–${game.homeScore}`}</strong> : null}</div>
+                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote home${schedule.gotw.myVote === schedule.gotw.homeTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.homeTeamId)} aria-label={`Vote for ${game.homeTeamName}`}><span>Home</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamName) } as CSSProperties}>{game.homeTeamName}</b><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small><em>{game.homeConference ?? "Home team"}</em></button> : <div className="hub-team-side"><span>Home</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamName) } as CSSProperties}>{game.homeTeamName}</div><small>{game.homeConference ?? "Home team"}</small></div>}
+                    </div>
+                    <div className="hub-matchup-rails">
+                      {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
+                      <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
+                      {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
+                    </div>
+                    {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && hub.canManageLeague && schedule.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button></div>}
+                    {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && (() => { const total = schedule.gotw.awayVotes + schedule.gotw.homeVotes; const away = total ? Math.round(schedule.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
+                    {game.matchupType === "human_cpu" ? null : <>
+                      {(() => {
+                        const awayStream = game.streams.find((stream) => stream.side === "away");
+                        const homeStream = game.streams.find((stream) => stream.side === "home");
+                        const streamPanel = (stream: typeof game.streams[number]) => (
+                          <div className={`hub-team-stream ${stream.side} live`} key={stream.streamLogId}>
+                            <div className="hub-team-stream-head"><span>{stream.side} stream · live</span><a href={`${apiBaseUrl}${stream.watchPath}`} target="_blank" rel="noreferrer">Watch {stream.teamName}</a><small>{stream.viewCount} viewer{stream.viewCount === 1 ? "" : "s"}</small></div>
+                          </div>
+                        );
+                        return <div className="hub-stream-sides">
+                          {awayStream ? streamPanel(awayStream) : <div className="hub-team-stream away empty" aria-hidden="true" />}
+                          {homeStream ? streamPanel(homeStream) : <div className="hub-team-stream home empty" aria-hidden="true" />}
+                        </div>;
+                      })()}
+                      <div className="hub-game-reaction-bar" aria-label={`Reactions for ${game.awayTeamName} at ${game.homeTeamName}`}>
+                        <button aria-label="Love" className={game.myReactions.includes("love") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "love")}>{game.reactionCounts.love > 0 && <span>{game.reactionCounts.love}</span>}</button>
+                        <button aria-label="Like" className={game.myReactions.includes("like") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}>{game.reactionCounts.like > 0 && <span>{game.reactionCounts.like}</span>}</button>
+                        <button aria-label="Nominate for Game of the Year" className={`goty${game.myReactions.includes("goty") ? " active" : ""}`} onClick={() => void matchupGameReact(game.gameId, "goty")}>{game.reactionCounts.goty > 0 && <span>{game.reactionCounts.goty}</span>}</button>
+                        <button aria-label="Dislike" className={game.myReactions.includes("dislike") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}>{game.reactionCounts.dislike > 0 && <span>{game.reactionCounts.dislike}</span>}</button>
+                        <button aria-label="Hate" className={game.myReactions.includes("poop") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "poop")}>{game.reactionCounts.poop > 0 && <span>{game.reactionCounts.poop}</span>}</button>
                       </div>
-                    );
-                    return <div className="hub-stream-sides">
-                      {awayStream ? streamPanel(awayStream) : <div className="hub-team-stream away empty" aria-hidden="true" />}
-                      {homeStream ? streamPanel(homeStream) : <div className="hub-team-stream home empty" aria-hidden="true" />}
-                    </div>;
-                  })()}
-                  <div className="hub-game-reaction-bar" aria-label={`Reactions for ${game.awayTeamName} at ${game.homeTeamName}`}>
-                    <button aria-label="Love" className={game.myReactions.includes("love") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "love")}>{game.reactionCounts.love > 0 && <span>{game.reactionCounts.love}</span>}</button>
-                    <button aria-label="Like" className={game.myReactions.includes("like") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}>{game.reactionCounts.like > 0 && <span>{game.reactionCounts.like}</span>}</button>
-                    <button aria-label="Nominate for Game of the Year" className={`goty${game.myReactions.includes("goty") ? " active" : ""}`} onClick={() => void matchupGameReact(game.gameId, "goty")}>{game.reactionCounts.goty > 0 && <span>{game.reactionCounts.goty}</span>}</button>
-                    <button aria-label="Dislike" className={game.myReactions.includes("dislike") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}>{game.reactionCounts.dislike > 0 && <span>{game.reactionCounts.dislike}</span>}</button>
-                    <button aria-label="Hate" className={game.myReactions.includes("poop") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "poop")}>{game.reactionCounts.poop > 0 && <span>{game.reactionCounts.poop}</span>}</button>
-                  </div>
-                </>}
-              </article>
-            </div>))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}
-            {schedule.usersByConference.length > 0 && (() => { const group = schedule.usersByConference[conferenceIndex % schedule.usersByConference.length]; return <div className="hub-conference-carousel"><button className="hub-highlight-arrow" aria-label="Previous conference" onClick={() => setConferenceIndex((conferenceIndex - 1 + schedule.usersByConference.length) % schedule.usersByConference.length)}><ChevronLeft /></button><article><h3>{group.conference}</h3><div>{group.users.map((user) => <span key={user.userId}><strong>{user.teamName}</strong><small>{user.displayName}</small></span>)}</div><p>{conferenceIndex % schedule.usersByConference.length + 1} / {schedule.usersByConference.length}</p></article><button className="hub-highlight-arrow" aria-label="Next conference" onClick={() => setConferenceIndex((conferenceIndex + 1) % schedule.usersByConference.length)}><ChevronRight /></button></div>; })()}
-          </>;
-          })()}
-        </SectionFrame>
+                    </>}
+                  </article>
+                </div>))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}
+                {schedule.usersByConference.length > 0 && (() => { const group = schedule.usersByConference[conferenceIndex % schedule.usersByConference.length]; return <div className="hub-conference-carousel"><button className="hub-highlight-arrow" aria-label="Previous conference" onClick={() => setConferenceIndex((conferenceIndex - 1 + schedule.usersByConference.length) % schedule.usersByConference.length)}><ChevronLeft /></button><article><h3>{group.conference}</h3><div>{group.users.map((user) => <span key={user.userId}><strong>{user.teamName}</strong><small>{user.displayName}</small></span>)}</div><p>{conferenceIndex % schedule.usersByConference.length + 1} / {schedule.usersByConference.length}</p></article><button className="hub-highlight-arrow" aria-label="Next conference" onClick={() => setConferenceIndex((conferenceIndex + 1) % schedule.usersByConference.length)}><ChevronRight /></button></div>; })()}
+              </>;
+              })()}
+            </SectionFrame>
+          )}
+        </>
       )}
 
     </div>}

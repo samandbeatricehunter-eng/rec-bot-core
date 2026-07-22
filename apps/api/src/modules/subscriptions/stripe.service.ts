@@ -20,10 +20,20 @@ export function getStripe(): Stripe {
   return stripeClient;
 }
 
-function priceIdForTier(tier: "gold" | "platinum"): string {
-  const priceId = tier === "gold" ? env.STRIPE_PRICE_GOLD : env.STRIPE_PRICE_PLATINUM;
+function priceIdForTier(tier: "gold" | "platinum", interval: "month" | "year" = "month"): string {
+  const priceId =
+    interval === "year"
+      ? tier === "gold"
+        ? env.STRIPE_PRICE_GOLD_ANNUAL
+        : env.STRIPE_PRICE_PLATINUM_ANNUAL
+      : tier === "gold"
+        ? env.STRIPE_PRICE_GOLD
+        : env.STRIPE_PRICE_PLATINUM;
   if (!priceId) {
-    throw new ApiError(503, `Stripe price for ${tier} is not configured.`);
+    throw new ApiError(
+      503,
+      `Stripe ${interval === "year" ? "annual" : "monthly"} price for ${tier} is not configured.`,
+    );
   }
   return priceId;
 }
@@ -32,6 +42,10 @@ function tierFromPriceId(priceId: string | null | undefined): SubscriptionTier |
   if (!priceId) return null;
   if (env.STRIPE_PRICE_GOLD && priceId === env.STRIPE_PRICE_GOLD) return "gold";
   if (env.STRIPE_PRICE_PLATINUM && priceId === env.STRIPE_PRICE_PLATINUM) return "platinum";
+  if (env.STRIPE_PRICE_GOLD_ANNUAL && priceId === env.STRIPE_PRICE_GOLD_ANNUAL) return "gold";
+  if (env.STRIPE_PRICE_PLATINUM_ANNUAL && priceId === env.STRIPE_PRICE_PLATINUM_ANNUAL) {
+    return "platinum";
+  }
   return null;
 }
 
@@ -90,27 +104,31 @@ export async function createCheckoutSession(input: {
   userId: string;
   email: string | null;
   tier: "gold" | "platinum";
+  interval?: "month" | "year";
   successUrl?: string;
   cancelUrl?: string;
 }) {
   const stripe = getStripe();
   const customerId = await ensureStripeCustomer(input.userId, input.email);
+  const interval = input.interval ?? "month";
   const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
     client_reference_id: input.userId,
-    line_items: [{ price: priceIdForTier(input.tier), quantity: 1 }],
+    line_items: [{ price: priceIdForTier(input.tier, interval), quantity: 1 }],
     success_url: input.successUrl ?? `${base}/account?checkout=success`,
     cancel_url: input.cancelUrl ?? `${base}/account?checkout=cancel`,
     metadata: {
       rec_user_id: input.userId,
       tier: input.tier,
+      interval,
     },
     subscription_data: {
       metadata: {
         rec_user_id: input.userId,
         tier: input.tier,
+        interval,
       },
     },
   });

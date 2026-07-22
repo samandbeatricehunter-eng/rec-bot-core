@@ -16,6 +16,11 @@ import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
+import {
+  buildInterviewHeadline,
+  formatInterviewBody,
+  interviewRoundtableLooksLikeQa,
+} from "./interview-headlines.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { CFB_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -298,13 +303,18 @@ function sanitizeImageUrl(value?: string | null) {
 }
 
 async function publishMediaStory(submission: any, discordId: string | null) {
-  const roundtable = submission.submission_type === "interview"
-    ? (submission.interview_answers ?? []).map((answer: any) => ({
-        speaker: "Coach",
-        role: answer.question,
-        take: answer.answer,
-      }))
-    : buildRoundtableDiscussion({ headline: submission.title, body: submission.body });
+  const interviewAnswers = (submission.interview_answers ?? []) as Array<{
+    question: string;
+    answer: string;
+  }>;
+  const roundtable =
+    submission.submission_type === "interview"
+      ? buildRoundtableDiscussion({
+          headline: submission.title,
+          body: submission.body,
+          notes: interviewAnswers.map((a) => a.answer),
+        })
+      : buildRoundtableDiscussion({ headline: submission.title, body: submission.body });
   const result = await supabase.from("rec_game_stories").insert({
     id: randomUUID(),
     league_id: submission.league_id,
@@ -532,14 +542,41 @@ export async function getHub(guildId: string, discordId: string) {
     announcements: announcements.data ?? [],
     headlines: (headlines.data ?? []).map((story: any) => {
       const reactions = (storyReactions.data ?? []).filter((reaction: any) => reaction.story_id === story.id);
+      const isInterview =
+        story.media_kind === "interview" ||
+        /^Coach Interview:/i.test(String(story.headline ?? "")) ||
+        interviewRoundtableLooksLikeQa(story.roundtable);
+      let headline = story.headline ?? "League Story";
+      let body = story.body ?? "League coverage and analysis.";
+      let roundtable =
+        story.story_type === "headline"
+          ? null
+          : story.roundtable ??
+            buildRoundtableDiscussion({
+              headline,
+              body,
+              notes: Array.isArray(story.notes) ? story.notes : [],
+            });
+      if (isInterview && interviewRoundtableLooksLikeQa(story.roundtable)) {
+        // Legacy interviews stored Q&A as both body and roundtable — rebuild commentary desk.
+        const notes = Array.isArray(story.roundtable)
+          ? story.roundtable.map((p: any) => String(p.take ?? "")).filter(Boolean)
+          : [];
+        if (/^Coach Interview:/i.test(String(headline))) {
+          headline = buildInterviewHeadline({
+            teamName: "League",
+            answers: notes.map((take: string) => ({ question: "Interview", answer: take })),
+            weekNumber: Number(story.week ?? currentWeek),
+          });
+        }
+        roundtable = buildRoundtableDiscussion({ headline, body, notes });
+      }
       return {
       ...story,
+      headline,
+      body,
       story_type: story.story_type ?? "game_article",
-      roundtable: story.story_type === "headline" ? null : story.roundtable ?? buildRoundtableDiscussion({
-        headline: story.headline ?? "League Story",
-        body: story.body ?? "League coverage and analysis.",
-        notes: Array.isArray(story.notes) ? story.notes : [],
-      }),
+      roundtable,
       reactionCounts: {
         like: reactions.filter((reaction: any) => reaction.reaction_key === "like").length,
         dislike: reactions.filter((reaction: any) => reaction.reaction_key === "dislike").length,
@@ -1022,14 +1059,33 @@ export async function submitInterview(input: {
   if (input.tagOpponent && !opponent) throw new ApiError(400, "You can only tag an opponent when you have a human H2H game this week.");
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
-  let title = `Coach Interview: Week ${weekNumber}`;
+  let teamName: string | null = null;
+  let mascotOrNick: string | null = null;
+  if (assignment?.team_id) {
+    const myTeam = await supabase
+      .from("rec_teams")
+      .select("name,abbreviation,display_nick,display_city,is_relocated")
+      .eq("id", assignment.team_id)
+      .maybeSingle();
+    teamName = myTeam.data?.name ?? null;
+    mascotOrNick =
+      (myTeam.data?.is_relocated && myTeam.data?.display_nick
+        ? myTeam.data.display_nick
+        : myTeam.data?.display_nick) ??
+      teamHandle(myTeam.data?.name, myTeam.data?.abbreviation);
+  }
+  let title = buildInterviewHeadline({
+    teamName,
+    mascotOrNick,
+    answers: input.answers,
+    weekNumber,
+  });
   if (opponent && assignment?.team_id) {
-    const myTeam = await supabase.from("rec_teams").select("name,abbreviation").eq("id", assignment.team_id).maybeSingle();
-    const fromHandle = teamHandle(myTeam.data?.name, myTeam.data?.abbreviation);
+    const fromHandle = teamHandle(teamName, null);
     const toHandle = teamHandle(opponent.teamName, opponent.teamAbbreviation);
     title = buildCalloutHeadline(fromHandle, toHandle);
   }
-  const body = input.answers.map((answer) => `${answer.question}\n${answer.answer.trim()}`).join("\n\n");
+  const body = formatInterviewBody(input.answers);
   const row = await supabase.from("rec_media_submissions").insert({
     id: randomUUID(), guild_id: input.guildId, server_id: context.serverId, league_id: context.leagueId,
     season_number: seasonNumber, week_number: weekNumber, submission_type: "interview", status: "pending",

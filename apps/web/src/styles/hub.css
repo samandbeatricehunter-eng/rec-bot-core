@@ -151,7 +151,7 @@
 .hub-hero-matchup strong { margin-top: 3px; font-family: var(--font-display); font-size: clamp(20px, 3vw, 28px); line-height: 1; }
 .hub-hero-team strong { font-size: var(--text-lg); }
 .hub-hero-snapshot small { display: block; margin-top: 3px; color: var(--text-muted); }
-.hub-hero-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
+.hub-hero-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
 .hub-hero-metrics article { padding: var(--space-2); }
 .hub-hero-metrics strong { font-size: var(--text-md); }
 .hub-eyebrow { display: flex; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-1); color: var(--gold) !important; font-size: var(--text-xs); font-weight: 900; text-transform: uppercase !important; letter-spacing: .08em; }
@@ -1806,9 +1806,13 @@
 /* 2026 responsive matchup rebuild. The legacy image chassis remains in source
    temporarily for rollback, but is no longer rendered. */
 .hub-matchup-schedule { display:none !important; }
-.rec-matchup-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; max-width:720px; margin:0 auto var(--space-4); padding:4px; border:1px solid var(--border); border-radius:999px; background:var(--surface); }
+.rec-matchup-tabs { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; max-width:720px; margin:0 auto var(--space-4); padding:4px; border:1px solid var(--border); border-radius:999px; background:var(--surface); }
 .rec-matchup-tabs button { min-height:42px; border:0; border-radius:999px; background:transparent; color:var(--text-muted); font:700 .85rem var(--font-sans); text-transform:uppercase; letter-spacing:.06em; cursor:pointer; }
 .rec-matchup-tabs button.active { color:#080a0c; background:var(--accent-bright, var(--gold)); box-shadow:0 0 18px color-mix(in srgb,var(--accent, var(--gold)) 38%,transparent); }
+@media (max-width: 640px) {
+  .rec-matchup-tabs { max-width: none; border-radius: 14px; }
+  .rec-matchup-tabs button { min-height: 40px; padding: 6px 4px; font-size: .72rem; letter-spacing: .04em; white-space: normal; line-height: 1.15; }
+}
 .rec-matchup-list { display:grid; gap:var(--space-3); max-width:980px; margin:0 auto; }
 /* ── Matchup cards — neon-glass / holographic eSports build ────────────────────────────
    Dark glass chassis, angular team wedges tinted with each side's primary color and a
@@ -1947,9 +1951,9 @@
   display:inline-flex;
   align-items:center;
   gap:6px;
-  border:1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  background:color-mix(in srgb, var(--surface) 88%, transparent);
-  color:var(--text);
+  border:1px solid color-mix(in srgb, var(--border-strong, var(--border)) 80%, transparent);
+  background:color-mix(in srgb, var(--surface-raised, var(--surface)) 88%, transparent);
+  color:var(--text-primary, var(--text, #f4f5f6));
   border-radius:10px;
   padding:8px 12px;
   cursor:pointer;
@@ -2443,6 +2447,7 @@
 .hub-chrome-sidebar-nav-btn.is-active {
   color: var(--chrome-accent-bright, var(--accent-bright));
   background: color-mix(in srgb, var(--chrome-accent, var(--accent)) 14%, transparent);
+  font-weight: 900;
 }
 
 @media (min-width: 960px) {
@@ -2468,6 +2473,10 @@
 
   .hub-chrome-stack-desktop-league {
     display: flex;
+    left: 232px;
+    right: 0;
+    width: auto;
+    z-index: 40;
   }
 
   .app-backdrop.has-hub-chrome .app-shell-container.has-hub-chrome {
@@ -2501,4 +2510,59 @@
     max-width: none;
     width: 100%;
   }
+}
+
+.hub-sidebar-brand {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 8px 12px 4px;
+  color: var(--text-primary);
+}
+.hub-sidebar-leagues {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.hub-sidebar-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0 12px 8px;
+}
+.hub-sidebar-league-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.hub-sidebar-league-btn.is-active {
+  background: color-mix(in srgb, var(--chrome-accent, var(--accent)) 14%, transparent);
+}
+.hub-sidebar-league-btn.is-active .hub-sidebar-league-name {
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.hub-sidebar-league-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.hub-sidebar-league-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.hub-chrome-sidebar-nav-btn.is-active span {
+  font-weight: 800;
 }

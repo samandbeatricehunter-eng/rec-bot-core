@@ -26,9 +26,9 @@ export function MatchupReactionBar({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const liked = game.myReactions.includes("like");
-  const disliked = game.myReactions.includes("dislike");
-  const nominated = game.myReactions.includes("goty");
+  const liked = game.myReactions?.includes("like") ?? false;
+  const disliked = game.myReactions?.includes("dislike") ?? false;
+  const nominated = game.myReactions?.includes("goty") ?? false;
 
   function openGoty() {
     setComment(game.myGotyComment ?? "");
@@ -74,7 +74,7 @@ export function MatchupReactionBar({
         >
           <ThumbsUp size={16} />
           <span>Like</span>
-          {game.reactionCounts.like > 0 ? <b>{game.reactionCounts.like}</b> : null}
+          {game.reactionCounts?.like > 0 ? <b>{game.reactionCounts.like}</b> : null}
         </button>
         <button
           type="button"
@@ -85,7 +85,7 @@ export function MatchupReactionBar({
         >
           <ThumbsDown size={16} />
           <span>Dislike</span>
-          {game.reactionCounts.dislike > 0 ? <b>{game.reactionCounts.dislike}</b> : null}
+          {game.reactionCounts?.dislike > 0 ? <b>{game.reactionCounts.dislike}</b> : null}
         </button>
         <button
           type="button"
@@ -96,15 +96,15 @@ export function MatchupReactionBar({
         >
           <Award size={16} />
           <span>GOTY</span>
-          {game.reactionCounts.goty > 0 ? <b>{game.reactionCounts.goty}</b> : null}
+          {game.reactionCounts?.goty > 0 ? <b>{game.reactionCounts.goty}</b> : null}
         </button>
       </div>
 
       {gotyOpen ? (
-        <Modal title="Game of the Year" onClose={() => !saving && setGotyOpen(false)}>
+        <Modal title="Game of the Year" onClose={() => (!saving ? setGotyOpen(false) : undefined)}>
           <p className="matchup-goty-modal__lead">
-            Nominate <strong>{game.awayTeamName} @ {game.homeTeamName}</strong> for Game of the Year.
-            Add an optional short note.
+            Nominate <strong>{game.awayTeamName}</strong> @ <strong>{game.homeTeamName}</strong> for
+            Game of the Year. Add an optional short note.
           </p>
           <label className="matchup-goty-modal__label" htmlFor={`goty-comment-${game.gameId}`}>
             Brief comment

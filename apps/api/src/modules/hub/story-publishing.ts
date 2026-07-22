@@ -3,6 +3,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
+import { formatInterviewBody } from "./interview-headlines.js";
 
 // Shared by Recruiting and Transfer Portal — both need to drop a non-game-attached
 // headline/article into the same rec_game_stories feed the Hub already reads, using the
@@ -32,9 +33,19 @@ export async function publishTransitionStory(input: {
 }
 
 async function publishMediaSubmissionStory(submission: any, discordId: string | null) {
-  const roundtable = submission.submission_type === "interview"
-    ? (submission.interview_answers ?? []).map((answer: any) => ({ speaker: "Coach", role: answer.question, take: answer.answer }))
-    : buildRoundtableDiscussion({ headline: submission.title, body: submission.body });
+  const interviewAnswers = (submission.interview_answers ?? []) as Array<{ question: string; answer: string }>;
+  const body =
+    submission.submission_type === "interview" && interviewAnswers.length
+      ? formatInterviewBody(interviewAnswers)
+      : submission.body;
+  const roundtable =
+    submission.submission_type === "interview"
+      ? buildRoundtableDiscussion({
+          headline: submission.title,
+          body,
+          notes: interviewAnswers.map((a) => a.answer),
+        })
+      : buildRoundtableDiscussion({ headline: submission.title, body: submission.body });
   const result = await supabase.from("rec_game_stories").insert({
     id: randomUUID(),
     league_id: submission.league_id,
@@ -43,7 +54,7 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
     game_id: submission.game_id ?? null,
     primary_angle: submission.submission_type,
     headline: submission.title,
-    body: submission.body,
+    body,
     notes: [],
     story_type: "article",
     roundtable,

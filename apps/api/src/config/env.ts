@@ -36,6 +36,8 @@ const EnvSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_GOLD: z.string().optional(),
   STRIPE_PRICE_PLATINUM: z.string().optional(),
+  STRIPE_PRICE_GOLD_ANNUAL: z.string().optional(),
+  STRIPE_PRICE_PLATINUM_ANNUAL: z.string().optional(),
   SITE_PUBLIC_URL: z.string().url().default("https://rec-leagues.com"),
 });
 export const env = EnvSchema.parse(process.env);

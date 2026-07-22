@@ -7,12 +7,13 @@ Locked product decisions for REC Bot subscription entitlements.
 | Topic | Decision |
 | --- | --- |
 | Member access | Each member needs their **own** Gold or Platinum subscription |
-| Co-commissioner | Co-commish requires **Gold+** |
+| Co-commissioner | Co-comms require **Gold+** |
 | Cancel grace | **14 days** grace on cancel |
 | Transfer | Transfer only to **Platinum** |
+| Frozen takeover | After grace expires and owned leagues freeze, any **active member** with **Platinum** (including lifetime grandfather) and an **open create slot** for that game can claim ownership. **First claim wins** and unfreezes the league. Previous head commissioner is demoted to co-commissioner when a membership row exists. |
 | New create/join caps | Caps apply **immediately** on create/join |
 | Claim dropdown | **Auto + manual** (auto-close when empty; manual kill switch) |
-| Billing cadence | **Monthly only** |
+| Billing cadence | **Monthly or annual** |
 | Payments | **Stripe** |
 
 ## Surfaces
@@ -29,7 +30,7 @@ Locked product decisions for REC Bot subscription entitlements.
 | --- | --- |
 | **Platinum** | Full paid tier (create/join caps, transfer target, co-commish Gold+, Discord bot where enabled) |
 | **Gold** | Paid member / co-commish floor (Gold+) |
-| **Discord-only** | Insignia / Discord-linked presence without a paid Stripe plan (see grandfather) |
+| **Discord-only** | Insignia for Discord-linked presence without a paid Stripe plan (see grandfather) |
 
 ## Grandfather
 
@@ -51,10 +52,13 @@ After close-out: Discord-only users can still exist in bot leagues; to get site/
 
 ## Discord bot
 
-Platinum league owners may enable the Discord bot and receive an invite token. Admins claim it in Discord with `/claim-league`. Discord-only members get the **REC Discord Only** role and a ` · DC` nickname marker.
+Platinum league owners may enable the Discord bot and receive an invite token. Admins claim it in Discord with `/claim-league`. Discord-only members get the **REC Discord Only** role and a `§ DC` nickname marker.
 
 ## API / Stripe env
 
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_GOLD`, `STRIPE_PRICE_PLATINUM`
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_GOLD`, `STRIPE_PRICE_PLATINUM`, `STRIPE_PRICE_GOLD_ANNUAL`, `STRIPE_PRICE_PLATINUM_ANNUAL`
 - `SITE_PUBLIC_URL` (default `https://rec-leagues.com`)
 - Webhook: `POST /v1/subscriptions/stripe-webhook`
+- Event destination scope in Stripe Dashboard: **Your account** (not Connected accounts — REC does not use Stripe Connect for these subscriptions)
+- Claimable frozen leagues: `GET /v1/subscriptions/claimable-leagues`
+- Claim ownership: `POST /v1/subscriptions/leagues/:leagueId/claim-ownership`

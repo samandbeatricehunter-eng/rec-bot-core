@@ -78,7 +78,7 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
     },
   });
   if (response.status === 401) {
-    throw new Error("Your session has expired — run /hub again in Discord.");
+    throw new Error("Your session has expired — run /app again in Discord.");
   }
   if (!response.ok) {
     const body = await response.text().catch(() => "");

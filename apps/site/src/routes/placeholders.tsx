@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
 
 function PlaceholderCard({
@@ -69,9 +70,12 @@ export function CompPage() {
 
 export function LeagueBuzzPage() {
   const { leagueId = "" } = useParams();
+  const hub = useHub();
+  const game = hub.selectedLeague?.game ?? hub.leagues.find((l) => l.id === leagueId)?.game;
+  const title = game?.startsWith("madden") ? "Breaking News" : "Campus Buzz";
   return (
     <PlaceholderCard
-      title="Campus Buzz"
+      title={title}
       body="League social feed placeholder."
       links={[{ to: `/l/${leagueId}/matchups`, label: "Matchups" }]}
     />

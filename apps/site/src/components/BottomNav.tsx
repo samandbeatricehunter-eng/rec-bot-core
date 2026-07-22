@@ -51,11 +51,16 @@ function globalItems(): NavItem[] {
   ];
 }
 
-function leagueItems(leagueId: string, isCommissioner: boolean): NavItem[] {
+function buzzLabelForGame(game: string | null | undefined): string {
+  if (game && game.startsWith("madden")) return "Breaking News";
+  return "Campus Buzz";
+}
+
+function leagueItems(leagueId: string, isCommissioner: boolean, game?: string | null): NavItem[] {
   return [
     {
       key: "buzz",
-      label: "Campus Buzz",
+      label: buzzLabelForGame(game),
       to: `/l/${leagueId}/buzz`,
       icon: <IconBuzz />,
     },
@@ -115,7 +120,7 @@ export function BottomNav({
     (variant === "auto" && leagueId != null);
   const items: NavItem[] =
     useLeague && leagueId != null
-      ? leagueItems(leagueId, isCommissioner)
+      ? leagueItems(leagueId, isCommissioner, hub.selectedLeague?.game)
       : globalItems();
 
   const showLabelsAlways = layout === "sidebar";

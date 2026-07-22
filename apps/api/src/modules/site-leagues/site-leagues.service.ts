@@ -37,6 +37,8 @@ export type SiteLeagueSummary = {
   gameLabel: string;
   teamName: string | null;
   isCommissioner: boolean;
+  /** head = owner / head commissioner; co = co-commissioner; member = player only */
+  commissionerRole: "head" | "co" | "member";
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -58,10 +60,14 @@ export async function listMySiteLeagues(input: {
         l.id,
         l.name,
         l.game,
-        t.name as team_name
+        l.owner_user_id,
+        t.name as team_name,
+        m.role as membership_role
       from rec_team_assignments ta
       inner join rec_leagues l on l.id = ta.league_id
       inner join rec_teams t on t.id = ta.team_id
+      left join rec_league_memberships m
+        on m.league_id = l.id and m.user_id = ta.user_id
       where ta.user_id = $1
         and ta.assignment_status = 'active'
         and ta.ended_at is null
@@ -75,16 +81,26 @@ export async function listMySiteLeagues(input: {
     id: string;
     name: string;
     game: string;
+    owner_user_id: string | null;
     team_name: string | null;
+    membership_role: string | null;
   }>) {
     const isCommissioner = await isLeagueCommissioner(input.recUserId, row.id);
+    const role = String(row.membership_role ?? "").toLowerCase();
+    let commissionerRole: "head" | "co" | "member" = "member";
+    if (row.owner_user_id === input.recUserId || role === "commissioner") {
+      commissionerRole = "head";
+    } else if (isCommissioner || role === "co_commissioner") {
+      commissionerRole = "co";
+    }
     leagues.push({
       id: row.id,
       name: row.name,
       game: row.game,
       gameLabel: gameLabelFor(row.game),
       teamName: row.team_name ?? null,
-      isCommissioner,
+      isCommissioner: commissionerRole !== "member",
+      commissionerRole,
     });
   }
 

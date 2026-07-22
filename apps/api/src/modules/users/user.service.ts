@@ -1475,7 +1475,12 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       opponentStreakText,
       userStreakText,
       gotwH2hRecordText,
-      badges
+      badges,
+      // True when this Discord identity is claimed/linked to a REC Leagues site auth account.
+      hasSiteAccount: Boolean(baseline.user?.supabase_auth_user_id),
+      isDiscordOnly: !baseline.user?.supabase_auth_user_id,
+      username: baseline.user?.username ?? null,
+      accountComplete: Boolean(baseline.user?.supabase_auth_user_id && baseline.user?.username),
     }
   };
 }

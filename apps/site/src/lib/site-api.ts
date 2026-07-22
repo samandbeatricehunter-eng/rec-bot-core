@@ -151,6 +151,7 @@ export type SiteLeagueSummary = {
   gameLabel: string;
   teamName: string | null;
   isCommissioner: boolean;
+  commissionerRole?: "head" | "co" | "member";
 };
 
 export type SiteNotificationItem = {
@@ -198,10 +199,11 @@ export const siteApi = {
   getEntitlements() {
     return request<EntitlementSummary>("/v1/subscriptions/me", {});
   },
-  createCheckout(tier: "gold" | "platinum") {
+  createCheckout(tier: "gold" | "platinum", interval: "month" | "year" = "month") {
     const origin = window.location.origin;
     return request<{ url: string }>("/v1/subscriptions/checkout", {
       tier,
+      interval,
       successUrl: `${origin}/pricing?checkout=success`,
       cancelUrl: `${origin}/pricing?checkout=cancel`,
     });
@@ -211,6 +213,22 @@ export const siteApi = {
     return request<{ url: string }>("/v1/subscriptions/portal", {
       returnUrl: `${origin}/account`,
     });
+  },
+  listClaimableLeagues() {
+    return request<{
+      leagues: Array<{
+        id: string;
+        name: string;
+        game: string;
+        frozenAt: string | null;
+        previousOwnerUserId: string | null;
+      }>;
+    }>("/v1/subscriptions/claimable-leagues", {});
+  },
+  claimLeagueOwnership(leagueId: string) {
+    return request<{
+      league: { id: string; name: string; game: string; ownerUserId: string };
+    }>(`/v1/subscriptions/leagues/${leagueId}/claim-ownership`, {});
   },
   getRegistrationGate() {
     return publicRequest<RegistrationGate>("/v1/subscriptions/registration-gate");
