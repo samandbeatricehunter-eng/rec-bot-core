@@ -114,6 +114,50 @@ export async function createGuildChannel(guildId: string, input: { name: string;
   return { id: channel.id, name: channel.name, type: channel.type === 4 ? "category" : "text" };
 }
 
+function isDiscordSnowflake(value: unknown): boolean {
+  return /^\d{15,}$/.test(String(value ?? "").trim());
+}
+
+/** Prefer a real Discord handle over a snowflake placeholder left at link time. */
+export function pickDiscordHandle(...candidates: Array<string | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    const value = String(candidate ?? "").trim();
+    if (value && !isDiscordSnowflake(value)) return value;
+  }
+  return null;
+}
+
+/** Fetch Discord username/global_name and persist when our stored values are snowflake placeholders. */
+export async function resolveDiscordAccountHandle(input: {
+  discordAccountId: string;
+  discordId: string;
+  username?: string | null;
+  globalName?: string | null;
+}): Promise<string | null> {
+  const existing = pickDiscordHandle(input.username, input.globalName);
+  if (existing) return existing;
+  if (!env.DISCORD_TOKEN || !input.discordId) return null;
+  try {
+    const res = await discordBotFetch(`/users/${input.discordId}`);
+    if (!res.ok) return null;
+    const user = await res.json() as { username?: string; global_name?: string | null };
+    const resolved = pickDiscordHandle(user.username, user.global_name);
+    if (!resolved) return null;
+    const { supabase } = await import("./supabase.js");
+    await supabase
+      .from("rec_discord_accounts")
+      .update({
+        username: resolved,
+        global_name: pickDiscordHandle(user.global_name, resolved) ?? resolved,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.discordAccountId);
+    return resolved;
+  } catch {
+    return null;
+  }
+}
+
 export async function sendDiscordDirectMessage(discordId: string, content: string): Promise<void> {
   const dm = await discordBotFetch("/users/@me/channels", {
     method: "POST",

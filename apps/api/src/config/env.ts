@@ -22,7 +22,11 @@ const EnvSchema = z.object({
   ACTIVITY_JWT_SECRET: z.string().optional(),
   // Same bot token apps/bot authenticates with (DISCORD_TOKEN there) — one source of truth
   // instead of a second env var that has to be kept in sync across every environment.
-  DISCORD_TOKEN: z.string().optional(),
+  // Also accept DISCORD_BOT_TOKEN (Railway naming used on some services).
+  DISCORD_TOKEN: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() ? value : process.env.DISCORD_BOT_TOKEN),
+    z.string().optional(),
+  ),
   // Cloudflare Stream (web highlight uploads). Optional so the API boots without Stream;
   // direct-upload / webhook / cleanup call sites fail closed when unset.
   CLOUDFLARE_ACCOUNT_ID: z.string().optional(),

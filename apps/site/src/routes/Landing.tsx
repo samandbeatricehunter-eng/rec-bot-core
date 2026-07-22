@@ -24,8 +24,15 @@ export function Landing() {
         </nav>
       </header>
       <main className="site-hero">
-        <h1>Run your league. All in one place.</h1>
-        <p>Matchups, stats, standings, wagers, and more — the REC League hub is moving off Discord and onto the web. This is an early preview.</p>
+        <h1>Manage your leagues and find new ones for CFB and Madden. All in one place, right at your fingertips.</h1>
+        <p>
+          Keep your matchups organized, bring your leagues to life with auto and custom headlines and interviews,
+          Game of the Week, Game of the Year and Play of the Year voting. For platinum members, a discord bot
+          (The REC Scout) is available if you prefer to manage your leagues through Discord. Track all-time stats
+          across leagues and games, see where you rank amongst your comp and the world. Find H2H opponents that are
+          also REC League members to track your stats and build your rep. This is your world - your league - at the
+          tip of your fingers. Time to lock in.
+        </p>
         {auth.status !== "signed-in" && (
           <div className="site-profile-actions">
             <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>

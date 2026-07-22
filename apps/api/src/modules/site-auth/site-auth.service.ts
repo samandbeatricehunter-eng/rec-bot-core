@@ -2,7 +2,11 @@ import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import type { PoolClient } from "pg";
 import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
-import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import {
+  pickDiscordHandle,
+  resolveDiscordAccountHandle,
+  sendDiscordDirectMessage,
+} from "../../lib/discord-guild.js";
 import { ApiError } from "../../lib/errors.js";
 import {
   getEntitlementSummary,
@@ -77,7 +81,11 @@ export async function listLinkCandidates(input: {
         select
           u.id as rec_user_id,
           da.id as discord_account_id,
-          da.username as discord_username,
+          da.discord_id,
+          da.username as stored_username,
+          da.global_name as stored_global_name,
+          u.display_name as user_display_name,
+          u.username as user_username,
           coalesce(
             string_agg(
               distinct coalesce(t.display_abbr, t.abbreviation, t.name),
@@ -92,13 +100,19 @@ export async function listLinkCandidates(input: {
           and ta.ended_at is null
         inner join rec_teams t on t.id = ta.team_id
         where u.supabase_auth_user_id is null
-          and da.username is not null
-          and ($1::text is null or da.username ilike $1::text)
-        group by u.id, da.id, da.username
+          and (
+            $1::text is null
+            or da.username ilike $1::text
+            or da.global_name ilike $1::text
+            or u.display_name ilike $1::text
+            or u.username ilike $1::text
+            or da.discord_id ilike $1::text
+          )
+        group by u.id, da.id, da.discord_id, da.username, da.global_name, u.display_name, u.username
       )
-      select rec_user_id, discord_account_id, discord_username, team_labels
+      select *
       from claimable
-      order by lower(discord_username), rec_user_id
+      order by lower(coalesce(nullif(stored_username, discord_id), stored_global_name, user_username, user_display_name, discord_id)), rec_user_id
       limit $2
       offset $3
     `,
@@ -114,22 +128,51 @@ export async function listLinkCandidates(input: {
           and ta.assignment_status = 'active'
           and ta.ended_at is null
         where u.supabase_auth_user_id is null
-          and da.username is not null
-          and ($1::text is null or da.username ilike $1::text)
+          and (
+            $1::text is null
+            or da.username ilike $1::text
+            or da.global_name ilike $1::text
+            or u.display_name ilike $1::text
+            or u.username ilike $1::text
+            or da.discord_id ilike $1::text
+          )
         group by da.id
       )
       select count(*)::int as count from claimable
     `,
     [whereQuery],
   );
+
+  const candidates: Array<{
+    recUserId: string;
+    discordAccountId: string;
+    discordUsername: string;
+    teamLabel: string;
+  }> = [];
+  for (const row of rows.rows as Array<Record<string, unknown>>) {
+    const stored = pickDiscordHandle(
+      row.stored_username as string | null,
+      row.stored_global_name as string | null,
+      row.user_username as string | null,
+      row.user_display_name as string | null,
+    );
+    const resolved = stored ?? await resolveDiscordAccountHandle({
+      discordAccountId: String(row.discord_account_id),
+      discordId: String(row.discord_id ?? ""),
+      username: row.stored_username as string | null,
+      globalName: row.stored_global_name as string | null,
+    });
+    candidates.push({
+      recUserId: String(row.rec_user_id),
+      discordAccountId: String(row.discord_account_id),
+      discordUsername: resolved ?? "Discord member",
+      teamLabel: String(row.team_labels ?? ""),
+    });
+  }
+
   return {
     total: Number(total.rows[0]?.count ?? 0),
-    candidates: rows.rows.map((row) => ({
-      recUserId: String((row as any).rec_user_id),
-      discordAccountId: String((row as any).discord_account_id),
-      discordUsername: String((row as any).discord_username),
-      teamLabel: String((row as any).team_labels ?? ""),
-    })),
+    candidates,
   };
 }
 

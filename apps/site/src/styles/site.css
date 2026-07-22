@@ -134,12 +134,20 @@ h1, h2, h3, .site-wordmark {
   text-align: center;
 }
 .site-hero h1 {
-  font-size: clamp(32px, 5vw, 52px);
+  font-size: clamp(28px, 4.2vw, 44px);
   margin: 0;
-  max-width: 720px;
+  max-width: 920px;
   font-weight: 700;
+  line-height: 1.15;
+  text-wrap: balance;
 }
-.site-hero p { color: var(--text-muted); max-width: 520px; margin: 0; line-height: 1.6; }
+.site-hero p {
+  color: var(--text-muted);
+  max-width: 720px;
+  margin: 0;
+  line-height: 1.65;
+  text-wrap: pretty;
+}
 
 .site-auth-page { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .site-auth-card {

@@ -23,7 +23,13 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     userId = createdUser.data.id;
     const createdAccount = await supabase
       .from("rec_discord_accounts")
-      .insert({ user_id: userId, discord_id: input.discordId, username: input.discordId, global_name: input.discordId })
+      .insert({
+        user_id: userId,
+        discord_id: input.discordId,
+        // Never store the snowflake as a display username — resolve later via Discord API.
+        username: null,
+        global_name: null,
+      })
       .select("user_id")
       .single();
     if (createdAccount.error) {
