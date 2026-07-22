@@ -3,8 +3,20 @@ import { env } from "./config/env.js";
 
 export const commands = [
   new SlashCommandBuilder()
-    .setName("hub")
-    .setDescription("Open the REC League Hub.")
+    .setName("app")
+    .setDescription("Open the REC Leagues app.")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("openteams")
+    .setDescription("View open and claimed teams in this league.")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("matchup")
+    .setDescription("Show your current-week matchup.")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("schedule")
+    .setDescription("Show your team's full season schedule.")
     .toJSON(),
   new SlashCommandBuilder()
     .setName("claim-league")

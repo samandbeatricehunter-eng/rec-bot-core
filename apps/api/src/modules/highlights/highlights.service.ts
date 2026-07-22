@@ -6,6 +6,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 import { deleteStreamVideosForHighlights } from "../media/media.service.js";
+import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
@@ -123,10 +124,14 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
         })
         .catch((error) => console.error("[ERROR] Failed to mirror reconciled highlight media to storage (non-fatal):", error));
     }
+    const economyEligibleExisting = !(await isDiscordOnlyUser(account.user_id));
     return {
       recorded: true,
       accepted: true,
-      preloadEmojis,
+      preloadEmojis: economyEligibleExisting && preloadEmojis,
+      economyEligible: economyEligibleExisting,
+      votingEligible: economyEligibleExisting && preloadEmojis,
+      payoutEligible: economyEligibleExisting && Boolean(existingPost.data.payout_review_id),
       paidSlotAvailable: Boolean(existingPost.data.payout_review_id),
       highlight: existingPost.data,
     };
@@ -193,12 +198,18 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   // Preseason/training-camp clips may still be retained as community media, but
   // they never create a payout review. Weekly payouts begin with the regular
   // season and remain available through the postseason.
-  if (!payoutEligible || !paidSlotAvailable) {
+  const economyEligible = !(await isDiscordOnlyUser(account.user_id));
+  const votingEligible = economyEligible && preloadEmojis;
+
+  if (!economyEligible || !payoutEligible || !paidSlotAvailable) {
     return {
       recorded: true,
       accepted: true,
-      preloadEmojis,
-      paidSlotAvailable: false,
+      preloadEmojis: votingEligible,
+      economyEligible,
+      votingEligible,
+      payoutEligible: false,
+      paidSlotAvailable: economyEligible ? paidSlotAvailable : false,
       highlight: highlight.data,
     };
   }
@@ -251,7 +262,10 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   return {
     recorded: true,
     accepted: true,
-    preloadEmojis,
+    preloadEmojis: true,
+    economyEligible: true,
+    votingEligible: true,
+    payoutEligible: true,
     paidSlotAvailable: true,
     highlight: { ...highlight.data, payout_review_id: review.data.id },
     review: review.data,

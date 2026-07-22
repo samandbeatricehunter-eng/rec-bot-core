@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
+import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
@@ -261,6 +262,7 @@ export async function transferSavings(discordId: string, amount: number, directi
   if (!Number.isFinite(amount) || amount <= 0) throw new ApiError(400, "Amount must be a positive number.");
 
   const baseline = await getUserBaselineByDiscordId(discordId);
+  await assertSiteAccountForEconomy(baseline.user.id);
   const walletRow = baseline.wallet ?? { wallet_balance: 0, savings_balance: 0 };
   const wallet = Number(walletRow.wallet_balance ?? 0);
   const savings = Number(walletRow.savings_balance ?? 0);

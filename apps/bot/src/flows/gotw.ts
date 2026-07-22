@@ -169,7 +169,7 @@ export async function handleGotwConfirm(interaction: ButtonInteraction, buildAdv
   if (!posted) {
     return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Set GOTW").setDescription("Unable to open GOTW voting on the web Hub.")], components: buildAdvanceRows() });
   }
-  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Voting Open").setDescription(`Opened web voting for ${stageLabel(stage, currentWeek, leagueGame)}. Users can vote from /hub.`)], components: buildAdvanceRows() });
+  return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("GOTW Voting Open").setDescription(`Opened web voting for ${stageLabel(stage, currentWeek, leagueGame)}. Users can vote from /app.`)], components: buildAdvanceRows() });
 }
 
 export async function handleRerunGotwPolls(interaction: ButtonInteraction, buildAdvanceRows: () => ActionRowBuilder<ButtonBuilder>[]) {

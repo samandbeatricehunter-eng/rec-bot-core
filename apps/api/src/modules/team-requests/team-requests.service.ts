@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -107,9 +108,55 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     payload: { requestId: inserted.data.id, teamId: input.teamId },
   });
 
+  const teamDisplayName = formatTeamDisplayName(team.data) ?? team.data.name;
+  const notifyUserIds = new Set<string>();
+  const ownerUserId = context.rec_leagues?.owner_user_id ?? null;
+  if (ownerUserId) notifyUserIds.add(String(ownerUserId));
+
+  const commissioners = await supabase
+    .from("rec_league_memberships")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .eq("status", "active")
+    .eq("role", "commissioner");
+  if (commissioners.error) {
+    console.error("[WARN] Failed to load commissioner memberships for team-request site notifications:", commissioners.error);
+  } else {
+    for (const row of commissioners.data ?? []) {
+      if (row.user_id) notifyUserIds.add(String(row.user_id));
+    }
+  }
+
+  if (notifyUserIds.size) {
+    const siteUsers = await supabase
+      .from("rec_users")
+      .select("id, supabase_auth_user_id")
+      .in("id", [...notifyUserIds])
+      .not("supabase_auth_user_id", "is", null);
+    if (siteUsers.error) {
+      console.error("[WARN] Failed to resolve site accounts for team-request notifications:", siteUsers.error);
+    } else {
+      const leagueName = context.rec_leagues?.name ?? "your league";
+      await Promise.all(
+        (siteUsers.data ?? []).map((row) =>
+          createSiteNotification({
+            userId: row.id,
+            leagueId,
+            kind: "team_request",
+            title: `Team request: ${teamDisplayName}`,
+            body: `A Discord member requested ${teamDisplayName} in ${leagueName}.`,
+            href: `/l/${leagueId}/mgmt`,
+          }).catch((error) => {
+            console.error(`[WARN] Failed to create team_request site notification for ${row.id}:`, error);
+          }),
+        ),
+      );
+    }
+  }
+
   return {
     request: inserted.data,
-    teamName: formatTeamDisplayName(team.data) ?? team.data.name,
+    teamName: teamDisplayName,
     leagueName: context.rec_leagues.name ?? null,
   };
 }

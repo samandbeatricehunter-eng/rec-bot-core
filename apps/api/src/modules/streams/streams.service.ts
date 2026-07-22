@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
+import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 
 const STREAM_PAYOUT_AMOUNT = 50;
 
@@ -138,7 +139,12 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
   }
 
   if ((alreadyPaidThisWeek.data ?? []).length > 0) {
-    return { recorded: true, alreadyPaid: true, lockedGameId, streamLog: streamLog.data };
+    return { recorded: true, alreadyPaid: true, lockedGameId, streamLog: streamLog.data, economyEligible: true };
+  }
+
+  // Discord-only users can post streams but do not enter payout review.
+  if (await isDiscordOnlyUser(account.user_id)) {
+    return { recorded: true, economyEligible: false, payoutEligible: false, lockedGameId, streamLog: streamLog.data };
   }
 
   // Every stream (link or Discord Live) is eligible for one payout per week.

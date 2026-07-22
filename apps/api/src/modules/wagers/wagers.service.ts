@@ -10,6 +10,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { getGameWagerOptions } from "./odds.service.js";
+import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 
 function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string | null; name?: string | null } | null): string {
   if (!team) return "TBD";
@@ -126,6 +127,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   const seasonNumber = resolveSeasonNumber(context);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
+  await assertSiteAccountForEconomy(userId);
 
   // Economy gate.
   const { data: cfg } = await supabase
@@ -320,6 +322,7 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   const seasonNumber = resolveSeasonNumber(context);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
+  await assertSiteAccountForEconomy(userId);
 
   const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
   if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
@@ -392,6 +395,7 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
   const accepterId = await userIdFromDiscord(input.discordId);
+  await assertSiteAccountForEconomy(accepterId);
 
   const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
   if (error) throw new ApiError(500, "Failed to load wager.", error);
@@ -470,6 +474,7 @@ export async function placeCounterWager(input: PlaceCounterInput) {
   const seasonNumber = resolveSeasonNumber(context);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const counterUserId = await userIdFromDiscord(input.discordId);
+  await assertSiteAccountForEconomy(counterUserId);
 
   const { data: original } = await supabase.from("rec_wagers").select("*").eq("id", input.originalWagerId).maybeSingle();
   if (!original || original.status !== "awaiting_accept") throw new ApiError(409, "That wager is no longer open to counter.");
@@ -520,6 +525,7 @@ export async function acceptCounter(input: { guildId: string; discordId: string;
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
   const proposerUserId = await userIdFromDiscord(input.discordId);
+  await assertSiteAccountForEconomy(proposerUserId);
 
   const { data: counter } = await supabase.from("rec_wagers").select("*").eq("id", input.counterWagerId).maybeSingle();
   if (!counter || counter.status !== "awaiting_accept") throw new ApiError(409, "This counter is no longer pending.");
@@ -696,6 +702,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   const seasonNumber = resolveSeasonNumber(context);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
+  await assertSiteAccountForEconomy(userId);
 
   const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
   if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");

@@ -2,6 +2,7 @@ import { priceForPurchase, REC_PURCHASE_TYPE_LABELS, type RecPurchaseType } from
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
 
@@ -135,6 +136,7 @@ export async function createPurchaseRequest(input: {
 
   const baseline = await getUserBaselineByDiscordId(input.discordId);
   const userId = baseline.user.id;
+  await assertSiteAccountForEconomy(userId);
   const walletBalance = Number(baseline.wallet?.wallet_balance ?? 0);
   if (walletBalance < price) {
     throw new ApiError(400, `Insufficient wallet balance. This costs $${price} and you have $${walletBalance}.`);

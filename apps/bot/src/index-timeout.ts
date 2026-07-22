@@ -6,7 +6,7 @@ import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
 import { recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
-import { handleGuideOpenTeams, publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
+import { publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
 import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, handleWeeklySubmissionButton, handleWeeklySubmissionMessage, handleWeeklySubmissionModal, handleWeeklySubmissionSelect, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
 import { GAME_CHANNEL_PAGE_PREFIX, handleGameChannelPage } from "./flows/game-channel-pages.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
@@ -119,6 +119,17 @@ import {
   handleTeamRequestSelect,
   startTeamRequestFlow,
 } from "./flows/team-request.js";
+import {
+  OPEN_TEAMS_SLASH_CUSTOM_IDS,
+  handleOpenTeamsCfbPage,
+  handleOpenTeamsConfToggle,
+  handleOpenTeamsRequestConference,
+  handleOpenTeamsRequestSelect,
+  handleOpenTeamsRequestTeam,
+  handleOpenTeamsSlash,
+} from "./flows/open-teams-slash.js";
+import { handleMatchupSlash } from "./flows/matchup-slash.js";
+import { handleScheduleSlash } from "./flows/schedule-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleActivityRequirementsModal,
@@ -356,7 +367,7 @@ async function pollCommissionerNotifications() {
     const serverUrl = landingChannelId
       ? `https://discord.com/channels/${guild.id}/${landingChannelId}`
       : `https://discord.com/channels/${guild.id}`;
-    const message = `**${guild.name}** has ${count} unattended pending item${count === 1 ? "" : "s"} in League Management:\n${lines}\n\n[Open ${guild.name} in Discord](<${serverUrl}>) and run **/hub**, then open **League Management** → **Notifications** to review ${count === 1 ? "it" : "them"}.`;
+    const message = `**${guild.name}** has ${count} unattended pending item${count === 1 ? "" : "s"} in League Management:\n${lines}\n\n[Open ${guild.name} in Discord](<${serverUrl}>) and run **/app**, then open **League Management** → **Notifications** to review ${count === 1 ? "it" : "them"}.`;
     let delivered = false;
     for (const discordId of adminIds) {
       const user = await client.users.fetch(discordId).catch(() => null);
@@ -400,7 +411,7 @@ setInterval(() => {
   pollBoxScoreDiscordCleanup().catch((error) => console.error("[ERROR] Box score Discord cleanup poll failed:", error));
 }, 150_000).unref();
 
-const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please run /hub again to proceed.";
+const EXPIRED_WINDOW_MESSAGE = "This window has expired due to inactivity. Please run /app again to proceed.";
 
 async function expireWindow(interaction: Interaction) {
   if (!interaction.isRepliable()) return;
@@ -484,8 +495,23 @@ async function registerCommandsForVisibleGuilds() {
 
 client.on("interactionCreate", async (interaction: Interaction) => {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === "hub") {
-      await handleHubOpenDashboard(interaction);
+    if (interaction.isChatInputCommand() && interaction.commandName === "app") {
+      await handleAppOpenDashboard(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "openteams") {
+      await handleOpenTeamsSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "matchup") {
+      await handleMatchupSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "schedule") {
+      await handleScheduleSlash(interaction);
       return;
     }
 
@@ -499,8 +525,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.hub) return handleHubOpenDashboard(interaction);
-    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.openTeams) return handleGuideOpenTeams(interaction);
+    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.hub) return handleAppOpenDashboard(interaction);
+    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.openTeams) return handleOpenTeamsSlash(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.confPrefix}:`)) return handleOpenTeamsConfToggle(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbPagePrefix}:`)) return handleOpenTeamsCfbPage(interaction);
+    if (interaction.isButton() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.requestTeam) return handleOpenTeamsRequestTeam(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.conferenceSelect) return handleOpenTeamsRequestConference(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.teamSelectPrefix}:`)) return handleOpenTeamsRequestSelect(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.boxScores) return handleWeeklyBoxScores(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats) return handleWeeklyPlayerStats(interaction);
     if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting) return handleWeeklyRecruiting(interaction);
@@ -1020,7 +1051,7 @@ async function handleClaimLeagueCommand(interaction: ChatInputCommandInteraction
     });
     const leagueName = result.league?.name ?? "league";
     await interaction.editReply({
-      content: `Linked **${interaction.guild.name}** to **${leagueName}**. Run **/hub** to open the REC League Hub.`,
+      content: `Linked **${interaction.guild.name}** to **${leagueName}**. Run **/app** to open the REC Leagues app.`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -1030,7 +1061,7 @@ async function handleClaimLeagueCommand(interaction: ChatInputCommandInteraction
   }
 }
 
-async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction | ButtonInteraction) {
+async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
   try {
     const profile = await recApi.getMenuProfile(interaction.user.id, interaction.guildId).catch((error) => {
@@ -1072,15 +1103,15 @@ async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction |
     await interaction.reply({ content: userFacingError(err), flags: MessageFlags.Ephemeral });
     return;
   }
-  if (!env.WEB_APP_URL) return interaction.reply({ content: "The League Hub isn't configured yet for this bot.", flags: MessageFlags.Ephemeral });
-  await interaction.reply({ content: "Generating your personal League Hub link…", flags: MessageFlags.Ephemeral });
+  if (!env.WEB_APP_URL) return interaction.reply({ content: "The REC Leagues app isn't configured yet for this bot.", flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: "Generating your personal app link…", flags: MessageFlags.Ephemeral });
   try {
     const session = await recApi.mintWebSession({ guildId: interaction.guildId, discordId: interaction.user.id, username: interaction.user.username, globalName: interaction.user.globalName ?? null });
     const url = `${env.WEB_APP_URL}/?token=${encodeURIComponent(session.token)}`;
     await interaction.editReply({
       content: null,
-      embeds: [new EmbedBuilder().setTitle("REC League Hub").setColor(COLORS.gold).setDescription("Your league, matchups, headlines, highlights, and team dashboard. This personal link expires in 30 minutes.")],
-      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel("Open League Hub"))],
+      embeds: [new EmbedBuilder().setTitle("REC Leagues App").setColor(COLORS.gold).setDescription("Your league, matchups, headlines, highlights, and team dashboard in the REC Leagues app. This personal link expires in 30 minutes.")],
+      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel("Open REC App"))],
     });
   } catch (err) { await interaction.editReply({ content: userFacingError(err) }); }
 }

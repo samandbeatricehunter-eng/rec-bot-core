@@ -118,9 +118,13 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
     return true;
   }
 
-  // Voting emojis only preload during the regular season. In the postseason
-  // the payout is still logged, but POTY voting has already concluded.
-  if (result.preloadEmojis !== false) {
+  // Voting emojis only preload during the regular season (and only for site-linked
+  // accounts). Discord-only users can post highlights but are not payout/vote eligible.
+  const canVote =
+    result.economyEligible !== false &&
+    result.votingEligible !== false &&
+    result.preloadEmojis !== false;
+  if (canVote) {
     for (const emoji of Object.values(HIGHLIGHT_VOTE_EMOJIS)) {
       await message.react(emojiResolvable(emoji)).catch(() => undefined);
     }

@@ -24,7 +24,7 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
   const embeds = [
     base(1, "Welcome & REC Hub").setDescription([
       `Welcome to **${league.name ?? "the REC League"}** (${cfb ? "College Football 27" : "Madden 27"}). REC manages league activity in Discord and the private web Hub.`,
-      "Run **/hub** for a personal link. Links expire and must not be shared. Unlinked users can view open teams and submit a request; commissioners approve and link accepted users.",
+      "Run **/app** for a personal link. Links expire and must not be shared. Unlinked users can view open teams and submit a request; commissioners approve and link accepted users.",
       "The Hub includes Campus Buzz, headlines, articles, highlights, matchups, streams, rankings, schedules, My Team, wagers, and authorized League Management tools.",
     ].join("\n\n")),
     base(2, "Weekly Submissions").setDescription([
@@ -45,11 +45,11 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
       "**Team Schedules** show linked-team results, upcoming games, CPU games, H2H games, and byes. Power rankings update after each advance in the Hub's **Rankings** tab.",
     ].join("\n\n")),
     base(5, economy ? "Store & Media Desk" : "Media Desk").setDescription([
-      economy ? "**Store:** open /hub, choose an available product, complete its form, and submit. Funds are reserved during commissioner review. Products, costs, caps, game restrictions, and Season 1 availability come from league settings; check your wallet first." : "The Store is not active because the coin economy is disabled.",
+      economy ? "**Store:** open /app, choose an available product, complete its form, and submit. Funds are reserved during commissioner review. Products, costs, caps, game restrictions, and Season 1 availability come from league settings; check your wallet first." : "The Store is not active because the coin economy is disabled.",
       media ? "**Media Desk:** submit articles and coach interviews from My Team. Current limits and configured payouts are shown in the Hub. Submissions enter commissioner review; interviews use three selected questions and may tag a weekly H2H opponent when available." : "Media Desk submissions are currently disabled.",
     ].join("\n\n")),
     base(6, "Open Teams & Troubleshooting").setDescription([
-      "**No team?** Run /hub, view Open Teams, choose Request Team, and wait for commissioner approval. **Expired Hub link?** Run /hub again.",
+      "**No team?** Run /openteams, choose Request Team, and wait for commissioner approval. **Expired app link?** Run /app again.",
       "**Can't submit player stats?** A current scheduled game and its pending/approved box score are required. If your opponent submitted it, you may still submit stats for your team.",
       "**Bot deleted my message?** Captured submissions are intentionally removed. **Only one highlight paid?** At most two accepted highlights pay per user per week and duplicates do not create extra payouts.",
       "**Can't purchase?** Economy/product availability, season, balance, or caps may prevent it. **Can't access League Management?** Commissioner permissions are required.",
@@ -83,7 +83,7 @@ export async function publishRecGuide(guild: Guild): Promise<{ posted: number; c
   const messageIds: string[] = [];
   for (let i = 0; i < embeds.length; i++) {
     const components = i === 0 ? [new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(REC_GUIDE_CUSTOM_IDS.hub).setLabel("Open REC Hub").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(REC_GUIDE_CUSTOM_IDS.hub).setLabel("Open REC App").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId(REC_GUIDE_CUSTOM_IDS.openTeams).setLabel("View Open Teams").setStyle(ButtonStyle.Secondary),
     )] : [];
     if (existing[i]) { await existing[i].edit({ embeds: [embeds[i]], components }); messageIds.push(existing[i].id); }
