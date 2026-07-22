@@ -88,7 +88,14 @@ export function HubNotificationsBell() {
       </button>
 
       {open ? (
-        <div className="hub-chrome-notif-panel" role="dialog" aria-label="Notifications">
+        <>
+          <button
+            type="button"
+            className="hub-chrome-notif-backdrop"
+            aria-label="Close notifications"
+            onClick={() => setOpen(false)}
+          />
+          <div className="hub-chrome-notif-panel" role="dialog" aria-label="Notifications">
           <header className="hub-chrome-notif-panel-header">
             <h2>Notifications</h2>
             {loading ? <span className="hub-chrome-muted">Updating…</span> : null}
@@ -148,6 +155,7 @@ export function HubNotificationsBell() {
             </section>
           ) : null}
         </div>
+        </>
       ) : null}
     </div>
   );

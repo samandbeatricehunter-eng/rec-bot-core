@@ -23,12 +23,83 @@ type NavItem = {
   action?: "retire";
 };
 
+export type BottomNavVariant = "auto" | "global" | "league";
+export type BottomNavLayout = "bottom" | "sidebar";
+
 function isActivePath(pathname: string, to: string) {
   if (to === "/home") return pathname === "/home" || pathname === "/";
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
-export function BottomNav() {
+function globalItems(): NavItem[] {
+  return [
+    { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
+    { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
+    {
+      key: "headlines",
+      label: "Headlines",
+      to: "/headlines",
+      icon: <IconHeadlines />,
+    },
+    { key: "comp", label: "Comp", to: "/comp", icon: <IconComp /> },
+    {
+      key: "account",
+      label: "My Account",
+      to: "/account",
+      icon: <IconAccount />,
+    },
+  ];
+}
+
+function leagueItems(leagueId: string, isCommissioner: boolean): NavItem[] {
+  return [
+    {
+      key: "buzz",
+      label: "Campus Buzz",
+      to: `/l/${leagueId}/buzz`,
+      icon: <IconBuzz />,
+    },
+    {
+      key: "matchups",
+      label: "Matchups",
+      to: `/l/${leagueId}/matchups`,
+      icon: <IconMatchups />,
+    },
+    {
+      key: "team",
+      label: "My Team",
+      to: `/l/${leagueId}/team`,
+      icon: <IconTeam />,
+    },
+    {
+      key: "store",
+      label: "Store",
+      to: `/l/${leagueId}/store`,
+      icon: <IconStore />,
+    },
+    isCommissioner
+      ? {
+          key: "mgmt",
+          label: "League Mgmt",
+          to: `/l/${leagueId}/mgmt`,
+          icon: <IconMgmt />,
+        }
+      : {
+          key: "retire",
+          label: "Retire",
+          icon: <IconRetire />,
+          action: "retire",
+        },
+  ];
+}
+
+export function BottomNav({
+  variant = "auto",
+  layout = "bottom",
+}: {
+  variant?: BottomNavVariant;
+  layout?: BottomNavLayout;
+}) {
   const hub = useHub();
   const location = useLocation();
   const [retireOpen, setRetireOpen] = useState(false);
@@ -39,64 +110,19 @@ export function BottomNav() {
     hub.scope.kind === "league" ? hub.scope.leagueId : null;
   const isCommissioner = hub.selectedLeague?.isCommissioner ?? false;
 
+  const useLeague =
+    variant === "league" ||
+    (variant === "auto" && leagueId != null);
   const items: NavItem[] =
-    leagueId == null
-      ? [
-          { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
-          { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
-          {
-            key: "headlines",
-            label: "Headlines",
-            to: "/headlines",
-            icon: <IconHeadlines />,
-          },
-          { key: "comp", label: "Comp", to: "/comp", icon: <IconComp /> },
-          {
-            key: "account",
-            label: "My Account",
-            to: "/account",
-            icon: <IconAccount />,
-          },
-        ]
-      : [
-          {
-            key: "buzz",
-            label: "Campus Buzz",
-            to: `/l/${leagueId}/buzz`,
-            icon: <IconBuzz />,
-          },
-          {
-            key: "matchups",
-            label: "Matchups",
-            to: `/l/${leagueId}/matchups`,
-            icon: <IconMatchups />,
-          },
-          {
-            key: "team",
-            label: "My Team",
-            to: `/l/${leagueId}/team`,
-            icon: <IconTeam />,
-          },
-          {
-            key: "store",
-            label: "Store",
-            to: `/l/${leagueId}/store`,
-            icon: <IconStore />,
-          },
-          isCommissioner
-            ? {
-                key: "mgmt",
-                label: "League Mgmt",
-                to: `/l/${leagueId}/mgmt`,
-                icon: <IconMgmt />,
-              }
-            : {
-                key: "retire",
-                label: "Retire",
-                icon: <IconRetire />,
-                action: "retire",
-              },
-        ];
+    useLeague && leagueId != null
+      ? leagueItems(leagueId, isCommissioner)
+      : globalItems();
+
+  const showLabelsAlways = layout === "sidebar";
+  const navClass =
+    layout === "sidebar" ? "site-sidebar-nav" : "site-bottom-nav";
+  const btnClass =
+    layout === "sidebar" ? "site-sidebar-nav-btn" : "site-bottom-nav-btn";
 
   async function confirmRetire() {
     if (!leagueId) return;
@@ -116,7 +142,7 @@ export function BottomNav() {
 
   return (
     <>
-      <nav className="site-bottom-nav" aria-label="Primary">
+      <nav className={navClass} aria-label={useLeague ? "League" : "Global"}>
         {items.map((item) => {
           if (item.action === "retire") {
             const active = retireOpen;
@@ -124,10 +150,7 @@ export function BottomNav() {
               <button
                 key={item.key}
                 type="button"
-                className={[
-                  "site-bottom-nav-btn",
-                  active ? "is-active" : "",
-                ]
+                className={[btnClass, active ? "is-active" : ""]
                   .filter(Boolean)
                   .join(" ")}
                 onClick={() => {
@@ -136,7 +159,7 @@ export function BottomNav() {
                 }}
               >
                 {item.icon}
-                {active ? <span>{item.label}</span> : null}
+                {showLabelsAlways || active ? <span>{item.label}</span> : null}
               </button>
             );
           }
@@ -147,23 +170,25 @@ export function BottomNav() {
               key={item.key}
               to={to}
               className={({ isActive }) =>
-                [
-                  "site-bottom-nav-btn",
-                  isActive || active ? "is-active" : "",
-                ]
+                [btnClass, isActive || active ? "is-active" : ""]
                   .filter(Boolean)
                   .join(" ")
               }
             >
               {item.icon}
-              {active ? <span>{item.label}</span> : null}
+              {showLabelsAlways || active ? <span>{item.label}</span> : null}
             </NavLink>
           );
         })}
       </nav>
 
       {retireOpen ? (
-        <div className="site-modal" role="dialog" aria-modal="true" aria-labelledby="retire-title">
+        <div
+          className="site-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="retire-title"
+        >
           <button
             type="button"
             className="site-modal-backdrop"
@@ -176,7 +201,9 @@ export function BottomNav() {
               Are you sure you want to retire from this league? Your team will
               become open.
             </p>
-            {retireError ? <p className="site-auth-error">{retireError}</p> : null}
+            {retireError ? (
+              <p className="site-auth-error">{retireError}</p>
+            ) : null}
             <div className="site-modal-actions">
               <button
                 type="button"
@@ -192,7 +219,7 @@ export function BottomNav() {
                 disabled={retireBusy}
                 onClick={() => void confirmRetire()}
               >
-                {retireBusy ? "Retiring…" : "Retire"}
+                {retireBusy ? "Retiring..." : "Retire"}
               </button>
             </div>
           </div>

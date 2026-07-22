@@ -54,6 +54,9 @@
    instead of relying on drop-shadows alone; keeps the wordmark, back button, and bell
    readable regardless of how bright the photo is behind them at a given scroll position. */
 .app-header-bar {
+  position: relative;
+  z-index: 100;
+  isolation: isolate;
   background: rgba(15, 15, 15, 0.72);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);

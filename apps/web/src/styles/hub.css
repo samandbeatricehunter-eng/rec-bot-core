@@ -2191,11 +2191,21 @@
   line-height: 18px;
   text-align: center;
 }
+.hub-chrome-notif-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 299;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: default;
+}
 .hub-chrome-notif-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 50;
+  position: fixed;
+  top: calc(56px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 300;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2337,3 +2347,102 @@
 .hub-placeholder-page p { margin: 0; color: var(--text-secondary); line-height: 1.45; }
 .hub-placeholder-page code { color: var(--accent-bright); }
 
+/* —— Desktop chrome (960px+): persistent global sidebar + optional league bottom nav —— */
+.hub-desktop-sidebar {
+  display: none;
+}
+.hub-chrome-stack-desktop-league {
+  display: none;
+}
+
+.hub-chrome-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+}
+.hub-chrome-sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hub-chrome-sidebar-nav-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hub-chrome-sidebar-nav-btn svg { flex-shrink: 0; }
+.hub-chrome-sidebar-nav-btn.is-active {
+  color: var(--chrome-accent-bright, var(--accent-bright));
+  background: color-mix(in srgb, var(--chrome-accent, var(--accent)) 14%, transparent);
+}
+
+@media (min-width: 960px) {
+  .hub-desktop-sidebar {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 232px;
+    z-index: 50;
+    gap: 8px;
+    padding: calc(56px + env(safe-area-inset-top, 0px)) 12px 16px;
+    border-right: 1px solid var(--border);
+    background: var(--chrome-nav-bg, var(--panel-gradient));
+    overflow-y: auto;
+  }
+
+  .hub-chrome-stack-mobile {
+    display: none;
+  }
+
+  .hub-chrome-stack-desktop-league {
+    display: flex;
+  }
+
+  .app-backdrop.has-hub-chrome .app-shell-container.has-hub-chrome {
+    margin-left: 232px;
+    max-width: calc(var(--content-width) + 232px);
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-backdrop.has-hub-chrome.is-league-scope .app-shell-container.has-hub-chrome {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .hub-desktop-sidebar .hub-chrome-league-selector {
+    justify-content: stretch;
+    border-top: none;
+    padding: 8px 4px 0;
+    background: transparent;
+  }
+  .hub-desktop-sidebar .hub-chrome-league-selector-trigger {
+    width: 100%;
+    justify-content: space-between;
+    max-width: none;
+  }
+  .hub-desktop-sidebar .hub-chrome-league-selector-menu {
+    left: 0;
+    right: 0;
+    bottom: auto;
+    top: calc(100% + 4px);
+    transform: none;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+  }
+}

@@ -2,6 +2,21 @@
 
 Locked decisions for `apps/site` navigation and theming (updated 2026-07-22).
 
+## Product surface
+
+**`apps/site` (rec-leagues.com) is the full league product** — the same capabilities as mobile, not a marketing site. Desktop browser and mobile browser/PWA use the **same app and features**, with **different layouts** (responsive / adaptive chrome). PWA "Download App" is install-to-homescreen for that same product, optionally preferring the mobile layout when `display-mode: standalone`.
+
+## Chrome layout (responsive)
+
+Breakpoint: `min-width: 960px` (same in `apps/site` and `apps/web`).
+
+| Viewport | Layout |
+| -------- | ------ |
+| **Desktop (960px+)** | Persistent **left sidebar** with league selector + **global** nav (Home, Leagues, Headlines, Comp, My Account). When `scope.kind === 'league'`, also show the **bottom nav** with league-only items. Main Hub: sidebar only (no bottom nav). Main content gets left margin for the sidebar (~232px). |
+| **Mobile (<960px)** | Unified bottom stack: league selector + nav that switches between global vs league items based on scope. No persistent sidebar. |
+
+Notifications panel uses `position: fixed` with `z-index: 300` under the top bar so it is not covered by page cards / hub stacking contexts.
+
 ## League selector
 
 Attached **above** the bottom nav, centered on a dark carbon-fiber bar that shares
@@ -28,7 +43,7 @@ Scope is persisted in `sessionStorage` (`rec-site-hub-scope`). League list comes
 league includes `isCommissioner` (same Discord guild `co_commissioner+` check as
 `isLeagueCommissioner` in site-inbox).
 
-## Main Hub bottom nav (L → R)
+## Main Hub nav (global) - mobile bottom / desktop sidebar
 
 Icon-only unless the tab is active — then the selected tab expands to **icon + label**.
 
@@ -43,7 +58,7 @@ Icon-only unless the tab is active — then the selected tab expands to **icon +
 No bottom nav on public landing, login, or signup. Signed-in visits to `/` redirect to
 `/home`.
 
-## League-context bottom nav (league selected)
+## League-context nav (league selected) - mobile bottom / desktop bottom bar
 
 | Item | Route / action |
 | ---- | -------------- |
@@ -51,7 +66,7 @@ No bottom nav on public landing, login, or signup. Signed-in visits to `/` redir
 | Matchups | `/l/:leagueId/matchups` |
 | My Team | `/l/:leagueId/team` |
 | Store | `/l/:leagueId/store` |
-| Retire (non-commissioner) | Confirm dialog → `POST /v1/site-leagues/retire` |
+| Retire (non-commissioner) | Confirm dialog -> `POST /v1/site-leagues/retire` |
 | League Mgmt (commissioner) | `/l/:leagueId/mgmt` |
 
 ### Retire
@@ -82,7 +97,7 @@ user is commissioner of at least one active league).
 | ------- | -------- |
 | Member / Updates | Rows in `rec_site_notifications` for the linked user (`kind` returned as `regular`) |
 | Commissioner | Pending `rec_commissioners_inbox` for commissioner leagues (navigation summaries, not stored in `rec_site_notifications`) |
-| Example copy → deep link | `X League has advanced` → `/l/:leagueId/matchups`; `Y submitted a stream in X` → `/l/:leagueId/mgmt/inbox` |
+| Example copy -> deep link | `X League has advanced` -> `/l/:leagueId/matchups`; `Y submitted a stream in X` -> `/l/:leagueId/mgmt/inbox` |
 | Inbox link | Each commissioner league gets a synthetic row: `Open {leagueName} commissioner inbox` (`id` `inbox-link:{leagueId}`, `isInboxLink: true`, always read) |
 | Unread badge | Count of unread regular rows + pending commissioner queue items (inbox links excluded) |
 | Polling | Bell refreshes on open and about every 45s while signed in |
@@ -97,7 +112,7 @@ Regular list may be empty until those producers land — that is expected for Ph
 
 API:
 
-- `POST /v1/site-notifications/list` → `{ regular, commissioner, unreadCount }`
+- `POST /v1/site-notifications/list` -> `{ regular, commissioner, unreadCount }`
 - `POST /v1/site-notifications/mark-read` `{ ids: string[] }` — **UUID ids from
   `rec_site_notifications` only**. Synthetic commissioner ids (`commish:…`,
   `inbox-link:…`) are ignored.
@@ -127,7 +142,7 @@ Palette details: [theme-palettes.md](theme-palettes.md). Site tokens live in
 ## Commissioner model (current + future)
 
 **Today:** Commissioner detection reuses Discord guild permission
-(`co_commissioner`+) via the server↔league link (same as inbox).
+(`co_commissioner`+) via the server–league link (same as inbox).
 
 **Product direction (locked for later):**
 
@@ -150,12 +165,13 @@ Same chrome IA as `apps/site`, adapted for the Discord Activity / hub web app.
 | Auth | Discord JWT from `/hub` link only — **no Supabase login** in `apps/web` |
 | Scope storage | `sessionStorage` key `rec-web-hub-scope` (`{ kind: "main" }` \| `{ kind: "league" }`) |
 | Selector options (Phase 1) | **Main Hub** + **current guild league** (`{name} ({gameLabel})` via header/hub). Session is one guild at a time (`auth.guildId`). |
-| Multi-league expansion | Add `POST /v1/hub/my-leagues` listing active team-assignment leagues for this Discord user across servers; include current guild’s league. Not shipped in Phase 1. |
+| Multi-league expansion | Add `POST /v1/hub/my-leagues` listing active team-assignment leagues for this Discord user across servers; include current guild's league. Not shipped in Phase 1. |
 | Main Hub nav | Home `/home`, Leagues `/leagues`, Headlines `/headlines`, Comp `/comp`, My Account `/account` (Discord session stub) |
-| League nav | Campus Buzz / Matchups / My Team / Store → `/?section=…&subTab=…` on `HubHome`; League Mgmt → `/league-mgmt` when `canManageLeague`; else Retire |
-| Retire | Confirm → `POST /v1/hub/retire` (member session; ends active assignment, clears `user_id`; commissioners get 403) |
+| League nav | Campus Buzz / Matchups / My Team / Store -> `/?section=…&subTab=…` on `HubHome`; League Mgmt -> `/league-mgmt` when `canManageLeague`; else Retire |
+| Retire | Confirm -> `POST /v1/hub/retire` (member session; ends active assignment, clears `user_id`; commissioners get 403) |
 | Notifications | Hub routes: `HubNotificationsBell` (Updates empty for now; Commissioner section from `listCommissionerNotifications` with deep links to `/league-mgmt/notifications`). On `/league-mgmt/*` only the existing Office `NotificationBell` (no double bell). |
-| Theme | Main Hub → `data-site-theme=app` (carbon fiber); league → existing `data-game-theme` from league game |
+| Theme | Main Hub -> `data-site-theme=app` (carbon fiber); league -> existing `data-game-theme` from league game |
+| Desktop chrome | Left sidebar (global + selector); league bottom bar when league scope; mobile keeps bottom stack |
 | Legacy FAB | `hub-nav-toggle` / `hub-sidebar` removed when bottom chrome is present |
 
 Implementation: `apps/web/src/lib/hub-chrome-context.tsx`, `apps/web/src/components/chrome/*`, wired in `AppShell`.

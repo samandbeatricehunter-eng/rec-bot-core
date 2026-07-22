@@ -1,10 +1,17 @@
 # Site + Supabase Auth Migration
 
-Goal (Samuel, 2026-07-21): move the web experience off the Discord-JWT flow entirely.
+Goal (Samuel, 2026-07-21): move the web experience off the Discord-JWT flow entirely onto
+`apps/site` as the **full league product** (same capabilities as mobile — not a marketing
+site). Desktop browser and mobile browser/PWA share that **same app and features**, with
+**different layouts** (responsive / adaptive chrome). PWA "Download App" is
+install-to-homescreen for that same product (optionally preferring the mobile layout when
+`display-mode: standalone`).
+
 Plan, in order: (1) stand up Supabase Auth in an isolated app and test it, (2) build the
-real marketing main page + its branching pages, (3) tie in the league pages, (4) open
-account creation to everyone for public testing, (5) go live as a PWA — at which point
-Discord auth is retired.
+full league app on site with desktop vs mobile layouts (landing/auth branching as needed),
+(3) tie in the league pages and feature parity with the mobile experience, (4) open
+account creation to everyone for public testing, (5) go live as a PWA install of that same
+app — at which point Discord auth is retired.
 
 ## Approved account-linking flow (2026-07-21, Samuel — **implemented**)
 
@@ -103,8 +110,7 @@ Exit criteria:
 
 `apps/web` is entirely gated behind the Discord flow today: `/hub` in Discord mints a
 signed JWT server-side, and `AuthGate` in `App.tsx` treats League Mgmt as the root route —
-there is no public page in that app at all. Bolting a public marketing site + a second
-auth system onto that root would risk the live flow real users depend on for the season.
+there is no public page in that app at all. Bolting a second auth system and the full public league app onto that root would risk the live flow real users depend on for the season.
 
 So phase 1 lives in a brand new, fully isolated package: **`apps/site`** (`@rec/site`).
 Separate Vite dev server (port 5174), separate build/deploy, zero shared code path with
@@ -172,7 +178,7 @@ themes, hub/league placeholder routes) is in place — see
 [site-chrome-and-theme.md](site-chrome-and-theme.md). APIs: `POST /v1/site-leagues/mine` +
 `retire`, `POST /v1/site-notifications/list` + `mark-read`. Remaining product work:
 
-2. **Real marketing site content + branching pages.** `Landing` is still a placeholder.
+2. **Full league app surfaces + desktop vs mobile layouts.** Landing is still a placeholder; signed-in chrome is in place. Flesh out product pages and adaptive layouts (desktop vs mobile / PWA standalone), not a marketing-only site.
 3. **League pages behind site auth.** Linking + chrome/selector exist; real league
    hub/content still mostly lives in Discord-gated `apps/web`. Site placeholders under
    `/l/:leagueId/*` prove nav + theme switching.
@@ -183,7 +189,7 @@ themes, hub/league placeholder routes) is in place — see
 5. **RLS policies** if/when `apps/site` ever reads `rec_*` tables directly from the
    browser (today all REC data access for linking goes through the API service role).
 6. **Open signup to everyone for public testing** once league pages are reachable.
-7. **PWA + Discord-auth cutover.**
+7. **PWA install of the same full league app + Discord-auth cutover.**
 
 ## Notes for whoever picks this up next
 

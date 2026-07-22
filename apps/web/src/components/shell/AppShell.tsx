@@ -27,6 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Show bottom chrome on hub home + main placeholders + league-mgmt (league nav with Mgmt active).
   const showChrome =
     isHome || isMainPlaceholder || isLeagueMgmt || location.pathname.startsWith("/matchups");
+  const isLeagueScope = hub.scope.kind === "league";
   const [notificationCount, setNotificationCount] = useState(0);
   const [headerSummary, setHeaderSummary] = useState<LeagueHeaderSummary | null>(null);
 
@@ -86,6 +87,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           "app-backdrop",
           isHome ? "app-backdrop--hub" : "",
           showChrome ? "has-hub-chrome" : "",
+          showChrome && isLeagueScope ? "is-league-scope" : "",
+          showChrome && !isLeagueScope ? "is-main-scope" : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -158,10 +161,21 @@ export function AppShell({ children }: { children: ReactNode }) {
           <main>{children}</main>
         </div>
         {showChrome ? (
-          <div className="hub-chrome-stack">
-            <LeagueSelector />
-            <BottomNav />
-          </div>
+          <>
+            <aside className="hub-desktop-sidebar" aria-label="Global navigation">
+              <LeagueSelector />
+              <BottomNav variant="global" layout="sidebar" />
+            </aside>
+            <div className="hub-chrome-stack hub-chrome-stack-mobile">
+              <LeagueSelector />
+              <BottomNav variant="auto" />
+            </div>
+            {isLeagueScope ? (
+              <div className="hub-chrome-stack hub-chrome-stack-desktop-league">
+                <BottomNav variant="league" />
+              </div>
+            ) : null}
+          </>
         ) : null}
         {isLeagueMgmt && headerSummary?.isGuildOwner && (
           <button

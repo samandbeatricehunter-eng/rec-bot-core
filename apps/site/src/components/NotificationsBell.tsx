@@ -96,7 +96,14 @@ export function NotificationsBell() {
       </button>
 
       {open ? (
-        <div className="site-notif-panel" role="dialog" aria-label="Notifications">
+        <>
+          <button
+            type="button"
+            className="site-notif-backdrop"
+            aria-label="Close notifications"
+            onClick={() => setOpen(false)}
+          />
+          <div className="site-notif-panel" role="dialog" aria-label="Notifications">
           <header className="site-notif-panel-header">
             <h2>Notifications</h2>
             {loading ? <span className="site-muted">Updating…</span> : null}
@@ -158,6 +165,7 @@ export function NotificationsBell() {
             </section>
           ) : null}
         </div>
+        </>
       ) : null}
     </div>
   );
