@@ -57,6 +57,7 @@ export function SignUp() {
         </label>
         <button className="site-btn site-btn-primary site-btn-lg" type="submit" disabled={busy}>{busy ? "Creating account…" : "Sign Up"}</button>
         <p className="site-auth-switch">Already have an account? <Link to="/login">Log in</Link></p>
+        <p className="site-auth-switch">See <Link to="/pricing">pricing</Link> before you join.</p>
       </form>
     </div>
   );

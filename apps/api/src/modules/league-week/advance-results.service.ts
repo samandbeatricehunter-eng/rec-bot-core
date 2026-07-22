@@ -3,6 +3,7 @@ import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage,
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { assertLeagueNotFrozen } from "../subscriptions/entitlements.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
@@ -390,6 +391,7 @@ export async function completeAdvanceWeek(input: {
   results: AdvanceGameResultInput[];
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
+  await assertLeagueNotFrozen(context.leagueId);
   const seasonNumber = resolveSeasonNumber(context);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const currentStage = String(context.rec_leagues.season_stage ?? "regular_season");

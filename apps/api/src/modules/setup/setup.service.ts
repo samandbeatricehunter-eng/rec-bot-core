@@ -5,6 +5,10 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
+import {
+  assertCanCreateLeague,
+  resolveRecUserIdByDiscordId,
+} from "../subscriptions/entitlements.service.js";
 import type {
   CreateLeagueInput,
   RegisterServerInput,
@@ -124,6 +128,14 @@ export async function registerServer(input: RegisterServerInput) {
 export async function createLeagueForServer(input: CreateLeagueInput) {
   input = normalizeLeagueSetupInput(input);
 
+  let ownerUserId: string | null = null;
+  if (input.requestedByDiscordId) {
+    ownerUserId = await resolveRecUserIdByDiscordId(input.requestedByDiscordId);
+    if (ownerUserId) {
+      await assertCanCreateLeague(ownerUserId, input.game);
+    }
+  }
+
   const serverResult = await registerServer({
     guildId: input.guildId,
     name: input.serverName ?? input.guildId,
@@ -156,6 +168,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     name: input.name,
     game: input.game,
     league_type: input.leagueType,
+    ...(ownerUserId ? { owner_user_id: ownerUserId } : {}),
     current_phase: "preseason",
     // CFB has no training-camp period and starts at Preseason; Madden starts at Training Camp.
     // The bot immediately calls setLeagueWeek() right after creation to confirm this, but set it

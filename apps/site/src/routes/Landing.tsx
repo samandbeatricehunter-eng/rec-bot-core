@@ -12,8 +12,12 @@ export function Landing() {
         <span className="site-wordmark">REC League</span>
         <nav>
           {auth.status === "signed-in"
-            ? <Link className="site-btn site-btn-primary" to="/home">Go to Home</Link>
+            ? <>
+                <Link className="site-btn site-btn-ghost" to="/pricing">Pricing</Link>
+                <Link className="site-btn site-btn-primary" to="/home">Go to Home</Link>
+              </>
             : <>
+                <Link className="site-btn site-btn-ghost" to="/pricing">Pricing</Link>
                 <Link className="site-btn site-btn-ghost" to="/login">Log In</Link>
                 <Link className="site-btn site-btn-primary" to="/signup">Sign Up</Link>
               </>}
@@ -22,7 +26,12 @@ export function Landing() {
       <main className="site-hero">
         <h1>Run your league. All in one place.</h1>
         <p>Matchups, stats, standings, wagers, and more — the REC League hub is moving off Discord and onto the web. This is an early preview.</p>
-        {auth.status !== "signed-in" && <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>}
+        {auth.status !== "signed-in" && (
+          <div className="site-profile-actions">
+            <Link className="site-btn site-btn-primary site-btn-lg" to="/signup">Create your account</Link>
+            <Link className="site-btn site-btn-ghost site-btn-lg" to="/pricing">View plans</Link>
+          </div>
+        )}
       </main>
     </div>
   );

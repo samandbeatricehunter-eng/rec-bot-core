@@ -121,7 +121,7 @@ async function ensureRole(guild: Guild, input: { name: string; color: number }) 
   });
 }
 
-async function orderRecRoles(guild: Guild, roles: { member: Role; compCommittee: Role; commissioner: Role }) {
+async function orderRecRoles(guild: Guild, roles: { member: Role; compCommittee: Role; commissioner: Role; discordOnly: Role }) {
   const botMember = guild.members.me;
 
   if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
@@ -146,13 +146,18 @@ async function orderRecRoles(guild: Guild, roles: { member: Role; compCommittee:
   await roles.member
     .setPosition(Math.max(1, targetBasePosition - 2), { reason: "REC authority role hierarchy" })
     .catch(() => undefined);
+
+  await roles.discordOnly
+    .setPosition(Math.max(1, targetBasePosition - 3), { reason: "REC Discord-only insignia" })
+    .catch(() => undefined);
 }
 
 export async function ensureRecBaseRoles(guild: Guild) {
   const roles = {
     member: await ensureRole(guild, REC_MANAGED_ROLES.member),
     compCommittee: await ensureRole(guild, REC_MANAGED_ROLES.compCommittee),
-    commissioner: await ensureRole(guild, REC_MANAGED_ROLES.commissioner)
+    commissioner: await ensureRole(guild, REC_MANAGED_ROLES.commissioner),
+    discordOnly: await ensureRole(guild, REC_MANAGED_ROLES.discordOnly),
   };
 
   await orderRecRoles(guild, roles);
@@ -166,10 +171,12 @@ export async function syncMemberForTeam(input: {
   team?: NickTeam | null;
   /** CFB nicknames show "University Mascot"; Madden nicknames show the mascot alone. */
   isCfb?: boolean;
+  /** Linked user has no site account (no supabase_auth_user_id). */
+  isDiscordOnly?: boolean;
 }) {
   const roles = await ensureRecBaseRoles(input.member.guild);
   const rolesToAdd: Role[] = [roles.member];
-  const rolesToRemove = [roles.member, roles.compCommittee, roles.commissioner]
+  const rolesToRemove = [roles.member, roles.compCommittee, roles.commissioner, roles.discordOnly]
     .filter((role) => input.member.roles.cache.has(role.id));
 
   if (input.authority === "co_commissioner" || input.authority === "commissioner") {
@@ -180,14 +187,27 @@ export async function syncMemberForTeam(input: {
     rolesToAdd.push(roles.commissioner);
   }
 
+  if (input.isDiscordOnly) {
+    rolesToAdd.push(roles.discordOnly);
+  }
+
   if (rolesToRemove.length) {
     await input.member.roles.remove(rolesToRemove, "REC team ownership role sync").catch(() => undefined);
   }
   await input.member.roles.add(rolesToAdd, "REC team ownership link").catch(() => undefined);
 
-  const nickname = input.team
+  let nickname = input.team
     ? buildTeamNicknameFromTeam(input.team, input.authority, input.isCfb)
     : buildTeamNickname(input.teamName, input.authority);
+
+  if (input.isDiscordOnly) {
+    const dcSuffix = " · DC";
+    if (nickname.length + dcSuffix.length <= DISCORD_NICKNAME_MAX_LENGTH) {
+      nickname = `${nickname}${dcSuffix}`;
+    }
+    // If too long for the suffix, keep the authority nickname and rely on the Discord Only role.
+  }
+
   await input.member.setNickname(nickname, "REC team ownership link").catch(() => undefined);
 
   return {

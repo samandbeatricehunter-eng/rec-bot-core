@@ -1,6 +1,9 @@
 import { Link } from "react-router-dom";
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type MouseEvent } from "react";
 import type { HubMatchupGame } from "../../types/api.js";
+import { useReadyAuth } from "../../lib/auth-context.js";
+import { recApi } from "../../lib/rec-api-client.js";
+import { MatchupReactionBar } from "./MatchupReactionBar.js";
 
 function readableText(hex: string) {
   const value = hex.replace("#", "");
@@ -8,14 +11,27 @@ function readableText(hex: string) {
   return (r * 299 + g * 587 + b * 114) / 1000 > 155 ? "#080A0C" : "#F4F5F6";
 }
 
-export function MatchupCard({ game, featured = false }: { game: HubMatchupGame; featured?: boolean }) {
+export function MatchupCard({
+  game: initialGame,
+  featured = false,
+  showReactions = true,
+}: {
+  game: HubMatchupGame;
+  featured?: boolean;
+  showReactions?: boolean;
+}) {
+  const { guildId } = useReadyAuth();
+  const [game, setGame] = useState(initialGame);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setGame(initialGame);
+  }, [initialGame]);
+
   const isRivalry = Boolean(game.rivalryName);
   const isGotw = Boolean(game.isGameOfWeek);
+  const reactionsEnabled = showReactions && game.matchupType === "h2h";
 
-  // Center @-section tag placement:
-  //  - GOTW (not rivalry): GOTW tag top, Your Matchup bottom.
-  //  - Rivalry: RIVALRY tag + name top; Your Matchup bottom. When it is ALSO GOTW, the
-  //    GOTW tag drops to the bottom stack (above Your Matchup), keeping the rivalry on top.
   const bottomTags = [
     isRivalry && isGotw ? <span key="gotw" className="rec-tag rec-tag--gotw">Game of the Week</span> : null,
     game.involvesMe ? <span key="mine" className="rec-tag rec-tag--mine">Your Matchup</span> : null,
@@ -35,6 +51,72 @@ export function MatchupCard({ game, featured = false }: { game: HubMatchupGame; 
         </div>
       )
       : null;
+
+  async function react(reactionKey: "like" | "dislike") {
+    const previous = game;
+    const has = game.myReactions.includes(reactionKey);
+    const withoutStandard = game.myReactions.filter((key) => !["love", "like", "dislike", "poop"].includes(key));
+    const nextMine = has ? withoutStandard : [...withoutStandard, reactionKey];
+    const nextCounts = { ...game.reactionCounts };
+    for (const key of ["love", "like", "dislike", "poop"] as const) {
+      if (game.myReactions.includes(key)) nextCounts[key] = Math.max(0, nextCounts[key] - 1);
+    }
+    if (!has) nextCounts[reactionKey] += 1;
+    setGame({ ...game, myReactions: nextMine, reactionCounts: nextCounts });
+    setBusy(true);
+    try {
+      await recApi.toggleHubGameReaction({ guildId, gameId: game.gameId, reactionKey });
+    } catch {
+      setGame(previous);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitGoty(comment: string) {
+    const already = game.myReactions.includes("goty");
+    await recApi.toggleHubGameReaction({
+      guildId,
+      gameId: game.gameId,
+      reactionKey: "goty",
+      comment,
+      mode: "set",
+    });
+    setGame({
+      ...game,
+      myReactions: already ? game.myReactions : [...game.myReactions, "goty"],
+      reactionCounts: {
+        ...game.reactionCounts,
+        goty: already ? game.reactionCounts.goty : game.reactionCounts.goty + 1,
+      },
+      myGotyComment: comment || null,
+    });
+  }
+
+  async function clearGoty() {
+    const already = game.myReactions.includes("goty");
+    await recApi.toggleHubGameReaction({
+      guildId,
+      gameId: game.gameId,
+      reactionKey: "goty",
+      mode: "clear",
+    });
+    if (!already) return;
+    setGame({
+      ...game,
+      myReactions: game.myReactions.filter((key) => key !== "goty"),
+      reactionCounts: {
+        ...game.reactionCounts,
+        goty: Math.max(0, game.reactionCounts.goty - 1),
+      },
+      myGotyComment: null,
+    });
+  }
+
+  function stopCardNav(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 
   const card = (
     <article className={`rec-matchup-card${featured ? " rec-matchup-card--featured" : ""}${game.involvesMe ? " rec-matchup-card--mine" : ""}${isGotw ? " rec-matchup-card--gotw" : ""}`}>
@@ -56,6 +138,18 @@ export function MatchupCard({ game, featured = false }: { game: HubMatchupGame; 
       <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
         <small>Home</small><strong>{game.homeTeamName}</strong>
       </div>
+      {reactionsEnabled ? (
+        <div className="rec-matchup-card__reactions" onClick={stopCardNav} onPointerDown={stopCardNav}>
+          <MatchupReactionBar
+            game={game}
+            busy={busy}
+            onLike={() => void react("like")}
+            onDislike={() => void react("dislike")}
+            onSubmitGoty={submitGoty}
+            onClearGoty={clearGoty}
+          />
+        </div>
+      ) : null}
     </article>
   );
   return game.matchupType === "h2h" ? <Link className="rec-matchup-card-link" to={`/matchups/${game.gameId}`}>{card}</Link> : <div className="rec-matchup-card-link cpu">{card}</div>;

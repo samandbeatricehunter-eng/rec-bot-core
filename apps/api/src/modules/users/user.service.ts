@@ -521,7 +521,7 @@ export async function getLeagueUserIdentities(guildId: string) {
   const [{ data: assignments, error: assignmentError }, { data: badges, error: badgeError }] = await Promise.all([
     supabase
       .from("rec_team_assignments")
-      .select("user_id,team_id,user:rec_users(display_name),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+      .select("user_id,team_id,user:rec_users(display_name,supabase_auth_user_id),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
       .eq("league_id", leagueId)
       .eq("assignment_status", "active")
       .is("ended_at", null),
@@ -559,6 +559,7 @@ export async function getLeagueUserIdentities(guildId: string) {
     const careerBadges = userBadges
       .filter((b: any) => b.badge_scope === "career")
       .map((b: any) => ({ ...b, badgeLabel: BADGE_LABELS.get(b.badge_key) ?? b.badge_key }));
+    const isDiscordOnly = !assignment.user?.supabase_auth_user_id;
     return {
       userId: assignment.user_id,
       teamId: assignment.team_id,
@@ -567,6 +568,8 @@ export async function getLeagueUserIdentities(guildId: string) {
       teamName: formatTeamDisplayName(assignment.team) ?? assignment.team?.name ?? null,
       seasonStats,
       careerTrophies: careerBadges,
+      isDiscordOnly,
+      accountKind: isDiscordOnly ? "discord_only" : "site",
       ...identity,
     };
   }));

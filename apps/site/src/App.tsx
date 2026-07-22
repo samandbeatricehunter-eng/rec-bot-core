@@ -20,7 +20,9 @@ import {
   LeagueTeamPage,
   LeaguesPage,
 } from "./routes/placeholders.js";
+import { Pricing } from "./routes/Pricing.js";
 import { SignUp } from "./routes/SignUp.js";
+import { AuthCallback } from "./routes/AuthCallback.js";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -62,6 +64,9 @@ function Routed() {
       <Route path="/" element={<RootEntry />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/login" element={<LogIn />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+
+      <Route path="/pricing" element={<Pricing />} />
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />

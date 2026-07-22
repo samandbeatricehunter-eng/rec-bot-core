@@ -130,12 +130,16 @@ is never in a half-migrated state.
   allows. **Never import the service role key here.**
 - `src/lib/auth-context.tsx` — `AuthProvider`/`useAuth()`: tracks the Supabase session
   (`getSession` + `onAuthStateChange`), exposes `signUp` / `signIn` / `signOut`.
-- Pages: `Landing` (public, minimal placeholder copy), `SignUp`, `LogIn`, `Account`
+- Pages: `Landing` (public, minimal placeholder copy), `SignUp`, `LogIn`, `Account`,
+  `/auth/callback` (email confirmation / magic-link landing)
   (signed-in onboarding: Link identity → Choose username → Complete). `RequireAuth`
   guards `/account`.
-- `.env.example` / `.env` — `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` +
-  `VITE_REC_CORE_API_URL` (anon key, safe client-side). `.env` is gitignored per repo
-  convention.
+- `.env.example` / `.env` - `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` +
+  `VITE_REC_CORE_API_URL` (anon key, safe client-side) + `VITE_SITE_URL` (public site
+  origin for auth `emailRedirectTo`, e.g. `http://localhost:5174` or prod
+  `https://rec-leagues.com`). Confirm / magic-link redirects land on `/auth/callback`;
+  that URL (and the site origin) must be allowlisted under Supabase Auth -> URL
+  Configuration -> Redirect URLs. `.env` is gitignored per repo convention.
 - `.claude/launch.json` — `site-dev` config (port 5174) alongside `web-dev`/`api-dev`.
 
 **Verified live end-to-end** (2026-07-21, project `kyooxpjsxvsatrariafq`): signed up a
@@ -194,8 +198,9 @@ themes, hub/league placeholder routes) is in place — see
 ## Notes for whoever picks this up next
 
 - Local dev: `pnpm --filter @rec/site run dev` (or the `site-dev` launch config), needs
-  `apps/site/.env` populated (see `.env.example`; values are the same project's anon key,
-  already in `apps/site/.env` locally).
+  `apps/site/.env` populated (see `.env.example`; includes `VITE_SITE_URL` for
+  `emailRedirectTo` - allowlist `{VITE_SITE_URL}/auth/callback` in Supabase Redirect
+  URLs; other values are the same project's anon key, already in `apps/site/.env` locally).
 - Supabase project: `kyooxpjsxvsatrariafq` (same project as everything else — one
   Supabase project, two auth systems coexisting during the transition: `auth.users` for
   the new flow, `rec_discord_accounts`/Discord OAuth for the old one).

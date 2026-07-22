@@ -11,6 +11,12 @@ export const recUsers = pgTable("rec_users", {
   supabaseAuthUserId: uuid("supabase_auth_user_id"),
   username: text("username"),
   status: text("status").notNull().default("active"),
+  subscriptionTier: text("subscription_tier").notNull().default("none"),
+  billingStatus: text("billing_status").notNull().default("none"),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end", { withTimezone: true, mode: "string" }),
+  subscriptionGraceUntil: timestamp("subscription_grace_until", { withTimezone: true, mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 }, (table) => [
@@ -81,6 +87,12 @@ export const recSiteIdentityClaimChallenges = pgTable("rec_site_identity_claim_c
     .on(table.recUserId, table.updatedAt.desc())
 ]);
 
+export const recAppSettings = pgTable("rec_app_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
 export const recDiscordServers = pgTable("rec_discord_servers", {
   id: uuid("id").primaryKey(),
   guildId: text("guild_id").notNull(),
@@ -113,7 +125,14 @@ export const recLeagues = pgTable("rec_leagues", {
   advanceRateWindowStart: timestamp("advance_rate_window_start", { withTimezone: true, mode: "string" }),
   advanceRateCount: integer("advance_rate_count").notNull().default(0),
   lastAdvancedAt: timestamp("last_advanced_at", { withTimezone: true, mode: "string" }),
-  game: text("game").notNull().default("madden_26")
+  game: text("game").notNull().default("madden_26"),
+  ownerUserId: uuid("owner_user_id").references(() => recUsers.id),
+  discordBotEnabled: boolean("discord_bot_enabled").notNull().default(false),
+  discordBotInviteToken: text("discord_bot_invite_token"),
+  discordBotInviteCreatedAt: timestamp("discord_bot_invite_created_at", { withTimezone: true, mode: "string" }),
+  subscriptionFrozen: boolean("subscription_frozen").notNull().default(false),
+  subscriptionFrozenAt: timestamp("subscription_frozen_at", { withTimezone: true, mode: "string" }),
+  subscriptionFreezeReason: text("subscription_freeze_reason")
 });
 
 export const recServerLeagueLinks = pgTable("rec_server_league_links", {
@@ -322,6 +341,8 @@ export const recTeamAssignments = pgTable("rec_team_assignments", {
   startedAt: timestamp("started_at", { withTimezone: true, mode: "string" }).notNull(),
   endedAt: timestamp("ended_at", { withTimezone: true, mode: "string" }),
   notes: text("notes"),
+  discordJoinedAt: timestamp("discord_joined_at", { withTimezone: true, mode: "string" }),
+  statsCreditStartsAt: timestamp("stats_credit_starts_at", { withTimezone: true, mode: "string" }),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
@@ -2199,6 +2220,7 @@ export const recGameReactions = pgTable("rec_game_reactions", {
   userId: uuid("user_id").notNull().references(() => recUsers.id, { onDelete: "cascade" }),
   seasonNumber: integer("season_number").notNull(),
   reactionKey: text("reaction_key").notNull(),
+  comment: text("comment"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
 }, (table) => ({
   gameUserReactionKey: uniqueIndex("rec_game_reactions_game_user_reaction_key").on(table.gameId, table.userId, table.reactionKey),

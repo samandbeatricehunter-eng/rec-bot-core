@@ -448,6 +448,7 @@ export type HubMatchupSchedule = {
     boxScoreStatus: string | null;
     reactionCounts: Record<"love" | "like" | "goty" | "dislike" | "poop", number>;
     myReactions: Array<"love" | "like" | "goty" | "dislike" | "poop">;
+    myGotyComment?: string | null;
     streams: Array<{ side: "away" | "home"; userId: string; teamName: string; streamLogId: string; url: string; watchPath: string; postedAt: string | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   }>;
 };

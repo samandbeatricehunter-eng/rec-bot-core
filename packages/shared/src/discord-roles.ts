@@ -59,6 +59,7 @@ export const REC_MANAGED_ROLES = {
   member: { name: "REC League Member", color: 0x87ceeb },
   compCommittee: { name: "REC League Comp. Committee", color: 0xc27c0e },
   commissioner: { name: "REC League Commissioner", color: 0xd4af37 },
+  discordOnly: { name: "REC Discord Only", color: 0x808080 },
 } as const;
 
 export type RecManagedRoleKey = keyof typeof REC_MANAGED_ROLES;

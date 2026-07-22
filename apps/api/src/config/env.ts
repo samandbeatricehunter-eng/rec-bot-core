@@ -3,7 +3,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 dotenv.config({ path: path.resolve(currentDir, "../../../../.env") });
@@ -30,6 +29,13 @@ const EnvSchema = z.object({
   CLOUDFLARE_API_TOKEN: z.string().optional(),
   CLOUDFLARE_STREAM_WEBHOOK_SECRET: z.string().optional(),
   CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN: z.string().optional(),
-  CLOUDFLARE_STREAM_ALLOWED_ORIGINS: z.string().optional()
+  CLOUDFLARE_STREAM_ALLOWED_ORIGINS: z.string().optional(),
+  // Stripe billing (site subscriptions). Optional so the API boots without Stripe;
+  // checkout / portal / webhook routes fail closed when unset.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_GOLD: z.string().optional(),
+  STRIPE_PRICE_PLATINUM: z.string().optional(),
+  SITE_PUBLIC_URL: z.string().url().default("https://rec-leagues.com"),
 });
 export const env = EnvSchema.parse(process.env);

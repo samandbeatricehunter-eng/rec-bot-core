@@ -489,6 +489,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    if (interaction.isChatInputCommand() && interaction.commandName === "claim-league") {
+      await handleClaimLeagueCommand(interaction);
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId === MENU_CUSTOM_IDS.leagueMgmtOpenDashboard) {
       await handleLeagueMgmtOpenDashboard(interaction);
       return;
@@ -988,6 +993,41 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   menuSessions.set(interaction.user.id, true);
   await interaction.editReply(await buildMainMenuPayload(interaction.user.id, interaction.guildId, isDiscordAdminInteraction(interaction)));
+}
+
+
+async function handleClaimLeagueCommand(interaction: ChatInputCommandInteraction) {
+  if (!interaction.inCachedGuild()) {
+    await interaction.reply({ content: "Run /claim-league inside a Discord server.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) && !isFullLeagueAdminInteraction(interaction)) {
+    await interaction.reply({
+      content: "You need Manage Server (or REC commissioner admin) permission to claim a league invite.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const token = interaction.options.getString("token", true).trim();
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  try {
+    const result = await recApi.claimBotInvite({
+      token,
+      guildId: interaction.guildId,
+      serverName: interaction.guild.name,
+      requestedByDiscordId: interaction.user.id,
+    });
+    const leagueName = result.league?.name ?? "league";
+    await interaction.editReply({
+      content: `Linked **${interaction.guild.name}** to **${leagueName}**. Run **/hub** to open the REC League Hub.`,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await interaction.editReply({
+      content: `Failed to claim league invite.\n${message.slice(0, 1500)}`,
+    });
+  }
 }
 
 async function handleHubOpenDashboard(interaction: ChatInputCommandInteraction | ButtonInteraction) {

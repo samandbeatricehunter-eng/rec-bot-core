@@ -454,6 +454,7 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
       authority: draft.authority,
       team: result.team,
       isCfb: await isCfbLeague(interaction.guildId),
+      isDiscordOnly: Boolean(result.isDiscordOnly),
     });
 
     teamLinkSessions.delete(interaction.user.id);
@@ -1009,6 +1010,7 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
           authority: role,
           team: result.team ?? session.team,
           isCfb: await isCfbLeague(interaction.guildId),
+          isDiscordOnly: Boolean(result.isDiscordOnly),
         })
       : null;
     const nickname = syncResult?.nickname ?? session.teamName;
@@ -1105,6 +1107,7 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
           authority: linked.authority ?? "member",
           team: result.customTeam,
           isCfb,
+          isDiscordOnly: Boolean(linked.isDiscordOnly),
         }).catch(() => undefined);
       }
     }

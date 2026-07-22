@@ -197,10 +197,64 @@ function hasAnyRecordStat(totals: RecordTotals) {
     || totals.pointDifferential !== 0;
 }
 
+
+function filterResultsByStatsCredit(userId, results, creditStartsAt) {
+  if (creditStartsAt == null) return results;
+  const startMs = new Date(creditStartsAt).getTime();
+  if (Number.isNaN(startMs)) return results;
+  const epoch = 0;
+  return results.filter((row) => {
+    // Only filter rows involving this user; other rows are irrelevant to their aggregation path.
+    if (row.home_user_id !== userId && row.away_user_id !== userId) return true;
+    const createdMs = row.created_at ? new Date(row.created_at).getTime() : epoch;
+    const ts = Number.isNaN(createdMs) ? epoch : createdMs;
+    return ts >= startMs;
+  });
+}
+
+async function loadActiveStatsCreditStarts(leagueId, userIds) {
+  const map = new Map();
+  if (!userIds?.length) return map;
+  const { data, error } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,stats_credit_starts_at")
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .in("user_id", userIds);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    map.set(row.user_id, row.stats_credit_starts_at ?? null);
+  }
+  return map;
+}
+
+async function loadStatsCreditStartsByUserLeague(userIds) {
+  /** @type {Map<string, Map<string, string|null>>} userId -> leagueId -> creditStartsAt */
+  const map = new Map();
+  if (!userIds?.length) return map;
+  const { data, error } = await supabase
+    .from("rec_team_assignments")
+    .select("user_id,league_id,stats_credit_starts_at")
+    .eq("assignment_status", "active")
+    .is("ended_at", null)
+    .in("user_id", userIds);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    let byLeague = map.get(row.user_id);
+    if (!byLeague) {
+      byLeague = new Map();
+      map.set(row.user_id, byLeague);
+    }
+    byLeague.set(row.league_id, row.stats_credit_starts_at ?? null);
+  }
+  return map;
+}
+
 async function loadOfficialResultsForLeagueSeason(leagueId: string, seasonNumber: number) {
   const { data, error } = await supabase
     .from("rec_game_results")
-    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,week_number,is_tie,source,records_apply_key")
+    .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,week_number,is_tie,source,records_apply_key,created_at")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .in("source", [...OFFICIAL_RESULT_SOURCES]);
@@ -211,7 +265,7 @@ async function loadOfficialResultsForLeagueSeason(leagueId: string, seasonNumber
 async function loadOfficialResultsForLeague(leagueId: string) {
   const { data, error } = await supabase
     .from("rec_game_results")
-    .select("home_user_id,away_user_id,home_score,away_score,week_number,is_tie,season_number,source")
+    .select("home_user_id,away_user_id,home_score,away_score,week_number,is_tie,season_number,source,created_at")
     .eq("league_id", leagueId)
     .in("source", [...OFFICIAL_RESULT_SOURCES]);
   if (error) throw error;
@@ -221,7 +275,7 @@ async function loadOfficialResultsForLeague(leagueId: string) {
 async function loadAllOfficialResults() {
   const { data, error } = await supabase
     .from("rec_game_results")
-    .select("home_user_id,away_user_id,home_score,away_score,week_number,is_tie,league_id,source")
+    .select("home_user_id,away_user_id,home_score,away_score,week_number,is_tie,league_id,source,created_at")
     .in("source", [...OFFICIAL_RESULT_SOURCES]);
   if (error) throw error;
   return data ?? [];
@@ -268,9 +322,13 @@ export async function rebuildSeasonOfficialRecords(leagueId: string, seasonNumbe
   const regularSeasonResults = results.filter((row) => !isPlayoffWeek(row.week_number, game));
 
   const now = new Date().toISOString();
+  const creditByUser = await loadActiveStatsCreditStarts(leagueId, [...userIds]);
   const rows = [...userIds].map((userId) => {
-    const regularTotals = aggregateResultsForUser(userId, regularSeasonResults, game);
-    const fullTotals = aggregateResultsForUser(userId, results, game);
+    const creditStartsAt = creditByUser.get(userId) ?? null;
+    const userResults = filterResultsByStatsCredit(userId, results, creditStartsAt);
+    const userRegular = filterResultsByStatsCredit(userId, regularSeasonResults, creditStartsAt);
+    const regularTotals = aggregateResultsForUser(userId, userRegular, game);
+    const fullTotals = aggregateResultsForUser(userId, userResults, game);
     const totals: RecordTotals = {
       ...regularTotals,
       playoffWins: fullTotals.playoffWins,
@@ -299,9 +357,12 @@ export async function rebuildLeagueOfficialRecords(leagueId: string) {
     if (row.away_user_id) userIds.add(row.away_user_id);
   }
 
-  const rows = [...userIds].map((userId) =>
-    recordRowFromTotals(aggregateResultsForUser(userId, results, game), { league_id: leagueId, user_id: userId }),
-  );
+  const creditByUser = await loadActiveStatsCreditStarts(leagueId, [...userIds]);
+  const rows = [...userIds].map((userId) => {
+    const creditStartsAt = creditByUser.get(userId) ?? null;
+    const userResults = filterResultsByStatsCredit(userId, results, creditStartsAt);
+    return recordRowFromTotals(aggregateResultsForUser(userId, userResults, game), { league_id: leagueId, user_id: userId });
+  });
   if (rows.length) {
     const { error: upsertError } = await supabase.from("rec_league_user_records").upsert(rows, { onConflict: "league_id,user_id" });
     if (upsertError) throw upsertError;
@@ -343,8 +404,15 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
   const gameRowsByGame = new Map<string, any[]>();
   const deleteUserIdsByGame = new Map<string, string[]>();
 
+  const creditByUserLeague = await loadStatsCreditStartsByUserLeague([...affectedUsers]);
+
   for (const userId of affectedUsers) {
-    const userResults = results.filter((row) => row.home_user_id === userId || row.away_user_id === userId);
+    const rawUserResults = results.filter((row) => row.home_user_id === userId || row.away_user_id === userId);
+    const creditByLeague = creditByUserLeague.get(userId) ?? new Map();
+    const userResults = rawUserResults.filter((row) => {
+      const creditStartsAt = creditByLeague.get(row.league_id) ?? null;
+      return filterResultsByStatsCredit(userId, [row], creditStartsAt).length > 0;
+    });
     // Spans every league the user has ever played in, so playoff/superbowl detection
     // must use each row's own league game, not a single shared one.
     const boxScoreTotals = emptyRecordTotals();

@@ -871,3 +871,98 @@ h1, h2, h3, .site-wordmark {
     width: 100%;
   }
 }
+
+/* --- Pricing / billing --- */
+.site-pricing {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+.site-pricing-intro { gap: 12px; }
+.site-pricing-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 720px) {
+  .site-pricing-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.site-plan-card {
+  min-height: 100%;
+}
+.site-plan-card.is-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.site-plan-card h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.site-plan-price {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent-bright);
+}
+.site-plan-features {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text);
+}
+.site-plan-features li {
+  line-height: 1.35;
+}
+.site-plan-auth-ctas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+.site-plan-auth-ctas .site-btn,
+.site-plan-card > .site-btn-lg {
+  width: 100%;
+  min-height: 48px;
+}
+.site-billing-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
+}
+.site-billing-panel h2 {
+  margin: 0;
+  font-size: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.site-discord-only-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-bright);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

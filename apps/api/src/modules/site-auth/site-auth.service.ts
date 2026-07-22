@@ -4,17 +4,24 @@ import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { ApiError } from "../../lib/errors.js";
+import {
+  getEntitlementSummary,
+  isIdentityClaimDropdownOpen,
+} from "../subscriptions/entitlements.service.js";
 
 export type SiteLinkProfile = {
   linked: boolean;
   recUserId: string | null;
   displayName: string | null;
   username: string | null;
+  entitlements: Awaited<ReturnType<typeof getEntitlementSummary>> | null;
+  claimDropdownOpen: boolean;
 };
 
 export async function getSiteLinkProfile(input: {
   authUserId: string;
 }): Promise<SiteLinkProfile> {
+  const claimDropdownOpen = await isIdentityClaimDropdownOpen();
   const result = await getPgPool().query(
     `
       select id, display_name, username
@@ -28,13 +35,23 @@ export async function getSiteLinkProfile(input: {
     | { id: string; display_name: string | null; username: string | null }
     | undefined;
   if (!row) {
-    return { linked: false, recUserId: null, displayName: null, username: null };
+    return {
+      linked: false,
+      recUserId: null,
+      displayName: null,
+      username: null,
+      entitlements: null,
+      claimDropdownOpen,
+    };
   }
+  const entitlements = await getEntitlementSummary(row.id);
   return {
     linked: true,
     recUserId: row.id,
     displayName: row.display_name ?? null,
     username: row.username ?? null,
+    entitlements,
+    claimDropdownOpen,
   };
 }
 
@@ -43,6 +60,14 @@ export async function listLinkCandidates(input: {
   limit: number;
   offset: number;
 }) {
+  if (!(await isIdentityClaimDropdownOpen())) {
+    return { total: 0, candidates: [] as Array<{
+      recUserId: string;
+      discordAccountId: string;
+      discordUsername: string;
+      teamLabel: string;
+    }> };
+  }
   const query = String(input.query ?? "").trim();
   const whereQuery = query ? `%${query}%` : null;
   const values = [whereQuery, input.limit, input.offset];

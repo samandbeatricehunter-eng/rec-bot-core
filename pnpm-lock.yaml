@@ -47,6 +47,9 @@ importers:
       sharp:
         specifier: ^0.35.2
         version: 0.35.2
+      stripe:
+        specifier: ^22.3.2
+        version: 22.3.2(@types/node@22.19.19)
       tesseract.js:
         specifier: ^7.0.0
         version: 7.0.0
@@ -1824,6 +1827,15 @@ packages:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
     engines: {node: '>= 10.x'}
 
+  stripe@22.3.2:
+    resolution: {integrity: sha512-O13QOvgEIQvDlTy6Ubb5kB980wpbhmoZNsgCXKILjCMZS67f+bW+6w99k3gnSi/N1lkryoj1WYdpGT5Wc5edjg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@types/node': '>=18'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
   tesseract.js-core@7.0.0:
     resolution: {integrity: sha512-WnNH518NzmbSq9zgTPeoF8c+xmilS8rFIl1YKbk/ptuuc7p6cLNELNuPAzcmsYw450ca6bLa8j3t0VAtq435Vw==}
 
@@ -3311,6 +3323,10 @@ snapshots:
   source-map@0.6.1: {}
 
   split2@4.2.0: {}
+
+  stripe@22.3.2(@types/node@22.19.19):
+    optionalDependencies:
+      '@types/node': 22.19.19
 
   tesseract.js-core@7.0.0: {}
 

@@ -661,14 +661,62 @@ export async function toggleHubStoryReaction(input: { guildId: string; discordId
   return toggleBinaryReaction({ table: "rec_story_reactions", foreignKey: "story_id", targetId: input.storyId, userId, seasonNumber: Number(story.data.season), reactionKey: input.reactionKey });
 }
 
-export async function toggleHubGameReaction(input: { guildId: string; discordId: string; gameId: string; reactionKey: "love" | "like" | "goty" | "dislike" | "poop" }) {
+export async function toggleHubGameReaction(input: {
+  guildId: string;
+  discordId: string;
+  gameId: string;
+  reactionKey: "love" | "like" | "goty" | "dislike" | "poop";
+  comment?: string | null;
+  mode?: "toggle" | "set" | "clear";
+}) {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
   const game = await supabase.from("rec_games").select("id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to verify game.", game.error);
   if (!game.data) throw new ApiError(404, "Game not found.");
-  const existing = await supabase.from("rec_game_reactions").select("id").eq("game_id", input.gameId).eq("user_id", userId).eq("reaction_key", input.reactionKey).maybeSingle();
+
+  const mode = input.mode ?? "toggle";
+  const comment = input.comment == null ? null : String(input.comment).trim().slice(0, 280) || null;
+  const seasonNumber = Number(context.rec_leagues.season_number ?? 1);
+  const existing = await supabase
+    .from("rec_game_reactions")
+    .select("id,comment")
+    .eq("game_id", input.gameId)
+    .eq("user_id", userId)
+    .eq("reaction_key", input.reactionKey)
+    .maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to read reaction.", existing.error);
+
+  if (input.reactionKey === "goty" && mode === "set") {
+    if (existing.data) {
+      const updated = await supabase
+        .from("rec_game_reactions")
+        .update({ comment })
+        .eq("id", existing.data.id);
+      if (updated.error) throw new ApiError(500, "Failed to update GOTY nomination.", updated.error);
+    } else {
+      const inserted = await supabase.from("rec_game_reactions").insert({
+        id: randomUUID(),
+        game_id: input.gameId,
+        user_id: userId,
+        season_number: seasonNumber,
+        reaction_key: "goty",
+        comment,
+        created_at: new Date().toISOString(),
+      });
+      if (inserted.error) throw new ApiError(500, "Failed to save GOTY nomination.", inserted.error);
+    }
+    return { ok: true as const, myReactions: ["goty"] as const, myGotyComment: comment };
+  }
+
+  if (input.reactionKey === "goty" && mode === "clear") {
+    if (existing.data) {
+      const removed = await supabase.from("rec_game_reactions").delete().eq("id", existing.data.id);
+      if (removed.error) throw new ApiError(500, "Failed to remove GOTY nomination.", removed.error);
+    }
+    return { ok: true as const, myReactions: [] as const, myGotyComment: null };
+  }
+
   if (existing.data) {
     const removed = input.reactionKey === "goty"
       ? await supabase.from("rec_game_reactions").delete().eq("id", existing.data.id)
@@ -689,10 +737,18 @@ export async function toggleHubGameReaction(input: { guildId: string; discordId:
         .in("reaction_key", ["love", "like", "dislike", "poop"]);
       if (cleared.error) throw new ApiError(500, "Failed to update reaction.", cleared.error);
     }
-    const inserted = await supabase.from("rec_game_reactions").insert({ id: randomUUID(), game_id: input.gameId, user_id: userId, season_number: Number(context.rec_leagues.season_number ?? 1), reaction_key: input.reactionKey, created_at: new Date().toISOString() });
+    const inserted = await supabase.from("rec_game_reactions").insert({
+      id: randomUUID(),
+      game_id: input.gameId,
+      user_id: userId,
+      season_number: seasonNumber,
+      reaction_key: input.reactionKey,
+      comment: input.reactionKey === "goty" ? comment : null,
+      created_at: new Date().toISOString(),
+    });
     if (inserted.error) throw new ApiError(500, "Failed to save reaction.", inserted.error);
   }
-  return { ok: true };
+  return { ok: true as const };
 }
 
 export async function recordHubStreamView(input: { guildId: string; discordId: string; streamLogId: string }) {
@@ -1165,7 +1221,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       ? supabase.from("rec_box_score_submissions").select("id,game_id,status").in("game_id", gameIds).in("status", ["pending", "approved"])
       : Promise.resolve({ data: [], error: null }),
     gameIds.length
-      ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key").in("game_id", gameIds)
+      ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key,comment").in("game_id", gameIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (boxScores.error) throw new ApiError(500, "Failed to load matchup box-score status.", boxScores.error);
@@ -1227,6 +1283,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         boxScoreStatus: boxScore?.status ?? null,
         reactionCounts: Object.fromEntries(["love", "like", "goty", "dislike", "poop"].map((key) => [key, gameReactionRows.filter((reaction: any) => reaction.reaction_key === key).length])),
         myReactions: gameReactionRows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key),
+        myGotyComment: gameReactionRows.find((reaction: any) => reaction.user_id === userId && reaction.reaction_key === "goty")?.comment ?? null,
         streams: [
           awayStream ? { side: "away", userId: game.away_user_id, teamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away", streamLogId: awayStream.id, url: awayStream.message_url, watchPath: streamWatchPath(awayStream.id), postedAt: awayStream.posted_at ?? null, ...streamEngagement(awayStream) } : null,
           homeStream ? { side: "home", userId: game.home_user_id, teamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,

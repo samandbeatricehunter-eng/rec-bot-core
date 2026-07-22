@@ -8,6 +8,7 @@ import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.serv
 import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
 import { addMemberRole, ensureManagedRoleId, getGuildMemberDisplayNameMap, listGuildMembers } from "../../lib/discord-guild.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
+import { assertCanJoinLeague } from "../subscriptions/entitlements.service.js";
 
 export async function getCurrentLeagueForGuild(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -224,7 +225,7 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
 
   const linkedResult = await supabase
     .from("rec_team_assignments")
-    .select("user_id,notes")
+    .select("user_id,notes,user:rec_users(supabase_auth_user_id)")
     .eq("league_id", league.id)
     .eq("team_id", result.data.id)
     .eq("assignment_status", "active")
@@ -240,12 +241,15 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
   if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts for custom team.", accounts.error);
 
   const discordByUserId = new Map((accounts.data ?? []).map((account) => [account.user_id, account.discord_id]));
-  const linkedUsers = (linkedResult.data ?? []).map((row) => {
+  const linkedUsers = (linkedResult.data ?? []).map((row: any) => {
     const authority = String(row.notes ?? "Authority: member").replace("Authority: ", "") as "member" | "co_commissioner" | "commissioner";
+    const isDiscordOnly = !row.user?.supabase_auth_user_id;
     return {
       userId: row.user_id,
       discordId: discordByUserId.get(row.user_id) ?? null,
       authority,
+      isDiscordOnly,
+      accountKind: isDiscordOnly ? "discord_only" : "site",
     };
   });
 
@@ -296,6 +300,16 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     userId = created.data.user_id;
   }
 
+  const linkedUser = await supabase
+    .from("rec_users")
+    .select("id,supabase_auth_user_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (linkedUser.error) throw new ApiError(500, "Failed to load linked user.", linkedUser.error);
+  if (linkedUser.data?.supabase_auth_user_id) {
+    await assertCanJoinLeague(userId, league.game);
+  }
+
   const team = await supabase
     .from("rec_teams")
     .select("*")
@@ -325,7 +339,9 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
       user_id: userId,
       assignment_status: "active",
       source: "manual_admin_entry",
-      notes: `Authority: ${input.authority}`
+      notes: `Authority: ${input.authority}`,
+      discord_joined_at: new Date().toISOString(),
+      stats_credit_starts_at: new Date().toISOString(),
     })
     .select("*")
     .single();
@@ -346,14 +362,23 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     source: "manual_admin_entry"
   });
 
-  return { league, team: team.data, assignment: assignment.data, discordId: input.discordId, authority: input.authority };
+  const isDiscordOnly = !linkedUser.data?.supabase_auth_user_id;
+  return {
+    league,
+    team: team.data,
+    assignment: assignment.data,
+    discordId: input.discordId,
+    authority: input.authority,
+    isDiscordOnly,
+    accountKind: isDiscordOnly ? "discord_only" : "site",
+  };
 }
 
 export async function listLinkedUsersTeams(guildId: string) {
   const { league } = await getCurrentLeagueForGuild(guildId);
   const result = await supabase
     .from("rec_team_assignments")
-    .select("id,assignment_status,notes,user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(id,display_name),created_at")
+    .select("id,assignment_status,notes,user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(id,display_name,supabase_auth_user_id),created_at")
     .eq("league_id", league.id)
     .is("ended_at", null)
     .order("created_at", { ascending: false });
@@ -368,11 +393,17 @@ export async function listLinkedUsersTeams(guildId: string) {
   if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
 
   const accountByUserId = new Map((accounts.data ?? []).map((account) => [account.user_id, account]));
-  const linked = (result.data ?? []).map((row) => ({
-    ...row,
-    discordAccount: accountByUserId.get(row.user_id) ?? null,
-    discordId: accountByUserId.get(row.user_id)?.discord_id ?? null
-  }));
+  const linked = (result.data ?? []).map((row) => {
+    const user = row.user as { id?: string; display_name?: string; supabase_auth_user_id?: string | null } | null;
+    const isDiscordOnly = !user?.supabase_auth_user_id;
+    return {
+      ...row,
+      discordAccount: accountByUserId.get(row.user_id) ?? null,
+      discordId: accountByUserId.get(row.user_id)?.discord_id ?? null,
+      isDiscordOnly,
+      accountKind: isDiscordOnly ? "discord_only" : "site",
+    };
+  });
 
   return { league, linked };
 }

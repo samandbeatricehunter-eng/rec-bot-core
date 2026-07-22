@@ -2,11 +2,37 @@ import { supabase } from "./supabase-client.js";
 
 const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
 
-type LinkProfileResponse = {
+export type SubscriptionTier = "none" | "gold" | "platinum";
+export type BillingStatus =
+  | "none"
+  | "active"
+  | "lifetime_comp"
+  | "past_due"
+  | "canceled"
+  | "grace";
+
+export type EntitlementSummary = {
+  tier: SubscriptionTier;
+  billingStatus: BillingStatus;
+  graceUntil: string | null;
+  currentPeriodEnd: string | null;
+  siteAccess: boolean;
+  canCreateLeague: boolean;
+  canEnableDiscordBot: boolean;
+  joinLimit: number;
+  ownLimit: number;
+  ownedCounts: Record<string, number>;
+  joinCounts: Record<string, number>;
+  claimDropdownOpen: boolean;
+};
+
+export type LinkProfileResponse = {
   linked: boolean;
   recUserId: string | null;
   displayName: string | null;
   username: string | null;
+  entitlements?: EntitlementSummary | null;
+  claimDropdownOpen?: boolean;
 };
 
 export type LinkCandidate = {
@@ -21,16 +47,45 @@ type LinkCandidatesResponse = {
   candidates: LinkCandidate[];
 };
 
-async function request<T>(path: string, body: unknown): Promise<T> {
+export type RegistrationGate = {
+  claimDropdownOpen: boolean;
+  requiresPaidSubscriptionToRegister: boolean;
+};
+
+function requireApiBaseUrl(): string {
   if (!apiBaseUrl) {
     throw new Error("Missing VITE_REC_CORE_API_URL in apps/site/.env.");
   }
+  return apiBaseUrl;
+}
+
+async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = requireApiBaseUrl();
+  const response = await fetch(`${base}${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      ...(init?.body ? { "content-type": "application/json" } : {}),
+      ...(init?.headers ?? {}),
+    },
+    body: init?.body,
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string; message?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error ?? payload?.message ?? "Request failed.");
+  }
+  return payload as T;
+}
+
+async function request<T>(path: string, body: unknown = {}): Promise<T> {
+  const base = requireApiBaseUrl();
   const {
     data: { session },
   } = await supabase.auth.getSession();
   const token = session?.access_token;
   if (!token) throw new Error("You are not signed in.");
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(`${base}${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -139,6 +194,44 @@ export const siteApi = {
       "/v1/site-auth/username/check",
       { username },
     );
+  },
+  getEntitlements() {
+    return request<EntitlementSummary>("/v1/subscriptions/me", {});
+  },
+  createCheckout(tier: "gold" | "platinum") {
+    const origin = window.location.origin;
+    return request<{ url: string }>("/v1/subscriptions/checkout", {
+      tier,
+      successUrl: `${origin}/pricing?checkout=success`,
+      cancelUrl: `${origin}/pricing?checkout=cancel`,
+    });
+  },
+  openBillingPortal() {
+    const origin = window.location.origin;
+    return request<{ url: string }>("/v1/subscriptions/portal", {
+      returnUrl: `${origin}/account`,
+    });
+  },
+  getRegistrationGate() {
+    return publicRequest<RegistrationGate>("/v1/subscriptions/registration-gate");
+  },
+  enableLeagueBot(leagueId: string) {
+    return request<{
+      league: {
+        id: string;
+        discord_bot_enabled: boolean;
+        discord_bot_invite_token: string | null;
+        discord_bot_invite_created_at: string | null;
+      };
+    }>(`/v1/subscriptions/leagues/${leagueId}/bot/enable`, {});
+  },
+  disableLeagueBot(leagueId: string) {
+    return request<{
+      league: {
+        id: string;
+        discord_bot_enabled: boolean;
+      };
+    }>(`/v1/subscriptions/leagues/${leagueId}/bot/disable`, {});
   },
   listFriends() {
     return request<{

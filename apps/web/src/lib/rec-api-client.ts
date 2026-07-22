@@ -176,8 +176,14 @@ export const recApi = {
     recApiFetch<ChallengeableCoachesResponse>("/v1/wagers/challengeable-coaches", { method: "POST", body: JSON.stringify({ guildId }) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
     recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
-  toggleHubGameReaction: (input: { guildId: string; gameId: string; reactionKey: "love" | "like" | "goty" | "dislike" | "poop" }) =>
-    recApiFetch<{ ok: true }>("/v1/hub/games/react", { method: "POST", body: JSON.stringify(input) }),
+  toggleHubGameReaction: (input: {
+    guildId: string;
+    gameId: string;
+    reactionKey: "love" | "like" | "goty" | "dislike" | "poop";
+    comment?: string | null;
+    mode?: "toggle" | "set" | "clear";
+  }) =>
+    recApiFetch<{ ok: true; myGotyComment?: string | null }>("/v1/hub/games/react", { method: "POST", body: JSON.stringify(input) }),
   listHubStoryComments: (input: { guildId: string; storyId: string }) =>
     recApiFetch<{ comments: import("../types/api.js").StoryComment[] }>("/v1/hub/stories/comments/list", { method: "POST", body: JSON.stringify(input) }),
   addHubStoryComment: (input: { guildId: string; storyId: string; body: string }) =>

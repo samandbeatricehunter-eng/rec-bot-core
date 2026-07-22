@@ -243,6 +243,7 @@ export async function handleTeamRequestApprove(interaction: ButtonInteraction) {
           authority: "member",
           team,
           isCfb,
+          isDiscordOnly: Boolean(result.link?.isDiscordOnly),
         }).catch(() => undefined);
       }
     }
@@ -305,6 +306,7 @@ export async function handleTeamRequestRole(interaction: ButtonInteraction) {
           authority,
           team,
           isCfb,
+          isDiscordOnly: Boolean(result.link?.isDiscordOnly),
         }).catch(() => undefined);
       }
     }

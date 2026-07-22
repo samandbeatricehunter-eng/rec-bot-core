@@ -1,21 +1,26 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
-import { siteApi, type LinkCandidate } from "../lib/site-api.js";
+import {
+  siteApi,
+  type EntitlementSummary,
+  type LinkCandidate,
+  type LinkProfileResponse,
+} from "../lib/site-api.js";
 
-type LinkProfile = {
-  linked: boolean;
-  recUserId: string | null;
-  displayName: string | null;
-  username: string | null;
-};
+function tierLabel(tier: EntitlementSummary["tier"]): string {
+  if (tier === "gold") return "Gold";
+  if (tier === "platinum") return "Platinum";
+  return "None";
+}
 
 export function Account() {
   const auth = useAuth();
   const authUserId = auth.status === "signed-in" ? auth.user.id : "";
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [linked, setLinked] = useState<LinkProfile | null>(null);
+  const [linked, setLinked] = useState<LinkProfileResponse | null>(null);
+  const [entitlements, setEntitlements] = useState<EntitlementSummary | null>(null);
   const [query, setQuery] = useState("");
   const [candidates, setCandidates] = useState<LinkCandidate[]>([]);
   const [candidatesTotal, setCandidatesTotal] = useState(0);
@@ -31,6 +36,8 @@ export function Account() {
   const [usernameNotice, setUsernameNotice] = useState<string | null>(null);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
   const [usernameCheckBusy, setUsernameCheckBusy] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (auth.status !== "signed-in") return;
@@ -42,6 +49,15 @@ export function Account() {
       .then((profile) => {
         if (!active) return;
         setLinked(profile);
+        if (profile.entitlements) {
+          setEntitlements(profile.entitlements);
+        } else if (profile.linked) {
+          return siteApi.getEntitlements().then((summary) => {
+            if (active) setEntitlements(summary);
+          });
+        } else {
+          setEntitlements(null);
+        }
       })
       .catch((error) => {
         if (!active) return;
@@ -58,6 +74,13 @@ export function Account() {
   useEffect(() => {
     if (auth.status !== "signed-in") return;
     if (linked == null || linked.linked) return;
+    if (linked.claimDropdownOpen === false) {
+      setCandidates([]);
+      setCandidatesTotal(0);
+      setSelectedDiscordAccountId("");
+      setCandidateBusy(false);
+      return;
+    }
     let active = true;
     const timer = window.setTimeout(() => {
       setCandidateBusy(true);
@@ -92,7 +115,7 @@ export function Account() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [auth.status, linked?.linked, query]);
+  }, [auth.status, linked?.linked, linked?.claimDropdownOpen, query]);
 
   useEffect(() => {
     if (linked?.linked) {
@@ -173,6 +196,7 @@ export function Account() {
         claimCode,
       );
       setLinked(profile);
+      if (profile.entitlements) setEntitlements(profile.entitlements);
       setClaimNotice("Identity linked. Continue to choose your username.");
     } catch (error) {
       setClaimNotice(
@@ -191,6 +215,7 @@ export function Account() {
     try {
       const profile = await siteApi.setUsername(username);
       setLinked(profile);
+      if (profile.entitlements) setEntitlements(profile.entitlements);
       setUsernameDraft(profile.username ?? "");
       setUsernameNotice("Username saved.");
     } catch (error) {
@@ -200,12 +225,26 @@ export function Account() {
     }
   }
 
+  async function openPortal() {
+    setBillingError(null);
+    setBillingBusy(true);
+    try {
+      const { url } = await siteApi.openBillingPortal();
+      window.location.assign(url);
+    } catch (error) {
+      setBillingError(
+        error instanceof Error ? error.message : "Could not open billing portal.",
+      );
+      setBillingBusy(false);
+    }
+  }
+
   if (profileLoading) {
     return (
       <div className="site-page site-auth-page">
         <div className="site-auth-card">
           <h1>Loading account</h1>
-          <p className="site-muted">Checking your REC link status…</p>
+          <p className="site-muted">Checking your REC link status.</p>
         </div>
       </div>
     );
@@ -229,6 +268,12 @@ export function Account() {
 
   const linkedAccount = linked?.linked;
   const onboardingStep = !linkedAccount ? 1 : linked?.username ? 3 : 2;
+  const claimClosed = linked?.claimDropdownOpen === false;
+  const showSubscribeInsteadOfClaim =
+    !linkedAccount && (claimClosed || (!candidateBusy && candidatesTotal === 0 && !query));
+  const subscribed =
+    entitlements != null &&
+    (entitlements.tier === "gold" || entitlements.tier === "platinum");
 
   return (
     <div className="site-page site-auth-page">
@@ -277,6 +322,52 @@ export function Account() {
                     Friends
                   </Link>
                 </div>
+
+                <div className="site-billing-panel">
+                  <h2>Billing</h2>
+                  {entitlements ? (
+                    <>
+                      <p>
+                        Plan: <strong>{tierLabel(entitlements.tier)}</strong>
+                        {" · "}
+                        Status: <strong>{entitlements.billingStatus}</strong>
+                      </p>
+                      {entitlements.graceUntil && (
+                        <p className="site-muted">
+                          Grace until{" "}
+                          {new Date(entitlements.graceUntil).toLocaleDateString()}
+                        </p>
+                      )}
+                      <div className="site-profile-actions">
+                        {subscribed ? (
+                          <button
+                            className="site-btn site-btn-primary"
+                            disabled={billingBusy}
+                            onClick={() => void openPortal()}
+                          >
+                            {billingBusy ? "Opening…" : "Manage billing"}
+                          </button>
+                        ) : null}
+                        {entitlements.tier !== "platinum" ? (
+                          <Link className="site-btn site-btn-ghost" to="/pricing">
+                            {subscribed ? "Upgrade" : "View plans"}
+                          </Link>
+                        ) : (
+                          <Link className="site-btn site-btn-ghost" to="/pricing">
+                            View plans
+                          </Link>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="site-muted">
+                      Could not load billing status.{" "}
+                      <Link to="/pricing">View plans</Link>
+                    </p>
+                  )}
+                  {billingError && <p className="site-auth-error">{billingError}</p>}
+                </div>
+
                 <p className="site-muted">
                   Inbox and Friends live here for now. Notifications will join this
                   account area later.
@@ -319,6 +410,30 @@ export function Account() {
                 )}
               </>
             )}
+          </>
+        ) : showSubscribeInsteadOfClaim ? (
+          <>
+            <p className="site-muted">
+              {claimClosed
+                ? "Identity claiming from Discord is closed. Subscribe to create your REC account, then finish setup here."
+                : "No claimable Discord identities found. If you are new to REC, subscribe to get started."}
+            </p>
+            <div className="site-profile-actions">
+              <Link className="site-btn site-btn-primary site-btn-lg" to="/pricing">
+                View plans
+              </Link>
+            </div>
+            {!claimClosed && (
+              <label className="site-field">
+                <span>Search again</span>
+                <input
+                  value={query}
+                  placeholder="Search username..."
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
+            )}
+            {candidateError && <p className="site-auth-error">{candidateError}</p>}
           </>
         ) : (
           <>
@@ -411,6 +526,9 @@ export function Account() {
                 {claimNotice}
               </p>
             )}
+            <p className="site-muted">
+              New to REC? <Link to="/pricing">View subscription plans</Link>
+            </p>
           </>
         )}
 

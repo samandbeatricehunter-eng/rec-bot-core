@@ -116,7 +116,13 @@ export async function hubRoutes(app: FastifyInstance) {
 
   app.post("/v1/hub/games/react", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid(), reactionKey: z.enum(["love", "like", "goty", "dislike", "poop"]) }).parse(request.body);
+      const body = z.object({
+        guildId: z.string().min(1),
+        gameId: z.string().uuid(),
+        reactionKey: z.enum(["love", "like", "goty", "dislike", "poop"]),
+        comment: z.string().trim().max(280).optional().nullable(),
+        mode: z.enum(["toggle", "set", "clear"]).optional(),
+      }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Game reactions require a user session.");
       return reply.send(await toggleHubGameReaction({ ...body, discordId: auth.discordId }));

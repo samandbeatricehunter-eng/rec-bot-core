@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { MatchupPreview } from "../../components/matchups/MatchupPreview.js";
+import { MatchupReactionBar } from "../../components/matchups/MatchupReactionBar.js";
 import { Button } from "../../components/ui/Button.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
@@ -264,6 +265,7 @@ export function MatchupDetailPage() {
   const [highlightUploading, setHighlightUploading] = useState(false);
   const [highlightUploadNotice, setHighlightUploadNotice] = useState<string | null>(null);
   const highlightFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [reactionBusy, setReactionBusy] = useState(false);
   const [playerStatsDraft, setPlayerStatsDraft] = useState({
     playerName: "",
     watchedPlayerId: "",
@@ -443,6 +445,89 @@ export function MatchupDetailPage() {
   function openHighlightPicker() {
     setHighlightUploadNotice(null);
     highlightFileInputRef.current?.click();
+  }
+
+  function patchMatchupReactions(
+    updater: (game: HubMatchupGame) => HubMatchupGame,
+  ) {
+    setDetail((current) =>
+      current ? { ...current, matchup: updater(current.matchup) } : current,
+    );
+  }
+
+  async function reactToMatchup(reactionKey: "like" | "dislike") {
+    if (!detail || reactionBusy) return;
+    const gameId = detail.matchup.gameId;
+    const previous = detail.matchup;
+    patchMatchupReactions((game) => {
+      const has = game.myReactions.includes(reactionKey);
+      const withoutStandard = game.myReactions.filter(
+        (key) => !["love", "like", "dislike", "poop"].includes(key),
+      );
+      const nextMine = has
+        ? withoutStandard
+        : [...withoutStandard, reactionKey];
+      const nextCounts = { ...game.reactionCounts };
+      for (const key of ["love", "like", "dislike", "poop"] as const) {
+        if (game.myReactions.includes(key)) nextCounts[key] = Math.max(0, nextCounts[key] - 1);
+      }
+      if (!has) nextCounts[reactionKey] += 1;
+      return { ...game, myReactions: nextMine, reactionCounts: nextCounts };
+    });
+    setReactionBusy(true);
+    try {
+      await recApi.toggleHubGameReaction({ guildId, gameId, reactionKey });
+    } catch {
+      setDetail((current) =>
+        current ? { ...current, matchup: previous } : current,
+      );
+    } finally {
+      setReactionBusy(false);
+    }
+  }
+
+  async function submitGotyNomination(comment: string) {
+    if (!detail) return;
+    const gameId = detail.matchup.gameId;
+    const already = detail.matchup.myReactions.includes("goty");
+    await recApi.toggleHubGameReaction({
+      guildId,
+      gameId,
+      reactionKey: "goty",
+      comment,
+      mode: "set",
+    });
+    patchMatchupReactions((game) => ({
+      ...game,
+      myReactions: already ? game.myReactions : [...game.myReactions, "goty"],
+      reactionCounts: {
+        ...game.reactionCounts,
+        goty: already ? game.reactionCounts.goty : game.reactionCounts.goty + 1,
+      },
+      myGotyComment: comment || null,
+    }));
+  }
+
+  async function clearGotyNomination() {
+    if (!detail) return;
+    const gameId = detail.matchup.gameId;
+    const already = detail.matchup.myReactions.includes("goty");
+    await recApi.toggleHubGameReaction({
+      guildId,
+      gameId,
+      reactionKey: "goty",
+      mode: "clear",
+    });
+    if (!already) return;
+    patchMatchupReactions((game) => ({
+      ...game,
+      myReactions: game.myReactions.filter((key) => key !== "goty"),
+      reactionCounts: {
+        ...game.reactionCounts,
+        goty: Math.max(0, game.reactionCounts.goty - 1),
+      },
+      myGotyComment: null,
+    }));
   }
 
   async function uploadHighlightFile(file: File) {
@@ -682,7 +767,17 @@ export function MatchupDetailPage() {
       <Link className="matchup-detail-back" to="/">
         <ArrowLeft size={18} /> Back to matchups
       </Link>
-      <MatchupCard game={matchup} featured />
+      <MatchupCard game={matchup} featured showReactions={false} />
+      {matchup.matchupType === "h2h" ? (
+        <MatchupReactionBar
+          game={matchup}
+          busy={reactionBusy}
+          onLike={() => void reactToMatchup("like")}
+          onDislike={() => void reactToMatchup("dislike")}
+          onSubmitGoty={submitGotyNomination}
+          onClearGoty={clearGotyNomination}
+        />
+      ) : null}
       {preview && (
         <MatchupPreview preview={preview} wagerOptions={previewWagerOptions} />
       )}

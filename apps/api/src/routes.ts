@@ -28,6 +28,7 @@ import { recruitingRoutes } from "./modules/recruiting/recruiting.routes.js";
 import { transferPortalRoutes } from "./modules/transfer-portal/transfer-portal.routes.js";
 import { submissionStateRoutes } from "./modules/submission-state/submission-state.routes.js";
 import { siteAuthRoutes } from "./modules/site-auth/site-auth.routes.js";
+import { subscriptionRoutes } from "./modules/subscriptions/subscriptions.routes.js";
 import { siteFriendsRoutes } from "./modules/site-friends/site-friends.routes.js";
 import { siteInboxRoutes } from "./modules/site-inbox/site-inbox.routes.js";
 import { siteLeaguesRoutes } from "./modules/site-leagues/site-leagues.routes.js";
@@ -67,6 +68,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await transferPortalRoutes(app);
   await submissionStateRoutes(app);
   await siteAuthRoutes(app);
+  await subscriptionRoutes(app);
   await siteFriendsRoutes(app);
   await siteInboxRoutes(app);
   await siteLeaguesRoutes(app);
