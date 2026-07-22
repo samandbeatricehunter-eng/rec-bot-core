@@ -334,10 +334,13 @@ async function assertSelfServeUploaderIsExpected(
   const awayHasUser = Boolean(game.away_team_id && users.get(game.away_team_id));
   const isH2h = homeHasUser && awayHasUser;
   if (isH2h) {
-    if (!game.home_team_id || submitterTeamId !== game.home_team_id) {
+    const isMatchupTeam =
+      (game.home_team_id != null && submitterTeamId === game.home_team_id) ||
+      (game.away_team_id != null && submitterTeamId === game.away_team_id);
+    if (!isMatchupTeam) {
       throw new ApiError(
         403,
-        "For H2H matchups, only the home team can upload the box score.",
+        "Only the two teams in this matchup can upload the box score.",
       );
     }
     return;

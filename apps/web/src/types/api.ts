@@ -382,7 +382,7 @@ export type HubResponse = {
   liveStreams: Array<{ id: string; url: string; watchPath: string; postedAt: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   highlights: Array<{
     id: string; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
-    videoUrl: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
+    videoUrl: string | null; streamUid?: string | null; iframeUrl?: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
     viewCount: number; reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
   }>;
 };

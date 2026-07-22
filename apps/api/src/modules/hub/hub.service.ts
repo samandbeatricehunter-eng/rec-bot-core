@@ -8,6 +8,7 @@ import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-con
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
 import { getUserMenuProfileByDiscordId, getUserSnapshot } from "../users/user.service.js";
+import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { mirrorHighlightMedia } from "../highlights/highlights.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
@@ -352,6 +353,22 @@ function videoUrl(content: string | null) {
   return urls.find((url) => /\.(mp4|mov|webm|mkv)(?:\?|$)/i.test(url)) ?? urls[0] ?? (/^https?:\/\//i.test(content) ? content : null);
 }
 
+function streamHighlightPlayback(highlight: any): { videoUrl: string | null; streamUid: string | null; iframeUrl: string | null } {
+  const streamUid = highlight.cloudflare_stream_uid ? String(highlight.cloudflare_stream_uid) : null;
+  if (streamUid && (highlight.storage_provider === "cloudflare_stream" || highlight.playback_url)) {
+    if (highlight.media_status && highlight.media_status !== "ready") {
+      return { videoUrl: null, streamUid, iframeUrl: null };
+    }
+    const urls = streamPlaybackUrls(streamUid);
+    return {
+      videoUrl: highlight.playback_url ?? urls.hls,
+      streamUid,
+      iframeUrl: urls.iframe,
+    };
+  }
+  return { videoUrl: null, streamUid: null, iframeUrl: null };
+}
+
 function discordCdnUrlIsFresh(url: string | null) {
   if (!url || !url.includes("cdn.discordapp.com")) return Boolean(url);
   try {
@@ -361,6 +378,8 @@ function discordCdnUrlIsFresh(url: string | null) {
 }
 
 async function refreshDiscordMediaUrl(highlight: any) {
+  const streamed = streamHighlightPlayback(highlight);
+  if (streamed.streamUid) return streamed.videoUrl;
   const current = videoUrl(highlight.content);
   if (discordCdnUrlIsFresh(current) || !env.DISCORD_TOKEN || !highlight.discord_channel_id || !highlight.discord_message_id) return current;
   try {
@@ -422,7 +441,7 @@ export async function getHub(guildId: string, discordId: string) {
   const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, coachRatings, userRatings] = await Promise.all([
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).order("published_at", { ascending: false }).limit(8),
     loadHubHeadlines({ leagueId: context.leagueId, seasonNumber, currentWeek, seasonStage }),
-    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("created_at", { ascending: false }),
+    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).in("media_status", ["ready"]).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
     computePowerRankings(guildId, discordId).catch(() => null),
@@ -465,7 +484,16 @@ export async function getHub(guildId: string, discordId: string) {
 
   // Preserve the query's newest-first ordering so the reel opens on the latest
   // highlight and autoplay continues chronologically toward older clips.
-  const hydratedHighlights = await Promise.all((highlights.data ?? []).map(async (item: any) => ({ ...item, videoUrl: await refreshDiscordMediaUrl(item) })));
+  const hydratedHighlights = await Promise.all((highlights.data ?? []).map(async (item: any) => {
+    const streamed = streamHighlightPlayback(item);
+    const videoUrlValue = streamed.streamUid ? streamed.videoUrl : await refreshDiscordMediaUrl(item);
+    return {
+      ...item,
+      videoUrl: videoUrlValue,
+      streamUid: streamed.streamUid,
+      iframeUrl: streamed.iframeUrl,
+    };
+  }));
   const currentStreamLogs = await supabase
     .from("rec_stream_compliance_logs")
     .select("id,user_id,team_id,message_url,posted_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)")

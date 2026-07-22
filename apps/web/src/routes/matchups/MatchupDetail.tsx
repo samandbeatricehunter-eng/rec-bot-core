@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link, useParams } from "react-router-dom";
 import { americanFromDecimal } from "@rec/shared";
@@ -132,14 +132,15 @@ function displayOdds(odds: number) {
 }
 
 function canViewerUploadBoxScore(matchup: HubMatchupGame) {
-  if (matchup.matchupType === "h2h") return matchup.viewerSide === "home";
-  if (matchup.matchupType === "human_cpu") return matchup.involvesMe;
+  // App/matchup page: either participant may upload. H2H still *expects* home to
+  // post the official score (see boxScoreExpectationText); that is policy copy, not a hard gate here.
+  if (matchup.matchupType === "h2h" || matchup.matchupType === "human_cpu") return matchup.involvesMe;
   return false;
 }
 
 function boxScoreExpectationText(matchup: HubMatchupGame) {
   if (matchup.matchupType === "h2h") {
-    return `${matchup.homeTeamName} (home team) is responsible for uploading the box score.`;
+    return `${matchup.homeTeamName} (home team) is responsible for posting the official box score. Either coach in this matchup can upload from here if needed.`;
   }
   if (matchup.matchupType === "human_cpu") {
     return "The human-controlled team is responsible for uploading the box score.";
@@ -153,12 +154,16 @@ function MatchupActions({
   onOpenBoxScore,
   onOpenPlayerStats,
   onOpenWager,
+  onUploadHighlight,
+  highlightUploading,
 }: {
   matchup: HubMatchupGame;
   canUploadBoxScore: boolean;
   onOpenBoxScore: () => void;
   onOpenPlayerStats: () => void;
   onOpenWager: () => void;
+  onUploadHighlight: () => void;
+  highlightUploading: boolean;
 }) {
   const isParticipant = matchup.involvesMe;
   const canOpenBoxScore = canUploadBoxScore;
@@ -180,9 +185,7 @@ function MatchupActions({
             title={
               canOpenBoxScore
                 ? "Upload box score"
-                : matchup.viewerSide !== "home" && matchup.matchupType === "h2h"
-                  ? "Only the home team can upload the box score for H2H matchups."
-                  : "Box score already submitted or game is final."
+                : "Box score already submitted or game is final."
             }
           >
             <ClipboardList size={16} /> Box Score
@@ -211,10 +214,11 @@ function MatchupActions({
           <button
             type="button"
             className="matchup-action"
-            disabled
-            title="Highlight uploads run through Discord for now."
+            disabled={highlightUploading}
+            onClick={onUploadHighlight}
+            title="Upload a highlight clip (720p playback on Cloudflare Stream)."
           >
-            <Film size={16} /> Upload Highlight(s)
+            <Film size={16} /> {highlightUploading ? "Uploading…" : "Upload Highlight(s)"}
           </button>
         </>
       ) : (
@@ -257,6 +261,9 @@ export function MatchupDetailPage() {
   const [myWatchedPlayers, setMyWatchedPlayers] = useState<WatchedPlayer[] | null>(
     null,
   );
+  const [highlightUploading, setHighlightUploading] = useState(false);
+  const [highlightUploadNotice, setHighlightUploadNotice] = useState<string | null>(null);
+  const highlightFileInputRef = useRef<HTMLInputElement | null>(null);
   const [playerStatsDraft, setPlayerStatsDraft] = useState({
     playerName: "",
     watchedPlayerId: "",
@@ -430,6 +437,54 @@ export function MatchupDetailPage() {
       );
     } finally {
       setPlayerStatsBusy(false);
+    }
+  }
+
+  function openHighlightPicker() {
+    setHighlightUploadNotice(null);
+    highlightFileInputRef.current?.click();
+  }
+
+  async function uploadHighlightFile(file: File) {
+    if (!gameId) return;
+    setHighlightUploading(true);
+    setHighlightUploadNotice(`Uploading ${file.name}…`);
+    try {
+      const direct = await recApi.createHighlightDirectUpload({
+        guildId,
+        gameId,
+        fileName: file.name,
+      });
+      const form = new FormData();
+      form.append("file", file);
+      const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
+      if (!uploaded.ok) {
+        throw new Error(`Cloudflare upload failed (${uploaded.status}).`);
+      }
+      await recApi.markHighlightUploadReceived({ guildId, highlightId: direct.highlightId });
+      setHighlightUploadNotice("Uploaded — encoding to 720p. It will appear in Highlights when ready.");
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const status = await recApi.getHighlightUploadStatus({
+          guildId,
+          highlightId: direct.highlightId,
+        });
+        if (status.mediaStatus === "ready") {
+          setHighlightUploadNotice("Highlight is ready — check the Hub Highlights carousel.");
+          break;
+        }
+        if (status.mediaStatus === "failed") {
+          throw new Error("Highlight processing failed.");
+        }
+      }
+    } catch (cause) {
+      setHighlightUploadNotice(
+        cause instanceof Error ? cause.message : "Highlight upload failed.",
+      );
+    } finally {
+      setHighlightUploading(false);
+      if (highlightFileInputRef.current) highlightFileInputRef.current.value = "";
     }
   }
 
@@ -694,7 +749,22 @@ export function MatchupDetailPage() {
         }}
         onOpenPlayerStats={() => void openPlayerStats(matchup)}
         onOpenWager={() => void openWager(matchup)}
+        onUploadHighlight={openHighlightPicker}
+        highlightUploading={highlightUploading}
       />
+      <input
+        ref={highlightFileInputRef}
+        type="file"
+        accept="video/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void uploadHighlightFile(file);
+        }}
+      />
+      {highlightUploadNotice ? (
+        <p className="matchup-boxscore-reminder" role="status">{highlightUploadNotice}</p>
+      ) : null}
       <section className="matchup-boxscore-reminder">
         <strong>Box score reminder</strong>
         <p>{boxScoreExpectationText(matchup)}</p>

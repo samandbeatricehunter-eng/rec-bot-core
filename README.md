@@ -44,6 +44,11 @@ Two separate Railway services, one per app.
 | `REC_INTERNAL_API_KEY` | recommended | Shared secret between API and bot |
 | `API_PORT` | no | Defaults to `3000`; Railway sets `PORT` — set `API_PORT=${{PORT}}` |
 | `API_HOST` | no | Defaults to `0.0.0.0` |
+| `CLOUDFLARE_ACCOUNT_ID` | for Stream uploads | Cloudflare account id (see `docs/cloudflare-highlights.md`) |
+| `CLOUDFLARE_API_TOKEN` | for Stream uploads | Stream Edit token |
+| `CLOUDFLARE_STREAM_WEBHOOK_SECRET` | for Stream webhooks | From Stream webhook subscribe |
+| `CLOUDFLARE_STREAM_CUSTOMER_SUBDOMAIN` | no | e.g. `customer-xxxxx.cloudflarestream.com` |
+| `CLOUDFLARE_STREAM_ALLOWED_ORIGINS` | no | Comma-separated browser origins for direct uploads |
 
 ### Bot service
 

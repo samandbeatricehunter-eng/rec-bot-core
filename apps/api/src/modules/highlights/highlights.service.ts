@@ -5,9 +5,11 @@ import { deleteDiscordMessage, getDiscordMessage, getDiscordReactionUserIds } fr
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
+import { deleteStreamVideosForHighlights } from "../media/media.service.js";
 
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
+const HIGHLIGHT_WEEKLY_UPLOAD_LIMIT = 2;
 const HIGHLIGHT_AWARD_AMOUNT = 500;
 const GAME_OF_THE_YEAR_AMOUNT = 250;
 const HIGHLIGHT_BUCKET = "rec-highlights";
@@ -98,7 +100,7 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   // season; in the postseason the payout is logged but POTY voting is closed.
   const game = context.rec_leagues.game;
   const isRegularSeason = seasonStage === "regular_season" && weekNumber >= 1 && isRegularSeasonWeek(weekNumber, game);
-  const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs"].includes(seasonStage);
+  const isPostseason = ["wild_card", "divisional", "conference_championship", "super_bowl", "postseason", "playoffs", "national_championship"].includes(seasonStage);
   const payoutEligible = isRegularSeason || isPostseason;
   const preloadEmojis = isRegularSeason;
 
@@ -128,6 +130,21 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
       paidSlotAvailable: Boolean(existingPost.data.payout_review_id),
       highlight: existingPost.data,
     };
+  }
+
+  if (isRegularSeason || isPostseason) {
+    const existingUploads = await supabase
+      .from("rec_highlight_posts")
+      .select("id,media_status")
+      .eq("league_id", context.leagueId)
+      .eq("user_id", account.user_id)
+      .eq("season_number", seasonNumber)
+      .eq("week_number", weekNumber);
+    if (existingUploads.error) throw new ApiError(500, "Failed to check weekly highlight upload limit.", existingUploads.error);
+    const uploadCount = (existingUploads.data ?? []).filter((row) => row.media_status !== "failed" && row.media_status !== "deleted").length;
+    if (uploadCount >= HIGHLIGHT_WEEKLY_UPLOAD_LIMIT) {
+      throw new ApiError(400, `You can upload at most ${HIGHLIGHT_WEEKLY_UPLOAD_LIMIT} highlights per week during the regular season and postseason.`);
+    }
   }
 
   const existingPaid = await supabase
@@ -344,14 +361,14 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
 
 /**
  * Season-end cleanup: hard-deletes every highlight from the completed season except
- * the ones that won a Play of the Year category (those stay in the carousel
- * permanently). Fires one combined headline announcing every POTY category winner.
- * Call this once when the league advances into the offseason, alongside the other
- * season-end automations (EOS payouts, defense nicknames).
+ * the ones that won a Play of the Year category (those stay for hub display until
+ * the league itself is deleted). Fires one combined headline announcing every POTY
+ * category winner. Call this once when the league advances into the offseason,
+ * alongside the other season-end automations (EOS payouts, defense nicknames).
  */
 export async function cleanupSeasonHighlights(guildId: string, leagueId: string, seasonNumber: number): Promise<{ deleted: number; winners: number }> {
   const [postsResult, winsResult] = await Promise.all([
-    supabase.from("rec_highlight_posts").select("id,discord_channel_id,discord_message_id").eq("league_id", leagueId).eq("season_number", seasonNumber),
+    supabase.from("rec_highlight_posts").select("id,discord_channel_id,discord_message_id,cloudflare_stream_uid").eq("league_id", leagueId).eq("season_number", seasonNumber),
     supabase
       .from("rec_highlight_payout_reviews")
       .select("highlight_post_id,award_category,user_id,team:rec_teams!rec_highlight_payout_reviews_team_id_fkey(name,abbreviation)")
@@ -380,6 +397,16 @@ export async function cleanupSeasonHighlights(guildId: string, leagueId: string,
 
   const winningHighlightIds = new Set((winsResult.data ?? []).map((row: any) => row.highlight_post_id).filter(Boolean));
   const toDelete = posts.filter((post: any) => !winningHighlightIds.has(post.id));
+  const toRetain = posts.filter((post: any) => winningHighlightIds.has(post.id));
+
+  if (toRetain.length) {
+    await supabase
+      .from("rec_highlight_posts")
+      .update({ retained_as_poty: true, updated_at: new Date().toISOString() })
+      .in("id", toRetain.map((post: any) => post.id));
+  }
+
+  await deleteStreamVideosForHighlights(toDelete);
 
   await Promise.all(toDelete.map(async (post: any) => {
     if (post.discord_channel_id && post.discord_message_id) {
@@ -418,8 +445,7 @@ export async function listHighlightAwardCandidates(guildId: string) {
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("season_stage", "regular_season")
-    .not("discord_channel_id", "is", null)
-    .not("discord_message_id", "is", null);
+    .eq("media_status", "ready");
   if (error) throw new ApiError(500, "Failed to load highlight award candidates.", error);
 
   // POTY is finalized once any season_award review exists for the season — after
@@ -564,6 +590,11 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
 
   const review = await supabase.from("rec_highlight_payout_reviews").insert(payload).select("*").single();
   if (review.error) throw new ApiError(500, "Failed to create highlight award review.", review.error);
+
+  await supabase
+    .from("rec_highlight_posts")
+    .update({ retained_as_poty: true, updated_at: new Date().toISOString() })
+    .eq("id", highlight.data.id);
 
   await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId,

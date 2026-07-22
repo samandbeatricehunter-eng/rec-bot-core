@@ -1452,6 +1452,13 @@ export const recHighlightPosts = pgTable("rec_highlight_posts", {
   isFirstThisWeek: boolean("is_first_this_week").notNull().default(false),
   payoutReviewId: uuid("payout_review_id"),
   payoutIssued: boolean("payout_issued").notNull().default(false),
+  cloudflareStreamUid: text("cloudflare_stream_uid"),
+  storageProvider: text("storage_provider").notNull().default("discord_mirror"),
+  mediaStatus: text("media_status").notNull().default("ready"),
+  playbackUrl: text("playback_url"),
+  maxHeight: integer("max_height"),
+  retainedAsPoty: boolean("retained_as_poty").notNull().default(false),
+  gameId: uuid("game_id").references(() => recGames.id),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });

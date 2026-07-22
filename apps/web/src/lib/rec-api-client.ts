@@ -98,6 +98,23 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/hub/highlights/react", { method: "POST", body: JSON.stringify(input) }),
   recordHubHighlightView: (input: { guildId: string; highlightId: string }) =>
     recApiFetch<{ viewCount: number }>("/v1/hub/highlights/view", { method: "POST", body: JSON.stringify(input) }),
+  createHighlightDirectUpload: (input: { guildId: string; gameId: string; fileName?: string | null }) =>
+    recApiFetch<{ highlightId: string; uploadURL: string; streamUid: string; maxDurationSeconds: number; maxHeight: number }>(
+      "/v1/hub/highlights/direct-upload",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  markHighlightUploadReceived: (input: { guildId: string; highlightId: string }) =>
+    recApiFetch<{ highlightId: string; mediaStatus: string }>("/v1/hub/highlights/upload-received", { method: "POST", body: JSON.stringify(input) }),
+  getHighlightUploadStatus: (input: { guildId: string; highlightId: string }) =>
+    recApiFetch<{
+      highlightId: string;
+      mediaStatus: string;
+      playbackUrl: string | null;
+      streamUid: string | null;
+      iframeUrl: string | null;
+      maxHeight: number | null;
+      storageProvider: string;
+    }>("/v1/hub/highlights/status", { method: "POST", body: JSON.stringify(input) }),
   recordHubStreamView: (input: { guildId: string; streamLogId: string }) =>
     recApiFetch<{ viewCount: number }>("/v1/hub/streams/view", { method: "POST", body: JSON.stringify(input) }),
   toggleHubStreamReaction: (input: { guildId: string; streamLogId: string; reactionKey: "like" | "dislike" }) =>

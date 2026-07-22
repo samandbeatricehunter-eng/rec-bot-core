@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.service.js";
+import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import type {
   CreateLeagueInput,
   RegisterServerInput,
@@ -704,6 +705,12 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
   if (!confirmation || confirmation.toLowerCase() !== leagueName.toLowerCase()) {
     throw new ApiError(400, `Confirmation did not match. Type the league name exactly ("${leagueName}") to delete it.`);
   }
+
+  // Delete Cloudflare Stream assets (including POTY winners) before the DB wipe —
+  // rec_delete_league cascades highlight rows but cannot reach Stream.
+  await deleteAllLeagueStreamHighlights(context.leagueId).catch((error) => {
+    console.error("[ERROR] Failed to delete league Stream highlights before league wipe:", error);
+  });
 
   const { data, error } = await supabase.rpc("rec_delete_league", { p_league_id: context.leagueId });
   if (error) throw new ApiError(500, "Failed to delete league data.", error);

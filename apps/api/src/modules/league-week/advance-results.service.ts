@@ -608,11 +608,12 @@ export async function completeAdvanceWeek(input: {
   }
 
   // Season-end highlight cleanup: hard-deletes every non-POTY-winning highlight
-  // (Discord message + DB row), keeping POTY winners in the carousel permanently,
-  // and posts one combined headline announcing every category winner. Same
-  // terminal-stage -> offseason boundary as the automations above — must run AFTER
-  // settleSeasonHighlightAwards immediately above, which is what actually creates
-  // the season_award reviews this cleanup checks for.
+  // (Discord message + Stream asset + DB row) and posts one combined headline
+  // announcing every category winner. POTY winners remain playable until the
+  // league itself is deleted. Same terminal-stage -> offseason boundary as the
+  // automations above — must run AFTER settleSeasonHighlightAwards immediately
+  // above, which is what actually creates the season_award reviews this cleanup
+  // checks for.
   if (isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
     await cleanupSeasonHighlights(input.guildId, context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] cleanupSeasonHighlights failed after advance (non-fatal):", err);
