@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, Menu, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShieldCheck, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Newspaper, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -56,7 +56,21 @@ const STORE_PRODUCT_PRICE_LABEL: Record<RecPurchaseType, string> = {
   custom_player: `$${REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze}–$${REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold}`,
 };
 type Story = HubResponse["headlines"][number];
+type HubSection = "league" | "store" | "team" | "wagers" | "openTeams" | "schedules";
 type LeagueSubTab = "buzz" | "matchups" | "rankings";
+
+const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "openTeams", "schedules"]);
+const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups", "rankings"]);
+
+function parseHubSection(value: string | null): HubSection | null {
+  if (value && HUB_SECTIONS.has(value as HubSection)) return value as HubSection;
+  return null;
+}
+
+function parseLeagueSubTab(value: string | null): LeagueSubTab | null {
+  if (value && LEAGUE_SUB_TABS.has(value as LeagueSubTab)) return value as LeagueSubTab;
+  return null;
+}
 type WagerMode = "single" | "parlay" | "peer";
 type WagerLeg = { gameId: string; label: string; options: WagerOptionsResponse; market: string; pick: string };
 type WagerPanel = {
@@ -249,11 +263,12 @@ function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }
 export function HubHome() {
   const auth = useAuth();
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
-  const [section, setSection] = useState<"league" | "store" | "team" | "wagers" | "openTeams" | "schedules">("league");
-  const [subTab, setSubTab] = useState<LeagueSubTab>("buzz");
+  const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
+  const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "buzz");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
   const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
@@ -293,7 +308,6 @@ export function HubHome() {
   const [showMySchedule, setShowMySchedule] = useState(false);
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [linkedTeams, setLinkedTeams] = useState<LinkedTeamRow[] | null>(null);
   const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
@@ -324,6 +338,27 @@ export function HubHome() {
   const activeHighlightIndex = highlightCount ? highlightIndex % highlightCount : 0;
   const highlightSwipe = useSwipeNavigation({ itemCount: highlightCount, onIndexChange: setHighlightIndex });
   useEffect(() => { highlightSwipe.setCurrentIndex(activeHighlightIndex); }, [activeHighlightIndex]);
+
+  useEffect(() => {
+    const nextSection = parseHubSection(searchParams.get("section"));
+    const nextSubTab = parseLeagueSubTab(searchParams.get("subTab"));
+    if (nextSection) setSection(nextSection);
+    if (nextSubTab) setSubTab(nextSubTab);
+    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "openTeams" || nextSection === "schedules") {
+      setSection(nextSection);
+    } else if (nextSection === "league" || nextSubTab) {
+      setSection("league");
+    }
+  }, [searchParams]);
+
+  function writeHubParams(nextSection: HubSection, nextSubTab?: LeagueSubTab) {
+    const params = new URLSearchParams();
+    params.set("section", nextSection);
+    if (nextSection === "league") {
+      params.set("subTab", nextSubTab ?? "buzz");
+    }
+    setSearchParams(params, { replace: true });
+  }
 
   useEffect(() => {
     const count = matchupSchedule?.usersByConference.length ?? 0;
@@ -567,8 +602,8 @@ export function HubHome() {
   }
   async function viewOpenTeams() {
     if (auth.status !== "ready") return;
-    setSection("openTeams"); setOpenTeamsError(null);
-    setMobileNavOpen(false);
+    selectSection("openTeams");
+    setOpenTeamsError(null);
     if (openTeams) return;
     try { setOpenTeams((await recApi.listOpenTeams(auth.guildId)).openTeams); }
     catch (cause) { setOpenTeamsError(cause instanceof Error ? cause.message : "Open teams could not be loaded."); }
@@ -576,18 +611,25 @@ export function HubHome() {
   async function viewMySchedule() {
     if (auth.status !== "ready") return;
     setShowMySchedule(true); setMyScheduleError(null);
-    setMobileNavOpen(false);
     if (mySchedule) return;
     try { setMySchedule(await recApi.getMyTeamSchedule(auth.guildId)); }
     catch (cause) { setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded."); }
   }
 
-  function selectSection(next: typeof section) { setSection(next); setMobileNavOpen(false); }
-  function selectSubTab(next: LeagueSubTab) { setSubTab(next); setMobileNavOpen(false); }
+  function selectSection(next: HubSection) {
+    setSection(next);
+    writeHubParams(next, next === "league" ? subTab : undefined);
+  }
+  function selectSubTab(next: LeagueSubTab) {
+    setSubTab(next);
+    setSection("league");
+    writeHubParams("league", next);
+  }
 
   async function openTeamSchedulePicker() {
     if (auth.status !== "ready") return;
-    setSection("schedules"); setMobileNavOpen(false);
+    setSection("schedules");
+    writeHubParams("schedules");
     setTeamScheduleTeamId(null); setTeamSchedule(null); setTeamScheduleError(null);
     if (linkedTeams) return;
     try { setLinkedTeams((await recApi.listLinkedUsersTeams(auth.guildId)).linked); }
@@ -864,20 +906,7 @@ export function HubHome() {
         </div>
       </aside>
     </section>
-    <button className={`hub-nav-toggle${mobileNavOpen ? " open" : ""}`} aria-label={mobileNavOpen ? "Close menu" : "Open menu"} onClick={() => setMobileNavOpen((open) => !open)}><Menu size={26} /></button>
     <div className="hub-body">
-      {mobileNavOpen && <div className="hub-sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />}
-      <aside className={mobileNavOpen ? "hub-sidebar open" : "hub-sidebar"}>
-        <nav className="hub-sidebar-nav">
-          <button className={section === "league" && subTab === "buzz" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("buzz"); }}><Newspaper size={18} /> Campus Buzz</button>
-          <button className={section === "league" && subTab === "matchups" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("matchups"); }}><CalendarDays size={18} /> Matchups{hub.liveStreams?.length ? <i className="hub-live-dot" title="Live streams" /> : null}</button>
-          <button className={section === "league" && subTab === "rankings" ? "active" : ""} onClick={() => { selectSection("league"); selectSubTab("rankings"); }}><Trophy size={18} /> Rankings</button>
-          <button className={section === "openTeams" ? "active" : ""} onClick={() => void viewOpenTeams()}><UsersRound size={18} /> Open Teams</button>
-          <button className={section === "store" ? "active" : ""} onClick={() => selectSection("store")}><ShoppingBag size={18} /> Store</button>
-          <button className={section === "team" ? "active" : ""} onClick={() => selectSection("team")}><UserRound size={18} /> My Team</button>
-          {hub.canManageLeague && <Link className="hub-sidebar-mgmt" to="/league-mgmt" onClick={() => setMobileNavOpen(false)}><ShieldCheck size={18} /> League Mgmt</Link>}
-        </nav>
-      </aside>
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
       {hub.league.game === "cfb_27" && <DefenseNicknamePrompt />}
@@ -972,9 +1001,9 @@ export function HubHome() {
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · ${wager.stake.toLocaleString()} · {wager.challengeType}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.isMine && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
     </section> : <div className="hub-league-tab">
       <nav className="hub-subtabs">
-        <button className={subTab === "buzz" ? "active" : ""} onClick={() => setSubTab("buzz")}><Newspaper size={16} /> Campus Buzz</button>
-        <button className={subTab === "matchups" ? "active" : ""} onClick={() => setSubTab("matchups")}><CalendarDays size={16} /> Matchups</button>
-        <button className={subTab === "rankings" ? "active" : ""} onClick={() => setSubTab("rankings")}><Trophy size={16} /> Rankings</button>
+        <button className={subTab === "buzz" ? "active" : ""} onClick={() => selectSubTab("buzz")}><Newspaper size={16} /> Campus Buzz</button>
+        <button className={subTab === "matchups" ? "active" : ""} onClick={() => selectSubTab("matchups")}><CalendarDays size={16} /> Matchups</button>
+        <button className={subTab === "rankings" ? "active" : ""} onClick={() => selectSubTab("rankings")}><Trophy size={16} /> Rankings</button>
       </nav>
 
       {subTab === "buzz" && <>

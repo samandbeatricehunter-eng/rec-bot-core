@@ -153,7 +153,7 @@ async function discordIdForUser(userId: string | null | undefined) {
 async function activeAssignment(leagueId: string, userId: string) {
   const assignment = await supabase
     .from("rec_team_assignments")
-    .select("team_id")
+    .select("id,team_id")
     .eq("league_id", leagueId)
     .eq("user_id", userId)
     .eq("assignment_status", "active")
@@ -161,6 +161,41 @@ async function activeAssignment(leagueId: string, userId: string) {
     .maybeSingle();
   if (assignment.error) throw new ApiError(500, "Failed to load team assignment.", assignment.error);
   return assignment.data ?? null;
+}
+
+/** Member self-service retire from the Discord hub chrome (mirrors site-leagues retire). */
+export async function retireFromHub(guildId: string, discordId: string): Promise<{ ok: true }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const userId = await userIdForDiscord(discordId);
+  const canManageLeague = await assertGuildPermission(guildId, discordId, "co_commissioner")
+    .then(() => true)
+    .catch(() => false);
+  if (canManageLeague) {
+    throw new ApiError(403, "Commissioners cannot retire here. Use League Mgmt to resign or transfer.");
+  }
+
+  const assignment = await activeAssignment(context.leagueId, userId);
+  if (!assignment) {
+    throw new ApiError(404, "No active team assignment in this league.");
+  }
+
+  // End the assignment so the team becomes open (listOpenTeams keys off ended_at is null).
+  // Keep the team row; do not delete it.
+  const updated = await supabase
+    .from("rec_team_assignments")
+    .update({
+      assignment_status: "unlinked",
+      ended_at: new Date().toISOString(),
+      user_id: null,
+    })
+    .eq("id", assignment.id)
+    .is("ended_at", null)
+    .select("id")
+    .maybeSingle();
+  if (updated.error) throw new ApiError(500, "Failed to retire from this league.", updated.error);
+  if (!updated.data) throw new ApiError(409, "Could not retire from this league. Try again.");
+
+  return { ok: true };
 }
 
 function streamWatchPath(streamLogId: string) {

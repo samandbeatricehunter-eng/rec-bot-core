@@ -92,6 +92,8 @@ export const recApi = {
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHubBootstrapStatus: (guildId: string) =>
     recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }) }),
+  retireFromHub: (guildId: string) =>
+    recApiFetch<{ ok: true }>("/v1/hub/retire", { method: "POST", body: JSON.stringify({ guildId }) }),
   toggleHubHighlightReaction: (input: { guildId: string; highlightId: string; reactionKey: HubReactionKey }) =>
     recApiFetch<{ ok: true }>("/v1/hub/highlights/react", { method: "POST", body: JSON.stringify(input) }),
   recordHubHighlightView: (input: { guildId: string; highlightId: string }) =>

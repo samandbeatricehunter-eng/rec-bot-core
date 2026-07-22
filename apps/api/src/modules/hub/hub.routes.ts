@@ -24,6 +24,7 @@ import {
   recordHubHighlightView,
   recordHubStreamView,
   recordAnonymousStreamView,
+  retireFromHub,
   reviewMediaSubmission,
   STREAM_VIEWER_COOKIE,
   submitInterview,
@@ -329,6 +330,16 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "bot") throw new ApiError(400, "GOTW close requires a user session.");
       return reply.send(await closeGameOfWeekVoting({ ...body, closedByDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Member self-service: end active team assignment for this Discord user in the guild's league.
+  app.post("/v1/hub/retire", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Retire requires a user session.");
+      return reply.send(await retireFromHub(body.guildId, auth.discordId));
     } catch (error) { return sendError(reply, error); }
   });
 }

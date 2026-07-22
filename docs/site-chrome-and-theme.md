@@ -1,6 +1,6 @@
 # Site Chrome + Theme
 
-Locked decisions for `apps/site` navigation and theming (updated 2026-07-21).
+Locked decisions for `apps/site` navigation and theming (updated 2026-07-22).
 
 ## League selector
 
@@ -141,17 +141,40 @@ Palette details: [theme-palettes.md](theme-palettes.md). Site tokens live in
 Until those tools ship, non-commissioners use Retire on the bottom nav; commissioners
 use the League Mgmt placeholder.
 
+## apps/web Discord hub (mobile)
+
+Same chrome IA as `apps/site`, adapted for the Discord Activity / hub web app.
+
+| Concern | Detail |
+| ------- | ------ |
+| Auth | Discord JWT from `/hub` link only — **no Supabase login** in `apps/web` |
+| Scope storage | `sessionStorage` key `rec-web-hub-scope` (`{ kind: "main" }` \| `{ kind: "league" }`) |
+| Selector options (Phase 1) | **Main Hub** + **current guild league** (`{name} ({gameLabel})` via header/hub). Session is one guild at a time (`auth.guildId`). |
+| Multi-league expansion | Add `POST /v1/hub/my-leagues` listing active team-assignment leagues for this Discord user across servers; include current guild’s league. Not shipped in Phase 1. |
+| Main Hub nav | Home `/home`, Leagues `/leagues`, Headlines `/headlines`, Comp `/comp`, My Account `/account` (Discord session stub) |
+| League nav | Campus Buzz / Matchups / My Team / Store → `/?section=…&subTab=…` on `HubHome`; League Mgmt → `/league-mgmt` when `canManageLeague`; else Retire |
+| Retire | Confirm → `POST /v1/hub/retire` (member session; ends active assignment, clears `user_id`; commissioners get 403) |
+| Notifications | Hub routes: `HubNotificationsBell` (Updates empty for now; Commissioner section from `listCommissionerNotifications` with deep links to `/league-mgmt/notifications`). On `/league-mgmt/*` only the existing Office `NotificationBell` (no double bell). |
+| Theme | Main Hub → `data-site-theme=app` (carbon fiber); league → existing `data-game-theme` from league game |
+| Legacy FAB | `hub-nav-toggle` / `hub-sidebar` removed when bottom chrome is present |
+
+Implementation: `apps/web/src/lib/hub-chrome-context.tsx`, `apps/web/src/components/chrome/*`, wired in `AppShell`.
+
 ## Implementation map
 
 | Area | Path |
 | ---- | ---- |
-| API list / retire | `apps/api/src/modules/site-leagues/` |
+| API list / retire (site) | `apps/api/src/modules/site-leagues/` |
 | Site notifications | `apps/api/src/modules/site-notifications/` |
-| Hub scope + league load | `apps/site/src/lib/hub-context.tsx` |
-| Theme | `apps/site/src/lib/site-theme-context.tsx` |
-| Shell / selector / nav / bell | `SiteShell.tsx`, `LeagueSelector.tsx`, `BottomNav.tsx`, `NotificationsBell.tsx` |
-| Icons (inline SVG) | `apps/site/src/components/icons.tsx` |
-| Placeholder routes | `apps/site/src/routes/placeholders.tsx` |
+| Hub retire (web) | `POST /v1/hub/retire` in `apps/api/src/modules/hub/` |
+| Site hub scope + league load | `apps/site/src/lib/hub-context.tsx` |
+| Web hub chrome scope | `apps/web/src/lib/hub-chrome-context.tsx` |
+| Theme (site) | `apps/site/src/lib/site-theme-context.tsx` |
+| Shell / selector / nav / bell (site) | `SiteShell.tsx`, `LeagueSelector.tsx`, `BottomNav.tsx`, `NotificationsBell.tsx` |
+| Shell / selector / nav / bell (web) | `AppShell.tsx`, `components/chrome/*` |
+| Icons (site) | `apps/site/src/components/icons.tsx` |
+| Placeholder routes (site) | `apps/site/src/routes/placeholders.tsx` |
+| Placeholder routes (web) | `apps/web/src/routes/placeholders.tsx` |
 
 Related docs: [site-auth-migration.md](site-auth-migration.md),
 [site-inbox-messaging.md](site-inbox-messaging.md).

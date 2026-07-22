@@ -3,7 +3,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, Trash2, Trophy } from "lucide-react";
 import { Button } from "../ui/Button.js";
 import { NotificationBell } from "../ui/NotificationBell.js";
+import { HubNotificationsBell } from "../chrome/HubNotificationsBell.js";
+import { LeagueSelector } from "../chrome/LeagueSelector.js";
+import { BottomNav } from "../chrome/BottomNav.js";
 import { useAuth } from "../../lib/auth-context.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { LeagueThemeProvider } from "../../lib/league-theme-context.js";
 import type { LeagueHeaderSummary } from "../../types/api.js";
@@ -14,29 +18,45 @@ export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
-  const isHome = location.pathname === "/";
+  const hub = useHubChrome();
+  const isHome = location.pathname === "/" || location.pathname === "/home";
   const isLeagueMgmt = location.pathname.startsWith("/league-mgmt");
+  const isMainPlaceholder = ["/home", "/leagues", "/headlines", "/comp", "/account"].includes(
+    location.pathname,
+  );
+  // Show bottom chrome on hub home + main placeholders + league-mgmt (league nav with Mgmt active).
+  const showChrome =
+    isHome || isMainPlaceholder || isLeagueMgmt || location.pathname.startsWith("/matchups");
   const [notificationCount, setNotificationCount] = useState(0);
   const [headerSummary, setHeaderSummary] = useState<LeagueHeaderSummary | null>(null);
 
   useEffect(() => {
-    if (auth.status !== "ready" || !isLeagueMgmt) { setNotificationCount(0); return; }
+    if (auth.status !== "ready" || !isLeagueMgmt) {
+      setNotificationCount(0);
+      return;
+    }
     let cancelled = false;
     function load() {
       if (auth.status !== "ready") return;
       recApi
         .listCommissionerNotifications(auth.guildId)
-        .then((res) => { if (!cancelled) setNotificationCount(res.notifications.length); })
-        .catch(() => { if (!cancelled) setNotificationCount(0); });
+        .then((res) => {
+          if (!cancelled) setNotificationCount(res.notifications.length);
+        })
+        .catch(() => {
+          if (!cancelled) setNotificationCount(0);
+        });
     }
     load();
     const interval = setInterval(load, NOTIFICATION_POLL_MS);
     window.addEventListener("rec:notifications-changed", load);
-    return () => { cancelled = true; clearInterval(interval); window.removeEventListener("rec:notifications-changed", load); };
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener("rec:notifications-changed", load);
+    };
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, isLeagueMgmt]);
 
-  // League identity (name/password/season/week/team-count) doesn't change second-to-second
-  // like notifications do — fetch once per mount, no polling.
   useEffect(() => {
     if (auth.status !== "ready") return;
     recApi
@@ -45,80 +65,115 @@ export function AppShell({ children }: { children: ReactNode }) {
       .catch(() => setHeaderSummary(null));
   }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
 
-  // Drives the CFB27/Madden27 presentation-mode token layer (see styles/themes/*.css).
-  // main.tsx sets a synchronous "cfb_27" default so there's no flash before this resolves.
+  // League theme when in league scope; Main Hub uses data-site-theme=app (set by HubChromeProvider).
   useEffect(() => {
-    if (headerSummary?.league.game) {
-      document.documentElement.setAttribute("data-game-theme", headerSummary.league.game);
+    if (hub.scope.kind === "main") return;
+    const game = hub.currentLeague?.game ?? headerSummary?.league.game;
+    if (game) {
+      document.documentElement.setAttribute("data-game-theme", game);
     }
-  }, [headerSummary?.league.game]);
+  }, [hub.scope.kind, hub.currentLeague?.game, headerSummary?.league.game]);
+
+  const gameForTheme =
+    hub.scope.kind === "league"
+      ? (hub.currentLeague?.game ?? headerSummary?.league.game ?? null)
+      : null;
 
   return (
-    <LeagueThemeProvider game={headerSummary?.league.game ?? null}>
-    <div className={`app-backdrop${isHome ? " app-backdrop--hub" : ""}`}>
-      <div className="app-shell-container">
-        <header
-          className="app-header-bar"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-3)",
-            marginBottom: "var(--space-6)",
-          }}
-        >
-          {!isHome && (
-            <Button variant="ghost" onClick={() => navigate(-1)}>
-              <ChevronLeft size={18} /> Back
-            </Button>
-          )}
-          <Link
-            to="/"
-            className="app-wordmark"
+    <LeagueThemeProvider game={gameForTheme}>
+      <div
+        className={[
+          "app-backdrop",
+          isHome ? "app-backdrop--hub" : "",
+          showChrome ? "has-hub-chrome" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        <div className={`app-shell-container${showChrome ? " has-hub-chrome" : ""}`}>
+          <header
+            className="app-header-bar"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "var(--space-2)",
-              fontWeight: 800,
-              fontSize: "var(--text-lg)",
-              textDecoration: "none",
-              color: "var(--gold)",
-              letterSpacing: "0.02em",
-              whiteSpace: "nowrap",
-              flexShrink: 0,
+              gap: "var(--space-3)",
+              marginBottom: "var(--space-6)",
             }}
           >
-            <Trophy size={22} />
-            REC LEAGUE
-          </Link>
-          {headerSummary && (
-            <div className="app-header-summary">
-              <span style={{ fontWeight: 700, fontSize: "var(--text-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {headerSummary.league.name}
-              </span>
-              <span className="app-header-summary-meta">
-                Season {headerSummary.league.seasonNumber} · {headerSummary.league.weekLabel} ·{" "}
-                {headerSummary.teams.linked}/{headerSummary.teams.cap} teams linked ({headerSummary.teams.availableTeams} available)
-                {headerSummary.league.leaguePassword && <> · Password: {headerSummary.league.leaguePassword}</>}
-              </span>
+            {!isHome && (
+              <Button variant="ghost" onClick={() => navigate(-1)}>
+                <ChevronLeft size={18} /> Back
+              </Button>
+            )}
+            <Link
+              to="/"
+              className="app-wordmark"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)",
+                fontWeight: 800,
+                fontSize: "var(--text-lg)",
+                textDecoration: "none",
+                color: "var(--gold)",
+                letterSpacing: "0.02em",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              <Trophy size={22} />
+              REC LEAGUE
+            </Link>
+            {headerSummary && hub.scope.kind === "league" && (
+              <div className="app-header-summary">
+                <span
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "var(--text-sm)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {headerSummary.league.name}
+                </span>
+                <span className="app-header-summary-meta">
+                  Season {headerSummary.league.seasonNumber} · {headerSummary.league.weekLabel} ·{" "}
+                  {headerSummary.teams.linked}/{headerSummary.teams.cap} teams linked (
+                  {headerSummary.teams.availableTeams} available)
+                  {headerSummary.league.leaguePassword && (
+                    <> · Password: {headerSummary.league.leaguePassword}</>
+                  )}
+                </span>
+              </div>
+            )}
+            <div style={{ marginLeft: "auto" }}>
+              {auth.status === "ready" && isLeagueMgmt ? (
+                <NotificationBell count={notificationCount} />
+              ) : auth.status === "ready" ? (
+                <HubNotificationsBell />
+              ) : null}
             </div>
-          )}
-          <div style={{ marginLeft: "auto" }}>
-            {auth.status === "ready" && isLeagueMgmt && <NotificationBell count={notificationCount} />}
+          </header>
+          <main>{children}</main>
+        </div>
+        {showChrome ? (
+          <div className="hub-chrome-stack">
+            <LeagueSelector />
+            <BottomNav />
           </div>
-        </header>
-        <main>{children}</main>
+        ) : null}
+        {isLeagueMgmt && headerSummary?.isGuildOwner && (
+          <button
+            onClick={() => navigate("/league-mgmt/delete-league")}
+            className="delete-league-fab"
+            aria-label="Delete League"
+            title="Delete League — head commissioner only"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
-      {isLeagueMgmt && headerSummary?.isGuildOwner && (
-        <button
-          onClick={() => navigate("/league-mgmt/delete-league")}
-          className="delete-league-fab"
-          aria-label="Delete League"
-          title="Delete League — head commissioner only"
-        >
-          <Trash2 size={16} />
-        </button>
-      )}
-    </div>
     </LeagueThemeProvider>
   );
 }
