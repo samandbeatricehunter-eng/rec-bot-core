@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
-import { env } from "./config/env.js";
+import { env, shouldMigrateMirroredHighlightsOnBoot } from "./config/env.js";
 import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
 
@@ -25,7 +25,16 @@ await registerRoutes(app);
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }
 
-if (env.MIGRATE_MIRRORED_HIGHLIGHTS_ON_BOOT) {
+const migrateOnBoot = shouldMigrateMirroredHighlightsOnBoot();
+app.log.info(
+  {
+    migrateOnBoot,
+    migrateFlagRaw: process.env.MIGRATE_MIRRORED_HIGHLIGHTS_ON_BOOT ?? null,
+  },
+  "Highlight Stream migration boot check",
+);
+
+if (migrateOnBoot) {
   app.log.info("MIGRATE_MIRRORED_HIGHLIGHTS_ON_BOOT set — copying mirrored highlights into Stream…");
   try {
     const result = await migrateMirroredHighlightsToStream({ limit: 100 });
