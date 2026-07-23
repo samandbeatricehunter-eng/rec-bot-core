@@ -1,7 +1,6 @@
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
-import { buildWebHubUrl } from "../web-session/web-session.service.js";
 
 /** Linked REC profile (username optional — used by chrome/league selector). */
 export async function requireLinkedRecUser(authUserId: string): Promise<{
@@ -188,22 +187,6 @@ export async function retireFromSiteLeague(input: {
 
 export type SiteLeagueHubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
 
-function hubHashForView(view: SiteLeagueHubView): string {
-  switch (view) {
-    case "matchups":
-      return "/?section=league&subTab=matchups";
-    case "team":
-      return "/?section=team";
-    case "store":
-      return "/?section=store";
-    case "mgmt":
-      return "/league-mgmt";
-    case "buzz":
-    default:
-      return "/?section=league&subTab=buzz";
-  }
-}
-
 async function assertSiteLeagueAccess(recUserId: string, leagueId: string): Promise<void> {
   const access = await getPgPool().query(
     `
@@ -227,13 +210,27 @@ async function assertSiteLeagueAccess(recUserId: string, leagueId: string): Prom
   }
 }
 
-/** Mint a Discord-hub session URL for the site shell (iframe / handoff). */
+/** Resolve Discord guild + identity for rendering the hub inside apps/site (no iframe). */
 export async function openSiteLeagueHub(input: {
   recUserId: string;
   leagueId: string;
   view?: SiteLeagueHubView;
   embed?: boolean;
-}): Promise<{ hubUrl: string; expiresInSeconds: number }> {
+}): Promise<{
+  guildId: string;
+  discordId: string;
+  leagueId: string;
+}> {
+  void input.view;
+  void input.embed;
+  return openSiteLeagueHubContext(input);
+}
+
+/** Resolve Discord guild + identity for rendering the hub inside apps/site (no iframe). */
+export async function openSiteLeagueHubContext(input: {
+  recUserId: string;
+  leagueId: string;
+}): Promise<{ guildId: string; discordId: string; leagueId: string }> {
   await assertSiteLeagueAccess(input.recUserId, input.leagueId);
 
   const profile = await getPgPool().query(
@@ -270,11 +267,5 @@ export async function openSiteLeagueHub(input: {
     throw new ApiError(404, "This league is not linked to a Discord server yet.");
   }
 
-  const issued = await buildWebHubUrl({
-    discordId: row.discord_id,
-    guildId,
-    hashPath: hubHashForView(input.view ?? "buzz"),
-    embed: input.embed ?? true,
-  });
-  return { hubUrl: issued.hubUrl, expiresInSeconds: issued.expiresInSeconds };
+  return { guildId, discordId: row.discord_id, leagueId: input.leagueId };
 }

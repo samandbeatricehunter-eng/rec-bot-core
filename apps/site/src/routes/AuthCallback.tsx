@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../lib/auth-context.js";
+import { safeInternalNext } from "../lib/safe-next.js";
+import { siteApi } from "../lib/site-api.js";
 import { supabase } from "../lib/supabase-client.js";
 
 /**
- * Landing page for Supabase Auth email confirmation / magic links.
- * Confirm emails must use emailRedirectTo pointing here (and this path must be
- * allowlisted in the Supabase Auth redirect URL settings).
+ * Landing page for Supabase Auth email confirmation / Discord OAuth / magic links.
  */
 export function AuthCallback() {
   const navigate = useNavigate();
-  const [message, setMessage] = useState("Confirming your email…");
+  const [params] = useSearchParams();
+  const next = safeInternalNext(params.get("next")) ?? "/account";
+  const auth = useAuth();
+  const [message, setMessage] = useState("Confirming your session…");
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -23,7 +27,6 @@ export function AuthCallback() {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
         } else {
-          // Hash tokens (implicit) are picked up by detectSessionInUrl.
           const { data, error } = await supabase.auth.getSession();
           if (error) throw error;
           if (!data.session) {
@@ -31,12 +34,20 @@ export function AuthCallback() {
           }
         }
         if (cancelled) return;
-        setMessage("Email confirmed. Taking you to your account…");
-        navigate("/account", { replace: true });
+
+        setMessage("Linking your Discord account…");
+        try {
+          await siteApi.linkDiscordOAuth();
+        } catch {
+          // Email/password users without Discord identity are fine — Account handles subscribe.
+        }
+        if (cancelled) return;
+        setMessage("You're in. Taking you to REC Leagues…");
+        navigate(next, { replace: true });
       } catch (cause) {
         if (cancelled) return;
         setFailed(true);
-        setMessage(cause instanceof Error ? cause.message : "Could not confirm email.");
+        setMessage(cause instanceof Error ? cause.message : "Could not finish sign-in.");
       }
     }
 
@@ -44,11 +55,16 @@ export function AuthCallback() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, next]);
+
+  // If auth context already caught the session (hash flow), still proceed once.
+  useEffect(() => {
+    if (auth.status !== "signed-in") return;
+  }, [auth.status]);
 
   return (
     <div className="site-page site-auth-callback">
-      <h1>{failed ? "Confirmation failed" : "Almost there"}</h1>
+      <h1>{failed ? "Sign-in failed" : "Almost there"}</h1>
       <p>{message}</p>
       {failed ? (
         <p>

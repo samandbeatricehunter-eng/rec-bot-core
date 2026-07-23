@@ -12,6 +12,7 @@ export function SignUp() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [discordBusy, setDiscordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmationSent, setConfirmationSent] = useState(false);
 
@@ -27,6 +28,14 @@ export function SignUp() {
     setBusy(false);
     if (result.error) { setError(result.error); return; }
     if (result.needsEmailConfirmation) setConfirmationSent(true);
+  }
+
+  async function handleDiscord() {
+    setError(null);
+    setDiscordBusy(true);
+    const result = await auth.signInWithDiscord(next);
+    setDiscordBusy(false);
+    if (result.error) setError(result.error);
   }
 
   if (confirmationSent) {
@@ -46,6 +55,15 @@ export function SignUp() {
       <form className="site-auth-card" onSubmit={handleSubmit}>
         <h1>Create your account</h1>
         {error && <p className="site-auth-error">{error}</p>}
+        <button
+          className="site-btn site-btn-primary site-btn-lg"
+          type="button"
+          disabled={discordBusy || busy}
+          onClick={() => void handleDiscord()}
+        >
+          {discordBusy ? "Opening Discord…" : "Continue with Discord"}
+        </button>
+        <p className="site-muted" style={{ textAlign: "center", margin: "12px 0" }}>or use email</p>
         <label className="site-field">
           <span>Email</span>
           <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -58,9 +76,9 @@ export function SignUp() {
           <span>Confirm password</span>
           <input type="password" required autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
         </label>
-        <button className="site-btn site-btn-primary site-btn-lg" type="submit" disabled={busy}>{busy ? "Creating account…" : "Sign Up"}</button>
+        <button className="site-btn site-btn-ghost site-btn-lg" type="submit" disabled={busy || discordBusy}>{busy ? "Creating account…" : "Sign up with email"}</button>
         <p className="site-auth-switch">Already have an account? <Link to={loginHref}>Log in</Link></p>
-        <p className="site-auth-switch">See <Link to="/pricing">pricing</Link> before you join.</p>
+        <p className="site-auth-switch">See <Link to="/pricing">pricing</Link> before you join. Email-only accounts need a Gold or Platinum subscription. Active REC OG (CFB 27) members get lifetime Platinum when they sign in with Discord.</p>
       </form>
     </div>
   );

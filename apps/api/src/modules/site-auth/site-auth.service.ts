@@ -1,4 +1,5 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 import type { PoolClient } from "pg";
 import { env } from "../../config/env.js";
 import { getPgPool } from "../../db/client.js";
@@ -9,9 +10,153 @@ import {
 } from "../../lib/discord-guild.js";
 import { ApiError } from "../../lib/errors.js";
 import {
+  ensureRecUserForAuthUser,
   getEntitlementSummary,
   isIdentityClaimDropdownOpen,
+  syncLifetimePlatinumForUser,
 } from "../subscriptions/entitlements.service.js";
+
+const supabaseAuthAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+function discordIdentityFromAuthUser(user: {
+  identities?: Array<{
+    provider?: string;
+    id?: string;
+    identity_data?: Record<string, unknown> | null;
+  }> | null;
+}): { discordId: string; username: string; globalName: string | null } | null {
+  const identity = (user.identities ?? []).find((item) => item.provider === "discord");
+  if (!identity) return null;
+  const data = identity.identity_data ?? {};
+  const discordId =
+    (typeof identity.id === "string" && /^\d{5,}$/.test(identity.id) ? identity.id : null) ||
+    (typeof data.provider_id === "string" ? data.provider_id : null) ||
+    (typeof data.sub === "string" ? data.sub : null);
+  if (!discordId) return null;
+  const username =
+    (typeof data.full_name === "string" && data.full_name) ||
+    (typeof data.preferred_username === "string" && data.preferred_username) ||
+    (typeof data.name === "string" && data.name) ||
+    (typeof data.custom_claims === "object" &&
+      data.custom_claims &&
+      typeof (data.custom_claims as { global_name?: string }).global_name === "string" &&
+      (data.custom_claims as { global_name: string }).global_name) ||
+    discordId;
+  const globalName =
+    typeof data.custom_claims === "object" &&
+    data.custom_claims &&
+    typeof (data.custom_claims as { global_name?: string }).global_name === "string"
+      ? (data.custom_claims as { global_name: string }).global_name
+      : typeof data.full_name === "string"
+        ? data.full_name
+        : null;
+  return { discordId, username: String(username), globalName };
+}
+
+/**
+ * After Discord OAuth (or when a Discord identity is already on the Supabase user),
+ * link the snowflake to rec_discord_accounts / rec_users and sync REC OG lifetime Platinum.
+ */
+export async function linkDiscordFromOAuth(input: {
+  authUserId: string;
+  email: string | null;
+}): Promise<SiteLinkProfile & { lifetimePlatinum: boolean; discordLinked: boolean }> {
+  const { data, error } = await supabaseAuthAdmin.auth.admin.getUserById(input.authUserId);
+  if (error || !data.user) {
+    throw new ApiError(401, "Could not load auth user for Discord linking.");
+  }
+
+  const discord = discordIdentityFromAuthUser(data.user);
+  if (!discord) {
+    const profile = await getSiteLinkProfile({ authUserId: input.authUserId });
+    return { ...profile, lifetimePlatinum: false, discordLinked: false };
+  }
+
+  const existingDiscord = await getPgPool().query(
+    `
+      select da.user_id, u.supabase_auth_user_id
+      from rec_discord_accounts da
+      inner join rec_users u on u.id = da.user_id
+      where da.discord_id = $1
+      limit 1
+    `,
+    [discord.discordId],
+  );
+  const existing = existingDiscord.rows[0] as
+    | { user_id: string; supabase_auth_user_id: string | null }
+    | undefined;
+
+  let recUserId: string;
+  if (existing) {
+    if (
+      existing.supabase_auth_user_id &&
+      existing.supabase_auth_user_id !== input.authUserId
+    ) {
+      throw new ApiError(
+        403,
+        "That Discord account is already linked to a different REC Leagues account.",
+      );
+    }
+    recUserId = existing.user_id;
+    if (!existing.supabase_auth_user_id) {
+      await getPgPool().query(
+        `
+          update rec_users
+          set supabase_auth_user_id = $1, updated_at = now()
+          where id = $2 and supabase_auth_user_id is null
+        `,
+        [input.authUserId, recUserId],
+      );
+      await getPgPool().query(
+        `
+          insert into rec_site_identity_claims (auth_user_id, rec_user_id)
+        values ($1, $2)
+        on conflict (auth_user_id) do nothing
+      `,
+        [input.authUserId, recUserId],
+      );
+    }
+    await getPgPool().query(
+      `
+        update rec_discord_accounts
+        set username = $2, global_name = $3
+        where discord_id = $1
+      `,
+      [discord.discordId, discord.username, discord.globalName],
+    );
+  } else {
+    recUserId = await ensureRecUserForAuthUser(input.authUserId, input.email);
+    const insert = await getPgPool().query(
+      `
+        insert into rec_discord_accounts (user_id, discord_id, username, global_name)
+        values ($1, $2, $3, $4)
+        on conflict (discord_id) do update
+          set username = excluded.username,
+              global_name = excluded.global_name
+        returning user_id
+      `,
+      [recUserId, discord.discordId, discord.username, discord.globalName],
+    );
+    const linkedUserId = (insert.rows[0] as { user_id: string } | undefined)?.user_id;
+    if (linkedUserId && linkedUserId !== recUserId) {
+      throw new ApiError(409, "That Discord account was linked to another profile during signup.");
+    }
+    await getPgPool().query(
+      `
+        insert into rec_site_identity_claims (auth_user_id, rec_user_id)
+        values ($1, $2)
+        on conflict (auth_user_id) do nothing
+      `,
+      [input.authUserId, recUserId],
+    );
+  }
+
+  const lifetimePlatinum = await syncLifetimePlatinumForUser(recUserId);
+  const profile = await getSiteLinkProfile({ authUserId: input.authUserId });
+  return { ...profile, lifetimePlatinum, discordLinked: true };
+}
 
 export type SiteLinkProfile = {
   linked: boolean;

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { setAuthToken } from "./rec-api-client.js";
+import { setAuthToken, setHubGuildId } from "./rec-api-client.js";
 
 function decodeJwtPayload<T>(token: string): T {
   const [, payload] = token.split(".");
@@ -67,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       setAuthToken(token);
+      setHubGuildId(payload.guildId);
       setState({ status: "ready", discordId: payload.discordId, guildId: payload.guildId });
     } catch {
       setState({ status: "error", message: "This Discord app link is invalid — run /app again, or open rec-leagues.com." });
@@ -74,6 +75,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
+}
+
+/** Site shell mounts hub UI with a Supabase bearer + known Discord guild context. */
+export function InjectedAuthProvider({
+  discordId,
+  guildId,
+  accessToken,
+  children,
+}: {
+  discordId: string;
+  guildId: string;
+  accessToken: string;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    setAuthToken(accessToken);
+    setHubGuildId(guildId);
+    return () => {
+      setAuthToken(null);
+      setHubGuildId(null);
+    };
+  }, [accessToken, guildId]);
+
+  return (
+    <AuthContext.Provider value={{ status: "ready", discordId, guildId }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthState {

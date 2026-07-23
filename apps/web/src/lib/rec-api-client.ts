@@ -75,9 +75,14 @@ function apiBaseUrl(): string {
 }
 
 let authToken: string | null = null;
+let hubGuildId: string | null = null;
 
 export function setAuthToken(token: string | null) {
   authToken = token;
+}
+
+export function setHubGuildId(guildId: string | null) {
+  hubGuildId = guildId;
 }
 
 // There's no silent recovery from a 401 here — the token comes from a link the bot mints
@@ -94,11 +99,12 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
     headers: {
       ...(isFormData ? {} : { "content-type": "application/json" }),
       ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+      ...(hubGuildId ? { "x-rec-guild-id": hubGuildId } : {}),
       ...(init?.headers ?? {}),
     },
   });
   if (response.status === 401) {
-    throw new Error("Your session has expired — run /app again in Discord.");
+    throw new Error("Your session has expired — sign in again on rec-leagues.com, or run /app in Discord.");
   }
   if (!response.ok) {
     const body = await response.text().catch(() => "");

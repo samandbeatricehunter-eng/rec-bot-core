@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { env } from "../../config/env.js";
+import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { ensureRecUserForAuthUser } from "../subscriptions/entitlements.service.js";
@@ -134,13 +135,54 @@ async function verifyAppHandoff(handoff: string): Promise<{
   };
 }
 
+/** Resolve the primary league linked to a Discord guild, if any. */
+async function leagueIdForGuild(guildId: string): Promise<string | null> {
+  const result = await getPgPool().query(
+    `
+      select link.league_id
+      from rec_server_league_links link
+      inner join rec_discord_servers s on s.id = link.server_id
+      where s.guild_id = $1
+      order by link.is_primary desc, link.created_at asc
+      limit 1
+    `,
+    [guildId],
+  );
+  return (result.rows[0] as { league_id: string } | undefined)?.league_id ?? null;
+}
+
+async function userHasLeagueAccess(recUserId: string, leagueId: string): Promise<boolean> {
+  const result = await getPgPool().query(
+    `
+      select 1
+      where exists (
+        select 1
+        from rec_team_assignments ta
+        where ta.user_id = $1
+          and ta.league_id = $2
+          and ta.assignment_status = 'active'
+          and ta.ended_at is null
+      )
+      or exists (
+        select 1
+        from rec_league_memberships m
+        where m.user_id = $1
+          and m.league_id = $2
+      )
+      limit 1
+    `,
+    [recUserId, leagueId],
+  );
+  return Boolean(result.rows[0]);
+}
+
+/**
+ * Exchange Discord /app handoff for a site deep-link (stays on rec-leagues.com).
+ * No longer redirects into the Discord-JWT webapp.
+ */
 export async function exchangeAppHandoff(
   input: ExchangeAppHandoffInput & { authUserId: string; email: string | null },
 ) {
-  if (!env.WEB_APP_URL) {
-    throw new ApiError(500, "WEB_APP_URL is not configured on the API.");
-  }
-
   const handoff = await verifyAppHandoff(input.handoff);
   const siteUserId = await ensureRecUserForAuthUser(input.authUserId, input.email);
 
@@ -201,14 +243,20 @@ export async function exchangeAppHandoff(
     };
   }
 
-  const issued = await buildWebHubUrl({
-    discordId: handoff.discordId,
-    guildId: handoff.guildId,
-    hashPath: "/?section=league&subTab=buzz",
-  });
+  const leagueId = await leagueIdForGuild(handoff.guildId);
+  if (leagueId && (await userHasLeagueAccess(siteUserId, leagueId))) {
+    return {
+      status: "ready" as const,
+      sitePath: `/l/${leagueId}/buzz`,
+      leagueId,
+      guildId: handoff.guildId,
+    };
+  }
+
   return {
     status: "ready" as const,
-    hubUrl: issued.hubUrl,
-    expiresInSeconds: issued.expiresInSeconds,
+    sitePath: "/home",
+    leagueId: null,
+    guildId: handoff.guildId,
   };
 }

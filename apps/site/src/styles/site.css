@@ -1203,6 +1203,15 @@ h1, h2, h3, .site-wordmark {
   border: 0;
   background: #070807;
 }
+.site-hub-inprocess {
+  width: 100%;
+  overflow: auto;
+}
+.site-hub-inprocess .app-backdrop,
+.site-hub-inprocess.app-backdrop {
+  min-height: 0;
+  background: transparent;
+}
 @media (min-width: 960px) {
   .site-hub-embed,
   .site-hub-embed-frame {

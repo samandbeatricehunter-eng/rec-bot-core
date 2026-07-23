@@ -1073,7 +1073,7 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
           .setTitle("Open my league")
           .setColor(COLORS.gold)
           .setDescription(
-            "Opens your league for this Discord server. If you are not signed in, you will land on the sign-in page (Register is there for new accounts). Keep me logged in on the site to skip sign-in next time. This link expires in 10 minutes.",
+            "Opens REC Leagues in your browser for this Discord server. New here? You’ll land on Create account. Already signed in? You’ll go straight to this server’s league (or Home if none is linked). Keep me logged in on the site to skip sign-in next time. This link expires in 10 minutes.",
           ),
       ],
       components: [
@@ -1098,36 +1098,30 @@ async function renderAdminPanelFromComponent(interaction: Extract<Interaction, {
   await interaction.update(buildAdminPanelPayload(interaction));
 }
 
-// Mints a fresh, personal session token and hands the commissioner/co-commissioner a Link
-// button that opens the web dashboard in their browser. Shared by the /league-mgmt slash
-// command (the primary entry point now that the dashboard has full League Mgmt parity —
-// see [[web-dashboard-full-parity]]) and the legacy "Open Web Dashboard" button still sitting
-// in the Discord-native Admin Panel, which is unreachable via /menu now but left in place
-// rather than deleted. Re-checks permission here regardless of caller, since a stale button
-// on an old message could otherwise be replayed.
+// Mints a Discord→site handoff and opens League Mgmt on rec-leagues.com (same site as /app).
 async function handleLeagueMgmtOpenDashboard(interaction: ButtonInteraction | ChatInputCommandInteraction) {
   if (!interaction.inCachedGuild()) return;
   if (!isDiscordAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "open the web dashboard");
   }
-  if (!env.WEB_APP_URL) {
-    return interaction.reply({ content: "The web dashboard isn't configured yet for this bot.", flags: MessageFlags.Ephemeral });
-  }
+  const siteBase = env.SITE_PUBLIC_URL.replace(/\/$/, "");
   await interaction.reply({ content: "Generating your link…", flags: MessageFlags.Ephemeral });
   try {
-    const session = await recApi.mintWebSession({
+    const handoff = await recApi.mintAppHandoff({
       guildId: interaction.guildId,
       discordId: interaction.user.id,
       username: interaction.user.username,
       globalName: interaction.user.globalName ?? null,
     });
-    const url = `${env.WEB_APP_URL}/?token=${encodeURIComponent(session.token)}#/league-mgmt`;
+    const url = `${siteBase}/open-app?handoff=${encodeURIComponent(handoff.token)}&dest=mgmt`;
     await interaction.editReply({
       content: null,
       embeds: [new EmbedBuilder()
-        .setTitle("Web Dashboard")
+        .setTitle("League Management")
         .setColor(COLORS.info)
-        .setDescription("This link is personal and expires in 30 minutes — don't share it.")],
+        .setDescription(
+          "Opens League Mgmt on REC Leagues in your browser. Sign in (or create an account) if needed. This link expires in 10 minutes.",
+        )],
       components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel("Open Dashboard"),
       )],

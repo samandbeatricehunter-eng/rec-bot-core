@@ -14,6 +14,7 @@ type AuthContextValue = AuthState & {
     password: string,
     keepLoggedIn?: boolean,
   ) => Promise<{ error: string | null }>;
+  signInWithDiscord: (nextPath?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 };
 
@@ -65,13 +66,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
+  async function signInWithDiscord(nextPath = "/account") {
+    const redirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "discord",
+      options: {
+        redirectTo,
+        scopes: "identify email",
+      },
+    });
+    return { error: error?.message ?? null };
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
     setKeepLoggedIn(false);
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ ...state, signUp, signIn, signInWithDiscord, signOut }}>
       {children}
     </AuthContext.Provider>
   );

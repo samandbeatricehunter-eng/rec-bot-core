@@ -172,6 +172,11 @@ export const siteApi = {
   getLinkProfile() {
     return request<LinkProfileResponse>("/v1/site-auth/me", {});
   },
+  linkDiscordOAuth() {
+    return request<
+      LinkProfileResponse & { lifetimePlatinum: boolean; discordLinked: boolean }
+    >("/v1/site-auth/link/discord-oauth", {});
+  },
   listLinkCandidates(input: { query?: string; limit?: number; offset?: number }) {
     return request<LinkCandidatesResponse>("/v1/site-auth/link/candidates", input);
   },
@@ -325,10 +330,11 @@ export const siteApi = {
     view?: "buzz" | "matchups" | "team" | "store" | "mgmt";
     embed?: boolean;
   }) {
-    return request<{ hubUrl: string; expiresInSeconds: number }>(
-      "/v1/site-leagues/open-hub",
-      input,
-    );
+    return request<{
+      guildId: string;
+      discordId: string;
+      leagueId: string;
+    }>("/v1/site-leagues/open-hub", input);
   },
   retireFromLeague(leagueId: string) {
     return request<{ ok: true }>("/v1/site-leagues/retire", { leagueId });
@@ -348,7 +354,12 @@ export const siteApi = {
   },
   exchangeAppHandoff(handoff: string) {
     return request<
-      | { status: "ready"; hubUrl: string; expiresInSeconds: number }
+      | {
+          status: "ready";
+          sitePath: string;
+          leagueId: string | null;
+          guildId: string;
+        }
       | { status: "need_setup"; reason: "link_identity" | "username"; message: string }
     >("/v1/web-session/handoff/exchange", { handoff });
   },

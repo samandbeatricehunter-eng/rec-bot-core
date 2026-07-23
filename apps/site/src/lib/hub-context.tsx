@@ -24,6 +24,8 @@ type HubContextValue = {
   /** Leave league scope and navigate to a main-chrome route. */
   exitToMain: (path?: string) => void;
   selectLeague: (leagueId: string) => void;
+  /** Enter league scope without navigating (e.g. already on /l/:id/…). */
+  ensureLeagueScope: (leagueId: string) => void;
   refreshLeagues: () => Promise<SiteLeagueSummary[]>;
   retireFromLeague: (leagueId: string) => Promise<void>;
 };
@@ -143,6 +145,15 @@ export function HubProvider({ children }: { children: ReactNode }) {
     navigate(`/l/${leagueId}/buzz`);
   }
 
+  function ensureLeagueScope(leagueId: string) {
+    if (scope.kind === "league" && scope.leagueId === leagueId) return;
+    const league = leagues.find((item) => item.id === leagueId);
+    const next: HubScope = { kind: "league", leagueId };
+    setScope(next);
+    persistScope(next);
+    if (league) setTheme(league.game);
+  }
+
   async function retireFromLeague(leagueId: string) {
     await siteApi.retireFromLeague(leagueId);
     await refreshLeagues();
@@ -164,6 +175,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
         selectMainHub,
         exitToMain,
         selectLeague,
+        ensureLeagueScope,
         refreshLeagues,
         retireFromLeague,
       }}

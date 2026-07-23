@@ -34,11 +34,15 @@ Locked product decisions for REC Bot subscription entitlements.
 
 ## Grandfather
 
-Users with a linked Discord account (`rec_discord_accounts`) are grandfathered to **lifetime_comp Platinum** (`subscription_tier = platinum`, `billing_status = lifetime_comp`).
+**Lifetime Platinum is limited to active members of REC OG (CFB 27)** (`league_id` stored in `rec_app_settings.lifetime_platinum_league`).
 
-While the Discord identity claim dropdown still has claimable users, registration can complete via the existing claim path and grant that lifetime Platinum.
+- Sign in with **Discord OAuth** (or email + password without Discord).
+- Discord OAuth auto-links the Discord snowflake to `rec_discord_accounts` — no dropdown / DM code.
+- Active REC OG members receive `subscription_tier = platinum`, `billing_status = lifetime_comp`.
+- Everyone else must subscribe (Gold or Platinum) for site access.
+- Paying Stripe subscribers are never downgraded by the lifetime sync.
 
-When the dropdown is empty or deliberately closed, new registration requires an active paid subscription (Gold or Platinum) before full account completion / site access.
+The identity claim dropdown is **closed**. Discord-only bot users can still play in a paying commissioner's league via Discord; site/app access still requires OAuth/email account + subscription (or REC OG lifetime).
 
 After close-out: Discord-only users can still exist in bot leagues; to get site/app they must subscribe then link Discord. Stats backfill only counts results on/after `stats_credit_starts_at` for that team assignment.
 

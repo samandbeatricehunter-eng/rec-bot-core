@@ -5,6 +5,7 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   checkSiteUsername,
   getSiteLinkProfile,
+  linkDiscordFromOAuth,
   listLinkCandidates,
   requestIdentityClaimCode,
   setSiteUsername,
@@ -16,6 +17,20 @@ export async function siteAuthRoutes(app: FastifyInstance) {
     try {
       const session = await requireSiteUserSession(request);
       return reply.send(await getSiteLinkProfile({ authUserId: session.authUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-auth/link/discord-oauth", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      return reply.send(
+        await linkDiscordFromOAuth({
+          authUserId: session.authUserId,
+          email: session.email,
+        }),
+      );
     } catch (error) {
       return sendError(reply, error);
     }

@@ -609,6 +609,83 @@ export async function resolveRecUserIdByDiscordId(discordId: string): Promise<st
   if (result.error) throw new ApiError(500, "Failed to resolve Discord account.", result.error);
   return result.data?.user_id ? String(result.data.user_id) : null;
 }
+
+/** REC OG (cfb_27) — only active members here receive lifetime Platinum. */
+export const DEFAULT_LIFETIME_PLATINUM_LEAGUE_ID = "b7cca5ad-8f0a-4305-a4df-22f5f396874d";
+
+export async function getLifetimePlatinumLeagueId(): Promise<string> {
+  const result = await supabase
+    .from("rec_app_settings")
+    .select("value")
+    .eq("key", "lifetime_platinum_league")
+    .maybeSingle();
+  if (result.error) throw new ApiError(500, "Failed to load lifetime Platinum league setting.", result.error);
+  const leagueId = (result.data?.value as { league_id?: string } | null)?.league_id;
+  return leagueId || DEFAULT_LIFETIME_PLATINUM_LEAGUE_ID;
+}
+
+export async function isActiveLifetimePlatinumMember(userId: string): Promise<boolean> {
+  const leagueId = await getLifetimePlatinumLeagueId();
+  const { getPgPool } = await import("../../db/client.js");
+  const result = await getPgPool().query(
+    `
+      select 1
+      where exists (
+        select 1
+        from rec_team_assignments ta
+        where ta.user_id = $1
+          and ta.league_id = $2
+          and ta.assignment_status = 'active'
+          and ta.ended_at is null
+      )
+      or exists (
+        select 1
+        from rec_league_memberships m
+        where m.user_id = $1
+          and m.league_id = $2
+      )
+      limit 1
+    `,
+    [userId, leagueId],
+  );
+  return Boolean(result.rows[0]);
+}
+
+/** Grant lifetime Platinum only for active REC OG members; never downgrade paid Stripe users. */
+export async function syncLifetimePlatinumForUser(userId: string): Promise<boolean> {
+  const eligible = await isActiveLifetimePlatinumMember(userId);
+  const user = await loadUser(userId);
+  const status = asBillingStatus(user.billing_status);
+
+  if (eligible) {
+    if (status === "lifetime_comp" && asTier(user.subscription_tier) === "platinum") return true;
+    if (status === "active") return false; // keep Stripe plan as source of truth while paid
+    const updated = await supabase
+      .from("rec_users")
+      .update({
+        subscription_tier: "platinum",
+        billing_status: "lifetime_comp",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+    if (updated.error) throw new ApiError(500, "Failed to grant lifetime Platinum.", updated.error);
+    return true;
+  }
+
+  if (status === "lifetime_comp") {
+    const updated = await supabase
+      .from("rec_users")
+      .update({
+        subscription_tier: "none",
+        billing_status: "none",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+    if (updated.error) throw new ApiError(500, "Failed to clear lifetime Platinum.", updated.error);
+  }
+  return false;
+}
+
 export async function ensureRecUserForAuthUser(
   authUserId: string,
   email: string | null,

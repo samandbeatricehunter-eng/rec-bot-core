@@ -12,6 +12,7 @@ export function LogIn() {
   const [password, setPassword] = useState("");
   const [keepLoggedIn, setKeepLoggedInChecked] = useState(() => getKeepLoggedIn());
   const [busy, setBusy] = useState(false);
+  const [discordBusy, setDiscordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (auth.status === "signed-in") return <Navigate to={next} replace />;
@@ -25,11 +26,28 @@ export function LogIn() {
     if (result.error) setError(result.error);
   }
 
+  async function handleDiscord() {
+    setError(null);
+    setDiscordBusy(true);
+    const result = await auth.signInWithDiscord(next);
+    setDiscordBusy(false);
+    if (result.error) setError(result.error);
+  }
+
   return (
     <div className="site-page site-auth-page">
       <form className="site-auth-card" onSubmit={handleSubmit}>
         <h1>Log in</h1>
         {error && <p className="site-auth-error">{error}</p>}
+        <button
+          className="site-btn site-btn-primary site-btn-lg"
+          type="button"
+          disabled={discordBusy || busy}
+          onClick={() => void handleDiscord()}
+        >
+          {discordBusy ? "Opening Discord…" : "Continue with Discord"}
+        </button>
+        <p className="site-muted" style={{ textAlign: "center", margin: "12px 0" }}>or use email</p>
         <label className="site-field">
           <span>Email</span>
           <input
@@ -61,8 +79,8 @@ export function LogIn() {
         <p className="site-muted">
           Leave unchecked to sign out when you close the browser or app.
         </p>
-        <button className="site-btn site-btn-primary site-btn-lg" type="submit" disabled={busy}>
-          {busy ? "Logging in…" : "Log In"}
+        <button className="site-btn site-btn-ghost site-btn-lg" type="submit" disabled={busy || discordBusy}>
+          {busy ? "Logging in…" : "Log in with email"}
         </button>
         <p className="site-auth-switch">
           New here? <Link to={signupHref}>Create an account</Link>
