@@ -63,8 +63,9 @@
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-glow-gold: 0 0 24px color-mix(in srgb, var(--accent) 40%, transparent);
 
-  /* Typography scale */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Typography — universal site face (matches apps/site Platinum chrome) */
+  --font-sans: "Source Sans 3", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
   --text-xs: 12px;
   --text-sm: 14px;
   --text-md: 16px;
@@ -100,8 +101,7 @@
   --status-caution: var(--warning);
   --status-neutral: var(--info);
 
-  /* Display typography */
-  --font-display: "REC Victory Slab", Impact, var(--font-sans);
+  /* Display tracking (face set above with --font-display) */
   --tracking-display: 0.01em;
 
   /* Motion */

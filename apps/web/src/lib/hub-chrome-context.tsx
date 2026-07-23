@@ -68,19 +68,13 @@ function persistScope(scope: HubScope) {
   }
 }
 
-function applyTheme(scope: HubScope, league: HubLeagueMeta | null, embedded: boolean) {
-  // Site shell owns data-site-theme / data-game-theme when hub is mounted in-process.
+function applyTheme(_scope: HubScope, _league: HubLeagueMeta | null, embedded: boolean) {
+  // Site shell owns theme when hub is mounted in-process.
   if (embedded) return;
   const root = document.documentElement;
-  if (scope.kind === "main") {
-    root.setAttribute("data-site-theme", "app");
-    root.removeAttribute("data-game-theme");
-    return;
-  }
-  root.removeAttribute("data-site-theme");
-  if (league?.game) {
-    root.setAttribute("data-game-theme", league.game);
-  }
+  // Discord Activity hub also uses universal Platinum — no per-game reskin.
+  root.setAttribute("data-site-theme", "app");
+  root.removeAttribute("data-game-theme");
 }
 
 export function HubChromeProvider({

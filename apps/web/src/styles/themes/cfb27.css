@@ -1,30 +1,37 @@
-/* CFB 27 presentation mode — "Victory Gold".
-   The base palette in tokens.css already IS Victory Gold, so this file only re-affirms the
-   CFB identity (display face + field/turf presentation vars) and documents the accent so
-   the theme is self-contained. See docs/theme-palettes.md for the authoritative spec. */
-[data-game-theme="cfb_27"] {
-  /* Universal league face: REC Victory Slab drives ALL text on CFB pages (body copy,
-     buttons, inputs, chat) via --font-sans, with the system stack as fallback. Headings
-     continue through --font-display. */
-  --font-sans: "REC Victory Slab", Impact, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-display: "REC Victory Slab", Impact, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+/* League surfaces share the universal Platinum app face (Oswald + Source Sans 3).
+   Game themes no longer reskin fonts or accents — CFB and Madden match the site chrome. */
+[data-game-theme="cfb_27"],
+[data-game-theme="madden_26"],
+[data-game-theme="madden_27"] {
+  --font-sans: "Source Sans 3", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-display: "Oswald", "Arial Narrow", Impact, sans-serif;
 
-  /* Victory Gold accent (matches tokens.css base) */
-  --accent: #c99a2e;
-  --accent-bright: #f0c85a;
-  --accent-dark: #765616;
-  --accent-secondary: #f0c85a;
-  --accent-contrast: #080a0c;
-  --accent-gradient: linear-gradient(180deg, #f0c85a 0%, #c99a2e 52%, #765616 100%);
-  --panel-gradient: linear-gradient(145deg, #1a1f24 0%, #101317 58%, #080a0c 100%);
-  --feature-gradient: radial-gradient(circle at 50% 0%, rgba(240, 200, 90, 0.15), transparent 52%);
+  --bg: #050505;
+  --surface: #111111;
+  --surface-hover: #1a1a1a;
+  --surface-raised: #161616;
+  --border: #2a2a2a;
+  --border-strong: #3d3d3d;
 
-  /* Field / stadium presentation */
+  --accent: #c9a227;
+  --accent-bright: #e4c15a;
+  --accent-dark: #8a6e14;
+  --accent-secondary: #e4c15a;
+  --accent-contrast: #141000;
+  --accent-gradient: linear-gradient(180deg, #e4c15a 0%, #c9a227 52%, #8a6e14 100%);
+  --panel-gradient: linear-gradient(145deg, #171717 0%, #101010 58%, #0a0a0a 100%);
+  --feature-gradient: radial-gradient(circle at 50% 0%, rgba(228, 193, 90, 0.12), transparent 52%);
+
+  --text-primary: #f5f5f5;
+  --text-secondary: #9a9a9a;
+  --text-muted: #7a7a7a;
+  --text-on-gold: #141000;
+
   --field-line: #d4d4d4;
-  --turf-a: #172016;
-  --turf-b: #0b120d;
-  --stadium-shadow: rgba(2, 4, 3, 0.86);
-  --stadium-light: rgba(217, 165, 33, 0.2);
-  --paint-white: rgba(242, 242, 226, 0.12);
-  --card-grain: rgba(255, 255, 255, 0.028);
+  --turf-a: #121212;
+  --turf-b: #0a0a0a;
+  --stadium-shadow: rgba(0, 0, 0, 0.86);
+  --stadium-light: rgba(201, 162, 39, 0.16);
+  --paint-white: rgba(255, 255, 255, 0.1);
+  --card-grain: rgba(255, 255, 255, 0.02);
 }

@@ -106,7 +106,8 @@ export function HubProvider({ children }: { children: ReactNode }) {
     // league re-skinned the whole website.
     const onLeagueHubPage = location.pathname.startsWith("/l/");
     if (scope.kind === "league" && selectedLeague && onLeagueHubPage) {
-      setTheme(selectedLeague.game);
+      // Universal Platinum chrome for every league (CFB + Madden share one face).
+      setTheme("app");
       return;
     }
     if (scope.kind === "main") {
@@ -155,7 +156,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
     setScope(next);
     persistScope(next);
     // Theme applies via the effect once we land on /l/:id.
-    if (league) setTheme(league.game);
+    setTheme("app");
     navigate(`/l/${leagueId}/buzz`);
   }
 

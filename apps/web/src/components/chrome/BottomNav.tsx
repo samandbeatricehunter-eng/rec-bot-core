@@ -53,8 +53,7 @@ function globalItems(): NavItem[] {
   ];
 }
 
-function buzzLabelForGame(game: string | null | undefined): string {
-  if (game && game.startsWith("madden")) return "Breaking News";
+function buzzLabelForGame(_game: string | null | undefined): string {
   return "Campus Buzz";
 }
 

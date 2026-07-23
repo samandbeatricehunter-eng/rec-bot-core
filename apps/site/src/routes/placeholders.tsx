@@ -54,7 +54,7 @@ export function LeagueBuzzPage() {
   const { leagueId = "" } = useParams();
   const hub = useHub();
   const game = hub.selectedLeague?.game ?? hub.leagues.find((l) => l.id === leagueId)?.game;
-  const title = game?.startsWith("madden") ? "Breaking News" : "Campus Buzz";
+  const title = "Campus Buzz";
   return (
     <PlaceholderCard
       title={title}

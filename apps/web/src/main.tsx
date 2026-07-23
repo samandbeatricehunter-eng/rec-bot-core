@@ -15,9 +15,9 @@ import "./styles/league-management.css";
 import "./styles/responsive.css";
 import App from "./App.js";
 
-// Default to the only currently-active league's game type so there's no flash of unstyled
-// theme before AppShell's league-header fetch resolves and sets the real value.
-document.documentElement.setAttribute("data-game-theme", "cfb_27");
+// Universal Platinum chrome (no per-game flash).
+document.documentElement.setAttribute("data-site-theme", "app");
+document.documentElement.removeAttribute("data-game-theme");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

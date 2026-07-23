@@ -78,14 +78,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       .catch(() => setHeaderSummary(null));
   }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
 
-  // League theme when in league scope; Main Hub uses data-site-theme=app (set by HubChromeProvider).
+  // Universal Platinum chrome — game is still passed for labels/features, not visual reskin.
   useEffect(() => {
-    if (hub.scope.kind === "main") return;
-    const game = hub.currentLeague?.game ?? headerSummary?.league.game;
-    if (game) {
-      document.documentElement.setAttribute("data-game-theme", game);
-    }
-  }, [hub.scope.kind, hub.currentLeague?.game, headerSummary?.league.game]);
+    document.documentElement.setAttribute("data-site-theme", "app");
+    document.documentElement.removeAttribute("data-game-theme");
+  }, [hub.scope.kind]);
 
   const gameForTheme =
     hub.scope.kind === "league"

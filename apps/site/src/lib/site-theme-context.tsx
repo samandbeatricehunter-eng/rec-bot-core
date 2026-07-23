@@ -15,14 +15,11 @@ type SiteThemeContextValue = {
 
 const SiteThemeContext = createContext<SiteThemeContextValue | null>(null);
 
-function applyTheme(theme: SiteTheme) {
+function applyTheme(_theme: SiteTheme) {
   const root = document.documentElement;
-  const next = theme || "app";
-  // Platinum black/gold is always the site chrome. Game themes only set
-  // data-game-theme so hub content can accent without re-skinning the shell.
+  // Universal Platinum face for the whole product — CFB/Madden no longer reskin fonts or colors.
   root.setAttribute("data-site-theme", "app");
-  if (next !== "app") root.setAttribute("data-game-theme", next);
-  else root.removeAttribute("data-game-theme");
+  root.removeAttribute("data-game-theme");
 }
 
 export function SiteThemeProvider({ children }: { children: ReactNode }) {
@@ -51,15 +48,10 @@ export function useSiteTheme() {
   return context;
 }
 
-/** While mounted, switch chrome to the league game theme; restore app on leave. */
-export function useLeagueSiteTheme(game: string | null | undefined) {
+/** Kept for call sites — league pages stay on universal Platinum app chrome. */
+export function useLeagueSiteTheme(_game: string | null | undefined) {
   const { setTheme } = useSiteTheme();
   useEffect(() => {
-    if (!game) {
-      setTheme("app");
-      return;
-    }
-    setTheme(game);
-    return () => setTheme("app");
-  }, [game, setTheme]);
+    setTheme("app");
+  }, [setTheme]);
 }

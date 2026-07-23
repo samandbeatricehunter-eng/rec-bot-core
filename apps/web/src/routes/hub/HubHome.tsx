@@ -347,6 +347,14 @@ export function HubHome() {
   const activeHighlightIndex = highlightCount ? highlightIndex % highlightCount : 0;
   const highlightSwipe = useSwipeNavigation({ itemCount: highlightCount, onIndexChange: setHighlightIndex });
   useEffect(() => { highlightSwipe.setCurrentIndex(activeHighlightIndex); }, [activeHighlightIndex]);
+  // Cloudflare iframes never fire video onEnded — advance the reel on a timer.
+  useEffect(() => {
+    if (subTab !== "buzz" || highlightCount <= 1 || highlightSwipe.isDragging) return;
+    const timer = window.setInterval(() => {
+      setHighlightIndex((current) => (current + 1) % highlightCount);
+    }, 7000);
+    return () => window.clearInterval(timer);
+  }, [subTab, highlightCount, highlightSwipe.isDragging]);
 
   useEffect(() => {
     const nextSection = parseHubSection(searchParams.get("section"));
@@ -1041,7 +1049,7 @@ export function HubHome() {
     </section> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <EosAwardVotingBlock />
-        <SectionFrame eyebrow="Around the league" title={hub.league.game?.startsWith("madden") ? "Breaking News" : "Campus Buzz"}>
+        <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {headlines.length ? (
             isMobile ? (
               <div className="hub-story-mobile-swipe" style={{ position: "relative" }}>

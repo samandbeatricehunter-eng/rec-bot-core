@@ -8,10 +8,35 @@ export function parseInterviewBody(body: string | null | undefined): QaBlock[] |
   const fromLabeled = parseLabeledQa(text);
   if (fromLabeled?.length) return fromLabeled;
 
+  const fromPlainBlocks = parsePlainQuestionBlocks(text);
+  if (fromPlainBlocks?.length) return fromPlainBlocks;
+
   const fromHeuristic = parseHeuristicQa(text);
   if (fromHeuristic?.length) return fromHeuristic;
 
   return null;
+}
+
+/** Bodies stored as "Question?\nAnswer\n\nQuestion?\nAnswer" without Q:/A: prefixes. */
+function parsePlainQuestionBlocks(text: string): QaBlock[] | null {
+  const blocks = text.split(/\n\s*\n/).map((chunk) => chunk.trim()).filter(Boolean);
+  if (blocks.length < 1) return null;
+  const parsed: QaBlock[] = [];
+  for (const block of blocks) {
+    const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) continue;
+    const first = lines[0]!;
+    if (!first.includes("?")) continue;
+    const qEnd = first.indexOf("?");
+    const questionFromFirst = first.slice(0, qEnd + 1).trim();
+    const answerFromFirst = first.slice(qEnd + 1).trim();
+    const answerRest = lines.slice(1).join("\n").trim();
+    const answer = [answerFromFirst, answerRest].filter(Boolean).join("\n").trim();
+    if (questionFromFirst.length >= 12) {
+      parsed.push({ question: questionFromFirst, answer });
+    }
+  }
+  return parsed.length ? parsed : null;
 }
 
 function parseLabeledQa(text: string): QaBlock[] | null {
