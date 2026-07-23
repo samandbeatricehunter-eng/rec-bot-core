@@ -27,16 +27,16 @@ export type BottomNavLayout = "bottom" | "sidebar";
 
 function isActivePath(pathname: string, to: string) {
   const pathOnly = to.split("?")[0] ?? to;
-  if (pathOnly === "/home" || pathOnly === "/" || pathOnly === "/leagues") {
-    return pathname === "/home" || pathname === "/" || pathname === "/leagues";
+  if (pathOnly === "/home" || pathOnly === "/") {
+    return pathname === "/home" || pathname === "/";
   }
   return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
 }
 
 function globalItems(): NavItem[] {
   return [
-    { key: "home", label: "Home", to: "/?section=league&subTab=buzz", icon: <Home size={22} /> },
-    { key: "leagues", label: "Leagues", to: "/?section=league&subTab=buzz", icon: <Layers size={22} /> },
+    { key: "home", label: "Home", to: "/home", icon: <Home size={22} /> },
+    { key: "leagues", label: "Leagues", to: "/leagues", icon: <Layers size={22} /> },
     {
       key: "headlines",
       label: "Headlines",
@@ -208,13 +208,32 @@ export function BottomNav({
           ) {
             active = true;
           }
+          // In league scope, only the league under MY LEAGUES is active — not Home/Leagues.
+          if (
+            !useLeague &&
+            hub.scope.kind === "league" &&
+            (item.key === "home" || item.key === "leagues")
+          ) {
+            active = false;
+          }
           return (
             <NavLink
               key={item.key}
               to={to}
+              end={item.key === "home" || item.key === "leagues"}
               className={[btnClass, active ? "is-active" : ""]
                 .filter(Boolean)
                 .join(" ")}
+              onClick={(event) => {
+                if (!useLeague && hub.scope.kind === "league") {
+                  event.preventDefault();
+                  if (item.key === "home") {
+                    hub.selectMainHub();
+                    return;
+                  }
+                  hub.exitToMain(to);
+                }
+              }}
             >
               {item.icon}
               {showLabelsAlways || active ? <span>{item.label}</span> : null}

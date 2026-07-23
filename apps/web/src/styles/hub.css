@@ -348,7 +348,7 @@
 .hub-highlight-views svg { color: var(--accent); }
 
 /* Clean highlight embed — replaces the old baked chassis. A simple bordered card: video,
-   meta, view count, and exactly three reactions (Like / Dislike / POTY). */
+   meta, view count, and exactly three reactions (Like / POTY / Dislike). */
 .hub-highlight-embed { position: relative; display: flex; flex-direction: column; border-color: color-mix(in srgb, var(--accent) 32%, var(--border-strong)); box-shadow: 0 18px 44px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.05); }
 .hub-highlight-embed .hub-highlight-meta strong { font-family: var(--font-display); font-size: var(--text-lg); text-transform: uppercase; }
 .hub-highlight-reactions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--border); }

@@ -169,16 +169,30 @@ export function BottomNav({
             );
           }
           const to = item.to!;
-          const active = isActivePath(location.pathname, to);
+          // On league routes, only MY LEAGUES (and league bottom nav) own active state.
+          const onLeagueRoute = location.pathname.startsWith("/l/");
+          let active =
+            !useLeague && onLeagueRoute
+              ? false
+              : isActivePath(location.pathname, to);
           return (
             <NavLink
               key={item.key}
               to={to}
-              className={({ isActive }) =>
-                [btnClass, isActive || active ? "is-active" : ""]
-                  .filter(Boolean)
-                  .join(" ")
-              }
+              end={item.key === "home" || item.key === "leagues"}
+              className={[btnClass, active ? "is-active" : ""]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={(event) => {
+                if (!useLeague && hub.scope.kind === "league") {
+                  event.preventDefault();
+                  if (item.key === "home") {
+                    hub.selectMainHub();
+                    return;
+                  }
+                  hub.exitToMain(to);
+                }
+              }}
             >
               {item.icon}
               {showLabelsAlways || active ? <span>{item.label}</span> : null}

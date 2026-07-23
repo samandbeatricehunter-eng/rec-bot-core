@@ -20,7 +20,7 @@ import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 
-// Highlight reactions are exactly three: Like, Dislike, and POTY. POTY opens the category
+// Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
 // modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
 const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
   { key: "TOTY", label: "Throw of the Year" }, { key: "COTY", label: "Catch of the Year" }, { key: "ROTY", label: "Run of the Year" },
@@ -1087,8 +1087,8 @@ export function HubHome() {
               <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
               <div className="hub-highlight-reactions">
                 <button aria-label="Like" className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={18} /><b>Like</b><small>{activeHighlight.reactionCounts.like || ""}</small></button>
-                <button aria-label="Dislike" className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
                 <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => activeHighlight.myReactions.includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => activeHighlight.myReactions.includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + activeHighlight.reactionCounts[key], 0) || ""}</small></button>
+                <button aria-label="Dislike" className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
         </SectionFrame>

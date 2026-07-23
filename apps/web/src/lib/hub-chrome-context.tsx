@@ -38,6 +38,8 @@ type HubChromeContextValue = {
   currentLeague: HubLeagueMeta | null;
   leagueLoading: boolean;
   selectMainHub: () => void;
+  /** Leave league scope and navigate to a main-chrome route (e.g. /leagues, /account). */
+  exitToMain: (path?: string) => void;
   selectLeague: () => void;
   retireFromCurrentLeague: () => Promise<void>;
   refreshLeague: () => Promise<HubLeagueMeta | null>;
@@ -126,14 +128,20 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
     applyTheme(scope, currentLeague);
   }, [scope, currentLeague]);
 
+  const exitToMain = useCallback(
+    (path = "/home") => {
+      const next: HubScope = { kind: "main" };
+      setScope(next);
+      persistScope(next);
+      applyTheme(next, currentLeague);
+      navigate(path);
+    },
+    [currentLeague, navigate],
+  );
+
   const selectMainHub = useCallback(() => {
-    const next: HubScope = { kind: "main" };
-    setScope(next);
-    persistScope(next);
-    applyTheme(next, currentLeague);
-    // Keep the Discord hub surface mounted — main chrome differs, content stays HubHome.
-    navigate("/?section=league&subTab=buzz");
-  }, [currentLeague, navigate]);
+    exitToMain("/home");
+  }, [exitToMain]);
 
   const selectLeague = useCallback(() => {
     const next: HubScope = { kind: "league" };
@@ -160,6 +168,7 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
       currentLeague,
       leagueLoading,
       selectMainHub,
+      exitToMain,
       selectLeague,
       retireFromCurrentLeague,
       refreshLeague,
@@ -169,6 +178,7 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
       currentLeague,
       leagueLoading,
       selectMainHub,
+      exitToMain,
       selectLeague,
       retireFromCurrentLeague,
       refreshLeague,

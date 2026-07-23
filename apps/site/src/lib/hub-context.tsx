@@ -21,6 +21,8 @@ type HubContextValue = {
   leaguesError: string | null;
   selectedLeague: SiteLeagueSummary | null;
   selectMainHub: () => void;
+  /** Leave league scope and navigate to a main-chrome route. */
+  exitToMain: (path?: string) => void;
   selectLeague: (leagueId: string) => void;
   refreshLeagues: () => Promise<SiteLeagueSummary[]>;
   retireFromLeague: (leagueId: string) => Promise<void>;
@@ -120,12 +122,16 @@ export function HubProvider({ children }: { children: ReactNode }) {
     setTheme,
   ]);
 
-  function selectMainHub() {
+  function exitToMain(path = "/home") {
     const next: HubScope = { kind: "main" };
     setScope(next);
     persistScope(next);
     setTheme("app");
-    navigate("/home");
+    navigate(path);
+  }
+
+  function selectMainHub() {
+    exitToMain("/home");
   }
 
   function selectLeague(leagueId: string) {
@@ -156,6 +162,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
         leaguesError,
         selectedLeague,
         selectMainHub,
+        exitToMain,
         selectLeague,
         refreshLeagues,
         retireFromLeague,
