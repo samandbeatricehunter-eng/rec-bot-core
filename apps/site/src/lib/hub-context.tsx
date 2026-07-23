@@ -108,8 +108,13 @@ export function HubProvider({ children }: { children: ReactNode }) {
       setTheme(selectedLeague.game);
       return;
     }
-    // After a successful load, drop stale league ids (e.g. just retired).
+    // Keep league scope while the route still points at that league (Discord /app
+    // can land before mine-list resolves). Only drop stale ids after load.
     if (leaguesReady && !leaguesLoading && !leaguesError) {
+      const stillOnLeagueRoute =
+        typeof window !== "undefined" &&
+        window.location.pathname.startsWith(`/l/${scope.leagueId}`);
+      if (stillOnLeagueRoute) return;
       const next: HubScope = { kind: "main" };
       setScope(next);
       persistScope(next);

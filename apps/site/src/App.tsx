@@ -13,8 +13,8 @@ import {
   HeadlinesPage,
   HomePage,
   LeagueMgmtInboxPage,
-  LeaguesPage,
 } from "./routes/placeholders.js";
+import { LeaguesPage } from "./routes/Leagues.js";
 import { LeagueHubPage } from "./routes/LeagueHub.js";
 import { Pricing } from "./routes/Pricing.js";
 import { SignUp } from "./routes/SignUp.js";

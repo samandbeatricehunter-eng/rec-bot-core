@@ -89,13 +89,14 @@ export function InjectedAuthProvider({
   accessToken: string;
   children: ReactNode;
 }) {
+  // Set synchronously so the first child render (and Strict Mode remounts) never
+  // race a cleared token — that was blanking Discord /app hub loads.
+  setAuthToken(accessToken);
+  setHubGuildId(guildId);
+
   useEffect(() => {
     setAuthToken(accessToken);
     setHubGuildId(guildId);
-    return () => {
-      setAuthToken(null);
-      setHubGuildId(null);
-    };
   }, [accessToken, guildId]);
 
   return (

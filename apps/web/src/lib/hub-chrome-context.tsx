@@ -68,7 +68,9 @@ function persistScope(scope: HubScope) {
   }
 }
 
-function applyTheme(scope: HubScope, league: HubLeagueMeta | null) {
+function applyTheme(scope: HubScope, league: HubLeagueMeta | null, embedded: boolean) {
+  // Site shell owns data-site-theme / data-game-theme when hub is mounted in-process.
+  if (embedded) return;
   const root = document.documentElement;
   if (scope.kind === "main") {
     root.setAttribute("data-site-theme", "app");
@@ -81,10 +83,17 @@ function applyTheme(scope: HubScope, league: HubLeagueMeta | null) {
   }
 }
 
-export function HubChromeProvider({ children }: { children: ReactNode }) {
+export function HubChromeProvider({
+  children,
+  embedded = false,
+}: {
+  children: ReactNode;
+  /** When true (apps/site in-process hub), leave document theme / navigation to the site shell. */
+  embedded?: boolean;
+}) {
   const auth = useAuth();
   const navigate = useNavigate();
-  const [scope, setScope] = useState<HubScope>(() => readStoredScope());
+  const [scope, setScope] = useState<HubScope>(() => (embedded ? { kind: "league" } : readStoredScope()));
   const [currentLeague, setCurrentLeague] = useState<HubLeagueMeta | null>(null);
   const [leagueLoading, setLeagueLoading] = useState(false);
 
@@ -125,18 +134,23 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
   }, [refreshLeague]);
 
   useEffect(() => {
-    applyTheme(scope, currentLeague);
-  }, [scope, currentLeague]);
+    applyTheme(scope, currentLeague, embedded);
+  }, [scope, currentLeague, embedded]);
 
   const exitToMain = useCallback(
     (path = "/home") => {
       const next: HubScope = { kind: "main" };
       setScope(next);
-      persistScope(next);
-      applyTheme(next, currentLeague);
+      if (!embedded) persistScope(next);
+      applyTheme(next, currentLeague, embedded);
+      if (embedded) {
+        // Leave the MemoryRouter and return to the real site chrome.
+        window.location.assign(path.startsWith("/") ? path : "/home");
+        return;
+      }
       navigate(path);
     },
-    [currentLeague, navigate],
+    [currentLeague, embedded, navigate],
   );
 
   const selectMainHub = useCallback(() => {
@@ -146,10 +160,10 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
   const selectLeague = useCallback(() => {
     const next: HubScope = { kind: "league" };
     setScope(next);
-    persistScope(next);
-    applyTheme(next, currentLeague);
+    if (!embedded) persistScope(next);
+    applyTheme(next, currentLeague, embedded);
     navigate("/?section=league&subTab=buzz");
-  }, [currentLeague, navigate]);
+  }, [currentLeague, embedded, navigate]);
 
   const retireFromCurrentLeague = useCallback(async () => {
     if (auth.status !== "ready") return;
@@ -157,10 +171,14 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
     await refreshLeague();
     const next: HubScope = { kind: "main" };
     setScope(next);
-    persistScope(next);
-    applyTheme(next, null);
+    if (!embedded) persistScope(next);
+    applyTheme(next, null, embedded);
+    if (embedded) {
+      window.location.assign("/leagues");
+      return;
+    }
     navigate("/?section=league&subTab=buzz");
-  }, [auth, navigate, refreshLeague]);
+  }, [auth, embedded, navigate, refreshLeague]);
 
   const value = useMemo<HubChromeContextValue>(
     () => ({

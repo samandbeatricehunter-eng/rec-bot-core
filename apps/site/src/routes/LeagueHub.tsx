@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
 import { Link, MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
@@ -26,7 +26,6 @@ import { MatchupDetailPage } from "../../../web/src/routes/matchups/MatchupDetai
 import "../../../web/src/styles/tokens.css";
 import "../../../web/src/styles/themes/cfb27.css";
 import "../../../web/src/styles/themes/madden27.css";
-import "../../../web/src/styles/reset.css";
 import "../../../web/src/styles/typography.css";
 import "../../../web/src/styles/shell.css";
 import "../../../web/src/styles/surfaces.css";
@@ -60,6 +59,44 @@ function entryForView(view: HubView): string {
     case "buzz":
     default:
       return "/?section=league&subTab=buzz";
+  }
+}
+
+class HubErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: string | null }
+> {
+  state: { error: string | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message || "League hub failed to render." };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("League hub crashed", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="site-page site-auth-page">
+          <div className="site-auth-card">
+            <h1>League hub error</h1>
+            <p className="site-auth-error">{this.state.error}</p>
+            <p className="site-muted">Try refreshing, or open Leagues from the sidebar.</p>
+            <div className="site-league-demo-links">
+              <Link className="site-btn site-btn-primary" to="/leagues">
+                Leagues
+              </Link>
+              <Link className="site-btn site-btn-ghost" to="/home">
+                Home
+              </Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
   }
 }
 
@@ -176,8 +213,10 @@ export function LeagueHubPage() {
         accessToken={accessToken}
       >
         <MemoryRouter key={`${leagueId}:${view}`} initialEntries={[entryForView(view)]}>
-          <HubChromeProvider>
-            <HubRoutes />
+          <HubChromeProvider embedded>
+            <HubErrorBoundary>
+              <HubRoutes />
+            </HubErrorBoundary>
           </HubChromeProvider>
         </MemoryRouter>
       </InjectedAuthProvider>

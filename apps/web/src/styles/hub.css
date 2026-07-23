@@ -2081,11 +2081,18 @@
 /* —— Discord hub chrome (bottom nav + league selector + notifications) —— */
 [data-site-theme="app"] {
   --chrome-nav-bg:
+    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.045) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.55) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, #f7f7f7 0%, #e6e6e6 100%);
+  --chrome-accent: #e10600;
+  --chrome-accent-bright: #ff2a20;
+  --chrome-sidebar-text: #c40000;
+  --chrome-sidebar-text-muted: #8a1010;
+  --chrome-sidebar-border: rgba(180, 20, 20, 0.22);
+  --carbon-fiber:
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px),
     repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.35) 0 2px, transparent 2px 5px),
     linear-gradient(180deg, #161616 0%, #0a0a0a 100%);
-  --chrome-accent: #e10600;
-  --chrome-accent-bright: #ff2a20;
 }
 
 .hub-chrome-stack {
@@ -2438,7 +2445,7 @@
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--chrome-sidebar-text, var(--text-secondary));
   text-decoration: none;
   font-family: inherit;
   font-size: 14px;
@@ -2450,11 +2457,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.hub-chrome-sidebar-nav-btn svg { flex-shrink: 0; }
+.hub-chrome-sidebar-nav-btn svg { flex-shrink: 0; color: inherit; }
 .hub-chrome-sidebar-nav-btn.is-active {
-  color: var(--chrome-accent-bright, var(--accent-bright));
-  background: color-mix(in srgb, var(--chrome-accent, var(--accent)) 14%, transparent);
+  color: #f5f5f5;
+  background: var(--carbon-fiber, #0a0a0a);
   font-weight: 900;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 @media (min-width: 960px) {
@@ -2469,9 +2477,10 @@
     z-index: 50;
     gap: 8px;
     padding: calc(56px + env(safe-area-inset-top, 0px)) 12px 16px;
-    border-right: 1px solid var(--border);
+    border-right: 1px solid var(--chrome-sidebar-border, var(--border));
     background: var(--chrome-nav-bg, var(--panel-gradient));
     overflow-y: auto;
+    color: var(--chrome-sidebar-text, var(--text-primary));
   }
 
   .hub-chrome-stack-mobile {
@@ -2539,18 +2548,18 @@
   font-weight: 800;
   letter-spacing: 0.06em;
   padding: 8px 12px 4px;
-  color: var(--text-primary);
+  color: var(--chrome-sidebar-text, var(--text-primary));
 }
 .hub-sidebar-leagues {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--chrome-sidebar-border, var(--border));
 }
 .hub-sidebar-section-label {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  color: var(--text-muted);
+  color: var(--chrome-sidebar-text-muted, var(--text-muted));
   padding: 0 12px 8px;
 }
 .hub-sidebar-league-btn {
@@ -2563,26 +2572,30 @@
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--chrome-sidebar-text-muted, var(--text-muted));
   text-align: left;
   cursor: pointer;
   font: inherit;
 }
 .hub-sidebar-league-btn.is-active {
-  background: color-mix(in srgb, var(--chrome-accent, var(--accent)) 14%, transparent);
+  background: var(--carbon-fiber, #0a0a0a);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 .hub-sidebar-league-btn.is-active .hub-sidebar-league-name {
   font-weight: 800;
-  color: var(--text-primary);
+  color: #f5f5f5;
+}
+.hub-sidebar-league-btn.is-active .hub-sidebar-league-meta {
+  color: rgba(245, 245, 245, 0.72);
 }
 .hub-sidebar-league-name {
   font-size: 14px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--chrome-sidebar-text, var(--text-primary));
 }
 .hub-sidebar-league-meta {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--chrome-sidebar-text-muted, var(--text-muted));
 }
 .hub-chrome-sidebar-nav-btn.is-active span {
   font-weight: 800;

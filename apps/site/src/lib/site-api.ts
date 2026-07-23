@@ -155,6 +155,46 @@ export type SiteLeagueSummary = {
   commissionerRole?: "head" | "co" | "member";
 };
 
+export type SiteLeagueSearchHit = {
+  id: string;
+  name: string;
+  game: string;
+  gameLabel: string;
+  seasonStage: string;
+  seasonNumber: number;
+  openTeamCount: number;
+  memberCount: number;
+  commissionerUsername: string | null;
+  commissionerDiscordName: string | null;
+  difficulty: string | null;
+  streamingRequirement: string | null;
+  coinEconomyEnabled: boolean;
+  acceleratedClockEnabled: boolean;
+  acceleratedClockMinimumSeconds: number | null;
+  tradeApprovalPolicy: string | null;
+  offensivePlayCallLimitsEnabled: boolean;
+  offensivePlayCallLimit: number | null;
+  offensivePlayCallCooldown: number | null;
+  defensivePlayCallLimitsEnabled: boolean;
+  defensivePlayCallLimit: number | null;
+  defensivePlayCallCooldown: number | null;
+  isMember: boolean;
+};
+
+export type SiteLeagueSearchFilters = {
+  q?: string;
+  game?: string;
+  difficulty?: string;
+  streamingRequirement?: string;
+  coinEconomyEnabled?: boolean;
+  acceleratedClockEnabled?: boolean;
+  tradeApprovalPolicy?: string;
+  offensivePlayCallLimitsEnabled?: boolean;
+  defensivePlayCallLimitsEnabled?: boolean;
+  sort?: "name_asc" | "name_desc" | "open_teams" | "newest";
+  limit?: number;
+};
+
 export type SiteNotificationItem = {
   id: string;
   title: string;
@@ -324,6 +364,9 @@ export const siteApi = {
   },
   listMyLeagues() {
     return request<{ leagues: SiteLeagueSummary[] }>("/v1/site-leagues/mine", {});
+  },
+  searchLeagues(filters: SiteLeagueSearchFilters = {}) {
+    return request<{ leagues: SiteLeagueSearchHit[] }>("/v1/site-leagues/search", filters);
   },
   openLeagueHub(input: {
     leagueId: string;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
 
@@ -38,46 +38,6 @@ export function HomePage() {
       title="Home"
       body="Main hub home. League feeds, shortcuts, and season highlights will land here."
     />
-  );
-}
-
-export function LeaguesPage() {
-  const hub = useHub();
-  const navigate = useNavigate();
-  return (
-    <PlaceholderCard
-      title="Leagues"
-      body="Your linked leagues. Open one to enter the league hub with CFB or Madden theming."
-    >
-      {hub.leaguesLoading ? (
-        <p className="site-muted">Loading leagues…</p>
-      ) : hub.leaguesError ? (
-        <p className="site-auth-error">{hub.leaguesError}</p>
-      ) : hub.leagues.length === 0 ? (
-        <p className="site-muted">No leagues yet. Link your Discord identity on Account, then refresh.</p>
-      ) : (
-        <div className="site-league-list">
-          {hub.leagues.map((league) => (
-            <button
-              key={league.id}
-              type="button"
-              className="site-league-card"
-              onClick={() => {
-                hub.selectLeague(league.id);
-                navigate(`/l/${league.id}/buzz`);
-              }}
-            >
-              <strong>{league.name}</strong>
-              <span>
-                {league.gameLabel}
-                {league.teamName ? ` · ${league.teamName}` : ""}
-                {league.isCommissioner ? " · Commish" : ""}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </PlaceholderCard>
   );
 }
 

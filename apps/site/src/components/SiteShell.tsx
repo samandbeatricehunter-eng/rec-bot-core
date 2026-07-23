@@ -17,14 +17,19 @@ export function SiteShell({ children }: { children: ReactNode }) {
       ].join(" ")}
     >
       <header className="site-top-bar">
-        <span className="site-top-bar-brand site-top-bar-brand-desktop-hidden" aria-hidden="true" />
-        {hub.selectedLeague ? (
-          <div className="site-top-bar-league">
-            <strong>{hub.selectedLeague.name}</strong>
-            <span>{hub.selectedLeague.gameLabel}</span>
-          </div>
-        ) : null}
-        <NotificationsBell />
+        <div className="site-top-bar-start">
+          {hub.selectedLeague ? (
+            <div className="site-top-bar-league">
+              <strong>{hub.selectedLeague.name}</strong>
+              <span>{hub.selectedLeague.gameLabel}</span>
+            </div>
+          ) : (
+            <span className="site-top-bar-brand site-top-bar-brand-mobile-only">REC Leagues</span>
+          )}
+        </div>
+        <div className="site-top-bar-end">
+          <NotificationsBell />
+        </div>
       </header>
 
       <DesktopSidebar />

@@ -269,3 +269,240 @@ export async function openSiteLeagueHubContext(input: {
 
   return { guildId, discordId: row.discord_id, leagueId: input.leagueId };
 }
+
+export type SiteLeagueSearchFilters = {
+  q?: string;
+  game?: string;
+  difficulty?: string;
+  streamingRequirement?: string;
+  coinEconomyEnabled?: boolean;
+  acceleratedClockEnabled?: boolean;
+  tradeApprovalPolicy?: string;
+  offensivePlayCallLimitsEnabled?: boolean;
+  defensivePlayCallLimitsEnabled?: boolean;
+  sort?: "name_asc" | "name_desc" | "open_teams" | "newest";
+  limit?: number;
+};
+
+export type SiteLeagueSearchHit = {
+  id: string;
+  name: string;
+  game: string;
+  gameLabel: string;
+  seasonStage: string;
+  seasonNumber: number;
+  openTeamCount: number;
+  memberCount: number;
+  commissionerUsername: string | null;
+  commissionerDiscordName: string | null;
+  difficulty: string | null;
+  streamingRequirement: string | null;
+  coinEconomyEnabled: boolean;
+  acceleratedClockEnabled: boolean;
+  acceleratedClockMinimumSeconds: number | null;
+  tradeApprovalPolicy: string | null;
+  offensivePlayCallLimitsEnabled: boolean;
+  offensivePlayCallLimit: number | null;
+  offensivePlayCallCooldown: number | null;
+  defensivePlayCallLimitsEnabled: boolean;
+  defensivePlayCallLimit: number | null;
+  defensivePlayCallCooldown: number | null;
+  isMember: boolean;
+};
+
+export async function searchSiteLeagues(input: {
+  recUserId: string;
+  filters: SiteLeagueSearchFilters;
+}): Promise<{ leagues: SiteLeagueSearchHit[] }> {
+  const limit = Math.min(Math.max(input.filters.limit ?? 40, 1), 80);
+  const q = input.filters.q?.trim() ?? "";
+  const params: unknown[] = [input.recUserId];
+  const where: string[] = [
+    "coalesce(l.subscription_frozen, false) = false",
+  ];
+
+  if (q) {
+    params.push(`%${q.toLowerCase()}%`);
+    const idx = params.length;
+    where.push(`(
+      lower(l.name) like $${idx}
+      or lower(coalesce(owner.username, '')) like $${idx}
+      or lower(coalesce(owner.display_name, '')) like $${idx}
+      or lower(coalesce(da.username, '')) like $${idx}
+      or lower(coalesce(da.global_name, '')) like $${idx}
+    )`);
+  }
+  if (input.filters.game) {
+    params.push(input.filters.game);
+    where.push(`l.game = $${params.length}`);
+  }
+  if (input.filters.difficulty) {
+    params.push(input.filters.difficulty);
+    where.push(`c.difficulty = $${params.length}`);
+  }
+  if (input.filters.streamingRequirement) {
+    params.push(input.filters.streamingRequirement);
+    where.push(`c.streaming_requirement = $${params.length}`);
+  }
+  if (typeof input.filters.coinEconomyEnabled === "boolean") {
+    params.push(input.filters.coinEconomyEnabled);
+    where.push(`c.coin_economy_enabled = $${params.length}`);
+  }
+  if (typeof input.filters.acceleratedClockEnabled === "boolean") {
+    params.push(input.filters.acceleratedClockEnabled);
+    where.push(`c.accelerated_clock_enabled = $${params.length}`);
+  }
+  if (input.filters.tradeApprovalPolicy) {
+    params.push(input.filters.tradeApprovalPolicy);
+    where.push(`c.trade_approval_policy = $${params.length}`);
+  }
+  if (typeof input.filters.offensivePlayCallLimitsEnabled === "boolean") {
+    params.push(input.filters.offensivePlayCallLimitsEnabled);
+    where.push(`c.offensive_play_call_limits_enabled = $${params.length}`);
+  }
+  if (typeof input.filters.defensivePlayCallLimitsEnabled === "boolean") {
+    params.push(input.filters.defensivePlayCallLimitsEnabled);
+    where.push(`c.defensive_play_call_limits_enabled = $${params.length}`);
+  }
+
+  const sort = input.filters.sort ?? "name_asc";
+  const orderBy =
+    sort === "name_desc"
+      ? "l.name desc"
+      : sort === "open_teams"
+        ? "open_team_count desc, l.name asc"
+        : sort === "newest"
+          ? "l.created_at desc"
+          : "l.name asc";
+
+  params.push(limit);
+  const result = await getPgPool().query(
+    `
+      select
+        l.id,
+        l.name,
+        l.game,
+        l.season_stage,
+        l.season_number,
+        l.created_at,
+        owner.username as commissioner_username,
+        coalesce(da.global_name, da.username) as commissioner_discord_name,
+        c.difficulty,
+        c.streaming_requirement,
+        coalesce(c.coin_economy_enabled, false) as coin_economy_enabled,
+        coalesce(c.accelerated_clock_enabled, false) as accelerated_clock_enabled,
+        c.accelerated_clock_minimum_seconds,
+        c.trade_approval_policy,
+        coalesce(c.offensive_play_call_limits_enabled, false) as offensive_play_call_limits_enabled,
+        c.offensive_play_call_limit,
+        c.offensive_play_call_cooldown,
+        coalesce(c.defensive_play_call_limits_enabled, false) as defensive_play_call_limits_enabled,
+        c.defensive_play_call_limit,
+        c.defensive_play_call_cooldown,
+        (
+          select count(*)::int
+          from rec_teams t
+          where t.league_id = l.id
+            and not exists (
+              select 1
+              from rec_team_assignments ta
+              where ta.team_id = t.id
+                and ta.assignment_status = 'active'
+                and ta.ended_at is null
+            )
+        ) as open_team_count,
+        (
+          select count(distinct user_id)::int
+          from (
+            select ta.user_id
+            from rec_team_assignments ta
+            where ta.league_id = l.id
+              and ta.assignment_status = 'active'
+              and ta.ended_at is null
+              and ta.user_id is not null
+            union
+            select m.user_id
+            from rec_league_memberships m
+            where m.league_id = l.id
+          ) members
+        ) as member_count,
+        exists (
+          select 1 from (
+            select ta.user_id
+            from rec_team_assignments ta
+            where ta.league_id = l.id
+              and ta.user_id = $1
+              and ta.assignment_status = 'active'
+              and ta.ended_at is null
+            union all
+            select m.user_id
+            from rec_league_memberships m
+            where m.league_id = l.id
+              and m.user_id = $1
+          ) membership
+        ) as is_member
+      from rec_leagues l
+      left join rec_league_configuration c on c.league_id = l.id
+      left join rec_users owner on owner.id = l.owner_user_id
+      left join rec_discord_accounts da on da.user_id = owner.id
+      where ${where.join("\n        and ")}
+      order by ${orderBy}
+      limit $${params.length}
+    `,
+    params,
+  );
+
+  const leagues: SiteLeagueSearchHit[] = (
+    result.rows as Array<{
+      id: string;
+      name: string;
+      game: string;
+      season_stage: string;
+      season_number: number;
+      commissioner_username: string | null;
+      commissioner_discord_name: string | null;
+      difficulty: string | null;
+      streaming_requirement: string | null;
+      coin_economy_enabled: boolean;
+      accelerated_clock_enabled: boolean;
+      accelerated_clock_minimum_seconds: number | null;
+      trade_approval_policy: string | null;
+      offensive_play_call_limits_enabled: boolean;
+      offensive_play_call_limit: number | null;
+      offensive_play_call_cooldown: number | null;
+      defensive_play_call_limits_enabled: boolean;
+      defensive_play_call_limit: number | null;
+      defensive_play_call_cooldown: number | null;
+      open_team_count: number;
+      member_count: number;
+      is_member: boolean;
+    }>
+  ).map((row) => ({
+    id: row.id,
+    name: row.name,
+    game: row.game,
+    gameLabel: gameLabelFor(row.game),
+    seasonStage: row.season_stage,
+    seasonNumber: row.season_number,
+    openTeamCount: Number(row.open_team_count ?? 0),
+    memberCount: Number(row.member_count ?? 0),
+    commissionerUsername: row.commissioner_username,
+    commissionerDiscordName: row.commissioner_discord_name,
+    difficulty: row.difficulty,
+    streamingRequirement: row.streaming_requirement,
+    coinEconomyEnabled: Boolean(row.coin_economy_enabled),
+    acceleratedClockEnabled: Boolean(row.accelerated_clock_enabled),
+    acceleratedClockMinimumSeconds: row.accelerated_clock_minimum_seconds,
+    tradeApprovalPolicy: row.trade_approval_policy,
+    offensivePlayCallLimitsEnabled: Boolean(row.offensive_play_call_limits_enabled),
+    offensivePlayCallLimit: row.offensive_play_call_limit,
+    offensivePlayCallCooldown: row.offensive_play_call_cooldown,
+    defensivePlayCallLimitsEnabled: Boolean(row.defensive_play_call_limits_enabled),
+    defensivePlayCallLimit: row.defensive_play_call_limit,
+    defensivePlayCallCooldown: row.defensive_play_call_cooldown,
+    isMember: Boolean(row.is_member),
+  }));
+
+  return { leagues };
+}
+
