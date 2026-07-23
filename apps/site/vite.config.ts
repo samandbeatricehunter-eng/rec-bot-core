@@ -11,13 +11,11 @@ const sitePublic = path.resolve(here, "public");
 /** Copy hub badge/chassis assets from apps/web so /assets/... URLs resolve in site builds. */
 function copyWebPublicAssets(): Plugin {
   const sync = () => {
-    for (const folder of ["assets", "fonts"]) {
-      const from = path.join(webPublic, folder);
-      const to = path.join(sitePublic, folder);
-      if (!existsSync(from)) continue;
-      mkdirSync(path.dirname(to), { recursive: true });
-      cpSync(from, to, { recursive: true, force: true });
-    }
+    const from = path.join(webPublic, "assets");
+    const to = path.join(sitePublic, "assets");
+    if (!existsSync(from)) return;
+    mkdirSync(path.dirname(to), { recursive: true });
+    cpSync(from, to, { recursive: true, force: true });
   };
   return {
     name: "copy-web-public-assets",
