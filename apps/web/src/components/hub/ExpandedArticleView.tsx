@@ -3,6 +3,7 @@ import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { MobileActionBar } from "../design-system/MobileActionBar.js";
 import { Button } from "../ui/Button.js";
 import type { HubResponse, StoryComment } from "../../types/api.js";
+import { InterviewBody } from "./InterviewBody.js";
 
 type Story = HubResponse["headlines"][number];
 
@@ -54,7 +55,7 @@ export function ExpandedArticleView({ stories, activeIndex, onIndexChange, onClo
           <time>Week {story.week}</time>
           <h2>{story.headline ?? "League Story"}</h2>
           {story.image_url && <img className="expanded-article-image" src={story.image_url} alt="" onClick={() => onImageClick(story.image_url!)} />}
-          <p className="roundtable-lede">{story.body}</p>
+          <InterviewBody body={story.body} />
           {story.roundtable?.length ? (
             <div className="roundtable-panel">
               <div className="roundtable-banner">REC NETWORK · LEAGUE ROUNDTABLE</div>

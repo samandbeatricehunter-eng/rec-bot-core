@@ -54,46 +54,72 @@ export function gameLabelFor(game: string): string {
 export async function listMySiteLeagues(input: {
   recUserId: string;
 }): Promise<{ leagues: SiteLeagueSummary[] }> {
+  // Include active team assignments AND league memberships (commissioners without a team).
+  // Do not call Discord for this list — a token/permission failure was wiping the sidebar.
   const result = await getPgPool().query(
     `
-      select
-        l.id,
-        l.name,
-        l.game,
-        l.owner_user_id,
-        t.name as team_name,
-        m.role as membership_role
-      from rec_team_assignments ta
-      inner join rec_leagues l on l.id = ta.league_id
-      inner join rec_teams t on t.id = ta.team_id
-      left join rec_league_memberships m
-        on m.league_id = l.id and m.user_id = ta.user_id
-      where ta.user_id = $1
-        and ta.assignment_status = 'active'
-        and ta.ended_at is null
-      order by l.name asc
+      with linked as (
+        select
+          l.id,
+          l.name,
+          l.game,
+          l.owner_user_id,
+          t.name as team_name,
+          m.role as membership_role
+        from rec_team_assignments ta
+        inner join rec_leagues l on l.id = ta.league_id
+        inner join rec_teams t on t.id = ta.team_id
+        left join rec_league_memberships m
+          on m.league_id = l.id and m.user_id = ta.user_id
+        where ta.user_id = $1
+          and ta.assignment_status = 'active'
+          and ta.ended_at is null
+
+        union all
+
+        select
+          l.id,
+          l.name,
+          l.game,
+          l.owner_user_id,
+          null::text as team_name,
+          m.role as membership_role
+        from rec_league_memberships m
+        inner join rec_leagues l on l.id = m.league_id
+        where m.user_id = $1
+          and not exists (
+            select 1
+            from rec_team_assignments ta
+            where ta.user_id = m.user_id
+              and ta.league_id = m.league_id
+              and ta.assignment_status = 'active'
+              and ta.ended_at is null
+          )
+      )
+      select distinct on (id)
+        id, name, game, owner_user_id, team_name, membership_role
+      from linked
+      order by id, team_name nulls last
     `,
     [input.recUserId],
   );
 
-  const leagues: SiteLeagueSummary[] = [];
-  for (const row of result.rows as Array<{
+  const leagues: SiteLeagueSummary[] = (result.rows as Array<{
     id: string;
     name: string;
     game: string;
     owner_user_id: string | null;
     team_name: string | null;
     membership_role: string | null;
-  }>) {
-    const isCommissioner = await isLeagueCommissioner(input.recUserId, row.id);
+  }>).map((row) => {
     const role = String(row.membership_role ?? "").toLowerCase();
     let commissionerRole: "head" | "co" | "member" = "member";
     if (row.owner_user_id === input.recUserId || role === "commissioner") {
       commissionerRole = "head";
-    } else if (isCommissioner || role === "co_commissioner") {
+    } else if (role === "co_commissioner") {
       commissionerRole = "co";
     }
-    leagues.push({
+    return {
       id: row.id,
       name: row.name,
       game: row.game,
@@ -101,9 +127,10 @@ export async function listMySiteLeagues(input: {
       teamName: row.team_name ?? null,
       isCommissioner: commissionerRole !== "member",
       commissionerRole,
-    });
-  }
+    };
+  });
 
+  leagues.sort((a, b) => a.name.localeCompare(b.name));
   return { leagues };
 }
 

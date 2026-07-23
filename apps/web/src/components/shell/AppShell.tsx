@@ -125,7 +125,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               }}
             >
               <Trophy size={22} />
-              REC LEAGUE
+              {hub.scope.kind === "league" && hub.currentLeague
+                ? hub.currentLeague.name
+                : "REC Leagues eSports"}
             </Link>
             {headerSummary && hub.scope.kind === "league" && (
               <div className="app-header-summary">
@@ -163,7 +165,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {showChrome ? (
           <>
             <aside className="hub-desktop-sidebar" aria-label="Global navigation">
-              <div className="hub-sidebar-brand">REC LEAGUES</div>
+              <div className="hub-sidebar-brand">REC Leagues eSports</div>
               <BottomNav variant="global" layout="sidebar" />
               {hub.currentLeague ? (
                 <div className="hub-sidebar-leagues">
@@ -184,15 +186,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                       {hub.currentLeague.isCommissioner ? " · Commish" : " · Member"}
                     </span>
                   </button>
-                  {hub.scope.kind === "league" ? (
-                    <button
-                      type="button"
-                      className="hub-sidebar-league-btn"
-                      onClick={() => hub.selectMainHub()}
-                    >
-                      <span className="hub-sidebar-league-name">Main Hub</span>
-                    </button>
-                  ) : null}
                 </div>
               ) : null}
             </aside>

@@ -33,17 +33,21 @@ export function DesktopSidebar() {
 
   return (
     <aside className="site-desktop-sidebar" aria-label="Global navigation">
-      <div className="site-sidebar-brand">REC LEAGUES</div>
+      <div className="site-sidebar-brand">REC Leagues eSports</div>
       <BottomNav variant="global" layout="sidebar" />
-      {leagues.length ? (
-        <div className="site-sidebar-leagues">
-          <div className="site-sidebar-section-label">MY LEAGUES</div>
+      <div className="site-sidebar-leagues">
+        <div className="site-sidebar-section-label">MY LEAGUES</div>
+        {hub.leaguesLoading ? (
+          <p className="site-sidebar-league-meta">Loading leagues…</p>
+        ) : hub.leaguesError ? (
+          <p className="site-sidebar-league-meta">{hub.leaguesError}</p>
+        ) : leagues.length === 0 ? (
+          <p className="site-sidebar-league-meta">No leagues linked yet. Finish Account linking.</p>
+        ) : (
           <ul>
             {leagues.map((league) => {
               const active = selectedId === league.id;
-              const buzzPath = league.game?.startsWith("madden")
-                ? `/l/${league.id}/buzz`
-                : `/l/${league.id}/buzz`;
+              const buzzPath = `/l/${league.id}/buzz`;
               return (
                 <li key={league.id}>
                   <button
@@ -67,20 +71,8 @@ export function DesktopSidebar() {
               );
             })}
           </ul>
-          {hub.scope.kind === "league" ? (
-            <button
-              type="button"
-              className="site-sidebar-league-btn site-sidebar-main-hub"
-              onClick={() => {
-                hub.selectMainHub();
-                navigate("/home");
-              }}
-            >
-              <span className="site-sidebar-league-name">Main Hub</span>
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+        )}
+      </div>
     </aside>
   );
 }
