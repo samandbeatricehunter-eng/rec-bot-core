@@ -1,8 +1,8 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { SiteShell } from "./components/SiteShell.js";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
-import { HubProvider } from "./lib/hub-context.js";
+import { HubProvider, useHub } from "./lib/hub-context.js";
 import { SiteThemeProvider } from "./lib/site-theme-context.js";
 import { Account } from "./routes/Account.js";
 import { Friends } from "./routes/Friends.js";
@@ -164,6 +164,21 @@ function AuthedLayout() {
   );
 }
 
+/** Hub screens still link to /league-mgmt/* — map onto /l/:leagueId/mgmt/*. */
+function LegacyLeagueMgmtRedirect() {
+  const hub = useHub();
+  const location = useLocation();
+  const leagueId =
+    hub.scope.kind === "league"
+      ? hub.scope.leagueId
+      : hub.selectedLeague?.id ?? hub.leagues[0]?.id ?? null;
+  if (!leagueId) return <Navigate to="/leagues" replace />;
+  const suffix = location.pathname.startsWith("/league-mgmt")
+    ? location.pathname.slice("/league-mgmt".length)
+    : "";
+  return <Navigate to={`/l/${leagueId}/mgmt${suffix}${location.search}${location.hash}`} replace />;
+}
+
 function RootEntry() {
   const auth = useAuth();
   if (auth.status === "loading") {
@@ -198,10 +213,12 @@ function Routed() {
         <Route path="/friends" element={<Friends />} />
         <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/matchups" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/matchups/:gameId" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/team" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/store" element={<LeagueHubPage />} />
-        <Route path="/l/:leagueId/mgmt" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/mgmt/inbox" element={<LeagueMgmtInboxPage />} />
+        <Route path="/l/:leagueId/mgmt/*" element={<LeagueHubPage />} />
+        <Route path="/league-mgmt/*" element={<LegacyLeagueMgmtRedirect />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

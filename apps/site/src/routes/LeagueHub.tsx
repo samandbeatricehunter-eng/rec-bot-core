@@ -1,5 +1,5 @@
 import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
-import { Link, MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
@@ -47,22 +47,6 @@ function viewFromPath(pathname: string): HubView {
   return "buzz";
 }
 
-function entryForView(view: HubView): string {
-  switch (view) {
-    case "matchups":
-      return "/?section=league&subTab=matchups";
-    case "team":
-      return "/?section=team";
-    case "store":
-      return "/?section=store";
-    case "mgmt":
-      return "/league-mgmt";
-    case "buzz":
-    default:
-      return "/?section=league&subTab=buzz";
-  }
-}
-
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
   const parts: string[] = [];
   if (typeof error === "string" && error.trim()) {
@@ -75,12 +59,12 @@ function formatCaughtError(error: unknown, info?: ErrorInfo): string {
     else if (name) parts.push(`${name} (empty message)`);
     const stack = "stack" in error ? String((error as { stack?: unknown }).stack ?? "") : "";
     if (stack) {
-      const lines = stack.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
+      const lines = stack.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 4);
       if (lines.length) parts.push(lines.join(" | "));
     }
   }
   if (info?.componentStack) {
-    const lines = info.componentStack.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
+    const lines = info.componentStack.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 4);
     if (lines.length) parts.push(`at ${lines.join(" < ")}`);
   }
   if (!parts.length) {
@@ -135,36 +119,62 @@ class HubErrorBoundary extends Component<
   }
 }
 
-function HubRoutes() {
+/** Sync /l/:id/{buzz|matchups|team|store} into HubHome search params (parent BrowserRouter). */
+function HubHomeBridge({ view }: { view: Exclude<HubView, "mgmt"> }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const desired = useMemo(() => {
+    if (view === "matchups") return { section: "league", subTab: "matchups" };
+    if (view === "team") return { section: "team", subTab: null as string | null };
+    if (view === "store") return { section: "store", subTab: null as string | null };
+    return { section: "league", subTab: "buzz" };
+  }, [view]);
+
+  useEffect(() => {
+    const section = searchParams.get("section");
+    const subTab = searchParams.get("subTab");
+    const sectionOk = section === desired.section;
+    const subOk =
+      desired.subTab == null
+        ? subTab == null || subTab === ""
+        : subTab === desired.subTab;
+    if (sectionOk && subOk) return;
+    const next = new URLSearchParams();
+    next.set("section", desired.section);
+    if (desired.subTab) next.set("subTab", desired.subTab);
+    setSearchParams(next, { replace: true });
+  }, [desired, searchParams, setSearchParams]);
+
+  return <HubHome />;
+}
+
+function HubMgmtRoutes({ leagueId }: { leagueId: string }) {
+  const base = `/l/${leagueId}/mgmt`;
   return (
     <Routes>
-      <Route path="/" element={<HubHome />} />
-      <Route path="/home" element={<HubHome />} />
-      <Route path="/leagues" element={<HubHome />} />
-      <Route path="/matchups/:gameId" element={<MatchupDetailPage />} />
-      <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupHome />} />
-      <Route path="/league-mgmt" element={<LeagueMgmtHome />} />
-      <Route path="/league-mgmt/notifications" element={<NotificationsHome />} />
-      <Route path="/league-mgmt/manage-league" element={<ManageLeagueHome />} />
-      <Route path="/league-mgmt/manage-league/roles" element={<RolesHome />} />
-      <Route path="/league-mgmt/manage-league/player-stats" element={<PlayerStatsReview />} />
-      <Route path="/league-mgmt/manage-league/teams" element={<TeamOwnershipTable />} />
-      <Route path="/league-mgmt/manage-league/teams/link" element={<LinkTeamForm />} />
-      <Route path="/league-mgmt/manage-league/:teamId" element={<TeamScheduleForm />} />
-      <Route path="/league-mgmt/delete-league" element={<DeleteLeagueHome />} />
-      <Route path="/league-mgmt/settings" element={<SettingsHome />} />
-      <Route path="/league-mgmt/advance" element={<AdvanceHome />} />
-      <Route path="/league-mgmt/commissioner-chat" element={<CommissionerChatHome />} />
-      <Route path="/league-mgmt/publishing" element={<PublishingHome />} />
-      <Route path="/league-mgmt/recruiting" element={<RecruitingHome />} />
-      <Route path="*" element={<HubHome />} />
+      <Route path={base} element={<LeagueMgmtHome />} />
+      <Route path={`${base}/first-time-setup`} element={<FirstTimeSetupHome />} />
+      <Route path={`${base}/notifications`} element={<NotificationsHome />} />
+      <Route path={`${base}/manage-league`} element={<ManageLeagueHome />} />
+      <Route path={`${base}/manage-league/roles`} element={<RolesHome />} />
+      <Route path={`${base}/manage-league/player-stats`} element={<PlayerStatsReview />} />
+      <Route path={`${base}/manage-league/teams`} element={<TeamOwnershipTable />} />
+      <Route path={`${base}/manage-league/teams/link`} element={<LinkTeamForm />} />
+      <Route path={`${base}/manage-league/:teamId`} element={<TeamScheduleForm />} />
+      <Route path={`${base}/delete-league`} element={<DeleteLeagueHome />} />
+      <Route path={`${base}/settings`} element={<SettingsHome />} />
+      <Route path={`${base}/advance`} element={<AdvanceHome />} />
+      <Route path={`${base}/commissioner-chat`} element={<CommissionerChatHome />} />
+      <Route path={`${base}/publishing`} element={<PublishingHome />} />
+      <Route path={`${base}/recruiting`} element={<RecruitingHome />} />
+      <Route path={`${base}/*`} element={<LeagueMgmtHome />} />
+      <Route path={`/l/${leagueId}/matchups/:gameId`} element={<MatchupDetailPage />} />
     </Routes>
   );
 }
 
 /**
  * Renders the Discord hub panels inside the site shell (no iframe).
- * Auth is the site Supabase session; guild context comes from open-hub.
+ * Uses the site BrowserRouter only — never nest MemoryRouter.
  */
 export function LeagueHubPage() {
   const { leagueId = "" } = useParams();
@@ -228,6 +238,7 @@ export function LeagueHubPage() {
     };
   }, [leagueId, siteAuth.status]);
 
+
   const accessToken =
     siteAuth.status === "signed-in" ? siteAuth.session.access_token : null;
 
@@ -267,11 +278,15 @@ export function LeagueHubPage() {
           accessToken={accessToken}
         >
           <LeagueThemeProvider game={gameTheme}>
-            <MemoryRouter key={`${leagueId}:${view}`} initialEntries={[entryForView(view)]}>
-              <HubErrorBoundary>
-                <HubRoutes />
-              </HubErrorBoundary>
-            </MemoryRouter>
+            <HubErrorBoundary>
+              {/\/matchups\/[^/]+$/.test(location.pathname) ? (
+                <MatchupDetailPage />
+              ) : view === "mgmt" ? (
+                <HubMgmtRoutes leagueId={leagueId} />
+              ) : (
+                <HubHomeBridge view={view} />
+              )}
+            </HubErrorBoundary>
           </LeagueThemeProvider>
         </InjectedAuthProvider>
       </div>
