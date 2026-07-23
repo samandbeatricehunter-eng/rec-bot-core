@@ -21,7 +21,6 @@ export function Account() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [linked, setLinked] = useState<LinkProfileResponse | null>(null);
   const [entitlements, setEntitlements] = useState<EntitlementSummary | null>(null);
-  const [query, setQuery] = useState("");
   const [candidates, setCandidates] = useState<LinkCandidate[]>([]);
   const [candidatesTotal, setCandidatesTotal] = useState(0);
   const [selectedDiscordAccountId, setSelectedDiscordAccountId] = useState("");
@@ -105,40 +104,37 @@ export function Account() {
       return;
     }
     let active = true;
-    const timer = window.setTimeout(() => {
-      setCandidateBusy(true);
-      setCandidateError(null);
-      siteApi
-        .listLinkCandidates({ query, limit: 50, offset: 0 })
-        .then((response) => {
-          if (!active) return;
-          setCandidates(response.candidates);
-          setCandidatesTotal(response.total);
-          setSelectedDiscordAccountId((current) =>
-            response.candidates.some(
-              (candidate) => candidate.discordAccountId === current,
-            )
-              ? current
-              : response.candidates[0]?.discordAccountId ?? "",
-          );
-        })
-        .catch((error) => {
-          if (!active) return;
-          setCandidates([]);
-          setCandidatesTotal(0);
-          setCandidateError(
-            error instanceof Error ? error.message : "Could not load identities.",
-          );
-        })
-        .finally(() => {
-          if (active) setCandidateBusy(false);
-        });
-    }, 250);
+    setCandidateBusy(true);
+    setCandidateError(null);
+    siteApi
+      .listLinkCandidates({ limit: 100, offset: 0 })
+      .then((response) => {
+        if (!active) return;
+        setCandidates(response.candidates);
+        setCandidatesTotal(response.total);
+        setSelectedDiscordAccountId((current) =>
+          response.candidates.some(
+            (candidate) => candidate.discordAccountId === current,
+          )
+            ? current
+            : response.candidates[0]?.discordAccountId ?? "",
+        );
+      })
+      .catch((error) => {
+        if (!active) return;
+        setCandidates([]);
+        setCandidatesTotal(0);
+        setCandidateError(
+          error instanceof Error ? error.message : "Could not load identities.",
+        );
+      })
+      .finally(() => {
+        if (active) setCandidateBusy(false);
+      });
     return () => {
       active = false;
-      window.clearTimeout(timer);
     };
-  }, [auth.status, linked?.linked, linked?.claimDropdownOpen, query]);
+  }, [auth.status, linked?.linked, linked?.claimDropdownOpen]);
 
   useEffect(() => {
     if (linked?.linked) {
@@ -312,7 +308,7 @@ export function Account() {
   const onboardingStep = !linkedAccount ? 1 : linked?.username ? 3 : 2;
   const claimClosed = linked?.claimDropdownOpen === false;
   const showSubscribeInsteadOfClaim =
-    !linkedAccount && (claimClosed || (!candidateBusy && candidatesTotal === 0 && !query));
+    !linkedAccount && (claimClosed || (!candidateBusy && candidatesTotal === 0));
   const subscribed =
     entitlements != null &&
     (entitlements.tier === "gold" || entitlements.tier === "platinum");
@@ -495,16 +491,6 @@ export function Account() {
                 View plans
               </Link>
             </div>
-            {!claimClosed && (
-              <label className="site-field">
-                <span>Search again</span>
-                <input
-                  value={query}
-                  placeholder="Search username..."
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-            )}
             {candidateError && <p className="site-auth-error">{candidateError}</p>}
           </>
         ) : (
@@ -514,14 +500,6 @@ export function Account() {
               Discord account by DM. Claimed identities leave the list immediately
               and cannot be claimed twice.
             </p>
-            <label className="site-field">
-              <span>Find your Discord username</span>
-              <input
-                value={query}
-                placeholder="Search username..."
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
             <label className="site-field">
               <span>Linkable identities ({candidatesTotal})</span>
               <select
