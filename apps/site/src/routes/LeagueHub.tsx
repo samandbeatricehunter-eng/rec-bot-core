@@ -24,9 +24,18 @@ import { FirstTimeSetupHome } from "../../../web/src/routes/league-mgmt/first-ti
 import { MatchupDetailPage } from "../../../web/src/routes/matchups/MatchupDetail.js";
 
 import "../../../web/src/styles/tokens.css";
-import "../../../web/src/styles/base.css";
-import "../../../web/src/styles/components.css";
+import "../../../web/src/styles/themes/cfb27.css";
+import "../../../web/src/styles/themes/madden27.css";
+import "../../../web/src/styles/reset.css";
+import "../../../web/src/styles/typography.css";
+import "../../../web/src/styles/shell.css";
+import "../../../web/src/styles/surfaces.css";
+import "../../../web/src/styles/buttons.css";
+import "../../../web/src/styles/icons.css";
+import "../../../web/src/styles/football-components.css";
 import "../../../web/src/styles/hub.css";
+import "../../../web/src/styles/league-management.css";
+import "../../../web/src/styles/responsive.css";
 
 type HubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
 
