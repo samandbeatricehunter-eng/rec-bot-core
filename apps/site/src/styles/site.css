@@ -331,6 +331,13 @@ h1, h2, h3, .site-wordmark {
   max-width: 720px;
   margin: 0 auto;
 }
+.site-shell-main:has(.site-hub-embed) {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  padding-bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+}
 
 /* Notifications bell (persistent top-right) */
 .site-notif-bell {
@@ -907,12 +914,23 @@ h1, h2, h3, .site-wordmark {
 
   .site-shell-main {
     margin-left: 232px;
+    margin-right: 0;
+    width: auto;
     max-width: none;
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 
   .site-shell.is-league-scope .site-shell-main {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .site-shell.is-league-scope .site-shell-main:has(.site-hub-embed) {
+    padding: 0;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    max-width: none;
+    width: auto;
+    margin-left: 232px;
+    margin-right: 0;
   }
 
   .site-desktop-sidebar .site-league-selector {
@@ -1150,4 +1168,26 @@ h1, h2, h3, .site-wordmark {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+/* Full Discord-hub surface embedded in site league routes */
+.site-hub-embed {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 56px);
+  margin: 0;
+  background: #070807;
+}
+.site-hub-embed-frame {
+  flex: 1;
+  width: 100%;
+  min-height: calc(100dvh - 56px);
+  border: 0;
+  background: #070807;
+}
+@media (min-width: 960px) {
+  .site-hub-embed,
+  .site-hub-embed-frame {
+    min-height: calc(100dvh - 56px - 72px);
+  }
 }

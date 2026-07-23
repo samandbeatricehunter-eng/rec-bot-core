@@ -320,6 +320,16 @@ export const siteApi = {
   listMyLeagues() {
     return request<{ leagues: SiteLeagueSummary[] }>("/v1/site-leagues/mine", {});
   },
+  openLeagueHub(input: {
+    leagueId: string;
+    view?: "buzz" | "matchups" | "team" | "store" | "mgmt";
+    embed?: boolean;
+  }) {
+    return request<{ hubUrl: string; expiresInSeconds: number }>(
+      "/v1/site-leagues/open-hub",
+      input,
+    );
+  },
   retireFromLeague(leagueId: string) {
     return request<{ ok: true }>("/v1/site-leagues/retire", { leagueId });
   },

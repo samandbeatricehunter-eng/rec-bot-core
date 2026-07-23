@@ -1,6 +1,7 @@
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
+import { buildWebHubUrl } from "../web-session/web-session.service.js";
 
 /** Linked REC profile (username optional — used by chrome/league selector). */
 export async function requireLinkedRecUser(authUserId: string): Promise<{
@@ -183,4 +184,97 @@ export async function retireFromSiteLeague(input: {
   }
 
   return { ok: true };
+}
+
+export type SiteLeagueHubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
+
+function hubHashForView(view: SiteLeagueHubView): string {
+  switch (view) {
+    case "matchups":
+      return "/?section=league&subTab=matchups";
+    case "team":
+      return "/?section=team";
+    case "store":
+      return "/?section=store";
+    case "mgmt":
+      return "/league-mgmt";
+    case "buzz":
+    default:
+      return "/?section=league&subTab=buzz";
+  }
+}
+
+async function assertSiteLeagueAccess(recUserId: string, leagueId: string): Promise<void> {
+  const access = await getPgPool().query(
+    `
+      select 1
+      from rec_team_assignments ta
+      where ta.user_id = $1
+        and ta.league_id = $2
+        and ta.assignment_status = 'active'
+        and ta.ended_at is null
+      union all
+      select 1
+      from rec_league_memberships m
+      where m.user_id = $1
+        and m.league_id = $2
+      limit 1
+    `,
+    [recUserId, leagueId],
+  );
+  if (!access.rows[0]) {
+    throw new ApiError(403, "You are not a member of that league.");
+  }
+}
+
+/** Mint a Discord-hub session URL for the site shell (iframe / handoff). */
+export async function openSiteLeagueHub(input: {
+  recUserId: string;
+  leagueId: string;
+  view?: SiteLeagueHubView;
+  embed?: boolean;
+}): Promise<{ hubUrl: string; expiresInSeconds: number }> {
+  await assertSiteLeagueAccess(input.recUserId, input.leagueId);
+
+  const profile = await getPgPool().query(
+    `
+      select u.username, d.discord_id
+      from rec_users u
+      left join rec_discord_accounts d on d.user_id = u.id
+      where u.id = $1
+      limit 1
+    `,
+    [input.recUserId],
+  );
+  const row = profile.rows[0] as { username: string | null; discord_id: string | null } | undefined;
+  if (!row?.discord_id) {
+    throw new ApiError(403, "Link your Discord identity on Account before opening a league hub.");
+  }
+  if (!row.username) {
+    throw new ApiError(403, "Choose a username on Account before opening a league hub.");
+  }
+
+  const guild = await getPgPool().query(
+    `
+      select s.guild_id
+      from rec_server_league_links link
+      inner join rec_discord_servers s on s.id = link.server_id
+      where link.league_id = $1
+      order by link.is_primary desc, link.created_at asc
+      limit 1
+    `,
+    [input.leagueId],
+  );
+  const guildId = (guild.rows[0] as { guild_id: string } | undefined)?.guild_id;
+  if (!guildId) {
+    throw new ApiError(404, "This league is not linked to a Discord server yet.");
+  }
+
+  const issued = await buildWebHubUrl({
+    discordId: row.discord_id,
+    guildId,
+    hashPath: hubHashForView(input.view ?? "buzz"),
+    embed: input.embed ?? true,
+  });
+  return { hubUrl: issued.hubUrl, expiresInSeconds: issued.expiresInSeconds };
 }

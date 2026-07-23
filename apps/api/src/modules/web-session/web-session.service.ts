@@ -52,6 +52,29 @@ async function signWebSessionToken(input: { discordId: string; guildId: string }
     .sign(jwtKey());
 }
 
+/** Build a browser hub URL for an already-linked Discord user + guild. */
+export async function buildWebHubUrl(input: {
+  discordId: string;
+  guildId: string;
+  /** Hash route after `#`, e.g. `/?section=league&subTab=buzz` */
+  hashPath?: string;
+  embed?: boolean;
+}): Promise<{ hubUrl: string; token: string; expiresInSeconds: number }> {
+  if (!env.WEB_APP_URL) {
+    throw new ApiError(500, "WEB_APP_URL is not configured on the API.");
+  }
+  const token = await signWebSessionToken({
+    discordId: input.discordId,
+    guildId: input.guildId,
+  });
+  const hubBase = env.WEB_APP_URL.replace(/\/$/, "");
+  const params = new URLSearchParams({ token });
+  if (input.embed) params.set("embed", "1");
+  const hash = (input.hashPath ?? "/").replace(/^#/, "");
+  const hubUrl = `${hubBase}/?${params.toString()}#${hash.startsWith("/") ? hash : `/${hash}`}`;
+  return { hubUrl, token, expiresInSeconds: WEB_SESSION_TTL_SECONDS };
+}
+
 export async function mintWebSession(input: MintWebSessionInput) {
   await resolveOrProvisionUserId(input);
   const token = await signWebSessionToken({ discordId: input.discordId, guildId: input.guildId });
@@ -178,12 +201,14 @@ export async function exchangeAppHandoff(
     };
   }
 
-  const token = await signWebSessionToken({ discordId: handoff.discordId, guildId: handoff.guildId });
-  const hubBase = env.WEB_APP_URL.replace(/\/$/, "");
-  const hubUrl = `${hubBase}/?token=${encodeURIComponent(token)}`;
+  const issued = await buildWebHubUrl({
+    discordId: handoff.discordId,
+    guildId: handoff.guildId,
+    hashPath: "/?section=league&subTab=buzz",
+  });
   return {
     status: "ready" as const,
-    hubUrl,
-    expiresInSeconds: WEB_SESSION_TTL_SECONDS,
+    hubUrl: issued.hubUrl,
+    expiresInSeconds: issued.expiresInSeconds,
   };
 }

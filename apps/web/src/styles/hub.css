@@ -2488,12 +2488,26 @@
 
   .app-backdrop.has-hub-chrome .app-shell-container.has-hub-chrome {
     margin-left: 232px;
-    max-width: calc(var(--content-width) + 232px);
+    margin-right: 0;
+    width: auto;
+    max-width: none;
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 
   .app-backdrop.has-hub-chrome.is-league-scope .app-shell-container.has-hub-chrome {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Site iframe embed: site owns the sidebar — give hub content the full frame */
+  .app-backdrop.is-hub-embed .hub-desktop-sidebar,
+  .app-backdrop.is-hub-embed .hub-chrome-stack {
+    display: none !important;
+  }
+  .app-backdrop.is-hub-embed .app-shell-container.has-hub-chrome {
+    margin-left: 0;
+    max-width: none;
+    width: 100%;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
   }
 
   .hub-desktop-sidebar .hub-chrome-league-selector {

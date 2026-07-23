@@ -81,8 +81,8 @@ export default function App() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<HubHome />} />
-                <Route path="/home" element={<HubPlaceholder title="Home" blurb="Main Hub home — global headlines and league discovery will land here." />} />
-                <Route path="/leagues" element={<HubPlaceholder title="Leagues" blurb="Search and manage your leagues across servers. Phase 1 is limited to the current Discord guild session." />} />
+                <Route path="/home" element={<HubHome />} />
+                <Route path="/leagues" element={<HubHome />} />
                 <Route path="/headlines" element={<HubPlaceholder title="Headlines" blurb="Global media and headlines placeholder." />} />
                 <Route path="/comp" element={<HubPlaceholder title="Comp" blurb="Competitive / committee placeholder." />} />
                 <Route path="/account" element={<AccountPlaceholder />} />

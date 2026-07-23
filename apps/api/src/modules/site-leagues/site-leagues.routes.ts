@@ -4,6 +4,7 @@ import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   listMySiteLeagues,
+  openSiteLeagueHub,
   requireLinkedRecUser,
   retireFromSiteLeague,
 } from "./site-leagues.service.js";
@@ -14,6 +15,30 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
       const session = await requireSiteUserSession(request);
       const user = await requireLinkedRecUser(session.authUserId);
       return reply.send(await listMySiteLeagues({ recUserId: user.recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/open-hub", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z
+        .object({
+          leagueId: z.string().uuid(),
+          view: z.enum(["buzz", "matchups", "team", "store", "mgmt"]).optional(),
+          embed: z.boolean().optional(),
+        })
+        .parse(request.body ?? {});
+      return reply.send(
+        await openSiteLeagueHub({
+          recUserId: user.recUserId,
+          leagueId: body.leagueId,
+          view: body.view,
+          embed: body.embed,
+        }),
+      );
     } catch (error) {
       return sendError(reply, error);
     }

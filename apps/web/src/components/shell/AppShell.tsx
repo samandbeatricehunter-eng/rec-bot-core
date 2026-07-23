@@ -14,19 +14,31 @@ import type { LeagueHeaderSummary } from "../../types/api.js";
 
 const NOTIFICATION_POLL_MS = 30_000;
 
+function isHubEmbedMode() {
+  try {
+    return new URLSearchParams(window.location.search).get("embed") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
   const hub = useHubChrome();
-  const isHome = location.pathname === "/" || location.pathname === "/home";
+  const embed = isHubEmbedMode();
+  const isHome =
+    location.pathname === "/" ||
+    location.pathname === "/home" ||
+    location.pathname === "/leagues";
   const isLeagueMgmt = location.pathname.startsWith("/league-mgmt");
-  const isMainPlaceholder = ["/home", "/leagues", "/headlines", "/comp", "/account"].includes(
-    location.pathname,
-  );
+  const isMainPlaceholder = ["/headlines", "/comp", "/account"].includes(location.pathname);
   // Show bottom chrome on hub home + main placeholders + league-mgmt (league nav with Mgmt active).
+  // Site iframe embed keeps content chrome off — site shell owns navigation.
   const showChrome =
-    isHome || isMainPlaceholder || isLeagueMgmt || location.pathname.startsWith("/matchups");
+    !embed &&
+    (isHome || isMainPlaceholder || isLeagueMgmt || location.pathname.startsWith("/matchups"));
   const isLeagueScope = hub.scope.kind === "league";
   const [notificationCount, setNotificationCount] = useState(0);
   const [headerSummary, setHeaderSummary] = useState<LeagueHeaderSummary | null>(null);
@@ -85,10 +97,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div
         className={[
           "app-backdrop",
-          isHome ? "app-backdrop--hub" : "",
+          isHome || embed ? "app-backdrop--hub" : "",
           showChrome ? "has-hub-chrome" : "",
           showChrome && isLeagueScope ? "is-league-scope" : "",
           showChrome && !isLeagueScope ? "is-main-scope" : "",
+          embed ? "is-hub-embed" : "",
         ]
           .filter(Boolean)
           .join(" ")}

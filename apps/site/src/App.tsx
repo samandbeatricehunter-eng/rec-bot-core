@@ -12,14 +12,10 @@ import {
   CompPage,
   HeadlinesPage,
   HomePage,
-  LeagueBuzzPage,
-  LeagueMatchupsPage,
   LeagueMgmtInboxPage,
-  LeagueMgmtPage,
-  LeagueStorePage,
-  LeagueTeamPage,
   LeaguesPage,
 } from "./routes/placeholders.js";
+import { LeagueHubPage } from "./routes/LeagueHub.js";
 import { Pricing } from "./routes/Pricing.js";
 import { SignUp } from "./routes/SignUp.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
@@ -78,11 +74,11 @@ function Routed() {
         <Route path="/account" element={<Account />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/friends" element={<Friends />} />
-        <Route path="/l/:leagueId/buzz" element={<LeagueBuzzPage />} />
-        <Route path="/l/:leagueId/matchups" element={<LeagueMatchupsPage />} />
-        <Route path="/l/:leagueId/team" element={<LeagueTeamPage />} />
-        <Route path="/l/:leagueId/store" element={<LeagueStorePage />} />
-        <Route path="/l/:leagueId/mgmt" element={<LeagueMgmtPage />} />
+        <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/matchups" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/team" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/store" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/mgmt" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/mgmt/inbox" element={<LeagueMgmtInboxPage />} />
       </Route>
 

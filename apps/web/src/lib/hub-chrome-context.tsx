@@ -131,7 +131,8 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
     setScope(next);
     persistScope(next);
     applyTheme(next, currentLeague);
-    navigate("/home");
+    // Keep the Discord hub surface mounted — main chrome differs, content stays HubHome.
+    navigate("/?section=league&subTab=buzz");
   }, [currentLeague, navigate]);
 
   const selectLeague = useCallback(() => {
@@ -150,7 +151,7 @@ export function HubChromeProvider({ children }: { children: ReactNode }) {
     setScope(next);
     persistScope(next);
     applyTheme(next, null);
-    navigate("/home");
+    navigate("/?section=league&subTab=buzz");
   }, [auth, navigate, refreshLeague]);
 
   const value = useMemo<HubChromeContextValue>(

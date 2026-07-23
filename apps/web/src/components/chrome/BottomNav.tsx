@@ -26,14 +26,17 @@ export type BottomNavVariant = "auto" | "global" | "league";
 export type BottomNavLayout = "bottom" | "sidebar";
 
 function isActivePath(pathname: string, to: string) {
-  if (to === "/home" || to === "/") return pathname === "/home" || pathname === "/";
-  return pathname === to || pathname.startsWith(`${to}/`);
+  const pathOnly = to.split("?")[0] ?? to;
+  if (pathOnly === "/home" || pathOnly === "/" || pathOnly === "/leagues") {
+    return pathname === "/home" || pathname === "/" || pathname === "/leagues";
+  }
+  return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
 }
 
 function globalItems(): NavItem[] {
   return [
-    { key: "home", label: "Home", to: "/home", icon: <Home size={22} /> },
-    { key: "leagues", label: "Leagues", to: "/leagues", icon: <Layers size={22} /> },
+    { key: "home", label: "Home", to: "/?section=league&subTab=buzz", icon: <Home size={22} /> },
+    { key: "leagues", label: "Leagues", to: "/?section=league&subTab=buzz", icon: <Layers size={22} /> },
     {
       key: "headlines",
       label: "Headlines",
