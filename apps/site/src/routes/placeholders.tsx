@@ -32,15 +32,6 @@ function PlaceholderCard({
   );
 }
 
-export function HomePage() {
-  return (
-    <PlaceholderCard
-      title="Home"
-      body="Main hub home. League feeds, shortcuts, and season highlights will land here."
-    />
-  );
-}
-
 export function HeadlinesPage() {
   return (
     <PlaceholderCard

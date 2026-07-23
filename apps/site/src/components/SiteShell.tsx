@@ -3,6 +3,7 @@ import { BottomNav } from "./BottomNav.js";
 import { DesktopSidebar } from "./DesktopSidebar.js";
 import { LeagueSelector } from "./LeagueSelector.js";
 import { NotificationsBell } from "./NotificationsBell.js";
+import { ProfileChip } from "./ProfileChip.js";
 import { useHub } from "../lib/hub-context.js";
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -29,6 +30,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         </div>
         <div className="site-top-bar-end">
           <NotificationsBell />
+          <ProfileChip />
         </div>
       </header>
 

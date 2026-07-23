@@ -12,9 +12,9 @@ import { LogIn } from "./routes/LogIn.js";
 import {
   CompPage,
   HeadlinesPage,
-  HomePage,
   LeagueMgmtInboxPage,
 } from "./routes/placeholders.js";
+import { HomePage } from "./routes/Home.js";
 import { LeaguesPage } from "./routes/Leagues.js";
 import { LeagueHubPage } from "./routes/LeagueHub.js";
 import { Pricing } from "./routes/Pricing.js";
@@ -22,19 +22,35 @@ import { SignUp } from "./routes/SignUp.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 
-function formatCaughtError(error: unknown): string {
-  if (typeof error === "string" && error.trim()) return error;
-  if (error && typeof error === "object" && "message" in error) {
-    const msg = String((error as { message: unknown }).message ?? "").trim();
-    if (msg) return msg;
+function formatCaughtError(error: unknown, info?: ErrorInfo): string {
+  const parts: string[] = [];
+  if (typeof error === "string" && error.trim()) {
+    parts.push(error.trim());
+  } else if (error && typeof error === "object") {
+    const name = "name" in error ? String((error as { name?: unknown }).name ?? "").trim() : "";
+    const msg = "message" in error ? String((error as { message?: unknown }).message ?? "").trim() : "";
+    if (name && msg) parts.push(`${name}: ${msg}`);
+    else if (msg) parts.push(msg);
+    else if (name) parts.push(`${name} (empty message)`);
+    const stack = "stack" in error ? String((error as { stack?: unknown }).stack ?? "") : "";
+    if (stack) {
+      const lines = stack.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 4);
+      if (lines.length) parts.push(lines.join(" | "));
+    }
   }
-  try {
-    const asString = String(error);
-    if (asString && asString !== "[object Object]") return asString;
-  } catch {
-    /* ignore */
+  if (info?.componentStack) {
+    const lines = info.componentStack.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 4);
+    if (lines.length) parts.push(`at ${lines.join(" < ")}`);
   }
-  return "Something went wrong.";
+  if (!parts.length) {
+    try {
+      const asString = String(error);
+      if (asString && asString !== "[object Object]") parts.push(asString);
+    } catch {
+      /* ignore */
+    }
+  }
+  return parts.join(" — ") || "Something went wrong.";
 }
 
 function resetDocumentThemeToApp() {
@@ -57,6 +73,7 @@ class OutletErrorBoundary extends Component<
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error("Route outlet crash", error, info);
     resetDocumentThemeToApp();
+    this.setState({ error: formatCaughtError(error, info) });
   }
 
   render() {
@@ -65,7 +82,9 @@ class OutletErrorBoundary extends Component<
         <div className="site-page site-auth-page">
           <div className="site-auth-card">
             <h1>Page error</h1>
-            <p className="site-auth-error">{this.state.error}</p>
+            <p className="site-auth-error" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {this.state.error}
+            </p>
             <p className="site-muted">
               Try another page from the sidebar, or refresh. If this is a league hub crash, the
               message above is the underlying error.

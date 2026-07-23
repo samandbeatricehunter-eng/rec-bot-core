@@ -10,8 +10,8 @@ const sitePublic = path.resolve(here, "public");
 const siteReact = path.resolve(here, "node_modules/react");
 const siteReactDom = path.resolve(here, "node_modules/react-dom");
 const siteRouterDom = path.resolve(here, "node_modules/react-router-dom");
-// pnpm nests react-router next to react-router-dom; alias so Rollup can resolve it.
 const siteRouter = path.resolve(realpathSync(siteRouterDom), "../react-router");
+const hubUi = path.resolve(here, "../../packages/hub-ui/src/index.ts");
 
 /** Copy hub badge/chassis assets from apps/web so /assets/... URLs resolve in site builds. */
 function copyWebPublicAssets(): Plugin {
@@ -33,12 +33,12 @@ function copyWebPublicAssets(): Plugin {
   };
 }
 
-// Public site + auth app. Also mounts hub UI from apps/web in-process (no iframe).
-// Force a single React copy — apps/web/src otherwise resolves a second junction path.
+// Public site + auth app. Also mounts hub UI via @rec/hub-ui (apps/web source, peer React).
 export default defineConfig({
   plugins: [react(), copyWebPublicAssets()],
   resolve: {
     alias: {
+      "@rec/hub-ui": hubUi,
       react: siteReact,
       "react-dom": siteReactDom,
       "react-dom/client": path.resolve(siteReactDom, "client.js"),
@@ -56,7 +56,7 @@ export default defineConfig({
     host: true,
     port: 5174,
     fs: {
-      allow: [here, path.resolve(here, "../web")],
+      allow: [here, path.resolve(here, "../web"), path.resolve(here, "../../packages/hub-ui")],
     },
   },
 });

@@ -18,9 +18,9 @@ const SiteThemeContext = createContext<SiteThemeContextValue | null>(null);
 function applyTheme(theme: SiteTheme) {
   const root = document.documentElement;
   const next = theme || "app";
-  root.setAttribute("data-site-theme", next);
-  // Hub CSS (apps/web themes) keys off data-game-theme; keep it in sync when the
-  // site shell owns theming for in-process Discord /app embeds.
+  // Platinum black/gold is always the site chrome. Game themes only set
+  // data-game-theme so hub content can accent without re-skinning the shell.
+  root.setAttribute("data-site-theme", "app");
   if (next !== "app") root.setAttribute("data-game-theme", next);
   else root.removeAttribute("data-game-theme");
 }

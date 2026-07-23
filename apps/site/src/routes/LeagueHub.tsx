@@ -3,24 +3,27 @@ import { Link, MemoryRouter, Route, Routes, useLocation, useParams } from "react
 import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
-import { InjectedAuthProvider } from "../../../web/src/lib/auth-context.js";
-import { HubHome } from "../../../web/src/routes/hub/HubHome.js";
-import { LeagueMgmtHome } from "../../../web/src/routes/league-mgmt/LeagueMgmtHome.js";
-import { ManageLeagueHome } from "../../../web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
-import { TeamScheduleForm } from "../../../web/src/routes/league-mgmt/manage-league/TeamScheduleForm.js";
-import { TeamOwnershipTable } from "../../../web/src/routes/league-mgmt/manage-league/TeamOwnershipTable.js";
-import { LinkTeamForm } from "../../../web/src/routes/league-mgmt/manage-league/LinkTeamForm.js";
-import { RolesHome } from "../../../web/src/routes/league-mgmt/manage-league/RolesHome.js";
-import { PlayerStatsReview } from "../../../web/src/routes/league-mgmt/manage-league/PlayerStatsReview.js";
-import { NotificationsHome } from "../../../web/src/routes/league-mgmt/notifications/NotificationsHome.js";
-import { DeleteLeagueHome } from "../../../web/src/routes/league-mgmt/delete-league/DeleteLeagueHome.js";
-import { SettingsHome } from "../../../web/src/routes/league-mgmt/settings/SettingsHome.js";
-import { AdvanceHome } from "../../../web/src/routes/league-mgmt/advance/AdvanceHome.js";
-import { CommissionerChatHome } from "../../../web/src/routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
-import { PublishingHome } from "../../../web/src/routes/league-mgmt/publishing/PublishingHome.js";
-import { RecruitingHome } from "../../../web/src/routes/league-mgmt/recruiting/RecruitingHome.js";
-import { FirstTimeSetupHome } from "../../../web/src/routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";
-import { MatchupDetailPage } from "../../../web/src/routes/matchups/MatchupDetail.js";
+import {
+  AdvanceHome,
+  CommissionerChatHome,
+  DeleteLeagueHome,
+  FirstTimeSetupHome,
+  HubHome,
+  InjectedAuthProvider,
+  LeagueMgmtHome,
+  LeagueThemeProvider,
+  LinkTeamForm,
+  ManageLeagueHome,
+  MatchupDetailPage,
+  NotificationsHome,
+  PlayerStatsReview,
+  PublishingHome,
+  RecruitingHome,
+  RolesHome,
+  SettingsHome,
+  TeamOwnershipTable,
+  TeamScheduleForm,
+} from "@rec/hub-ui";
 
 import "../../../web/src/styles/tokens.css";
 import "../../../web/src/styles/themes/cfb27.css";
@@ -60,6 +63,37 @@ function entryForView(view: HubView): string {
   }
 }
 
+function formatCaughtError(error: unknown, info?: ErrorInfo): string {
+  const parts: string[] = [];
+  if (typeof error === "string" && error.trim()) {
+    parts.push(error.trim());
+  } else if (error && typeof error === "object") {
+    const name = "name" in error ? String((error as { name?: unknown }).name ?? "").trim() : "";
+    const msg = "message" in error ? String((error as { message?: unknown }).message ?? "").trim() : "";
+    if (name && msg) parts.push(`${name}: ${msg}`);
+    else if (msg) parts.push(msg);
+    else if (name) parts.push(`${name} (empty message)`);
+    const stack = "stack" in error ? String((error as { stack?: unknown }).stack ?? "") : "";
+    if (stack) {
+      const lines = stack.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
+      if (lines.length) parts.push(lines.join(" | "));
+    }
+  }
+  if (info?.componentStack) {
+    const lines = info.componentStack.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 4);
+    if (lines.length) parts.push(`at ${lines.join(" < ")}`);
+  }
+  if (!parts.length) {
+    try {
+      const asString = String(error);
+      if (asString && asString !== "[object Object]") parts.push(asString);
+    } catch {
+      /* ignore */
+    }
+  }
+  return parts.join(" — ") || "League hub failed to render.";
+}
+
 class HubErrorBoundary extends Component<
   { children: ReactNode },
   { error: string | null }
@@ -67,22 +101,12 @@ class HubErrorBoundary extends Component<
   state: { error: string | null } = { error: null };
 
   static getDerivedStateFromError(error: unknown) {
-    if (typeof error === "string" && error.trim()) return { error };
-    if (error && typeof error === "object" && "message" in error) {
-      const msg = String((error as { message: unknown }).message ?? "").trim();
-      if (msg) return { error: msg };
-    }
-    try {
-      const asString = String(error);
-      if (asString && asString !== "[object Object]") return { error: asString };
-    } catch {
-      /* ignore */
-    }
-    return { error: "League hub failed to render." };
+    return { error: formatCaughtError(error) };
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error("League hub crashed", error, info);
+    this.setState({ error: formatCaughtError(error, info) });
   }
 
   render() {
@@ -91,7 +115,9 @@ class HubErrorBoundary extends Component<
         <div className="site-page site-auth-page">
           <div className="site-auth-card">
             <h1>League hub error</h1>
-            <p className="site-auth-error">{this.state.error}</p>
+            <p className="site-auth-error" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {this.state.error}
+            </p>
             <p className="site-muted">Try refreshing, or open Leagues from the sidebar.</p>
             <div className="site-league-demo-links">
               <a className="site-btn site-btn-primary" href="/leagues">
@@ -152,11 +178,11 @@ export function LeagueHubPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const gameTheme = hub.selectedLeague?.game ?? null;
 
   useEffect(() => {
     if (!leagueId) return;
     hub.ensureLeagueScope(leagueId);
-    // Only re-run when the route league changes — hub identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leagueId]);
 
@@ -167,7 +193,6 @@ export function LeagueHubPage() {
       return;
     }
     if (siteAuth.status !== "signed-in") {
-      // Keep spinner while auth resolves; RequireAuth handles signed-out redirect.
       return;
     }
     let cancelled = false;
@@ -241,11 +266,13 @@ export function LeagueHubPage() {
           guildId={context.guildId}
           accessToken={accessToken}
         >
-          <MemoryRouter key={`${leagueId}:${view}`} initialEntries={[entryForView(view)]}>
+          <LeagueThemeProvider game={gameTheme}>
+            <MemoryRouter key={`${leagueId}:${view}`} initialEntries={[entryForView(view)]}>
               <HubErrorBoundary>
                 <HubRoutes />
               </HubErrorBoundary>
-          </MemoryRouter>
+            </MemoryRouter>
+          </LeagueThemeProvider>
         </InjectedAuthProvider>
       </div>
     </div>

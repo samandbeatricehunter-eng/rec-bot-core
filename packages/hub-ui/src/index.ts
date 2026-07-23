@@ -1,0 +1,20 @@
+/** Site-facing hub UI surface. Source lives in apps/web; this package gives a single import root with React as a peer dep. */
+export { InjectedAuthProvider, useAuth, useReadyAuth } from "../../../apps/web/src/lib/auth-context.js";
+export { LeagueThemeProvider, useLeagueTheme } from "../../../apps/web/src/lib/league-theme-context.js";
+export { HubHome } from "../../../apps/web/src/routes/hub/HubHome.js";
+export { MatchupDetailPage } from "../../../apps/web/src/routes/matchups/MatchupDetail.js";
+export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
+export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
+export { TeamScheduleForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamScheduleForm.js";
+export { TeamOwnershipTable } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamOwnershipTable.js";
+export { LinkTeamForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/LinkTeamForm.js";
+export { RolesHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/RolesHome.js";
+export { PlayerStatsReview } from "../../../apps/web/src/routes/league-mgmt/manage-league/PlayerStatsReview.js";
+export { NotificationsHome } from "../../../apps/web/src/routes/league-mgmt/notifications/NotificationsHome.js";
+export { DeleteLeagueHome } from "../../../apps/web/src/routes/league-mgmt/delete-league/DeleteLeagueHome.js";
+export { SettingsHome } from "../../../apps/web/src/routes/league-mgmt/settings/SettingsHome.js";
+export { AdvanceHome } from "../../../apps/web/src/routes/league-mgmt/advance/AdvanceHome.js";
+export { CommissionerChatHome } from "../../../apps/web/src/routes/league-mgmt/commissioner-chat/CommissionerChatHome.js";
+export { PublishingHome } from "../../../apps/web/src/routes/league-mgmt/publishing/PublishingHome.js";
+export { RecruitingHome } from "../../../apps/web/src/routes/league-mgmt/recruiting/RecruitingHome.js";
+export { FirstTimeSetupHome } from "../../../apps/web/src/routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";

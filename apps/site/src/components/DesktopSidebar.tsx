@@ -33,10 +33,13 @@ export function DesktopSidebar() {
 
   return (
     <aside className="site-desktop-sidebar" aria-label="Global navigation">
-      <div className="site-sidebar-brand">REC Leagues eSports</div>
+      <div className="site-sidebar-brand">
+        <span className="site-sidebar-brand-mark">REC</span>
+        <span className="site-sidebar-brand-name">Leagues</span>
+      </div>
       <BottomNav variant="global" layout="sidebar" />
       <div className="site-sidebar-leagues">
-        <div className="site-sidebar-section-label">MY LEAGUES</div>
+        <div className="site-sidebar-section-label">My Leagues</div>
         {hub.leaguesLoading ? (
           <p className="site-sidebar-league-meta">Loading leagues…</p>
         ) : hub.leaguesError ? (
@@ -45,7 +48,7 @@ export function DesktopSidebar() {
           <p className="site-sidebar-league-meta">No leagues linked yet. Finish Account linking.</p>
         ) : (
           <ul>
-            {leagues.map((league) => {
+            {leagues.slice(0, 6).map((league) => {
               const active = selectedId === league.id;
               const buzzPath = `/l/${league.id}/buzz`;
               return (
@@ -62,9 +65,14 @@ export function DesktopSidebar() {
                       }
                     }}
                   >
-                    <span className="site-sidebar-league-name">{league.name}</span>
-                    <span className="site-sidebar-league-meta">
-                      {league.gameLabel} · {roleLabel(league)}
+                    <span className="site-sidebar-league-avatar" aria-hidden>
+                      {String(league.name ?? "?").slice(0, 1).toUpperCase()}
+                    </span>
+                    <span className="site-sidebar-league-copy">
+                      <span className="site-sidebar-league-name">{league.name}</span>
+                      <span className="site-sidebar-league-meta">
+                        {league.gameLabel} · {roleLabel(league)}
+                      </span>
                     </span>
                   </button>
                 </li>
@@ -72,6 +80,16 @@ export function DesktopSidebar() {
             })}
           </ul>
         )}
+        <button
+          type="button"
+          className="site-sidebar-view-all"
+          onClick={() => {
+            hub.exitToMain("/leagues");
+            navigate("/leagues");
+          }}
+        >
+          View all leagues
+        </button>
       </div>
     </aside>
   );
