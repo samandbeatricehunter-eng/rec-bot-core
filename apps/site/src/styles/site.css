@@ -95,6 +95,8 @@
   --accent-dark: #765616;
   --text: #f2eee3;
   --text-muted: #9c978b;
+  --text-primary: #f2eee3;
+  --text-secondary: #9c978b;
   --error: #c64a43;
   --success: #4ea56a;
   --gold: var(--accent);
@@ -123,6 +125,8 @@
   --accent-dark: #737a82;
   --text: #f4f5f6;
   --text-muted: #949aa1;
+  --text-primary: #f4f5f6;
+  --text-secondary: #949aa1;
   --error: #c7484b;
   --success: #45a46b;
   --gold: var(--accent);
@@ -1337,13 +1341,31 @@ h1, h2, h3, .site-wordmark {
   background: #070807;
 }
 .site-hub-inprocess {
+  position: relative;
+  z-index: 1;
   width: 100%;
   overflow: auto;
 }
-.site-hub-inprocess .app-backdrop,
-.site-hub-inprocess.app-backdrop {
+/* In-process hub must not use apps/web .app-backdrop overlays — those ::before/::after
+   layers are position:fixed and paint above HubHome (no AppShell z-index wrapper),
+   which is what made Discord /app look like an empty carbon background. */
+.site-hub-inprocess.app-backdrop,
+.site-hub-inprocess .app-backdrop {
   min-height: 0;
   background: transparent;
+}
+.site-hub-inprocess.app-backdrop::before,
+.site-hub-inprocess.app-backdrop::after,
+.site-hub-inprocess .app-backdrop::before,
+.site-hub-inprocess .app-backdrop::after {
+  content: none !important;
+  display: none !important;
+}
+.site-hub-inprocess-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: inherit;
 }
 @media (min-width: 960px) {
   .site-hub-embed,

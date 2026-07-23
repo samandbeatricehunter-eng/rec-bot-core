@@ -225,20 +225,22 @@ export function LeagueHubPage() {
   }
 
   return (
-    <div className="site-hub-embed site-hub-inprocess app-backdrop is-hub-embed">
-      <InjectedAuthProvider
-        discordId={context.discordId}
-        guildId={context.guildId}
-        accessToken={accessToken}
-      >
-        <MemoryRouter key={`${leagueId}:${view}`} initialEntries={[entryForView(view)]}>
-          <HubChromeProvider embedded>
-            <HubErrorBoundary>
-              <HubRoutes />
-            </HubErrorBoundary>
-          </HubChromeProvider>
-        </MemoryRouter>
-      </InjectedAuthProvider>
+    <div className="site-hub-embed site-hub-inprocess">
+      <div className="site-hub-inprocess-content">
+        <InjectedAuthProvider
+          discordId={context.discordId}
+          guildId={context.guildId}
+          accessToken={accessToken}
+        >
+          <MemoryRouter key={`${leagueId}:${view}`} initialEntries={[entryForView(view)]}>
+            <HubChromeProvider embedded>
+              <HubErrorBoundary>
+                <HubRoutes />
+              </HubErrorBoundary>
+            </HubChromeProvider>
+          </MemoryRouter>
+        </InjectedAuthProvider>
+      </div>
     </div>
   );
 }

@@ -16,7 +16,13 @@ type SiteThemeContextValue = {
 const SiteThemeContext = createContext<SiteThemeContextValue | null>(null);
 
 function applyTheme(theme: SiteTheme) {
-  document.documentElement.setAttribute("data-site-theme", theme || "app");
+  const root = document.documentElement;
+  const next = theme || "app";
+  root.setAttribute("data-site-theme", next);
+  // Hub CSS (apps/web themes) keys off data-game-theme; keep it in sync when the
+  // site shell owns theming for in-process Discord /app embeds.
+  if (next !== "app") root.setAttribute("data-game-theme", next);
+  else root.removeAttribute("data-game-theme");
 }
 
 export function SiteThemeProvider({ children }: { children: ReactNode }) {
