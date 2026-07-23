@@ -9,7 +9,7 @@ import { HIGHLIGHT_AWARD_CATEGORY_LABELS, HIGHLIGHT_AWARD_EMOJIS, HIGHLIGHT_AWAR
 
 export const HIGHLIGHT_VOTE_EMOJIS = HIGHLIGHT_AWARD_EMOJIS;
 
-// Emoji ids only â€” used to detect/restrict the one-vote-per-highlight reactions.
+// Emoji ids only — used to detect/restrict the one-vote-per-highlight reactions.
 export const HIGHLIGHT_VOTE_EMOJI_IDS = new Set<string>(Object.values(HIGHLIGHT_VOTE_EMOJIS).map((e) => e.id));
 
 const CLIP_URL_RE = /https?:\/\/\S+/gi;
@@ -121,7 +121,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
   const guild = await client.guilds.fetch(guildId).catch(() => null);
   if (!guild) return { winners: [], alreadyFinalized: false };
 
-  // Frozen: POTY already finalized this season â€” emoji changes no longer re-tally.
+  // Frozen: POTY already finalized this season — emoji changes no longer re-tally.
   if (result?.alreadyFinalized) {
     return { winners: [], alreadyFinalized: true };
   }
@@ -160,7 +160,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
   for (const [category, { count, highlights: tied }] of leaders) {
     const categoryLabel = HIGHLIGHT_AWARD_CATEGORY_LABELS[category] ?? category;
     const splitAmount = Math.round(POTY_AWARD_TOTAL / tied.length); // ties split the award evenly
-    const tieNote = tied.length > 1 ? ` (tie â€” split ${tied.length} ways)` : "";
+    const tieNote = tied.length > 1 ? ` (tie — split ${tied.length} ways)` : "";
 
     for (const winner of tied) {
       const review = await recApi.createHighlightAwardReview({ guildId, category, highlightPostId: winner.id, voteCount: count, amount: splitAmount });
