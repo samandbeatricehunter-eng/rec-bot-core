@@ -67,13 +67,18 @@ class HubErrorBoundary extends Component<
   state: { error: string | null } = { error: null };
 
   static getDerivedStateFromError(error: unknown) {
-    const message =
-      error instanceof Error && error.message.trim()
-        ? error.message
-        : typeof error === "string" && error.trim()
-          ? error
-          : "League hub failed to render.";
-    return { error: message };
+    if (typeof error === "string" && error.trim()) return { error };
+    if (error && typeof error === "object" && "message" in error) {
+      const msg = String((error as { message: unknown }).message ?? "").trim();
+      if (msg) return { error: msg };
+    }
+    try {
+      const asString = String(error);
+      if (asString && asString !== "[object Object]") return { error: asString };
+    } catch {
+      /* ignore */
+    }
+    return { error: "League hub failed to render." };
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo) {

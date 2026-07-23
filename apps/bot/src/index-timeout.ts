@@ -1024,6 +1024,9 @@ async function handleMenuCommand(interaction: Extract<Interaction, { isChatInput
 
 async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction | ButtonInteraction) {
   if (!interaction.inCachedGuild()) return;
+  // Acknowledge immediately — getMenuProfile / handoff can exceed Discord's 3s window (10062).
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
   try {
     const profile = await recApi.getMenuProfile(interaction.user.id, interaction.guildId).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -1033,31 +1036,44 @@ async function handleAppOpenDashboard(interaction: ChatInputCommandInteraction |
 
     if (!profile) {
       if (interaction.user.id === interaction.guild.ownerId || isFullLeagueAdminInteraction(interaction)) {
-        return interaction.showModal(buildSetupDangerModal("league_setup"));
+        // Cannot showModal after defer — offer a button that opens the setup modal.
+        await interaction.editReply({
+          content:
+            "No league is linked for this server yet. Start First-Time Setup to create one, then run **/app** again.",
+          components: [
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(MENU_CUSTOM_IDS.leagueMgmtFirstTimeSetup)
+                .setLabel("First-Time Setup")
+                .setStyle(ButtonStyle.Danger),
+            ),
+          ],
+        });
+        return;
       }
     } else if (!profile.team && !isFullLeagueAdminInteraction(interaction) && profile.accountComplete) {
       // Members without a team still pick one here; admins go straight to Open my league.
       const conferenceData = await recApi.getLeagueConferences(interaction.guildId);
       const embeds = buildOpenTeamsEmbeds(conferenceData?.conferences ?? []).slice(0, 10);
       const allTeamsAssigned = embeds.length === 1 && embeds[0]?.data.title === "Open Teams";
-      await interaction.reply({
+      await interaction.editReply({
+        content: null,
         embeds,
         components: allTeamsAssigned
           ? []
           : [new ActionRowBuilder<ButtonBuilder>().addComponents(
               new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.requestTeam).setLabel("Request Team").setStyle(ButtonStyle.Success),
             )],
-        flags: MessageFlags.Ephemeral,
       });
       return;
     }
   } catch (err) {
-    await interaction.reply({ content: userFacingError(err), flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: userFacingError(err) });
     return;
   }
 
   const siteBase = env.SITE_PUBLIC_URL.replace(/\/$/, "");
-  await interaction.reply({ content: "Generating your league link…", flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ content: "Generating your league link…" });
   try {
     const handoff = await recApi.mintAppHandoff({
       guildId: interaction.guildId,

@@ -390,10 +390,10 @@ export function HubHome() {
   const headlineCount = hub?.headlines?.length ?? 0;
   const currentWeekStoryIndexes = useMemo(() => {
     const stories = hub?.headlines ?? [];
-    const currentWeek = hub?.league.weekNumber;
+    const currentWeek = hub?.league?.weekNumber;
     const indexes = stories.map((story, index) => story.week === currentWeek ? index : -1).filter((index) => index >= 0);
     return indexes.length ? indexes : stories.map((_, index) => index);
-  }, [hub?.headlines, hub?.league.weekNumber]);
+  }, [hub?.headlines, hub?.league?.weekNumber]);
   const mobileStorySwipe = useSwipeNavigation({ itemCount: headlineCount, onIndexChange: (index) => setStoryCarouselIndex(index) });
   useEffect(() => {
     if (!headlineCount) return;
@@ -460,7 +460,7 @@ export function HubHome() {
   // reaction/comment update elsewhere doesn't re-trigger a comment refetch.
   useEffect(() => {
     if (activeStoryIndex == null || auth.status !== "ready" || !hub) return;
-    const story = hub.headlines[activeStoryIndex];
+    const story = (hub.headlines ?? [])[activeStoryIndex];
     if (!story) return;
     setComments(null);
     recApi.listHubStoryComments({ guildId: auth.guildId, storyId: story.id }).then((result) => setComments(result.comments));
@@ -469,7 +469,7 @@ export function HubHome() {
   async function highlightReact(highlightId: string, reactionKey: HubReactionKey) {
     if (auth.status !== "ready") return;
     const mutuallyExclusive = COMMUNITY_REACTION_KEYS.includes(reactionKey) ? COMMUNITY_REACTION_KEYS : AWARD_KEYS;
-    setHub((current) => current ? { ...current, highlights: current.highlights.map((highlight) => {
+    setHub((current) => current ? { ...current, highlights: (current.highlights ?? []).map((highlight) => {
       if (highlight.id !== highlightId) return highlight;
       const has = (highlight.myReactions ?? []).includes(reactionKey);
       const counts = { ...highlight.reactionCounts };
@@ -489,7 +489,7 @@ export function HubHome() {
   }
   async function storyReact(storyId: string, reactionKey: "like" | "dislike") {
     if (auth.status !== "ready") return;
-    setHub((current) => current ? { ...current, headlines: current.headlines.map((story) => {
+    setHub((current) => current ? { ...current, headlines: (current.headlines ?? []).map((story) => {
       if (story.id !== storyId) return story;
       const counts = { ...story.reactionCounts };
       const isSame = story.myReaction === reactionKey;
@@ -541,7 +541,7 @@ export function HubHome() {
     viewedHighlights.current.add(highlightId);
     try {
       const result = await recApi.recordHubHighlightView({ guildId: auth.guildId, highlightId });
-      setHub((current) => current ? { ...current, highlights: current.highlights.map((highlight) => highlight.id === highlightId ? { ...highlight, viewCount: result.viewCount } : highlight) } : current);
+      setHub((current) => current ? { ...current, highlights: (current.highlights ?? []).map((highlight) => highlight.id === highlightId ? { ...highlight, viewCount: result.viewCount } : highlight) } : current);
     } catch { viewedHighlights.current.delete(highlightId); }
   }
 
@@ -579,7 +579,7 @@ export function HubHome() {
   }
   async function submitComment() {
     if (auth.status !== "ready" || activeStoryIndex == null || !hub) return;
-    const story = hub.headlines[activeStoryIndex];
+    const story = (hub.headlines ?? [])[activeStoryIndex];
     const body = commentBody.trim();
     if (!story || !body) return;
     const tempId = `temp-${Date.now()}`;
@@ -588,7 +588,7 @@ export function HubHome() {
     try {
       const result = await recApi.addHubStoryComment({ guildId: auth.guildId, storyId: story.id, body });
       setComments(result.comments);
-      setHub((current) => current ? { ...current, headlines: current.headlines.map((item) => item.id === story.id ? { ...item, commentCount: item.commentCount + 1 } : item) } : current);
+      setHub((current) => current ? { ...current, headlines: (current.headlines ?? []).map((item) => item.id === story.id ? { ...item, commentCount: item.commentCount + 1 } : item) } : current);
     } catch {
       setComments((current) => (current ?? []).filter((comment) => comment.id !== tempId));
       setCommentBody(body);
@@ -882,6 +882,17 @@ export function HubHome() {
     </> : <p>This Discord server doesn't have a league set up yet. Ask a server admin or commissioner to run First-Time Setup.</p>}
   </div>;
   if (!hub) return <div className="hub-state"><h1>Loading League Hub…</h1></div>;
+  if (!hub.league) {
+    return (
+      <div className="hub-state">
+        <h1>League Hub</h1>
+        <p>This server’s league data is incomplete. Ask a commissioner to finish First-Time Setup, then refresh.</p>
+        <button className="btn btn-primary" onClick={() => void load()}>Try again</button>
+      </div>
+    );
+  }
+  const headlines = hub.headlines ?? [];
+  const highlights = hub.highlights ?? [];
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
   const heroRank = profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked";
@@ -909,8 +920,8 @@ export function HubHome() {
   const heroUserMeta = viewerUser
     ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
     : "Pending";
-  const activeHighlight = hub.highlights[activeHighlightIndex] ?? null;
-  const activeStory = activeStoryIndex != null ? hub.headlines[activeStoryIndex] ?? null : null;
+  const activeHighlight = highlights[activeHighlightIndex] ?? null;
+  const activeStory = activeStoryIndex != null ? headlines[activeStoryIndex] ?? null : null;
   const openTeamsByConference = (openTeams ?? []).reduce<Record<string, OpenTeam[]>>((groups, team) => {
     const conference = team.conference || "Other";
         (groups[conference] ??= []).push(team);
@@ -1031,12 +1042,12 @@ export function HubHome() {
       {subTab === "buzz" && <>
         <EosAwardVotingBlock />
         <SectionFrame eyebrow="Around the league" title={hub.league.game?.startsWith("madden") ? "Breaking News" : "Campus Buzz"}>
-          {hub.headlines.length ? (
+          {headlines.length ? (
             isMobile ? (
               <div className="hub-story-mobile-swipe" style={{ position: "relative" }}>
                 {(() => {
                   const index = Math.min(storyCarouselIndex, headlineCount - 1);
-                  const story = hub.headlines[index];
+                  const story = headlines[index];
                   if (!story) return null;
                   return (
                     <article
@@ -1062,7 +1073,7 @@ export function HubHome() {
                 {headlineCount > 1 && <button type="button" className="hub-highlight-arrow previous" onClick={() => setStoryCarouselIndex((storyCarouselIndex - 1 + headlineCount) % headlineCount)}><ChevronLeft /></button>}
                 {(() => {
                   const index = Math.min(storyCarouselIndex, headlineCount - 1);
-                  const story = hub.headlines[index];
+                  const story = headlines[index];
                   if (!story) return null;
                   return <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
                     {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
@@ -1228,7 +1239,7 @@ export function HubHome() {
     </div></Modal>}
     {activeStory && (isMobile ? (
       <ExpandedArticleView
-        stories={hub.headlines}
+        stories={headlines}
         activeIndex={activeStoryIndex ?? 0}
         onIndexChange={(index) => setActiveStoryIndex(index)}
         onClose={closeStory}

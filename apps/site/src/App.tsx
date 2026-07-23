@@ -23,8 +23,17 @@ import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 
 function formatCaughtError(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message;
   if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const msg = String((error as { message: unknown }).message ?? "").trim();
+    if (msg) return msg;
+  }
+  try {
+    const asString = String(error);
+    if (asString && asString !== "[object Object]") return asString;
+  } catch {
+    /* ignore */
+  }
   return "Something went wrong.";
 }
 
