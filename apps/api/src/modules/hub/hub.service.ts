@@ -304,17 +304,35 @@ function sanitizeImageUrl(value?: string | null) {
 
 async function publishMediaStory(submission: any, discordId: string | null) {
   const interviewAnswers = (submission.interview_answers ?? []) as Array<{
+    questionId?: string;
     question: string;
     answer: string;
   }>;
-  const roundtable =
-    submission.submission_type === "interview"
-      ? buildRoundtableDiscussion({
-          headline: submission.title,
-          body: submission.body,
-          notes: interviewAnswers.map((a) => a.answer),
-        })
-      : buildRoundtableDiscussion({ headline: submission.title, body: submission.body });
+  const isInterview = submission.submission_type === "interview";
+  const body =
+    isInterview && interviewAnswers.length
+      ? formatInterviewBody(interviewAnswers)
+      : String(submission.body ?? "");
+  const existingTitle = String(submission.title ?? "").trim();
+  // Keep the submit-time title; only replace the known-bad generic portal fallback.
+  const publishedHeadline =
+    existingTitle && !/^league portal impact$/i.test(existingTitle)
+      ? existingTitle
+      : isInterview && interviewAnswers.length
+        ? buildInterviewHeadline({
+            teamName: null,
+            mascotOrNick: null,
+            answers: interviewAnswers,
+            weekNumber: Number(submission.week_number ?? 1),
+          })
+        : existingTitle || "League Story";
+  const roundtable = isInterview
+    ? buildRoundtableDiscussion({
+        headline: publishedHeadline,
+        body,
+        notes: interviewAnswers.map((a) => `${a.question} ${a.answer}`),
+      })
+    : buildRoundtableDiscussion({ headline: publishedHeadline, body });
   const result = await supabase.from("rec_game_stories").insert({
     id: randomUUID(),
     league_id: submission.league_id,
@@ -322,8 +340,8 @@ async function publishMediaStory(submission: any, discordId: string | null) {
     week: submission.week_number,
     game_id: submission.game_id ?? null,
     primary_angle: submission.submission_type,
-    headline: submission.title,
-    body: submission.body,
+    headline: publishedHeadline,
+    body,
     notes: [],
     story_type: "article",
     roundtable,
@@ -557,12 +575,17 @@ export async function getHub(guildId: string, discordId: string) {
               body,
               notes: Array.isArray(story.notes) ? story.notes : [],
             });
-      if (isInterview && interviewRoundtableLooksLikeQa(story.roundtable)) {
-        // Legacy interviews stored Q&A as both body and roundtable — rebuild commentary desk.
-        const notes = Array.isArray(story.roundtable)
-          ? story.roundtable.map((p: any) => String(p.take ?? "")).filter(Boolean)
-          : [];
-        if (/^Coach Interview:/i.test(String(headline))) {
+      const existingTakes = Array.isArray(story.roundtable)
+        ? story.roundtable.map((p: any) => String(p.take ?? "").trim()).filter(Boolean)
+        : [];
+      const hasDuplicateTakes =
+        existingTakes.length >= 2 && new Set(existingTakes.map((t) => t.toLowerCase())).size < existingTakes.length;
+      if (isInterview && (interviewRoundtableLooksLikeQa(story.roundtable) || hasDuplicateTakes)) {
+        // Legacy interviews stored Q&A as roundtable, or analyst bank produced duplicate takes.
+        const notes = interviewRoundtableLooksLikeQa(story.roundtable)
+          ? existingTakes
+          : [String(body ?? "")];
+        if (/^Coach Interview:/i.test(String(headline)) || /^league portal impact$/i.test(String(headline))) {
           headline = buildInterviewHeadline({
             teamName: "League",
             answers: notes.map((take: string) => ({ question: "Interview", answer: take })),

@@ -112,9 +112,9 @@
     padding: var(--space-4);
   }
   .hub-page { gap: var(--space-4); }
-  .hub-hero { width: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; padding: var(--space-5); border-radius: 14px; }
-  .hub-hero h1 { font-size: 38px; }
-  .hub-hero-matchup strong { font-size: 24px; }
+  .hub-hero { width: 100%; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; padding: 14px; border-radius: 8px; }
+  .hub-hero h1 { font-size: 28px; }
+  .hub-hero-matchup strong { font-size: 18px; }
   .hub-hero-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-manage-button { width: 100%; }
   /* League/Open Teams/Store/My Team live in the pop-out sidebar drawer now (hub.css).

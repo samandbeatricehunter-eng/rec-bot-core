@@ -1766,18 +1766,31 @@ h1, h2, h3, .site-wordmark {
 .site-hub-inprocess .hub-story-card,
 .site-hub-inprocess .hub-profile-sections details,
 .site-hub-inprocess .hub-store-products button {
-  border: var(--card-border);
-  border-radius: var(--radius-lg);
-  background: var(--card-bg);
-  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: linear-gradient(145deg, #161616 0%, #101010 100%);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
-.site-hub-inprocess .fp-panel::before,
+.site-hub-inprocess .fp-panel::before {
+  display: block !important;
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(201, 162, 39, 0.55), transparent);
+  opacity: 1;
+}
 .site-hub-inprocess .fp-panel::after {
   display: none !important;
 }
 .site-hub-inprocess .hub-feed-list article {
   border-left: 3px solid var(--accent);
   background: #121212;
+}
+.site-hub-inprocess .roundtable-banner {
+  background: #0a0a0a;
+  color: var(--accent-bright);
+  border-bottom: 1px solid rgba(201, 162, 39, 0.35);
 }
 .site-hub-embed {
   background: #050505;
