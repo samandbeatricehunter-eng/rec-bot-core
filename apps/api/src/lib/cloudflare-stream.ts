@@ -34,7 +34,17 @@ export function streamAllowedOrigins(): string[] {
     "http://localhost:5174",
     "http://127.0.0.1:5174",
   ];
-  return [...new Set([...defaults, ...fromEnv])];
+  // Stream expects hostnames (example.com), not full URLs — full URLs cause 400 Bad Request.
+  return [...new Set([...defaults, ...fromEnv])]
+    .map((origin) => {
+      try {
+        if (origin.includes("://")) return new URL(origin).host;
+      } catch {
+        /* fall through */
+      }
+      return origin.replace(/^https?:\/\//i, "").split("/")[0] ?? origin;
+    })
+    .filter(Boolean);
 }
 
 export function streamPlaybackUrls(uid: string): { hls: string; iframe: string; watch: string } {
@@ -104,9 +114,13 @@ export async function copyStreamFromUrl(input: {
     success?: boolean;
     result?: { uid?: string };
     errors?: Array<{ message?: string }>;
+    messages?: Array<{ message?: string }>;
   } | null;
   if (!response.ok || !payload?.success || !payload.result?.uid) {
-    const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
+    const detail =
+      payload?.errors?.[0]?.message
+      ?? payload?.messages?.[0]?.message
+      ?? `HTTP ${response.status}`;
     throw new ApiError(502, `Failed to copy media into Stream (${detail}).`);
   }
   return { uid: payload.result.uid };
