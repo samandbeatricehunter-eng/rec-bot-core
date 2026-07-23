@@ -64,41 +64,39 @@ export function HomePage() {
           <h1>Welcome back, {displayName}</h1>
           <p>
             {tierLabel(tier)}
-            {isCommissioner ? " · Commissioner tools ready" : " · Your leagues at a glance"}
+            {isCommissioner ? " - Commissioner tools ready" : " - Your leagues at a glance"}
           </p>
         </div>
         {isPlatinum ? <span className="site-home-badge">Platinum</span> : null}
       </section>
 
       <div className="site-home-grid">
-        {isCommissioner ? (
-          <section className="site-home-panel">
-            <header className="site-home-panel-head">
-              <p>Commissioner</p>
-              <h2>Quick actions</h2>
-            </header>
-            <div className="site-home-actions">
-              <Link className="site-home-action" to="/leagues">
-                <strong>Create / find league</strong>
-                <span>Search open leagues or claim ownership</span>
-              </Link>
-              <Link className="site-home-action" to="/inbox">
-                <strong>Inbox</strong>
-                <span>Messages and league threads</span>
-              </Link>
-              <Link className="site-home-action" to="/account">
-                <strong>Account & linking</strong>
-                <span>Discord, username, membership</span>
-              </Link>
-              <Link className="site-home-action" to="/pricing">
-                <strong>Membership</strong>
-                <span>Gold & Platinum plans</span>
-              </Link>
-            </div>
-          </section>
-        ) : null}
+        <section className="site-home-panel">
+          <header className="site-home-panel-head">
+            <p>{isCommissioner ? "Commissioner" : "Command center"}</p>
+            <h2>Quick actions</h2>
+          </header>
+          <div className="site-home-actions">
+            <Link className="site-home-action" to="/leagues">
+              <strong>Create / find league</strong>
+              <span>Search open leagues or claim ownership</span>
+            </Link>
+            <Link className="site-home-action" to="/inbox">
+              <strong>Inbox</strong>
+              <span>Messages and league threads</span>
+            </Link>
+            <Link className="site-home-action" to="/account">
+              <strong>Account & linking</strong>
+              <span>Discord, username, membership</span>
+            </Link>
+            <Link className="site-home-action" to="/pricing">
+              <strong>Membership</strong>
+              <span>Gold & Platinum plans</span>
+            </Link>
+          </div>
+        </section>
 
-        <section className="site-home-panel site-home-panel-wide">
+        <section className="site-home-panel">
           <header className="site-home-panel-head">
             <p>Your season</p>
             <h2>My leagues</h2>
@@ -125,8 +123,8 @@ export function HomePage() {
                     <span className="site-home-league-copy">
                       <strong>{league.name}</strong>
                       <span>
-                        {league.gameLabel} · {roleLabel(league)}
-                        {league.teamName ? ` · ${league.teamName}` : ""}
+                        {league.gameLabel} - {roleLabel(league)}
+                        {league.teamName ? ` - ${league.teamName}` : ""}
                       </span>
                     </span>
                     <span className="site-home-league-cta">Open</span>
