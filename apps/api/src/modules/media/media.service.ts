@@ -502,10 +502,12 @@ export async function migrateMirroredHighlightsToStream(input: {
       if (updated.error) throw updated.error;
       results.push({ highlightId: row.id, ok: true, streamUid: copied.uid });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[migrate-mirrored-highlights] ${row.id}: ${message}`);
       results.push({
         highlightId: row.id,
         ok: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       });
     }
   }

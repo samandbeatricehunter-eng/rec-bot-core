@@ -38,6 +38,16 @@ if (migrateOnBoot) {
   app.log.info("MIGRATE_MIRRORED_HIGHLIGHTS_ON_BOOT set — copying mirrored highlights into Stream…");
   try {
     const result = await migrateMirroredHighlightsToStream({ limit: 100 });
+    // Railway's log UI often drops pino object fields — also emit a plain JSON line.
+    console.log(
+      "[migrate-mirrored-highlights]",
+      JSON.stringify({
+        attempted: result.attempted,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        results: result.results,
+      }),
+    );
     app.log.info(
       {
         attempted: result.attempted,
@@ -48,6 +58,7 @@ if (migrateOnBoot) {
       "Mirrored highlight → Stream migration finished",
     );
   } catch (error) {
+    console.error("[migrate-mirrored-highlights] failed", error);
     app.log.error({ err: error }, "Mirrored highlight → Stream migration failed");
   }
 }
