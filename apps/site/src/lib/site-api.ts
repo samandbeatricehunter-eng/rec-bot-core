@@ -377,6 +377,8 @@ export const siteApi = {
       guildId: string;
       discordId: string;
       leagueId: string;
+      /** Present for older site bundles that still iframe the web hub. */
+      hubUrl?: string | null;
     }>("/v1/site-leagues/open-hub", input);
   },
   retireFromLeague(leagueId: string) {

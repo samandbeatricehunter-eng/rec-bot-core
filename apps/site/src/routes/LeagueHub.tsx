@@ -152,7 +152,15 @@ export function LeagueHubPage() {
   }, [leagueId]);
 
   useEffect(() => {
-    if (!leagueId || siteAuth.status !== "signed-in") return;
+    if (!leagueId) {
+      setLoading(false);
+      setError("Missing league id.");
+      return;
+    }
+    if (siteAuth.status !== "signed-in") {
+      // Keep spinner while auth resolves; RequireAuth handles signed-out redirect.
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -160,7 +168,18 @@ export function LeagueHubPage() {
       .openLeagueHub({ leagueId, view: "buzz" })
       .then((result) => {
         if (cancelled) return;
-        setContext({ guildId: result.guildId, discordId: result.discordId });
+        const guildId = String(result.guildId ?? "").trim();
+        const discordId = String(result.discordId ?? "").trim();
+        if (!guildId || !discordId) {
+          setContext(null);
+          setError(
+            result.hubUrl
+              ? "This app build is outdated — hard refresh (or clear site data) and try again."
+              : "Open hub returned incomplete Discord context.",
+          );
+          return;
+        }
+        setContext({ guildId, discordId });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -178,7 +197,7 @@ export function LeagueHubPage() {
   const accessToken =
     siteAuth.status === "signed-in" ? siteAuth.session.access_token : null;
 
-  if (loading) {
+  if (loading || siteAuth.status === "loading") {
     return <div className="site-page site-loading">Loading league hub…</div>;
   }
 
@@ -187,10 +206,10 @@ export function LeagueHubPage() {
       <div className="site-page site-auth-page">
         <div className="site-auth-card">
           <h1>Could not open league</h1>
-          <p className="site-auth-error">{error ?? "Missing hub context."}</p>
+          <p className="site-auth-error">{error ?? "Could not load league hub context."}</p>
           <p className="site-muted">
-            Finish Discord linking and username on Account, then try again. You can also open the
-            hub from Discord with <strong>/app</strong>.
+            Finish Discord linking and username on Account, then hard-refresh this page. You can also
+            open the hub from Discord with <strong>/app</strong>.
           </p>
           <div className="site-league-demo-links">
             <Link className="site-btn site-btn-primary" to="/account">
