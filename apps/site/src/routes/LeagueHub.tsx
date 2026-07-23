@@ -4,7 +4,6 @@ import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
 import { InjectedAuthProvider } from "../../../web/src/lib/auth-context.js";
-import { HubChromeProvider } from "../../../web/src/lib/hub-chrome-context.js";
 import { HubHome } from "../../../web/src/routes/hub/HubHome.js";
 import { LeagueMgmtHome } from "../../../web/src/routes/league-mgmt/LeagueMgmtHome.js";
 import { ManageLeagueHome } from "../../../web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
@@ -27,7 +26,6 @@ import "../../../web/src/styles/tokens.css";
 import "../../../web/src/styles/themes/cfb27.css";
 import "../../../web/src/styles/themes/madden27.css";
 import "../../../web/src/styles/typography.css";
-import "../../../web/src/styles/shell.css";
 import "../../../web/src/styles/surfaces.css";
 import "../../../web/src/styles/buttons.css";
 import "../../../web/src/styles/icons.css";
@@ -233,11 +231,9 @@ export function LeagueHubPage() {
           accessToken={accessToken}
         >
           <MemoryRouter key={`${leagueId}:${view}`} initialEntries={[entryForView(view)]}>
-            <HubChromeProvider embedded>
               <HubErrorBoundary>
                 <HubRoutes />
               </HubErrorBoundary>
-            </HubChromeProvider>
           </MemoryRouter>
         </InjectedAuthProvider>
       </div>

@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { SiteShell } from "./components/SiteShell.js";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
 import { HubProvider } from "./lib/hub-context.js";
@@ -20,6 +21,41 @@ import { Pricing } from "./routes/Pricing.js";
 import { SignUp } from "./routes/SignUp.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
+
+class RootErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: string | null }
+> {
+  state: { error: string | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message || "Something went wrong." };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Site root crash", error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="site-page site-auth-page">
+          <div className="site-auth-card">
+            <h1>Page error</h1>
+            <p className="site-auth-error">{this.state.error}</p>
+            <p className="site-muted">
+              Refresh this page. If it keeps happening, open Leagues from the home screen.
+            </p>
+            <a className="site-btn site-btn-primary" href="/leagues">
+              Open Leagues
+            </a>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -90,11 +126,13 @@ function Routed() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <SiteThemeProvider>
-          <Routed />
-        </SiteThemeProvider>
-      </AuthProvider>
+      <RootErrorBoundary>
+        <AuthProvider>
+          <SiteThemeProvider>
+            <Routed />
+          </SiteThemeProvider>
+        </AuthProvider>
+      </RootErrorBoundary>
     </BrowserRouter>
   );
 }

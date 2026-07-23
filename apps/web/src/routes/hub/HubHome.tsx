@@ -96,7 +96,7 @@ type WagerPanel = {
 };
 
 function displayLabel(key: string) {
-  return key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 const BAKED_BADGE_KEYS = new Set([
@@ -145,7 +145,7 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
 }
 
 function gameLabel(game: string | null | undefined) {
-  return String(game ?? "League").replaceAll("_", " ").replace(/\bcfb\b/ig, "CFB").toUpperCase();
+  return String(game ?? "League").replace(/_/g, " ").replace(/\bcfb\b/gi, "CFB").toUpperCase();
 }
 
 function leagueTimelineLabel(league: HubResponse["league"]) {
@@ -234,19 +234,19 @@ function FinancialLedger({ summary }: { summary: any }) {
 }
 
 function LegacyBadgeShelf({ title, badges }: { title: string; badges: any[] }) {
-  return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => { const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0); const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`]; if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`); const tooltip = tooltipParts.join(" · "); return <article key={badge.badge_key} className={`badge-key-${String(badge.badge_key).replaceAll("_", "-")} badge-tier-${String(badge.tier ?? "normal").replaceAll("_", "-")}`} data-tooltip={tooltip} aria-label={badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")} tabIndex={0} />; })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
+  return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => { const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0); const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`]; if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`); const tooltip = tooltipParts.join(" · "); return <article key={badge.badge_key} className={`badge-key-${String(badge.badge_key).replace(/_/g, "-")} badge-tier-${String(badge.tier ?? "normal").replace(/_/g, "-")}`} data-tooltip={tooltip} aria-label={badge.badge_label ?? displayLabel(badge.badge_key ?? "Badge")} tabIndex={0} />; })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
 
 function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
   return <div className="hub-badge-group"><h4>{title}</h4>{badges?.length ? <div className="hub-badge-shelf">{badges.map((badge) => {
     const key = String(badge.badge_key ?? "badge");
     const label = String(badge.badge_label ?? displayLabel(key));
-    const tier = String(badge.tier ?? "normal").replaceAll("_", "-");
+    const tier = String(badge.tier ?? "normal").replace(/_/g, "-");
     const seasonCount = Number(badge.season_earned_count ?? badge.earned_count ?? badge.earned_value ?? 0);
     const tooltipParts = [badge.badge_description ?? "Badge qualification met", `Earned this season: ${seasonCount}`, `Current league: ${Number(badge.league_earned_count ?? 0)}`];
     if (badge.last_earned_week) tooltipParts.push(`Last earned Week ${badge.last_earned_week}`);
     const tooltip = tooltipParts.join(" · ");
-    return <article key={`${key}-${tier}`} className={`badge-key-${key.replaceAll("_", "-")} badge-tier-${tier}`} style={{ backgroundImage: `url("${bakedBadgeAsset(key, label, tier)}")` }} data-badge-label={label} data-tooltip={tooltip} aria-label={label} tabIndex={0} />;
+    return <article key={`${key}-${tier}`} className={`badge-key-${key.replace(/_/g, "-")} badge-tier-${tier}`} style={{ backgroundImage: `url("${bakedBadgeAsset(key, label, tier)}")` }} data-badge-label={label} data-tooltip={tooltip} aria-label={label} tabIndex={0} />;
   })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
 
@@ -343,7 +343,7 @@ export function HubHome() {
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
   const viewedHighlights = useRef(new Set<string>());
 
-  const highlightCount = hub?.highlights.length ?? 0;
+  const highlightCount = hub?.highlights?.length ?? 0;
   const activeHighlightIndex = highlightCount ? highlightIndex % highlightCount : 0;
   const highlightSwipe = useSwipeNavigation({ itemCount: highlightCount, onIndexChange: setHighlightIndex });
   useEffect(() => { highlightSwipe.setCurrentIndex(activeHighlightIndex); }, [activeHighlightIndex]);
@@ -387,7 +387,7 @@ export function HubHome() {
     return () => window.clearInterval(timer);
   }, [section, subTab, wagersBoard?.length]);
 
-  const headlineCount = hub?.headlines.length ?? 0;
+  const headlineCount = hub?.headlines?.length ?? 0;
   const currentWeekStoryIndexes = useMemo(() => {
     const stories = hub?.headlines ?? [];
     const currentWeek = hub?.league.weekNumber;
@@ -445,9 +445,11 @@ export function HubHome() {
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek, matchupReloadKey]);
 
   useEffect(() => {
-    if (auth.status !== "ready" || section !== "wagers") return;
+    if (auth.status !== "ready") return;
+    // Buzz shows the wager board too — keep it loaded for both surfaces.
+    if (section !== "wagers" && !(section === "league" && subTab === "buzz")) return;
     recApi.getPeerWagerBoard(auth.guildId).then((result) => setWagersBoard(result.wagers)).catch(() => setWagersBoard([]));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, section]);
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, subTab]);
 
   useEffect(() => {
     if (auth.status !== "ready" || section !== "team" || mediaPortal) return;
@@ -469,16 +471,16 @@ export function HubHome() {
     const mutuallyExclusive = COMMUNITY_REACTION_KEYS.includes(reactionKey) ? COMMUNITY_REACTION_KEYS : AWARD_KEYS;
     setHub((current) => current ? { ...current, highlights: current.highlights.map((highlight) => {
       if (highlight.id !== highlightId) return highlight;
-      const has = highlight.myReactions.includes(reactionKey);
+      const has = (highlight.myReactions ?? []).includes(reactionKey);
       const counts = { ...highlight.reactionCounts };
       let nextReactions = highlight.myReactions;
       if (has) {
         counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
-        nextReactions = highlight.myReactions.filter((key) => key !== reactionKey);
+        nextReactions = (highlight.myReactions ?? []).filter((key) => key !== reactionKey);
       } else {
-        for (const key of mutuallyExclusive) if (key !== reactionKey && highlight.myReactions.includes(key as HubReactionKey)) counts[key as HubReactionKey] = Math.max(0, counts[key as HubReactionKey] - 1);
+        for (const key of mutuallyExclusive) if (key !== reactionKey && (highlight.myReactions ?? []).includes(key as HubReactionKey)) counts[key as HubReactionKey] = Math.max(0, counts[key as HubReactionKey] - 1);
         counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
-        nextReactions = [...highlight.myReactions.filter((key) => !mutuallyExclusive.includes(key)), reactionKey];
+        nextReactions = [...(highlight.myReactions ?? []).filter((key) => !mutuallyExclusive.includes(key)), reactionKey];
       }
       return { ...highlight, myReactions: nextReactions, reactionCounts: counts };
     }) } : current);
@@ -516,12 +518,12 @@ export function HubHome() {
     setMatchupSchedule((current) => current ? { ...current, games: current.games.map((game) => {
       if (game.gameId !== gameId) return game;
       const counts = { ...game.reactionCounts };
-      const isSame = game.myReactions.includes(reactionKey);
+      const isSame = (game.myReactions ?? []).includes(reactionKey);
       if (isSame) {
         counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
-        return { ...game, myReactions: game.myReactions.filter((key) => key !== reactionKey), reactionCounts: counts };
+        return { ...game, myReactions: (game.myReactions ?? []).filter((key) => key !== reactionKey), reactionCounts: counts };
       }
-      let nextReactions = [...game.myReactions];
+      let nextReactions = [...(game.myReactions ?? [])];
       if (reactionKey !== "goty") {
         for (const key of ["love", "like", "dislike", "poop"] as const) {
           if (nextReactions.includes(key)) counts[key] = Math.max(0, counts[key] - 1);
@@ -894,10 +896,14 @@ export function HubHome() {
   const viewerCoach = hub.coachRatings?.teams?.find((team) => team.teamId === hub.coachRatings?.viewerTeamId);
   const viewerUser = hub.userRatings?.users?.find((user) => user.userId === hub.userRatings?.viewerUserId);
   const heroCoachScore = viewerCoach
-    ? (hub.coachRatings?.displayAsGrade ? viewerCoach.grade : viewerCoach.rating.toFixed(1))
+    ? (hub.coachRatings?.displayAsGrade
+      ? (viewerCoach.grade ?? "—")
+      : (typeof viewerCoach.rating === "number" ? viewerCoach.rating.toFixed(1) : "—"))
     : "—";
   const heroUserScore = viewerUser
-    ? (hub.userRatings?.displayAsGrade ? viewerUser.grade : viewerUser.rating.toFixed(1))
+    ? (hub.userRatings?.displayAsGrade
+      ? (viewerUser.grade ?? "—")
+      : (typeof viewerUser.rating === "number" ? viewerUser.rating.toFixed(1) : "—"))
     : "—";
   const heroCoachMeta = viewerCoach ? `#${viewerCoach.rank} · ${viewerCoach.record}` : "Pending";
   const heroUserMeta = viewerUser
@@ -1086,9 +1092,9 @@ export function HubHome() {
               <div className="hub-video-frame">{activeHighlight.iframeUrl || activeHighlight.streamUid ? <iframe key={activeHighlight.id} src={`${activeHighlight.iframeUrl ?? `https://iframe.videodelivery.net/${activeHighlight.streamUid}`}?autoplay=true&muted=true`} title="Highlight" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => void recordView(activeHighlight.id)} /> : activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
               <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
               <div className="hub-highlight-reactions">
-                <button aria-label="Like" className={activeHighlight.myReactions.includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={18} /><b>Like</b><small>{activeHighlight.reactionCounts.like || ""}</small></button>
-                <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => activeHighlight.myReactions.includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => activeHighlight.myReactions.includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + activeHighlight.reactionCounts[key], 0) || ""}</small></button>
-                <button aria-label="Dislike" className={activeHighlight.myReactions.includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts.dislike || ""}</small></button>
+                <button aria-label="Like" className={(activeHighlight.myReactions ?? []).includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={18} /><b>Like</b><small>{activeHighlight.reactionCounts?.like || ""}</small></button>
+                <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => (activeHighlight.myReactions ?? []).includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => (activeHighlight.myReactions ?? []).includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + (activeHighlight.reactionCounts?.[key] ?? 0), 0) || ""}</small></button>
+                <button aria-label="Dislike" className={(activeHighlight.myReactions ?? []).includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts?.dislike || ""}</small></button>
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
         </SectionFrame>
@@ -1194,11 +1200,11 @@ export function HubHome() {
                         </div>;
                       })()}
                       <div className="hub-game-reaction-bar" aria-label={`Reactions for ${game.awayTeamName} at ${game.homeTeamName}`}>
-                        <button aria-label="Love" className={game.myReactions.includes("love") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "love")}>{game.reactionCounts.love > 0 && <span>{game.reactionCounts.love}</span>}</button>
-                        <button aria-label="Like" className={game.myReactions.includes("like") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}>{game.reactionCounts.like > 0 && <span>{game.reactionCounts.like}</span>}</button>
-                        <button aria-label="Nominate for Game of the Year" className={`goty${game.myReactions.includes("goty") ? " active" : ""}`} onClick={() => void matchupGameReact(game.gameId, "goty")}>{game.reactionCounts.goty > 0 && <span>{game.reactionCounts.goty}</span>}</button>
-                        <button aria-label="Dislike" className={game.myReactions.includes("dislike") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}>{game.reactionCounts.dislike > 0 && <span>{game.reactionCounts.dislike}</span>}</button>
-                        <button aria-label="Hate" className={game.myReactions.includes("poop") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "poop")}>{game.reactionCounts.poop > 0 && <span>{game.reactionCounts.poop}</span>}</button>
+                        <button aria-label="Love" className={(game.myReactions ?? []).includes("love") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "love")}>{game.reactionCounts.love > 0 && <span>{game.reactionCounts.love}</span>}</button>
+                        <button aria-label="Like" className={(game.myReactions ?? []).includes("like") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}>{game.reactionCounts.like > 0 && <span>{game.reactionCounts.like}</span>}</button>
+                        <button aria-label="Nominate for Game of the Year" className={`goty${(game.myReactions ?? []).includes("goty") ? " active" : ""}`} onClick={() => void matchupGameReact(game.gameId, "goty")}>{game.reactionCounts.goty > 0 && <span>{game.reactionCounts.goty}</span>}</button>
+                        <button aria-label="Dislike" className={(game.myReactions ?? []).includes("dislike") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}>{game.reactionCounts.dislike > 0 && <span>{game.reactionCounts.dislike}</span>}</button>
+                        <button aria-label="Hate" className={(game.myReactions ?? []).includes("poop") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "poop")}>{game.reactionCounts.poop > 0 && <span>{game.reactionCounts.poop}</span>}</button>
                       </div>
                     </>}
                   </article>

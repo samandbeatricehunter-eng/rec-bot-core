@@ -747,7 +747,18 @@
   .hub-matchup-bottom .hub-matchup-reactions { gap:4px !important; }
   .hub-matchup-bottom .hub-matchup-reactions button { padding:3px 7px; font-size:10px; }
 }
-.hub-state { max-width: 680px; margin: 15vh auto; padding: var(--space-6); text-align: center; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.hub-state {
+  max-width: 680px;
+  margin: 15vh auto;
+  padding: var(--space-6);
+  text-align: center;
+  border: 1px solid var(--border, #3a3120);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface, #12161a);
+  color: var(--text-primary, #f2eee3);
+}
+.hub-state h1 { color: inherit; }
+.hub-state p { color: var(--text-secondary, #9c978b); }
 .hub-open-teams > p { margin: 0 0 var(--space-4); color: var(--text-secondary); line-height: 1.55; }
 .hub-open-team-conferences { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: var(--space-3); }
 .hub-open-team-conferences > section { overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface-raised); }
