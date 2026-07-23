@@ -63,6 +63,16 @@ function hrefForQueueType(leagueId: string, queueType: string): string {
   return `/l/${leagueId}/mgmt/inbox`;
 }
 
+/** node-pg returns timestamps as Date; always normalize before string APIs. */
+function asIsoTimestamp(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  }
+  return new Date(0).toISOString();
+}
+
 export async function listSiteNotifications(input: {
   recUserId: string;
 }): Promise<{
@@ -111,7 +121,7 @@ export async function listSiteNotifications(input: {
     href: row.href,
     leagueId: row.league_id,
     leagueName: row.league_name,
-    createdAt: row.created_at,
+    createdAt: asIsoTimestamp(row.created_at),
     read: row.read_at != null,
   }));
 
@@ -178,7 +188,7 @@ export async function listSiteNotifications(input: {
         href: hrefForQueueType(league.id, row.queue_type),
         leagueId: league.id,
         leagueName: league.name,
-        createdAt: row.created_at,
+        createdAt: asIsoTimestamp(row.created_at),
         read: false,
       });
     }
@@ -188,7 +198,7 @@ export async function listSiteNotifications(input: {
   commissioner.sort((a, b) => {
     if (a.isInboxLink && !b.isInboxLink) return -1;
     if (!a.isInboxLink && b.isInboxLink) return 1;
-    return b.createdAt.localeCompare(a.createdAt);
+    return asIsoTimestamp(b.createdAt).localeCompare(asIsoTimestamp(a.createdAt));
   });
 
   const unreadCount =

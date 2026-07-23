@@ -22,24 +22,80 @@ import { SignUp } from "./routes/SignUp.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 
-class RootErrorBoundary extends Component<
+function formatCaughtError(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Something went wrong.";
+}
+
+function resetDocumentThemeToApp() {
+  const root = document.documentElement;
+  root.setAttribute("data-site-theme", "app");
+  root.removeAttribute("data-game-theme");
+}
+
+/** Keeps auth/shell mounted; only the route outlet is replaced on failure. */
+class OutletErrorBoundary extends Component<
   { children: ReactNode },
   { error: string | null }
 > {
   state: { error: string | null } = { error: null };
 
-  static getDerivedStateFromError(error: Error) {
-    return { error: error.message || "Something went wrong." };
+  static getDerivedStateFromError(error: unknown) {
+    return { error: formatCaughtError(error) };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error("Site root crash", error, info);
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error("Route outlet crash", error, info);
+    resetDocumentThemeToApp();
   }
 
   render() {
     if (this.state.error) {
       return (
         <div className="site-page site-auth-page">
+          <div className="site-auth-card">
+            <h1>Page error</h1>
+            <p className="site-auth-error">{this.state.error}</p>
+            <p className="site-muted">
+              Try another page from the sidebar, or refresh. If this is a league hub crash, the
+              message above is the underlying error.
+            </p>
+            <div className="site-league-demo-links">
+              <a className="site-btn site-btn-primary" href="/leagues">
+                Open Leagues
+              </a>
+              <a className="site-btn site-btn-ghost" href="/home">
+                Home
+              </a>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+class RootErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: string | null }
+> {
+  state: { error: string | null } = { error: null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error: formatCaughtError(error) };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error("Site root crash", error, info);
+    resetDocumentThemeToApp();
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="site-page site-auth-page" data-site-theme="app">
           <div className="site-auth-card">
             <h1>Page error</h1>
             <p className="site-auth-error">{this.state.error}</p>
@@ -71,7 +127,9 @@ function AuthedLayout() {
     <RequireAuth>
       <HubProvider>
         <SiteShell>
-          <Outlet />
+          <OutletErrorBoundary>
+            <Outlet />
+          </OutletErrorBoundary>
         </SiteShell>
       </HubProvider>
     </RequireAuth>

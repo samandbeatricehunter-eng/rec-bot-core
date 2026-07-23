@@ -66,11 +66,17 @@ class HubErrorBoundary extends Component<
 > {
   state: { error: string | null } = { error: null };
 
-  static getDerivedStateFromError(error: Error) {
-    return { error: error.message || "League hub failed to render." };
+  static getDerivedStateFromError(error: unknown) {
+    const message =
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : typeof error === "string" && error.trim()
+          ? error
+          : "League hub failed to render.";
+    return { error: message };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error("League hub crashed", error, info);
   }
 
@@ -83,12 +89,12 @@ class HubErrorBoundary extends Component<
             <p className="site-auth-error">{this.state.error}</p>
             <p className="site-muted">Try refreshing, or open Leagues from the sidebar.</p>
             <div className="site-league-demo-links">
-              <Link className="site-btn site-btn-primary" to="/leagues">
+              <a className="site-btn site-btn-primary" href="/leagues">
                 Leagues
-              </Link>
-              <Link className="site-btn site-btn-ghost" to="/home">
+              </a>
+              <a className="site-btn site-btn-ghost" href="/home">
                 Home
-              </Link>
+              </a>
             </div>
           </div>
         </div>

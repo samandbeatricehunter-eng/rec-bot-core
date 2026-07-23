@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "./auth-context.js";
 import { siteApi, type SiteLeagueSummary } from "./site-api.js";
 import { useSiteTheme } from "./site-theme-context.js";
@@ -57,6 +57,7 @@ function persistScope(scope: HubScope) {
 export function HubProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { setTheme } = useSiteTheme();
   const [scope, setScope] = useState<HubScope>(() => readStoredScope());
   const [leagues, setLeagues] = useState<SiteLeagueSummary[]>([]);
@@ -100,20 +101,26 @@ export function HubProvider({ children }: { children: ReactNode }) {
   }, [auth.status]);
 
   useEffect(() => {
+    // Game theme is only for /l/:id hub surfaces. Site chrome (leagues list, home,
+    // account, etc.) always stays on the app carbon theme — otherwise selecting a
+    // league re-skinned the whole website.
+    const onLeagueHubPage = location.pathname.startsWith("/l/");
+    if (scope.kind === "league" && selectedLeague && onLeagueHubPage) {
+      setTheme(selectedLeague.game);
+      return;
+    }
     if (scope.kind === "main") {
       setTheme("app");
       return;
     }
-    if (selectedLeague) {
-      setTheme(selectedLeague.game);
+    if (!onLeagueHubPage) {
+      setTheme("app");
       return;
     }
     // Keep league scope while the route still points at that league (Discord /app
     // can land before mine-list resolves). Only drop stale ids after load.
     if (leaguesReady && !leaguesLoading && !leaguesError) {
-      const stillOnLeagueRoute =
-        typeof window !== "undefined" &&
-        window.location.pathname.startsWith(`/l/${scope.leagueId}`);
+      const stillOnLeagueRoute = location.pathname.startsWith(`/l/${scope.leagueId}`);
       if (stillOnLeagueRoute) return;
       const next: HubScope = { kind: "main" };
       setScope(next);
@@ -126,6 +133,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
     leaguesReady,
     leaguesLoading,
     leaguesError,
+    location.pathname,
     setTheme,
   ]);
 
@@ -146,17 +154,16 @@ export function HubProvider({ children }: { children: ReactNode }) {
     const next: HubScope = { kind: "league", leagueId };
     setScope(next);
     persistScope(next);
+    // Theme applies via the effect once we land on /l/:id.
     if (league) setTheme(league.game);
     navigate(`/l/${leagueId}/buzz`);
   }
 
   function ensureLeagueScope(leagueId: string) {
     if (scope.kind === "league" && scope.leagueId === leagueId) return;
-    const league = leagues.find((item) => item.id === leagueId);
     const next: HubScope = { kind: "league", leagueId };
     setScope(next);
     persistScope(next);
-    if (league) setTheme(league.game);
   }
 
   async function retireFromLeague(leagueId: string) {

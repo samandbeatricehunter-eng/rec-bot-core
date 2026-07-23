@@ -20,7 +20,7 @@ function sortLeagues(leagues: SiteLeagueSummary[]) {
   return [...leagues].sort((a, b) => {
     const diff = rank(a) - rank(b);
     if (diff !== 0) return diff;
-    return a.name.localeCompare(b.name);
+    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
   });
 }
 
