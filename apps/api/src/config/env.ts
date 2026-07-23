@@ -45,5 +45,10 @@ const EnvSchema = z.object({
   SITE_PUBLIC_URL: z.string().url().default("https://rec-leagues.com"),
   // Discord Activity hub (apps/web) — used when exchanging a site session for a hub JWT.
   WEB_APP_URL: z.string().url().optional(),
+  // One-shot ops: copy mirrored Supabase/Discord highlight URLs into Cloudflare Stream on boot.
+  MIGRATE_MIRRORED_HIGHLIGHTS_ON_BOOT: z
+    .enum(["0", "1", "true", "false"])
+    .optional()
+    .transform((value) => value === "1" || value === "true"),
 });
 export const env = EnvSchema.parse(process.env);
