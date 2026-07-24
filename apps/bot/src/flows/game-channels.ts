@@ -58,7 +58,6 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
   const config = await recApi.getLeagueConfig(interaction.guildId).catch(() => null);
   const isPlayoff = !isRegularSeasonWeek(currentWeek, leagueGame);
   const rulesLines = gameRulesLines(config?.draft ?? null, isPlayoff);
-  const boxScoresMention = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the box scores channel";
   // Create + register every channel first, then fetch all matchups in ONE batched
   // call (the league-wide identity/power-ranking/config work is computed once for
   // the whole week instead of once per channel), then post the intro messages.
@@ -66,8 +65,8 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
   for (const game of h2h) {
     const away = teamDisplay(game.away_team);
     const home = teamDisplay(game.home_team);
-    // Channel title is team nicknames only (no city), e.g. "frost-bite-vs-cowboys".
-    const name = `${teamNick(game.away_team)} vs ${teamNick(game.home_team)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+    // CFB team.name is the university; Madden team.name is the franchise team.
+    const name = `${game.away_team?.name ?? away} at ${game.home_team?.name ?? home}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
     const ch = await interaction.guild.channels.create({
       name,
       type: ChannelType.GuildText,
@@ -109,7 +108,7 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
       "",
       ...rulesLines,
       "",
-      `After the game, post your box score screenshot in ${boxScoresMention} — not in this channel.`,
+      "After the game, submit your box score and player stats from the REC site or app.",
       "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts."
     ].join("\n"));
     await ch.send({
@@ -121,13 +120,12 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
   if (created.length) {
     const announcements = await getAnnouncementsChannel(interaction.guild, routes);
     if (announcements?.isTextBased() && "send" in announcements) {
-      const boxScores = routes?.box_scores_channel_id ? `<#${routes.box_scores_channel_id}>` : "the Box Scores channel";
       await announcements.send({
         content: "@everyone",
         embeds: [new EmbedBuilder().setTitle("Weekly Box Scores Required").setDescription([
           `Game channels have been created for ${stageLabel(stage, currentWeek, leagueGame)}.`,
           "",
-          `Even if you do not have an H2H matchup this week, upload a box score screenshot to ${boxScores} before the league advances if you want payouts and stats logged.`,
+          "Even if you do not have an H2H matchup this week, submit your box score from the REC site or app before the league advances if you want payouts and stats logged.",
           "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
           "If your opponent cannot make it, request a 1-week autopilot to get your stats and payout IF you play and submit the box score."
         ].join("\n"))],

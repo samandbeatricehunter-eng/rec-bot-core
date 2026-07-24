@@ -25,9 +25,10 @@ import {
 } from "./interview-headlines.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { CFB_TEAM_PRIMARY_COLORS } from "@rec/shared";
-import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { getGameChatMessages, sendGameChatMessage } from "../game-chat/game-chat.service.js";
+import { pruneDeadHighlightsOnceDaily } from "../site-home/site-home.service.js";
 
 // A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
 // stream runs longer than that, so anything older is treated as ended for display/watch.
@@ -463,6 +464,7 @@ async function loadHubHeadlines(input: { leagueId: string; seasonNumber: number;
 }
 
 export async function getHub(guildId: string, discordId: string) {
+  await pruneDeadHighlightsOnceDaily();
   const context = await getCurrentLeagueContext(guildId);
   const userId = await userIdForDiscord(discordId);
   const canManageLeague = await assertGuildPermission(guildId, discordId, "co_commissioner").then(() => true).catch(() => false);
@@ -528,12 +530,16 @@ export async function getHub(guildId: string, discordId: string) {
   }));
   const highlightGames = await supabase
     .from("rec_games")
-    .select("week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name),away_team:rec_teams!rec_games_away_team_id_fkey(name)")
+    .select("week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
     .eq("league_id", context.leagueId);
   if (highlightGames.error) throw new ApiError(500, "Failed to load highlight matchups.", highlightGames.error);
   const highlightMatchupByTeamWeek = new Map<string, string>();
+  const hubTeamName = (team: any, fallback: string) =>
+    context.rec_leagues.game === "cfb_27"
+      ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback
+      : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   for (const game of highlightGames.data ?? []) {
-    const label = `${(game as any).away_team?.name ?? "Away"} VS ${(game as any).home_team?.name ?? "Home"}`;
+    const label = `${hubTeamName((game as any).away_team, "Away")} VS ${hubTeamName((game as any).home_team, "Home")}`;
     if (game.away_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.away_team_id}`, label);
     if (game.home_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.home_team_id}`, label);
   }
@@ -553,10 +559,10 @@ export async function getHub(guildId: string, discordId: string) {
   const streamLogIds = (currentStreamLogs.data ?? []).map((stream: any) => stream.id);
   const liveGameTeamIds = [...new Set((currentStreamLogs.data ?? []).flatMap((stream: any) => [stream.game?.home_team_id, stream.game?.away_team_id]).filter(Boolean))];
   const liveGameTeamsRes = liveGameTeamIds.length
-    ? await supabase.from("rec_teams").select("id,name").in("id", liveGameTeamIds)
+    ? await supabase.from("rec_teams").select("id,name,abbreviation,display_city,display_nick,is_relocated").in("id", liveGameTeamIds)
     : { data: [] as any[], error: null };
   if (liveGameTeamsRes.error) throw new ApiError(500, "Failed to load live-stream team names.", liveGameTeamsRes.error);
-  const liveGameTeamNameById = new Map<string, string>((liveGameTeamsRes.data ?? []).map((team: any) => [team.id, team.name]));
+  const liveGameTeamNameById = new Map<string, string>((liveGameTeamsRes.data ?? []).map((team: any) => [team.id, hubTeamName(team, "Team")]));
   const [streamViews, streamReactions] = await Promise.all([
     streamLogIds.length ? supabase.from("rec_stream_views").select("stream_log_id").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
     streamLogIds.length ? supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
@@ -1222,6 +1228,11 @@ export async function publishScheduledMediaForAdvance(guildId: string) {
 
 export async function getHubMatchupSchedule(input: { guildId: string; discordId: string; weekNumber?: number | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
+  const isCfb = context.rec_leagues.game === "cfb_27";
+  const universityName = (team: any, fallback: string) =>
+    isCfb ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
+  const mascotName = (team: any, fallback: string) =>
+    isCfb ? resolveTeamNick(team) : universityName(team, fallback);
   const userId = await userIdForDiscord(input.discordId);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
@@ -1389,8 +1400,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         isGameOfWeek: isPollGame(game),
         homeTeamId: game.home_team?.id ?? null,
         awayTeamId: game.away_team?.id ?? null,
-        homeTeamName: formatTeamDisplayName(game.home_team) ?? game.home_team?.name ?? game.home_team?.abbreviation ?? "Home",
-        awayTeamName: formatTeamDisplayName(game.away_team) ?? game.away_team?.name ?? game.away_team?.abbreviation ?? "Away",
+        homeTeamName: universityName(game.home_team, "Home"),
+        awayTeamName: universityName(game.away_team, "Away"),
+        homeTeamMascot: mascotName(game.home_team, "Home"),
+        awayTeamMascot: mascotName(game.away_team, "Away"),
         homeTeamColor: game.home_team?.primary_color ?? "#FFFFFF",
         awayTeamColor: game.away_team?.primary_color ?? "#FFFFFF",
         rivalryName: (Array.isArray(game.rivalry) ? game.rivalry[0] : game.rivalry)?.rivalry_name ?? null,

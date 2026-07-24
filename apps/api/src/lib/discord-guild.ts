@@ -174,13 +174,13 @@ export async function sendDiscordDirectMessage(discordId: string, content: strin
   if (!sent.ok) throw new Error(`Failed to send Discord DM (${sent.status})`);
 }
 
-export async function sendDiscordAdvanceAnnouncement(channelId: string, destinationLabel: string): Promise<void> {
+export async function sendDiscordAdvanceAnnouncement(channelId: string, destinationLabel: string, nextAdvanceLabel: string): Promise<void> {
   const sent = await discordBotFetch(`/channels/${channelId}/messages`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       content: "@everyone",
-      embeds: [{ title: "📣 League Advanced", color: 0xd9a521, description: `The league has advanced to **${destinationLabel}**.\n\nNavigate to **/hub** for league options and details.` }],
+      embeds: [{ title: "📣 League Advanced", color: 0xd9a521, description: `The league has advanced to **${destinationLabel}**.\n\nNext advance: **${nextAdvanceLabel}**\n\nNavigate to **/hub** for league options and details.` }],
       allowed_mentions: { parse: ["everyone"] },
     }),
   });

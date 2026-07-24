@@ -147,27 +147,25 @@ function HubHomeBridge({ view }: { view: Exclude<HubView, "mgmt"> }) {
   return <HubHome />;
 }
 
-function HubMgmtRoutes({ leagueId }: { leagueId: string }) {
-  const base = `/l/${leagueId}/mgmt`;
+function HubMgmtRoutes() {
   return (
     <Routes>
-      <Route path={base} element={<LeagueMgmtHome />} />
-      <Route path={`${base}/first-time-setup`} element={<FirstTimeSetupHome />} />
-      <Route path={`${base}/notifications`} element={<NotificationsHome />} />
-      <Route path={`${base}/manage-league`} element={<ManageLeagueHome />} />
-      <Route path={`${base}/manage-league/roles`} element={<RolesHome />} />
-      <Route path={`${base}/manage-league/player-stats`} element={<PlayerStatsReview />} />
-      <Route path={`${base}/manage-league/teams`} element={<TeamOwnershipTable />} />
-      <Route path={`${base}/manage-league/teams/link`} element={<LinkTeamForm />} />
-      <Route path={`${base}/manage-league/:teamId`} element={<TeamScheduleForm />} />
-      <Route path={`${base}/delete-league`} element={<DeleteLeagueHome />} />
-      <Route path={`${base}/settings`} element={<SettingsHome />} />
-      <Route path={`${base}/advance`} element={<AdvanceHome />} />
-      <Route path={`${base}/commissioner-chat`} element={<CommissionerChatHome />} />
-      <Route path={`${base}/publishing`} element={<PublishingHome />} />
-      <Route path={`${base}/recruiting`} element={<RecruitingHome />} />
-      <Route path={`${base}/*`} element={<LeagueMgmtHome />} />
-      <Route path={`/l/${leagueId}/matchups/:gameId`} element={<MatchupDetailPage />} />
+      <Route index element={<LeagueMgmtHome />} />
+      <Route path="first-time-setup" element={<FirstTimeSetupHome />} />
+      <Route path="notifications" element={<NotificationsHome />} />
+      <Route path="manage-league" element={<ManageLeagueHome />} />
+      <Route path="manage-league/roles" element={<RolesHome />} />
+      <Route path="manage-league/player-stats" element={<PlayerStatsReview />} />
+      <Route path="manage-league/teams" element={<TeamOwnershipTable />} />
+      <Route path="manage-league/teams/link" element={<LinkTeamForm />} />
+      <Route path="manage-league/:teamId" element={<TeamScheduleForm />} />
+      <Route path="delete-league" element={<DeleteLeagueHome />} />
+      <Route path="settings" element={<SettingsHome />} />
+      <Route path="advance" element={<AdvanceHome />} />
+      <Route path="commissioner-chat" element={<CommissionerChatHome />} />
+      <Route path="publishing" element={<PublishingHome />} />
+      <Route path="recruiting" element={<RecruitingHome />} />
+      <Route path="*" element={<LeagueMgmtHome />} />
     </Routes>
   );
 }
@@ -282,7 +280,7 @@ export function LeagueHubPage() {
               {/\/matchups\/[^/]+$/.test(location.pathname) ? (
                 <MatchupDetailPage />
               ) : view === "mgmt" ? (
-                <HubMgmtRoutes leagueId={leagueId} />
+                <HubMgmtRoutes />
               ) : (
                 <HubHomeBridge view={view} />
               )}

@@ -769,7 +769,10 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       : Promise.resolve({ data: [] }),
   ]);
 
-  const teamName = resolveTeamProgramName(teamRow) ?? formatTeamDisplayName(teamRow);
+  const teamName =
+    leagueGame === "cfb_27"
+      ? resolveTeamSchool(teamRow) ?? formatTeamDisplayName(teamRow)
+      : resolveTeamProgramName(teamRow) ?? formatTeamDisplayName(teamRow);
   const globalRecord = (globalRecordRow as any)?.data ?? baseline.globalRecord ?? {};
   const gameGlobalRecord = buildGameRecordForDisplay(
     (gameGlobalRecordRow as any)?.data ?? null,
@@ -1465,8 +1468,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       discordUsername: baseline.discord.global_name ?? baseline.discord.username ?? baseline.user.display_name,
       siteUsername: baseline.user.username ?? null,
       displayName: baseline.user.display_name ?? baseline.user.username ?? baseline.discord.global_name ?? baseline.discord.username ?? "REC Member",
-      teamName: resolveTeamProgramName(assignment?.team) ?? assignment?.team?.name ?? null,
-      schoolName: resolveTeamSubtitle(assignment?.team, league?.game),
+      teamName:
+        league?.game === "cfb_27"
+          ? resolveTeamSchool(assignment?.team) ?? assignment?.team?.name ?? null
+          : resolveTeamProgramName(assignment?.team) ?? assignment?.team?.name ?? null,
+      schoolName: league?.game === "cfb_27" ? null : resolveTeamSubtitle(assignment?.team, league?.game),
       highestRole: membership?.role ?? null,
       wallet: baseline.wallet?.wallet_balance ?? 0,
       savings: baseline.wallet?.savings_balance ?? 0,

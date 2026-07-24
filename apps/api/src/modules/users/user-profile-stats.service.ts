@@ -447,7 +447,7 @@ export function resolveTeamSchool(team: {
   is_relocated?: boolean | null;
 } | null | undefined): string | null {
   if (!team) return null;
-  if (team.is_relocated && team.display_city && team.display_city.trim() && team.display_city.trim() !== team.name?.trim()) {
+  if (team.display_city && team.display_city.trim() && team.display_city.trim() !== team.display_nick?.trim()) {
     return team.display_city.trim();
   }
   const name = team.name?.trim();

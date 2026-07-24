@@ -18,7 +18,6 @@ import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
 import { getAnnouncementsChannel, getPowerRankingsChannel } from "../lib/route-channels.js";
 import { formatTierEmojiPrefix } from "../lib/tier-emojis.js";
-import { publishWeeklySubmissionsPanel } from "./weekly-submissions.js";
 
 // Final step of the advance flow: set (or skip) the next scheduled advance time.
 // Three dropdowns — date (next 7 days), timezone, and time (remaining hours) — plus
@@ -288,13 +287,19 @@ async function announceAdvance(guild: Guild, guildId: string, headline: string, 
       `The league has progressed to **${weekLabel}**.`,
       "Navigate to **/app** for league options and details.",
     ];
-    if (epochSeconds != null) lines.push(`Next advance: <t:${epochSeconds}:R>.`);
+    if (epochSeconds != null) {
+      lines.push(`Next advance: <t:${epochSeconds}:R>.`);
+    } else {
+      const timing = cfg?.configuration?.advance_timing === "other"
+        ? cfg?.configuration?.advance_timing_other || "Custom schedule"
+        : cfg?.configuration?.advance_timing || "24hr";
+      lines.push(`Next advance: **${timing}**.`);
+    }
     const message = channel ? await channel.send({
       content: "@everyone",
       embeds: [new EmbedBuilder().setTitle("📣 League Advanced").setColor(COLORS.success).setDescription(lines.join("\n"))],
       allowedMentions: { parse: ["everyone"] },
     }) : null;
-    await publishWeeklySubmissionsPanel(guild).catch((error) => console.error("[WARN] Weekly Submissions panel publish failed:", error));
     return Boolean(message);
   } catch {
     return false;

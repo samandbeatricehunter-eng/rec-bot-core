@@ -16,7 +16,6 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
   const routes = cfg.routes ?? {};
   const settings = cfg.configuration ?? {};
   const routeId = (key: string) => typeof routes[key] === "string" ? routes[key] as string : null;
-  const weeklyId = routeId("weekly_submissions_channel_id") ?? routeId("box_scores_channel_id");
   const cfb = league.game === "cfb_27";
   const economy = settings.coin_economy_enabled !== false;
   const media = settings.media_features_enabled !== false;
@@ -29,8 +28,8 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       "The Hub includes Campus Buzz, headlines, articles, highlights, matchups, streams, rankings, schedules, My Team, wagers, and authorized League Management tools.",
       `**Register a free account at ${SITE_URL}** to unlock the full REC experience: Campus Buzz league/game chat, a Live Games board, and submitting box scores, player stats, streams, and highlights straight from your browser — no Discord required.`,
     ].join("\n\n")),
-    base(2, "Weekly Submissions", [
-      `Use ${mention(weeklyId, "Weekly Submissions channel not assigned")} each playable week. The channel is reset on advance; use its permanent **Box Scores**, **Player Stats**, and **Recruiting Commits** buttons. Captured messages are deleted to keep the panel clear.`,
+    base(2, "Site & App Submissions", [
+      `Submit **Box Scores**, **Player Stats**, and **Recruiting Commits** from the REC site (${SITE_URL}) or app. No Discord submissions channel is required.`,
       "**Box Scores:** two console screenshots, current week only. One shared H2H submission is enough and commissioner review is required. Unreadable, incomplete, wrong-screen, wrong-week, or phone-camera images may be denied.",
       cfb ? "For CFB: **CFB Tab > Team Schedule > Box Score**, then press **X on PS5**. Do **not** use the immediate postgame box-score window." : "For Madden: capture two in-game box-score screenshots from the screens available when the game ends.",
       "**Player Stats:** optional story detail; a pending or approved box score must already exist for the game, including one submitted by the opponent. Add one or more categories per player.",
@@ -53,7 +52,7 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
     base(6, "Open Teams & Troubleshooting", [
       "**No team?** Run /hub, view Open Teams, choose Request Team, and wait for commissioner approval. **Expired Hub link?** Run /hub again.",
       "**Can't submit player stats?** A current scheduled game and its pending/approved box score are required. If your opponent submitted it, you may still submit stats for your team.",
-      "**Bot deleted my message?** Captured submissions are intentionally removed. **Only one highlight paid?** At most two accepted highlights pay per user per week and duplicates do not create extra payouts.",
+      "**Only one highlight paid?** At most two accepted highlights pay per user per week and duplicates do not create extra payouts.",
       "**Can't purchase?** Economy/product availability, season, balance, or caps may prevent it. **Can't access League Management?** Commissioner permissions are required.",
       `League announcements: ${mention(routeId("announcements_channel_id"), "not assigned")}. Rules and help should be taken from configured league channels; no separate help channel is currently assigned unless commissioners announce one.`,
     ].join("\n\n")),

@@ -223,15 +223,6 @@ async function completeAdvanceFromSession(
     console.error("[ERROR] GOTW settlement failed (non-fatal):", err);
   });
 
-  // Reset the box scores channel for the new week — last week's submissions (and any
-  // stray chatter) are cleared out so it starts clean.
-  if (interaction.guild) {
-    void getRouteChannels(session.guildId)
-      .then((routes) => getBoxScoresChannel(interaction.guild!, routes))
-      .then((channel) => channel && purgeChannelMessages(channel))
-      .catch((err) => console.error("[ERROR] Box scores channel reset failed (non-fatal):", err));
-  }
-
   const headline = `League advanced from **${stageLabel(session.currentStage, session.currentWeek, session.game)}** to **${stageLabel(session.nextSeasonStage, session.nextWeekNumber, session.game)}**.${interestLine}${wagerLine}`;
   sessions.delete(sessionKey(session.guildId, session.userId));
   return enterAdvanceTimeStep(interaction, headline, { seasonNumber: session.seasonNumber, weekNumber: session.currentWeek, game: session.game });

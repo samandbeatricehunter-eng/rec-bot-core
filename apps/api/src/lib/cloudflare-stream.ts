@@ -5,7 +5,7 @@ import { ApiError } from "./errors.js";
 const STREAM_API = "https://api.cloudflare.com/client/v4";
 /** Highlights are short clips; reject uploads longer than 45 seconds. */
 export const HIGHLIGHT_MAX_DURATION_SECONDS = 45;
-export const HIGHLIGHT_MAX_HEIGHT = 720;
+export const HIGHLIGHT_MAX_HEIGHT = 1080;
 
 function requireStreamConfig() {
   const accountId = env.CLOUDFLARE_ACCOUNT_ID?.trim();
@@ -144,6 +144,41 @@ export async function deleteStreamVideo(uid: string): Promise<void> {
   const payload = await response.json().catch(() => null) as { errors?: Array<{ message?: string }> } | null;
   const detail = payload?.errors?.[0]?.message ?? `HTTP ${response.status}`;
   throw new Error(`Stream delete failed for ${uid}: ${detail}`);
+}
+
+export async function inspectStreamVideo(uid: string): Promise<{
+  exists: boolean;
+  ready: boolean;
+  height: number | null;
+}> {
+  if (!uid.trim()) return { exists: false, ready: false, height: null };
+  const { accountId, apiToken } = requireStreamConfig();
+  const response = await fetch(
+    `${STREAM_API}/accounts/${accountId}/stream/${encodeURIComponent(uid)}`,
+    { headers: streamHeaders(apiToken), signal: AbortSignal.timeout(20_000) },
+  );
+  if (response.status === 404) return { exists: false, ready: false, height: null };
+  const payload = await response.json().catch(() => null) as {
+    success?: boolean;
+    result?: {
+      readyToStream?: boolean;
+      status?: { state?: string };
+      input?: { height?: number };
+    };
+  } | null;
+  if (!response.ok || !payload?.success || !payload.result) {
+    throw new Error(`Stream inspect failed for ${uid} (HTTP ${response.status}).`);
+  }
+  return {
+    exists: true,
+    ready:
+      payload.result.readyToStream === true ||
+      payload.result.status?.state === "ready",
+    height:
+      Number.isFinite(Number(payload.result.input?.height))
+        ? Number(payload.result.input?.height)
+        : null,
+  };
 }
 
 export function verifyStreamWebhookSignature(rawBody: string, signatureHeader: string | undefined): boolean {

@@ -466,6 +466,8 @@ export type HubMatchupSchedule = {
     awayTeamId: string | null;
     homeTeamName: string;
     awayTeamName: string;
+    homeTeamMascot: string;
+    awayTeamMascot: string;
     homeTeamColor: string;
     awayTeamColor: string;
     rivalryName: string | null;

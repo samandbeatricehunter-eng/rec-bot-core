@@ -114,7 +114,6 @@ function gcPageMain(m: any) {
     ["Turnover +/-", gcNum(away.stats, (s) => s.turnoverDifferential, true), gcNum(home.stats, (s) => s.turnoverDifferential, true)],
   ]);
   const rules = gameRulesLines(m.draft ?? null, m.isPlayoff);
-  const boxScores = gcChannelMention(m.routes?.boxScoresChannelId, "the box scores channel");
   return new EmbedBuilder().setTitle("Game of the Week Matchup").setDescription([
     `**${gcRankLabel(away)} ${away.teamName} (${away.record.text})**`,
     "**vs**",
@@ -124,17 +123,16 @@ function gcPageMain(m: any) {
     table,
     ...rules,
     "",
-    `After the game, post your box score screenshot in ${boxScores} — see the **Posting & Payouts** page for details.`,
+    "After the game, submit your box score and player stats from the REC site or app.",
   ].join("\n").slice(0, 4096));
 }
 
 function gcPagePosting(m: any) {
-  const boxScores = gcChannelMention(m.routes?.boxScoresChannelId, "the box scores channel");
   const streams = gcChannelMention(m.routes?.streamsChannelId, "the streams channel");
   const highlights = gcChannelMention(m.routes?.highlightsChannelId, "the highlights channel");
   return new EmbedBuilder().setTitle("Posting & Payouts").setDescription([
     "__Box Score__",
-    `After the game, post your box score screenshot in ${boxScores} — **not** in this channel.`,
+    "After the game, submit your box score and player stats from the REC site or app.",
     "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts.",
     "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
     "",

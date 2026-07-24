@@ -17,7 +17,6 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
   const league = cfg.league ?? {};
   const routes = cfg.routes ?? {};
   const settings = cfg.configuration ?? cfg.config ?? {};
-  const weeklyId = routes.weekly_submissions_channel_id ?? routes.box_scores_channel_id;
   const cfb = league.game === "cfb_27";
   const economy = settings.coin_economy_enabled !== false;
   const media = settings.media_features_enabled !== false;
@@ -28,8 +27,8 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
       "Run **/app** for a personal link. Links expire and must not be shared. Unlinked users can view open teams and submit a request; commissioners approve and link accepted users.",
       "The Hub includes Campus Buzz, headlines, articles, highlights, matchups, streams, rankings, schedules, My Team, wagers, and authorized League Management tools.",
     ].join("\n\n")),
-    base(2, "Weekly Submissions").setDescription([
-      `Use ${mention(weeklyId, "Weekly Submissions channel not assigned")} each playable week. The channel is reset on advance; use its permanent **Box Scores**, **Player Stats**, and **Recruiting Commits** buttons. Captured messages are deleted to keep the panel clear.`,
+    base(2, "Site & App Submissions").setDescription([
+      "**Box Scores**, **Player Stats**, and **Recruiting Commits** are submitted from the REC site/app. Discord channel assignment is not required.",
       "**Box Scores:** two console screenshots, current week only. One shared H2H submission is enough and commissioner review is required. Unreadable, incomplete, wrong-screen, wrong-week, or phone-camera images may be denied.",
       cfb ? "For CFB: **CFB Tab > Team Schedule > Box Score**, then press **X on PS5**. Do **not** use the immediate postgame box-score window." : "For Madden: capture two in-game box-score screenshots from the screens available when the game ends.",
       "**Player Stats:** optional story detail; a pending or approved box score must already exist for the game, including one submitted by the opponent. Add one or more categories per player.",
@@ -52,7 +51,7 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
     base(6, "Open Teams & Troubleshooting").setDescription([
       "**No team?** Run /openteams, choose Request Team, and wait for commissioner approval. **Expired app link?** Run /app again.",
       "**Can't submit player stats?** A current scheduled game and its pending/approved box score are required. If your opponent submitted it, you may still submit stats for your team.",
-      "**Bot deleted my message?** Captured submissions are intentionally removed. **Only one highlight paid?** At most two accepted highlights pay per user per week and duplicates do not create extra payouts.",
+      "**Only one highlight paid?** At most two accepted highlights pay per user per week and duplicates do not create extra payouts.",
       "**Can't purchase?** Economy/product availability, season, balance, or caps may prevent it. **Can't access League Management?** Commissioner permissions are required.",
       `League announcements: ${mention(routes.announcements_channel_id, "not assigned")}. Rules and help should be taken from configured league channels; no separate help channel is currently assigned unless commissioners announce one.`,
     ].join("\n\n")),

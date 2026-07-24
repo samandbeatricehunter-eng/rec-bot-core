@@ -200,28 +200,29 @@ export function AdvanceHome() {
       return [{ gameId: g.gameId, outcome, homeScore: Number(entry.homeScore), awayScore: Number(entry.awayScore) }];
     });
     try {
+      const nextAdvance = completeAdvanceTimeDraft()
+        ? (() => {
+            const [year, month, day] = advanceDate.date.split("-").map(Number);
+            return {
+              year,
+              month,
+              day,
+              hour: toTwentyFourHour(advanceDate.hour, advanceDate.meridiem),
+              minute: Number(advanceDate.minute),
+              tzLabel: advanceDate.tzLabel,
+            };
+          })()
+        : null;
       const result = await recApi.completeAdvanceWeek({
         guildId,
         nextWeekNumber: data.nextWeekNumber,
         nextSeasonStage: data.nextSeasonStage,
         results,
+        nextAdvance,
       });
       const relay = result.discord;
-      if (completeAdvanceTimeDraft()) {
-        const [year, month, day] = advanceDate.date.split("-").map(Number);
-        const hour = toTwentyFourHour(advanceDate.hour, advanceDate.meridiem);
-        const minute = Number(advanceDate.minute);
-        await recApi.setNextAdvanceTime({
-          guildId,
-          year,
-          month,
-          day,
-          hour,
-          minute,
-          tzLabel: advanceDate.tzLabel,
-        });
-      }
-      setNotice(`Advanced to ${data.nextLabel}. GOTW settled, EOS payouts checked, and the Weekly Submissions panel refreshed.${relay ? ` Discord announcement ${relay.announcementPosted ? "posted" : "not posted"}${relay.error ? ` (${relay.error})` : ""}.` : ""}`);
+      const channels = result.gameChannels;
+      setNotice(`Advanced to ${data.nextLabel}. Next advance: ${result.nextAdvanceLabel}. League inbox notifications sent; ${channels?.created.length ?? 0} Discord game channel${channels?.created.length === 1 ? "" : "s"} created.${channels?.error ? ` (${channels.error})` : ""}${relay ? ` Discord announcement ${relay.announcementPosted ? "posted" : "not posted"}${relay.error ? ` (${relay.error})` : ""}.` : ""}`);
       setEntries({});
       setShowAdvanceModal(false);
       setAdvanceDate(blankAdvanceDate());

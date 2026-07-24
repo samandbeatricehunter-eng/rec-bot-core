@@ -1070,15 +1070,6 @@ export function HubHome() {
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · <CoinAmount amount={wager.stake} /> · {wager.challengeType}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.isMine && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
     </section> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
-        <div className="hub-buzz-toggle">
-          <button type="button" className={buzzView === "buzz" ? "active" : ""} onClick={() => selectBuzzView("buzz")}>Campus Buzz</button>
-          <button type="button" className={buzzView === "chat" ? "active" : ""} onClick={() => selectBuzzView("chat")}>Chat</button>
-        </div>
-        {buzzView === "chat" ? (
-          auth.status === "ready" ? (
-            <LeagueChatPanel guildId={auth.guildId} discordId={auth.discordId} seasonNumber={hub.league.seasonNumber} initialGameChannelId={searchParams.get("gameChannel")} />
-          ) : null
-        ) : <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">
             <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p><p className="hub-hero-coach">{coachName}</p></div>
@@ -1153,6 +1144,15 @@ export function HubHome() {
         <LiveGamesCard liveStreams={hub.liveStreams} />
 
         <EosAwardVotingBlock />
+        <div className="hub-buzz-toggle">
+          <button type="button" className={buzzView === "buzz" ? "active" : ""} onClick={() => selectBuzzView("buzz")}>Campus Buzz</button>
+          <button type="button" className={buzzView === "chat" ? "active" : ""} onClick={() => selectBuzzView("chat")}>Chat</button>
+        </div>
+        {buzzView === "chat" ? (
+          auth.status === "ready" ? (
+            <LeagueChatPanel guildId={auth.guildId} discordId={auth.discordId} seasonNumber={hub.league.seasonNumber} initialGameChannelId={searchParams.get("gameChannel")} />
+          ) : null
+        ) : <>
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {headlines.length ? (
             isMobile ? (
@@ -1256,8 +1256,8 @@ export function HubHome() {
                     onClick={() => void voteGotw(matchupSchedule.gotw!.awayTeamId)}
                     aria-label="Vote away"
                   >
-                    <span>Away</span>
-                    <b>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.awayTeamName ?? "Away"}</b>
+                    <span>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.awayTeamName ?? "Away"}</span>
+                    <b>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.awayTeamMascot ?? "Away"}</b>
                     <small>{matchupSchedule.gotw.awayVotes} vote{matchupSchedule.gotw.awayVotes === 1 ? "" : "s"}</small>
                   </button>
                   <div className="hub-gotw-center"><span>VS</span></div>
@@ -1268,8 +1268,8 @@ export function HubHome() {
                     onClick={() => void voteGotw(matchupSchedule.gotw!.homeTeamId)}
                     aria-label="Vote home"
                   >
-                    <span>Home</span>
-                    <b>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.homeTeamName ?? "Home"}</b>
+                    <span>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.homeTeamName ?? "Home"}</span>
+                    <b>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.homeTeamMascot ?? "Home"}</b>
                     <small>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</small>
                   </button>
                 </div>
@@ -1351,9 +1351,9 @@ export function HubHome() {
                   <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + ((game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : "")}>
                     <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
                     <div className="hub-matchup-board">
-                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>Away</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamName) } as CSSProperties}>{game.awayTeamName}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>Away</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamName) } as CSSProperties}>{game.awayTeamName}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
+                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>{game.awayTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>{game.awayTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
                       <div className="hub-score-center"><span aria-hidden="true" />{game.isFinal && game.awayScore != null && game.homeScore != null ? <strong>{`${game.awayScore}–${game.homeScore}`}</strong> : null}</div>
-                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote home${schedule.gotw.myVote === schedule.gotw.homeTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.homeTeamId)} aria-label={`Vote for ${game.homeTeamName}`}><span>Home</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamName) } as CSSProperties}>{game.homeTeamName}</b><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small><em>{game.homeConference ?? "Home team"}</em></button> : <div className="hub-team-side"><span>Home</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamName) } as CSSProperties}>{game.homeTeamName}</div><small>{game.homeConference ?? "Home team"}</small></div>}
+                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote home${schedule.gotw.myVote === schedule.gotw.homeTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.homeTeamId)} aria-label={`Vote for ${game.homeTeamName}`}><span>{game.homeTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</b><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small><em>{game.homeConference ?? "Home team"}</em></button> : <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>}
                     </div>
                     <div className="hub-matchup-rails">
                       {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
@@ -1540,4 +1540,3 @@ export function HubHome() {
     </div></Modal>}
   </div>;
 }
-

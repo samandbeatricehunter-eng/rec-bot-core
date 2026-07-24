@@ -723,7 +723,7 @@ h1, h2, h3, .site-wordmark {
   padding: 0 5px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--btn-primary-text, #080a0c);
   font-size: 10px;
   font-weight: 800;
   line-height: 18px;

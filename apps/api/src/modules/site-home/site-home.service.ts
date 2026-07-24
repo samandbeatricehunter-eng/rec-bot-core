@@ -1,14 +1,18 @@
 import { GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { randomUUID } from "node:crypto";
 import { ApiError } from "../../lib/errors.js";
-import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
+import { inspectStreamVideo, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { letterGradeForRating } from "../league-week/ratings.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
+import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 
 const SPOTLIGHT_LIKE_COINS = 25;
 const POSITIVE_REACTION_KEYS = ["like", "love"] as const;
+const DEAD_HIGHLIGHT_PENDING_MAX_MS = 24 * 60 * 60 * 1000;
+let lastHighlightPruneDay = "";
+let highlightPrunePromise: Promise<{ removed: string[] }> | null = null;
 
 function recordText(row: { wins?: number | null; losses?: number | null; ties?: number | null } | null | undefined) {
   const wins = Number(row?.wins ?? 0);
@@ -160,6 +164,7 @@ export async function listSiteAnnouncements() {
 }
 
 export async function refreshSpotlightReel() {
+  await pruneDeadHighlightsOnceDaily();
   // Positive reaction score from league highlight reactions across active leagues
   // (leagues that currently have at least one active team assignment).
   const activeLeagueIdsResult = await supabase
@@ -238,14 +243,86 @@ export async function refreshSpotlightReel() {
   };
 }
 
+async function urlIsPlayable(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(12_000),
+    });
+    return response.ok || response.status === 206;
+  } catch {
+    return false;
+  }
+}
+
+export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[] }> {
+  const day = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  if (lastHighlightPruneDay === day) return { removed: [] };
+  if (highlightPrunePromise) return highlightPrunePromise;
+
+  highlightPrunePromise = (async () => {
+    const rows = await supabase
+      .from("rec_highlight_posts")
+      .select("id,cloudflare_stream_uid,storage_provider,playback_url,media_status,content,created_at")
+      .eq("hub_visible", true);
+    if (rows.error) throw new ApiError(500, "Failed to load highlights for cleanup.", rows.error);
+
+    const deadIds: string[] = [];
+    for (const row of rows.data ?? []) {
+      const uid = String(row.cloudflare_stream_uid ?? "").trim();
+      if (uid) {
+        try {
+          const inspected = await inspectStreamVideo(uid);
+          if (!inspected.exists) deadIds.push(String(row.id));
+          else if (
+            !inspected.ready &&
+            Date.now() - new Date(String(row.created_at)).getTime() > DEAD_HIGHLIGHT_PENDING_MAX_MS
+          ) deadIds.push(String(row.id));
+        } catch {
+          // A transient Cloudflare API failure must never delete a valid clip.
+        }
+        continue;
+      }
+      const playback = playbackFor(row);
+      if (!playback.videoUrl || !(await urlIsPlayable(playback.videoUrl))) {
+        deadIds.push(String(row.id));
+      }
+    }
+
+    if (deadIds.length) {
+      const removed = await supabase.from("rec_highlight_posts").delete().in("id", deadIds);
+      if (removed.error) throw new ApiError(500, "Failed to prune dead highlights.", removed.error);
+    }
+    lastHighlightPruneDay = day;
+    return { removed: deadIds };
+  })().finally(() => {
+    highlightPrunePromise = null;
+  });
+  return highlightPrunePromise;
+}
+
 export async function getSpotlightReel(input: { authUserId: string | null }) {
+  await pruneDeadHighlightsOnceDaily();
   let reel = await supabase
     .from("rec_spotlight_reel")
     .select("id,highlight_post_id,rank,like_count,selected_at")
     .order("rank", { ascending: true });
   if (reel.error) throw new ApiError(500, "Failed to load spotlight reel.", reel.error);
 
-  if (!(reel.data ?? []).length) {
+  const selectedAt = (reel.data ?? [])[0]?.selected_at
+    ? new Date(String((reel.data ?? [])[0]?.selected_at))
+    : null;
+  const selectedDay = selectedAt
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(selectedAt)
+    : null;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(new Date());
+  if ((reel.data ?? []).length < 5 || selectedDay !== today) {
     await refreshSpotlightReel();
     reel = await supabase
       .from("rec_spotlight_reel")
@@ -262,7 +339,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
   const posts = await supabase
     .from("rec_highlight_posts")
     .select(
-      "id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,cloudflare_stream_uid,storage_provider,media_status,playback_url,created_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation),league:rec_leagues(name,game)",
+      "id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,cloudflare_stream_uid,storage_provider,media_status,playback_url,created_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated),league:rec_leagues(name,game)",
     )
     .in("id", highlightIds);
   if (posts.error) throw new ApiError(500, "Failed to load spotlight highlights.", posts.error);
@@ -281,7 +358,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
       .limit(200),
     supabase
       .from("rec_games")
-      .select("league_id,week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name),away_team:rec_teams!rec_games_away_team_id_fkey(name)")
+      .select("league_id,week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
       .in("league_id", [...new Set((posts.data ?? []).map((post: any) => String(post.league_id)))])
       .order("week_number", { ascending: false }),
   ]);
@@ -302,10 +379,15 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
   }
 
   const postById = new Map<string, any>((posts.data ?? []).map((row: any) => [String(row.id), row]));
+  const gameByLeagueId = new Map<string, string>((posts.data ?? []).map((post: any) => [String(post.league_id), String(post.league?.game ?? "")]));
+  const reelTeamName = (leagueId: string, team: any, fallback: string) =>
+    gameByLeagueId.get(leagueId) === "cfb_27"
+      ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback
+      : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   const matchupByTeamWeek = new Map<string, string>();
   for (const game of games.data ?? []) {
-    const awayName = (game as any).away_team?.name ?? "Away";
-    const homeName = (game as any).home_team?.name ?? "Home";
+    const awayName = reelTeamName(String(game.league_id), (game as any).away_team, "Away");
+    const homeName = reelTeamName(String(game.league_id), (game as any).home_team, "Home");
     const label = `${awayName} VS ${homeName}`;
     if (game.away_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.away_team_id}`, label);
     if (game.home_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.home_team_id}`, label);

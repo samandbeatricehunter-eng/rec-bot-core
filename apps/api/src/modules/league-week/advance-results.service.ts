@@ -11,7 +11,7 @@ import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.serv
 import { setLeagueWeek } from "./league-week.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
-import { formatTeamDisplayName, resolveTeamNick } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
@@ -69,6 +69,7 @@ async function publishLeagueAdvanceAnnouncement(input: {
   weekNumber: number;
   seasonStage: string;
   game: string;
+  nextAdvanceLabel: string;
 }) {
   const label = stageLabel(input.seasonStage, input.weekNumber, input.game);
   const title =
@@ -88,14 +89,14 @@ async function publishLeagueAdvanceAnnouncement(input: {
     .order("created_at", { ascending: true });
 
   const lines = (games.data ?? []).map((game: any) => {
-    const away = resolveTeamNick(game.away_team);
-    const home = resolveTeamNick(game.home_team);
+    const away = input.game === "cfb_27" ? resolveTeamSchool(game.away_team) ?? formatTeamDisplayName(game.away_team) : formatTeamDisplayName(game.away_team);
+    const home = input.game === "cfb_27" ? resolveTeamSchool(game.home_team) ?? formatTeamDisplayName(game.home_team) : formatTeamDisplayName(game.home_team);
     return `${away} at ${home}`;
   });
 
   const body = lines.length
-    ? `H2H matchups this week:\n${lines.map((line) => `• ${line}`).join("\n")}`
-    : `${label} is live. Check Matchups for this week's slate.`;
+    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H matchups this week:\n${lines.map((line) => `• ${line}`).join("\n")}`
+    : `Next advance: ${input.nextAdvanceLabel}\n\n${label} is live. Check Matchups for this week's slate.`;
 
   await recordHubAnnouncement({
     guildId: input.guildId,
@@ -103,8 +104,6 @@ async function publishLeagueAdvanceAnnouncement(input: {
     body,
   });
 }
-import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
-import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
 
 const WEEKLY_SUBMISSIONS_PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
 
@@ -352,11 +351,16 @@ export async function completeAdvanceJump(input: {
   advancedByDiscordId: string;
   results: AdvanceGameResultInput[];
 }) {
-  const steps: Array<{ fromLabel: string; toLabel: string }> = [];
+  const steps: Array<{ fromLabel: string; toLabel: string; nextAdvanceLabel: string }> = [];
   for (let i = 0; i < MAX_ADVANCE_JUMP_STEPS; i++) {
     const weekGames = await getAdvanceWeekGames(input.guildId);
     if (weekGames.currentWeek === input.targetWeekNumber && weekGames.currentStage === input.targetSeasonStage) {
-      return { landedLabel: stageLabel(weekGames.currentStage, weekGames.currentWeek, weekGames.league.game), steps: steps.length, stepLog: steps };
+      return {
+        landedLabel: stageLabel(weekGames.currentStage, weekGames.currentWeek, weekGames.league.game),
+        steps: steps.length,
+        stepLog: steps,
+        nextAdvanceLabel: steps.at(-1)?.nextAdvanceLabel ?? "24hr",
+      };
     }
     const fromLabel = stageLabel(weekGames.currentStage, weekGames.currentWeek, weekGames.league.game);
     const stepResults = input.results.filter((r) => weekGames.gamesNeedingInput.some((g) => g.gameId === r.gameId));
@@ -367,7 +371,7 @@ export async function completeAdvanceJump(input: {
       advancedByDiscordId: input.advancedByDiscordId,
       results: stepResults,
     });
-    steps.push({ fromLabel, toLabel: outcome.nextLabel });
+    steps.push({ fromLabel, toLabel: outcome.nextLabel, nextAdvanceLabel: outcome.nextAdvanceLabel });
   }
   throw new ApiError(400, "Advance jump did not reach the requested target within the step limit — check for a schedule gap and advance manually.");
 }
@@ -469,6 +473,14 @@ export async function completeAdvanceWeek(input: {
   nextSeasonStage: string;
   advancedByDiscordId: string;
   results: AdvanceGameResultInput[];
+  nextAdvance?: {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    tzLabel: string;
+  } | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   await assertLeagueNotFrozen(context.leagueId);
@@ -543,16 +555,6 @@ export async function completeAdvanceWeek(input: {
     seasonNumber,
   });
 
-  await publishLeagueAdvanceAnnouncement({
-    guildId: input.guildId,
-    leagueId: context.leagueId,
-    seasonNumber,
-    weekNumber: nextTarget.weekNumber,
-    seasonStage: nextTarget.seasonStage,
-    game: context.rec_leagues.game,
-  }).catch((err) => {
-    console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
-  });
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,
@@ -591,18 +593,7 @@ export async function completeAdvanceWeek(input: {
     await autoPrepareEosAwards(input.guildId).catch((err) => console.error("[ERROR] autoPrepareEosAwards failed after advance (non-fatal):", err));
   }
 
-  // Refresh the Weekly Submissions panel for the new week (same channel the bot used to
-  // reset at the end of its wizard) — purges last week's submissions/chatter and posts a
-  // fresh panel pointed at the new week.
-  await republishWeeklySubmissionsPanel({
-    guildId: input.guildId,
-    routes: context.routes,
-    seasonNumber,
-    seasonStage: nextTarget.seasonStage,
-    weekNumber: nextTarget.weekNumber,
-  }).catch((err) => console.error("[ERROR] republishWeeklySubmissionsPanel failed after advance (non-fatal):", err));
-
-  // Five independent, non-fatal cleanup/rebuild steps — none feed data into another,
+  // Independent, non-fatal cleanup/rebuild steps — none feed data into another,
   // so run them in parallel instead of one after another.
   await Promise.all([
     // The previously-scheduled advance just happened, so clear it. A fresh time is
@@ -630,6 +621,33 @@ export async function completeAdvanceWeek(input: {
       console.error("[ERROR] snapshotPowerRankings failed after advance (non-fatal):", err);
     }),
   ]);
+
+  const timingConfig = await supabase
+    .from("rec_league_configuration")
+    .select("advance_timing,advance_timing_other")
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  const fallbackTiming = String(
+    timingConfig.data?.advance_timing === "other"
+      ? timingConfig.data?.advance_timing_other || "Custom schedule"
+      : timingConfig.data?.advance_timing || "24hr",
+  );
+  let nextAdvanceLabel = fallbackTiming;
+  if (input.nextAdvance) {
+    await setNextAdvanceTime({ guildId: input.guildId, ...input.nextAdvance });
+    nextAdvanceLabel = `${input.nextAdvance.year}-${String(input.nextAdvance.month).padStart(2, "0")}-${String(input.nextAdvance.day).padStart(2, "0")} ${String(input.nextAdvance.hour).padStart(2, "0")}:${String(input.nextAdvance.minute).padStart(2, "0")} ${input.nextAdvance.tzLabel}`;
+  }
+  await publishLeagueAdvanceAnnouncement({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: nextTarget.weekNumber,
+    seasonStage: nextTarget.seasonStage,
+    game: context.rec_leagues.game,
+    nextAdvanceLabel,
+  }).catch((err) => {
+    console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
+  });
 
   // When the regular season ends (next stage is a playoff stage), issue the
   // season-total badges (Winning Season, Ball Control Season, etc.) for every
@@ -725,7 +743,7 @@ export async function completeAdvanceWeek(input: {
     return { refundedCount: 0, refundedMessages: [] as any[] };
   });
 
-  return { ...advanceResult, nextWeekNumber: nextTarget.weekNumber, nextSeasonStage: nextTarget.seasonStage, nextLabel: stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game), wagerCleanup };
+  return { ...advanceResult, nextWeekNumber: nextTarget.weekNumber, nextSeasonStage: nextTarget.seasonStage, nextLabel: stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game), nextAdvanceLabel, wagerCleanup };
 }
 
 export async function getDivisionWinnerOptions(guildId: string) {

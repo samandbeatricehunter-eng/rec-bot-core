@@ -166,8 +166,8 @@ export function LeagueMatchupsPage() {
     if (succeeded > 0) {
       setNotice(
         succeeded === 1
-          ? "Uploaded — encoding to 720p. Commissioner approval publishes it and issues payout when a paid slot is available."
-          : `${succeeded} clips uploaded — encoding to 720p. Approve in commissioner inbox publishes + pays (when slots remain).`,
+          ? "Uploaded — encoding at up to 1080p. Commissioner approval publishes it and issues payout when a paid slot is available."
+          : `${succeeded} clips uploaded — encoding at up to 1080p. Approve in commissioner inbox publishes + pays (when slots remain).`,
       );
     } else {
       setNotice(null);
