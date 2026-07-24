@@ -1,0 +1,51 @@
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { ApiError, sendError } from "../../lib/errors.js";
+import { heartbeat, listLeagueChatMessages, listLeagueMembersForChat, postLeagueChatMessage } from "./league-chat.service.js";
+
+// League-wide chat — open to every league member (permission: "member"), unlike the
+// co_commissioner-gated commissioner chat this mirrors in shape.
+export async function leagueChatRoutes(app: FastifyInstance) {
+  app.post("/v1/league-chat/messages/list", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), sinceIso: z.string().datetime().optional().nullable() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await listLeagueChatMessages(body.guildId, body.sinceIso));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-chat/messages/post", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), body: z.string().min(1).max(2000) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "League chat requires a user session."));
+      return reply.send(await postLeagueChatMessage({ guildId: body.guildId, discordId: auth.discordId, body: body.body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-chat/members/list", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      return reply.send(await listLeagueMembersForChat(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-chat/heartbeat", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      if (auth.mode !== "user") return reply.send({ ok: true });
+      return reply.send(await heartbeat({ guildId, discordId: auth.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+}

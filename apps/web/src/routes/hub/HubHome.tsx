@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
+import { LeagueChatPanel } from "../../components/hub/LeagueChatPanel.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
@@ -274,6 +275,14 @@ export function HubHome() {
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
   const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
   const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "buzz");
+  const [buzzView, setBuzzView] = useState<"buzz" | "chat">(() => (searchParams.get("buzzView") === "chat" ? "chat" : "buzz"));
+  function selectBuzzView(view: "buzz" | "chat") {
+    setBuzzView(view);
+    const next = new URLSearchParams(searchParams);
+    if (view === "chat") next.set("buzzView", "chat");
+    else next.delete("buzzView");
+    setSearchParams(next, { replace: true });
+  }
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
   const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
@@ -1070,6 +1079,15 @@ export function HubHome() {
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · <CoinAmount amount={wager.stake} /> · {wager.challengeType}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.isMine && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
     </section> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
+        <div className="hub-buzz-toggle">
+          <button type="button" className={buzzView === "buzz" ? "active" : ""} onClick={() => selectBuzzView("buzz")}>Campus Buzz</button>
+          <button type="button" className={buzzView === "chat" ? "active" : ""} onClick={() => selectBuzzView("chat")}>Chat</button>
+        </div>
+        {buzzView === "chat" ? (
+          auth.status === "ready" ? (
+            <LeagueChatPanel guildId={auth.guildId} discordId={auth.discordId} initialGameChannelId={searchParams.get("gameChannel")} />
+          ) : null
+        ) : <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">
             <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p><p className="hub-hero-coach">{coachName}</p></div>
@@ -1210,6 +1228,7 @@ export function HubHome() {
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
         </SectionFrame>
+        </>}
       </>}
 
       {subTab === "matchups" && (

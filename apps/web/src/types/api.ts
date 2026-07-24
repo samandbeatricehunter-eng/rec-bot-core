@@ -399,6 +399,38 @@ export type ChatTopic = {
   totalVotes: number;
   voters: { voterDiscordId: string; optionIndex: number }[];
 };
+// League Chat + Game Chat (Campus Buzz "Chat" tab)
+export type LeagueChatMessage = {
+  id: string;
+  author_user_id: string | null;
+  author_discord_id: string | null;
+  author_display_name: string;
+  is_discord_only: boolean;
+  body: string;
+  created_at: string;
+};
+export type LeagueChatMember = {
+  userId: string;
+  discordId: string | null;
+  username: string | null;
+  displayName: string;
+  isRegistered: boolean;
+  isDiscordOnly: boolean;
+  online: boolean;
+  lastSeenAt: string | null;
+};
+export type GameChatChannel = { gameChannelId: string; gameId: string | null; label: string; awayTeamName: string; homeTeamName: string };
+export type GameChatMessage = {
+  id: string;
+  author_user_id: string | null;
+  author_discord_id: string | null;
+  author_display_name: string;
+  is_discord_only: boolean;
+  source: "site" | "discord" | "system";
+  body: string;
+  created_at: string;
+};
+
 export type WeeklyH2hGame = {
   gameId: string;
   homeTeamName: string;

@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { applyAdvanceSavingsInterest } from "./advance-interest.service.js";
 import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service.js";
+import { wipeLeagueChatForSeasonRollover } from "../league-chat/league-chat.service.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -47,6 +48,9 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   if (input.seasonNumber && input.seasonNumber !== previousSeasonNumber) {
     await wipeCpuTeamSeasonStats(context.leagueId, previousSeasonNumber).catch((error) => {
       console.error("[ERROR] Failed to wipe CPU team season stats on rollover:", error);
+    });
+    await wipeLeagueChatForSeasonRollover(context.leagueId).catch((error) => {
+      console.error("[ERROR] Failed to wipe league chat on season rollover:", error);
     });
   }
 

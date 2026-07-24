@@ -33,6 +33,8 @@ export const recApi = {
     }),
   recordHubAnnouncement: (input: { guildId: string; title: string; body: string; discordChannelId?: string | null; discordMessageId?: string | null }) =>
     recFetch<{ recorded: boolean }>("/v1/hub/announcements/record", { method: "POST", body: JSON.stringify(input) }),
+  ingestGameChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string }) =>
+    recFetch<{ ingested: boolean }>("/v1/game-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
   getWallet: (discordId: string, guildId?: string) => recFetch<any>(`/v1/users/${discordId}/wallet${guildId ? `?guildId=${guildId}` : ""}`),
   transferSavings: (discordId: string, amount: number, direction: "to_savings" | "from_savings") =>
     recFetch<any>(`/v1/users/${discordId}/wallet/transfer`, { method: "POST", body: JSON.stringify({ amount, direction }) }),

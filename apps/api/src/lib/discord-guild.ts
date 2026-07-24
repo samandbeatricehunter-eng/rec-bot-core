@@ -188,14 +188,15 @@ export async function sendDiscordAdvanceAnnouncement(channelId: string, destinat
 }
 
 // Generic message post (embeds/components/content) — the REST equivalent of a discord.js
-// TextChannel#send(), used by server-driven flows (advance completion) that need to post to
-// a channel without a live bot gateway client. Returns the created message id.
+// TextChannel#send(), used by server-driven flows (advance completion, game/league chat
+// forwarding) that need to post to a channel without a live bot gateway client. Returns the
+// created message id. Chat-driven traffic is frequent enough to draw 429s that the old
+// low-volume embed posts never did, so this goes through the same retry/backoff as the guild
+// role lookups below.
 export async function postDiscordChannelMessage(channelId: string, payload: Record<string, unknown>): Promise<{ id: string } | null> {
-  const sent = await discordBotFetch(`/channels/${channelId}/messages`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  const path = `/channels/${channelId}/messages`;
+  const init: RequestInit = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
+  const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
   if (!sent.ok) return null;
   return (await sent.json()) as { id: string };
 }
@@ -225,15 +226,16 @@ function staleCacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T |
 // A single retry wasn't enough — a burst of concurrent hub loads across guilds (e.g. right
 // after a deploy, with every in-memory cache cold) could draw two 429s in a row from
 // Discord and still surface as a hard 503. Retries up to 3 times, honoring Discord's
-// requested backoff each time, before giving up.
-async function retryAfterRateLimit(path: string, response: Response, attempt = 1): Promise<Response> {
+// requested backoff each time, before giving up. `init` is re-sent as-is on retry (needed for
+// POSTs like postDiscordChannelMessage; GET callers below omit it).
+async function retryAfterRateLimit(path: string, response: Response, init?: RequestInit, attempt = 1): Promise<Response> {
   if (response.status !== 429 || attempt > 3) return response;
   const payload = await response.clone().json().catch(() => ({})) as { retry_after?: number };
   const headerSeconds = Number(response.headers.get("retry-after") ?? 0);
   const delayMs = Math.min(5_000, Math.max(100, Math.ceil(Number(payload.retry_after ?? headerSeconds ?? 1) * 1000)));
   await new Promise((resolve) => setTimeout(resolve, delayMs));
-  const retried = await discordBotFetch(path);
-  return retryAfterRateLimit(path, retried, attempt + 1);
+  const retried = await discordBotFetch(path, init);
+  return retryAfterRateLimit(path, retried, init, attempt + 1);
 }
 
 export async function getDiscordReactionUserIds(channelId: string, messageId: string, emojiId: string): Promise<string[]> {

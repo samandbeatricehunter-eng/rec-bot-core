@@ -4,6 +4,8 @@ import { adminEconomyRoutes } from "./modules/admin-economy/admin-economy.routes
 import { activeCheckRoutes } from "./modules/active-checks/active-checks.routes.js";
 import { boxScoreRoutes } from "./modules/box-score/box-score.routes.js";
 import { commissionerChatRoutes } from "./modules/commissioner-chat/commissioner-chat.routes.js";
+import { leagueChatRoutes } from "./modules/league-chat/league-chat.routes.js";
+import { gameChatRoutes } from "./modules/game-chat/game-chat.routes.js";
 import { gameChannelRoutes } from "./modules/game-channels/game-channels.routes.js";
 import { highlightRoutes } from "./modules/highlights/highlights.routes.js";
 import { gotwRoutes } from "./modules/gotw/gotw.routes.js";
@@ -56,6 +58,8 @@ export async function registerRoutes(app: FastifyInstance) {
   await streamRoutes(app);
   await boxScoreRoutes(app);
   await commissionerChatRoutes(app);
+  await leagueChatRoutes(app);
+  await gameChatRoutes(app);
   await highlightRoutes(app);
   await mediaRoutes(app);
   await gotwRoutes(app);

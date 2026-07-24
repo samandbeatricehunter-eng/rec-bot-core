@@ -7,6 +7,10 @@ import type {
   BoxScoreSubmissionDetail,
   ChatMessage,
   ChatTopic,
+  GameChatChannel,
+  GameChatMessage,
+  LeagueChatMember,
+  LeagueChatMessage,
   CommissionerNotificationsResponse,
   CompletedCommissionerTransactionsResponse,
   CommitDecision,
@@ -477,6 +481,22 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/close", { method: "POST", body: JSON.stringify(input) }),
   getMentionableCommissioners: (guildId: string) =>
     recApiFetch<MentionableList>(REC_API_ROUTES.commissionerChatMentionable, { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  // League Chat + Game Chat (Campus Buzz "Chat" tab)
+  listLeagueChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>
+    recApiFetch<{ messages: LeagueChatMessage[] }>("/v1/league-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
+  postLeagueChatMessage: (input: { guildId: string; body: string }) =>
+    recApiFetch<{ message: LeagueChatMessage }>("/v1/league-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
+  listLeagueMembersForChat: (guildId: string) =>
+    recApiFetch<{ members: LeagueChatMember[] }>("/v1/league-chat/members/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  sendLeagueChatHeartbeat: (guildId: string) =>
+    recApiFetch<{ ok: true }>("/v1/league-chat/heartbeat", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listGameChatChannels: (guildId: string) =>
+    recApiFetch<{ channels: GameChatChannel[] }>("/v1/game-chat/channels/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listGameChatMessages: (input: { guildId: string; gameChannelId: string }) =>
+    recApiFetch<{ messages: GameChatMessage[] }>("/v1/game-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
+  postGameChatMessage: (input: { guildId: string; gameChannelId: string; body: string }) =>
+    recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
 
   // Home page's weekly H2H panel
   getWeeklyH2hGames: (guildId: string) =>

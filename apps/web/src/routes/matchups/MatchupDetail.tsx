@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { americanFromDecimal, formatCoins } from "@rec/shared";
 import {
   ArrowLeft,
@@ -244,16 +244,16 @@ function MatchupActions({
 
 export function MatchupDetailPage() {
   const { gameId } = useParams<{ gameId: string }>();
+  const location = useLocation();
   const { guildId, discordId } = useReadyAuth();
   const [detail, setDetail] = useState<HubMatchupDetail | null>(null);
   const [preview, setPreview] = useState<MatchupPreviewData | null>(null);
   const [previewWagerOptions, setPreviewWagerOptions] =
     useState<WagerOptionsResponse | null>(null);
   const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
-  const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
   const [voting, setVoting] = useState(false);
+  const [gameChatLink, setGameChatLink] = useState<string | null>(null);
   const [boxScoreUploadGame, setBoxScoreUploadGame] =
     useState<HubMatchupGame | null>(null);
 
@@ -293,6 +293,33 @@ export function MatchupDetailPage() {
     const timer = window.setInterval(() => void load(), 5000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!gameId) return;
+    let active = true;
+    // Game chat is bridged-to-Discord and keyed to a rec_game_channels row (gameChannelId), not
+    // the gameId itself — resolve it via the current week's active channel list. No match means
+    // this matchup's channel hasn't been created (or has already rotated out) this week.
+    recApi
+      .listGameChatChannels(guildId)
+      .then((res) => {
+        if (!active) return;
+        const channel = res.channels.find((item) => item.gameId === gameId);
+        if (!channel) {
+          setGameChatLink(null);
+          return;
+        }
+        const leagueMatch = /^\/l\/([^/]+)\//.exec(location.pathname);
+        const base = leagueMatch ? `/l/${leagueMatch[1]}/buzz` : "/home";
+        setGameChatLink(`${base}?section=league&subTab=buzz&buzzView=chat&gameChannel=${channel.gameChannelId}`);
+      })
+      .catch(() => {
+        if (active) setGameChatLink(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [gameId, guildId, location.pathname]);
 
   useEffect(() => {
     if (!gameId) return;
@@ -344,20 +371,6 @@ export function MatchupDetailPage() {
       active = false;
     };
   }, [guildId]);
-
-  async function send() {
-    if (!gameId || !body.trim()) return;
-    setSending(true);
-    try {
-      await recApi.sendHubMatchupMessage({ guildId, gameId, body });
-      setBody("");
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Failed to send message.");
-    } finally {
-      setSending(false);
-    }
-  }
 
   async function voteGotw(selectedTeamId: string) {
     const gotw = detail?.gotw;
@@ -943,44 +956,19 @@ export function MatchupDetailPage() {
           <h2>
             <MessageCircle size={20} /> Game Chat
           </h2>
-          <div className="matchup-chat-messages">
-            {detail.messages.length ? (
-              detail.messages.map((message) => (
-                <article key={message.id}>
-                  <header>
-                    <strong>{message.author_display_name}</strong>
-                    <time>
-                      {new Date(message.created_at).toLocaleTimeString([], {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </time>
-                  </header>
-                  <p>{message.body}</p>
-                </article>
-              ))
-            ) : (
-              <p>Start the matchup conversation.</p>
-            )}
-          </div>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void send();
-            }}
-          >
-            <textarea
-              className="form-input"
-              value={body}
-              maxLength={1000}
-              rows={3}
-              onChange={(event) => setBody(event.target.value)}
-              placeholder="Message this matchup…"
-            />
-            <Button variant="primary" disabled={sending || !body.trim()}>
-              <Send size={16} /> Send
-            </Button>
-          </form>
+          {gameChatLink ? (
+            <>
+              <p>
+                This matchup's game chat now lives on Campus Buzz's Chat tab — bridged to the
+                Discord game channel, so messages there and here stay in sync.
+              </p>
+              <Link className="btn btn-primary" to={gameChatLink}>
+                <Send size={16} /> Open in Chat
+              </Link>
+            </>
+          ) : (
+            <p>Chat opens once this week's game channel is created.</p>
+          )}
         </section>
       </div>
 

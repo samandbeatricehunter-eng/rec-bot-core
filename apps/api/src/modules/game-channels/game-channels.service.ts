@@ -78,6 +78,16 @@ export async function markTrackedGameChannelsDeleted(discordChannelIds: string[]
     .in("status", ["active", "archived"])
     .select("id");
   if (result.error) throw new ApiError(500, "Failed to mark game channels deleted.", result.error);
+  const deletedIds = (result.data ?? []).map((row: any) => row.id).filter(Boolean);
+  if (deletedIds.length) {
+    await supabase
+      .from("rec_game_chat_messages")
+      .delete()
+      .in("game_channel_id", deletedIds)
+      .then(({ error }) => {
+        if (error) console.error("[ERROR] Failed to delete game chat messages for retired channels (non-fatal):", error);
+      });
+  }
   return { updated: result.data?.length ?? 0 };
 }
 
@@ -139,7 +149,9 @@ async function discordIdsByUserId(userIds: string[]) {
   return new Map<string, string>((data ?? []).map((row: any) => [String(row.user_id), String(row.discord_id)]));
 }
 
-async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
+// Extracted so the site game chat can seed a "channel opened" system-message card with the
+// exact same content as the Discord embed below, instead of duplicating (or faking) it.
+function buildGameChannelIntroLines(input: { weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
   const awayDiscordId = input.game.awayUserId ? input.discordByUserId.get(input.game.awayUserId) : null;
   const homeDiscordId = input.game.homeUserId ? input.discordByUserId.get(input.game.homeUserId) : null;
   const mentionIds = [awayDiscordId, homeDiscordId].filter(Boolean) as string[];
@@ -148,33 +160,40 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
   const fs = String(input.draft?.fairSimRequirements ?? "Fair Sims are the default when users do not complete a game before advance.");
   const fw = String(input.draft?.forceWinRequirements ?? "Force Wins can be requested when scheduling rules are met and one user misses the agreed time.");
   const gotwRule = input.isGotw ? gotwStreamingText(input.draft, awayDiscordId ? `<@${awayDiscordId}>` : null, homeDiscordId ? `<@${homeDiscordId}>` : null) : null;
+  const lines = [
+    `**Week ${input.weekNumber} H2H${input.isGotw ? " · GAME OF THE WEEK" : ""}**`,
+    mentions.length ? `${mentions.join(" vs ")}, this is your head-to-head game channel.` : "This is the head-to-head game channel for this matchup.",
+    "",
+    "**Power Rankings**",
+    rankLine(input.game.awayTeamName, input.game.awayTeamId, input.ranks),
+    rankLine(input.game.homeTeamName, input.game.homeTeamId, input.ranks),
+    "",
+    "**Game Rules**",
+    `4th Down: ${fourthDownText(input.draft, isPlayoff)}`,
+    `Streaming: ${streamingText(input.draft, isPlayoff)}`,
+    ...(gotwRule ? [`GOTW Streaming: ${gotwRule}`] : []),
+    "",
+    "**FS / FW**",
+    `Fair Sim: ${fs}`,
+    `Force Win: ${fw}`,
+    "",
+    "After the game, submit the box score through the Weekly Submissions panel so stats, payouts, records, and stories can update.",
+  ];
+  return { mentionIds, mentions, lines, title: `${input.game.awayTeamName} at ${input.game.homeTeamName}` };
+}
+
+async function postGameChannelIntro(input: { channelId: string; weekNumber: number; game: any; draft: any; ranks: Map<string, any>; discordByUserId: Map<string, string>; isGotw: boolean }) {
+  const built = buildGameChannelIntroLines(input);
   await postDiscordChannelMessage(input.channelId, {
-    content: mentions.join(" "),
+    content: built.mentions.join(" "),
     embeds: [{
-      title: `${input.game.awayTeamName} at ${input.game.homeTeamName}`,
+      title: built.title,
       color: 0xd9a521,
-      description: [
-        `**Week ${input.weekNumber} H2H${input.isGotw ? " · GAME OF THE WEEK" : ""}**`,
-        mentions.length ? `${mentions.join(" vs ")}, this is your head-to-head game channel.` : "This is the head-to-head game channel for this matchup.",
-        "",
-        "**Power Rankings**",
-        rankLine(input.game.awayTeamName, input.game.awayTeamId, input.ranks),
-        rankLine(input.game.homeTeamName, input.game.homeTeamId, input.ranks),
-        "",
-        "**Game Rules**",
-        `4th Down: ${fourthDownText(input.draft, isPlayoff)}`,
-        `Streaming: ${streamingText(input.draft, isPlayoff)}`,
-        ...(gotwRule ? [`GOTW Streaming: ${gotwRule}`] : []),
-        "",
-        "**FS / FW**",
-        `Fair Sim: ${fs}`,
-        `Force Win: ${fw}`,
-        "",
-        "After the game, submit the box score through the Weekly Submissions panel so stats, payouts, records, and stories can update.",
-      ].join("\n").slice(0, 4096),
+      description: built.lines.join("\n").slice(0, 4096),
     }],
-    allowed_mentions: { users: mentionIds },
+    allowed_mentions: { users: built.mentionIds },
   });
+  return built;
 }
 
 // Commissioner "Create Game Channels" action in League Mgmt — deletes last week's tracked
@@ -211,7 +230,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
   for (const game of h2hGames) {
     const name = `${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
     const channel = await createGuildChannel(guildId, { name, type: "text", parentChannelId: categoryId });
-    await registerGameChannel({
+    const gameChannelRow = await registerGameChannel({
       guildId,
       gameId: game.gameId,
       discordChannelId: channel.id,
@@ -222,7 +241,22 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
       awayUserId: game.awayUserId,
       homeUserId: game.homeUserId,
     });
-    await postGameChannelIntro({ channelId: channel.id, weekNumber: week.currentWeek, game, draft, ranks, discordByUserId: discordByUser, isGotw: gotwGameIds.has(game.gameId) });
+    const intro = await postGameChannelIntro({ channelId: channel.id, weekNumber: week.currentWeek, game, draft, ranks, discordByUserId: discordByUser, isGotw: gotwGameIds.has(game.gameId) });
+    if (gameChannelRow?.id) {
+      await supabase
+        .from("rec_game_chat_messages")
+        .insert({
+          game_channel_id: gameChannelRow.id,
+          league_id: context.leagueId,
+          game_id: game.gameId,
+          author_display_name: "REC Bot",
+          source: "system",
+          body: intro.lines.join("\n").trim().slice(0, 2000),
+        })
+        .then(({ error }) => {
+          if (error) console.error("[ERROR] Failed to seed game chat intro card (non-fatal):", error);
+        });
+    }
     created.push({ gameId: game.gameId, discordChannelId: channel.id, name: channel.name });
   }
 
