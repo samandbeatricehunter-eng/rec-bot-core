@@ -197,6 +197,7 @@ import {
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import { handleGameChannelChatMessage } from "./handlers/game-chat-bridge.js";
 import { handleLeagueChatMessage } from "./handlers/league-chat-bridge.js";
+import { syncManagedRoleFromDiscord } from "./handlers/managed-role-sync.js";
 import {
   BOX_SCORE_CUSTOM_IDS,
   handleBoxScoreApprove,
@@ -959,6 +960,12 @@ client.on("messageCreate", async (message) => {
   if (await handleGameChannelChatMessage(message).catch(() => false)) return;
   if (await handleLeagueChatMessage(message).catch(() => false)) return;
   await handleBoxScoreChannelMessage(message).catch(() => undefined);
+});
+
+client.on("guildMemberUpdate", async (oldMember, newMember) => {
+  await syncManagedRoleFromDiscord(oldMember, newMember).catch((error) => {
+    console.error("[ERROR] Failed to sync managed Discord role to REC:", error);
+  });
 });
 
 client.on("messageReactionAdd", async (reaction, user) => {

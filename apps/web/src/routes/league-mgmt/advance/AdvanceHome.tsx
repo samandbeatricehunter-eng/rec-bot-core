@@ -10,6 +10,9 @@ import { Button } from "../../../components/ui/Button.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { Modal } from "../../../components/ui/Modal.js";
+import { UploadBoxScoreModal } from "../manage-league/UploadBoxScoreModal.js";
+import { ReviewBoxScoreModal } from "../../../components/box-score/ReviewBoxScoreModal.js";
+import { HighlightUploadModal } from "../../../components/hub/HighlightUploadModal.js";
 
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
@@ -60,7 +63,7 @@ function toTwentyFourHour(hour: string, meridiem: "AM" | "PM"): number {
 }
 
 export function AdvanceHome() {
-  const { guildId } = useReadyAuth();
+  const { guildId, discordId } = useReadyAuth();
   const { game } = useLeagueTheme();
   const isCfb = game === "cfb_27";
   const [data, setData] = useState<AdvanceWeekGames | null>(null);
@@ -70,6 +73,11 @@ export function AdvanceHome() {
   const [notice, setNotice] = useState<string | null>(null);
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
   const [advanceDate, setAdvanceDate] = useState<AdvanceTimeDraft>(() => blankAdvanceDate());
+  const [boxScoreGame, setBoxScoreGame] = useState<AdvanceGame | null>(null);
+  const [reviewBoxScoreId, setReviewBoxScoreId] = useState<string | null>(null);
+  const [highlightGame, setHighlightGame] = useState<AdvanceGame | null>(null);
+  const [nextGotwCandidates, setNextGotwCandidates] = useState<GotwCandidate[] | null>(null);
+  const [nextGotwGameId, setNextGotwGameId] = useState("");
 
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
   const [gotwCandidates, setGotwCandidates] = useState<GotwCandidate[] | null>(null);
@@ -185,6 +193,10 @@ export function AdvanceHome() {
       setError("Fill in the full next advance time, or leave it blank to skip.");
       return;
     }
+    if (data.nextSeasonStage === "regular_season" && (nextGotwCandidates?.length ?? 0) > 0 && !nextGotwGameId) {
+      setError("Select the Game of the Week for the week you are advancing into.");
+      return;
+    }
     const missing = data.gamesNeedingInput.filter((g) => involvesHuman(g) && !entryHasScores(entries[g.gameId]));
     if (missing.length) {
       setError(`Enter a final score for all ${missing.length} remaining game${missing.length === 1 ? "" : "s"} involving a human before advancing.`);
@@ -218,6 +230,7 @@ export function AdvanceHome() {
         nextWeekNumber: data.nextWeekNumber,
         nextSeasonStage: data.nextSeasonStage,
         results,
+        nextGotwGameId: data.nextSeasonStage === "regular_season" ? nextGotwGameId || null : null,
         nextAdvance,
       });
       const relay = result.discord;
@@ -226,6 +239,8 @@ export function AdvanceHome() {
       setEntries({});
       setShowAdvanceModal(false);
       setAdvanceDate(blankAdvanceDate());
+      setNextGotwCandidates(null);
+      setNextGotwGameId("");
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to complete the advance.");
@@ -259,6 +274,26 @@ export function AdvanceHome() {
       setError(err instanceof Error ? err.message : "Failed to assign Game of the Week.");
     } finally {
       setAssigningGotw(false);
+    }
+  }
+
+  async function openAdvanceReview() {
+    if (!data) return;
+    setError(null);
+    setShowAdvanceModal(true);
+    if (data.nextSeasonStage !== "regular_season") {
+      setNextGotwCandidates([]);
+      setNextGotwGameId("");
+      return;
+    }
+    setNextGotwCandidates(null);
+    try {
+      const result = await recApi.getGotwCandidates({ guildId, weekNumber: data.nextWeekNumber });
+      setNextGotwCandidates(result.candidates);
+      setNextGotwGameId(result.candidates.find((candidate) => candidate.recommended)?.gameId ?? result.candidates[0]?.gameId ?? "");
+    } catch (err) {
+      setShowAdvanceModal(false);
+      setError(err instanceof Error ? err.message : "Failed to load next week's GOTW choices.");
     }
   }
 
@@ -362,6 +397,10 @@ export function AdvanceHome() {
                     <span className="form-hint">Bowl games and the national championship are automatic Game of the Week matchups.</span>
                   </div>
                 )}
+                <div className="advance-game-actions">
+                  <Button variant="secondary" onClick={() => setBoxScoreGame(g)}>Submit Box Score</Button>
+                  <Button variant="ghost" onClick={() => setHighlightGame(g)}>Upload Highlight</Button>
+                </div>
               </div>
             );
           })}
@@ -374,7 +413,7 @@ export function AdvanceHome() {
             <strong>{data.nextLabel}</strong>
             {!readyToAdvance && <span className="form-hint">{missingScoreGames.length} game{missingScoreGames.length === 1 ? "" : "s"} involving a human still need a final score.</span>}
           </div>
-          <Button variant="tactical" onClick={() => setShowAdvanceModal(true)} disabled={advancing || !readyToAdvance}>
+          <Button variant="tactical" onClick={() => void openAdvanceReview()} disabled={advancing || !readyToAdvance}>
             Complete Advance
           </Button>
         </div>
@@ -439,6 +478,25 @@ export function AdvanceHome() {
                 <span className="advance-eyebrow">Advancing To</span>
                 <strong>{data.nextLabel}</strong>
               </div>
+            </div>
+            <div className="advance-modal-copy">
+              <h3>Game of the Week</h3>
+              {data.nextSeasonStage !== "regular_season"
+                ? <p className="form-hint">Every postseason H2H matchup is automatically assigned as a Game of the Week.</p>
+                : nextGotwCandidates == null
+                  ? <p className="form-hint">Loading eligible next-week H2H matchups…</p>
+                  : nextGotwCandidates.length
+                    ? (
+                      <select className="form-select" value={nextGotwGameId} onChange={(event) => setNextGotwGameId(event.target.value)}>
+                        <option value="">Select a matchup…</option>
+                        {nextGotwCandidates.map((candidate) => (
+                          <option key={candidate.gameId} value={candidate.gameId}>
+                            {candidate.recommended ? "Recommended — " : ""}{candidate.awayTeamName} @ {candidate.homeTeamName}
+                          </option>
+                        ))}
+                      </select>
+                    )
+                    : <p className="form-hint">No eligible H2H matchup is scheduled, so this step is skipped.</p>}
             </div>
             <div className="advance-modal-copy">
               <h3>Next advance time</h3>
@@ -516,6 +574,42 @@ export function AdvanceHome() {
             </div>
           </div>
         </Modal>
+      )}
+      {boxScoreGame && (
+        <UploadBoxScoreModal
+          guildId={guildId}
+          discordId={discordId}
+          weekNumber={boxScoreGame.weekNumber}
+          seasonNumber={data.seasonNumber}
+          gameId={boxScoreGame.gameId}
+          commissionerSubmission
+          onClose={() => setBoxScoreGame(null)}
+          onSubmitted={(submissionId) => {
+            setBoxScoreGame(null);
+            setReviewBoxScoreId(submissionId);
+          }}
+        />
+      )}
+      {reviewBoxScoreId && (
+        <ReviewBoxScoreModal
+          submissionId={reviewBoxScoreId}
+          onClose={() => setReviewBoxScoreId(null)}
+          onResolved={() => {
+            setReviewBoxScoreId(null);
+            load();
+          }}
+        />
+      )}
+      {highlightGame && (
+        <HighlightUploadModal
+          guildId={guildId}
+          gameId={highlightGame.gameId}
+          onClose={() => setHighlightGame(null)}
+          onSubmitted={() => {
+            setHighlightGame(null);
+            setNotice("Highlight uploaded and queued for the league reel.");
+          }}
+        />
       )}
     </div>
   );

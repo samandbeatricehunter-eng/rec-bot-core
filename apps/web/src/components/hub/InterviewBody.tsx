@@ -1,4 +1,5 @@
 type QaBlock = { question: string; answer: string };
+import { RichText } from "./RichText.js";
 
 /** Prefer structured Q:/A: pairs; fall back to heuristic split for legacy mashed bodies. */
 export function parseInterviewBody(body: string | null | undefined): QaBlock[] | null {
@@ -97,7 +98,7 @@ function parseHeuristicQa(text: string): QaBlock[] | null {
 export function InterviewBody({ body }: { body: string | null | undefined }) {
   const qa = parseInterviewBody(body);
   if (!qa) {
-    return <p className="roundtable-lede">{body}</p>;
+    return <p className="roundtable-lede"><RichText text={body} /></p>;
   }
   return (
     <div className="interview-qa">
@@ -106,7 +107,7 @@ export function InterviewBody({ body }: { body: string | null | undefined }) {
           <p className="interview-qa-question">
             <strong>{row.question}</strong>
           </p>
-          {row.answer ? <p className="interview-qa-answer">{row.answer}</p> : null}
+          {row.answer ? <p className="interview-qa-answer"><RichText text={row.answer} /></p> : null}
         </div>
       ))}
     </div>

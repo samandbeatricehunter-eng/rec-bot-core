@@ -191,7 +191,8 @@ function buildGameChannelIntroLines(input: { weekNumber: number; game: any; draf
     `Fair Sim: ${fs}`,
     `Force Win: ${fw}`,
     "",
-    "After the game, submit the box score through the Weekly Submissions panel so stats, payouts, records, and stories can update.",
+    "**After the Game**",
+    "Open this matchup's Chat on the REC site/app. Use the matchup actions there to submit the final box score, player stats, and highlights so records, payouts, reels, and stories update.",
   ];
   return { mentionIds, mentions, lines, title: `${input.game.awayTeamName} at ${input.game.homeTeamName}` };
 }
@@ -240,7 +241,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
   const gotwGameIds = new Set((gotwPolls.data ?? []).map((poll: any) => poll.game_id).filter(Boolean));
   const ranks = new Map<string, any>(((powerRankings as any)?.teams ?? []).map((team: any) => [String(team.teamId), team]));
 
-  const created: Array<{ gameId: string; discordChannelId: string; name: string }> = [];
+  const created: Array<{ gameId: string; gameChannelId: string | null; discordChannelId: string; name: string; awayUserId: string | null; homeUserId: string | null }> = [];
   for (const game of h2hGames) {
     const name = `${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
     const channel = await createGuildChannel(guildId, { name, type: "text", parentChannelId: categoryId });
@@ -271,7 +272,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
           if (error) console.error("[ERROR] Failed to seed game chat intro card (non-fatal):", error);
         });
     }
-    created.push({ gameId: game.gameId, discordChannelId: channel.id, name: channel.name });
+    created.push({ gameId: game.gameId, gameChannelId: gameChannelRow?.id ?? null, discordChannelId: channel.id, name: channel.name, awayUserId: game.awayUserId ?? null, homeUserId: game.homeUserId ?? null });
   }
 
   return { created, deleted: deletedIds.length, eligible: h2hGames.length };

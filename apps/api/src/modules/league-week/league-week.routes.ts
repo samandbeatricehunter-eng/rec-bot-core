@@ -18,6 +18,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { sendDiscordAdvanceAnnouncement } from "../../lib/discord-guild.js";
 import { stageLabel } from "@rec/shared";
 import { createGameChannelsForCurrentWeek } from "../game-channels/game-channels.service.js";
+import { supabase } from "../../lib/supabase.js";
 
 async function relayWebAdvanceToDiscord(guildId: string, weekNumber: number, seasonStage: string, nextAdvanceLabel: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -165,12 +166,31 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           minute: z.number().int().min(0).max(59),
           tzLabel: z.string().refine((value) => SUPPORTED_TZ_LABELS.includes(value), "Unsupported timezone."),
         }).optional().nullable(),
+        nextGotwGameId: z.string().uuid().optional().nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
       const result = await completeAdvanceWeek(body);
       const gameChannels = await createGameChannelsForCurrentWeek(body.guildId)
         .catch((error) => ({ created: [], deleted: 0, eligible: 0, error: error instanceof Error ? error.message : "Game-channel refresh failed." }));
+      if (gameChannels.created.length) {
+        const context = await getCurrentLeagueContext(body.guildId);
+        const notifications = gameChannels.created.flatMap((channel: any) =>
+          [...new Set([channel.awayUserId, channel.homeUserId].filter(Boolean))].map((userId) => ({
+            user_id: userId,
+            league_id: context.leagueId,
+            kind: "game_channel_created",
+            title: `Your ${channel.name.replaceAll("-", " ")} game chat is ready`,
+            body: "Open Chat on the league page to coordinate with your opponent.",
+            href: `/l/${context.leagueId}/buzz?section=league&subTab=buzz&buzzView=chat&gameChannel=${channel.gameChannelId}`,
+          })),
+        );
+        if (notifications.length) {
+          await supabase.from("rec_site_notifications").insert(notifications).then(({ error }) => {
+            if (error) console.error("[ERROR] Failed to create game-chat notifications (non-fatal):", error);
+          });
+        }
+      }
       const discord = auth.mode === "user"
         ? await relayWebAdvanceToDiscord(body.guildId, result.nextWeekNumber, result.nextSeasonStage, result.nextAdvanceLabel).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;

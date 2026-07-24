@@ -2,11 +2,21 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { listRoleMgmtMembers, setMemberRole, updateMemberRole } from "./roles.service.js";
+import { listRoleMgmtMembers, setMemberRole, syncDiscordMemberRole, updateMemberRole } from "./roles.service.js";
+import { requireInternalApiKey } from "../../lib/auth.js";
 
 const RoleKeySchema = z.enum(["member", "compCommittee", "commissioner"]);
 
 export async function rolesRoutes(app: FastifyInstance) {
+  app.post("/v1/roles/discord-sync", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), roleKey: RoleKeySchema }).parse(request.body);
+      return reply.send(await syncDiscordMemberRole(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
   // Full commissioner only — matches isFullLeagueAdminInteraction's gate on the Discord-
   // native Roles flow exactly (co-commissioner is explicitly excluded there too).
   app.post("/v1/roles/members", async (request, reply) => {

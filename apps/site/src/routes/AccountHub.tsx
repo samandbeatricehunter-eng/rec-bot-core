@@ -21,6 +21,18 @@ const TABS: Array<{ id: AccountTab; label: string }> = [
   { id: "inbox", label: "Inbox" },
 ];
 
+const ACCOUNT_LADDER_BADGES = new Set(["wins_milestone", "games_milestone", "air_milestone", "ground_milestone", "earner", "spender", "saver", "attribute_purchase", "dev_upgrade_purchase"]);
+const ACCOUNT_NEGATIVE_BADGES = new Set(["turnover_trouble", "heartbreaker", "offensive_stall", "ground_game_missing", "chain_stalled", "third_down_drought_m", "red_zone_woes", "defensive_collapse", "yardage_flood", "blowout_victim_m", "pick_parade", "butterfingers", "completion_crisis", "failed_attempts", "third_down_drought", "fourth_down_futility", "ground_game_grounded", "passing_in_mud", "inefficient_attack", "flag_factory", "punt_party", "red_zone_waste", "touchdown_drought", "wasted_volume", "blowout_victim"]);
+const ACCOUNT_SPECIAL_BADGES = new Set(["prolific_passer", "prolific_rusher", "balanced_season", "fourth_down_menace", "dawgin_em", "two_point_identity", "clock_bleeder", "perfect_regular_season", "winning_season", "return_threat", "veteran_coach", "fourth_down_legend", "red_zone_legend", "ground_and_pound_veteran", "air_raid_veteran", "playoff_winner", "dynasty_builder", "super_bowl_champion", "conf_champion", "div_champion", "national_champion", "bowl_winner"]);
+
+function badgeAsset(key: string, label: string, tier: string | null | undefined) {
+  const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (ACCOUNT_SPECIAL_BADGES.has(key)) return `/assets/badges/baked/${slug(key)}.png`;
+  if (ACCOUNT_LADDER_BADGES.has(key)) return `/assets/badges/baked/label-${slug(label)}-${tier === "gold" || tier === "silver" ? tier : "bronze"}.png`;
+  if (ACCOUNT_NEGATIVE_BADGES.has(key)) return `/assets/badges/baked/label-${slug(label)}-negative.png`;
+  return `/assets/badges/baked/label-${slug(label)}-positive.png`;
+}
+
 function tierLabel(tier: EntitlementSummary["tier"]): string {
   if (tier === "gold") return "Gold";
   if (tier === "platinum") return "Platinum";
@@ -73,6 +85,7 @@ export function AccountHub({
   const [badges, setBadges] = useState<
     Array<{
       badge_key: string;
+      badge_label?: string;
       badge_scope: string;
       polarity: string | null;
       tier: string | null;
@@ -488,18 +501,23 @@ export function AccountHub({
                 const byGame = Object.entries(badge.earnedByGame ?? {})
                   .map(([game, count]) => game.replaceAll("_", " ") + ": x" + count)
                   .join(" | ");
-                const tip = [badge.description, byGame].filter(Boolean).join(" \u2014 ");
+                const label = badge.badge_label ?? badge.badge_key.replaceAll("_", " ");
+                const tip = [
+                  label,
+                  badge.description,
+                  `Scope: ${badge.badge_scope}`,
+                  badge.tier ? `Tier: ${badge.tier}` : null,
+                  badge.earned_count ? `Earned ${badge.earned_count} time${badge.earned_count === 1 ? "" : "s"}` : null,
+                  byGame,
+                ].filter(Boolean).join(" \u2014 ");
                 return (
                   <li
                     key={badge.badge_key + "-" + badge.badge_scope}
                     title={tip}
+                    className="site-account-badge-render"
+                    style={{ backgroundImage: `url("${badgeAsset(badge.badge_key, label, badge.tier)}")` }}
                   >
-                    <strong>{badge.badge_key.replaceAll("_", " ")}</strong>
-                    <span>
-                      {badge.badge_scope}
-                      {badge.tier ? " \u00B7 " + badge.tier : ""}
-                      {badge.earned_count ? " \u00B7 x" + badge.earned_count : ""}
-                    </span>
+                    <span className="sr-only">{label}. {tip}</span>
                   </li>
                 );
               })}

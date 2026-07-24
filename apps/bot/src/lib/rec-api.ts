@@ -558,6 +558,8 @@ export const recApi = {
     recFetch<{ updated: number }>("/v1/notifications/dm-mark", { method: "POST", body: JSON.stringify({ guildId, ids }) }),
   ingestLeagueChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string }) =>
     recFetch<{ ingested: boolean }>("/v1/league-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
+  syncDiscordMemberRole: (input: { guildId: string; discordId: string; roleKey: "member" | "compCommittee" | "commissioner" }) =>
+    recFetch<{ ok: true }>("/v1/roles/discord-sync", { method: "POST", body: JSON.stringify(input) }),
 
   getBoxScoreUploadEligibility: (input: { guildId: string; discordId: string }) =>
     recFetch<any>("/v1/box-score/upload-eligibility", { method: "POST", body: JSON.stringify(input) }),

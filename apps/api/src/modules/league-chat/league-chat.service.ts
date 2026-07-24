@@ -145,10 +145,18 @@ export async function postLeagueChatMessage(input: { guildId: string; discordId:
           .maybeSingle()
       : null;
     const teamName = (assignment?.data as any)?.team?.name ?? "League Member";
-    void postDiscordChannelMessage(
+    const forwarded = await postDiscordChannelMessage(
       mainChatChannelId,
       { content: `@${author.displayName} · ${teamName}: "${trimmed}"` },
-    ).catch((forwardError) => console.error("[ERROR] Failed to forward league chat to Discord (non-fatal):", forwardError));
+    ).catch(async (forwardError) => {
+      console.error("[ERROR] Failed to forward league chat to Discord:", forwardError);
+      await supabase.from("rec_league_chat_messages").delete().eq("id", data.id);
+      throw new ApiError(502, "The message was saved to league chat, but Discord rejected the relay. Check the bot's access to the assigned Main Chat Channel.");
+    });
+    if (!forwarded) {
+      await supabase.from("rec_league_chat_messages").delete().eq("id", data.id);
+      throw new ApiError(502, "The message was saved to league chat, but Discord rejected the relay. Check the bot's access to the assigned Main Chat Channel.");
+    }
   }
   return { message: data };
 }

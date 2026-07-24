@@ -66,13 +66,18 @@ export async function clearRivalriesForCustomTeam(leagueId: string, teamId: stri
 export async function assignKnownRivalryToGame(gameId: string) {
   const game = await supabase.from("rec_games").select("id,league_id,home_team_id,away_team_id,rivalry_id,rivalry_opt_out").eq("id", gameId).single();
   if (game.error || !game.data || game.data.rivalry_id || game.data.rivalry_opt_out) return game.data?.rivalry_id ?? null;
-  const rivalry = await supabase.from("rec_league_rivalries").select("id").eq("league_id", game.data.league_id).eq("is_active", true)
-    .or(`and(team_a_id.eq.${game.data.home_team_id},team_b_id.eq.${game.data.away_team_id}),and(team_a_id.eq.${game.data.away_team_id},team_b_id.eq.${game.data.home_team_id})`).limit(1).maybeSingle();
-  if (rivalry.error) throw new ApiError(500, "Failed to match the scheduled rivalry.", rivalry.error);
-  if (!rivalry.data) return null;
-  const updated = await supabase.from("rec_games").update({ rivalry_id: rivalry.data.id }).eq("id", gameId);
+  const rivalries = await supabase.from("rec_league_rivalries").select("id,team_a_id,team_b_id")
+    .eq("league_id", game.data.league_id).eq("is_active", true)
+    .in("team_a_id", [game.data.home_team_id, game.data.away_team_id])
+    .in("team_b_id", [game.data.home_team_id, game.data.away_team_id]);
+  if (rivalries.error) throw new ApiError(500, "Failed to match the scheduled rivalry.", rivalries.error);
+  const rivalry = (rivalries.data ?? []).find((row: any) =>
+    (row.team_a_id === game.data.home_team_id && row.team_b_id === game.data.away_team_id)
+    || (row.team_a_id === game.data.away_team_id && row.team_b_id === game.data.home_team_id));
+  if (!rivalry) return null;
+  const updated = await supabase.from("rec_games").update({ rivalry_id: rivalry.id }).eq("id", gameId);
   if (updated.error) throw new ApiError(500, "Failed to mark the rivalry game.", updated.error);
-  return rivalry.data.id;
+  return rivalry.id;
 }
 
 export async function setGameRivalry(input: { leagueId: string; gameId: string; enabled: boolean; details?: RivalryDetailsInput }) {
@@ -83,9 +88,16 @@ export async function setGameRivalry(input: { leagueId: string; gameId: string; 
     if (cleared.error) throw new ApiError(500, "Failed to turn off the rivalry game.", cleared.error);
     return { enabled: false, rivalry: null };
   }
-  let rivalry = await supabase.from("rec_league_rivalries").select("*").eq("league_id", input.leagueId)
-    .or(`and(team_a_id.eq.${game.data.home_team_id},team_b_id.eq.${game.data.away_team_id}),and(team_a_id.eq.${game.data.away_team_id},team_b_id.eq.${game.data.home_team_id})`).limit(1).maybeSingle();
-  if (rivalry.error) throw new ApiError(500, "Failed to load rivalry details.", rivalry.error);
+  const rivalryRows = await supabase.from("rec_league_rivalries").select("*").eq("league_id", input.leagueId)
+    .in("team_a_id", [game.data.home_team_id, game.data.away_team_id])
+    .in("team_b_id", [game.data.home_team_id, game.data.away_team_id]);
+  if (rivalryRows.error) throw new ApiError(500, "Failed to load rivalry details.", rivalryRows.error);
+  let rivalry: any = {
+    data: (rivalryRows.data ?? []).find((row: any) =>
+      (row.team_a_id === game.data.home_team_id && row.team_b_id === game.data.away_team_id)
+      || (row.team_a_id === game.data.away_team_id && row.team_b_id === game.data.home_team_id)) ?? null,
+    error: null,
+  };
   if (!rivalry.data && !input.details) throw new ApiError(400, "Rivalry details are required for a new rivalry.");
   if (!rivalry.data) {
     const d = input.details!;

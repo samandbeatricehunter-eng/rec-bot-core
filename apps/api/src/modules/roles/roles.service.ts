@@ -25,8 +25,29 @@ export async function setMemberRole(input: { guildId: string; discordId: string;
       if (key === input.roleKey) await addMemberRole(input.guildId, input.discordId, id, `REC League Mgmt role set by ${input.actingDiscordId}`);
       else await removeMemberRole(input.guildId, input.discordId, id, `REC League Mgmt role set by ${input.actingDiscordId}`);
     }
+    await persistManagedRole(input.guildId, input.discordId, input.roleKey);
     return { ok: true, roleKey: input.roleKey };
   } catch (error) { throw new ApiError(502, "Discord rejected this role change — check the bot role hierarchy.", error); }
+}
+
+async function persistManagedRole(guildId: string, discordId: string, roleKey: RecManagedRoleKey) {
+  const context = await getCurrentLeagueContext(guildId);
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to resolve the linked Discord account.", account.error);
+  if (!account.data?.user_id) return;
+  const authority = roleKey === "compCommittee" ? "co_commissioner" : roleKey;
+  const updated = await supabase.from("rec_team_assignments")
+    .update({ notes: `Authority: ${authority}`, updated_at: new Date().toISOString() })
+    .eq("league_id", context.leagueId)
+    .eq("user_id", account.data.user_id)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  if (updated.error) throw new ApiError(500, "Failed to synchronize the site league role.", updated.error);
+}
+
+export async function syncDiscordMemberRole(input: { guildId: string; discordId: string; roleKey: RecManagedRoleKey }) {
+  await persistManagedRole(input.guildId, input.discordId, input.roleKey);
+  return { ok: true };
 }
 
 export async function updateMemberRole(input: {

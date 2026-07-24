@@ -713,7 +713,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   ] = await Promise.all([
     leagueId
       ? supabase
-          .from("rec_season_user_records")
+          .from("rec_season_user_display_records")
           .select("wins,losses,ties,games_played,point_differential,points_for,points_against")
           .eq("league_id", leagueId)
           .eq("season_number", seasonNumber)
@@ -726,7 +726,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
           .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
           .eq("league_id", leagueId)
           .eq("user_id", userId)
-          .in("badge_scope", ["game", "season", "career"])
+          .in("badge_scope", ["game", "season"])
           .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
@@ -762,7 +762,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     supabase.from("rec_global_user_game_records").select("*").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
     leagueId
       ? supabase
-          .from("rec_season_user_records")
+          .from("rec_season_user_display_records")
           .select("wins,losses,ties,point_differential")
           .eq("league_id", leagueId)
           .eq("user_id", userId)
@@ -1428,7 +1428,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
 
     if (opponentUserId) {
       const [oppRecordResult, oppGamesResult] = await Promise.all([
-        supabase.from("rec_season_user_records").select("*").eq("league_id", league.id).eq("season_number", profileSeason).eq("user_id", opponentUserId).maybeSingle(),
+        supabase.from("rec_season_user_display_records").select("*").eq("league_id", league.id).eq("season_number", profileSeason).eq("user_id", opponentUserId).maybeSingle(),
         supabase.from("rec_game_results").select("home_user_id,away_user_id,home_score,away_score,season_number,week_number,source").eq("league_id", league.id).eq("season_number", profileSeason).in("source", [...OFFICIAL_RESULT_SOURCES]).or(`home_user_id.eq.${opponentUserId},away_user_id.eq.${opponentUserId}`)
       ]);
       opponentRecordText = recordText(oppRecordResult.data ?? {});
@@ -1481,9 +1481,9 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       currentWeek: league?.current_week ?? 1,
       seasonStage: league?.season_stage ?? league?.current_phase ?? "regular_season",
       leagueTeamRecordText: recordText(displayRecord),
-      leagueUserRecordText: recordText(seasonRecord),
-      leagueSeasonRecordText: recordText(seasonRecord),
-      leagueSeasonPointDifferential: seasonRecord?.point_differential ?? 0,
+      leagueUserRecordText: recordText(displayRecord ?? seasonRecord),
+      leagueSeasonRecordText: recordText(displayRecord ?? seasonRecord),
+      leagueSeasonPointDifferential: (displayRecord ?? seasonRecord)?.point_differential ?? 0,
       currentMatchupText: currentMatchup,
       gotwStatus,
       gotwVotingRecordText: gotwVotingRecord ? `${gotwVotingRecord.correct}-${gotwVotingRecord.total - gotwVotingRecord.correct} (${gotwVotingRecord.accuracy}%)` : "No votes yet",

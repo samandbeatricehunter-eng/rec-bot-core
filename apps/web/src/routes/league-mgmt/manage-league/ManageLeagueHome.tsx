@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, ChevronRight, Shield, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, BarChart3, ChevronRight, Shield, UserPlus, Users } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -101,6 +101,9 @@ export function ManageLeagueHome() {
         subtitle="Find a team, see its schedule and box-score health, and enter its games and scores."
         actions={
           <div style={{ display: "flex", gap: "var(--space-2)" }}>
+            <Button variant="ghost" onClick={() => navigate(-1)}>
+              <ArrowLeft size={16} /> Back
+            </Button>
             <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/teams")}>
               <Users size={16} /> Link/Unlink Teams
             </Button>

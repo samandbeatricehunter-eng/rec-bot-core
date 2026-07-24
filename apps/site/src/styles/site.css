@@ -2438,6 +2438,48 @@ h1, h2, h3, .site-wordmark {
   padding: var(--space-3);
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
+.site-account-badge-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.site-account-badge-list li.site-account-badge-render {
+  position: relative;
+  min-height: 82px;
+  padding: 0 clamp(16px, 2vw, 32px);
+  border: 0;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+.site-select,
+.site-hub-inprocess-content .form-select {
+  background: transparent;
+}
+.site-select option,
+.site-hub-inprocess-content .form-select option {
+  color: #111;
+  background: #fff;
+}
+[data-accent-tier="platinum"] .site-hub-inprocess-content {
+  --accent: #dce5ef;
+  --accent-bright: #ffffff;
+  --accent-dark: #8997a8;
+  --gold: #dce5ef;
+  --gold-light: #ffffff;
+  --gold-dark: #8997a8;
+}
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
 .site-spotlight-reactions button {
   align-items: center;
   justify-content: center;

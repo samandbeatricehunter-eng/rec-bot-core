@@ -585,6 +585,7 @@ export const siteApi = {
     return request<{
       badges: Array<{
         badge_key: string;
+        badge_label?: string;
         badge_scope: string;
         polarity: string | null;
         tier: string | null;

@@ -1,4 +1,4 @@
-import { GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
+import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { randomUUID } from "node:crypto";
 import { ApiError } from "../../lib/errors.js";
 import { inspectStreamVideo, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
@@ -622,12 +622,15 @@ export async function listUserBadges(input: { authUserId: string }) {
   if (rows.error) throw new ApiError(500, "Failed to load badges.", rows.error);
 
   const descByKey = new Map<string, string>();
-  for (const badge of [...GAME_BADGES, ...SEASON_BADGES]) {
+  const labelByKey = new Map<string, string>();
+  for (const badge of [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES]) {
     descByKey.set(badge.key, badge.description);
+    labelByKey.set(badge.key, badge.label);
   }
 
   const grouped = new Map<string, {
     badge_key: string;
+    badge_label: string;
     badge_scope: string;
     polarity: string | null;
     tier: string | null;
@@ -644,6 +647,7 @@ export async function listUserBadges(input: { authUserId: string }) {
     if (!existing) {
       grouped.set(key, {
         badge_key: key,
+        badge_label: labelByKey.get(key) ?? key.replaceAll("_", " "),
         badge_scope: String(row.badge_scope ?? "game"),
         polarity: row.polarity ?? null,
         tier: row.tier ?? null,

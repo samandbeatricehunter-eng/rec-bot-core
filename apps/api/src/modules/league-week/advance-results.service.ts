@@ -19,7 +19,8 @@ import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
-import { autoAssignGotwForWeek, settleGotwPollsForGame } from "../gotw/gotw.service.js";
+import { autoAssignGotwForWeek, createGotwPoll, settleGotwPollsForGame } from "../gotw/gotw.service.js";
+import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
@@ -95,7 +96,7 @@ async function publishLeagueAdvanceAnnouncement(input: {
   });
 
   const body = lines.length
-    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H matchups this week:\n${lines.map((line) => `• ${line}`).join("\n")}`
+    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H Matchups:\n${lines.map((line) => `• ${line}`).join("\n")}\n\nSwitch to Chat on the main league page to view your game channel.`
     : `Next advance: ${input.nextAdvanceLabel}\n\n${label} is live. Check Matchups for this week's slate.`;
 
   await recordHubAnnouncement({
@@ -481,6 +482,7 @@ export async function completeAdvanceWeek(input: {
     minute: number;
     tzLabel: string;
   } | null;
+  nextGotwGameId?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   await assertLeagueNotFrozen(context.leagueId);
@@ -566,9 +568,29 @@ export async function completeAdvanceWeek(input: {
 
   // Bowl games / the national championship are automatic GOTW games in CFB leagues —
   // catches any flagged game in the week just advanced INTO that doesn't have a poll yet.
-  await autoAssignGotwForWeek({ guildId: input.guildId, weekNumber: nextTarget.weekNumber }).catch((err) => {
+  await autoAssignGotwForWeek({
+    guildId: input.guildId,
+    weekNumber: nextTarget.weekNumber,
+    allH2h: nextTarget.seasonStage !== "regular_season",
+  }).catch((err) => {
     console.error("[ERROR] autoAssignGotwForWeek failed after advance (non-fatal):", err);
   });
+  if (nextTarget.seasonStage === "regular_season" && input.nextGotwGameId) {
+    const candidates = await scoreWeekGotwCandidates(input.guildId, nextTarget.weekNumber);
+    const selected = candidates.find((candidate) => candidate.gameId === input.nextGotwGameId);
+    if (!selected) throw new ApiError(400, "The selected Game of the Week is not an eligible H2H matchup for the next week.");
+    await createGotwPoll({
+      guildId: input.guildId,
+      gameId: selected.gameId,
+      awayTeamId: selected.awayTeamId,
+      homeTeamId: selected.homeTeamId,
+      awayUserId: selected.awayUserId,
+      homeUserId: selected.homeUserId,
+      awayTeamName: selected.awayTeamName,
+      homeTeamName: selected.homeTeamName,
+      weekNumber: nextTarget.weekNumber,
+    });
+  }
 
   // EOS payouts: automatic for every league, firing once postseason play actually ends —
   // advancing out of the terminal stage (super_bowl/national_championship) into the first

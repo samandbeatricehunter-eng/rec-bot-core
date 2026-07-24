@@ -121,9 +121,9 @@
   }
   .expanded-article-surface {
     flex: 0 1 auto;
-    width: min(900px, calc(100vw - 48px));
-    height: min(860px, calc(100dvh - 48px));
-    max-height: calc(100dvh - 48px);
+    width: min(800px, calc(100vw - 96px));
+    height: min(720px, calc(100dvh - 96px));
+    max-height: calc(100dvh - 96px);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg, 12px);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
@@ -305,6 +305,13 @@ button.poty:disabled {
 .hub-shortcut-card strong { display: block; font-family: var(--font-display); letter-spacing: .01em; }
 .hub-shortcut-card span { display: block; margin-top: 2px; color: var(--text-muted); font-size: var(--text-xs); }
 .hub-my-team-shortcuts, .hub-my-team-shortcuts * { text-align: left; }
+.hub-my-team > .hub-section-heading { display:flex; justify-content:center; width:100%; text-align:center; }
+.hub-my-team > .hub-section-heading > div { width:100%; text-align:center; }
+.hub-my-team > .hub-section-heading .hub-eyebrow { justify-content:center; }
+.hub-rich-text-toolbar { display:flex; gap:6px; margin-bottom:6px; }
+.hub-rich-text-toolbar button { display:grid; place-items:center; width:36px; height:32px; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface-raised); color:var(--text-primary); cursor:pointer; }
+.hub-rich-text-toolbar button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent-bright); }
+.hub-rich-text-toolbar button:disabled { opacity:.45; cursor:not-allowed; }
 .hub-section-heading h2, .hub-section-heading p { overflow-wrap: anywhere; word-break: break-word; }
 @media (max-width: 600px) {
   .hub-my-team-shortcuts { grid-template-columns: minmax(0, 1fr); }
@@ -2780,10 +2787,12 @@ button.poty:disabled {
   padding: clamp(14px, 2vw, 22px) !important;
 }
 .hub-gotw-feature {
+  position: relative;
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-2) 0 0;
+  padding: 48px 0 0;
 }
+.hub-gotw-feature > .hub-matchup-admin-slot { top:0; right:0; z-index:4; }
 .hub-gotw-feature .hub-gotw-board {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -2931,8 +2940,17 @@ button.poty:disabled {
 /* Campus Buzz / Chat toggle + League Chat panel (channel switcher, presence roster, feed). */
 .hub-buzz-toggle {
   display: flex;
+  justify-content: center;
   gap: var(--space-2);
   margin-bottom: var(--space-4);
+}
+
+/* A commissioner action on a standard H2H belongs in the lower-right control area.
+   The standalone GOTW feature keeps its action in the top-right via the rule above. */
+.hub-matchup-card.h2h > .hub-matchup-admin-slot {
+  top: auto !important;
+  right: 2.5% !important;
+  bottom: 2.5% !important;
 }
 .hub-buzz-toggle button {
   padding: 8px 18px;
@@ -3045,4 +3063,8 @@ button.poty:disabled {
   color: var(--text-muted);
   font-size: var(--text-xs);
   white-space: nowrap;
+}
+.hub-announcement-body {
+  white-space: pre-line;
+  line-height: 1.65;
 }

@@ -55,8 +55,22 @@
 .page-header {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  align-items: center;
+  gap: var(--space-3);
   margin-bottom: var(--space-5);
+  text-align: center;
+}
+.page-header-copy {
+  width: 100%;
+}
+.page-header-actions {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.page-header-actions > * {
+  justify-content: center;
+  flex-wrap: wrap;
 }
 .page-header h1 {
   margin: 0;
@@ -69,12 +83,26 @@
   color: var(--text-secondary);
   font-size: var(--text-sm);
 }
+.league-mgmt-content h1,
+.league-mgmt-content h2,
+.league-mgmt-content h3,
+.league-mgmt-content .section-frame-heading {
+  text-align: center;
+  justify-content: center;
+}
 .team-schedule-edit-button {
   width: 40px;
   min-width: 40px;
   height: 40px;
   padding: 0;
   border-radius: var(--radius-sm);
+}
+.advance-game-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 .team-schedule-edit-button svg {
   flex-shrink: 0;

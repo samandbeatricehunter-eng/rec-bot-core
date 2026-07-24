@@ -251,7 +251,11 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
 
   // Season-scope: qualified straight from this season's cumulative totals, tier always "normal".
   const seasonTotals = seasonTotalsFromGames(seasonGames);
-  const seasonRows = qualifySeasonBadges(seasonTotals, leagueGame).map((b) => ({
+  // This badge is conclusive only once regular season play is finished.
+  // issueSeasonTotalBadges owns its end-of-season issuance.
+  const seasonRows = qualifySeasonBadges(seasonTotals, leagueGame)
+    .filter((badge) => badge.key !== "perfect_regular_season")
+    .map((b) => ({
     league_id: leagueId,
     user_id: userId,
     team_id: teamId,
@@ -264,7 +268,7 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
     earned_count: 1,
     last_earned_week: null,
     updated_at: now,
-  }));
+    }));
 
   // Career-scope: simple boolean/threshold badges (tier "normal") + graded ladder badges.
   const careerRows = [

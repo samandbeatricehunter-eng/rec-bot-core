@@ -424,7 +424,7 @@ export const recApi = {
   // @everyone announcement, all server-side via Discord's REST API.
   getAdvanceWeekGames: (guildId: string) =>
     recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
-  completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
+  completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
     recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
   getAdvanceJumpTargets: (guildId: string) =>
     recApiFetch<{ currentWeek: number; currentStage: string; currentLabel: string; targets: Array<{ weekNumber: number; seasonStage: string; label: string }> }>("/v1/league-week/advance-jump/targets", { method: "POST", body: JSON.stringify({ guildId }) }),

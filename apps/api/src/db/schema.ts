@@ -268,6 +268,7 @@ export const recServerRoutes = pgTable("rec_server_routes", {
   id: uuid("id").primaryKey(),
   serverId: uuid("server_id").notNull().references(() => recDiscordServers.id),
   generalChatChannelId: text("general_chat_channel_id"),
+  mainChatChannelId: text("main_chat_channel_id"),
   schedulingChannelId: text("scheduling_channel_id"),
   mediaChannelId: text("media_channel_id"),
   rulesChannelId: text("rules_channel_id"),

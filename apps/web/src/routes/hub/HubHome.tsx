@@ -299,6 +299,7 @@ export function HubHome() {
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaArticle, setMediaArticle] = useState({ title: "", body: "", imageUrl: "" });
+  const mediaArticleBodyRef = useRef<HTMLTextAreaElement>(null);
   const [boxScoreUploadGame, setBoxScoreUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [playerStatsGame, setPlayerStatsGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [myWatchedPlayers, setMyWatchedPlayers] = useState<WatchedPlayer[] | null>(null);
@@ -974,6 +975,20 @@ export function HubHome() {
   }, {});
   const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
 
+  function toggleArticleStyle(marker: "**" | "*" | "__") {
+    const textarea = mediaArticleBodyRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = mediaArticle.body.slice(start, end);
+    const nextBody = `${mediaArticle.body.slice(0, start)}${marker}${selected}${marker}${mediaArticle.body.slice(end)}`;
+    setMediaArticle((current) => ({ ...current, body: nextBody }));
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + marker.length, end + marker.length);
+    });
+  }
+
   return <div className="hub-page">
     <div className="hub-body">
       <main className="hub-content">
@@ -1133,7 +1148,7 @@ export function HubHome() {
                 {hub.announcements.length > 1 ? <button type="button" className="hub-highlight-arrow previous" onClick={() => setAnnouncementIndex((announcementIndex - 1 + hub.announcements.length) % hub.announcements.length)}><ChevronLeft /></button> : null}
                 {(() => {
                   const item = hub.announcements[announcementIndex % hub.announcements.length];
-                  return <article key={item.id}><time>{new Date(item.published_at).toLocaleDateString()}</time><h3>{item.title}</h3><p>{item.body}</p><span className="hub-announce-pos">{(announcementIndex % hub.announcements.length) + 1} / {hub.announcements.length}</span></article>;
+                  return <article key={item.id}><time>{new Date(item.published_at).toLocaleDateString()}</time><h3>{item.title}</h3><p className="hub-announcement-body">{item.body}</p><span className="hub-announce-pos">{(announcementIndex % hub.announcements.length) + 1} / {hub.announcements.length}</span></article>;
                 })()}
                 {hub.announcements.length > 1 ? <button type="button" className="hub-highlight-arrow next" onClick={() => setAnnouncementIndex((announcementIndex + 1) % hub.announcements.length)}><ChevronRight /></button> : null}
               </div>
@@ -1508,7 +1523,7 @@ export function HubHome() {
       {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
         <p className="hub-muted">{mediaPortal.limits.articleSubmitted ? `Already submitted this week (${mediaPortal.limits.articleStatus}).` : `Submit one custom article per week for commissioner review. Pays ${coinsNumber(100)} on approval.`}</p>
         <div className="form-field"><label className="form-label">Title</label><input className="form-input" value={mediaArticle.title} disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => setMediaArticle({ ...mediaArticle, title: event.target.value })} /></div>
-        <div className="form-field"><label className="form-label">Article body</label><textarea className="form-input" rows={7} value={mediaArticle.body} disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => setMediaArticle({ ...mediaArticle, body: event.target.value })} /></div>
+        <div className="form-field"><label className="form-label">Article body</label><div className="hub-rich-text-toolbar" aria-label="Article text formatting"><button type="button" onClick={() => toggleArticleStyle("**")} disabled={mediaPortal.limits.articleSubmitted} aria-label="Bold"><strong>B</strong></button><button type="button" onClick={() => toggleArticleStyle("*")} disabled={mediaPortal.limits.articleSubmitted} aria-label="Italic"><em>I</em></button><button type="button" onClick={() => toggleArticleStyle("__")} disabled={mediaPortal.limits.articleSubmitted} aria-label="Underline"><u>U</u></button></div><textarea ref={mediaArticleBodyRef} className="form-input" rows={7} value={mediaArticle.body} disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => setMediaArticle({ ...mediaArticle, body: event.target.value })} /></div>
         <div className="form-field"><label className="form-label">Image</label><input className="form-input" type="file" accept="image/png,image/jpeg,image/webp" disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => void uploadMediaImage(event.target.files?.[0] ?? null)} />{mediaArticle.imageUrl && <img className="media-image-preview" src={mediaArticle.imageUrl} alt="" />}</div>
         <Button variant="primary" disabled={mediaBusy || mediaPortal.limits.articleSubmitted || !mediaArticle.title.trim() || !mediaArticle.body.trim()} onClick={() => void submitMediaArticle()}>{mediaBusy ? "Submitting..." : "Submit Article"}</Button>
       </>}
