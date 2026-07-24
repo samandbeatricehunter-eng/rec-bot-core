@@ -2008,3 +2008,44 @@ h1, h2, h3, .site-wordmark {
     display: none;
   }
 }
+
+/* —— Midnight Glass site shell —— */
+.site-shell {
+  background-color: #05070a;
+  background-image:
+    linear-gradient(180deg, rgba(5, 7, 10, 0.5) 0%, rgba(5, 7, 10, 0.82) 60%, rgba(5, 7, 10, 0.94) 100%),
+    url("/assets/backgrounds/midnight-glass-bg.png");
+  background-size: cover;
+  background-position: center top;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+.site-home-panel,
+.site-home-hero,
+.site-card,
+.site-desktop-sidebar {
+  background: rgba(14, 16, 20, 0.72) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, rgba(255, 255, 255, 0.1));
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
+}
+.site-desktop-nav a.is-active,
+.site-desktop-nav button.is-active,
+.site-bottom-nav a.is-active {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 35%, transparent), transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
+  color: var(--accent-bright);
+}
+
+/* Tier accents: Platinum members get silver/platinum chrome */
+[data-accent-tier="platinum"] {
+  --accent: #c5cdd8;
+  --accent-bright: #e8eef6;
+  --accent-dark: #8b95a3;
+  --gold: var(--accent);
+  --gold-light: var(--accent-bright);
+  --gold-dark: var(--accent-dark);
+  --accent-gradient: linear-gradient(180deg, #e8eef6 0%, #c5cdd8 52%, #8b95a3 100%);
+  --shadow-glow-gold: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}

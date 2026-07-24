@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins } from "@rec/shared";
+import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { supabase } from "../../lib/supabase.js";
@@ -17,7 +17,9 @@ import {
   loadSeasonBoxScoreStats,
   loadUserFinancialSummary,
   resolveTeamNick,
+  resolveTeamProgramName,
   resolveTeamSchool,
+  resolveTeamSubtitle,
 } from "./user-profile-stats.service.js";
 
 const ALL_BADGE_DEFS = [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES];
@@ -766,7 +768,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     supabase.from("rec_global_user_game_records").select("*").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
   ]);
 
-  const teamName = formatTeamDisplayName(teamRow);
+  const teamName = resolveTeamProgramName(teamRow) ?? formatTeamDisplayName(teamRow);
   const globalRecord = (globalRecordRow as any)?.data ?? baseline.globalRecord ?? {};
   const gameGlobalRecord = buildGameRecordForDisplay(
     (gameGlobalRecordRow as any)?.data ?? null,
@@ -813,7 +815,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     user: baseline.user,
     discord: baseline.discord,
     teamName,
-    schoolName: resolveTeamSchool(teamRow) ?? teamName,
+    schoolName: resolveTeamSubtitle(teamRow, leagueInfo?.game),
     leagueName: leagueInfo?.name ?? null,
     seasonNumber,
     currentWeek: leagueInfo?.current_week ?? null,
@@ -1318,10 +1320,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
             .eq("is_selected", true)
             .maybeSingle();
 
-          if (!gotw.error && gotw.data) {
+          if (isPostseason) {
+            // All playoff games are GOTW — show the stage name, not a GOTW badge.
+            gotwStatus = stageLabel(stage, currentWeek, league.game);
+          } else if (!gotw.error && gotw.data) {
             gotwStatus = `Yes${gotw.data.strength_rating ? ` (${Number(gotw.data.strength_rating).toFixed(1)} rating)` : ""}`;
-          } else if (isPostseason) {
-            gotwStatus = "Yes - Playoff GOTW";
           }
         } else if (isGameplayStage) {
           // A real gameplay week (regular season or postseason) with no rec_games row for
@@ -1438,8 +1441,10 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     gotwVotingRecord,
     display: {
       discordUsername: baseline.discord.global_name ?? baseline.discord.username ?? baseline.user.display_name,
-      teamName: assignment?.team?.name ?? null,
-      schoolName: resolveTeamSchool(assignment?.team) ?? assignment?.team?.name ?? null,
+      siteUsername: baseline.user.username ?? null,
+      displayName: baseline.user.display_name ?? baseline.user.username ?? baseline.discord.global_name ?? baseline.discord.username ?? "REC Member",
+      teamName: resolveTeamProgramName(assignment?.team) ?? assignment?.team?.name ?? null,
+      schoolName: resolveTeamSubtitle(assignment?.team, league?.game),
       highestRole: membership?.role ?? null,
       wallet: baseline.wallet?.wallet_balance ?? 0,
       savings: baseline.wallet?.savings_balance ?? 0,

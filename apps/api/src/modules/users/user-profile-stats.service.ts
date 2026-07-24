@@ -462,10 +462,88 @@ export function resolveTeamNick(team: {
   is_relocated?: boolean | null;
 } | null | undefined) {
   if (!team) return "CPU";
-  if (team.is_relocated && team.display_nick?.trim()) {
+  if (team.display_nick?.trim()) {
     return team.display_nick.trim();
   }
-  const name = String(team.name ?? team.display_nick ?? "CPU").trim();
+  const name = String(team.name ?? "CPU").trim();
   const parts = name.split(/\s+/);
   return parts.length > 1 ? parts[parts.length - 1]! : name;
+}
+
+/** Hero / profile primary team label — mascot/nick (Yellow Jackets, Saints). */
+export function resolveTeamProgramName(team: {
+  name?: string | null;
+  display_nick?: string | null;
+  is_relocated?: boolean | null;
+} | null | undefined) {
+  return resolveTeamNick(team);
+}
+
+const NFL_CITY_STATE: Record<string, string> = {
+  Arizona: "AZ",
+  Atlanta: "GA",
+  Baltimore: "MD",
+  Buffalo: "NY",
+  Carolina: "NC",
+  Chicago: "IL",
+  Cincinnati: "OH",
+  Cleveland: "OH",
+  Dallas: "TX",
+  Denver: "CO",
+  Detroit: "MI",
+  "Green Bay": "WI",
+  Houston: "TX",
+  Indianapolis: "IN",
+  Jacksonville: "FL",
+  "Kansas City": "MO",
+  "Las Vegas": "NV",
+  "Los Angeles": "CA",
+  Miami: "FL",
+  Minnesota: "MN",
+  "New England": "MA",
+  "New Orleans": "LA",
+  "New York": "NY",
+  Philadelphia: "PA",
+  Pittsburgh: "PA",
+  "San Francisco": "CA",
+  Seattle: "WA",
+  "Tampa Bay": "FL",
+  Tennessee: "TN",
+  Washington: "DC",
+};
+
+function cityFromTeamName(team: { name?: string | null; display_nick?: string | null }) {
+  const name = team.name?.trim();
+  if (!name) return null;
+  const nick = resolveTeamNick(team);
+  if (name.length > nick.length && name.toLowerCase().endsWith(nick.toLowerCase())) {
+    return name.slice(0, name.length - nick.length).trim() || null;
+  }
+  const parts = name.split(/\s+/);
+  return parts.length > 1 ? parts.slice(0, -1).join(" ") : null;
+}
+
+/**
+ * Secondary hero line under the team nick:
+ * - CFB: school/city only (Hard Knox) — never prefixed with "School:"
+ * - Madden: "New Orleans, LA" (no school concept)
+ */
+export function resolveTeamSubtitle(
+  team: {
+    name?: string | null;
+    display_city?: string | null;
+    display_nick?: string | null;
+    is_relocated?: boolean | null;
+  } | null | undefined,
+  game: string | null | undefined,
+): string | null {
+  if (!team) return null;
+  const isCfb = String(game ?? "").startsWith("cfb");
+  if (isCfb) {
+    return resolveTeamSchool(team) ?? (team.display_city?.trim() || null);
+  }
+  const city = team.display_city?.trim() || cityFromTeamName(team);
+  if (!city) return null;
+  const state = NFL_CITY_STATE[city];
+  return state ? `${city}, ${state}` : city;
 }

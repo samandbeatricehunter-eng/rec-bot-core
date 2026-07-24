@@ -516,7 +516,7 @@ export type WagerOptionsResponse = {
   markets: Array<{ market: string; label: string; kind: string; line: number | null; unit?: string; sides: Array<{ pick: string; label: string; odds: number }> }>;
 };
 export type PeerWagerBoardResponse = {
-  wagers: Array<{ id: string; gameId: string; gameLabel: string; challengeType: string; market: string; pick: string; line: number | null; odds: number; stake: number; potentialPayout: number; placedByDiscordId: string; isMine: boolean; canAccept: boolean; createdAt: string }>;
+  wagers: Array<{ id: string; gameId: string; gameLabel: string; challengeType: string; market: string; pick: string; line: number | null; odds: number; stake: number; potentialPayout: number; placedByDiscordId: string; isMine: boolean; canAccept: boolean; createdAt: string; status?: string; boardState?: "open" | "active" }>;
 };
 export type ChallengeableCoachesResponse = {
   coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;

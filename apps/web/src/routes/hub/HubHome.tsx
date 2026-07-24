@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, formatCoins, formatCoinsRange, type RecPurchaseType } from "@rec/shared";
+import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
@@ -48,14 +48,14 @@ const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> 
   legend: Star,
   custom_player: UserPlus,
 };
-const STORE_PRODUCT_PRICE_LABEL: Record<RecPurchaseType, string> = {
-  age_reset: formatCoins(REC_AGE_RESET_PRICE),
-  dev_upgrade: formatCoinsRange(REC_DEV_UPGRADE_PRICE.star, REC_DEV_UPGRADE_PRICE.xfactor),
-  contract: formatCoins(REC_CONTRACT_PRICE.salary_bonus_reduction),
-  player_trait: formatCoins(REC_PLAYER_TRAIT_PRICE),
-  attribute: `${formatCoinsRange(REC_ATTRIBUTE_POINT_PRICE.non_core, REC_ATTRIBUTE_POINT_PRICE.core)}/pt`,
-  legend: formatCoins(REC_LEGEND_PRICE),
-  custom_player: formatCoinsRange(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze, REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold),
+const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
+  age_reset: coinsNumber(REC_AGE_RESET_PRICE),
+  dev_upgrade: `${coinsNumber(REC_DEV_UPGRADE_PRICE.star)}-${coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}`,
+  contract: coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction),
+  player_trait: coinsNumber(REC_PLAYER_TRAIT_PRICE),
+  attribute: `${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.non_core)}-${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.core)}/pt`,
+  legend: coinsNumber(REC_LEGEND_PRICE),
+  custom_player: `${coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze)}-${coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold)}`,
 };
 type Story = HubResponse["headlines"][number];
 type HubSection = "league" | "store" | "team" | "wagers" | "openTeams" | "schedules";
@@ -90,7 +90,7 @@ type WagerPanel = {
   challengeType: "open" | "direct";
   targetUserId: string;
   coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;
-  board: Array<{ id: string; gameId: string; gameLabel: string; challengeType: string; market: string; pick: string; line: number | null; odds: number; stake: number; potentialPayout: number; placedByDiscordId: string; isMine: boolean; canAccept: boolean; createdAt: string }>;
+  board: Array<{ id: string; gameId: string; gameLabel: string; challengeType: string; market: string; pick: string; line: number | null; odds: number; stake: number; potentialPayout: number; placedByDiscordId: string; isMine: boolean; canAccept: boolean; createdAt: string; status?: string; boardState?: "open" | "active" }>;
   notice: string | null;
   busy: boolean;
 };
@@ -291,6 +291,7 @@ export function HubHome() {
   const [closeWagersOpen, setCloseWagersOpen] = useState(false);
   const [closeWagerGameIds, setCloseWagerGameIds] = useState<Set<string>>(new Set());
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
+  const [announcementIndex, setAnnouncementIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -394,6 +395,14 @@ export function HubHome() {
     const timer = window.setInterval(() => setWagerBoardIndex((current) => (current + 1) % count), 6000);
     return () => window.clearInterval(timer);
   }, [section, subTab, wagersBoard?.length]);
+
+  // announcement carousel timer
+  useEffect(() => {
+    const count = hub?.announcements?.length ?? 0;
+    if (section !== "league" || subTab !== "buzz" || count < 2) return;
+    const timer = window.setInterval(() => setAnnouncementIndex((current) => (current + 1) % count), 8000);
+    return () => window.clearInterval(timer);
+  }, [section, subTab, hub?.announcements?.length]);
 
   const headlineCount = hub?.headlines?.length ?? 0;
   const currentWeekStoryIndexes = useMemo(() => {
@@ -609,7 +618,7 @@ export function HubHome() {
     setTransferBusy(true); setTransferStatus(null);
     try {
       const result = await recApi.transferMyFunds({ guildId: auth.guildId, amount, direction: transferDirection });
-      setTransferStatus(`Transfer complete. Wallet ${formatCoins(result.wallet_balance)} · Savings ${formatCoins(result.savings_balance)}`);
+      setTransferStatus(`Transfer complete. Wallet ${coinsNumber(result.wallet_balance)} · Savings ${coinsNumber(result.savings_balance)}`);
       setTransferAmount(""); await load();
     } catch (cause) { setTransferStatus(cause instanceof Error ? cause.message : "Transfer failed."); }
     finally { setTransferBusy(false); }
@@ -802,13 +811,13 @@ export function HubHome() {
       if (wagerPanel.mode === "parlay") {
         const legs = wagerPanel.parlay.length ? wagerPanel.parlay : [{ gameId: wagerPanel.gameId, label: wagerPanel.label, options: wagerPanel.options!, market: wagerPanel.market, pick: wagerPanel.pick }];
         const result = await recApi.placeParlay({ guildId: auth.guildId, stake: Math.floor(stake), legs: legs.map((leg) => ({ gameId: leg.gameId, market: leg.market, pick: leg.pick })) });
-        message = `Parlay placed. Potential payout ${formatCoins(result.payout)}.`;
+        message = `Parlay placed. Potential payout ${coinsNumber(result.payout)}.`;
       } else if (wagerPanel.mode === "peer") {
         const result = await recApi.placePeerWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake), challengeType: wagerPanel.challengeType, targetUserId: wagerPanel.challengeType === "direct" ? wagerPanel.targetUserId : null });
-        message = `Peer wager posted. Pot payout ${formatCoins(result.payout)}.`;
+        message = `Peer wager posted. Pot payout ${coinsNumber(result.payout)}.`;
       } else {
         const result = await recApi.placeHouseWager({ guildId: auth.guildId, gameId: wagerPanel.gameId, market: wagerPanel.market, pick: wagerPanel.pick, stake: Math.floor(stake) });
-        message = `House wager placed. Potential payout ${formatCoins(result.payout)}.`;
+        message = `House wager placed. Potential payout ${coinsNumber(result.payout)}.`;
       }
       const board = await recApi.getPeerWagerBoard(auth.guildId).catch(() => ({ wagers: wagerPanel.board }));
       setWagerPanel((current) => current ? { ...current, board: board.wagers, busy: false, notice: message } : current);
@@ -909,9 +918,10 @@ export function HubHome() {
   const heroRecord = profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0";
   const heroStreak = profile.seasonRecord?.activeStreak ?? "—";
   const heroDifferential = Number(my.leagueSeasonPointDifferential ?? profile.seasonRecord?.pointDifferential ?? 0);
+  const coachName = my.siteUsername || my.displayName || profile.user?.username || my.discordUsername || profile.user?.display_name || "REC Member";
   const heroGotw = my.gotwStatus && !["No", "Not GOTW"].includes(String(my.gotwStatus)) ? String(my.gotwStatus) : "";
   const heroTeam = profile.teamName ?? my.teamName ?? "No team linked";
-  const heroSchool = my.schoolName ?? profile.schoolName ?? my.teamName ?? profile.teamName ?? "School unavailable";
+  const heroSchool = my.schoolName ?? profile.schoolName ?? null;
   const viewerCoach = hub.coachRatings?.teams?.find((team) => team.teamId === hub.coachRatings?.viewerTeamId);
   const viewerUser = hub.userRatings?.users?.find((user) => user.userId === hub.userRatings?.viewerUserId);
   const heroCoachScore = viewerCoach
@@ -938,35 +948,20 @@ export function HubHome() {
   const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
 
   return <div className="hub-page">
-    <section className="hub-hero">
-      <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p></div>
-      <aside className="hub-hero-snapshot">
-        <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong>{heroGotw && <small>{heroGotw}</small>}</div>
-        <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong><small>School: {heroSchool}</small></div>
-        <div className="hub-hero-metrics">
-          <article><span>Record</span><strong>{heroRecord}</strong><small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff</small></article>
-          <article><span>Streak</span><strong>{heroStreak}</strong><small>Current W/L</small></article>
-          <article><span>Power Rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small></article>
-          <article><span>Coach Score</span><strong>{heroCoachScore}</strong><small>{heroCoachMeta}</small></article>
-          <article><span>User Score</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article>
-          <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Savings <CoinAmount amount={Number(my.savings ?? 0)} /></small></article>
-        </div>
-      </aside>
-    </section>
     <div className="hub-body">
       <main className="hub-content">
-    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{my.discordUsername ?? profile.user?.display_name ?? "REC Member"}</p></div></div>
+    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
       {hub.league.game === "cfb_27" && <DefenseNicknamePrompt />}
       <div className="hub-my-team-shortcuts">
-        <button className="hub-shortcut-card" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={18} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${formatCoins(100)} on approval`}</span></div></button>
-        <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : `${formatCoins(50)} on approval`}</span></div></button>
+        <button className="hub-shortcut-card" onClick={() => setMediaModal("article")}><IconWell size="sm" icon={<FileText size={18} />} /><div><strong>Submit Article</strong><span>{mediaPortal?.limits.articleSubmitted ? `Submitted (${mediaPortal.limits.articleStatus})` : `${coinsNumber(100)} on approval`}</span></div></button>
+        <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : `${coinsNumber(50)} on approval`}</span></div></button>
         {hub.league.game === "cfb_27" && <button className="hub-shortcut-card" onClick={() => setRecruitModalOpen(true)}><IconWell size="sm" icon={<GraduationCap size={18} />} /><div><strong>Confirmed Commit</strong><span>Log a recruit to your school</span></div></button>}
         <button className="hub-shortcut-card" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={18} />} /><div><strong>Full Season Schedule</strong><span>Results &amp; upcoming games</span></div></button>
       </div>
       <div className="hub-stat-grid">
-      <article><span>Coach</span><strong>{my.discordUsername ?? "REC Member"}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
+      <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
     </div><div className="hub-profile-sections">
-      <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><p>Projected next-advance interest: <strong><CoinAmount amount={Number(my.projectedInterest ?? 0)} /></strong></p><p className="hub-muted">Savings interest continues to accrue when the league advances.</p><div className="hub-transfer-form"><select className="form-input" value={transferDirection} onChange={(event) => setTransferDirection(event.target.value as typeof transferDirection)}><option value="to_savings">Wallet â†’ Savings</option><option value="from_savings">Savings â†’ Wallet</option></select><input className="form-input" type="number" min="0.01" step="0.01" placeholder="Amount" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /><Button variant="primary" disabled={transferBusy || !transferAmount} onClick={() => void transferFunds()}>{transferBusy ? "Transferring…" : "Transfer Funds"}</Button></div>{transferStatus && <p className="hub-transfer-status">{transferStatus}</p>}</div></details>
+      <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><p>Projected next-advance interest: <strong><CoinAmount amount={Number(my.projectedInterest ?? 0)} /></strong></p><p className="hub-muted">Savings interest continues to accrue when the league advances.</p><div className="hub-transfer-form"><select className="form-input" value={transferDirection} onChange={(event) => setTransferDirection(event.target.value as typeof transferDirection)}><option value="to_savings">Wallet to Savings</option><option value="from_savings">Savings to Wallet</option></select><input className="form-input" type="number" min="0.01" step="0.01" placeholder="Amount" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /><Button variant="primary" disabled={transferBusy || !transferAmount} onClick={() => void transferFunds()}>{transferBusy ? "Transferring…" : "Transfer Funds"}</Button></div>{transferStatus && <p className="hub-transfer-status">{transferStatus}</p>}</div></details>
       <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time REC</span><strong>{profile.globalRecord?.text ?? my.globalRecordText ?? "0-0-0"}</strong><small>Playoffs {profile.globalRecord?.playoffText ?? "0-0"} · Championships {profile.globalRecord?.superbowlWins ?? 0}</small></article>{profile.gameGlobalRecord && <article><span>{profile.gameGlobalRecord.label}</span><strong>{profile.gameGlobalRecord.text}</strong><small>Playoffs {profile.gameGlobalRecord.playoffText} · Championships {profile.gameGlobalRecord.superbowlWins ?? 0}</small></article>}<article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /></div></details>
@@ -996,20 +991,20 @@ export function HubHome() {
           </>}
 
           {purchaseType === "custom_player" && <>
-            <label className="form-field"><span className="form-label">Package</span><select className="form-input" value={purchaseDetails.package ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, package: event.target.value }))}><option value="">Select package</option><option value="bronze">Bronze · {formatCoins(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.bronze} pts</option><option value="silver">Silver · {formatCoins(REC_CUSTOM_PLAYER_PACKAGE_PRICE.silver)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.silver} pts</option><option value="gold">Gold · {formatCoins(REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.gold} pts</option></select></label>
+            <label className="form-field"><span className="form-label">Package</span><select className="form-input" value={purchaseDetails.package ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, package: event.target.value }))}><option value="">Select package</option><option value="bronze">Bronze · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.bronze} pts</option><option value="silver">Silver · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.silver)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.silver} pts</option><option value="gold">Gold · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.gold} pts</option></select></label>
             <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
             <label className="form-field"><span className="form-label">Position</span><input className="form-input" placeholder="QB, WR, CB…" value={purchaseDetails.position ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, position: event.target.value }))} /></label>
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.package ? REC_CUSTOM_PLAYER_PACKAGE_PRICE[purchaseDetails.package as keyof typeof REC_CUSTOM_PLAYER_PACKAGE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.package} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
 
           {purchaseType === "dev_upgrade" && <>
-            <label className="form-field"><span className="form-label">Upgrade to</span><select className="form-input" value={purchaseDetails.targetTier ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, targetTier: event.target.value }))}><option value="">Select tier</option><option value="star">Star · {formatCoins(REC_DEV_UPGRADE_PRICE.star)}</option><option value="superstar">Superstar · {formatCoins(REC_DEV_UPGRADE_PRICE.superstar)}</option><option value="xfactor">X-Factor · {formatCoins(REC_DEV_UPGRADE_PRICE.xfactor)}</option></select></label>
+            <label className="form-field"><span className="form-label">Upgrade to</span><select className="form-input" value={purchaseDetails.targetTier ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, targetTier: event.target.value }))}><option value="">Select tier</option><option value="star">Star · {coinsNumber(REC_DEV_UPGRADE_PRICE.star)}</option><option value="superstar">Superstar · {coinsNumber(REC_DEV_UPGRADE_PRICE.superstar)}</option><option value="xfactor">X-Factor · {coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}</option></select></label>
             <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.targetTier ? REC_DEV_UPGRADE_PRICE[purchaseDetails.targetTier as keyof typeof REC_DEV_UPGRADE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.targetTier} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
 
           {purchaseType === "contract" && <>
-            <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · {formatCoins(REC_CONTRACT_PRICE.salary_bonus_reduction)}</option><option value="extension">1-Year Extension · {formatCoins(REC_CONTRACT_PRICE.extension)}</option></select></label>
+            <label className="form-field"><span className="form-label">Contract change</span><select className="form-input" value={purchaseDetails.variant ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, variant: event.target.value }))}><option value="">Select option</option><option value="salary_bonus_reduction">50% Salary/Bonus Reduction · {coinsNumber(REC_CONTRACT_PRICE.salary_bonus_reduction)}</option><option value="extension">1-Year Extension · {coinsNumber(REC_CONTRACT_PRICE.extension)}</option></select></label>
             <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.variant ? REC_CONTRACT_PRICE[purchaseDetails.variant as keyof typeof REC_CONTRACT_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.variant} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
           </>}
@@ -1048,6 +1043,36 @@ export function HubHome() {
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{wager.market} · <CoinAmount amount={wager.stake} /> · {wager.challengeType}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.isMine && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
     </section> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
+        <div className="hub-buzz-top">
+          <section className="hub-hero hub-hero-compact">
+            <div className="hub-hero-main"><p className="hub-eyebrow">{leagueTimelineLabel(hub.league)}</p><h1>{hub.league.name}</h1><p>{gameLabel(hub.league.game)} · {displayLabel(String(hub.league.seasonStage))}</p><p className="hub-hero-coach">{coachName}</p></div>
+            <aside className="hub-hero-snapshot">
+              <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong>{heroGotw && <small>{heroGotw}</small>}</div>
+              <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong>{heroSchool ? <small>{heroSchool}</small> : null}</div>
+              <div className="hub-hero-metrics">
+                <article><span>Record</span><strong>{heroRecord}</strong><small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff</small></article>
+                <article><span>Streak</span><strong>{heroStreak}</strong><small>Current W/L</small></article>
+                <article><span>Power Rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small></article>
+                <article><span>Coach Score</span><strong>{heroCoachScore}</strong><small>{heroCoachMeta}</small></article>
+                <article><span>User Score</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article>
+                <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Savings <CoinAmount amount={Number(my.savings ?? 0)} /></small></article>
+              </div>
+            </aside>
+          </section>
+          <SectionFrame eyebrow="Official updates" title="Announcements" className="hub-announce-panel">
+            {hub.announcements.length ? (
+              <div className="hub-announce-carousel">
+                {hub.announcements.length > 1 ? <button type="button" className="hub-highlight-arrow previous" onClick={() => setAnnouncementIndex((announcementIndex - 1 + hub.announcements.length) % hub.announcements.length)}><ChevronLeft /></button> : null}
+                {(() => {
+                  const item = hub.announcements[announcementIndex % hub.announcements.length];
+                  return <article key={item.id}><time>{new Date(item.published_at).toLocaleDateString()}</time><h3>{item.title}</h3><p>{item.body}</p><span className="hub-announce-pos">{(announcementIndex % hub.announcements.length) + 1} / {hub.announcements.length}</span></article>;
+                })()}
+                {hub.announcements.length > 1 ? <button type="button" className="hub-highlight-arrow next" onClick={() => setAnnouncementIndex((announcementIndex + 1) % hub.announcements.length)}><ChevronRight /></button> : null}
+              </div>
+            ) : <p className="hub-empty">League announcements will appear here.</p>}
+          </SectionFrame>
+        </div>
+
         <EosAwardVotingBlock />
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {headlines.length ? (
@@ -1070,7 +1095,7 @@ export function HubHome() {
                       onPointerCancel={mobileStorySwipe.handlers.onPointerCancel}
                     >
                       {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
-                      <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable â†’" : "Read more â†’"}</span></button>
+                      <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
                     </article>
                   );
                 })()}
@@ -1085,7 +1110,7 @@ export function HubHome() {
                   if (!story) return null;
                   return <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
                     {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
-                    <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable â†’" : "Read more â†’"}</span></button>
+                    <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
                   </article>;
                 })()}
                 {headlineCount > 1 && <button type="button" className="hub-highlight-arrow next" onClick={() => setStoryCarouselIndex((storyCarouselIndex + 1) % headlineCount)}><ChevronRight /></button>}
@@ -1117,24 +1142,43 @@ export function HubHome() {
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
         </SectionFrame>
-
-        <SectionFrame eyebrow="Live market" title="Wager Board">
-          {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
-          <div className="hub-wager-board-feature">{wagersBoard === null ? <p className="hub-empty">Loading open wagers...</p> : wagersBoard.length ? <>
-            <button className="hub-wager-arrow" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>
-            {(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><span className="hub-wager-kicker">Open Challenge</span><strong>{wager.gameLabel}</strong><p>{displayLabel(wager.market)} · {wager.pick}</p><div><b><CoinAmount amount={wager.stake} /> stake</b><small>Potential payout <CoinAmount amount={wager.potentialPayout} /></small></div>{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept Wager</Button>}</article>; })()}
-            <button className="hub-wager-arrow" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button>
-            <span className="hub-wager-position">{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</span>
-          </> : <div className="hub-wager-empty"><Coins size={30} /><strong>No Open Wagers</strong><p>New user challenges will appear here automatically.</p></div>}</div>
-        </SectionFrame>
-
-        <SectionFrame eyebrow="Official updates" title="Announcements">
-          {hub.announcements.length ? <div className="hub-feed-list">{hub.announcements.map((item) => <article key={item.id}><time>{new Date(item.published_at).toLocaleDateString()}</time><h3>{item.title}</h3><p>{item.body}</p></article>)}</div> : <p className="hub-empty">League announcements will appear here.</p>}
-        </SectionFrame>
       </>}
 
       {subTab === "matchups" && (
         <>
+
+          <SectionFrame eyebrow="Live market" title="Wager Board">
+            {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
+            <div className="hub-wager-board-feature">{wagersBoard === null ? <p className="hub-empty">Loading wagers...</p> : wagersBoard.length ? <>
+              <button className="hub-wager-arrow" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>
+              {(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; return <article key={wager.id}><span className="hub-wager-kicker">{wager.boardState === "active" || wager.status === "pending" ? "Active Wager" : "Open Challenge"}</span><strong>{wager.gameLabel}</strong><p>{displayLabel(wager.market)} · {wager.pick}</p><div><b><CoinAmount amount={wager.stake} /> stake</b><small>Potential payout <CoinAmount amount={wager.potentialPayout} /></small></div>{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept Wager</Button>}</article>; })()}
+              <button className="hub-wager-arrow" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button>
+              <span className="hub-wager-position">{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</span>
+            </> : <div className="hub-wager-empty"><Coins size={30} /><strong>No Open or Active Wagers</strong><p>User challenges appear here automatically.</p></div>}</div>
+          </SectionFrame>
+
+          {matchupSchedule?.gotw ? (
+            <SectionFrame eyebrow="Community pick" title="Game of the Week">
+              <div className="hub-gotw-feature">
+                <div className="hub-matchup-board">
+                  <button type="button" className={`hub-team-side hub-team-side-vote away${matchupSchedule.gotw.myVote === matchupSchedule.gotw.awayTeamId ? " active" : ""}`} disabled={matchupSchedule.gotw.status !== "open"} onClick={() => void voteGotw(matchupSchedule.gotw!.awayTeamId)} aria-label="Vote away">
+                    <span>Away</span>
+                    <b>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.awayTeamName ?? "Away"}</b>
+                    <small>{matchupSchedule.gotw.awayVotes} vote{matchupSchedule.gotw.awayVotes === 1 ? "" : "s"}</small>
+                  </button>
+                  <div className="hub-score-center"><span>GOTW</span></div>
+                  <button type="button" className={`hub-team-side hub-team-side-vote home${matchupSchedule.gotw.myVote === matchupSchedule.gotw.homeTeamId ? " active" : ""}`} disabled={matchupSchedule.gotw.status !== "open"} onClick={() => void voteGotw(matchupSchedule.gotw!.homeTeamId)} aria-label="Vote home">
+                    <span>Home</span>
+                    <b>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.homeTeamName ?? "Home"}</b>
+                    <small>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</small>
+                  </button>
+                </div>
+                {hub.canManageLeague && matchupSchedule.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button></div>}
+                {(() => { const total = matchupSchedule.gotw.awayVotes + matchupSchedule.gotw.homeVotes; const away = total ? Math.round(matchupSchedule.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong></div></div>; })()}
+              </div>
+            </SectionFrame>
+          ) : null}
+
           <div className="rec-matchup-tabs" role="tablist" aria-label="Matchups and rankings">
             <button type="button" role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
             <button type="button" role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
@@ -1299,7 +1343,7 @@ export function HubHome() {
     {mediaModal === "article" && <Modal title="Submit Article" onClose={() => setMediaModal(null)}><div className="hub-media-modal">
       {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
       {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
-        <p className="hub-muted">{mediaPortal.limits.articleSubmitted ? `Already submitted this week (${mediaPortal.limits.articleStatus}).` : `Submit one custom article per week for commissioner review. Pays ${formatCoins(100)} on approval.`}</p>
+        <p className="hub-muted">{mediaPortal.limits.articleSubmitted ? `Already submitted this week (${mediaPortal.limits.articleStatus}).` : `Submit one custom article per week for commissioner review. Pays ${coinsNumber(100)} on approval.`}</p>
         <div className="form-field"><label className="form-label">Title</label><input className="form-input" value={mediaArticle.title} disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => setMediaArticle({ ...mediaArticle, title: event.target.value })} /></div>
         <div className="form-field"><label className="form-label">Article body</label><textarea className="form-input" rows={7} value={mediaArticle.body} disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => setMediaArticle({ ...mediaArticle, body: event.target.value })} /></div>
         <div className="form-field"><label className="form-label">Image</label><input className="form-input" type="file" accept="image/png,image/jpeg,image/webp" disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => void uploadMediaImage(event.target.files?.[0] ?? null)} />{mediaArticle.imageUrl && <img className="media-image-preview" src={mediaArticle.imageUrl} alt="" />}</div>
@@ -1310,7 +1354,7 @@ export function HubHome() {
     {mediaModal === "interview" && <Modal title="Coach Interview" onClose={() => setMediaModal(null)}><div className="hub-media-modal">
       {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
       {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
-        <p className="hub-muted">{mediaPortal.limits.interviewSubmitted ? `Already submitted this week (${mediaPortal.limits.interviewStatus}).` : `Pick 3 questions and answer them for commissioner review. Pays ${formatCoins(50)} on approval.`}</p>
+        <p className="hub-muted">{mediaPortal.limits.interviewSubmitted ? `Already submitted this week (${mediaPortal.limits.interviewStatus}).` : `Pick 3 questions and answer them for commissioner review. Pays ${coinsNumber(50)} on approval.`}</p>
         {interviewAnswers.map((answer, index) => {
           const selectedTopic = answer.questionId ? mediaPortal.questions.find((question) => question.id === answer.questionId)?.topic ?? "" : "";
           const topics = [...new Set(mediaPortal.questions.map((question) => question.topic))];

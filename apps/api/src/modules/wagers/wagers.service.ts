@@ -642,11 +642,12 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
     .eq("wager_kind", "peer")
-    .eq("status", "awaiting_accept")
+    .in("status", ["awaiting_accept", "pending"])
     .order("created_at", { ascending: false });
   if (error) throw new ApiError(500, "Failed to load wager board.", error);
 
   const rows = (data ?? []).filter((w: any) => {
+    if (w.status === "pending") return true; // active accepted wagers are public
     if (w.placed_by_user_id === viewerUserId) return true;
     if (w.challenge_type === "direct") return w.counterparty_user_id === viewerUserId;
     if (w.challenge_type === "counter") return w.counterparty_user_id === viewerUserId;
@@ -670,9 +671,14 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
       odds: w.odds,
       stake: Number(w.stake ?? 0),
       potentialPayout: Number(w.potential_payout ?? 0),
+      status: w.status,
+      boardState: w.status === "awaiting_accept" ? "open" : "active",
       placedByDiscordId: w.placed_by_discord_id,
       isMine: w.placed_by_user_id === viewerUserId,
-      canAccept: w.placed_by_user_id !== viewerUserId && (w.challenge_type !== "direct" || w.counterparty_user_id === viewerUserId),
+      canAccept:
+        w.status === "awaiting_accept" &&
+        w.placed_by_user_id !== viewerUserId &&
+        (w.challenge_type !== "direct" || w.counterparty_user_id === viewerUserId),
       createdAt: w.created_at,
     })),
   };

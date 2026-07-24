@@ -121,3 +121,14 @@
   --bp-sm: 390px;
   --bp-xs: 360px;
 }
+
+[data-accent-tier="platinum"] {
+  --accent: #c5cdd8;
+  --accent-bright: #e8eef6;
+  --accent-dark: #8b95a3;
+  --gold: var(--accent);
+  --gold-light: var(--accent-bright);
+  --gold-dark: var(--accent-dark);
+  --accent-gradient: linear-gradient(180deg, #e8eef6 0%, #c5cdd8 52%, #8b95a3 100%);
+  --shadow-glow-gold: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}

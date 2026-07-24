@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { AccentTier } from "./components/AccentTier.js";
 import { SiteShell } from "./components/SiteShell.js";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
 import { HubProvider, useHub } from "./lib/hub-context.js";
@@ -234,6 +235,7 @@ export default function App() {
       <RootErrorBoundary>
         <AuthProvider>
           <SiteThemeProvider>
+            <AccentTier />
             <Routed />
           </SiteThemeProvider>
         </AuthProvider>

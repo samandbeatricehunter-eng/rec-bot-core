@@ -11,18 +11,61 @@ import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.serv
 import { setLeagueWeek } from "./league-week.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
-import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName, resolveTeamNick } from "../users/user-profile-stats.service.js";
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
+import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { autoAssignGotwForWeek, settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
+
+async function publishLeagueAdvanceAnnouncement(input: {
+  guildId: string;
+  leagueId: string;
+  seasonNumber: number;
+  weekNumber: number;
+  seasonStage: string;
+  game: string;
+}) {
+  const label = stageLabel(input.seasonStage, input.weekNumber, input.game);
+  const title =
+    input.seasonStage === "regular_season"
+      ? `League advanced to Week ${input.weekNumber}`
+      : `League advanced to ${label}`;
+
+  const games = await supabase
+    .from("rec_games")
+    .select(
+      "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
+    )
+    .eq("league_id", input.leagueId)
+    .eq("week_number", input.weekNumber)
+    .not("home_user_id", "is", null)
+    .not("away_user_id", "is", null)
+    .order("created_at", { ascending: true });
+
+  const lines = (games.data ?? []).map((game: any) => {
+    const away = resolveTeamNick(game.away_team);
+    const home = resolveTeamNick(game.home_team);
+    return `${away} at ${home}`;
+  });
+
+  const body = lines.length
+    ? `H2H matchups this week:\n${lines.map((line) => `• ${line}`).join("\n")}`
+    : `${label} is live. Check Matchups for this week's slate.`;
+
+  await recordHubAnnouncement({
+    guildId: input.guildId,
+    title,
+    body,
+  });
+}
 import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
 import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
 
@@ -461,6 +504,17 @@ export async function completeAdvanceWeek(input: {
     weekNumber: nextTarget.weekNumber,
     seasonStage: nextTarget.seasonStage,
     seasonNumber,
+  });
+
+  await publishLeagueAdvanceAnnouncement({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: nextTarget.weekNumber,
+    seasonStage: nextTarget.seasonStage,
+    game: context.rec_leagues.game,
+  }).catch((err) => {
+    console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
   });
 
   // Bowl games / the national championship are automatic GOTW games in CFB leagues —
