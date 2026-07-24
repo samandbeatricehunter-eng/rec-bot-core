@@ -1,7 +1,12 @@
+import { CFB_27_TEAMS, stageLabel } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { buildWebHubUrl } from "../web-session/web-session.service.js";
+
+const CFB_DEFAULT_CONFERENCE = new Map(
+  CFB_27_TEAMS.map((team) => [team.abbreviation.toUpperCase(), team.conference]),
+);
 
 /** Linked REC profile (username optional — used by chrome/league selector). */
 export async function requireLinkedRecUser(authUserId: string): Promise<{
@@ -321,30 +326,104 @@ export type SiteLeagueSearchFilters = {
   limit?: number;
 };
 
+export type SiteLeagueConferenceReassignment = {
+  abbreviation: string;
+  name: string;
+  fromConference: string;
+  toConference: string;
+};
+
 export type SiteLeagueSearchHit = {
   id: string;
   name: string;
   game: string;
   gameLabel: string;
   seasonStage: string;
+  seasonStageLabel: string;
   seasonNumber: number;
+  currentWeek: number | null;
   openTeamCount: number;
   memberCount: number;
   commissionerUsername: string | null;
   commissionerDiscordName: string | null;
-  difficulty: string | null;
-  streamingRequirement: string | null;
+  isMember: boolean;
+
+  // Shared pills / expanded
   coinEconomyEnabled: boolean;
+  regularSeasonStreamingRequirement: string | null;
+  postseasonStreamingRequirement: string | null;
+  /** @deprecated prefer regularSeasonStreamingRequirement */
+  streamingRequirement: string | null;
+  regularSeasonStreamingSide: string | null;
+  postseasonStreamingSide: string | null;
+  customCoachesRequired: boolean;
+  customPlaybooksAllowed: boolean;
+  difficulty: string | null;
+  slidersAdjusted: boolean;
+  quarterLengthMinutes: number | null;
   acceleratedClockEnabled: boolean;
   acceleratedClockMinimumSeconds: number | null;
-  tradeApprovalPolicy: string | null;
+  injuryPolicy: string | null;
+  wearAndTearEnabled: boolean;
+  fourthDownRuleTypeRegular: string | null;
+  fourthDownRuleTypePlayoff: string | null;
+  coachFiringPolicy: string | null;
+  preorderBonusesEnabled: boolean;
+  ballHawk: string | null;
+  heatSeeker: string | null;
+  switchAssist: string | null;
   offensivePlayCallLimitsEnabled: boolean;
   offensivePlayCallLimit: number | null;
+  offensivePlayCallCooldownEnabled: boolean;
   offensivePlayCallCooldown: number | null;
   defensivePlayCallLimitsEnabled: boolean;
   defensivePlayCallLimit: number | null;
+  defensivePlayCallCooldownEnabled: boolean;
   defensivePlayCallCooldown: number | null;
-  isMember: boolean;
+  fairSimRequirements: string | null;
+  forceWinRequirements: string | null;
+
+  // Purchases (expanded when coin economy on)
+  customPlayersEnabled: boolean;
+  legendsEnabled: boolean;
+  devUpgradesEnabled: boolean;
+  ageResetsEnabled: boolean;
+  attributePurchasesEnabled: boolean;
+  playerTraitPurchasesEnabled: boolean;
+  contractAdjustmentPurchasesEnabled: boolean;
+
+  // Madden
+  rosterType: string | null;
+  coachAbilitiesRestricted: boolean;
+  coachAbilitiesRestrictionNotes: string | null;
+  tradeApprovalPolicy: string | null;
+  cpuTradingPolicy: string | null;
+  cpuTradingRestriction: string | null;
+  salaryCapEnabled: boolean;
+  abilitiesEnabled: boolean;
+  tradeDeadlineEnabled: boolean;
+  positionChangePolicy: string | null;
+  positionChangePolicyDescription: string | null;
+
+  // CFB
+  coachModeEnabled: boolean;
+  activeRostersEnabled: boolean | null;
+  dynastyType: string | null;
+  conferenceRealignment: string | null;
+  conferenceReassignments: SiteLeagueConferenceReassignment[];
+  recruitingDifficulty: string | null;
+  coachXpSetting: string | null;
+  transferPortalEnabled: boolean | null;
+  homeFieldAdvantageEnabled: boolean | null;
+  coachCarouselEnabled: boolean | null;
+  stadiumPulseEnabled: boolean | null;
+  coachModeRecruitFlippingEnabled: boolean | null;
+  coachModeAutoRecruitingEnabled: boolean | null;
+  coachModeAutoProgressPlayersEnabled: boolean | null;
+  coachModeUserAutoProgressionEnabled: boolean | null;
+  coachModeCpuManageBudgetEnabled: boolean | null;
+  coachModeCpuManageStaffEnabled: boolean | null;
+  coachModeCpuManageFacilitiesEnabled: boolean | null;
 };
 
 export async function searchSiteLeagues(input: {
@@ -398,7 +477,11 @@ export async function searchSiteLeagues(input: {
   }
   if (input.filters.streamingRequirement) {
     params.push(input.filters.streamingRequirement);
-    where.push(`c.streaming_requirement = $${params.length}`);
+    where.push(`(
+      c.regular_season_streaming_requirement = $${params.length}
+      or c.postseason_streaming_requirement = $${params.length}
+      or c.streaming_requirement = $${params.length}
+    )`);
   }
   if (typeof input.filters.coinEconomyEnabled === "boolean") {
     params.push(input.filters.coinEconomyEnabled);
@@ -440,21 +523,87 @@ export async function searchSiteLeagues(input: {
         l.game,
         l.season_stage,
         l.season_number,
+        l.current_week,
         l.created_at,
         owner.username as commissioner_username,
         coalesce(da.global_name, da.username) as commissioner_discord_name,
         c.difficulty,
+        c.sliders_adjusted,
         c.streaming_requirement,
+        c.regular_season_streaming_requirement,
+        c.postseason_streaming_requirement,
+        c.regular_season_streaming_side,
+        c.postseason_streaming_side,
         coalesce(c.coin_economy_enabled, false) as coin_economy_enabled,
+        coalesce(c.custom_coaches_required, false) as custom_coaches_required,
+        coalesce(c.custom_playbooks_allowed, false) as custom_playbooks_allowed,
+        c.quarter_length_minutes,
         coalesce(c.accelerated_clock_enabled, false) as accelerated_clock_enabled,
         c.accelerated_clock_minimum_seconds,
-        c.trade_approval_policy,
+        c.injury_policy,
+        coalesce(c.wear_and_tear_enabled, true) as wear_and_tear_enabled,
+        c.fourth_down_rule_type_regular,
+        c.fourth_down_rule_type_playoff,
+        c.coach_firing_policy,
+        coalesce(c.preorder_bonuses_enabled, true) as preorder_bonuses_enabled,
+        c.ball_hawk,
+        c.heat_seeker,
+        c.switch_assist,
         coalesce(c.offensive_play_call_limits_enabled, false) as offensive_play_call_limits_enabled,
         c.offensive_play_call_limit,
+        coalesce(c.offensive_play_call_cooldown_enabled, false) as offensive_play_call_cooldown_enabled,
         c.offensive_play_call_cooldown,
         coalesce(c.defensive_play_call_limits_enabled, false) as defensive_play_call_limits_enabled,
         c.defensive_play_call_limit,
+        coalesce(c.defensive_play_call_cooldown_enabled, false) as defensive_play_call_cooldown_enabled,
         c.defensive_play_call_cooldown,
+        c.fair_sim_requirements,
+        c.force_win_requirements,
+        coalesce(c.custom_players_enabled, false) as custom_players_enabled,
+        coalesce(c.legends_enabled, false) as legends_enabled,
+        coalesce(c.dev_upgrades_enabled, false) as dev_upgrades_enabled,
+        coalesce(c.age_resets_enabled, false) as age_resets_enabled,
+        coalesce(c.attribute_purchases_enabled, false) as attribute_purchases_enabled,
+        coalesce(c.player_trait_purchases_enabled, false) as player_trait_purchases_enabled,
+        coalesce(c.contract_adjustment_purchases_enabled, false) as contract_adjustment_purchases_enabled,
+        c.roster_type,
+        coalesce(c.coach_abilities_restricted, false) as coach_abilities_restricted,
+        c.coach_abilities_restriction_notes,
+        c.trade_approval_policy,
+        c.cpu_trading_policy,
+        c.cpu_trading_restriction,
+        coalesce(c.salary_cap_enabled, false) as salary_cap_enabled,
+        coalesce(c.abilities_enabled, true) as abilities_enabled,
+        coalesce(c.trade_deadline_enabled, false) as trade_deadline_enabled,
+        c.position_change_policy,
+        c.position_change_policy_description,
+        coalesce(c.coach_mode_enabled, false) as coach_mode_enabled,
+        c.active_rosters_enabled,
+        c.dynasty_type,
+        c.conference_realignment,
+        c.recruiting_difficulty,
+        c.coach_xp_setting,
+        c.transfer_portal_enabled,
+        c.home_field_advantage_enabled,
+        c.coach_carousel_enabled,
+        c.stadium_pulse_enabled,
+        c.coach_mode_recruit_flipping_enabled,
+        c.coach_mode_auto_recruiting_enabled,
+        c.coach_mode_auto_progress_players_enabled,
+        c.coach_mode_user_auto_progression_enabled,
+        c.coach_mode_cpu_manage_budget_enabled,
+        c.coach_mode_cpu_manage_staff_enabled,
+        c.coach_mode_cpu_manage_facilities_enabled,
+        (
+          select coalesce(json_agg(json_build_object(
+            'abbreviation', t.abbreviation,
+            'name', t.name,
+            'conference', t.conference
+          ) order by t.name), '[]'::json)
+          from rec_teams t
+          where t.league_id = l.id
+            and l.game = 'cfb_27'
+        ) as cfb_teams,
         (
           select count(*)::int
           from rec_teams t
@@ -509,55 +658,169 @@ export async function searchSiteLeagues(input: {
   );
 
   const leagues: SiteLeagueSearchHit[] = (
-    result.rows as Array<{
-      id: string;
-      name: string;
-      game: string;
-      season_stage: string;
-      season_number: number;
-      commissioner_username: string | null;
-      commissioner_discord_name: string | null;
-      difficulty: string | null;
-      streaming_requirement: string | null;
-      coin_economy_enabled: boolean;
-      accelerated_clock_enabled: boolean;
-      accelerated_clock_minimum_seconds: number | null;
-      trade_approval_policy: string | null;
-      offensive_play_call_limits_enabled: boolean;
-      offensive_play_call_limit: number | null;
-      offensive_play_call_cooldown: number | null;
-      defensive_play_call_limits_enabled: boolean;
-      defensive_play_call_limit: number | null;
-      defensive_play_call_cooldown: number | null;
-      open_team_count: number;
-      member_count: number;
-      is_member: boolean;
-    }>
-  ).map((row) => ({
-    id: row.id,
-    name: row.name,
-    game: row.game,
-    gameLabel: gameLabelFor(row.game),
-    seasonStage: row.season_stage,
-    seasonNumber: row.season_number,
-    openTeamCount: Number(row.open_team_count ?? 0),
-    memberCount: Number(row.member_count ?? 0),
-    commissionerUsername: row.commissioner_username,
-    commissionerDiscordName: row.commissioner_discord_name,
-    difficulty: row.difficulty,
-    streamingRequirement: row.streaming_requirement,
-    coinEconomyEnabled: Boolean(row.coin_economy_enabled),
-    acceleratedClockEnabled: Boolean(row.accelerated_clock_enabled),
-    acceleratedClockMinimumSeconds: row.accelerated_clock_minimum_seconds,
-    tradeApprovalPolicy: row.trade_approval_policy,
-    offensivePlayCallLimitsEnabled: Boolean(row.offensive_play_call_limits_enabled),
-    offensivePlayCallLimit: row.offensive_play_call_limit,
-    offensivePlayCallCooldown: row.offensive_play_call_cooldown,
-    defensivePlayCallLimitsEnabled: Boolean(row.defensive_play_call_limits_enabled),
-    defensivePlayCallLimit: row.defensive_play_call_limit,
-    defensivePlayCallCooldown: row.defensive_play_call_cooldown,
-    isMember: Boolean(row.is_member),
-  }));
+    result.rows as Array<Record<string, unknown>>
+  ).map((row) => {
+    const game = String(row.game ?? "");
+    const seasonStage = String(row.season_stage ?? "regular_season");
+    const currentWeek =
+      row.current_week == null ? null : Number(row.current_week);
+    const seasonNumber = Number(row.season_number ?? 1);
+    const cfbTeams = Array.isArray(row.cfb_teams)
+      ? (row.cfb_teams as Array<{ abbreviation: string; name: string; conference: string | null }>)
+      : [];
+    const conferenceReassignments: SiteLeagueConferenceReassignment[] = [];
+    if (game === "cfb_27" && String(row.conference_realignment ?? "") === "allowed") {
+      for (const team of cfbTeams) {
+        const abbr = String(team.abbreviation ?? "").toUpperCase();
+        const toConference = String(team.conference ?? "").trim();
+        const fromConference = CFB_DEFAULT_CONFERENCE.get(abbr) ?? "";
+        if (!toConference || !fromConference || toConference === fromConference) continue;
+        conferenceReassignments.push({
+          abbreviation: team.abbreviation,
+          name: team.name,
+          fromConference,
+          toConference,
+        });
+      }
+    }
+
+    const regularStream =
+      (row.regular_season_streaming_requirement as string | null) ??
+      (row.streaming_requirement as string | null);
+    const postStream =
+      (row.postseason_streaming_requirement as string | null) ??
+      (row.streaming_requirement as string | null);
+
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      game,
+      gameLabel: gameLabelFor(game),
+      seasonStage,
+      seasonStageLabel: stageLabel(seasonStage, currentWeek ?? 1, game as "madden_26" | "madden_27" | "cfb_27"),
+      seasonNumber,
+      currentWeek,
+      openTeamCount: Number(row.open_team_count ?? 0),
+      memberCount: Number(row.member_count ?? 0),
+      commissionerUsername: (row.commissioner_username as string | null) ?? null,
+      commissionerDiscordName: (row.commissioner_discord_name as string | null) ?? null,
+      isMember: Boolean(row.is_member),
+
+      coinEconomyEnabled: Boolean(row.coin_economy_enabled),
+      regularSeasonStreamingRequirement: regularStream,
+      postseasonStreamingRequirement: postStream,
+      streamingRequirement: regularStream,
+      regularSeasonStreamingSide: (row.regular_season_streaming_side as string | null) ?? null,
+      postseasonStreamingSide: (row.postseason_streaming_side as string | null) ?? null,
+      customCoachesRequired: Boolean(row.custom_coaches_required),
+      customPlaybooksAllowed: Boolean(row.custom_playbooks_allowed),
+      difficulty: (row.difficulty as string | null) ?? null,
+      slidersAdjusted: Boolean(row.sliders_adjusted),
+      quarterLengthMinutes:
+        row.quarter_length_minutes == null ? null : Number(row.quarter_length_minutes),
+      acceleratedClockEnabled: Boolean(row.accelerated_clock_enabled),
+      acceleratedClockMinimumSeconds:
+        row.accelerated_clock_minimum_seconds == null
+          ? null
+          : Number(row.accelerated_clock_minimum_seconds),
+      injuryPolicy: (row.injury_policy as string | null) ?? null,
+      wearAndTearEnabled: Boolean(row.wear_and_tear_enabled),
+      fourthDownRuleTypeRegular: (row.fourth_down_rule_type_regular as string | null) ?? null,
+      fourthDownRuleTypePlayoff: (row.fourth_down_rule_type_playoff as string | null) ?? null,
+      coachFiringPolicy: (row.coach_firing_policy as string | null) ?? null,
+      preorderBonusesEnabled: Boolean(row.preorder_bonuses_enabled),
+      ballHawk: (row.ball_hawk as string | null) ?? null,
+      heatSeeker: (row.heat_seeker as string | null) ?? null,
+      switchAssist: (row.switch_assist as string | null) ?? null,
+      offensivePlayCallLimitsEnabled: Boolean(row.offensive_play_call_limits_enabled),
+      offensivePlayCallLimit:
+        row.offensive_play_call_limit == null ? null : Number(row.offensive_play_call_limit),
+      offensivePlayCallCooldownEnabled: Boolean(row.offensive_play_call_cooldown_enabled),
+      offensivePlayCallCooldown:
+        row.offensive_play_call_cooldown == null
+          ? null
+          : Number(row.offensive_play_call_cooldown),
+      defensivePlayCallLimitsEnabled: Boolean(row.defensive_play_call_limits_enabled),
+      defensivePlayCallLimit:
+        row.defensive_play_call_limit == null ? null : Number(row.defensive_play_call_limit),
+      defensivePlayCallCooldownEnabled: Boolean(row.defensive_play_call_cooldown_enabled),
+      defensivePlayCallCooldown:
+        row.defensive_play_call_cooldown == null
+          ? null
+          : Number(row.defensive_play_call_cooldown),
+      fairSimRequirements: (row.fair_sim_requirements as string | null) ?? null,
+      forceWinRequirements: (row.force_win_requirements as string | null) ?? null,
+
+      customPlayersEnabled: Boolean(row.custom_players_enabled),
+      legendsEnabled: Boolean(row.legends_enabled),
+      devUpgradesEnabled: Boolean(row.dev_upgrades_enabled),
+      ageResetsEnabled: Boolean(row.age_resets_enabled),
+      attributePurchasesEnabled: Boolean(row.attribute_purchases_enabled),
+      playerTraitPurchasesEnabled: Boolean(row.player_trait_purchases_enabled),
+      contractAdjustmentPurchasesEnabled: Boolean(row.contract_adjustment_purchases_enabled),
+
+      rosterType: (row.roster_type as string | null) ?? null,
+      coachAbilitiesRestricted: Boolean(row.coach_abilities_restricted),
+      coachAbilitiesRestrictionNotes:
+        (row.coach_abilities_restriction_notes as string | null) ?? null,
+      tradeApprovalPolicy: (row.trade_approval_policy as string | null) ?? null,
+      cpuTradingPolicy: (row.cpu_trading_policy as string | null) ?? null,
+      cpuTradingRestriction: (row.cpu_trading_restriction as string | null) ?? null,
+      salaryCapEnabled: Boolean(row.salary_cap_enabled),
+      abilitiesEnabled: Boolean(row.abilities_enabled),
+      tradeDeadlineEnabled: Boolean(row.trade_deadline_enabled),
+      positionChangePolicy: (row.position_change_policy as string | null) ?? null,
+      positionChangePolicyDescription:
+        (row.position_change_policy_description as string | null) ?? null,
+
+      coachModeEnabled: Boolean(row.coach_mode_enabled),
+      activeRostersEnabled:
+        row.active_rosters_enabled == null ? null : Boolean(row.active_rosters_enabled),
+      dynastyType: (row.dynasty_type as string | null) ?? null,
+      conferenceRealignment: (row.conference_realignment as string | null) ?? null,
+      conferenceReassignments,
+      recruitingDifficulty: (row.recruiting_difficulty as string | null) ?? null,
+      coachXpSetting: (row.coach_xp_setting as string | null) ?? null,
+      transferPortalEnabled:
+        row.transfer_portal_enabled == null ? null : Boolean(row.transfer_portal_enabled),
+      homeFieldAdvantageEnabled:
+        row.home_field_advantage_enabled == null
+          ? null
+          : Boolean(row.home_field_advantage_enabled),
+      coachCarouselEnabled:
+        row.coach_carousel_enabled == null ? null : Boolean(row.coach_carousel_enabled),
+      stadiumPulseEnabled:
+        row.stadium_pulse_enabled == null ? null : Boolean(row.stadium_pulse_enabled),
+      coachModeRecruitFlippingEnabled:
+        row.coach_mode_recruit_flipping_enabled == null
+          ? null
+          : Boolean(row.coach_mode_recruit_flipping_enabled),
+      coachModeAutoRecruitingEnabled:
+        row.coach_mode_auto_recruiting_enabled == null
+          ? null
+          : Boolean(row.coach_mode_auto_recruiting_enabled),
+      coachModeAutoProgressPlayersEnabled:
+        row.coach_mode_auto_progress_players_enabled == null
+          ? null
+          : Boolean(row.coach_mode_auto_progress_players_enabled),
+      coachModeUserAutoProgressionEnabled:
+        row.coach_mode_user_auto_progression_enabled == null
+          ? null
+          : Boolean(row.coach_mode_user_auto_progression_enabled),
+      coachModeCpuManageBudgetEnabled:
+        row.coach_mode_cpu_manage_budget_enabled == null
+          ? null
+          : Boolean(row.coach_mode_cpu_manage_budget_enabled),
+      coachModeCpuManageStaffEnabled:
+        row.coach_mode_cpu_manage_staff_enabled == null
+          ? null
+          : Boolean(row.coach_mode_cpu_manage_staff_enabled),
+      coachModeCpuManageFacilitiesEnabled:
+        row.coach_mode_cpu_manage_facilities_enabled == null
+          ? null
+          : Boolean(row.coach_mode_cpu_manage_facilities_enabled),
+    };
+  });
 
   return { leagues };
 }

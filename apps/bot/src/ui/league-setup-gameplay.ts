@@ -15,9 +15,6 @@ import { baseEmbed, formatDifficultyLabel, option, selectRow, yesNoOptions } fro
 export function buildDifficultyWindow(draft: LeagueSetupDraft) {
   const isCfb = draft.game === "cfb_27";
   const embed = baseEmbed("Gameplay: Difficulty", draft);
-  if (draft.difficulty === "custom" && draft.difficultyCustomSettings) {
-    embed.addFields({ name: "Current Custom Difficulty Notes", value: draft.difficultyCustomSettings.slice(0, 1024) });
-  }
 
   return {
     embeds: [embed],
@@ -26,14 +23,38 @@ export function buildDifficultyWindow(draft: LeagueSetupDraft) {
         option(formatDifficultyLabel("rookie", isCfb), "rookie"),
         option(formatDifficultyLabel("pro", isCfb), "pro"),
         option(formatDifficultyLabel("all_pro", isCfb), "all_pro"),
-        option(formatDifficultyLabel("all_madden", isCfb), "all_madden"),
-        option("Custom", "custom", "Explain how difficulty or sliders were altered.")
+        option(formatDifficultyLabel("all_madden", isCfb), "all_madden")
       ]),
       buildNavigationRow()
     ]
   };
 }
 
+export function buildSlidersAdjustedWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("Gameplay: Sliders Adjusted", draft)
+      .setDescription("Have any gameplay sliders been adjusted from the game defaults for this league?")],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.slidersAdjusted, "Sliders adjusted?", yesNoOptions()),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildCoachXpSettingWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [cfbEmbed("CFB Setup: Coach XP Setting", draft, "Choose the coach XP progression style for this dynasty.")],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.coachXpSetting, "Coach XP setting", [
+        option("Casual", "casual"),
+        option("Career", "career")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+/** @deprecated Custom difficulty notes were replaced by Sliders Adjusted. Kept for edit-mode compatibility. */
 export function buildDifficultyCustomModal(draft: LeagueSetupDraft) {
   return new ModalBuilder()
     .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomModal)
@@ -98,16 +119,16 @@ function cfbEmbed(title: string, draft: LeagueSetupDraft, description: string) {
 
 export function buildDynastyStructureWindow(draft: LeagueSetupDraft) {
   return {
-    embeds: [cfbEmbed("CFB Setup: Dynasty Structure", draft, [
-      "How are this dynasty's teams composed?",
+    embeds: [cfbEmbed("CFB Setup: Teams Replaced with Customs", draft, [
+      "Are any dynasty teams replaced with custom/created programs?",
       "",
-      "• **Real Teams** — everyone uses the real FBS programs. Team Builder is **disabled**.",
-      "• **Mixed Teams** — custom/created programs are allowed alongside real ones, so Team Builder is **enabled**."
+      "• **No** — everyone uses real FBS programs. Team Builder is **disabled**.",
+      "• **Yes** — custom/created programs are allowed alongside real ones, so Team Builder is **enabled**."
     ].join("\n"))],
     components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.dynastyStructure, "Select dynasty structure", [
-        option("Real Teams", "real", "Real FBS programs only — Team Builder off."),
-        option("Mixed Teams", "mixed", "Allow created programs — Team Builder on.")
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.dynastyStructure, "Teams replaced with customs?", [
+        option("No", "real", "Real FBS programs only — Team Builder off."),
+        option("Yes", "mixed", "Allow created programs — Team Builder on.")
       ]),
       buildNavigationRow()
     ]

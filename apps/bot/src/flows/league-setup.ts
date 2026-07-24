@@ -260,13 +260,11 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     }
     case LEAGUE_SETUP_CUSTOM_IDS.difficulty: {
       draft.difficulty = value as LeagueSetupDraft["difficulty"];
-      if (draft.difficulty === "custom") {
-        leagueSetupSessions.set(interaction.user.id, draft);
-        return interaction.showModal(buildDifficultyCustomModal(draft));
-      }
       draft.difficultyCustomSettings = "";
       break;
     }
+    case LEAGUE_SETUP_CUSTOM_IDS.slidersAdjusted: draft.slidersAdjusted = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.coachXpSetting: draft.coachXpSetting = value as LeagueSetupDraft["coachXpSetting"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.quarterLength: draft.quarterLengthMinutes = Number(value); break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockEnabled: draft.acceleratedClockEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockSeconds: draft.acceleratedClockMinimumSeconds = Number(value); break;
@@ -629,8 +627,12 @@ export async function handleDifficultyCustomModal(interaction: Extract<Interacti
   if (!interaction.isModalSubmit()) return;
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
-  draft.difficulty = "custom";
+  // Legacy custom-difficulty modal: map notes into Sliders Adjusted = Yes.
+  draft.slidersAdjusted = true;
   draft.difficultyCustomSettings = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomInput).trim();
+  if (draft.difficulty === ("custom" as LeagueSetupDraft["difficulty"])) {
+    draft.difficulty = "all_madden";
+  }
   return finishModalStep(interaction, draft);
 }
 

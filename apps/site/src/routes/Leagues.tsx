@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CFB_27_TEAMS, NFL_TEAMS } from "@rec/shared";
 import { useAuth } from "../lib/auth-context.js";
@@ -14,6 +14,9 @@ import {
 type Tab = "search" | "mine";
 type GameKey = "madden_26" | "madden_27" | "cfb_27";
 
+const STANDARD_REC_4TH =
+  "Standard REC: past midfield on 4th & 3 or shorter; trailing in the second half may go anytime.";
+
 const GAME_OPTIONS: { value: GameKey; label: string }[] = [
   { value: "madden_26", label: "Madden 26" },
   { value: "madden_27", label: "Madden 27" },
@@ -26,7 +29,6 @@ const MADDEN_DIFFICULTY = [
   { value: "all_pro", label: "All-Pro" },
   { value: "pro", label: "Pro" },
   { value: "rookie", label: "Rookie" },
-  { value: "custom", label: "Custom" },
 ];
 
 const CFB_DIFFICULTY = [
@@ -35,14 +37,13 @@ const CFB_DIFFICULTY = [
   { value: "all_pro", label: "All-American" },
   { value: "pro", label: "Varsity" },
   { value: "rookie", label: "Freshman" },
-  { value: "custom", label: "Custom" },
 ];
 
 const STREAM_OPTIONS = [
   { value: "", label: "Any streaming rule" },
   { value: "required", label: "Streaming required" },
   { value: "recommended", label: "Streaming recommended" },
-  { value: "disabled", label: "Streaming disabled" },
+  { value: "disabled", label: "Streaming not required" },
 ];
 
 const TRADE_OPTIONS = [
@@ -66,11 +67,6 @@ function roleLabel(league: SiteLeagueSummary) {
   return "Member";
 }
 
-function labelize(value: string | null | undefined) {
-  if (!value) return "-";
-  return value.replaceAll("_", " ");
-}
-
 function boolTri(value: "" | "true" | "false"): boolean | undefined {
   if (value === "true") return true;
   if (value === "false") return false;
@@ -79,6 +75,10 @@ function boolTri(value: "" | "true" | "false"): boolean | undefined {
 
 function isGameKey(value: string): value is GameKey {
   return value === "madden_26" || value === "madden_27" || value === "cfb_27";
+}
+
+function isCfbGame(game: string) {
+  return game === "cfb_27";
 }
 
 function teamOptionsForGame(game: GameKey) {
@@ -98,6 +98,67 @@ function teamOptionsForGame(game: GameKey) {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function yesNo(value: boolean | null | undefined) {
+  return value ? "Yes" : "No";
+}
+
+function onOff(value: boolean | null | undefined) {
+  return value ? "On" : "Off";
+}
+
+function streamingLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  if (value === "disabled") return "Not required";
+  if (value === "required") return "Required";
+  if (value === "recommended") return "Recommended";
+  return value.replaceAll("_", " ");
+}
+
+function difficultyLabel(value: string | null | undefined, game: string) {
+  if (!value) return "-";
+  if (isCfbGame(game)) {
+    const map: Record<string, string> = {
+      rookie: "Freshman",
+      pro: "Varsity",
+      all_pro: "All-American",
+      all_madden: "Heisman",
+    };
+    return map[value] ?? value.replaceAll("_", " ");
+  }
+  const map: Record<string, string> = {
+    rookie: "Rookie",
+    pro: "Pro",
+    all_pro: "All-Pro",
+    all_madden: "All-Madden",
+  };
+  return map[value] ?? value.replaceAll("_", " ");
+}
+
+function injuryLabel(value: string | null | undefined) {
+  if (value === "off") return "Off";
+  if (value === "on_reduced") return "Reduced";
+  if (value === "on_standard") return "On";
+  return value ? value.replaceAll("_", " ") : "-";
+}
+
+function fourthDownLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  if (value === "none") return "None";
+  if (value === "standard_rec") return "Standard REC";
+  if (value === "custom") return "Custom";
+  return value.replaceAll("_", " ");
+}
+
+function sideLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  return value.replaceAll("_", " ");
+}
+
+function titleCase(value: string | null | undefined) {
+  if (!value) return "-";
+  return value.replaceAll("_", " ");
+}
+
 function MemberStar({ tier }: { tier: EntitlementSummary["tier"] | undefined }) {
   const tone = tier === "gold" ? "gold" : "platinum";
   return (
@@ -108,6 +169,369 @@ function MemberStar({ tier }: { tier: EntitlementSummary["tier"] | undefined }) 
     >
       ★
     </span>
+  );
+}
+
+function Pill({
+  label,
+  value,
+  title,
+}: {
+  label: string;
+  value: ReactNode;
+  title?: string;
+}) {
+  return (
+    <li className="site-league-pill" title={title}>
+      <span className="site-league-pill-label">{label}</span>
+      <span className="site-league-pill-value">{value}</span>
+    </li>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="site-league-detail-row">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function playCallSummary(input: {
+  enabled: boolean;
+  limit: number | null;
+  cooldownEnabled: boolean;
+  cooldown: number | null;
+}) {
+  if (!input.enabled && !input.cooldownEnabled) return "Off";
+  const parts: string[] = [];
+  if (input.enabled) parts.push(`limit ${input.limit ?? "-"}`);
+  if (input.cooldownEnabled) parts.push(`cooldown ${input.cooldown ?? "-"}`);
+  return parts.join(" · ") || "Off";
+}
+
+function LeagueSearchCard({
+  league,
+  memberTier,
+  expanded,
+  onToggle,
+  onOpen,
+}: {
+  league: SiteLeagueSearchHit;
+  memberTier: EntitlementSummary["tier"];
+  expanded: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+}) {
+  const cfb = isCfbGame(league.game);
+  const streamNeeded =
+    league.regularSeasonStreamingRequirement === "required" ||
+    league.regularSeasonStreamingRequirement === "recommended" ||
+    league.postseasonStreamingRequirement === "required" ||
+    league.postseasonStreamingRequirement === "recommended";
+
+  return (
+    <article className={["site-league-search-card", expanded ? "is-expanded" : ""].join(" ")}>
+      <button type="button" className="site-league-search-card-toggle" onClick={onToggle}>
+        <div className="site-league-search-card-main">
+          <div className="site-league-search-card-top">
+            <h2>
+              {league.isMember ? <MemberStar tier={memberTier} /> : null}
+              {league.name}
+            </h2>
+            <span className="site-league-search-expand">{expanded ? "Hide details" : "Details"}</span>
+          </div>
+          <p className="site-muted">
+            {league.gameLabel}
+            {" · Commish: "}
+            {league.commissionerUsername ?? "-"}
+            {league.commissionerDiscordName ? ` · Discord ${league.commissionerDiscordName}` : ""}
+            {` · ${league.memberCount} members`}
+          </p>
+
+          <div className="site-league-search-highlights" aria-label="Season status">
+            <div>
+              <span>Season</span>
+              <strong>{league.seasonNumber}</strong>
+            </div>
+            <div>
+              <span>Week / Stage</span>
+              <strong>{league.seasonStageLabel}</strong>
+            </div>
+            <div>
+              <span>Open teams</span>
+              <strong>{league.openTeamCount}</strong>
+            </div>
+          </div>
+
+          <ul className="site-league-search-meta">
+            <Pill label="Coin economy" value={onOff(league.coinEconomyEnabled)} />
+            <Pill
+              label="Reg streaming"
+              value={streamingLabel(league.regularSeasonStreamingRequirement)}
+            />
+            <Pill
+              label="Post streaming"
+              value={streamingLabel(league.postseasonStreamingRequirement)}
+            />
+            <Pill label="Custom coaches" value={yesNo(league.customCoachesRequired)} />
+            <Pill label="Custom playbooks" value={yesNo(league.customPlaybooksAllowed)} />
+            <Pill label="Difficulty" value={difficultyLabel(league.difficulty, league.game)} />
+            <Pill label="Sliders adjusted" value={yesNo(league.slidersAdjusted)} />
+            <Pill
+              label="Quarter length"
+              value={
+                league.quarterLengthMinutes != null ? `${league.quarterLengthMinutes} min` : "-"
+              }
+            />
+            <Pill
+              label="Accel clock"
+              value={
+                league.acceleratedClockEnabled
+                  ? `On${
+                      league.acceleratedClockMinimumSeconds != null
+                        ? ` · ${league.acceleratedClockMinimumSeconds}s`
+                        : ""
+                    }`
+                  : "Off"
+              }
+            />
+            <Pill label="Injuries" value={injuryLabel(league.injuryPolicy)} />
+            <Pill label="Wear & tear" value={onOff(league.wearAndTearEnabled)} />
+            <Pill
+              label="4th down (reg)"
+              value={fourthDownLabel(league.fourthDownRuleTypeRegular)}
+              title={
+                league.fourthDownRuleTypeRegular === "standard_rec" ? STANDARD_REC_4TH : undefined
+              }
+            />
+            <Pill
+              label="4th down (playoff)"
+              value={fourthDownLabel(league.fourthDownRuleTypePlayoff)}
+              title={
+                league.fourthDownRuleTypePlayoff === "standard_rec" ? STANDARD_REC_4TH : undefined
+              }
+            />
+
+            {!cfb ? (
+              <>
+                <Pill label="League type" value={titleCase(league.rosterType)} />
+                <Pill
+                  label="Coach abilities restricted"
+                  value={onOff(league.coachAbilitiesRestricted)}
+                  title={league.coachAbilitiesRestrictionNotes || undefined}
+                />
+                <Pill label="Trade approval" value={titleCase(league.tradeApprovalPolicy)} />
+                <Pill
+                  label="CPU trading"
+                  value={titleCase(league.cpuTradingPolicy)}
+                  title={league.cpuTradingRestriction || undefined}
+                />
+                <Pill label="Salary cap" value={onOff(league.salaryCapEnabled)} />
+                <Pill label="Abilities" value={onOff(league.abilitiesEnabled)} />
+              </>
+            ) : (
+              <>
+                <Pill label="Coach mode" value={onOff(league.coachModeEnabled)} />
+                <Pill label="Active rosters" value={onOff(Boolean(league.activeRostersEnabled))} />
+                <Pill
+                  label="Teams replaced with customs"
+                  value={yesNo(league.dynastyType === "mixed")}
+                />
+                <Pill
+                  label="Conference realignment"
+                  value={
+                    league.conferenceRealignment === "allowed"
+                      ? league.conferenceReassignments.length > 0
+                        ? `Allowed · ${league.conferenceReassignments.length} reassigned`
+                        : "Allowed"
+                      : "Locked"
+                  }
+                />
+                <Pill label="Recruiting difficulty" value={titleCase(league.recruitingDifficulty)} />
+                <Pill label="Coach XP" value={titleCase(league.coachXpSetting ?? "casual")} />
+                <Pill label="Transfer portal" value={onOff(Boolean(league.transferPortalEnabled))} />
+                <Pill
+                  label="Home field advantage"
+                  value={onOff(Boolean(league.homeFieldAdvantageEnabled))}
+                />
+              </>
+            )}
+          </ul>
+        </div>
+      </button>
+
+      {expanded ? (
+        <div className="site-league-search-expanded">
+          <div className="site-league-detail-grid">
+            {streamNeeded ? (
+              <>
+                <DetailRow
+                  label="Streaming side (reg)"
+                  value={sideLabel(league.regularSeasonStreamingSide)}
+                />
+                <DetailRow
+                  label="Streaming side (post)"
+                  value={sideLabel(league.postseasonStreamingSide)}
+                />
+              </>
+            ) : null}
+            <DetailRow label="Coach firing" value={titleCase(league.coachFiringPolicy)} />
+            <DetailRow label="Preorder bonuses" value={onOff(league.preorderBonusesEnabled)} />
+            <DetailRow label="Ball hawk" value={titleCase(league.ballHawk)} />
+            <DetailRow label="Heat seeker" value={titleCase(league.heatSeeker)} />
+            <DetailRow label="Switch assist" value={titleCase(league.switchAssist)} />
+            <DetailRow
+              label="Off play-call limits"
+              value={playCallSummary({
+                enabled: league.offensivePlayCallLimitsEnabled,
+                limit: league.offensivePlayCallLimit,
+                cooldownEnabled: league.offensivePlayCallCooldownEnabled,
+                cooldown: league.offensivePlayCallCooldown,
+              })}
+            />
+            <DetailRow
+              label="Def play-call limits"
+              value={playCallSummary({
+                enabled: league.defensivePlayCallLimitsEnabled,
+                limit: league.defensivePlayCallLimit,
+                cooldownEnabled: league.defensivePlayCallCooldownEnabled,
+                cooldown: league.defensivePlayCallCooldown,
+              })}
+            />
+          </div>
+
+          {league.fairSimRequirements || league.forceWinRequirements ? (
+            <div className="site-league-activity">
+              <h3>Activity requirements</h3>
+              {league.fairSimRequirements ? <p><strong>Fair sim:</strong> {league.fairSimRequirements}</p> : null}
+              {league.forceWinRequirements ? <p><strong>Force win:</strong> {league.forceWinRequirements}</p> : null}
+            </div>
+          ) : null}
+
+          {league.coinEconomyEnabled ? (
+            <div className="site-league-detail-grid">
+              <DetailRow label="Custom players" value={onOff(league.customPlayersEnabled)} />
+              <DetailRow
+                label={cfb ? "Campus Legends" : "Legends"}
+                value={onOff(league.legendsEnabled)}
+              />
+              <DetailRow label="Dev upgrades" value={onOff(league.devUpgradesEnabled)} />
+              <DetailRow label="Attribute purchases" value={onOff(league.attributePurchasesEnabled)} />
+              <DetailRow label="Player trait purchases" value={onOff(league.playerTraitPurchasesEnabled)} />
+              {!cfb ? (
+                <DetailRow
+                  label="Contract purchases"
+                  value={onOff(league.contractAdjustmentPurchasesEnabled)}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {!cfb ? (
+            <div className="site-league-detail-grid">
+              <DetailRow label="Trade deadline" value={onOff(league.tradeDeadlineEnabled)} />
+              <DetailRow label="Age resets" value={onOff(league.ageResetsEnabled)} />
+              <DetailRow
+                label="Contract purchases"
+                value={onOff(league.contractAdjustmentPurchasesEnabled)}
+              />
+              <DetailRow
+                label="Position change policy"
+                value={
+                  <span title={league.positionChangePolicyDescription || undefined}>
+                    {titleCase(league.positionChangePolicy)}
+                  </span>
+                }
+              />
+            </div>
+          ) : (
+            <div className="site-league-detail-grid">
+              <DetailRow label="Coach carousel" value={onOff(Boolean(league.coachCarouselEnabled))} />
+              <DetailRow label="Stadium pulse" value={onOff(Boolean(league.stadiumPulseEnabled))} />
+              {league.coachModeEnabled ? (
+                <>
+                  <DetailRow
+                    label="Recruit flipping"
+                    value={onOff(Boolean(league.coachModeRecruitFlippingEnabled))}
+                  />
+                  <DetailRow
+                    label="Auto recruiting"
+                    value={onOff(Boolean(league.coachModeAutoRecruitingEnabled))}
+                  />
+                  <DetailRow
+                    label="Auto progress players"
+                    value={onOff(Boolean(league.coachModeAutoProgressPlayersEnabled))}
+                  />
+                  <DetailRow
+                    label="User auto progression"
+                    value={onOff(Boolean(league.coachModeUserAutoProgressionEnabled))}
+                  />
+                  <DetailRow
+                    label="CPU manage budget"
+                    value={onOff(Boolean(league.coachModeCpuManageBudgetEnabled))}
+                  />
+                  <DetailRow
+                    label="CPU manage staff"
+                    value={onOff(Boolean(league.coachModeCpuManageStaffEnabled))}
+                  />
+                  <DetailRow
+                    label="CPU manage facilities"
+                    value={onOff(Boolean(league.coachModeCpuManageFacilitiesEnabled))}
+                  />
+                </>
+              ) : null}
+            </div>
+          )}
+
+          {cfb &&
+          league.conferenceRealignment === "allowed" &&
+          league.conferenceReassignments.length > 0 ? (
+            <div className="site-league-activity">
+              <h3>Conference reassignments</h3>
+              <ul>
+                {league.conferenceReassignments.map((row) => (
+                  <li key={`${row.abbreviation}-${row.toConference}`}>
+                    {row.name} ({row.abbreviation}): {row.fromConference} → {row.toConference}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <div className="site-league-search-actions">
+            <button
+              type="button"
+              className="site-btn site-btn-primary"
+              onClick={onOpen}
+              disabled={!league.isMember}
+              title={
+                league.isMember
+                  ? "Open hub"
+                  : "Join from Discord or request a team first"
+              }
+            >
+              {league.isMember ? "Open hub" : "Members only"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="site-league-search-actions site-league-search-actions-collapsed">
+          <button
+            type="button"
+            className="site-btn site-btn-primary"
+            onClick={onOpen}
+            disabled={!league.isMember}
+            title={
+              league.isMember ? "Open hub" : "Join from Discord or request a team first"
+            }
+          >
+            {league.isMember ? "Open" : "Members only"}
+          </button>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -142,6 +566,7 @@ export function LeaguesPage() {
   );
   const [sort, setSort] = useState(params.get("sort") ?? "name_asc");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [results, setResults] = useState<SiteLeagueSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -217,6 +642,7 @@ export function LeaguesPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setExpandedId(null);
     const timer = window.setTimeout(() => {
       siteApi
         .searchLeagues(filters)
@@ -493,73 +919,16 @@ export function LeaguesPage() {
 
               <div className="site-league-search-list">
                 {results.map((league) => (
-                  <article key={league.id} className="site-league-search-card">
-                    <div className="site-league-search-card-main">
-                      <h2>
-                        {league.isMember ? <MemberStar tier={memberTier} /> : null}
-                        {league.name}
-                      </h2>
-                      <p>
-                        {league.gameLabel} · Season {league.seasonNumber} ·{" "}
-                        {labelize(league.seasonStage)}
-                      </p>
-                      <p className="site-muted">
-                        Commish: {league.commissionerUsername ?? "-"}
-                        {league.commissionerDiscordName
-                          ? ` · Discord ${league.commissionerDiscordName}`
-                          : ""}
-                      </p>
-                      <ul className="site-league-search-meta">
-                        <li>{league.openTeamCount} open teams</li>
-                        <li>{league.memberCount} members</li>
-                        <li>Difficulty {labelize(league.difficulty)}</li>
-                        <li>Stream {labelize(league.streamingRequirement)}</li>
-                        <li>Economy {league.coinEconomyEnabled ? "on" : "off"}</li>
-                        <li>
-                          Accel clock{" "}
-                          {league.acceleratedClockEnabled
-                            ? `on${
-                                league.acceleratedClockMinimumSeconds != null
-                                  ? ` (${league.acceleratedClockMinimumSeconds}s)`
-                                  : ""
-                              }`
-                            : "off"}
-                        </li>
-                        {!isCfb ? (
-                          <li>Trades {labelize(league.tradeApprovalPolicy)}</li>
-                        ) : null}
-                        <li>
-                          Off limits{" "}
-                          {league.offensivePlayCallLimitsEnabled
-                            ? `${league.offensivePlayCallLimit ?? "-"} / cd ${
-                                league.offensivePlayCallCooldown ?? "-"
-                              }`
-                            : "off"}
-                        </li>
-                        <li>
-                          Def limits{" "}
-                          {league.defensivePlayCallLimitsEnabled
-                            ? `${league.defensivePlayCallLimit ?? "-"} / cd ${
-                                league.defensivePlayCallCooldown ?? "-"
-                              }`
-                            : "off"}
-                        </li>
-                      </ul>
-                    </div>
-                    <button
-                      type="button"
-                      className="site-btn site-btn-primary"
-                      onClick={() => openLeague(league.id)}
-                      disabled={!league.isMember}
-                      title={
-                        league.isMember
-                          ? "Open hub"
-                          : "Join from Discord or request a team first"
-                      }
-                    >
-                      {league.isMember ? "Open" : "Members only"}
-                    </button>
-                  </article>
+                  <LeagueSearchCard
+                    key={league.id}
+                    league={league}
+                    memberTier={memberTier}
+                    expanded={expandedId === league.id}
+                    onToggle={() =>
+                      setExpandedId((id) => (id === league.id ? null : league.id))
+                    }
+                    onOpen={() => openLeague(league.id)}
+                  />
                 ))}
               </div>
             </>

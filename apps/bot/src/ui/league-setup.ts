@@ -76,6 +76,8 @@ export {
 
 export {
   buildDifficultyWindow,
+  buildSlidersAdjustedWindow,
+  buildCoachXpSettingWindow,
   buildDifficultyCustomModal,
   buildQuarterLengthWindow,
   buildAcceleratedClockEnabledWindow,

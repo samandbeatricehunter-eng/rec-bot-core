@@ -26,8 +26,10 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   cpuTradingRestrictionModal: "rec:league_setup:cpu_trading_restriction_modal",
   cpuTradingRestrictionInput: "rec:league_setup:cpu_trading_restriction_input",
   difficulty: "rec:league_setup:difficulty",
+  slidersAdjusted: "rec:league_setup:sliders_adjusted",
   difficultyCustomModal: "rec:league_setup:difficulty_custom_modal",
   difficultyCustomInput: "rec:league_setup:difficulty_custom_input",
+  coachXpSetting: "rec:league_setup:coach_xp_setting",
   quarterLength: "rec:league_setup:quarter_length",
   acceleratedClockEnabled: "rec:league_setup:accelerated_clock_enabled",
   acceleratedClockSeconds: "rec:league_setup:accelerated_clock_seconds",
@@ -119,6 +121,7 @@ export type LeagueSetupStep =
   | "league_type"
   | "dynasty_structure"
   | "recruiting_difficulty"
+  | "coach_xp_setting"
   | "transfer_portal"
   | "coach_carousel"
   | "conference_realignment"
@@ -148,6 +151,7 @@ export type LeagueSetupStep =
   | "trade_approval"
   | "cpu_trading"
   | "difficulty"
+  | "sliders_adjusted"
   | "quarter_length"
   | "accelerated_clock_enabled"
   | "accelerated_clock_seconds"
@@ -237,8 +241,10 @@ export type LeagueSetupDraft = {
   cpuTradingRestriction: string;
   cpuFreeAgencyPolicy: "open" | "restricted" | "disabled";
   injuryPolicy: "off" | "on_standard" | "on_reduced";
-  difficulty: "rookie" | "pro" | "all_pro" | "all_madden" | "custom";
+  difficulty: "rookie" | "pro" | "all_pro" | "all_madden";
+  slidersAdjusted: boolean;
   difficultyCustomSettings: string;
+  coachXpSetting: "casual" | "career";
   quarterLengthMinutes: number;
   acceleratedClockEnabled: boolean;
   acceleratedClockMinimumSeconds: number;
@@ -311,6 +317,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "league_type",
   "dynasty_structure",
   "recruiting_difficulty",
+  "coach_xp_setting",
   "transfer_portal",
   "coach_carousel",
   "conference_realignment",
@@ -340,6 +347,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "trade_approval",
   "cpu_trading",
   "difficulty",
+  "sliders_adjusted",
   "quarter_length",
   "accelerated_clock_enabled",
   "accelerated_clock_seconds",
@@ -430,7 +438,9 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     cpuFreeAgencyPolicy: "disabled",
     injuryPolicy: "on_standard",
     difficulty: "all_madden",
+    slidersAdjusted: false,
     difficultyCustomSettings: "",
+    coachXpSetting: "casual",
     quarterLengthMinutes: 8,
     acceleratedClockEnabled: true,
     acceleratedClockMinimumSeconds: 20,
@@ -554,6 +564,9 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   // after Custom Playbooks — it keeps Custom Coaches Required and Custom Playbooks Allowed.
   if (isCfb && step === "fourth_down_playoff") return "custom_coaches_required";
   if (isCfb && step === "custom_playbooks_allowed") return "difficulty";
+
+  // Coach Mode is not a Madden 26 franchise setting (likely returns for Madden 27).
+  if (draft.game === "madden_26" && step === "preorder_bonuses") return "ball_hawk";
 
   // Coach Mode sub-settings only apply when Coach Mode itself is enabled — skip straight past
   // all ten individual sub-toggle steps to the assist settings block.

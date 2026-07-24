@@ -117,8 +117,10 @@ export const CreateLeagueSchema = z.object({
   cpuFreeAgencyPolicy: z.enum(["open", "restricted", "disabled"]).default("open"),
   injuryPolicy: z.enum(["off", "on_standard", "on_reduced"]).default("on_standard"),
 
-  difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden", "custom"]).default("all_madden"),
+  difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden"]).default("all_madden"),
+  slidersAdjusted: z.boolean().default(false),
   difficultyCustomSettings: z.string().optional().nullable(),
+  coachXpSetting: z.enum(["casual", "career"]).optional().nullable(),
   quarterLengthMinutes: z.number().int().min(1).max(15).default(8),
   acceleratedClockEnabled: z.boolean().default(true),
   acceleratedClockMinimumSeconds: z.number().int().min(0).max(40).default(20),

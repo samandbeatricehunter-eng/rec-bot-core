@@ -54,6 +54,8 @@ import {
   buildSwitchAssistWindow,
   buildCfbToggleWindow,
   buildDifficultyWindow,
+  buildSlidersAdjustedWindow,
+  buildCoachXpSettingWindow,
   COACH_MODE_SUB_SETTINGS,
   findCoachModeSubSetting
 } from "./league-setup-gameplay.js";
@@ -202,6 +204,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
     dynasty: [
       option("Dynasty Structure", "dynasty_structure"),
       option("Recruiting Difficulty", "recruiting_difficulty"),
+      option("Coach XP Setting", "coach_xp_setting"),
       option("Transfer Portal", "transfer_portal"),
       option("Coach Carousel", "coach_carousel"),
       option("Conference Realignment", "conference_realignment"),
@@ -220,12 +223,14 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
     ],
     gameplay: isCfb ? [
       option("Difficulty", "difficulty"),
+      option("Sliders Adjusted", "sliders_adjusted"),
       option("Quarter Length", "quarter_length"),
       option("Accelerated Clock", "accelerated_clock_enabled"),
       option("Wear & Tear", "wear_and_tear"),
       option("Injuries", "injury_policy")
     ] : [
       option("Difficulty", "difficulty"),
+      option("Sliders Adjusted", "sliders_adjusted"),
       option("Quarter Length", "quarter_length"),
       option("Accelerated Clock", "accelerated_clock_enabled"),
       option("Salary Cap", "salary_cap"),
@@ -359,7 +364,8 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
       {
         name: "Gameplay",
         value: [
-          `Difficulty: ${fmt(draft.difficulty)}${draft.difficulty === "custom" ? ` - ${draft.difficultyCustomSettings || "Custom text missing"}` : ""}`,
+          `Difficulty: ${formatDifficultyLabel(draft.difficulty, false)}`,
+          `Sliders Adjusted: ${yesNo(draft.slidersAdjusted)}`,
           `Quarter Length: ${draft.quarterLengthMinutes}`,
           `Accelerated Clock: ${boolText(draft.acceleratedClockEnabled)}${draft.acceleratedClockEnabled ? ` (${draft.acceleratedClockMinimumSeconds}s)` : ""}`,
           `Salary Cap: ${boolText(draft.salaryCapEnabled)}`,
@@ -425,7 +431,7 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
         value: [
           `Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`,
           `Active Rosters: ${yesNo(draft.activeRostersEnabled)}`,
-          `Dynasty Structure: ${draft.dynastyType === "mixed" ? "Mixed Teams" : "Real Teams"}`,
+          `Teams Replaced with Customs: ${yesNo(draft.dynastyType === "mixed")}`,
           `Team Builder: ${yesNo(draft.teamBuilderAllowed)}`,
           "Starts: Season 1, Preseason"
         ].join("\n"),
@@ -435,6 +441,7 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
         name: "Dynasty Settings",
         value: [
           `Recruiting Difficulty: ${fmt(draft.recruitingDifficulty)}`,
+          `Coach XP: ${fmt(draft.coachXpSetting)}`,
           `Transfer Portal: ${yesNo(draft.transferPortalEnabled)}`,
           `Coach Carousel: ${yesNo(draft.coachCarouselEnabled)}`,
           `Conference Realignment: ${fmt(draft.conferenceRealignment)}`,
@@ -487,7 +494,8 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
       {
         name: "Gameplay",
         value: [
-          `Difficulty: ${formatDifficultyLabel(draft.difficulty, true)}${draft.difficulty === "custom" ? ` - ${draft.difficultyCustomSettings || "Custom text missing"}` : ""}`,
+          `Difficulty: ${formatDifficultyLabel(draft.difficulty, true)}`,
+          `Sliders Adjusted: ${yesNo(draft.slidersAdjusted)}`,
           `Quarter Length: ${draft.quarterLengthMinutes}`,
           `Accelerated Clock: ${boolText(draft.acceleratedClockEnabled)}${draft.acceleratedClockEnabled ? ` (${draft.acceleratedClockMinimumSeconds}s)` : ""}`,
           `Injuries: ${fmt(draft.injuryPolicy)}`,
@@ -591,6 +599,8 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "trade_approval": return buildTradeApprovalWindow(draft);
     case "cpu_trading": return buildCpuRulesWindow(draft);
     case "difficulty": return buildDifficultyWindow(draft);
+    case "sliders_adjusted": return buildSlidersAdjustedWindow(draft);
+    case "coach_xp_setting": return buildCoachXpSettingWindow(draft);
     case "quarter_length": return buildQuarterLengthWindow(draft);
     case "accelerated_clock_enabled": return buildAcceleratedClockEnabledWindow(draft);
     case "accelerated_clock_seconds": return buildAcceleratedClockSecondsWindow(draft);
@@ -751,7 +761,7 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
   if (draft.cpuTradingPolicy !== "restricted") {
     draft.cpuTradingRestriction = "";
   }
-  if (draft.difficulty !== "custom") {
+  if (!draft.slidersAdjusted) {
     draft.difficultyCustomSettings = "";
   }
 

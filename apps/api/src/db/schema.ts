@@ -891,7 +891,11 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   coachModeCpuManageFacilitiesEnabled: boolean("coach_mode_cpu_manage_facilities_enabled"),
   ballHawk: text("ball_hawk").notNull().default("keep_individual"),
   heatSeeker: text("heat_seeker").notNull().default("keep_individual"),
-  switchAssist: text("switch_assist").notNull().default("keep_individual")
+  switchAssist: text("switch_assist").notNull().default("keep_individual"),
+  gotwStreamingRequirement: text("gotw_streaming_requirement").notNull().default("recommended"),
+  gotwStreamingSide: text("gotw_streaming_side"),
+  slidersAdjusted: boolean("sliders_adjusted").notNull().default(false),
+  coachXpSetting: text("coach_xp_setting"),
 });
 
 export type RecLeagueFeatureSettings = typeof recLeagueFeatureSettings.$inferSelect;

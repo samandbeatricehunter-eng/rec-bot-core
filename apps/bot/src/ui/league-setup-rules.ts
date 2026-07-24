@@ -80,7 +80,7 @@ export function buildRegularSeasonStreamingWindow(draft: LeagueSetupDraft) {
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming, "Regular season streaming requirement", [
         option("Required", "required"),
         option("Recommended", "recommended"),
-        option("Disabled", "disabled")
+        option("Not required", "disabled")
       ]),
       buildNavigationRow()
     ]
@@ -94,7 +94,7 @@ export function buildPostseasonStreamingWindow(draft: LeagueSetupDraft) {
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming, "Postseason streaming requirement", [
         option("Required", "required"),
         option("Recommended", "recommended"),
-        option("Disabled", "disabled")
+        option("Not required", "disabled")
       ]),
       buildNavigationRow()
     ]

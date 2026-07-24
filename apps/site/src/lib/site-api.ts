@@ -157,30 +157,99 @@ export type SiteLeagueSummary = {
   commissionerRole?: "head" | "co" | "member";
 };
 
+export type SiteLeagueConferenceReassignment = {
+  abbreviation: string;
+  name: string;
+  fromConference: string;
+  toConference: string;
+};
+
 export type SiteLeagueSearchHit = {
   id: string;
   name: string;
   game: string;
   gameLabel: string;
   seasonStage: string;
+  seasonStageLabel: string;
   seasonNumber: number;
+  currentWeek: number | null;
   openTeamCount: number;
   memberCount: number;
   commissionerUsername: string | null;
   commissionerDiscordName: string | null;
-  difficulty: string | null;
-  streamingRequirement: string | null;
+  isMember: boolean;
+
   coinEconomyEnabled: boolean;
+  regularSeasonStreamingRequirement: string | null;
+  postseasonStreamingRequirement: string | null;
+  streamingRequirement: string | null;
+  regularSeasonStreamingSide: string | null;
+  postseasonStreamingSide: string | null;
+  customCoachesRequired: boolean;
+  customPlaybooksAllowed: boolean;
+  difficulty: string | null;
+  slidersAdjusted: boolean;
+  quarterLengthMinutes: number | null;
   acceleratedClockEnabled: boolean;
   acceleratedClockMinimumSeconds: number | null;
-  tradeApprovalPolicy: string | null;
+  injuryPolicy: string | null;
+  wearAndTearEnabled: boolean;
+  fourthDownRuleTypeRegular: string | null;
+  fourthDownRuleTypePlayoff: string | null;
+  coachFiringPolicy: string | null;
+  preorderBonusesEnabled: boolean;
+  ballHawk: string | null;
+  heatSeeker: string | null;
+  switchAssist: string | null;
   offensivePlayCallLimitsEnabled: boolean;
   offensivePlayCallLimit: number | null;
+  offensivePlayCallCooldownEnabled: boolean;
   offensivePlayCallCooldown: number | null;
   defensivePlayCallLimitsEnabled: boolean;
   defensivePlayCallLimit: number | null;
+  defensivePlayCallCooldownEnabled: boolean;
   defensivePlayCallCooldown: number | null;
-  isMember: boolean;
+  fairSimRequirements: string | null;
+  forceWinRequirements: string | null;
+
+  customPlayersEnabled: boolean;
+  legendsEnabled: boolean;
+  devUpgradesEnabled: boolean;
+  ageResetsEnabled: boolean;
+  attributePurchasesEnabled: boolean;
+  playerTraitPurchasesEnabled: boolean;
+  contractAdjustmentPurchasesEnabled: boolean;
+
+  rosterType: string | null;
+  coachAbilitiesRestricted: boolean;
+  coachAbilitiesRestrictionNotes: string | null;
+  tradeApprovalPolicy: string | null;
+  cpuTradingPolicy: string | null;
+  cpuTradingRestriction: string | null;
+  salaryCapEnabled: boolean;
+  abilitiesEnabled: boolean;
+  tradeDeadlineEnabled: boolean;
+  positionChangePolicy: string | null;
+  positionChangePolicyDescription: string | null;
+
+  coachModeEnabled: boolean;
+  activeRostersEnabled: boolean | null;
+  dynastyType: string | null;
+  conferenceRealignment: string | null;
+  conferenceReassignments: SiteLeagueConferenceReassignment[];
+  recruitingDifficulty: string | null;
+  coachXpSetting: string | null;
+  transferPortalEnabled: boolean | null;
+  homeFieldAdvantageEnabled: boolean | null;
+  coachCarouselEnabled: boolean | null;
+  stadiumPulseEnabled: boolean | null;
+  coachModeRecruitFlippingEnabled: boolean | null;
+  coachModeAutoRecruitingEnabled: boolean | null;
+  coachModeAutoProgressPlayersEnabled: boolean | null;
+  coachModeUserAutoProgressionEnabled: boolean | null;
+  coachModeCpuManageBudgetEnabled: boolean | null;
+  coachModeCpuManageStaffEnabled: boolean | null;
+  coachModeCpuManageFacilitiesEnabled: boolean | null;
 };
 
 export type SiteLeagueSearchFilters = {
