@@ -222,13 +222,18 @@ function staleCacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T |
   return entry && entry.expiresAt + STALE_AUTH_CACHE_MS > Date.now() ? entry.value : undefined;
 }
 
-async function retryAfterRateLimit(path: string, response: Response): Promise<Response> {
-  if (response.status !== 429) return response;
+// A single retry wasn't enough — a burst of concurrent hub loads across guilds (e.g. right
+// after a deploy, with every in-memory cache cold) could draw two 429s in a row from
+// Discord and still surface as a hard 503. Retries up to 3 times, honoring Discord's
+// requested backoff each time, before giving up.
+async function retryAfterRateLimit(path: string, response: Response, attempt = 1): Promise<Response> {
+  if (response.status !== 429 || attempt > 3) return response;
   const payload = await response.clone().json().catch(() => ({})) as { retry_after?: number };
   const headerSeconds = Number(response.headers.get("retry-after") ?? 0);
   const delayMs = Math.min(5_000, Math.max(100, Math.ceil(Number(payload.retry_after ?? headerSeconds ?? 1) * 1000)));
   await new Promise((resolve) => setTimeout(resolve, delayMs));
-  return discordBotFetch(path);
+  const retried = await discordBotFetch(path);
+  return retryAfterRateLimit(path, retried, attempt + 1);
 }
 
 export async function getDiscordReactionUserIds(channelId: string, messageId: string, emojiId: string): Promise<string[]> {
