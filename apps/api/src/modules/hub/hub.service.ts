@@ -16,6 +16,8 @@ import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
+import { createStreamPayoutReview, deriveStreamMatchupContext, postLeagueChatStreamNotice, postStreamToDiscordChannel } from "../streams/streams.service.js";
+import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import {
   buildInterviewHeadline,
   formatInterviewBody,
@@ -524,17 +526,24 @@ export async function getHub(guildId: string, discordId: string) {
   }));
   const currentStreamLogs = await supabase
     .from("rec_stream_compliance_logs")
-    .select("id,user_id,team_id,message_url,posted_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)")
+    .select("id,user_id,team_id,game_id,message_url,posted_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation),game:rec_games(home_team_id,away_team_id,home_user_id,away_user_id)")
     .eq("league_id", context.leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", Number(context.rec_leagues.current_week ?? 1))
     .eq("status", "posted")
     .not("message_url", "is", null)
     .gte("posted_at", streamLiveSince())
+    .is("ended_at", null)
     .order("posted_at", { ascending: false })
     .limit(16);
   if (currentStreamLogs.error) throw new ApiError(500, "Failed to load live streams.", currentStreamLogs.error);
   const streamLogIds = (currentStreamLogs.data ?? []).map((stream: any) => stream.id);
+  const liveGameTeamIds = [...new Set((currentStreamLogs.data ?? []).flatMap((stream: any) => [stream.game?.home_team_id, stream.game?.away_team_id]).filter(Boolean))];
+  const liveGameTeamsRes = liveGameTeamIds.length
+    ? await supabase.from("rec_teams").select("id,name").in("id", liveGameTeamIds)
+    : { data: [] as any[], error: null };
+  if (liveGameTeamsRes.error) throw new ApiError(500, "Failed to load live-stream team names.", liveGameTeamsRes.error);
+  const liveGameTeamNameById = new Map<string, string>((liveGameTeamsRes.data ?? []).map((team: any) => [team.id, team.name]));
   const [streamViews, streamReactions] = await Promise.all([
     streamLogIds.length ? supabase.from("rec_stream_views").select("stream_log_id").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
     streamLogIds.length ? supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
@@ -617,6 +626,7 @@ export async function getHub(guildId: string, discordId: string) {
     userRatings,
     liveStreams: (currentStreamLogs.data ?? []).map((stream: any) => {
       const streamRows = (streamReactions.data ?? []).filter((reaction: any) => reaction.stream_log_id === stream.id);
+      const game = stream.game ?? null;
       return {
         id: stream.id,
         url: stream.message_url,
@@ -624,6 +634,9 @@ export async function getHub(guildId: string, discordId: string) {
         postedAt: stream.posted_at,
         user: stream.user ?? null,
         team: stream.team ?? null,
+        awayTeamName: game ? liveGameTeamNameById.get(game.away_team_id) ?? "Away" : null,
+        homeTeamName: game ? liveGameTeamNameById.get(game.home_team_id) ?? "Home" : null,
+        matchupLabel: game ? (game.home_user_id && game.away_user_id ? "H2H" : "CPU") : null,
         viewCount: (streamViews.data ?? []).filter((view: any) => view.stream_log_id === stream.id).length,
         reactionCounts: {
           like: streamRows.filter((reaction: any) => reaction.reaction_key === "like").length,
@@ -1220,7 +1233,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     gamesQuery,
     supabase.from("rec_games").select("week_number").eq("league_id", context.leagueId).order("week_number", { ascending: true }),
     supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score,is_tie,winning_team_id,source").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
-    supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").gte("posted_at", streamLiveSince()).order("posted_at", { ascending: false }),
+    supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").gte("posted_at", streamLiveSince()).is("ended_at", null).order("posted_at", { ascending: false }),
     supabase.from("rec_stream_views").select("stream_log_id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_team_assignments").select("user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(display_name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
@@ -1407,6 +1420,7 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
     .eq("status", "posted")
     .not("message_url", "is", null)
     .gte("posted_at", streamLiveSince())
+    .is("ended_at", null)
     .in("user_id", [game.data.away_user_id, game.data.home_user_id])
     .order("posted_at", { ascending: true });
   if (streamLogs.error) throw new ApiError(500, "Failed to load matchup streams.", streamLogs.error);
@@ -1588,11 +1602,51 @@ export async function shareHubMatchupStream(input: {
       .eq("status", "open"),
   ]);
 
+  // Parity with the Discord stream command: same $50 payout-review eligibility/creation.
+  const payout = await createStreamPayoutReview({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    userId,
+    discordId: input.discordId,
+    teamId: teamId ?? null,
+    streamLogId: inserted.data.id,
+    seasonNumber,
+    weekNumber,
+  }).catch((error) => {
+    console.error("[ERROR] Failed to create stream payout review for site-submitted stream (non-fatal):", error);
+    return null;
+  });
+
+  // Cross-communication: mirror the site-submitted stream into Discord's streams channel (if
+  // this league is linked to a server) and post a public notice in league chat — best-effort,
+  // never blocks the stream submission itself.
+  void (async () => {
+    const matchupContext = await deriveStreamMatchupContext(context.leagueId, input.gameId);
+    if (!matchupContext) return;
+    const author = await resolveChatAuthor(input.discordId);
+    await Promise.all([
+      postStreamToDiscordChannel(
+        context.routes,
+        `🔴 **${matchupContext.matchupLabel}** — ${matchupContext.awayTeamName} at ${matchupContext.homeTeamName}: ${author.displayName} is live! ${cleanedUrl}`,
+      ),
+      postLeagueChatStreamNotice({
+        leagueId: context.leagueId,
+        seasonNumber,
+        awayTeamName: matchupContext.awayTeamName,
+        homeTeamName: matchupContext.homeTeamName,
+        matchupLabel: matchupContext.matchupLabel,
+        posterDisplayName: author.displayName,
+        url: cleanedUrl,
+      }),
+    ]);
+  })().catch((error) => console.error("[ERROR] Failed to mirror site-submitted stream (non-fatal):", error));
+
   return {
     posted: true,
     streamLogId: inserted.data.id,
     watchPath: streamWatchPath(inserted.data.id),
     service,
+    payoutPending: Boolean(payout?.created),
   };
 }
 

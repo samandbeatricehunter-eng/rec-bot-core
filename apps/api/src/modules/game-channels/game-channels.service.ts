@@ -16,6 +16,20 @@ export async function getGameChannelByDiscordId(discordChannelId: string) {
   return data ?? null;
 }
 
+// Used by box-score submission to find this week's game chat for a matchup, if one exists and
+// is still active — a box score can be submitted after the channel's already been archived
+// (late submission), in which case there's nowhere to post the opponent-tag notice.
+export async function getGameChannelByGameId(gameId: string) {
+  const { data, error } = await supabase
+    .from("rec_game_channels")
+    .select("*")
+    .eq("game_id", gameId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load game channel matchup record.", error);
+  return data ?? null;
+}
+
 export async function listTrackedGameChannelDiscordIds(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase

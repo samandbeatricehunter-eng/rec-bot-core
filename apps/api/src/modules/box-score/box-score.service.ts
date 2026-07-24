@@ -17,6 +17,7 @@ import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intellig
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
+import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -1067,6 +1068,40 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       throw new ApiError(409, "A box score payout review is already pending or approved for this scheduled game.", error);
     }
     throw new ApiError(500, "Failed to save box score submission.", error);
+  }
+
+  // Best-effort side effects of a box score landing for this game — a still-"live" stream for
+  // it ends immediately (rather than waiting out the 2-hour window), and if this week's game
+  // chat channel is still active, it gets a system message tagging the opponent. Neither
+  // blocks the submission itself.
+  const submittedGameId = resolved.gameId;
+  if (submittedGameId) {
+    void (async () => {
+      await supabase
+        .from("rec_stream_compliance_logs")
+        .update({ ended_at: new Date().toISOString() })
+        .eq("game_id", submittedGameId)
+        .eq("status", "posted")
+        .is("ended_at", null);
+
+      const gameChannel = await getGameChannelByGameId(submittedGameId);
+      if (!gameChannel) return;
+      const opponentUserId = resolved.homeUserId === account?.user_id ? resolved.awayUserId : resolved.homeUserId;
+      let opponentDiscordId: string | null = null;
+      if (opponentUserId) {
+        const opponentAccount = await supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", opponentUserId).maybeSingle();
+        opponentDiscordId = opponentAccount.data?.discord_id ?? null;
+      }
+      const mention = opponentDiscordId ? ` <@${opponentDiscordId}>` : "";
+      await supabase.from("rec_game_chat_messages").insert({
+        game_channel_id: gameChannel.id,
+        league_id: leagueId,
+        game_id: submittedGameId,
+        author_display_name: "REC Bot",
+        source: "system",
+        body: `📋 Box score submitted for this game.${mention}`,
+      });
+    })().catch((notifyError) => console.error("[ERROR] Failed box-score submission side effects (non-fatal):", notifyError));
   }
 
   // Re-host the screenshot(s) so the payout embeds keep them after the source Discord

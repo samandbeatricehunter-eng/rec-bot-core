@@ -55,7 +55,7 @@ async function discordBotFetch(path: string, init?: RequestInit): Promise<Respon
   });
 }
 
-async function getBotUserId(): Promise<string> {
+export async function getBotUserId(): Promise<string> {
   if (botUserIdCache && botUserIdCache.expiresAt > Date.now()) return botUserIdCache.value;
   const res = await discordBotFetch("/users/@me");
   if (!res.ok) throw new ApiError(502, `Discord rejected the bot identity request (${res.status}).`);

@@ -357,6 +357,12 @@ export const siteApi = {
   getRegistrationGate() {
     return publicRequest<RegistrationGate>("/v1/subscriptions/registration-gate");
   },
+  getBotInviteUrl() {
+    return publicRequest<{ inviteUrl: string }>("/v1/subscriptions/bot/invite-url", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
   enableLeagueBot(leagueId: string) {
     return request<{
       league: {

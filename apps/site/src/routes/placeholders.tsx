@@ -248,6 +248,7 @@ export function LeagueMgmtPage() {
   const { leagueId = "" } = useParams();
   const [botEnabled, setBotEnabled] = useState(false);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [botBusy, setBotBusy] = useState(false);
   const [botError, setBotError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -258,9 +259,13 @@ export function LeagueMgmtPage() {
     setBotError(null);
     setCopied(false);
     try {
-      const result = await siteApi.enableLeagueBot(leagueId);
+      const [result, invite] = await Promise.all([
+        siteApi.enableLeagueBot(leagueId),
+        siteApi.getBotInviteUrl().catch(() => null),
+      ]);
       setBotEnabled(result.league.discord_bot_enabled);
       setInviteToken(result.league.discord_bot_invite_token);
+      setInviteUrl(invite?.inviteUrl ?? null);
     } catch (error) {
       setBotError(
         error instanceof Error ? error.message : "Could not enable Discord bot.",
@@ -318,6 +323,20 @@ export function LeagueMgmtPage() {
         {botError && <p className="site-auth-error">{botError}</p>}
         {botEnabled && inviteToken ? (
           <>
+            {inviteUrl && (
+              <a
+                className="site-btn site-btn-primary site-btn-lg"
+                href={inviteUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Add REC Bot to Discord
+              </a>
+            )}
+            <p className="site-muted">
+              After adding the bot to your server, run <code>/claim-league {inviteToken}</code> in
+              that server to finish linking it to this league.
+            </p>
             <label className="site-field">
               <span>Invite token</span>
               <input readOnly value={inviteToken} />

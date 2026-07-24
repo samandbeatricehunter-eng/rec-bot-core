@@ -67,7 +67,7 @@ declare global {
   }
 }
 
-function apiBaseUrl(): string {
+export function apiBaseUrl(): string {
   const fromRuntime = typeof window !== "undefined"
     ? window.__REC_WEB_CONFIG__?.VITE_REC_CORE_API_URL?.trim()
     : undefined;

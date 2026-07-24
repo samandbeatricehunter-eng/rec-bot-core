@@ -1,11 +1,70 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 
 const STREAM_PAYOUT_AMOUNT = 50;
+
+// Site<->Discord stream mirroring — used by both the Discord stream command
+// (recordStreamPost) and the site's share-stream flow (shareHubMatchupStream in
+// hub.service.ts), so either surface notifies the same places.
+
+// Posts a stream link into the league's configured Discord streams channel, if the league is
+// linked to a Discord server and has one configured. `routes` is whatever
+// getCurrentLeagueContext(guildId).routes already returned to the caller — no extra guild
+// lookup needed since callers already have it. No-op (not an error) when unconfigured/unlinked.
+export async function postStreamToDiscordChannel(routes: Record<string, unknown> | null, content: string): Promise<void> {
+  const channelId = typeof routes?.streams_channel_id === "string" ? routes.streams_channel_id : null;
+  if (!channelId) return;
+  await postDiscordChannelMessage(channelId, { content, allowed_mentions: { parse: [] } });
+}
+
+// Away/home team names + the H2H-vs-CPU two-way label (matches the convention already used in
+// the bot's schedule embeds — apps/bot/src/handlers/stream.ts's boldUserTeam) for a given game,
+// shared by both stream-submission surfaces so the derivation only lives in one place.
+export async function deriveStreamMatchupContext(leagueId: string, gameId: string): Promise<{ awayTeamName: string; homeTeamName: string; matchupLabel: "H2H" | "CPU" } | null> {
+  const game = await supabase.from("rec_games").select("home_team_id,away_team_id,home_user_id,away_user_id").eq("id", gameId).eq("league_id", leagueId).maybeSingle();
+  if (game.error || !game.data) return null;
+  const teamIds = [game.data.home_team_id, game.data.away_team_id].filter(Boolean);
+  const teams = teamIds.length
+    ? await supabase.from("rec_teams").select("id,name").in("id", teamIds)
+    : { data: [] as any[], error: null };
+  if (teams.error) return null;
+  const nameById = new Map<string, string>((teams.data ?? []).map((team: any) => [team.id, team.name]));
+  return {
+    awayTeamName: nameById.get(game.data.away_team_id) ?? "Away",
+    homeTeamName: nameById.get(game.data.home_team_id) ?? "Home",
+    matchupLabel: game.data.home_user_id && game.data.away_user_id ? "H2H" : "CPU",
+  };
+}
+
+// Public "someone's live" notice mirrored into the league-wide site chat, regardless of which
+// surface (Discord or site) the stream was submitted from.
+export async function postLeagueChatStreamNotice(input: {
+  leagueId: string;
+  seasonNumber: number;
+  awayTeamName: string;
+  homeTeamName: string;
+  matchupLabel: "H2H" | "CPU";
+  posterDisplayName: string;
+  url: string;
+}): Promise<void> {
+  const body = `🔴 **${input.matchupLabel}** — ${input.awayTeamName} at ${input.homeTeamName}: ${input.posterDisplayName} is live! ${input.url}`;
+  const { error } = await supabase.from("rec_league_chat_messages").insert({
+    league_id: input.leagueId,
+    season_number: input.seasonNumber,
+    author_user_id: null,
+    author_discord_id: null,
+    author_display_name: "REC Bot",
+    is_discord_only: false,
+    body,
+  });
+  if (error) throw error;
+}
 
 type RecordStreamPostInput = {
   guildId: string;
@@ -68,37 +127,107 @@ async function closeGameMarketsAfterStream(input: { guildId: string; leagueId: s
   return game.data.id;
 }
 
+type CreateStreamPayoutReviewInput = {
+  guildId: string;
+  leagueId: string;
+  userId: string;
+  discordId: string;
+  teamId: string | null;
+  streamLogId: string;
+  seasonNumber: number;
+  weekNumber: number;
+  discordChannelId?: string | null;
+  discordMessageId?: string | null;
+};
+
+type CreateStreamPayoutReviewResult =
+  | { created: false; reason: "already_pending" | "already_paid" | "discord_only" }
+  | { created: true; review: any };
+
+// Shared eligibility-check + payout-review + commissioner-inbox creation, used by both the
+// Discord stream command (recordStreamPost) and the site's share-stream flow
+// (shareHubMatchupStream) so a stream submitted from either surface gets the same $50 review —
+// this does NOT insert the rec_stream_compliance_logs row itself; callers do that first (their
+// insert shapes differ) and pass in the resulting streamLogId.
+export async function createStreamPayoutReview(input: CreateStreamPayoutReviewInput): Promise<CreateStreamPayoutReviewResult> {
+  // A coach can only have one pending stream payout at a time across the league.
+  // Issued/denied reviews no longer block a later weekly stream submission.
+  const alreadyPending = await supabase
+    .from("rec_stream_payout_reviews")
+    .select("id")
+    .eq("league_id", input.leagueId)
+    .eq("user_id", input.userId)
+    .eq("status", "pending")
+    .limit(1);
+  if (alreadyPending.error) throw new ApiError(500, "Failed to check pending stream payouts.", alreadyPending.error);
+  if ((alreadyPending.data ?? []).length > 0) return { created: false, reason: "already_pending" };
+
+  // Keep same-week idempotency for payouts that were already approved or issued.
+  const alreadyPaidThisWeek = await supabase
+    .from("rec_stream_payout_reviews")
+    .select("id")
+    .eq("league_id", input.leagueId)
+    .eq("user_id", input.userId)
+    .eq("season_number", input.seasonNumber)
+    .eq("week_number", input.weekNumber)
+    .in("status", ["pending", "approved", "issued"])
+    .limit(1);
+  if (alreadyPaidThisWeek.error) throw new ApiError(500, "Failed to check stream payout status.", alreadyPaidThisWeek.error);
+  if ((alreadyPaidThisWeek.data ?? []).length > 0) return { created: false, reason: "already_paid" };
+
+  // Discord-only users can post streams but do not enter payout review.
+  if (await isDiscordOnlyUser(input.userId)) return { created: false, reason: "discord_only" };
+
+  const review = await supabase
+    .from("rec_stream_payout_reviews")
+    .insert({
+      stream_log_id: input.streamLogId,
+      league_id: input.leagueId,
+      user_id: input.userId,
+      team_id: input.teamId ?? null,
+      season_number: input.seasonNumber,
+      week_number: input.weekNumber,
+      status: "pending",
+      amount: STREAM_PAYOUT_AMOUNT,
+      discord_channel_id: input.discordChannelId ?? null,
+      discord_message_id: input.discordMessageId ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (review.error) {
+    if (review.error.code === "23505") return { created: false, reason: "already_paid" };
+    throw new ApiError(500, "Failed to create stream payout review.", review.error);
+  }
+
+  await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId,
+    server_id: null,
+    league_id: input.leagueId,
+    season_number: input.seasonNumber,
+    week_number: input.weekNumber,
+    queue_type: "stream",
+    status: "pending",
+    priority: 0,
+    header: `Stream: Wk ${input.weekNumber}`,
+    summary: `Stream submitted by <@${input.discordId}>.`,
+    requester_discord_id: input.discordId,
+    requester_user_id: input.userId,
+    amount: STREAM_PAYOUT_AMOUNT,
+    source_table: "rec_stream_payout_reviews",
+    source_id: review.data.id,
+    payload: { reviewId: review.data.id, streamLogId: input.streamLogId },
+  });
+
+  return { created: true, review: review.data };
+}
+
 export async function recordStreamPost(input: RecordStreamPostInput) {
   const context = await getCurrentLeagueContext(input.guildId);
   const account = await getDiscordAccount(input.discordId);
   const assignment = await getActiveAssignment(context.leagueId, account.user_id);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
-
-  // A coach can only have one pending stream payout at a time across the league.
-  // Issued/denied reviews no longer block a later weekly stream submission.
-  const alreadyPending = await supabase
-    .from("rec_stream_payout_reviews")
-    .select("id")
-    .eq("league_id", context.leagueId)
-    .eq("user_id", account.user_id)
-    .eq("status", "pending")
-    .limit(1);
-
-  if (alreadyPending.error) throw new ApiError(500, "Failed to check pending stream payouts.", alreadyPending.error);
-
-  // Keep same-week idempotency for payouts that were already approved or issued.
-  const alreadyPaidThisWeek = await supabase
-    .from("rec_stream_payout_reviews")
-    .select("id")
-    .eq("league_id", context.leagueId)
-    .eq("user_id", account.user_id)
-    .eq("season_number", seasonNumber)
-    .eq("week_number", weekNumber)
-    .in("status", ["pending", "approved", "issued"])
-    .limit(1);
-
-  if (alreadyPaidThisWeek.error) throw new ApiError(500, "Failed to check stream payout status.", alreadyPaidThisWeek.error);
 
   const streamLog = await supabase
     .from("rec_stream_compliance_logs")
@@ -134,67 +263,47 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
     teamId: assignment?.team_id ?? null,
   });
 
-  if ((alreadyPending.data ?? []).length > 0) {
-    return { recorded: true, alreadyPending: true, lockedGameId, streamLog: streamLog.data };
+  // Best-effort public notice on the league chat — never blocks the stream post itself.
+  if (lockedGameId) {
+    void (async () => {
+      const matchupContext = await deriveStreamMatchupContext(context.leagueId, lockedGameId);
+      if (!matchupContext) return;
+      const author = await resolveChatAuthor(input.discordId);
+      await postLeagueChatStreamNotice({
+        leagueId: context.leagueId,
+        seasonNumber,
+        awayTeamName: matchupContext.awayTeamName,
+        homeTeamName: matchupContext.homeTeamName,
+        matchupLabel: matchupContext.matchupLabel,
+        posterDisplayName: author.displayName,
+        url: input.messageUrl ?? "Discord Live",
+      });
+    })().catch((error) => console.error("[ERROR] Failed to post league-chat stream notice (non-fatal):", error));
   }
 
-  if ((alreadyPaidThisWeek.data ?? []).length > 0) {
-    return { recorded: true, alreadyPaid: true, lockedGameId, streamLog: streamLog.data, economyEligible: true };
-  }
+  const payout = await createStreamPayoutReview({
+    guildId: input.guildId,
+    leagueId: context.leagueId,
+    userId: account.user_id,
+    discordId: input.discordId,
+    teamId: assignment?.team_id ?? null,
+    streamLogId: streamLog.data.id,
+    seasonNumber,
+    weekNumber,
+    discordChannelId: input.discordChannelId,
+    discordMessageId: input.discordMessageId,
+  });
 
-  // Discord-only users can post streams but do not enter payout review.
-  if (await isDiscordOnlyUser(account.user_id)) {
+  if (!payout.created) {
+    if (payout.reason === "already_pending") return { recorded: true, alreadyPending: true, lockedGameId, streamLog: streamLog.data };
+    if (payout.reason === "already_paid") return { recorded: true, alreadyPaid: true, lockedGameId, streamLog: streamLog.data, economyEligible: true };
     return { recorded: true, economyEligible: false, payoutEligible: false, lockedGameId, streamLog: streamLog.data };
   }
-
-  // Every stream (link or Discord Live) is eligible for one payout per week.
-  const review = await supabase
-    .from("rec_stream_payout_reviews")
-    .insert({
-      stream_log_id: streamLog.data.id,
-      league_id: context.leagueId,
-      user_id: account.user_id,
-      team_id: assignment?.team_id ?? null,
-      season_number: seasonNumber,
-      week_number: weekNumber,
-      status: "pending",
-      amount: STREAM_PAYOUT_AMOUNT,
-      discord_channel_id: input.discordChannelId,
-      discord_message_id: input.discordMessageId
-    })
-    .select("*")
-    .single();
-
-  if (review.error) {
-    if (review.error.code === "23505") {
-      return { recorded: true, alreadyPaid: true, lockedGameId, streamLog: streamLog.data };
-    }
-    throw new ApiError(500, "Failed to create stream payout review.", review.error);
-  }
-
-  await supabase.from("rec_commissioners_inbox").insert({
-    guild_id: input.guildId,
-    server_id: null,
-    league_id: context.leagueId,
-    season_number: seasonNumber,
-    week_number: weekNumber,
-    queue_type: "stream",
-    status: "pending",
-    priority: 0,
-    header: `Stream: Wk ${weekNumber}`,
-    summary: `Stream submitted by <@${input.discordId}>.`,
-    requester_discord_id: input.discordId,
-    requester_user_id: account.user_id,
-    amount: STREAM_PAYOUT_AMOUNT,
-    source_table: "rec_stream_payout_reviews",
-    source_id: review.data.id,
-    payload: { reviewId: review.data.id, streamLogId: streamLog.data.id },
-  });
 
   return {
     recorded: true,
     needsReview: true,
-    review: review.data,
+    review: payout.review,
     streamLog: streamLog.data,
     lockedGameId,
     watchPath: `/v1/hub/streams/open/${streamLog.data.id}`,

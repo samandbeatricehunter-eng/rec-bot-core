@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
 import { renderMessageWithMentions } from "../../lib/mentions.js";
-import type { GameChatChannel, LeagueChatMember, MentionableList } from "../../types/api.js";
+import type { GameChatChannel, HubMatchupDetail, LeagueChatMember, MentionableList } from "../../types/api.js";
 import { Button } from "../ui/Button.js";
+import { UploadBoxScoreModal } from "../../routes/league-mgmt/manage-league/UploadBoxScoreModal.js";
+import { MatchupActions, canViewerUploadBoxScore } from "../../routes/matchups/MatchupDetail.js";
+import { ShareStreamModal } from "./ShareStreamModal.js";
+import { PlayerStatsModal } from "./PlayerStatsModal.js";
+import { HighlightUploadModal } from "./HighlightUploadModal.js";
 
 const POLL_INTERVAL_MS = 5000;
 const ROSTER_POLL_INTERVAL_MS = 20_000;
@@ -26,7 +31,17 @@ const DC_TOOLTIP = "Non-registered Discord-only member — messages forward to t
 // matchup (bridged to that matchup's Discord game channel — see game-chat.service.ts).
 // Poll-based like every other chat feature in this codebase (commissioner chat, matchup
 // chat) — no realtime infra.
-export function LeagueChatPanel({ guildId, discordId, initialGameChannelId }: { guildId: string; discordId: string; initialGameChannelId?: string | null }) {
+export function LeagueChatPanel({
+  guildId,
+  discordId,
+  seasonNumber,
+  initialGameChannelId,
+}: {
+  guildId: string;
+  discordId: string;
+  seasonNumber: number;
+  initialGameChannelId?: string | null;
+}) {
   const [channels, setChannels] = useState<GameChatChannel[]>([]);
   const [activeChannel, setActiveChannel] = useState<string>(initialGameChannelId || "league");
   const [messages, setMessages] = useState<ChatMessageRow[]>([]);
@@ -37,6 +52,28 @@ export function LeagueChatPanel({ guildId, discordId, initialGameChannelId }: { 
   const [error, setError] = useState<string | null>(null);
   const pollInFlightRef = useRef(false);
   const feedRef = useRef<HTMLDivElement>(null);
+
+  const [matchupDetail, setMatchupDetail] = useState<HubMatchupDetail | null>(null);
+  const [boxScoreUploadOpen, setBoxScoreUploadOpen] = useState(false);
+  const [playerStatsOpen, setPlayerStatsOpen] = useState(false);
+  const [highlightUploadOpen, setHighlightUploadOpen] = useState(false);
+  const [shareStreamOpen, setShareStreamOpen] = useState(false);
+
+  const activeGameId = activeChannel === "league" ? null : channels.find((c) => c.gameChannelId === activeChannel)?.gameId ?? null;
+
+  useEffect(() => {
+    if (!activeGameId) {
+      setMatchupDetail(null);
+      return;
+    }
+    let active = true;
+    recApi.getHubMatchupDetail({ guildId, gameId: activeGameId }).then((detail) => {
+      if (active) setMatchupDetail(detail);
+    }).catch(() => {
+      if (active) setMatchupDetail(null);
+    });
+    return () => { active = false; };
+  }, [guildId, activeGameId]);
 
   useEffect(() => {
     if (initialGameChannelId) setActiveChannel(initialGameChannelId);
@@ -182,6 +219,19 @@ export function LeagueChatPanel({ guildId, discordId, initialGameChannelId }: { 
         )}
       </div>
 
+      {matchupDetail && (
+        <MatchupActions
+          matchup={matchupDetail.matchup}
+          canUploadBoxScore={canViewerUploadBoxScore(matchupDetail.matchup)}
+          onOpenBoxScore={() => setBoxScoreUploadOpen(true)}
+          onOpenPlayerStats={() => setPlayerStatsOpen(true)}
+          onOpenWager={() => undefined}
+          onOpenShareStream={() => setShareStreamOpen(true)}
+          onUploadHighlight={() => setHighlightUploadOpen(true)}
+          highlightUploading={false}
+        />
+      )}
+
       {error && <p className="hub-transfer-status">{error}</p>}
 
       <div className="commissioner-chat-window">
@@ -244,6 +294,47 @@ export function LeagueChatPanel({ guildId, discordId, initialGameChannelId }: { 
           </div>
         </div>
       </div>
+
+      {boxScoreUploadOpen && matchupDetail && (
+        <UploadBoxScoreModal
+          guildId={guildId}
+          discordId={discordId}
+          weekNumber={matchupDetail.matchup.weekNumber}
+          seasonNumber={seasonNumber}
+          gameId={matchupDetail.matchup.gameId}
+          commissionerSubmission={false}
+          requireSecondImage
+          onClose={() => setBoxScoreUploadOpen(false)}
+          onSubmitted={() => {
+            setBoxScoreUploadOpen(false);
+            // The opponent-tag notice lands server-side (createBoxScoreSubmission) — the next
+            // poll picks it up like any other message, no special handling needed here.
+            pollMessages();
+          }}
+        />
+      )}
+
+      {playerStatsOpen && (
+        <PlayerStatsModal guildId={guildId} onClose={() => setPlayerStatsOpen(false)} onSubmitted={() => setPlayerStatsOpen(false)} />
+      )}
+
+      {highlightUploadOpen && activeGameId && (
+        <HighlightUploadModal
+          guildId={guildId}
+          gameId={activeGameId}
+          onClose={() => setHighlightUploadOpen(false)}
+          onSubmitted={() => setHighlightUploadOpen(false)}
+        />
+      )}
+
+      {shareStreamOpen && activeGameId && (
+        <ShareStreamModal
+          guildId={guildId}
+          gameId={activeGameId}
+          onClose={() => setShareStreamOpen(false)}
+          onSubmitted={() => setShareStreamOpen(false)}
+        />
+      )}
     </div>
   );
 }

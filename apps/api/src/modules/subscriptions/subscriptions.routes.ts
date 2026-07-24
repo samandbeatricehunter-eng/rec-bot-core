@@ -22,6 +22,7 @@ import {
 } from "./stripe.service.js";
 import { claimBotInvite } from "./bot-invite.service.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
+import { getBotUserId } from "../../lib/discord-guild.js";
 
 
 async function resolveCheckoutRecUserId(authUserId: string, email: string | null): Promise<string> {
@@ -203,6 +204,19 @@ export async function subscriptionRoutes(app: FastifyInstance) {
         .single();
       if (updated.error) throw new ApiError(500, "Failed to enable Discord bot.", updated.error);
       return reply.send({ league: updated.data });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Public — a bot invite link carries no per-league secret (the Discord application/bot user
+  // ID is public information anyway); the actual league correlation happens via the invite
+  // token + /claim-league, not via this URL.
+  app.post("/v1/subscriptions/bot/invite-url", async (_request, reply) => {
+    try {
+      const botUserId = await getBotUserId();
+      const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${botUserId}&permissions=8&scope=bot%20applications.commands`;
+      return reply.send({ inviteUrl });
     } catch (error) {
       return sendError(reply, error);
     }

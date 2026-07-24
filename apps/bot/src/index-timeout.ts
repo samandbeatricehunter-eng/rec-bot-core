@@ -130,6 +130,7 @@ import {
 } from "./flows/open-teams-slash.js";
 import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
+import { handleClaimLeagueSlash } from "./flows/claim-league.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleActivityRequirementsModal,
@@ -514,6 +515,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "schedule") {
       await handleScheduleSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "claim-league") {
+      await handleClaimLeagueSlash(interaction);
       return;
     }
 

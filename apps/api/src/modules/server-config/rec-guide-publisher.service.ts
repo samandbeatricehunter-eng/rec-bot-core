@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { formatCoins } from "@rec/shared";
 
 const REC_GOLD = 0xd9a521;
+const SITE_URL = process.env.REC_SITE_URL ?? "https://rec-leagues.com";
 
 function mention(id?: string | null, fallback = "not assigned yet") {
   return id ? `<#${id}>` : `*${fallback}*`;
@@ -23,9 +24,10 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
   const base = (number: number, title: string, description: string) => ({ title: `${number}. ${title}`, color: REC_GOLD, description, footer });
   return [
     base(1, "Welcome & REC Hub", [
-      `Welcome to **${league.name ?? "the REC League"}** (${cfb ? "College Football 27" : "Madden 27"}). REC manages league activity in Discord and the private web Hub.`,
+      `Welcome to **${league.name ?? "the REC League"}** (${cfb ? "College Football 27" : "Madden 27"}). REC manages league activity in Discord and the private web Hub — and now the two stay in sync: chat, streams, and box scores posted on either side show up on the other.`,
       "Run **/hub** for a personal link. Links expire and must not be shared. Unlinked users can view open teams and submit a request; commissioners approve and link accepted users.",
       "The Hub includes Campus Buzz, headlines, articles, highlights, matchups, streams, rankings, schedules, My Team, wagers, and authorized League Management tools.",
+      `**Register a free account at ${SITE_URL}** to unlock the full REC experience: Campus Buzz league/game chat, a Live Games board, and submitting box scores, player stats, streams, and highlights straight from your browser — no Discord required.`,
     ].join("\n\n")),
     base(2, "Weekly Submissions", [
       `Use ${mention(weeklyId, "Weekly Submissions channel not assigned")} each playable week. The channel is reset on advance; use its permanent **Box Scores**, **Player Stats**, and **Recruiting Commits** buttons. Captured messages are deleted to keep the panel clear.`,
@@ -35,8 +37,8 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       cfb ? "**Recruiting Commits:** enter recruit name, position, stars, city, and state. It is linked to your school and does not require a box score. Commissioners can correct changes." : "**Recruiting Commits:** College Football leagues only.",
     ].join("\n\n")),
     base(3, "Streams & Highlights", [
-      `Post streams in ${mention(routeId("streams_channel_id"), "Streams channel not assigned")}. A valid stream pays **${formatCoins(50)}**, once per user per league week. Regular-season and postseason requirements follow the league's configured rules; invalid or duplicate streams may be denied.`,
-      media ? `Post one in-game highlight per message in ${mention(routeId("highlights_channel_id"), "Highlights channel not assigned")}. Phone recordings are not accepted. Highlights pay **${formatCoins(25)}** each, up to two payouts per league week; accepted extras can still enter voting.` : "Media features are currently disabled for this league.",
+      `Post streams in ${mention(routeId("streams_channel_id"), "Streams channel not assigned")}, or share one from a matchup's Share Stream button on the site/Hub — either way it mirrors to the other and posts a "who's live" notice in Campus Buzz's league chat. A valid stream pays **${formatCoins(50)}**, once per user per league week, on either surface. Regular-season and postseason requirements follow the league's configured rules; invalid or duplicate streams may be denied. Live streams also show on the site's Live Games board until the stream ends, the box score is submitted, or 2 hours pass.`,
+      media ? `Highlights are submitted from the REC site (${SITE_URL}) — Campus Buzz → Matchups, or a game chat's Highlights button. Phone recordings are not accepted. Highlights pay **${formatCoins(25)}** each, up to two payouts per league week; accepted extras can still enter voting.` : "Media features are currently disabled for this league.",
       media ? "Award reactions are Best Throw, Best Catch, Best Run, Best Interception, and Best Hit. A voter may choose only one category per highlight, may vote on multiple highlights, and tied category winners split the payout." : "",
     ].filter(Boolean).join("\n\n")),
     base(4, "My Team, Wagers & Schedules", [

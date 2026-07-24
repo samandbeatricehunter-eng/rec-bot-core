@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { americanFromDecimal, formatCoins } from "@rec/shared";
@@ -29,68 +29,11 @@ import type {
   MatchupPreview as MatchupPreviewData,
   PeerWagerBoardResponse,
   WagerOptionsResponse,
-  WatchedPlayer,
 } from "../../types/api.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
-
-const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
-  passing: [
-    ["completions", "Completions"],
-    ["attempts", "Attempts"],
-    ["yards", "Passing yards"],
-    ["touchdowns", "Passing touchdowns"],
-    ["interceptions", "Interceptions"],
-  ],
-  rushing: [
-    ["carries", "Carries"],
-    ["yards", "Rushing yards"],
-    ["touchdowns", "Rushing touchdowns"],
-    ["fumbles", "Fumbles"],
-    ["longest", "Longest rush"],
-  ],
-  receiving: [
-    ["receptions", "Receptions"],
-    ["yards", "Receiving yards"],
-    ["touchdowns", "Receiving touchdowns"],
-    ["drops", "Drops"],
-    ["longest", "Longest reception"],
-  ],
-  defense: [
-    ["tackles", "Total tackles"],
-    ["tfl", "Tackles for loss"],
-    ["sacks", "Sacks"],
-    ["interceptions", "Interceptions"],
-    ["forced_fumbles", "Forced fumbles"],
-  ],
-  kick_returns: [
-    ["returns", "Kick returns"],
-    ["yards", "Return yards"],
-    ["touchdowns", "Return touchdowns"],
-    ["longest", "Longest return"],
-  ],
-  punt_returns: [
-    ["returns", "Punt returns"],
-    ["yards", "Return yards"],
-    ["touchdowns", "Return touchdowns"],
-    ["longest", "Longest return"],
-  ],
-  kicking: [
-    ["fg_made", "Field goals made"],
-    ["fg_attempted", "Field goals attempted"],
-    ["longest", "Longest field goal"],
-    ["xp_made", "Extra points made"],
-    ["xp_attempted", "Extra points attempted"],
-  ],
-  punting: [
-    ["punts", "Punts"],
-    ["yards", "Punt yards"],
-    ["average", "Average"],
-    ["inside_20", "Inside the 20"],
-    ["touchbacks", "Touchbacks"],
-  ],
-};
-
-const PLAYER_STAT_CATEGORY_OPTIONS = Object.keys(PLAYER_STAT_FIELDS);
+import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
+import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
+import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
 
 type WagerMode = "single" | "parlay" | "peer";
 type WagerLeg = {
@@ -122,18 +65,11 @@ type WagerPanel = {
   busy: boolean;
 };
 
-function displayLabel(key: string) {
-  return key
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 function displayOdds(odds: number) {
   return americanFromDecimal(Number(odds));
 }
 
-function canViewerUploadBoxScore(matchup: HubMatchupGame) {
+export function canViewerUploadBoxScore(matchup: HubMatchupGame) {
   // App/matchup page: either participant may upload. H2H still *expects* home to
   // post the official score (see boxScoreExpectationText); that is policy copy, not a hard gate here.
   if (matchup.matchupType === "h2h" || matchup.matchupType === "human_cpu") return matchup.involvesMe;
@@ -150,12 +86,13 @@ function boxScoreExpectationText(matchup: HubMatchupGame) {
   return "Box score uploads are only expected for human-involved matchups.";
 }
 
-function MatchupActions({
+export function MatchupActions({
   matchup,
   canUploadBoxScore,
   onOpenBoxScore,
   onOpenPlayerStats,
   onOpenWager,
+  onOpenShareStream,
   onUploadHighlight,
   highlightUploading,
 }: {
@@ -164,6 +101,7 @@ function MatchupActions({
   onOpenBoxScore: () => void;
   onOpenPlayerStats: () => void;
   onOpenWager: () => void;
+  onOpenShareStream: () => void;
   onUploadHighlight: () => void;
   highlightUploading: boolean;
 }) {
@@ -208,8 +146,8 @@ function MatchupActions({
           <button
             type="button"
             className="matchup-action"
-            disabled
-            title="Share your stream in the Discord game channel for now."
+            onClick={onOpenShareStream}
+            title="Share your stream — mirrors to Discord and Campus Buzz Chat if this league is linked."
           >
             <Share2 size={16} /> Share Stream
           </button>
@@ -257,24 +195,10 @@ export function MatchupDetailPage() {
   const [boxScoreUploadGame, setBoxScoreUploadGame] =
     useState<HubMatchupGame | null>(null);
 
-  const [playerStatsGame, setPlayerStatsGame] = useState<HubMatchupGame | null>(
-    null,
-  );
-  const [myWatchedPlayers, setMyWatchedPlayers] = useState<WatchedPlayer[] | null>(
-    null,
-  );
-  const [highlightUploading, setHighlightUploading] = useState(false);
-  const [highlightUploadNotice, setHighlightUploadNotice] = useState<string | null>(null);
-  const highlightFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [playerStatsOpen, setPlayerStatsOpen] = useState(false);
+  const [highlightUploadOpen, setHighlightUploadOpen] = useState(false);
+  const [shareStreamOpen, setShareStreamOpen] = useState(false);
   const [reactionBusy, setReactionBusy] = useState(false);
-  const [playerStatsDraft, setPlayerStatsDraft] = useState({
-    playerName: "",
-    watchedPlayerId: "",
-    category: "passing",
-    values: {} as Record<string, string>,
-  });
-  const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
-  const [playerStatsBusy, setPlayerStatsBusy] = useState(false);
 
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
 
@@ -390,77 +314,6 @@ export function MatchupDetailPage() {
     }
   }
 
-  async function openPlayerStats(game: HubMatchupGame) {
-    setPlayerStatsGame(game);
-    setPlayerStatsNotice(null);
-    setPlayerStatsDraft({
-      playerName: "",
-      watchedPlayerId: "",
-      category: "passing",
-      values: {},
-    });
-    setMyWatchedPlayers(null);
-    try {
-      const result = await recApi.listMyWatchedPlayers({ guildId });
-      setMyWatchedPlayers(result.players);
-    } catch (cause) {
-      setPlayerStatsNotice(
-        cause instanceof Error
-          ? cause.message
-          : "Could not load your players to watch.",
-      );
-      setMyWatchedPlayers([]);
-    }
-  }
-
-  async function submitPlayerStats() {
-    if (!playerStatsGame) return;
-    const selectedPlayer = myWatchedPlayers?.find(
-      (player) => player.id === playerStatsDraft.watchedPlayerId,
-    );
-    const playerName = selectedPlayer?.playerName ?? playerStatsDraft.playerName.trim();
-    const statLines = (PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).flatMap(
-      ([statKey, label]) => {
-        const raw = playerStatsDraft.values[statKey]?.trim();
-        if (!raw) return [];
-        const value = Number(raw);
-        return Number.isFinite(value) ? [{ statKey, label, value }] : [];
-      },
-    );
-    if (!playerName || !statLines.length) {
-      setPlayerStatsNotice("Pick or enter a player and add at least one stat.");
-      return;
-    }
-    setPlayerStatsBusy(true);
-    setPlayerStatsNotice(null);
-    try {
-      await recApi.submitPlayerStatLine({
-        guildId,
-        playerName,
-        category: playerStatsDraft.category,
-        statLines,
-      });
-      setPlayerStatsNotice("Player stats submitted.");
-      setPlayerStatsDraft((current) => ({
-        playerName: "",
-        watchedPlayerId: "",
-        category: current.category,
-        values: {},
-      }));
-    } catch (cause) {
-      setPlayerStatsNotice(
-        cause instanceof Error ? cause.message : "Player stats submission failed.",
-      );
-    } finally {
-      setPlayerStatsBusy(false);
-    }
-  }
-
-  function openHighlightPicker() {
-    setHighlightUploadNotice(null);
-    highlightFileInputRef.current?.click();
-  }
-
   function patchMatchupReactions(
     updater: (game: HubMatchupGame) => HubMatchupGame,
   ) {
@@ -542,95 +395,6 @@ export function MatchupDetailPage() {
       },
       myGotyComment: null,
     }));
-  }
-
-  async function readVideoDurationSeconds(file: File): Promise<number> {
-    const objectUrl = URL.createObjectURL(file);
-    try {
-      return await new Promise<number>((resolve, reject) => {
-        const video = document.createElement("video");
-        video.preload = "metadata";
-        video.onloadedmetadata = () => resolve(Number(video.duration) || 0);
-        video.onerror = () => reject(new Error(`Could not read duration for ${file.name}.`));
-        video.src = objectUrl;
-      });
-    } finally {
-      URL.revokeObjectURL(objectUrl);
-    }
-  }
-
-  async function uploadHighlightFile(file: File) {
-    if (!gameId) return;
-    const duration = await readVideoDurationSeconds(file);
-    if (duration > 45) {
-      throw new Error(
-        `${file.name} is ${Math.ceil(duration)}s. Crop to 45 seconds or less and try again.`,
-      );
-    }
-    const direct = await recApi.createHighlightDirectUpload({
-      guildId,
-      gameId,
-      fileName: file.name,
-    });
-    const form = new FormData();
-    form.append("file", file);
-    const uploaded = await fetch(direct.uploadURL, { method: "POST", body: form });
-    if (!uploaded.ok) {
-      throw new Error(`Cloudflare upload failed for ${file.name} (${uploaded.status}).`);
-    }
-    await recApi.markHighlightUploadReceived({ guildId, highlightId: direct.highlightId });
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-      const status = await recApi.getHighlightUploadStatus({
-        guildId,
-        highlightId: direct.highlightId,
-      });
-      if (status.mediaStatus === "ready") return;
-      if (status.mediaStatus === "failed") {
-        throw new Error(
-          status.failureReason
-          ?? `${file.name} was rejected. Crop to 45 seconds or less and try again.`,
-        );
-      }
-    }
-  }
-
-  async function uploadHighlightFiles(fileList: FileList | null) {
-    if (!fileList?.length || !gameId) return;
-    const files = Array.from(fileList).slice(0, 2);
-    setHighlightUploading(true);
-    setHighlightUploadNotice(
-      files.length === 1
-        ? `Uploading ${files[0].name}…`
-        : `Uploading ${files.length} highlights…`,
-    );
-    const failures: string[] = [];
-    let succeeded = 0;
-    for (const file of files) {
-      try {
-        setHighlightUploadNotice(`Uploading ${file.name}…`);
-        await uploadHighlightFile(file);
-        succeeded += 1;
-      } catch (cause) {
-        failures.push(cause instanceof Error ? cause.message : `Upload failed for ${file.name}.`);
-      }
-    }
-    if (succeeded > 0) {
-      setHighlightUploadNotice(
-        succeeded === 1
-          ? "Uploaded — encoding to 720p. Commissioner approval publishes it and issues payout when a paid slot is available."
-          : `${succeeded} clips uploaded — encoding to 720p. Approve in commissioner inbox publishes + pays (when slots remain).`,
-      );
-    } else if (failures.length) {
-      setHighlightUploadNotice(failures.join(" "));
-    }
-    if (failures.length && succeeded > 0) {
-      setHighlightUploadNotice(
-        `${succeeded} uploaded. ${failures.join(" ")}`,
-      );
-    }
-    setHighlightUploading(false);
-    if (highlightFileInputRef.current) highlightFileInputRef.current.value = "";
   }
 
   async function openWager(game: HubMatchupGame) {
@@ -905,24 +669,12 @@ export function MatchupDetailPage() {
           if (!canUploadBoxScore) return;
           setBoxScoreUploadGame(matchup);
         }}
-        onOpenPlayerStats={() => void openPlayerStats(matchup)}
+        onOpenPlayerStats={() => setPlayerStatsOpen(true)}
         onOpenWager={() => void openWager(matchup)}
-        onUploadHighlight={openHighlightPicker}
-        highlightUploading={highlightUploading}
+        onOpenShareStream={() => setShareStreamOpen(true)}
+        onUploadHighlight={() => setHighlightUploadOpen(true)}
+        highlightUploading={false}
       />
-      <input
-        ref={highlightFileInputRef}
-        type="file"
-        accept="video/*"
-        multiple
-        hidden
-        onChange={(event) => {
-          void uploadHighlightFiles(event.target.files);
-        }}
-      />
-      {highlightUploadNotice ? (
-        <p className="matchup-boxscore-reminder" role="status">{highlightUploadNotice}</p>
-      ) : null}
       <section className="matchup-boxscore-reminder">
         <strong>Box score reminder</strong>
         <p>{boxScoreExpectationText(matchup)}</p>
@@ -989,110 +741,33 @@ export function MatchupDetailPage() {
         />
       )}
 
-      {playerStatsGame && (
-        <Modal
-          title="Players to Watch"
-          onClose={() => setPlayerStatsGame(null)}
-        >
-          <div className="hub-submission-modal">
-            {playerStatsNotice && (
-              <p className="hub-transfer-status">{playerStatsNotice}</p>
-            )}
-            <p className="hub-muted">
-              {playerStatsGame.awayTeamName} at {playerStatsGame.homeTeamName}
-            </p>
-            <label className="form-field">
-              <span className="form-label">Player</span>
-              <select
-                className="form-input"
-                value={playerStatsDraft.watchedPlayerId}
-                onChange={(event) => {
-                  const player = myWatchedPlayers?.find(
-                    (item) => item.id === event.target.value,
-                  );
-                  setPlayerStatsDraft((current) => ({
-                    ...current,
-                    watchedPlayerId: event.target.value,
-                    playerName: player?.playerName ?? "",
-                  }));
-                }}
-              >
-                <option value="">Enter a new player</option>
-                {(myWatchedPlayers ?? []).map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.playerName} - {player.position}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {!playerStatsDraft.watchedPlayerId && (
-              <label className="form-field">
-                <span className="form-label">Player name</span>
-                <input
-                  className="form-input"
-                  value={playerStatsDraft.playerName}
-                  onChange={(event) =>
-                    setPlayerStatsDraft((current) => ({
-                      ...current,
-                      playerName: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-            )}
-            <label className="form-field">
-              <span className="form-label">Category</span>
-              <select
-                className="form-input"
-                value={playerStatsDraft.category}
-                onChange={(event) =>
-                  setPlayerStatsDraft((current) => ({
-                    ...current,
-                    category: event.target.value,
-                    values: {},
-                  }))
-                }
-              >
-                {PLAYER_STAT_CATEGORY_OPTIONS.map((category) => (
-                  <option key={category} value={category}>
-                    {displayLabel(category)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="hub-submission-grid">
-              {(PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).map(
-                ([key, label]) => (
-                  <label className="form-field" key={key}>
-                    <span className="form-label">{label}</span>
-                    <input
-                      className="form-input"
-                      type="number"
-                      min="0"
-                      value={playerStatsDraft.values[key] ?? ""}
-                      onChange={(event) =>
-                        setPlayerStatsDraft((current) => ({
-                          ...current,
-                          values: {
-                            ...current.values,
-                            [key]: event.target.value,
-                          },
-                        }))
-                      }
-                    />
-                  </label>
-                ),
-              )}
-            </div>
-            <Button
-              variant="primary"
-              disabled={playerStatsBusy}
-              onClick={() => void submitPlayerStats()}
-            >
-              {playerStatsBusy ? "Submitting..." : "Submit Player Stats"}
-            </Button>
-          </div>
-        </Modal>
+      {playerStatsOpen && (
+        <PlayerStatsModal
+          guildId={guildId}
+          onClose={() => setPlayerStatsOpen(false)}
+          onSubmitted={() => setPlayerStatsOpen(false)}
+        />
+      )}
+
+      {highlightUploadOpen && gameId && (
+        <HighlightUploadModal
+          guildId={guildId}
+          gameId={gameId}
+          onClose={() => setHighlightUploadOpen(false)}
+          onSubmitted={() => setHighlightUploadOpen(false)}
+        />
+      )}
+
+      {shareStreamOpen && gameId && (
+        <ShareStreamModal
+          guildId={guildId}
+          gameId={gameId}
+          onClose={() => setShareStreamOpen(false)}
+          onSubmitted={() => {
+            setShareStreamOpen(false);
+            void load();
+          }}
+        />
       )}
 
       {wagerPanel && (

@@ -4,6 +4,8 @@ import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONT
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LeagueChatPanel } from "../../components/hub/LeagueChatPanel.js";
+import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
+import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
@@ -29,17 +31,6 @@ const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
 ];
 const COMMUNITY_REACTION_KEYS: HubReactionKey[] = ["like", "dislike"];
 const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
-const PLAYER_STAT_FIELDS: Record<string, Array<[string, string]>> = {
-  passing: [["completions", "Completions"], ["attempts", "Attempts"], ["yards", "Passing yards"], ["touchdowns", "Passing touchdowns"], ["interceptions", "Interceptions"]],
-  rushing: [["carries", "Carries"], ["yards", "Rushing yards"], ["touchdowns", "Rushing touchdowns"], ["fumbles", "Fumbles"], ["longest", "Longest rush"]],
-  receiving: [["receptions", "Receptions"], ["yards", "Receiving yards"], ["touchdowns", "Receiving touchdowns"], ["drops", "Drops"], ["longest", "Longest reception"]],
-  defense: [["tackles", "Total tackles"], ["tfl", "Tackles for loss"], ["sacks", "Sacks"], ["interceptions", "Interceptions"], ["forced_fumbles", "Forced fumbles"]],
-  kick_returns: [["returns", "Kick returns"], ["yards", "Return yards"], ["touchdowns", "Return touchdowns"], ["longest", "Longest return"]],
-  punt_returns: [["returns", "Punt returns"], ["yards", "Return yards"], ["touchdowns", "Return touchdowns"], ["longest", "Longest return"]],
-  kicking: [["fg_made", "Field goals made"], ["fg_attempted", "Field goals attempted"], ["longest", "Longest field goal"], ["xp_made", "Extra points made"], ["xp_attempted", "Extra points attempted"]],
-  punting: [["punts", "Punts"], ["yards", "Punt yards"], ["average", "Average"], ["inside_20", "Inside the 20"], ["touchbacks", "Touchbacks"]],
-};
-const PLAYER_STAT_CATEGORY_OPTIONS = Object.keys(PLAYER_STAT_FIELDS);
 const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> = {
   age_reset: RefreshCw,
   dev_upgrade: TrendingUp,
@@ -1085,7 +1076,7 @@ export function HubHome() {
         </div>
         {buzzView === "chat" ? (
           auth.status === "ready" ? (
-            <LeagueChatPanel guildId={auth.guildId} discordId={auth.discordId} initialGameChannelId={searchParams.get("gameChannel")} />
+            <LeagueChatPanel guildId={auth.guildId} discordId={auth.discordId} seasonNumber={hub.league.seasonNumber} initialGameChannelId={searchParams.get("gameChannel")} />
           ) : null
         ) : <>
         <div className="hub-buzz-top">
@@ -1158,6 +1149,8 @@ export function HubHome() {
             ) : <p className="hub-empty">League announcements will appear here.</p>}
           </SectionFrame>
         </div>
+
+        <LiveGamesCard liveStreams={hub.liveStreams} />
 
         <EosAwardVotingBlock />
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
