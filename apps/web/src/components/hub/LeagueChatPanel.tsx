@@ -249,7 +249,7 @@ export function LeagueChatPanel({
               </span>
               {m.is_discord_only && <span className="hub-dc-tag" title={DC_TOOLTIP}>DC</span>}
               <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}> {new Date(m.created_at).toLocaleTimeString()}</span>
-              <p className={m.source === "system" ? "hub-league-chat-system" : undefined} style={{ margin: "2px 0 0" }}>
+              <p className={m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message"} style={{ margin: "2px 0 0" }}>
                 {renderMessageWithMentions(m.body, mentionable)}
               </p>
             </div>

@@ -529,3 +529,13 @@ export async function removeMemberRole(guildId: string, discordId: string, roleI
   memberRoleIdsCache.delete(`${guildId}:${discordId}`);
   if (!res.ok && res.status !== 204) throw new Error(`Failed to remove role (${res.status})`);
 }
+
+export async function setGuildMemberNickname(guildId: string, discordId: string, nickname: string, reason: string): Promise<void> {
+  const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "X-Audit-Log-Reason": reason },
+    body: JSON.stringify({ nick: nickname.slice(0, 32) }),
+  });
+  guildMemberListCache.delete(guildId);
+  if (!res.ok) throw new Error(`Failed to update nickname (${res.status})`);
+}

@@ -3,6 +3,8 @@ import { isCfb, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { computeLeagueSos } from "./sos.service.js";
+import { computeUserRatings } from "../league-week/ratings.service.js";
 
 // PR = 0.45·winPct + 0.20·normPD + 0.20·engagement + 0.15·closeClutch
 //   winPct      — official win% (ties = ½)
@@ -11,10 +13,12 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 //                 actually playing/posting over advance-only force-wins)
 //   closeClutch — full credit if >50% of H2H games are won AND those wins
 //                 average a ≤7-point margin (winning close games vs humans)
-const W_WIN = 0.45;
-const W_PD = 0.20;
-const W_ENGAGE = 0.20;
-const W_CLUTCH = 0.15;
+const W_WIN = 0.35;
+const W_PD = 0.15;
+const W_SOS = 0.15;
+const W_STATS = 0.10;
+const W_ENGAGE = 0.15;
+const W_CLUTCH = 0.10;
 const PD_SCALE = 14;
 const CLOSE_MARGIN = 7;
 const BOX_SCORE_SOURCES = new Set(["box_score", "box_score_screenshot"]);
@@ -69,7 +73,7 @@ async function aggregateTeams(leagueId: string, seasonNumber: number): Promise<M
   return map;
 }
 
-function scoreFor(a: Agg): number {
+function scoreFor(a: Agg, sosFull = 1, statScore = 50): number {
   const gp = a.wins + a.losses + a.ties;
   const winPct = gp > 0 ? (a.wins + 0.5 * a.ties) / gp : 0.5;
   const avgPd = a.scored > 0 ? (a.pf - a.pa) / a.scored : 0;
@@ -78,7 +82,10 @@ function scoreFor(a: Agg): number {
   const h2hWinRate = a.h2hGames > 0 ? a.h2hWins / a.h2hGames : 0;
   const avgWinMargin = a.h2hWins > 0 ? a.h2hWinMargin / a.h2hWins : Infinity;
   const closeClutch = h2hWinRate > 0.5 && avgWinMargin <= CLOSE_MARGIN ? 1 : 0;
-  return W_WIN * winPct + W_PD * normPd01 + W_ENGAGE * engagement + W_CLUTCH * closeClutch;
+  const normalizedSos = clamp(0.5 + (sosFull - 1), 0, 1);
+  const normalizedStats = clamp(statScore / 100, 0, 1);
+  return W_WIN * winPct + W_PD * normPd01 + W_SOS * normalizedSos
+    + W_STATS * normalizedStats + W_ENGAGE * engagement + W_CLUTCH * closeClutch;
 }
 
 type RankedTeam = { teamId: string; score: number; rank: number };
@@ -86,10 +93,12 @@ type ComputePowerRankingsOptions = {
   completedWeekNumber?: number | null;
 };
 
-async function rankTeams(leagueId: string, seasonNumber: number, game: LeagueGame = null): Promise<RankedTeam[]> {
-  const [teamsRes, aggs] = await Promise.all([
+async function rankTeams(guildId: string, leagueId: string, seasonNumber: number, game: LeagueGame = null): Promise<RankedTeam[]> {
+  const [teamsRes, aggs, sos, userRatings] = await Promise.all([
     supabase.from("rec_teams").select("id").eq("league_id", leagueId),
     aggregateTeams(leagueId, seasonNumber),
+    computeLeagueSos(guildId).catch(() => null),
+    computeUserRatings(guildId).catch(() => null),
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
 
@@ -109,9 +118,11 @@ async function rankTeams(leagueId: string, seasonNumber: number, game: LeagueGam
     teamIds = teamIds.filter((id) => humanTeamIds.has(id));
   }
 
+  const sosByTeam = new Map((sos?.teams ?? []).map((row) => [row.teamId, row.sosFull]));
+  const statsByTeam = new Map((userRatings?.users ?? []).filter((row) => row.teamId).map((row) => [row.teamId!, row.statScore]));
   const rows = teamIds.map((id) => {
     const a = aggs.get(id) ?? emptyAgg();
-    return { teamId: id, agg: a, score: scoreFor(a) };
+    return { teamId: id, agg: a, score: scoreFor(a, sosByTeam.get(id) ?? 1, statsByTeam.get(id) ?? 50) };
   });
   rows.sort((x, y) =>
     y.score - x.score ||
@@ -124,7 +135,10 @@ async function rankTeams(leagueId: string, seasonNumber: number, game: LeagueGam
 // Store the current rankings for `weekNumber` (called at each advance for the
 // week that just completed) so movement can be shown next week.
 export async function snapshotPowerRankings(leagueId: string, seasonNumber: number, weekNumber: number, game: LeagueGame = null) {
-  const ranked = await rankTeams(leagueId, seasonNumber, game);
+  const link = await supabase.from("rec_server_league_links").select("server:rec_discord_servers(guild_id)").eq("league_id", leagueId).eq("is_primary", true).maybeSingle();
+  const guildId = (link.data as any)?.server?.guild_id;
+  if (!guildId) return;
+  const ranked = await rankTeams(String(guildId), leagueId, seasonNumber, game);
   if (!ranked.length) return;
   const now = new Date().toISOString();
   const rows = ranked.map((r) => ({
@@ -163,8 +177,8 @@ export async function computePowerRankings(guildId: string, viewerDiscordId?: st
   const completedWeekNumber = options.completedWeekNumber ?? null;
   const leagueGame = context.rec_leagues.game;
   const ranked = completedWeekNumber
-    ? (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(leagueId, currentSeason, leagueGame)
-    : await rankTeams(leagueId, currentSeason, leagueGame);
+    ? (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(guildId, leagueId, currentSeason, leagueGame)
+    : await rankTeams(guildId, leagueId, currentSeason, leagueGame);
 
   const prevSnapQuery = supabase
     .from("rec_power_ranking_snapshots")

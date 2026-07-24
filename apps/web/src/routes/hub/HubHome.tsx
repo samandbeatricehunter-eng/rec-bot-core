@@ -22,6 +22,7 @@ import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
 // modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
@@ -259,6 +260,7 @@ function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }
 }
 export function HubHome() {
   const auth = useAuth();
+  const hubChrome = useHubChrome();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const [hub, setHub] = useState<HubResponse | null>(null);
@@ -307,6 +309,9 @@ export function HubHome() {
   const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
   const [playerStatsBusy, setPlayerStatsBusy] = useState(false);
   const [recruitModalOpen, setRecruitModalOpen] = useState(false);
+  const [retireModalOpen, setRetireModalOpen] = useState(false);
+  const [retireBusy, setRetireBusy] = useState(false);
+  const [retireError, setRetireError] = useState<string | null>(null);
   const [recruitDraft, setRecruitDraft] = useState<{ playerName: string; position: string; starRating: string; homeCity: string; homeState: string }>({ playerName: "", position: CFB_POSITIONS[0] ?? "ATH", starRating: "3", homeCity: "", homeState: "" });
   const [recruitNotice, setRecruitNotice] = useState<string | null>(null);
   const [recruitBusy, setRecruitBusy] = useState(false);
@@ -1009,7 +1014,7 @@ export function HubHome() {
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /><p className="hub-muted">League career only — global totals live on My Account.</p></div></details>
       <details><summary><Award size={18} /> Badges &amp; Awards</summary><div className="hub-profile-panel"><BadgeShelf title="League badges" badges={profile.badges ?? [...(profile.weeklyBadges ?? []), ...(profile.seasonBadges ?? [])]} />{(profile.leagueAwards ?? profile.globalAwards)?.length ? <div className="hub-badge-group"><h4>League awards</h4><div className="hub-badge-shelf">{(profile.leagueAwards ?? profile.globalAwards).map((award: any) => <article key={award.awardName} className="hub-badge-award"><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : <p className="hub-muted">No league awards yet.</p>}</div></details>
       <details><summary><WalletCards size={18} /> Financial Profile</summary><div className="hub-profile-panel"><FinancialLedger summary={profile.financialSummary} /></div></details>
-    </div></section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div></div>
+    </div>{!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
@@ -1552,6 +1557,11 @@ export function HubHome() {
 
     {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)}><div className="hub-my-schedule">
       {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div> : !mySchedule ? <p className="hub-empty">Loading your schedule...</p> : <ScheduleWeekList weeks={mySchedule.weeks} />}
+    </div></Modal>}
+    {retireModalOpen && <Modal title="Retire from League?" onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">
+      <p>Are you sure you want to retire from this league? Your team will become open, this league will be removed from your available leagues, and you will lose access to it.</p>
+      {retireError && <p className="hub-transfer-status">{retireError}</p>}
+      <div className="advance-modal-actions"><Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button><Button variant="danger" disabled={retireBusy} onClick={async () => { setRetireBusy(true); setRetireError(null); try { await hubChrome.retireFromCurrentLeague(); setRetireModalOpen(false); } catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire from this league."); } finally { setRetireBusy(false); } }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button></div>
     </div></Modal>}
   </div>;
 }

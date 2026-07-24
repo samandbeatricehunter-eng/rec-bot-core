@@ -8,6 +8,7 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 const LABELS: Record<RoleMgmtRoleKey, string> = { member: "Member", compCommittee: "Co-Commissioner", commissioner: "Commissioner" };
+const SITE_ASSIGNABLE_ROLES: RoleMgmtRoleKey[] = ["member", "compCommittee"];
 export function RolesHome() {
   const { guildId } = useReadyAuth();
   const [members, setMembers] = useState<RoleMgmtMember[] | null>(null);
@@ -26,7 +27,9 @@ export function RolesHome() {
     <div style={{ display: "grid", gap: "var(--space-4)" }}>{groups.map(([role, rows]) => <Card key={role}><h3 style={{ marginTop: 0 }}>{LABELS[role]} ({rows.length})</h3>
       <div style={{ display: "grid", gap: "var(--space-3)" }}>{rows.map((member) => <div key={member.discordId} className="inline-admin-row">
         <span><strong>{member.displayName}</strong>{member.displayName !== member.username && <small style={{ display: "block", color: "var(--text-secondary)" }}>{member.username}</small>}</span>
-        <select className="form-select" aria-label={`Role for ${member.displayName}`} value={member.managedRole} disabled={busy === member.discordId} onChange={(e) => change(member, e.target.value as RoleMgmtRoleKey)}>{(Object.keys(LABELS) as RoleMgmtRoleKey[]).map((key) => <option key={key} value={key}>{LABELS[key]}</option>)}</select>
+        {member.managedRole === "commissioner"
+          ? <span className="badge badge-info">Head Commissioner</span>
+          : <select className="form-select" aria-label={`Role for ${member.displayName}`} value={member.managedRole} disabled={busy === member.discordId} onChange={(e) => change(member, e.target.value as RoleMgmtRoleKey)}>{SITE_ASSIGNABLE_ROLES.map((key) => <option key={key} value={key}>{LABELS[key]}</option>)}</select>}
       </div>)}{rows.length === 0 && <p style={{ color: "var(--text-secondary)", margin: 0 }}>No linked users in this role.</p>}</div>
     </Card>)}</div>
   </div>;

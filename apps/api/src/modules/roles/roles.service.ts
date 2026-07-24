@@ -1,6 +1,6 @@
 import type { RecManagedRoleKey } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
-import { addMemberRole, ensureManagedRoleId, listGuildMembers, removeMemberRole } from "../../lib/discord-guild.js";
+import { addMemberRole, ensureManagedRoleId, listGuildMembers, removeMemberRole, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
@@ -26,6 +26,13 @@ export async function setMemberRole(input: { guildId: string; discordId: string;
       else await removeMemberRole(input.guildId, input.discordId, id, `REC League Mgmt role set by ${input.actingDiscordId}`);
     }
     await persistManagedRole(input.guildId, input.discordId, input.roleKey);
+    const member = (await listGuildMembers(input.guildId)).find((row) => row.discordId === input.discordId);
+    if (member) {
+      const baseNickname = member.displayName.replace(/\s+\((?:Co-Commish|Commissh|Commissioner)\)$/i, "").trim();
+      const suffix = input.roleKey === "compCommittee" ? " (Co-Commish)" : input.roleKey === "commissioner" ? " (Commissh)" : "";
+      const nickname = `${baseNickname.slice(0, Math.max(1, 32 - suffix.length)).trimEnd()}${suffix}`;
+      await setGuildMemberNickname(input.guildId, input.discordId, nickname, `REC League Mgmt role set by ${input.actingDiscordId}`);
+    }
     return { ok: true, roleKey: input.roleKey };
   } catch (error) { throw new ApiError(502, "Discord rejected this role change — check the bot role hierarchy.", error); }
 }

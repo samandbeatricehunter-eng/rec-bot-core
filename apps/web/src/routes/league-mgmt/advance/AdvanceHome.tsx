@@ -80,11 +80,12 @@ export function AdvanceHome() {
   const [nextGotwGameId, setNextGotwGameId] = useState("");
 
   const [gotwPolls, setGotwPolls] = useState<GotwPollStatus[] | null>(null);
-  const [gotwCandidates, setGotwCandidates] = useState<GotwCandidate[] | null>(null);
-  const [gotwGameId, setGotwGameId] = useState("");
-  const [assigningGotw, setAssigningGotw] = useState(false);
-
-  const [creatingChannels, setCreatingChannels] = useState(false);
+  const gotwCandidates: GotwCandidate[] | null = [];
+  const gotwGameId = "";
+  const setGotwCandidates = (_value: GotwCandidate[]) => {};
+  const setGotwGameId = (_value: string | ((previous: string) => string)) => {};
+  const assigningGotw = false;
+  const creatingChannels = false;
   const [flagBusyGameId, setFlagBusyGameId] = useState<string | null>(null);
 
   const [jumpTargets, setJumpTargets] = useState<{ currentLabel: string; targets: Array<{ weekNumber: number; seasonStage: string; label: string }> } | null>(null);
@@ -249,34 +250,6 @@ export function AdvanceHome() {
     }
   }
 
-  async function handleAssignGotw() {
-    if (!data || !gotwGameId) return;
-    const target = (gotwCandidates ?? []).find((c) => c.gameId === gotwGameId);
-    if (!target) return;
-    setAssigningGotw(true);
-    setError(null);
-    try {
-      await recApi.assignGotwPoll({
-        guildId,
-        gameId: target.gameId,
-        awayTeamId: target.awayTeamId,
-        homeTeamId: target.homeTeamId,
-        awayUserId: target.awayUserId,
-        homeUserId: target.homeUserId,
-        awayTeamName: target.awayTeamName,
-        homeTeamName: target.homeTeamName,
-        weekNumber: data.currentWeek,
-      });
-      setNotice(`Game of the Week assigned: ${target.awayTeamName} @ ${target.homeTeamName}. Voting is live on the Hub.`);
-      setGotwGameId("");
-      recApi.listGotwPollsForWeek({ guildId, weekNumber: data.currentWeek }).then((r) => setGotwPolls(r.polls)).catch(() => undefined);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign Game of the Week.");
-    } finally {
-      setAssigningGotw(false);
-    }
-  }
-
   async function openAdvanceReview() {
     if (!data) return;
     setError(null);
@@ -297,18 +270,8 @@ export function AdvanceHome() {
     }
   }
 
-  async function handleCreateGameChannels() {
-    setCreatingChannels(true);
-    setError(null);
-    try {
-      const result = await recApi.createGameChannelsForCurrentWeek(guildId);
-      setNotice(`Created ${result.created.length} game channel${result.created.length === 1 ? "" : "s"} (replaced ${result.deleted} from last week).`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create game channels.");
-    } finally {
-      setCreatingChannels(false);
-    }
-  }
+  function handleAssignGotw() {}
+  function handleCreateGameChannels() {}
 
   async function handlePostseasonFlag(gameId: string, patch: { isBowlGame?: boolean; isNationalChampionship?: boolean }) {
     if (!data) return;
@@ -335,8 +298,8 @@ export function AdvanceHome() {
   if (!data) return <LoadingState />;
 
   const pollByGameId = new Map((gotwPolls ?? []).map((p) => [p.game_id, p]));
-  const isPostseasonWeek = data.currentStage !== "regular_season";
   const openCandidates = (gotwCandidates ?? []).filter((c) => !pollByGameId.has(c.gameId));
+  const isPostseasonWeek = data.currentStage !== "regular_season";
   const missingScoreGames = data.gamesNeedingInput.filter((g) => involvesHuman(g) && !entryHasScores(entries[g.gameId]));
   const readyToAdvance = missingScoreGames.length === 0;
   const currentLabel = data.currentStage === "regular_season" ? `Week ${data.currentWeek}` : titleCaseStage(data.currentStage);
@@ -419,7 +382,7 @@ export function AdvanceHome() {
         </div>
       </Card>
 
-      <Card className="advance-card">
+      <Card className="advance-card advance-legacy-manual-control">
         <h2>Game of the Week</h2>
         <p className="form-hint">Matchups are ranked by the GOTW nomination score (rivalry, parity, quality, recent form). The recommended game is <strong>bold</strong> at the top — pick it or override. Voting and closing happen on the Hub matchup page.</p>
         <div className="advance-stack">
@@ -446,7 +409,7 @@ export function AdvanceHome() {
         </div>
       </Card>
 
-      <Card className="advance-card">
+      <Card className="advance-card advance-legacy-manual-control">
         <h2>Game Channels</h2>
         <p className="form-hint">Creates a Discord channel for each current-week H2H matchup, replacing last week's tracked channels.</p>
         <Button variant="secondary" disabled={creatingChannels} onClick={handleCreateGameChannels}>

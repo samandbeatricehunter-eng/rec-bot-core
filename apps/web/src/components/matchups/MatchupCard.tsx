@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useEffect, useState, type CSSProperties, type MouseEvent } from "react";
 import type { HubMatchupGame } from "../../types/api.js";
 import { useReadyAuth } from "../../lib/auth-context.js";
@@ -21,6 +21,7 @@ export function MatchupCard({
   showReactions?: boolean;
 }) {
   const { guildId } = useReadyAuth();
+  const location = useLocation();
   const [game, setGame] = useState(initialGame);
   const [busy, setBusy] = useState(false);
 
@@ -152,5 +153,10 @@ export function MatchupCard({
       ) : null}
     </article>
   );
-  return game.matchupType === "h2h" ? <Link className="rec-matchup-card-link" to={`/matchups/${game.gameId}`}>{card}</Link> : <div className="rec-matchup-card-link cpu">{card}</div>;
+  const leagueMatch = /^\/l\/([^/]+)\/matchups(?:\/|$)/.exec(location.pathname);
+  const detailPath = leagueMatch
+    ? `/l/${leagueMatch[1]}/matchups/${game.gameId}`
+    : `/matchups/${game.gameId}`;
+
+  return game.matchupType === "h2h" ? <Link className="rec-matchup-card-link" to={detailPath}>{card}</Link> : <div className="rec-matchup-card-link cpu">{card}</div>;
 }

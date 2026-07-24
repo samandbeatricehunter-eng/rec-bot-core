@@ -1363,12 +1363,17 @@ h1, h2, h3, .site-wordmark {
   cursor: pointer;
   font: inherit;
 }
-.site-sidebar-league-btn.is-active,
-.site-sidebar-league-btn.is-active .site-sidebar-league-name {
+.site-sidebar-league-btn.is-active {
   color: var(--text);
   font-weight: 800;
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.site-sidebar-league-btn.is-active .site-sidebar-league-name {
+  color: var(--text);
+  font-weight: 800;
+  background: transparent;
+  box-shadow: none;
 }
 .site-sidebar-league-btn.is-active .site-sidebar-league-meta {
   color: color-mix(in srgb, var(--text) 72%, transparent);

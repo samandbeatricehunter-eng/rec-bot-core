@@ -206,6 +206,12 @@ export async function retireFromHub(guildId: string, discordId: string): Promise
   if (updated.error) throw new ApiError(500, "Failed to retire from this league.", updated.error);
   if (!updated.data) throw new ApiError(409, "Could not retire from this league. Try again.");
 
+  const membership = await supabase.from("rec_league_memberships")
+    .delete()
+    .eq("league_id", context.leagueId)
+    .eq("user_id", userId);
+  if (membership.error) throw new ApiError(500, "The team was opened, but league access could not be removed.", membership.error);
+
   return { ok: true };
 }
 
