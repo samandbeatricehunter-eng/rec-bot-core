@@ -28,9 +28,11 @@ export async function notifyUnclaimedCfbFreeAccounts(): Promise<{
       join rec_users u on u.id = ta.user_id
       join rec_discord_accounts da on da.user_id = u.id
       where l.game = 'cfb_27'
-        and coalesce(l.subscription_frozen, false) = false
         and u.supabase_auth_user_id is null
         and da.discord_id is not null
+        and lower(coalesce(da.global_name, '')) <> 'splash'
+        and lower(coalesce(da.username, '')) <> 'splash'
+        and lower(coalesce(da.username, '')) not like 'splash%'
     `,
   );
 
