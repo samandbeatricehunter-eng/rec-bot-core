@@ -2,7 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveChatAuthor, resolveChatDisplay } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { getGuildMemberDisplayNameMap, postDiscordChannelMessage } from "../../lib/discord-guild.js";
 
 const MESSAGE_PAGE_SIZE = 300;
 const ONLINE_WINDOW_SECONDS = 60;
@@ -46,12 +46,25 @@ export async function listLeagueMembersForChat(guildId: string): Promise<{ membe
   if (presenceRes.error) throw new ApiError(500, "Failed to load presence.", presenceRes.error);
 
   const discordByUser = new Map<string, any>((discordRes.data ?? []).map((row: any) => [row.user_id, row]));
+  const guildDisplayNames = await getGuildMemberDisplayNameMap(guildId).catch(
+    () => new Map<string, string>(),
+  );
   const presenceByUser = new Map<string, string | null>((presenceRes.data ?? []).map((row: any) => [row.user_id, row.last_seen_at]));
   const onlineCutoffMs = Date.now() - ONLINE_WINDOW_SECONDS * 1000;
 
   const members: LeagueChatMember[] = (usersRes.data ?? []).map((user: any) => {
     const discord = discordByUser.get(user.id) ?? null;
-    const { displayName, isRegistered } = resolveChatDisplay(user, discord);
+    const { displayName: fallbackDisplayName, isRegistered } = resolveChatDisplay(user, discord);
+    const serverNickname = discord?.discord_id
+      ? guildDisplayNames.get(String(discord.discord_id)) ?? null
+      : null;
+    const siteName = String(user.username ?? "").trim();
+    const displayName =
+      isRegistered && siteName
+        ? serverNickname
+          ? `${siteName} (${serverNickname})`
+          : siteName
+        : serverNickname ?? fallbackDisplayName;
     const lastSeenAt: string | null = presenceByUser.get(user.id) ?? null;
     return {
       userId: user.id,
