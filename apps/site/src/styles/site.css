@@ -2446,3 +2446,14 @@ h1, h2, h3, .site-wordmark {
 }
 .site-account-game-block[open] summary { margin-bottom: var(--space-3); }
 .site-account-badge-list li[title] { cursor: help; }
+
+/* Mobile App setup card (Account page) — iOS "Add to Home Screen" instructions. */
+.site-ios-install-steps {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  color: var(--text-secondary);
+}
+.site-ios-install-steps li { padding-left: var(--space-1); }

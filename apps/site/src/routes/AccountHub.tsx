@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { sitePublicUrl, supabase } from "../lib/supabase-client.js";
+import { MobileAppSetup } from "../components/MobileAppSetup.js";
 import {
   siteApi,
   type EntitlementSummary,
@@ -430,6 +431,8 @@ export function AccountHub({
               <p className="site-muted">Billing details unavailable.</p>
             )}
           </div>
+
+          <MobileAppSetup />
         </section>
       ) : null}
 
