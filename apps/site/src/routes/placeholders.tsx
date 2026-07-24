@@ -253,6 +253,23 @@ export function LeagueMgmtPage() {
   const [botError, setBotError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    if (!leagueId) return;
+    let cancelled = false;
+    siteApi.listMyLeagues()
+      .then(({ leagues }) => {
+        if (cancelled) return;
+        const league = leagues.find((item) => item.id === leagueId);
+        if (league) setBotEnabled(league.discordBotEnabled);
+      })
+      .catch((error) => {
+        if (!cancelled) setBotError(error instanceof Error ? error.message : "Could not load Discord bot status.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leagueId]);
+
   async function enableBot() {
     if (!leagueId) return;
     setBotBusy(true);

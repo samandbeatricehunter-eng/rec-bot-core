@@ -17,7 +17,7 @@ export const LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS = {
   ...Object.fromEntries(
     Object.entries(REC_ROUTE_CHANNELS)
       // Highlights uploads moved to site/PWA — no Discord channel assignment.
-      .filter(([key]) => key !== "highlights")
+      .filter(([key]) => key !== "highlights" && key !== "weekly_submissions")
       .map(([key, config]) => [
       key,
       { label: config.label, field: config.inputField },

@@ -383,7 +383,7 @@ export type HubResponse = {
   highlights: Array<{
     id: string; user_id?: string | null; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
     videoUrl: string | null; streamUid?: string | null; iframeUrl?: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
-    viewCount: number; reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
+    matchupLabel?: string | null; viewCount: number; reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
   }>;
 };
 export type ChatTopic = {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { useAuth } from "../lib/auth-context.js";
 import {
   siteApi,
@@ -289,7 +290,7 @@ export function HomePage() {
               </div>
               <div className="site-spotlight-meta">
                 <strong>
-                  {activeClip.team?.name ?? activeClip.author.displayName}
+                  {activeClip.matchupLabel ?? activeClip.team?.name ?? activeClip.author.displayName}
                 </strong>
                 <span>
                   {activeClip.league.name}
@@ -304,7 +305,7 @@ export function HomePage() {
                   disabled={busy}
                   onClick={() => void react("like")}
                 >
-                  Like <small>{activeClip.reactionCounts.like ?? ""}</small>
+                  <ThumbsUp size={18} aria-hidden="true" /> Like <small>{activeClip.reactionCounts.like ?? ""}</small>
                 </button>
                 <button
                   type="button"
@@ -312,7 +313,7 @@ export function HomePage() {
                   disabled={busy}
                   onClick={() => void react("dislike")}
                 >
-                  Dislike <small>{activeClip.reactionCounts.dislike ?? ""}</small>
+                  <ThumbsDown size={18} aria-hidden="true" /> Dislike <small>{activeClip.reactionCounts.dislike ?? ""}</small>
                 </button>
               </div>
               <div className="site-spotlight-comments">

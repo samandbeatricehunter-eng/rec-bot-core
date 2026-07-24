@@ -21,6 +21,10 @@
   display: none;
 }
 .hub-page > * { position: relative; z-index: 1; }
+.hub-page .section-frame-heading,
+.hub-page header > h1,
+.hub-page header > h2,
+.hub-page header > p { text-align: center; }
 .hub-matchup-section {
   overflow: visible !important;
   border: 0 !important;
@@ -127,6 +131,29 @@
   .expanded-article-body {
     padding-bottom: var(--space-4);
   }
+  .hub-article-modal-overlay {
+    align-items: center;
+    padding: 24px;
+    overflow: hidden;
+  }
+  .hub-article-modal {
+    display: flex;
+    flex-direction: column;
+    width: min(920px, calc(100vw - 48px));
+    height: min(820px, calc(100dvh - 48px));
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+  }
+  .hub-article-modal > .modal-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex: 0 0 auto;
+    padding-block: 12px;
+    background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
 }
 .hub-hero {
   position: relative; display: grid; grid-template-columns: minmax(200px, .9fr) minmax(280px, 1.1fr); align-items: center; gap: clamp(12px, 2vw, 24px);
@@ -143,6 +170,18 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+.hub-hero,
+.hub-page .fp-panel,
+.hub-page .section-frame {
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,.055), transparent 38%, rgba(255,255,255,.018) 68%, transparent),
+    repeating-linear-gradient(118deg, rgba(255,255,255,.018) 0 1px, transparent 1px 5px),
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 46%);
+  border-color: rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(255,255,255,.025), 0 18px 44px rgba(0,0,0,.3);
+  backdrop-filter: blur(18px) saturate(118%);
+  -webkit-backdrop-filter: blur(18px) saturate(118%);
 }
 .hub-hero::before {
   background: linear-gradient(90deg, transparent, rgba(201,162,39,.35), transparent);

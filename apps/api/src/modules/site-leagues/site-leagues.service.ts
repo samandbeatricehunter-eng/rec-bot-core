@@ -45,6 +45,7 @@ export type SiteLeagueSummary = {
   isCommissioner: boolean;
   /** head = owner / head commissioner; co = co-commissioner; member = player only */
   commissionerRole: "head" | "co" | "member";
+  discordBotEnabled: boolean;
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -70,6 +71,7 @@ export async function listMySiteLeagues(input: {
           l.name,
           l.game,
           l.owner_user_id,
+          l.discord_bot_enabled,
           t.name as team_name,
           m.role as membership_role
         from rec_team_assignments ta
@@ -88,6 +90,7 @@ export async function listMySiteLeagues(input: {
           l.name,
           l.game,
           l.owner_user_id,
+          l.discord_bot_enabled,
           null::text as team_name,
           m.role as membership_role
         from rec_league_memberships m
@@ -103,7 +106,7 @@ export async function listMySiteLeagues(input: {
           )
       )
       select distinct on (id)
-        id, name, game, owner_user_id, team_name, membership_role
+        id, name, game, owner_user_id, discord_bot_enabled, team_name, membership_role
       from linked
       order by id, team_name nulls last
     `,
@@ -117,6 +120,7 @@ export async function listMySiteLeagues(input: {
     owner_user_id: string | null;
     team_name: string | null;
     membership_role: string | null;
+    discord_bot_enabled: boolean | null;
   }>).map((row) => {
     const role = String(row.membership_role ?? "").toLowerCase();
     let commissionerRole: "head" | "co" | "member" = "member";
@@ -133,6 +137,7 @@ export async function listMySiteLeagues(input: {
       teamName: row.team_name ?? null,
       isCommissioner: commissionerRole !== "member",
       commissionerRole,
+      discordBotEnabled: Boolean(row.discord_bot_enabled),
     };
   });
 
@@ -852,4 +857,3 @@ export async function searchSiteLeagues(input: {
 
   return { leagues };
 }
-

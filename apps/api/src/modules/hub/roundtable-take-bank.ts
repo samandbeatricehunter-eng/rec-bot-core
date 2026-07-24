@@ -30,6 +30,10 @@ const CORE_TAKES: TaggedTake[] = [
   { voice: "caleb", keys: ["week", "matchup", "opponent"], take: "This is a game-week posture more than a season manifesto — short memory, next script." },
   { voice: "caleb", keys: [], take: "The desk will keep the headline honest: talk is cheap until the first drive script lands." },
 
+  { voice: "caleb", keys: ["freshman", "class", "close"], take: "Closing a class is its own fourth quarter: relationships matter, but the finish still has to match the pitch." },
+  { voice: "caleb", keys: ["standard", "championship"], take: "When championship is the stated standard, every ordinary week becomes a public audit of preparation." },
+  { voice: "caleb", keys: ["trust", "veteran", "upperclass"], take: "Putting trust in the veteran room is a clear declaration of who owns the response when the plan bends." },
+
   // Maya — film
   { voice: "maya", keys: ["dominat", "crush", "blowout"], take: "On tape, dominance shows up as second-level tackling and clean answers after the first call fails." },
   { voice: "maya", keys: ["revenge", "payback"], take: "Rematch film usually has tighter eyes — watch for earlier recognition and less free yards after contact." },
@@ -44,6 +48,10 @@ const CORE_TAKES: TaggedTake[] = [
   { voice: "maya", keys: ["faith", "god", "lord"], take: "Steady body language between plays often tracks with that kind of grounding — watch the sideline between series." },
   { voice: "maya", keys: [], take: "I'm ignoring the soundbite and watching whether their first answer on defense is organized." },
 
+  { voice: "maya", keys: ["freshman", "class"], take: "Young talent earns snaps by processing cleanly; watch protection checks and route depth before the star rating." },
+  { voice: "maya", keys: ["coverage", "power"], take: "Coverage answers have to change with formation; static calls let a good offense dictate every leverage point." },
+  { voice: "maya", keys: ["trust", "veteran", "upperclass"], take: "Veteran trust should produce cleaner checks and fewer wasted steps when the offense changes the picture late." },
+
   // Theo — numbers
   { voice: "theo", keys: ["dominat", "blowout", "score"], take: "I need drive efficiency and explosive rate — one outburst is not a dominance profile." },
   { voice: "theo", keys: ["defense", "stop", "turnover"], take: "Stops and takeaways are the durable metrics; everything else is narrative until the chart holds." },
@@ -57,6 +65,10 @@ const CORE_TAKES: TaggedTake[] = [
   { voice: "theo", keys: ["recruit", "portal", "transfer"], take: "Portal churn shows in snap continuity — I want to see snap-share stability before buying the upside." },
   { voice: "theo", keys: [], take: "Separate the quote from the chart: I want four quarters of pressure, not one burst." },
 
+  { voice: "theo", keys: ["freshman", "class"], take: "Recruiting value is retention-adjusted production, not signing-day rank; early meaningful snaps are the first signal." },
+  { voice: "theo", keys: ["coverage", "defense"], take: "Coverage success needs context: opponent depth of target and third-down distance separate real control from empty stops." },
+  { voice: "theo", keys: ["standard", "championship"], take: "A title standard is measurable: top-quartile efficiency, manageable penalties, and no giveaway spikes." },
+
   // Nina — insider
   { voice: "nina", keys: ["culture", "standard", "locker"], take: "Around the league, culture statements get treated like a scouting report on who still has a seat." },
   { voice: "nina", keys: ["message", "warning", "call out", "shot"], take: "A public shot travels — opposing staffs will pin that quote in the meeting room by tomorrow." },
@@ -68,6 +80,9 @@ const CORE_TAKES: TaggedTake[] = [
   { voice: "nina", keys: ["playoff", "title"], take: "Title talk raises the internal stakes — commissioners hear that as schedule-intensity language." },
   { voice: "nina", keys: ["focus", "lock in"], take: "Lock-in messaging is usually a tell that distractions already tried to enter the building." },
   { voice: "nina", keys: ["gameplan", "philosophy"], take: "When a coach defines their philosophy on mic, rival coordinators start clipping the exact phrasing." },
+  { voice: "nina", keys: ["freshman", "class", "recruit"], take: "Recruiting rooms remember who was prioritized and who was Plan B; closing language gets compared against the final board." },
+  { voice: "nina", keys: ["veteran", "upperclass", "trust"], take: "Public trust in the veterans is also a message to the younger room about whose habits set the depth chart." },
+  { voice: "nina", keys: ["standard", "championship"], take: "Calling the standard championship-or-bust changes how every close win is discussed around the league." },
   { voice: "nina", keys: [], take: "League coaches will read this less as content and more as a temperature check on that program." },
 ];
 
@@ -93,6 +108,8 @@ const KEY_BUCKETS = [
   ["adjust", "halftime", "script"],
   ["legacy", "tradition", "program"],
   ["recruit", "portal", "transfer"],
+  ["freshman", "class", "close"],
+  ["veteran", "upperclass", "trust"],
 ];
 
 const TAKE_BANK = CORE_TAKES;

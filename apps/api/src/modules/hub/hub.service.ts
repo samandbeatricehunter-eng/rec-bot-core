@@ -26,6 +26,8 @@ import {
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { CFB_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
+import { getGameChatMessages, sendGameChatMessage } from "../game-chat/game-chat.service.js";
 
 // A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
 // stream runs longer than that, so anything older is treated as ended for display/watch.
@@ -524,6 +526,17 @@ export async function getHub(guildId: string, discordId: string) {
       iframeUrl: streamed.iframeUrl,
     };
   }));
+  const highlightGames = await supabase
+    .from("rec_games")
+    .select("week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name),away_team:rec_teams!rec_games_away_team_id_fkey(name)")
+    .eq("league_id", context.leagueId);
+  if (highlightGames.error) throw new ApiError(500, "Failed to load highlight matchups.", highlightGames.error);
+  const highlightMatchupByTeamWeek = new Map<string, string>();
+  for (const game of highlightGames.data ?? []) {
+    const label = `${(game as any).away_team?.name ?? "Away"} VS ${(game as any).home_team?.name ?? "Home"}`;
+    if (game.away_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.away_team_id}`, label);
+    if (game.home_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.home_team_id}`, label);
+  }
   const currentStreamLogs = await supabase
     .from("rec_stream_compliance_logs")
     .select("id,user_id,team_id,game_id,message_url,posted_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation),game:rec_games(home_team_id,away_team_id,home_user_id,away_user_id)")
@@ -652,7 +665,15 @@ export async function getHub(guildId: string, discordId: string) {
       const rows = (reactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === item.id);
       const counts = Object.fromEntries(HUB_REACTION_KEYS.map((key) => [key, rows.filter((reaction: any) => reaction.reaction_key === key).length]));
       const viewCount = (views.data ?? []).filter((view: any) => view.highlight_post_id === item.id).length;
-      return { ...item, viewCount, reactionCounts: counts, myReactions: rows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key) };
+      return {
+        ...item,
+        matchupLabel: item.team_id && item.week_number != null
+          ? highlightMatchupByTeamWeek.get(`${item.week_number}:${item.team_id}`) ?? null
+          : null,
+        viewCount,
+        reactionCounts: counts,
+        myReactions: rows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key),
+      };
     }),
   };
 }
@@ -1491,8 +1512,10 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
     : streams[0] ?? null;
   const secondaryStream =
     streams.find((stream: any) => stream.streamLogId !== primaryStream?.streamLogId) ?? null;
-  const messages = await supabase.from("rec_matchup_chat_messages").select("id,author_user_id,author_display_name,body,created_at").eq("game_id", input.gameId).order("created_at", { ascending: true }).limit(300);
-  if (messages.error) throw new ApiError(500, "Failed to load matchup chat.", messages.error);
+  const gameChannel = await getGameChannelByGameId(input.gameId);
+  const messages = gameChannel
+    ? await getGameChatMessages({ guildId: input.guildId, gameChannelId: gameChannel.id })
+    : { messages: [] };
   return {
     matchup: { ...matchup, streams },
     streamFeature: {
@@ -1501,22 +1524,19 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
       secondaryStreamLogId: secondaryStream?.streamLogId ?? null,
     },
     gotw: schedule.gotw?.gameId === input.gameId ? schedule.gotw : null,
-    messages: messages.data ?? [],
+    messages: messages.messages,
   };
 }
 
 export async function sendHubMatchupMessage(input: { guildId: string; discordId: string; gameId: string; body: string }) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const userId = await userIdForDiscord(input.discordId);
-  const [game, user] = await Promise.all([
-    supabase.from("rec_games").select("id,home_user_id,away_user_id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle(),
-    supabase.from("rec_users").select("display_name").eq("id", userId).maybeSingle(),
-  ]);
-  if (game.error || user.error) throw new ApiError(500, "Failed to validate matchup chat.", game.error ?? user.error);
-  if (!game.data?.home_user_id || !game.data?.away_user_id) throw new ApiError(400, "CPU matchups do not have game chat.");
-  const inserted = await supabase.from("rec_matchup_chat_messages").insert({ id: randomUUID(), league_id: context.leagueId, game_id: input.gameId, author_user_id: userId, author_discord_id: input.discordId, author_display_name: user.data?.display_name ?? "REC Member", body: input.body.trim() }).select("id,author_user_id,author_display_name,body,created_at").single();
-  if (inserted.error) throw new ApiError(500, "Failed to send matchup message.", inserted.error);
-  return { message: inserted.data };
+  const gameChannel = await getGameChannelByGameId(input.gameId);
+  if (!gameChannel) throw new ApiError(409, "This matchup does not have an active bridged game chat.");
+  return sendGameChatMessage({
+    guildId: input.guildId,
+    discordId: input.discordId,
+    gameChannelId: gameChannel.id,
+    body: input.body,
+  });
 }
 
 export async function shareHubMatchupStream(input: {

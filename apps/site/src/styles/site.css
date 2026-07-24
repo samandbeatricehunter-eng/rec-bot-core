@@ -2438,6 +2438,16 @@ h1, h2, h3, .site-wordmark {
   padding: var(--space-3);
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
+.site-spotlight-reactions button {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.site-home-panel-head,
+.site-home-panel-head p,
+.site-home-panel-head h2,
+.site-page-card > h1,
+.site-page-card > h2 { text-align: center; }
 .site-account-game-block summary {
   cursor: pointer;
   font-weight: 700;

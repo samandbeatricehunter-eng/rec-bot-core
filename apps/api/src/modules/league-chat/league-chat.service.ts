@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveChatAuthor, resolveChatDisplay } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 
 const MESSAGE_PAGE_SIZE = 300;
 const ONLINE_WINDOW_SECONDS = 60;
@@ -117,7 +118,69 @@ export async function postLeagueChatMessage(input: { guildId: string; discordId:
     .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at")
     .single();
   if (error) throw new ApiError(500, "Failed to post message.", error);
+  const mainChatChannelId = (context.routes as any)?.main_chat_channel_id as string | null | undefined;
+  if (mainChatChannelId) {
+    const assignment = author.userId
+      ? await supabase
+          .from("rec_team_assignments")
+          .select("team:rec_teams(name)")
+          .eq("league_id", context.leagueId)
+          .eq("user_id", author.userId)
+          .eq("assignment_status", "active")
+          .is("ended_at", null)
+          .limit(1)
+          .maybeSingle()
+      : null;
+    const teamName = (assignment?.data as any)?.team?.name ?? "League Member";
+    void postDiscordChannelMessage(
+      mainChatChannelId,
+      { content: `@${author.displayName} · ${teamName}: "${trimmed}"` },
+    ).catch((forwardError) => console.error("[ERROR] Failed to forward league chat to Discord (non-fatal):", forwardError));
+  }
   return { message: data };
+}
+
+export async function ingestDiscordLeagueChatMessage(input: {
+  discordChannelId: string;
+  discordUserId: string;
+  discordMessageId: string;
+  content: string;
+}) {
+  const route = await supabase
+    .from("rec_server_routes")
+    .select("server_id")
+    .eq("main_chat_channel_id", input.discordChannelId)
+    .maybeSingle();
+  if (route.error) throw new ApiError(500, "Failed to resolve main chat channel.", route.error);
+  if (!route.data?.server_id) return { ingested: false };
+  const server = await supabase
+    .from("rec_discord_servers")
+    .select("guild_id")
+    .eq("id", route.data.server_id)
+    .maybeSingle();
+  if (server.error || !server.data?.guild_id) return { ingested: false };
+  const context = await getCurrentLeagueContext(String(server.data.guild_id));
+  const author = await resolveChatAuthor(input.discordUserId);
+  const existing = await supabase
+    .from("rec_league_chat_messages")
+    .select("id")
+    .eq("discord_message_id", input.discordMessageId)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to check Discord league chat message.", existing.error);
+  if (existing.data) return { ingested: true };
+  const inserted = await supabase.from("rec_league_chat_messages").insert({
+    league_id: context.leagueId,
+    season_number: Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1),
+    author_user_id: author.userId,
+    author_discord_id: input.discordUserId,
+    author_display_name: author.displayName,
+    is_discord_only: author.isDiscordOnly,
+    source: "discord",
+    discord_message_id: input.discordMessageId,
+    body: input.content.trim().slice(0, 2000),
+  });
+  if (inserted.error) throw new ApiError(500, "Failed to ingest Discord league chat message.", inserted.error);
+  return { ingested: true };
 }
 
 // Called from league-week.service.ts's setLeagueWeek on the same seasonNumber-changed branch

@@ -10,6 +10,7 @@ export function AccentTier() {
     const root = document.documentElement;
     if (auth.status !== "signed-in") {
       root.setAttribute("data-accent-tier", "none");
+      localStorage.removeItem("rec-accent-tier");
       return;
     }
     let cancelled = false;
@@ -18,7 +19,10 @@ export function AccentTier() {
       .then((profile) => {
         if (cancelled) return;
         const tier = profile.entitlements?.tier ?? "none";
-        root.setAttribute("data-accent-tier", tier === "platinum" || tier === "gold" ? tier : "none");
+        const accentTier = tier === "platinum" || tier === "gold" ? tier : "none";
+        root.setAttribute("data-accent-tier", accentTier);
+        if (accentTier === "none") localStorage.removeItem("rec-accent-tier");
+        else localStorage.setItem("rec-accent-tier", accentTier);
       })
       .catch(() => {
         if (!cancelled) root.setAttribute("data-accent-tier", "none");

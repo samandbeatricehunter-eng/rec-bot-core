@@ -159,6 +159,7 @@ export const recApi = {
     streamsChannelId?: string;
     highlightsChannelId?: string;
     announcementsChannelId?: string;
+    mainChatChannelId?: string;
     commissionerRoleId?: string;
     compCommitteeRoleId?: string;
   }) =>
@@ -555,6 +556,8 @@ export const recApi = {
     recFetch<{ notifications: Array<{ id: string; header: string; summary: string | null }> }>("/v1/notifications/dm-pending", { method: "POST", body: JSON.stringify({ guildId }) }),
   markCommissionerNotificationDms: (guildId: string, ids: string[]) =>
     recFetch<{ updated: number }>("/v1/notifications/dm-mark", { method: "POST", body: JSON.stringify({ guildId, ids }) }),
+  ingestLeagueChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string }) =>
+    recFetch<{ ingested: boolean }>("/v1/league-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
 
   getBoxScoreUploadEligibility: (input: { guildId: string; discordId: string }) =>
     recFetch<any>("/v1/box-score/upload-eligibility", { method: "POST", body: JSON.stringify(input) }),

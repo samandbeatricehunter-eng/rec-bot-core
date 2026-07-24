@@ -7,6 +7,14 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <meta name="theme-color" content="#0b0b0b" />
+    <script>
+      try {
+        const tier = localStorage.getItem("rec-accent-tier");
+        if (tier === "gold" || tier === "platinum") {
+          document.documentElement.setAttribute("data-accent-tier", tier);
+        }
+      } catch {}
+    </script>
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

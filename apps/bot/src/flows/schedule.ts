@@ -893,7 +893,7 @@ async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, s
   const home = teamDisplayName(homeTeam);
   // Channel name is nickname only (no city/school), matching the bulk weekly game-channel
   // creation flow in game-channels.ts — e.g. "buckeyes-vs-wolverines", not the full team name.
-  const name = `${teamNick(awayTeam)} vs ${teamNick(homeTeam)}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
+  const name = `${awayTeam?.name ?? away} at ${homeTeam?.name ?? home}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 90);
   const channel = await interaction.guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id }).catch(() => null);
   if (!channel?.isTextBased()) return "Game channel creation failed.";
   await channel.lockPermissions().catch(() => undefined);

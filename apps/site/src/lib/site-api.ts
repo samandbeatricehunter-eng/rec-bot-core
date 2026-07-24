@@ -155,6 +155,7 @@ export type SiteLeagueSummary = {
   teamName: string | null;
   isCommissioner: boolean;
   commissionerRole?: "head" | "co" | "member";
+  discordBotEnabled: boolean;
 };
 
 export type SiteLeagueConferenceReassignment = {
@@ -653,6 +654,7 @@ export type SpotlightItem = {
   seasonStage: string | null;
   author: { userId: string; displayName: string; username: string | null };
   team: { name: string; abbreviation: string | null } | null;
+  matchupLabel: string | null;
   videoUrl: string | null;
   streamUid: string | null;
   iframeUrl: string | null;

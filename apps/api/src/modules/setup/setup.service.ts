@@ -658,6 +658,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     powerRankingsChannelId: r.power_rankings_channel_id ?? null,
     streamsChannelId: r.streams_channel_id ?? null,
     highlightsChannelId: r.highlights_channel_id ?? null,
+    mainChatChannelId: r.main_chat_channel_id ?? null,
     weeklySubmissionsChannelId: r.weekly_submissions_channel_id ?? r.box_scores_channel_id ?? null,
     recGuideChannelId: r.rec_guide_channel_id ?? null,
     boxScoresChannelId: r.box_scores_channel_id ?? r.weekly_submissions_channel_id ?? null,

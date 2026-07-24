@@ -267,22 +267,29 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
     .in("id", highlightIds);
   if (posts.error) throw new ApiError(500, "Failed to load spotlight highlights.", posts.error);
 
-  const [spotlightReactions, comments] = await Promise.all([
+  const [spotlightReactions, comments, games] = await Promise.all([
     supabase
-      .from("rec_spotlight_reactions")
+      .from("rec_highlight_reactions")
       .select("highlight_post_id,user_id,reaction_key")
-      .in("highlight_post_id", highlightIds),
+      .in("highlight_post_id", highlightIds)
+      .in("reaction_key", ["like", "dislike"]),
     supabase
       .from("rec_highlight_comments")
       .select("id,highlight_post_id,user_id,body,created_at,user:rec_users(display_name,username)")
       .in("highlight_post_id", highlightIds)
       .order("created_at", { ascending: true })
       .limit(200),
+    supabase
+      .from("rec_games")
+      .select("league_id,week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name),away_team:rec_teams!rec_games_away_team_id_fkey(name)")
+      .in("league_id", [...new Set((posts.data ?? []).map((post: any) => String(post.league_id)))])
+      .order("week_number", { ascending: false }),
   ]);
   if (spotlightReactions.error) {
     throw new ApiError(500, "Failed to load spotlight reactions.", spotlightReactions.error);
   }
   if (comments.error) throw new ApiError(500, "Failed to load highlight comments.", comments.error);
+  if (games.error) throw new ApiError(500, "Failed to load highlight matchups.", games.error);
 
   let viewerUserId: string | null = null;
   if (input.authUserId) {
@@ -295,6 +302,14 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
   }
 
   const postById = new Map<string, any>((posts.data ?? []).map((row: any) => [String(row.id), row]));
+  const matchupByTeamWeek = new Map<string, string>();
+  for (const game of games.data ?? []) {
+    const awayName = (game as any).away_team?.name ?? "Away";
+    const homeName = (game as any).home_team?.name ?? "Home";
+    const label = `${awayName} VS ${homeName}`;
+    if (game.away_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.away_team_id}`, label);
+    if (game.home_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.home_team_id}`, label);
+  }
   const items = (reel.data ?? [])
     .map((slot) => {
       const post = postById.get(String(slot.highlight_post_id)) as any | undefined;
@@ -337,6 +352,10 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
         team: post.team
           ? { name: post.team.name, abbreviation: post.team.abbreviation }
           : null,
+        matchupLabel:
+          post.team_id && post.week_number != null
+            ? matchupByTeamWeek.get(`${post.league_id}:${post.week_number}:${post.team_id}`) ?? null
+            : null,
         videoUrl: play.videoUrl,
         streamUid: play.streamUid,
         iframeUrl: play.iframeUrl,
@@ -382,10 +401,11 @@ export async function toggleSpotlightReaction(input: {
   if (!highlight.data) throw new ApiError(404, "Highlight not found.");
 
   const existing = await supabase
-    .from("rec_spotlight_reactions")
+    .from("rec_highlight_reactions")
     .select("id,reaction_key")
     .eq("highlight_post_id", input.highlightId)
     .eq("user_id", user.recUserId)
+    .in("reaction_key", ["like", "dislike"])
     .maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to read spotlight reaction.", existing.error);
 
@@ -407,7 +427,7 @@ export async function toggleSpotlightReaction(input: {
   }
 
   if (existing.data?.reaction_key === input.reactionKey) {
-    const removed = await supabase.from("rec_spotlight_reactions").delete().eq("id", existing.data.id);
+    const removed = await supabase.from("rec_highlight_reactions").delete().eq("id", existing.data.id);
     if (removed.error) throw new ApiError(500, "Failed to remove reaction.", removed.error);
     if (input.reactionKey === "like") {
       await payPoster(-SPOTLIGHT_LIKE_COINS, "Spotlight Reel like removed", {
@@ -418,11 +438,16 @@ export async function toggleSpotlightReaction(input: {
     }
   } else if (existing.data) {
     const wasLike = existing.data.reaction_key === "like";
-    const updated = await supabase
-      .from("rec_spotlight_reactions")
-      .update({ reaction_key: input.reactionKey, created_at: new Date().toISOString() })
-      .eq("id", existing.data.id);
-    if (updated.error) throw new ApiError(500, "Failed to update reaction.", updated.error);
+    const removed = await supabase.from("rec_highlight_reactions").delete().eq("id", existing.data.id);
+    if (removed.error) throw new ApiError(500, "Failed to update reaction.", removed.error);
+    const inserted = await supabase.from("rec_highlight_reactions").insert({
+      id: randomUUID(),
+      highlight_post_id: input.highlightId,
+      user_id: user.recUserId,
+      reaction_key: input.reactionKey,
+      created_at: new Date().toISOString(),
+    });
+    if (inserted.error) throw new ApiError(500, "Failed to update reaction.", inserted.error);
     if (wasLike && input.reactionKey === "dislike") {
       await payPoster(-SPOTLIGHT_LIKE_COINS, "Spotlight Reel like removed", {
         highlightPostId: input.highlightId,
@@ -437,7 +462,7 @@ export async function toggleSpotlightReaction(input: {
       });
     }
   } else {
-    const inserted = await supabase.from("rec_spotlight_reactions").insert({
+    const inserted = await supabase.from("rec_highlight_reactions").insert({
       id: randomUUID(),
       highlight_post_id: input.highlightId,
       user_id: user.recUserId,

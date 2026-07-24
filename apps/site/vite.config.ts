@@ -52,6 +52,18 @@ export default defineConfig({
   optimizeDeps: {
     include: ["react", "react-dom", "react-router-dom"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/@supabase") || id.includes("node_modules/@gotrue") || id.includes("node_modules/@realtime") || id.includes("node_modules/@postgrest")) return "supabase";
+          if (id.includes("node_modules/react") || id.includes("node_modules/scheduler")) return "react";
+          if (id.includes("node_modules/lucide-react")) return "icons";
+          if (id.includes("/apps/web/") || id.includes("\\apps\\web\\") || id.includes("/packages/hub-ui/") || id.includes("\\packages\\hub-ui\\")) return "league-hub";
+        },
+      },
+    },
+  },
   server: {
     host: true,
     port: 5174,

@@ -25,6 +25,43 @@ import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 
+async function notifyLeagueMembersOfAdvance(input: {
+  leagueId: string;
+  leagueName: string;
+  game: string;
+  weekNumber: number;
+}) {
+  const [assignments, memberships] = await Promise.all([
+    supabase
+      .from("rec_team_assignments")
+      .select("user_id")
+      .eq("league_id", input.leagueId)
+      .eq("assignment_status", "active")
+      .is("ended_at", null),
+    supabase.from("rec_league_memberships").select("user_id").eq("league_id", input.leagueId),
+  ]);
+  if (assignments.error || memberships.error) throw assignments.error ?? memberships.error;
+  const userIds = [...new Set(
+    [...(assignments.data ?? []), ...(memberships.data ?? [])]
+      .map((row: any) => row.user_id)
+      .filter(Boolean),
+  )];
+  if (!userIds.length) return;
+  const gameLabel = input.game.replaceAll("_", " ").toUpperCase();
+  const title = `${input.leagueName} (${gameLabel}) has advanced to week ${input.weekNumber}`;
+  const inserted = await supabase.from("rec_site_notifications").insert(
+    userIds.map((userId) => ({
+      user_id: userId,
+      league_id: input.leagueId,
+      kind: "league_advanced",
+      title,
+      body: "Open Campus Buzz for the latest around-the-league news.",
+      href: `/l/${input.leagueId}/buzz`,
+    })),
+  );
+  if (inserted.error) throw inserted.error;
+}
+
 async function publishLeagueAdvanceAnnouncement(input: {
   guildId: string;
   leagueId: string;
@@ -516,6 +553,14 @@ export async function completeAdvanceWeek(input: {
   }).catch((err) => {
     console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
   });
+  await notifyLeagueMembersOfAdvance({
+    leagueId: context.leagueId,
+    leagueName: context.rec_leagues.name,
+    game: context.rec_leagues.game,
+    weekNumber: nextTarget.weekNumber,
+  }).catch((err) => {
+    console.error("[ERROR] notifyLeagueMembersOfAdvance failed after advance (non-fatal):", err);
+  });
 
   // Bowl games / the national championship are automatic GOTW games in CFB leagues —
   // catches any flagged game in the week just advanced INTO that doesn't have a poll yet.
@@ -560,10 +605,6 @@ export async function completeAdvanceWeek(input: {
   // Five independent, non-fatal cleanup/rebuild steps — none feed data into another,
   // so run them in parallel instead of one after another.
   await Promise.all([
-    // Matchup chat is intentionally ephemeral and is wiped as the week advances.
-    supabase.from("rec_matchup_chat_messages").delete().eq("league_id", context.leagueId).then(({ error }) => {
-      if (error) console.error("[ERROR] Failed to wipe matchup chat after advance (non-fatal):", error);
-    }),
     // The previously-scheduled advance just happened, so clear it. A fresh time is
     // set by the next-advance step (or left null if the commissioner skips).
     supabase

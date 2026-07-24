@@ -751,6 +751,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
         powerRankingsChannelId: draft.powerRankingsChannelId ?? undefined,
         streamsChannelId: draft.streamsChannelId ?? undefined,
         highlightsChannelId: draft.highlightsChannelId ?? undefined,
+        mainChatChannelId: draft.mainChatChannelId ?? undefined,
         weeklySubmissionsChannelId: draft.weeklySubmissionsChannelId ?? draft.boxScoresChannelId ?? undefined,
         recGuideChannelId: draft.recGuideChannelId ?? undefined,
         gameChannelsCategoryId: draft.gameChannelsCategoryId ?? undefined
@@ -842,4 +843,3 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
     });
   }
 }
-

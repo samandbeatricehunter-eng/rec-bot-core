@@ -1,12 +1,27 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { heartbeat, listLeagueChatMessages, listLeagueMembersForChat, postLeagueChatMessage } from "./league-chat.service.js";
+import { heartbeat, ingestDiscordLeagueChatMessage, listLeagueChatMessages, listLeagueMembersForChat, postLeagueChatMessage } from "./league-chat.service.js";
 
 // League-wide chat — open to every league member (permission: "member"), unlike the
 // co_commissioner-gated commissioner chat this mirrors in shape.
 export async function leagueChatRoutes(app: FastifyInstance) {
+  app.post("/v1/league-chat/messages/ingest", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        discordChannelId: z.string().min(1),
+        discordUserId: z.string().min(1),
+        discordMessageId: z.string().min(1),
+        content: z.string().trim().min(1).max(4000),
+      }).parse(request.body);
+      return reply.send(await ingestDiscordLeagueChatMessage(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
   app.post("/v1/league-chat/messages/list", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), sinceIso: z.string().datetime().optional().nullable() }).parse(request.body);
