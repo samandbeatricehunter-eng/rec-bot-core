@@ -152,3 +152,12 @@ export function IconBell(props: IconProps) {
     </>,
   );
 }
+export function IconInbox(props: IconProps) {
+  return base(
+    props,
+    <>
+      <path d="M4 6h16v12H4z" />
+      <path d="M4 7l8 6 8-6" />
+    </>,
+  );
+}

@@ -469,4 +469,93 @@ export const siteApi = {
       input,
     );
   },
+  getHomeCard() {
+    return request<SiteHomeCard>("/v1/site-home/card", {});
+  },
+  listSiteAnnouncements() {
+    return request<{ announcements: SiteAnnouncement[] }>("/v1/site-home/announcements", {});
+  },
+  getSpotlightReel() {
+    return request<SpotlightReelResponse>("/v1/site-home/spotlight", {});
+  },
+  reactSpotlight(input: { highlightId: string; reactionKey: "like" | "dislike" }) {
+    return request<SpotlightReelResponse>("/v1/site-home/spotlight/react", input);
+  },
+  commentSpotlight(input: { highlightId: string; body: string }) {
+    return request<{
+      comment: {
+        id: string;
+        body: string;
+        createdAt: string;
+        author: { displayName: string; username: string | null };
+      };
+    }>("/v1/site-home/spotlight/comment", input);
+  },
+  listMyBadges() {
+    return request<{
+      badges: Array<{
+        badge_key: string;
+        badge_scope: string;
+        polarity: string | null;
+        tier: string | null;
+        earned_count: number | null;
+        league_id: string | null;
+        season: number | null;
+        week: number | null;
+        updated_at: string | null;
+      }>;
+      count: number;
+    }>("/v1/site-home/badges", {});
+  },
+};
+
+export type SiteHomeCard = {
+  displayName: string;
+  username: string | null;
+  globalRecord: { wins: number; losses: number; ties: number; text: string };
+  userRating: { rating: number; grade: string; displayAsGrade: boolean } | null;
+  badgeCount: number;
+};
+
+export type SiteAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  href: string | null;
+  sort_order: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+};
+
+export type SpotlightComment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: { displayName: string; username: string | null };
+};
+
+export type SpotlightItem = {
+  id: string;
+  rank: number;
+  selectedAt: string;
+  selectionScore: number;
+  league: { id: string; name: string; game: string | null };
+  seasonNumber: number | null;
+  weekNumber: number | null;
+  seasonStage: string | null;
+  author: { userId: string; displayName: string; username: string | null };
+  team: { name: string; abbreviation: string | null } | null;
+  videoUrl: string | null;
+  streamUid: string | null;
+  iframeUrl: string | null;
+  messageUrl: string | null;
+  reactionCounts: { like: number; dislike: number };
+  myReaction: "like" | "dislike" | null;
+  comments: SpotlightComment[];
+};
+
+export type SpotlightReelResponse = {
+  items: SpotlightItem[];
+  selectedAt: string | null;
 };

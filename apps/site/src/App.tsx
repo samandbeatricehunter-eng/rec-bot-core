@@ -14,6 +14,7 @@ import {
   HeadlinesPage,
   LeagueMgmtInboxPage,
 } from "./routes/placeholders.js";
+import { BadgesPage } from "./routes/Badges.js";
 import { HomePage } from "./routes/Home.js";
 import { LeaguesPage } from "./routes/Leagues.js";
 import { LeagueHubPage } from "./routes/LeagueHub.js";
@@ -205,6 +206,7 @@ function Routed() {
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />
+        <Route path="/badges" element={<BadgesPage />} />
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/headlines" element={<HeadlinesPage />} />
         <Route path="/comp" element={<CompPage />} />

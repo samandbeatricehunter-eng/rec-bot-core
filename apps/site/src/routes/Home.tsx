@@ -1,20 +1,17 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
-import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
   type EntitlementSummary,
   type LinkProfileResponse,
-  type SiteLeagueSummary,
+  type SiteAnnouncement,
+  type SiteHomeCard,
+  type SpotlightItem,
 } from "../lib/site-api.js";
 
-function roleLabel(league: SiteLeagueSummary) {
-  const role = league.commissionerRole ?? (league.isCommissioner ? "co" : "member");
-  if (role === "head") return "Head Commish";
-  if (role === "co") return "Co-Commish";
-  return "Member";
-}
+const ANNOUNCEMENT_MS = 8000;
+const SPOTLIGHT_MS = 7000;
 
 function tierLabel(entitlements: EntitlementSummary | null | undefined) {
   const tier = entitlements?.tier ?? "none";
@@ -23,156 +20,319 @@ function tierLabel(entitlements: EntitlementSummary | null | undefined) {
   return "Member";
 }
 
+function ratingDisplay(card: SiteHomeCard | null) {
+  if (!card?.userRating) return "—";
+  if (card.userRating.displayAsGrade) return card.userRating.grade;
+  return String(card.userRating.rating);
+}
+
 export function HomePage() {
   const auth = useAuth();
-  const hub = useHub();
-  const navigate = useNavigate();
   const [profile, setProfile] = useState<LinkProfileResponse | null>(null);
-  const [entitlements, setEntitlements] = useState<EntitlementSummary | null>(null);
+  const [card, setCard] = useState<SiteHomeCard | null>(null);
+  const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([]);
+  const [announcementIndex, setAnnouncementIndex] = useState(0);
+  const [spotlight, setSpotlight] = useState<SpotlightItem[]>([]);
+  const [spotlightIndex, setSpotlightIndex] = useState(0);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (auth.status !== "signed-in") return;
     let cancelled = false;
     Promise.all([
       siteApi.getLinkProfile().catch(() => null),
-      siteApi.getEntitlements().catch(() => null),
-    ]).then(([me, ents]) => {
+      siteApi.getHomeCard().catch(() => null),
+      siteApi.listSiteAnnouncements().catch(() => ({ announcements: [] as SiteAnnouncement[] })),
+      siteApi.getSpotlightReel().catch(() => ({ items: [] as SpotlightItem[], selectedAt: null })),
+    ]).then(([me, homeCard, announcementPayload, spotlightPayload]) => {
       if (cancelled) return;
       setProfile(me);
-      setEntitlements(ents ?? me?.entitlements ?? null);
+      setCard(homeCard);
+      setAnnouncements(announcementPayload.announcements ?? []);
+      setSpotlight(spotlightPayload.items ?? []);
     });
     return () => {
       cancelled = true;
     };
   }, [auth.status]);
 
-  const displayName = profile?.displayName || profile?.username || "Coach";
-  const isCommissioner = hub.leagues.some((league) => league.isCommissioner);
-  const tier = entitlements ?? profile?.entitlements;
-  const isPlatinum = tier?.tier === "platinum";
+  useEffect(() => {
+    if (announcements.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setAnnouncementIndex((current) => (current + 1) % announcements.length);
+    }, ANNOUNCEMENT_MS);
+    return () => window.clearInterval(timer);
+  }, [announcements.length]);
 
-  function openLeague(leagueId: string) {
-    hub.selectLeague(leagueId);
-    navigate(`/l/${leagueId}/buzz`);
+  useEffect(() => {
+    if (spotlight.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setSpotlightIndex((current) => (current + 1) % spotlight.length);
+    }, SPOTLIGHT_MS);
+    return () => window.clearInterval(timer);
+  }, [spotlight.length]);
+
+  const displayName =
+    card?.displayName || profile?.displayName || profile?.username || "Coach";
+  const tier = profile?.entitlements ?? null;
+  const isPlatinum = tier?.tier === "platinum";
+  const activeAnnouncement =
+    announcements.length > 0
+      ? announcements[announcementIndex % announcements.length]
+      : null;
+  const activeClip =
+    spotlight.length > 0 ? spotlight[spotlightIndex % spotlight.length] : null;
+
+  async function react(reactionKey: "like" | "dislike") {
+    if (!activeClip || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await siteApi.reactSpotlight({
+        highlightId: activeClip.id,
+        reactionKey,
+      });
+      setSpotlight(next.items ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save reaction.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitComment() {
+    if (!activeClip || busy || !commentDraft.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await siteApi.commentSpotlight({
+        highlightId: activeClip.id,
+        body: commentDraft.trim(),
+      });
+      setCommentDraft("");
+      setSpotlight((current) =>
+        current.map((item) =>
+          item.id === activeClip.id
+            ? { ...item, comments: [...item.comments, result.comment] }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not post comment.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <div className="site-home">
       <section className="site-home-hero">
         <div className="site-home-hero-copy">
-          <p className="site-home-eyebrow">REC Leagues eSports</p>
+          <p className="site-home-eyebrow">REC Leagues Sports</p>
           <h1>Welcome back, {displayName}</h1>
-          <p>
-            {tierLabel(tier)}
-            {isCommissioner ? " - Commissioner tools ready" : " - Your leagues at a glance"}
-          </p>
+          <p>{tierLabel(tier)} — your season hub starts here.</p>
+          <div className="site-home-hero-stats">
+            <div>
+              <span className="site-home-stat-label">All-time record</span>
+              <strong>{card?.globalRecord.text ?? "0-0"}</strong>
+            </div>
+            <div>
+              <span className="site-home-stat-label">User rating</span>
+              <strong>{ratingDisplay(card)}</strong>
+            </div>
+            <div>
+              <span className="site-home-stat-label">Badges</span>
+              <strong>{card?.badgeCount ?? 0}</strong>
+              <Link className="site-home-stat-link" to="/badges">
+                View Badges
+              </Link>
+            </div>
+          </div>
         </div>
         {isPlatinum ? <span className="site-home-badge">Platinum</span> : null}
       </section>
 
-      <div className="site-home-grid">
-        <section className="site-home-panel">
-          <header className="site-home-panel-head">
-            <p>{isCommissioner ? "Commissioner" : "Command center"}</p>
-            <h2>Quick actions</h2>
-          </header>
-          <div className="site-home-actions">
-            <Link className="site-home-action" to="/leagues">
-              <strong>Create / find league</strong>
-              <span>Search open leagues or claim ownership</span>
-            </Link>
-            <Link className="site-home-action" to="/inbox">
-              <strong>Inbox</strong>
-              <span>Messages and league threads</span>
-            </Link>
-            <Link className="site-home-action" to="/account">
-              <strong>Account & linking</strong>
-              <span>Discord, username, membership</span>
-            </Link>
-            <Link className="site-home-action" to="/pricing">
-              <strong>Membership</strong>
-              <span>Gold & Platinum plans</span>
-            </Link>
+      <section className="site-home-panel site-home-announcements">
+        <header className="site-home-panel-head">
+          <p>Official board</p>
+          <h2>Announcements</h2>
+        </header>
+        {activeAnnouncement ? (
+          <div className="site-home-announce-carousel">
+            {announcements.length > 1 ? (
+              <button
+                type="button"
+                className="site-home-carousel-arrow"
+                aria-label="Previous announcement"
+                onClick={() =>
+                  setAnnouncementIndex(
+                    (current) =>
+                      (current - 1 + announcements.length) % announcements.length,
+                  )
+                }
+              >
+                ‹
+              </button>
+            ) : null}
+            <article className="site-home-announce-card">
+              <h3>{activeAnnouncement.title}</h3>
+              <p>{activeAnnouncement.body}</p>
+              {activeAnnouncement.href ? (
+                <a href={activeAnnouncement.href} target="_blank" rel="noreferrer">
+                  Read more
+                </a>
+              ) : null}
+              {announcements.length > 1 ? (
+                <span className="site-home-carousel-pos">
+                  {announcementIndex % announcements.length + 1} / {announcements.length}
+                </span>
+              ) : null}
+            </article>
+            {announcements.length > 1 ? (
+              <button
+                type="button"
+                className="site-home-carousel-arrow"
+                aria-label="Next announcement"
+                onClick={() =>
+                  setAnnouncementIndex((current) => (current + 1) % announcements.length)
+                }
+              >
+                ›
+              </button>
+            ) : null}
           </div>
-        </section>
+        ) : (
+          <p className="site-muted">No announcements right now.</p>
+        )}
+      </section>
 
-        <section className="site-home-panel">
-          <header className="site-home-panel-head">
-            <p>Your season</p>
-            <h2>My leagues</h2>
-          </header>
-          {hub.leaguesLoading ? (
-            <p className="site-muted">Loading leagues…</p>
-          ) : hub.leaguesError ? (
-            <p className="site-auth-error">{hub.leaguesError}</p>
-          ) : hub.leagues.length === 0 ? (
-            <div className="site-home-empty">
-              <p>No leagues linked yet.</p>
-              <Link className="site-btn site-btn-primary" to="/leagues">
-                Browse leagues
-              </Link>
-            </div>
-          ) : (
-            <ul className="site-home-league-list">
-              {hub.leagues.map((league) => (
-                <li key={league.id}>
-                  <button type="button" className="site-home-league-row" onClick={() => openLeague(league.id)}>
-                    <span className="site-home-league-mark" aria-hidden>
-                      {String(league.name ?? "?").slice(0, 1).toUpperCase()}
-                    </span>
-                    <span className="site-home-league-copy">
-                      <strong>{league.name}</strong>
-                      <span>
-                        {league.gameLabel} - {roleLabel(league)}
-                        {league.teamName ? ` - ${league.teamName}` : ""}
-                      </span>
-                    </span>
-                    <span className="site-home-league-cta">Open</span>
+      <section className="site-home-panel site-home-spotlight">
+        <header className="site-home-panel-head">
+          <p>Global top clips</p>
+          <h2>Spotlight Reel</h2>
+        </header>
+        {error ? <p className="site-auth-error">{error}</p> : null}
+        {activeClip ? (
+          <div className="site-spotlight-carousel">
+            {spotlight.length > 1 ? (
+              <button
+                type="button"
+                className="site-home-carousel-arrow"
+                aria-label="Previous clip"
+                onClick={() =>
+                  setSpotlightIndex(
+                    (current) => (current - 1 + spotlight.length) % spotlight.length,
+                  )
+                }
+              >
+                ‹
+              </button>
+            ) : null}
+            <article className="site-spotlight-card">
+              <div className="site-spotlight-video">
+                {activeClip.iframeUrl || activeClip.streamUid ? (
+                  <iframe
+                    key={activeClip.id}
+                    src={`${activeClip.iframeUrl ?? `https://iframe.videodelivery.net/${activeClip.streamUid}`}?autoplay=true&muted=true`}
+                    title="Spotlight clip"
+                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : activeClip.videoUrl ? (
+                  <video
+                    key={activeClip.id}
+                    src={activeClip.videoUrl}
+                    controls
+                    autoPlay
+                    muted
+                    playsInline
+                    preload="auto"
+                  />
+                ) : (
+                  <p className="site-muted">Clip unavailable.</p>
+                )}
+              </div>
+              <div className="site-spotlight-meta">
+                <strong>
+                  {activeClip.team?.name ?? activeClip.author.displayName}
+                </strong>
+                <span>
+                  {activeClip.league.name}
+                  {activeClip.weekNumber != null ? ` · Week ${activeClip.weekNumber}` : ""}
+                  {` · ${spotlightIndex % spotlight.length + 1} of ${spotlight.length}`}
+                </span>
+              </div>
+              <div className="site-spotlight-reactions">
+                <button
+                  type="button"
+                  className={activeClip.myReaction === "like" ? "is-active" : ""}
+                  disabled={busy}
+                  onClick={() => void react("like")}
+                >
+                  Like <small>{activeClip.reactionCounts.like || ""}</small>
+                </button>
+                <button
+                  type="button"
+                  className={activeClip.myReaction === "dislike" ? "is-active" : ""}
+                  disabled={busy}
+                  onClick={() => void react("dislike")}
+                >
+                  Dislike <small>{activeClip.reactionCounts.dislike || ""}</small>
+                </button>
+              </div>
+              <div className="site-spotlight-comments">
+                <h4>Comments</h4>
+                {activeClip.comments.length ? (
+                  <ul>
+                    {activeClip.comments.map((comment) => (
+                      <li key={comment.id}>
+                        <strong>{comment.author.displayName}</strong>
+                        <span>{comment.body}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="site-muted">Be the first to comment.</p>
+                )}
+                <div className="site-spotlight-comment-form">
+                  <input
+                    type="text"
+                    maxLength={1000}
+                    placeholder="Leave a comment…"
+                    value={commentDraft}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void submitComment();
+                      }
+                    }}
+                  />
+                  <button type="button" disabled={busy || !commentDraft.trim()} onClick={() => void submitComment()}>
+                    Post
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="site-home-panel">
-          <header className="site-home-panel-head">
-            <p>Around REC</p>
-            <h2>Headlines</h2>
-          </header>
-          <div className="site-home-empty">
-            <p>Global headlines land here as the media board ships.</p>
-            <Link className="site-btn site-btn-ghost" to="/headlines">
-              Open Headlines
-            </Link>
+                </div>
+              </div>
+            </article>
+            {spotlight.length > 1 ? (
+              <button
+                type="button"
+                className="site-home-carousel-arrow"
+                aria-label="Next clip"
+                onClick={() =>
+                  setSpotlightIndex((current) => (current + 1) % spotlight.length)
+                }
+              >
+                ›
+              </button>
+            ) : null}
           </div>
-        </section>
-
-        <section className="site-home-panel">
-          <header className="site-home-panel-head">
-            <p>Activity</p>
-            <h2>Recent</h2>
-          </header>
-          <div className="site-home-empty">
-            <p>League advances, invites, and challenges will show up here.</p>
-            <Link className="site-btn site-btn-ghost" to="/inbox">
-              Open Inbox
-            </Link>
-          </div>
-        </section>
-      </div>
-
-      {!isPlatinum ? (
-        <section className="site-home-platinum-banner">
-          <div>
-            <strong>Go Platinum</strong>
-            <p>Exclusive tournaments, priority support, and commissioner power tools.</p>
-          </div>
-          <Link className="site-btn site-btn-primary" to="/pricing">
-            Manage membership
-          </Link>
-        </section>
-      ) : null}
+        ) : (
+          <p className="site-muted">Spotlight clips refresh daily at 8 AM CST.</p>
+        )}
+      </section>
     </div>
   );
 }

@@ -49,7 +49,7 @@ export function ProfileChip() {
         </span>
         <span className="site-profile-meta">
           <strong>{name}</strong>
-          <span>{isPlatinum ? "Head of house" : tier}</span>
+          <span>{tier}</span>
         </span>
       </Link>
     </div>
