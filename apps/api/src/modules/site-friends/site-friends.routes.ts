@@ -4,6 +4,7 @@ import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   listFriendships,
+  listSharedLeagueFriendSuggestions,
   removeFriendship,
   requestFriendship,
   requireLinkedSiteUser,
@@ -16,6 +17,28 @@ export async function siteFriendsRoutes(app: FastifyInstance) {
       const session = await requireSiteUserSession(request);
       const user = await requireLinkedSiteUser(session.authUserId);
       return reply.send(await listFriendships({ recUserId: user.recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-friends/suggestions", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedSiteUser(session.authUserId);
+      const body = z
+        .object({
+          query: z.string().trim().max(40).optional(),
+          limit: z.number().int().min(1).max(60).optional(),
+        })
+        .parse(request.body ?? {});
+      return reply.send(
+        await listSharedLeagueFriendSuggestions({
+          recUserId: user.recUserId,
+          query: body.query,
+          limit: body.limit,
+        }),
+      );
     } catch (error) {
       return sendError(reply, error);
     }

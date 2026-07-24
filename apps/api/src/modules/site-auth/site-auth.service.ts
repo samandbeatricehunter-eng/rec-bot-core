@@ -163,6 +163,8 @@ export type SiteLinkProfile = {
   recUserId: string | null;
   displayName: string | null;
   username: string | null;
+  discordUsername: string | null;
+  avatarUrl: string | null;
   entitlements: Awaited<ReturnType<typeof getEntitlementSummary>> | null;
   claimDropdownOpen: boolean;
 };
@@ -173,15 +175,29 @@ export async function getSiteLinkProfile(input: {
   const claimDropdownOpen = await isIdentityClaimDropdownOpen();
   const result = await getPgPool().query(
     `
-      select id, display_name, username
-      from rec_users
-      where supabase_auth_user_id = $1
+      select
+        u.id,
+        u.display_name,
+        u.username,
+        da.username as discord_username,
+        da.global_name as discord_global_name,
+        da.avatar_url as discord_avatar_url
+      from rec_users u
+      left join rec_discord_accounts da on da.user_id = u.id
+      where u.supabase_auth_user_id = $1
       limit 1
     `,
     [input.authUserId],
   );
   const row = result.rows[0] as
-    | { id: string; display_name: string | null; username: string | null }
+    | {
+        id: string;
+        display_name: string | null;
+        username: string | null;
+        discord_username: string | null;
+        discord_global_name: string | null;
+        discord_avatar_url: string | null;
+      }
     | undefined;
   if (!row) {
     return {
@@ -189,6 +205,8 @@ export async function getSiteLinkProfile(input: {
       recUserId: null,
       displayName: null,
       username: null,
+      discordUsername: null,
+      avatarUrl: null,
       entitlements: null,
       claimDropdownOpen,
     };
@@ -199,6 +217,8 @@ export async function getSiteLinkProfile(input: {
     recUserId: row.id,
     displayName: row.display_name ?? null,
     username: row.username ?? null,
+    discordUsername: row.discord_global_name ?? row.discord_username ?? null,
+    avatarUrl: row.discord_avatar_url ?? null,
     entitlements,
     claimDropdownOpen,
   };

@@ -33,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     location.pathname === "/home" ||
     location.pathname === "/leagues";
   const isLeagueMgmt = location.pathname.startsWith("/league-mgmt");
-  const isMainPlaceholder = ["/headlines", "/comp", "/account"].includes(location.pathname);
+  const isMainPlaceholder = ["/comp", "/account"].includes(location.pathname);
   // Show bottom chrome on hub home + main placeholders + league-mgmt (league nav with Mgmt active).
   // Site iframe embed keeps content chrome off — site shell owns navigation.
   const showChrome =

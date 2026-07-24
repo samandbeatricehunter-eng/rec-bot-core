@@ -57,10 +57,17 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
-  --content-width: 1120px;
-  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.28);
-  --card-border: 1px solid rgba(255, 255, 255, 0.1);
-  --card-border-strong: 1px solid rgba(201, 162, 39, 0.45);
+  --content-width: 880px;
+  --shadow-card: 0 10px 32px rgba(0, 0, 0, 0.34);
+  --card-border: 1px solid rgba(255, 255, 255, 0.12);
+  --card-border-strong: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  --glass-panel-bg: linear-gradient(165deg, rgba(22, 26, 34, 0.78) 0%, rgba(10, 12, 16, 0.82) 100%);
+  --glass-panel-blur: blur(16px);
+  --glass-panel-grain: repeating-linear-gradient(
+    -18deg,
+    rgba(255, 255, 255, 0.028) 0 1px,
+    transparent 1px 3px
+  );
 }
 
 /* Legacy game-theme attributes map to the universal Platinum app face. */
@@ -109,7 +116,7 @@ h1, h2, h3, .site-wordmark {
   text-transform: uppercase;
 }
 
-/* Clean card surfaces — flat dark panels, thin borders (CF.gg density, platinum gold) */
+/* Midnight Glass cards — frosted panels over stadium BG */
 .site-card,
 .site-auth-card,
 .site-page-card,
@@ -117,12 +124,41 @@ h1, h2, h3, .site-wordmark {
 .site-home-hero,
 .site-home-platinum-banner,
 .site-league-search-card,
-.site-leagues-filters {
+.site-leagues-filters,
+.site-billing-panel {
   position: relative;
   border-radius: var(--radius-lg);
-  border: var(--card-border);
-  background: var(--card-bg);
-  box-shadow: var(--shadow-card);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, 0.12));
+  background: var(--glass-panel-bg);
+  backdrop-filter: var(--glass-panel-blur);
+  -webkit-backdrop-filter: var(--glass-panel-blur);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.site-card::before,
+.site-auth-card::before,
+.site-page-card::before,
+.site-home-panel::before,
+.site-home-hero::before,
+.site-league-search-card::before,
+.site-billing-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--glass-panel-grain);
+  opacity: 0.55;
+  z-index: 0;
+}
+.site-card > *,
+.site-auth-card > *,
+.site-page-card > *,
+.site-home-panel > *,
+.site-home-hero > *,
+.site-league-search-card > *,
+.site-billing-panel > * {
+  position: relative;
+  z-index: 1;
 }
 .site-card--interactive {
   transition: border-color 140ms ease, background 140ms ease;
@@ -171,8 +207,12 @@ h1, h2, h3, .site-wordmark {
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
-  max-width: 400px;
-  padding: var(--space-6);
+  max-width: 420px;
+  padding: var(--space-5);
+}
+.site-auth-card.site-account-card {
+  max-width: min(760px, 100%);
+  padding: var(--space-5);
 }
 .site-auth-card h1 { margin: 0; font-size: 24px; }
 .site-auth-error {
@@ -297,6 +337,7 @@ h1, h2, h3, .site-wordmark {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: 14px;
 }
 .site-top-bar-brand {
   font-family: var(--font-display);
@@ -416,6 +457,35 @@ h1, h2, h3, .site-wordmark {
 .site-league-search-card h2 {
   margin: 0 0 var(--space-1);
   font-size: 18px;
+}
+.site-leagues-game-row {
+  margin-bottom: var(--space-4);
+}
+.site-leagues-game-field {
+  max-width: 320px;
+}
+.site-leagues-empty-prompt {
+  margin: var(--space-6) 0;
+  text-align: center;
+  font-size: 15px;
+}
+.site-league-member-star {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 0.95em;
+  line-height: 1;
+  vertical-align: baseline;
+}
+.site-league-member-star.is-platinum {
+  color: #c9cdd4;
+  text-shadow: 0 0 8px rgba(201, 205, 212, 0.45);
+}
+.site-league-member-star.is-gold {
+  color: var(--accent-bright, #d4a017);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.site-league-search-card h2 .site-league-member-star {
+  flex: 0 0 auto;
 }
 .site-league-search-card p { margin: 0 0 var(--space-2); }
 .site-league-search-meta {
@@ -1467,17 +1537,7 @@ h1, h2, h3, .site-wordmark {
   gap: 10px;
 }
 .site-profile-tier {
-  display: none;
-  padding: 6px 10px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent-bright);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
+  display: none !important;
 }
 .site-profile-link {
   display: flex;
@@ -1499,7 +1559,7 @@ h1, h2, h3, .site-wordmark {
   flex-shrink: 0;
 }
 .site-profile-meta {
-  display: none;
+  display: flex;
   flex-direction: column;
   min-width: 0;
   line-height: 1.2;
@@ -1515,7 +1575,6 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-muted);
 }
 @media (min-width: 960px) {
-  .site-profile-tier,
   .site-profile-meta {
     display: flex;
   }
@@ -1744,7 +1803,7 @@ h1, h2, h3, .site-wordmark {
   line-height: 1.45;
 }
 
-/* Hub embed reads as Platinum panels inside site chrome */
+/* Hub embed keeps Midnight Glass — do not flatten panels back to solid cards */
 .site-hub-inprocess {
   background: transparent;
 }
@@ -1752,10 +1811,6 @@ h1, h2, h3, .site-wordmark {
 .site-hub-inprocess .hub-section,
 .site-hub-inprocess .hub-state {
   --hub-accent: var(--accent);
-  --surface: #111111;
-  --surface-raised: #171717;
-  --border: #2a2a2a;
-  --border-strong: color-mix(in srgb, var(--accent) 40%, #3a3010);
   --gold: var(--accent);
   --gold-light: var(--accent-bright);
 }
@@ -1766,43 +1821,17 @@ h1, h2, h3, .site-wordmark {
   border-color: transparent;
   border-radius: var(--radius-md);
 }
-.site-hub-inprocess .fp-panel,
-.site-hub-inprocess .hub-state,
-.site-hub-inprocess .hub-stat-grid article,
-.site-hub-inprocess .hub-story-card,
-.site-hub-inprocess .hub-profile-sections details,
-.site-hub-inprocess .hub-store-products button {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: linear-gradient(145deg, #161616 0%, #101010 100%);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-.site-hub-inprocess .fp-panel::before {
-  display: block !important;
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(201, 162, 39, 0.55), transparent);
-  opacity: 1;
-}
-.site-hub-inprocess .fp-panel::after {
-  display: none !important;
-}
 .site-hub-inprocess .hub-feed-list article {
   border-left: 3px solid var(--accent);
-  background: #121212;
 }
 .site-hub-inprocess .roundtable-banner {
-  background: #0a0a0a;
+  background: rgba(8, 10, 14, 0.85);
   color: var(--accent-bright);
-  border-bottom: 1px solid rgba(201, 162, 39, 0.35);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 }
-.site-hub-embed {
-  background: #050505;
-}
+.site-hub-embed,
 .site-hub-embed-frame {
-  background: #050505;
+  background: transparent;
 }
 
 .site-home-hero-stats {
@@ -2010,25 +2039,34 @@ h1, h2, h3, .site-wordmark {
 }
 
 /* —— Midnight Glass site shell —— */
-.site-shell {
+.site-shell,
+.site-auth-page,
+.site-page {
   background-color: #05070a;
   background-image:
-    linear-gradient(180deg, rgba(5, 7, 10, 0.5) 0%, rgba(5, 7, 10, 0.82) 60%, rgba(5, 7, 10, 0.94) 100%),
+    linear-gradient(180deg, rgba(5, 7, 10, 0.45) 0%, rgba(5, 7, 10, 0.78) 55%, rgba(5, 7, 10, 0.92) 100%),
     url("/assets/backgrounds/midnight-glass-bg.png");
   background-size: cover;
   background-position: center top;
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
-.site-home-panel,
-.site-home-hero,
-.site-card,
 .site-desktop-sidebar {
-  background: rgba(14, 16, 20, 0.72) !important;
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: var(--glass-panel-bg) !important;
+  backdrop-filter: var(--glass-panel-blur);
+  -webkit-backdrop-filter: var(--glass-panel-blur);
   border: 1px solid color-mix(in srgb, var(--accent) 28%, rgba(255, 255, 255, 0.1));
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32);
+}
+@media (min-width: 960px) {
+  .site-shell-main {
+    padding-inline: clamp(24px, 4vw, 48px);
+  }
+  .site-page-card,
+  .site-home,
+  .site-auth-card.site-account-card {
+    margin-inline: auto;
+  }
 }
 .site-desktop-nav a.is-active,
 .site-desktop-nav button.is-active,
@@ -2048,4 +2086,223 @@ h1, h2, h3, .site-wordmark {
   --gold-dark: var(--accent-dark);
   --accent-gradient: linear-gradient(180deg, #e8eef6 0%, #c5cdd8 52%, #8b95a3 100%);
   --shadow-glow-gold: 0 0 24px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+/* —— Account hub tabs —— */
+.site-account-hub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.site-account-tabs {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.site-account-tab-track {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 2px;
+}
+.site-account-tab-track button {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(8,10,14,.45);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.site-account-tab-track button.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent-bright);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.site-account-tab-arrow {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(8,10,14,.5);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (min-width: 900px) {
+  .site-account-tab-arrow { display: none; }
+  .site-account-tab-track {
+    overflow: visible;
+    flex-wrap: wrap;
+  }
+}
+.site-account-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.site-account-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.site-account-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.site-account-avatar.is-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  font-family: var(--font-display);
+  font-size: 24px;
+}
+.site-account-identity h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.site-account-block h3,
+.site-account-panel h2,
+.site-account-panel h3 {
+  margin: 0;
+}
+.site-text-link {
+  background: none;
+  border: none;
+  color: var(--accent-bright);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  text-decoration: underline;
+}
+.site-account-password-fields {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.site-account-password-fields input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.35);
+  color: var(--text);
+  padding: 10px 12px;
+}
+.site-account-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.site-account-stat-grid article {
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(8,10,14,.4);
+}
+.site-account-stat-grid span {
+  display: block;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.site-account-stat-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+}
+.site-account-badge-list,
+.site-account-friend-list,
+.site-account-notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.site-account-badge-list li,
+.site-account-friend-list li,
+.site-account-notif-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(8,10,14,.4);
+}
+.site-account-friend-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.site-account-friend-search input {
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(0,0,0,.35);
+  color: var(--text);
+  padding: 10px 12px;
+}
+.site-account-suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.site-account-suggestion {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(8,10,14,.35);
+  color: inherit;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.site-account-inbox-toggle {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.25);
+}
+.site-account-inbox-toggle button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.site-account-inbox-toggle button.is-active {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent-bright);
+}
+.site-account-inbox-toggle button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+.site-home-hero-stats--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 420px;
+}
+@media (max-width: 720px) {
+  .site-account-stat-grid,
+  .site-account-friend-search {
+    grid-template-columns: 1fr;
+  }
 }

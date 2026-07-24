@@ -5,7 +5,6 @@ import {
   IconAccount,
   IconBuzz,
   IconComp,
-  IconHeadlines,
   IconHome,
   IconLeagues,
   IconMatchups,
@@ -35,12 +34,6 @@ function globalItems(): NavItem[] {
   return [
     { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
     { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
-    {
-      key: "headlines",
-      label: "Headlines",
-      to: "/headlines",
-      icon: <IconHeadlines />,
-    },
     { key: "comp", label: "Comp", to: "/comp", icon: <IconComp /> },
     {
       key: "account",

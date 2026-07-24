@@ -309,6 +309,7 @@ export async function openSiteLeagueHubContext(input: {
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;
+  openTeamAbbr?: string;
   difficulty?: string;
   streamingRequirement?: string;
   coinEconomyEnabled?: boolean;
@@ -371,6 +372,25 @@ export async function searchSiteLeagues(input: {
   if (input.filters.game) {
     params.push(input.filters.game);
     where.push(`l.game = $${params.length}`);
+  }
+  if (input.filters.openTeamAbbr) {
+    params.push(input.filters.openTeamAbbr.toUpperCase());
+    where.push(`exists (
+      select 1
+      from rec_teams t
+      where t.league_id = l.id
+        and (
+          upper(coalesce(t.abbreviation, '')) = $${params.length}
+          or upper(coalesce(t.original_abbreviation, '')) = $${params.length}
+        )
+        and not exists (
+          select 1
+          from rec_team_assignments ta
+          where ta.team_id = t.id
+            and ta.assignment_status = 'active'
+            and ta.ended_at is null
+        )
+    )`);
   }
   if (input.filters.difficulty) {
     params.push(input.filters.difficulty);

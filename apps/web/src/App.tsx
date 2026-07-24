@@ -83,7 +83,6 @@ export default function App() {
                 <Route path="/" element={<HubHome />} />
                 <Route path="/home" element={<HubHome />} />
                 <Route path="/leagues" element={<HubHome />} />
-                <Route path="/headlines" element={<HubPlaceholder title="Headlines" blurb="Global media and headlines placeholder." />} />
                 <Route path="/comp" element={<HubPlaceholder title="Comp" blurb="Competitive / committee placeholder." />} />
                 <Route path="/account" element={<AccountPlaceholder />} />
                 <Route path="/matchups/:gameId" element={<MatchupDetailPage />} />

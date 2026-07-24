@@ -28,7 +28,8 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
       const body = z
         .object({
           q: z.string().trim().max(80).optional(),
-          game: z.enum(["cfb_27", "madden_26", "madden_27"]).optional(),
+          game: z.enum(["cfb_27", "madden_26", "madden_27"]),
+          openTeamAbbr: z.string().trim().max(16).optional(),
           difficulty: z.string().trim().max(40).optional(),
           streamingRequirement: z.enum(["required", "recommended", "disabled"]).optional(),
           coinEconomyEnabled: z.boolean().optional(),

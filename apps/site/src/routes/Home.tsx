@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import {
   siteApi,
-  type EntitlementSummary,
   type LinkProfileResponse,
   type SiteAnnouncement,
   type SiteHomeCard,
@@ -11,14 +10,6 @@ import {
 } from "../lib/site-api.js";
 
 const ANNOUNCEMENT_MS = 8000;
-const SPOTLIGHT_MS = 7000;
-
-function tierLabel(entitlements: EntitlementSummary | null | undefined) {
-  const tier = entitlements?.tier ?? "none";
-  if (tier === "platinum") return "Platinum Member";
-  if (tier === "gold") return "Gold Member";
-  return "Member";
-}
 
 function ratingDisplay(card: SiteHomeCard | null) {
   if (!card?.userRating) return "—";
@@ -67,23 +58,68 @@ export function HomePage() {
   }, [announcements.length]);
 
   useEffect(() => {
+    setSpotlightIndex(0);
+  }, [spotlight.length]);
+
+  useEffect(() => {
     if (spotlight.length <= 1) return;
-    const timer = window.setInterval(() => {
+    const clip = spotlight[spotlightIndex % spotlight.length];
+    if (!(clip?.iframeUrl || clip?.streamUid)) return;
+    const timer = window.setTimeout(() => {
       setSpotlightIndex((current) => (current + 1) % spotlight.length);
-    }, SPOTLIGHT_MS);
-    return () => window.clearInterval(timer);
+    }, 45000);
+    return () => window.clearTimeout(timer);
+  }, [spotlight, spotlightIndex]);
+
+  useEffect(() => {
+    if (spotlight.length <= 1) return;
+    function onMessage(event: MessageEvent) {
+      const origin = String(event.origin ?? "");
+      if (
+        !origin.includes("videodelivery.net") &&
+        !origin.includes("cloudflarestream.com")
+      ) {
+        return;
+      }
+      let data: unknown = event.data;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          if (data === "ended") {
+            setSpotlightIndex((current) => (current + 1) % spotlight.length);
+          }
+          return;
+        }
+      }
+      const payload = data as {
+        name?: string;
+        eventName?: string;
+        type?: string;
+        event?: string;
+      } | null;
+      const name = payload?.name ?? payload?.eventName ?? payload?.type ?? payload?.event;
+      if (name === "ended" || name === "complete") {
+        setSpotlightIndex((current) => (current + 1) % spotlight.length);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, [spotlight.length]);
 
   const displayName =
-    card?.displayName || profile?.displayName || profile?.username || "Coach";
-  const tier = profile?.entitlements ?? null;
-  const isPlatinum = tier?.tier === "platinum";
+    card?.displayName ?? profile?.displayName ?? profile?.username ?? "Coach";
   const activeAnnouncement =
     announcements.length > 0
       ? announcements[announcementIndex % announcements.length]
       : null;
   const activeClip =
     spotlight.length > 0 ? spotlight[spotlightIndex % spotlight.length] : null;
+
+  function advanceSpotlight() {
+    if (spotlight.length <= 1) return;
+    setSpotlightIndex((current) => (current + 1) % spotlight.length);
+  }
 
   async function react(reactionKey: "like" | "dislike") {
     if (!activeClip || busy) return;
@@ -132,26 +168,18 @@ export function HomePage() {
         <div className="site-home-hero-copy">
           <p className="site-home-eyebrow">REC Leagues Sports</p>
           <h1>Welcome back, {displayName}</h1>
-          <p>{tierLabel(tier)} — your season hub starts here.</p>
-          <div className="site-home-hero-stats">
+          <p>Your season hub starts here.</p>
+          <div className="site-home-hero-stats site-home-hero-stats--two">
             <div>
               <span className="site-home-stat-label">All-time record</span>
-              <strong>{card?.globalRecord.text ?? "0-0"}</strong>
+              <strong>{card?.globalRecord?.text ?? "0-0"}</strong>
             </div>
             <div>
               <span className="site-home-stat-label">User rating</span>
               <strong>{ratingDisplay(card)}</strong>
             </div>
-            <div>
-              <span className="site-home-stat-label">Badges</span>
-              <strong>{card?.badgeCount ?? 0}</strong>
-              <Link className="site-home-stat-link" to="/badges">
-                View Badges
-              </Link>
-            </div>
           </div>
         </div>
-        {isPlatinum ? <span className="site-home-badge">Platinum</span> : null}
       </section>
 
       <section className="site-home-panel site-home-announcements">
@@ -235,7 +263,10 @@ export function HomePage() {
                 {activeClip.iframeUrl || activeClip.streamUid ? (
                   <iframe
                     key={activeClip.id}
-                    src={`${activeClip.iframeUrl ?? `https://iframe.videodelivery.net/${activeClip.streamUid}`}?autoplay=true&muted=true`}
+                    src={`${
+                      activeClip.iframeUrl ??
+                      `https://iframe.videodelivery.net/${activeClip.streamUid}`
+                    }?autoplay=true&muted=true`}
                     title="Spotlight clip"
                     allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
                     allowFullScreen
@@ -249,6 +280,7 @@ export function HomePage() {
                     muted
                     playsInline
                     preload="auto"
+                    onEnded={advanceSpotlight}
                   />
                 ) : (
                   <p className="site-muted">Clip unavailable.</p>
@@ -260,8 +292,8 @@ export function HomePage() {
                 </strong>
                 <span>
                   {activeClip.league.name}
-                  {activeClip.weekNumber != null ? ` · Week ${activeClip.weekNumber}` : ""}
-                  {` · ${spotlightIndex % spotlight.length + 1} of ${spotlight.length}`}
+                  {activeClip.weekNumber != null ? ` 뿯½ Week ${activeClip.weekNumber}` : ""}
+                  {` 뿯½ ${spotlightIndex % spotlight.length + 1} of ${spotlight.length}`}
                 </span>
               </div>
               <div className="site-spotlight-reactions">
@@ -271,7 +303,7 @@ export function HomePage() {
                   disabled={busy}
                   onClick={() => void react("like")}
                 >
-                  Like <small>{activeClip.reactionCounts.like || ""}</small>
+                  Like <small>{activeClip.reactionCounts.like ?? ""}</small>
                 </button>
                 <button
                   type="button"
@@ -279,7 +311,7 @@ export function HomePage() {
                   disabled={busy}
                   onClick={() => void react("dislike")}
                 >
-                  Dislike <small>{activeClip.reactionCounts.dislike || ""}</small>
+                  Dislike <small>{activeClip.reactionCounts.dislike ?? ""}</small>
                 </button>
               </div>
               <div className="site-spotlight-comments">
@@ -310,7 +342,11 @@ export function HomePage() {
                       }
                     }}
                   />
-                  <button type="button" disabled={busy || !commentDraft.trim()} onClick={() => void submitComment()}>
+                  <button
+                    type="button"
+                    disabled={busy || !commentDraft.trim()}
+                    onClick={() => void submitComment()}
+                  >
                     Post
                   </button>
                 </div>
@@ -330,7 +366,7 @@ export function HomePage() {
             ) : null}
           </div>
         ) : (
-          <p className="site-muted">Spotlight clips refresh daily at 8 AM CST.</p>
+          <p className="site-muted">Spotlight clips refresh daily at 8 AM CT.</p>
         )}
       </section>
     </div>

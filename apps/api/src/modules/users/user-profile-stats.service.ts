@@ -213,13 +213,16 @@ export async function loadSeasonBoxScoreStats(userId: string, leagueId: string, 
   return aggregateBoxScoreStats(data ?? []);
 }
 
-export async function loadCareerBoxScoreStats(userId: string) {
-  const { data, error } = await supabase
+export async function loadCareerBoxScoreStats(userId: string, leagueId?: string | null) {
+  let query = supabase
     .from("rec_team_game_stats")
     .select("*")
     .eq("user_id", userId)
     .order("season_number", { ascending: true })
     .order("week_number", { ascending: true });
+  if (leagueId) query = query.eq("league_id", leagueId);
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return aggregateBoxScoreStats(data ?? []);

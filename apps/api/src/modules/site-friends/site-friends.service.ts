@@ -124,6 +124,71 @@ export async function listFriendships(input: { recUserId: string }) {
   return { accepted, pendingIncoming, pendingOutgoing };
 }
 
+/** Usernames of other REC members who share an active league with the viewer. */
+export async function listSharedLeagueFriendSuggestions(input: {
+  recUserId: string;
+  query?: string;
+  limit?: number;
+}) {
+  const limit = Math.min(Math.max(input.limit ?? 24, 1), 60);
+  const q = input.query?.trim() ?? "";
+  const params: unknown[] = [input.recUserId];
+  let queryFilter = "";
+  if (q) {
+    params.push(`%${q.toLowerCase()}%`);
+    queryFilter = `and (
+      lower(coalesce(u.username, '')) like $${params.length}
+      or lower(coalesce(u.display_name, '')) like $${params.length}
+    )`;
+  }
+  params.push(limit);
+  const result = await getPgPool().query(
+    `
+      with my_leagues as (
+        select distinct league_id
+        from (
+          select league_id from rec_league_memberships where user_id = $1
+          union
+          select league_id
+          from rec_team_assignments
+          where user_id = $1
+            and assignment_status = 'active'
+            and ended_at is null
+        ) leagues
+      ),
+      peers as (
+        select distinct u.id, u.username, u.display_name
+        from my_leagues ml
+        inner join (
+          select league_id, user_id from rec_league_memberships
+          union
+          select league_id, user_id
+          from rec_team_assignments
+          where assignment_status = 'active' and ended_at is null and user_id is not null
+        ) members on members.league_id = ml.league_id
+        inner join rec_users u on u.id = members.user_id
+        where u.id <> $1
+          and u.username is not null
+          ${queryFilter}
+      )
+      select id, username, display_name
+      from peers
+      order by lower(username) asc
+      limit $${params.length}
+    `,
+    params,
+  );
+  return {
+    suggestions: (
+      result.rows as Array<{ id: string; username: string; display_name: string | null }>
+    ).map((row) => ({
+      userId: row.id,
+      username: row.username,
+      displayName: row.display_name ?? row.username,
+    })),
+  };
+}
+
 export async function requestFriendship(input: {
   recUserId: string;
   userId?: string;

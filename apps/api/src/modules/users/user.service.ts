@@ -696,14 +696,10 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
   const leagueInfo = leagueInfoResult.data;
   const seasonNumber = leagueInfo?.season_number ?? leagueInfo?.display_season_number ?? 1;
   const leagueGame = String(leagueInfo?.game ?? "madden_26");
-  const sameGameLeagues = await supabase.from("rec_leagues").select("id").eq("game", leagueGame);
-  if (sameGameLeagues.error) throw new ApiError(500, "Failed to load same-game badge leagues.", sameGameLeagues.error);
-  const sameGameLeagueIds = (sameGameLeagues.data ?? []).map((row: any) => row.id).filter(Boolean);
 
   const [
     seasonRecord,
-    seasonBadges,
-    globalBadges,
+    leagueBadges,
     gotwGuessRecord,
     gotwCompetition,
     globalAwardWinners,
@@ -713,6 +709,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     financialSummary,
     globalRecordRow,
     gameGlobalRecordRow,
+    leagueSeasonRecords,
   ] = await Promise.all([
     leagueId
       ? supabase
@@ -727,19 +724,10 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       ? supabase
           .from("rec_badge_ownership")
           .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
-          .in("league_id", sameGameLeagueIds.length ? sameGameLeagueIds : [leagueId])
+          .eq("league_id", leagueId)
           .eq("user_id", userId)
-          .in("badge_scope", ["game", "season"])
+          .in("badge_scope", ["game", "season", "career"])
           .order("updated_at", { ascending: false })
-      : Promise.resolve({ data: [] }),
-    leagueId
-      ? supabase
-        .from("rec_badge_ownership")
-        .select("badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week")
-        .in("league_id", sameGameLeagueIds.length ? sameGameLeagueIds : [leagueId])
-        .eq("user_id", userId)
-        .eq("badge_scope", "career")
-        .order("updated_at", { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
     leagueId
@@ -751,21 +739,34 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
           .order("week_number", { ascending: false })
           .limit(20)
       : Promise.resolve({ data: [] }),
-    supabase
-      .from("rec_award_winners")
-      .select("award_key,award_name,season_number,league_id")
-      .eq("winner_user_id", userId)
-      .order("season_number", { ascending: false }),
-    supabase
-      .from("rec_eos_award_polls")
-      .select("category_key,category_label,season_number,league_id")
-      .eq("winner_user_id", userId)
-      .not("winner_user_id", "is", null),
+    leagueId
+      ? supabase
+          .from("rec_award_winners")
+          .select("award_key,award_name,season_number,league_id")
+          .eq("winner_user_id", userId)
+          .eq("league_id", leagueId)
+          .order("season_number", { ascending: false })
+      : Promise.resolve({ data: [] }),
+    leagueId
+      ? supabase
+          .from("rec_eos_award_polls")
+          .select("category_key,category_label,season_number,league_id")
+          .eq("winner_user_id", userId)
+          .eq("league_id", leagueId)
+          .not("winner_user_id", "is", null)
+      : Promise.resolve({ data: [] }),
     leagueId ? loadSeasonBoxScoreStats(userId, leagueId, seasonNumber) : Promise.resolve(null),
-    loadCareerBoxScoreStats(userId),
+    leagueId ? loadCareerBoxScoreStats(userId, leagueId) : loadCareerBoxScoreStats(userId),
     loadUserFinancialSummary(userId, leagueId),
     supabase.from("rec_global_user_records").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("rec_global_user_game_records").select("*").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
+    leagueId
+      ? supabase
+          .from("rec_season_user_records")
+          .select("wins,losses,ties,point_differential")
+          .eq("league_id", leagueId)
+          .eq("user_id", userId)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const teamName = resolveTeamProgramName(teamRow) ?? formatTeamDisplayName(teamRow);
@@ -811,6 +812,18 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     globalAwardCounts.set(label, (globalAwardCounts.get(label) ?? 0) + 1);
   }
 
+  const leagueCareerTotals = ((leagueSeasonRecords as any)?.data ?? []).reduce(
+    (acc: { wins: number; losses: number; ties: number; pointDifferential: number }, row: any) => {
+      acc.wins += Number(row.wins ?? 0);
+      acc.losses += Number(row.losses ?? 0);
+      acc.ties += Number(row.ties ?? 0);
+      acc.pointDifferential += Number(row.point_differential ?? 0);
+      return acc;
+    },
+    { wins: 0, losses: 0, ties: 0, pointDifferential: 0 },
+  );
+  const leagueOwnedBadgeRows = ((leagueBadges as any)?.data ?? []) as any[];
+
   return {
     user: baseline.user,
     discord: baseline.discord,
@@ -830,6 +843,14 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
       text: recordText(seasonRecordData),
       boxScoresUploaded: seasonStats?.boxScoresUploaded ?? 0,
       activeStreak: seasonStats?.activeStreak ?? "—",
+    },
+    leagueCareerRecord: {
+      wins: leagueCareerTotals.wins,
+      losses: leagueCareerTotals.losses,
+      ties: leagueCareerTotals.ties,
+      pointDifferential: leagueCareerTotals.pointDifferential,
+      text: recordText(leagueCareerTotals),
+      activeStreak: careerStats?.activeStreak ?? "—",
     },
     globalRecord: {
       wins: globalRecord.wins ?? 0,
@@ -851,11 +872,12 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string) 
     gotwCompetition: gotwWins + gotwLosses > 0 ? { wins: gotwWins, losses: gotwLosses } : null,
     seasonStats,
     careerStats,
-    badges: aggregateOwnedBadges([...((seasonBadges as any)?.data ?? []), ...((globalBadges as any)?.data ?? [])], leagueId, Number(seasonNumber)),
-    seasonBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "season").map(mapOwnedBadge),
-    weeklyBadges: ((seasonBadges as any)?.data ?? []).filter((r: any) => r.badge_scope === "game").map(mapOwnedBadge),
-    globalBadges: ((globalBadges as any)?.data ?? []).map(mapOwnedBadge),
+    badges: aggregateOwnedBadges(leagueOwnedBadgeRows, leagueId, Number(seasonNumber)),
+    seasonBadges: leagueOwnedBadgeRows.filter((r: any) => r.badge_scope === "season").map(mapOwnedBadge),
+    weeklyBadges: leagueOwnedBadgeRows.filter((r: any) => r.badge_scope === "game").map(mapOwnedBadge),
+    globalBadges: [],
     globalAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
+    leagueAwards: [...globalAwardCounts.entries()].map(([awardName, count]) => ({ awardName, count })).sort((a, b) => a.awardName.localeCompare(b.awardName)),
     financialSummary,
   };
 }

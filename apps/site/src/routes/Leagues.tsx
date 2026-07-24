@@ -1,28 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { CFB_27_TEAMS, NFL_TEAMS } from "@rec/shared";
+import { useAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
+  type EntitlementSummary,
   type SiteLeagueSearchFilters,
   type SiteLeagueSearchHit,
   type SiteLeagueSummary,
 } from "../lib/site-api.js";
 
 type Tab = "search" | "mine";
+type GameKey = "madden_26" | "madden_27" | "cfb_27";
 
-const GAME_OPTIONS = [
-  { value: "", label: "All games" },
+const GAME_OPTIONS: { value: GameKey; label: string }[] = [
   { value: "madden_26", label: "Madden 26" },
   { value: "madden_27", label: "Madden 27" },
   { value: "cfb_27", label: "CFB 27" },
 ];
 
-const DIFFICULTY_OPTIONS = [
+const MADDEN_DIFFICULTY = [
   { value: "", label: "Any difficulty" },
-  { value: "all_madden", label: "All-Madden / Heisman" },
+  { value: "all_madden", label: "All-Madden" },
   { value: "all_pro", label: "All-Pro" },
   { value: "pro", label: "Pro" },
   { value: "rookie", label: "Rookie" },
+  { value: "custom", label: "Custom" },
+];
+
+const CFB_DIFFICULTY = [
+  { value: "", label: "Any difficulty" },
+  { value: "all_madden", label: "Heisman" },
+  { value: "all_pro", label: "All-American" },
+  { value: "pro", label: "Varsity" },
+  { value: "rookie", label: "Freshman" },
   { value: "custom", label: "Custom" },
 ];
 
@@ -35,10 +47,9 @@ const STREAM_OPTIONS = [
 
 const TRADE_OPTIONS = [
   { value: "", label: "Any trade rules" },
-  { value: "competition_committee_review", label: "Committee review" },
-  { value: "commissioner_approval", label: "Commissioner approval" },
-  { value: "veto", label: "League veto" },
-  { value: "open", label: "Open trading" },
+  { value: "no_approval_required", label: "No approval required" },
+  { value: "commissioner_review", label: "Commissioner review" },
+  { value: "competition_committee_review", label: "Competition committee review" },
 ];
 
 const SORT_OPTIONS = [
@@ -66,14 +77,54 @@ function boolTri(value: "" | "true" | "false"): boolean | undefined {
   return undefined;
 }
 
+function isGameKey(value: string): value is GameKey {
+  return value === "madden_26" || value === "madden_27" || value === "cfb_27";
+}
+
+function teamOptionsForGame(game: GameKey) {
+  if (game === "cfb_27") {
+    return [...CFB_27_TEAMS]
+      .map((team) => ({
+        value: team.abbreviation,
+        label: `${team.name} ${team.mascot}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }
+  return [...NFL_TEAMS]
+    .map((team) => ({
+      value: team.abbreviation,
+      label: team.name,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function MemberStar({ tier }: { tier: EntitlementSummary["tier"] | undefined }) {
+  const tone = tier === "gold" ? "gold" : "platinum";
+  return (
+    <span
+      className={`site-league-member-star is-${tone}`}
+      title="You're in this league"
+      aria-label="You're in this league"
+    >
+      ★
+    </span>
+  );
+}
+
 export function LeaguesPage() {
   const hub = useHub();
+  const auth = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = (params.get("tab") === "mine" ? "mine" : "search") as Tab;
 
+  const [memberTier, setMemberTier] = useState<EntitlementSummary["tier"]>("none");
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [game, setGame] = useState(params.get("game") ?? "");
+  const [game, setGame] = useState(() => {
+    const raw = params.get("game") ?? "";
+    return isGameKey(raw) ? raw : "";
+  });
+  const [openTeamAbbr, setOpenTeamAbbr] = useState(params.get("team") ?? "");
   const [difficulty, setDifficulty] = useState(params.get("difficulty") ?? "");
   const [streamingRequirement, setStreamingRequirement] = useState(params.get("stream") ?? "");
   const [tradeApprovalPolicy, setTradeApprovalPolicy] = useState(params.get("trade") ?? "");
@@ -96,13 +147,22 @@ export function LeaguesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const filters = useMemo<SiteLeagueSearchFilters>(
-    () => ({
+  const isCfb = game === "cfb_27";
+  const difficultyOptions = isCfb ? CFB_DIFFICULTY : MADDEN_DIFFICULTY;
+  const openTeamOptions = useMemo(
+    () => (isGameKey(game) ? teamOptionsForGame(game) : []),
+    [game],
+  );
+
+  const filters = useMemo<SiteLeagueSearchFilters | null>(() => {
+    if (!isGameKey(game)) return null;
+    return {
       q: q.trim() || undefined,
-      game: game || undefined,
+      game,
+      openTeamAbbr: openTeamAbbr || undefined,
       difficulty: difficulty || undefined,
       streamingRequirement: streamingRequirement || undefined,
-      tradeApprovalPolicy: tradeApprovalPolicy || undefined,
+      tradeApprovalPolicy: isCfb ? undefined : tradeApprovalPolicy || undefined,
       coinEconomyEnabled: boolTri(coinEconomy),
       acceleratedClockEnabled: boolTri(acceleratedClock),
       offensivePlayCallLimitsEnabled: boolTri(offPlayCall),
@@ -111,23 +171,49 @@ export function LeaguesPage() {
         ? sort
         : "name_asc") as SiteLeagueSearchFilters["sort"],
       limit: 60,
-    }),
-    [
-      q,
-      game,
-      difficulty,
-      streamingRequirement,
-      tradeApprovalPolicy,
-      coinEconomy,
-      acceleratedClock,
-      offPlayCall,
-      defPlayCall,
-      sort,
-    ],
-  );
+    };
+  }, [
+    q,
+    game,
+    openTeamAbbr,
+    difficulty,
+    streamingRequirement,
+    tradeApprovalPolicy,
+    coinEconomy,
+    acceleratedClock,
+    offPlayCall,
+    defPlayCall,
+    sort,
+    isCfb,
+  ]);
+
+  useEffect(() => {
+    if (auth.status !== "signed-in") {
+      setMemberTier("none");
+      return;
+    }
+    let cancelled = false;
+    siteApi
+      .getLinkProfile()
+      .then((profile) => {
+        if (!cancelled) setMemberTier(profile.entitlements?.tier ?? "none");
+      })
+      .catch(() => {
+        if (!cancelled) setMemberTier("none");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.status]);
 
   useEffect(() => {
     if (tab !== "search") return;
+    if (!filters) {
+      setResults([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -157,6 +243,13 @@ export function LeaguesPage() {
     const nextParams = new URLSearchParams(params);
     nextParams.set("tab", next);
     setParams(nextParams, { replace: true });
+  }
+
+  function onGameChange(next: string) {
+    setGame(isGameKey(next) ? next : "");
+    setOpenTeamAbbr("");
+    setTradeApprovalPolicy("");
+    setDifficulty("");
   }
 
   function openLeague(leagueId: string) {
@@ -212,7 +305,9 @@ export function LeaguesPage() {
                   className="site-league-card"
                   onClick={() => openLeague(league.id)}
                 >
-                  <strong>{league.name}</strong>
+                  <strong>
+                    <MemberStar tier={memberTier} /> {league.name}
+                  </strong>
                   <span>
                     {league.gameLabel}
                     {league.teamName ? ` · ${league.teamName}` : ""}
@@ -225,211 +320,250 @@ export function LeaguesPage() {
         </section>
       ) : (
         <section className="site-leagues-panel">
-          <div className="site-leagues-search-row">
-            <label className="site-field site-leagues-search-field">
-              <span>Search</span>
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="League name, keyword, commissioner username or Discord"
-              />
-            </label>
-            <label className="site-field">
-              <span>Sort</span>
-              <select className="site-select" value={sort} onChange={(e) => setSort(e.target.value)}>
-                {SORT_OPTIONS.map((opt) => (
+          <div className="site-leagues-game-row">
+            <label className="site-field site-leagues-game-field">
+              <span>Game</span>
+              <select
+                className="site-select"
+                value={game}
+                onChange={(e) => onGameChange(e.target.value)}
+                required
+              >
+                <option value="">Select a game</option>
+                {GAME_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              className="site-btn site-btn-ghost site-leagues-filter-toggle"
-              onClick={() => setFiltersOpen((open) => !open)}
-            >
-              {filtersOpen ? "Hide filters" : "Filters"}
-            </button>
           </div>
 
-          {filtersOpen ? (
-            <div className="site-leagues-filters">
-              <label className="site-field">
-                <span>Game</span>
-                <select className="site-select" value={game} onChange={(e) => setGame(e.target.value)}>
-                  {GAME_OPTIONS.map((opt) => (
-                    <option key={opt.value || "all"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="site-field">
-                <span>Difficulty</span>
-                <select
-                  className="site-select"
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value)}
-                >
-                  {DIFFICULTY_OPTIONS.map((opt) => (
-                    <option key={opt.value || "any-diff"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="site-field">
-                <span>Streaming</span>
-                <select
-                  className="site-select"
-                  value={streamingRequirement}
-                  onChange={(e) => setStreamingRequirement(e.target.value)}
-                >
-                  {STREAM_OPTIONS.map((opt) => (
-                    <option key={opt.value || "any-stream"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="site-field">
-                <span>Trade rules</span>
-                <select
-                  className="site-select"
-                  value={tradeApprovalPolicy}
-                  onChange={(e) => setTradeApprovalPolicy(e.target.value)}
-                >
-                  {TRADE_OPTIONS.map((opt) => (
-                    <option key={opt.value || "any-trade"} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="site-field">
-                <span>Coin economy</span>
-                <select
-                  className="site-select"
-                  value={coinEconomy}
-                  onChange={(e) => setCoinEconomy(e.target.value as "" | "true" | "false")}
-                >
-                  <option value="">Any</option>
-                  <option value="true">On</option>
-                  <option value="false">Off</option>
-                </select>
-              </label>
-              <label className="site-field">
-                <span>Accelerated clock</span>
-                <select
-                  className="site-select"
-                  value={acceleratedClock}
-                  onChange={(e) => setAcceleratedClock(e.target.value as "" | "true" | "false")}
-                >
-                  <option value="">Any</option>
-                  <option value="true">On</option>
-                  <option value="false">Off</option>
-                </select>
-              </label>
-              <label className="site-field">
-                <span>Offensive play-call limits</span>
-                <select
-                  className="site-select"
-                  value={offPlayCall}
-                  onChange={(e) => setOffPlayCall(e.target.value as "" | "true" | "false")}
-                >
-                  <option value="">Any</option>
-                  <option value="true">Enabled</option>
-                  <option value="false">Disabled</option>
-                </select>
-              </label>
-              <label className="site-field">
-                <span>Defensive play-call limits</span>
-                <select
-                  className="site-select"
-                  value={defPlayCall}
-                  onChange={(e) => setDefPlayCall(e.target.value as "" | "true" | "false")}
-                >
-                  <option value="">Any</option>
-                  <option value="true">Enabled</option>
-                  <option value="false">Disabled</option>
-                </select>
-              </label>
-            </div>
-          ) : null}
-
-          {error ? <p className="site-auth-error">{error}</p> : null}
-          {loading ? <p className="site-muted">Searching leagues...</p> : null}
-          {!loading && !error && results.length === 0 ? (
-            <p className="site-muted">No leagues match those filters.</p>
-          ) : null}
-
-          <div className="site-league-search-list">
-            {results.map((league) => (
-              <article key={league.id} className="site-league-search-card">
-                <div className="site-league-search-card-main">
-                  <h2>{league.name}</h2>
-                  <p>
-                    {league.gameLabel} · Season {league.seasonNumber} · {labelize(league.seasonStage)}
-                    {league.isMember ? " · You're in" : ""}
-                  </p>
-                  <p className="site-muted">
-                    Commish: {league.commissionerUsername ?? "-"}
-                    {league.commissionerDiscordName
-                      ? ` · Discord ${league.commissionerDiscordName}`
-                      : ""}
-                  </p>
-                  <ul className="site-league-search-meta">
-                    <li>{league.openTeamCount} open teams</li>
-                    <li>{league.memberCount} members</li>
-                    <li>Difficulty {labelize(league.difficulty)}</li>
-                    <li>Stream {labelize(league.streamingRequirement)}</li>
-                    <li>Economy {league.coinEconomyEnabled ? "on" : "off"}</li>
-                    <li>
-                      Accel clock{" "}
-                      {league.acceleratedClockEnabled
-                        ? `on${
-                            league.acceleratedClockMinimumSeconds != null
-                              ? ` (${league.acceleratedClockMinimumSeconds}s)`
-                              : ""
-                          }`
-                        : "off"}
-                    </li>
-                    <li>Trades {labelize(league.tradeApprovalPolicy)}</li>
-                    <li>
-                      Off limits{" "}
-                      {league.offensivePlayCallLimitsEnabled
-                        ? `${league.offensivePlayCallLimit ?? "-"} / cd ${
-                            league.offensivePlayCallCooldown ?? "-"
-                          }`
-                        : "off"}
-                    </li>
-                    <li>
-                      Def limits{" "}
-                      {league.defensivePlayCallLimitsEnabled
-                        ? `${league.defensivePlayCallLimit ?? "-"} / cd ${
-                            league.defensivePlayCallCooldown ?? "-"
-                          }`
-                        : "off"}
-                    </li>
-                  </ul>
-                </div>
+          {!isGameKey(game) ? (
+            <p className="site-muted site-leagues-empty-prompt">
+              Please select a game to view its leagues.
+            </p>
+          ) : (
+            <>
+              <div className="site-leagues-search-row">
+                <label className="site-field site-leagues-search-field">
+                  <span>Search</span>
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="League name, keyword, commissioner username or Discord"
+                  />
+                </label>
+                <label className="site-field">
+                  <span>Sort</span>
+                  <select className="site-select" value={sort} onChange={(e) => setSort(e.target.value)}>
+                    {SORT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
-                  className="site-btn site-btn-primary"
-                  onClick={() => openLeague(league.id)}
-                  disabled={!league.isMember}
-                  title={
-                    league.isMember
-                      ? "Open hub"
-                      : "Join from Discord or request a team first"
-                  }
+                  className="site-btn site-btn-ghost site-leagues-filter-toggle"
+                  onClick={() => setFiltersOpen((open) => !open)}
                 >
-                  {league.isMember ? "Open" : "Members only"}
+                  {filtersOpen ? "Hide filters" : "Filters"}
                 </button>
-              </article>
-            ))}
-          </div>
+              </div>
+
+              {filtersOpen ? (
+                <div className="site-leagues-filters">
+                  <label className="site-field">
+                    <span>Open team</span>
+                    <select
+                      className="site-select"
+                      value={openTeamAbbr}
+                      onChange={(e) => setOpenTeamAbbr(e.target.value)}
+                    >
+                      <option value="">Any open team</option>
+                      {openTeamOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="site-field">
+                    <span>Difficulty</span>
+                    <select
+                      className="site-select"
+                      value={difficulty}
+                      onChange={(e) => setDifficulty(e.target.value)}
+                    >
+                      {difficultyOptions.map((opt) => (
+                        <option key={opt.value || "any-diff"} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="site-field">
+                    <span>Streaming</span>
+                    <select
+                      className="site-select"
+                      value={streamingRequirement}
+                      onChange={(e) => setStreamingRequirement(e.target.value)}
+                    >
+                      {STREAM_OPTIONS.map((opt) => (
+                        <option key={opt.value || "any-stream"} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {!isCfb ? (
+                    <label className="site-field">
+                      <span>Trade rules</span>
+                      <select
+                        className="site-select"
+                        value={tradeApprovalPolicy}
+                        onChange={(e) => setTradeApprovalPolicy(e.target.value)}
+                      >
+                        {TRADE_OPTIONS.map((opt) => (
+                          <option key={opt.value || "any-trade"} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="site-field">
+                    <span>Coin economy</span>
+                    <select
+                      className="site-select"
+                      value={coinEconomy}
+                      onChange={(e) => setCoinEconomy(e.target.value as "" | "true" | "false")}
+                    >
+                      <option value="">Any</option>
+                      <option value="true">On</option>
+                      <option value="false">Off</option>
+                    </select>
+                  </label>
+                  <label className="site-field">
+                    <span>Accelerated clock</span>
+                    <select
+                      className="site-select"
+                      value={acceleratedClock}
+                      onChange={(e) => setAcceleratedClock(e.target.value as "" | "true" | "false")}
+                    >
+                      <option value="">Any</option>
+                      <option value="true">On</option>
+                      <option value="false">Off</option>
+                    </select>
+                  </label>
+                  <label className="site-field">
+                    <span>Offensive play-call limits</span>
+                    <select
+                      className="site-select"
+                      value={offPlayCall}
+                      onChange={(e) => setOffPlayCall(e.target.value as "" | "true" | "false")}
+                    >
+                      <option value="">Any</option>
+                      <option value="true">Enabled</option>
+                      <option value="false">Disabled</option>
+                    </select>
+                  </label>
+                  <label className="site-field">
+                    <span>Defensive play-call limits</span>
+                    <select
+                      className="site-select"
+                      value={defPlayCall}
+                      onChange={(e) => setDefPlayCall(e.target.value as "" | "true" | "false")}
+                    >
+                      <option value="">Any</option>
+                      <option value="true">Enabled</option>
+                      <option value="false">Disabled</option>
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+
+              {error ? <p className="site-auth-error">{error}</p> : null}
+              {loading ? <p className="site-muted">Searching leagues...</p> : null}
+              {!loading && !error && results.length === 0 ? (
+                <p className="site-muted">No leagues match those filters.</p>
+              ) : null}
+
+              <div className="site-league-search-list">
+                {results.map((league) => (
+                  <article key={league.id} className="site-league-search-card">
+                    <div className="site-league-search-card-main">
+                      <h2>
+                        {league.isMember ? <MemberStar tier={memberTier} /> : null}
+                        {league.name}
+                      </h2>
+                      <p>
+                        {league.gameLabel} · Season {league.seasonNumber} ·{" "}
+                        {labelize(league.seasonStage)}
+                      </p>
+                      <p className="site-muted">
+                        Commish: {league.commissionerUsername ?? "-"}
+                        {league.commissionerDiscordName
+                          ? ` · Discord ${league.commissionerDiscordName}`
+                          : ""}
+                      </p>
+                      <ul className="site-league-search-meta">
+                        <li>{league.openTeamCount} open teams</li>
+                        <li>{league.memberCount} members</li>
+                        <li>Difficulty {labelize(league.difficulty)}</li>
+                        <li>Stream {labelize(league.streamingRequirement)}</li>
+                        <li>Economy {league.coinEconomyEnabled ? "on" : "off"}</li>
+                        <li>
+                          Accel clock{" "}
+                          {league.acceleratedClockEnabled
+                            ? `on${
+                                league.acceleratedClockMinimumSeconds != null
+                                  ? ` (${league.acceleratedClockMinimumSeconds}s)`
+                                  : ""
+                              }`
+                            : "off"}
+                        </li>
+                        {!isCfb ? (
+                          <li>Trades {labelize(league.tradeApprovalPolicy)}</li>
+                        ) : null}
+                        <li>
+                          Off limits{" "}
+                          {league.offensivePlayCallLimitsEnabled
+                            ? `${league.offensivePlayCallLimit ?? "-"} / cd ${
+                                league.offensivePlayCallCooldown ?? "-"
+                              }`
+                            : "off"}
+                        </li>
+                        <li>
+                          Def limits{" "}
+                          {league.defensivePlayCallLimitsEnabled
+                            ? `${league.defensivePlayCallLimit ?? "-"} / cd ${
+                                league.defensivePlayCallCooldown ?? "-"
+                              }`
+                            : "off"}
+                        </li>
+                      </ul>
+                    </div>
+                    <button
+                      type="button"
+                      className="site-btn site-btn-primary"
+                      onClick={() => openLeague(league.id)}
+                      disabled={!league.isMember}
+                      title={
+                        league.isMember
+                          ? "Open hub"
+                          : "Join from Discord or request a team first"
+                      }
+                    >
+                      {league.isMember ? "Open" : "Members only"}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       )}
     </div>

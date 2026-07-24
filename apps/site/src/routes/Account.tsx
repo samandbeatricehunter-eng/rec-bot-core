@@ -7,6 +7,7 @@ import {
   type LinkCandidate,
   type LinkProfileResponse,
 } from "../lib/site-api.js";
+import { AccountHub } from "./AccountHub.js";
 
 function tierLabel(tier: EntitlementSummary["tier"]): string {
   if (tier === "gold") return "Gold";
@@ -315,168 +316,95 @@ export function Account() {
 
   return (
     <div className="site-page site-auth-page">
-      <div className="site-auth-card">
-        <div className="site-onboarding-steps" aria-label="Account setup progress">
-          {["Link identity", "Choose username", "Complete"].map((label, index) => (
-            <span
-              key={label}
-              className={onboardingStep >= index + 1 ? "is-active" : ""}
-            >
-              {index + 1}. {label}
-            </span>
-          ))}
-        </div>
+      <div className={`site-auth-card${linked?.username ? " site-account-card" : ""}`}>
+        {!linked?.username ? (
+          <div className="site-onboarding-steps" aria-label="Account setup progress">
+            {["Link identity", "Choose username", "Complete"].map((label, index) => (
+              <span
+                key={label}
+                className={onboardingStep >= index + 1 ? "is-active" : ""}
+              >
+                {index + 1}. {label}
+              </span>
+            ))}
+          </div>
+        ) : null}
 
-        <h1>
-          {!linkedAccount
-            ? "Link your REC identity"
-            : linked?.username
-              ? "Account complete"
-              : "Choose your username"}
-        </h1>
-        <p>
-          Signed in as <strong>{auth.user.email}</strong>.
-        </p>
+        {!linkedAccount || !linked?.username ? (
+          <>
+            <h1>
+              {!linkedAccount
+                ? "Link your REC identity"
+                : "Choose your username"}
+            </h1>
+            <p>
+              Signed in as <strong>{auth.user.email}</strong>.
+            </p>
+          </>
+        ) : (
+          <h1>My Account</h1>
+        )}
 
-        {linkedAccount ? (
+        {linkedAccount && linked?.username ? (
+          <AccountHub
+            linked={linked}
+            entitlements={entitlements}
+            billingBusy={billingBusy}
+            billingError={billingError}
+            onOpenBilling={() => {
+              setBillingBusy(true);
+              setBillingError(null);
+              void siteApi
+                .openBillingPortal()
+                .then((res) => {
+                  if (res.url) window.location.href = res.url;
+                })
+                .catch((error) => {
+                  setBillingError(
+                    error instanceof Error ? error.message : "Could not open billing.",
+                  );
+                })
+                .finally(() => setBillingBusy(false));
+            }}
+          />
+        ) : linkedAccount ? (
           <>
             <p className="site-muted">
               Linked REC profile:{" "}
               <strong>{linked?.displayName ?? "REC Member"}</strong>
-              {linked?.username ? ` · @${linked.username}` : ""}
             </p>
-
-            {linked?.username ? (
-              <>
-                <p className="site-auth-success">
-                  Setup finished. Your stats, badges, records, and wallet now follow
-                  this account.
-                </p>
-                <div className="site-profile-actions">
-                  <Link className="site-btn site-btn-primary" to="/inbox">
-                    Inbox
-                  </Link>
-                  <Link className="site-btn site-btn-ghost" to="/friends">
-                    Friends
-                  </Link>
-                </div>
-
-                <div className="site-billing-panel">
-                  <h2>Billing</h2>
-                  {entitlements ? (
-                    <>
-                      <p>
-                        Plan: <strong>{tierLabel(entitlements.tier)}</strong>
-                        {" · "}
-                        Status: <strong>{entitlements.billingStatus}</strong>
-                      </p>
-                      {entitlements.graceUntil && (
-                        <p className="site-muted">
-                          Grace until{" "}
-                          {new Date(entitlements.graceUntil).toLocaleDateString()}
-                        </p>
-                      )}
-                      <div className="site-profile-actions">
-                        {subscribed ? (
-                          <button
-                            className="site-btn site-btn-primary"
-                            disabled={billingBusy}
-                            onClick={() => void openPortal()}
-                          >
-                            {billingBusy ? "Opening…" : "Manage billing"}
-                          </button>
-                        ) : null}
-                        {entitlements.tier !== "platinum" ? (
-                          <Link className="site-btn site-btn-ghost" to="/pricing">
-                            {subscribed ? "Upgrade" : "View plans"}
-                          </Link>
-                        ) : (
-                          <Link className="site-btn site-btn-ghost" to="/pricing">
-                            View plans
-                          </Link>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="site-muted">
-                      Could not load billing status.{" "}
-                      <Link to="/pricing">View plans</Link>
-                    </p>
-                  )}
-                  {billingError && <p className="site-auth-error">{billingError}</p>}
-                </div>
-
-                {claimableLeagues.length > 0 && (
-                  <div className="site-billing-panel">
-                    <h2>Take over a frozen league</h2>
-                    <p className="site-muted">
-                      The previous owner&apos;s grace period ended. If you have Platinum and an
-                      open create slot for that game, you can become the new owner. First claim
-                      wins.
-                    </p>
-                    <ul className="site-claimable-leagues">
-                      {claimableLeagues.map((league) => (
-                        <li key={league.id}>
-                          <div>
-                            <strong>{league.name}</strong>
-                            <span className="site-muted"> · {league.game.replaceAll("_", " ")}</span>
-                          </div>
-                          <button
-                            className="site-btn site-btn-primary"
-                            disabled={takeoverBusyId != null}
-                            onClick={() => void claimLeagueTakeover(league.id)}
-                          >
-                            {takeoverBusyId === league.id ? "Claiming…" : "Take ownership"}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    {takeoverNotice && <p className="site-auth-success">{takeoverNotice}</p>}
-                    {takeoverError && <p className="site-auth-error">{takeoverError}</p>}
-                  </div>
-                )}
-
-                <p className="site-muted">
-                  Inbox and Friends live here for now. Notifications will join this
-                  account area later.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="site-muted">
-                  Finish setup by choosing a unique username (3–24 characters:
-                  letters, numbers, dots, underscores).
-                </p>
-                <label className="site-field">
-                  <span>Username</span>
-                  <input
-                    value={usernameDraft}
-                    placeholder="ex: rec.coach21"
-                    autoComplete="username"
-                    onChange={(event) => setUsernameDraft(event.target.value)}
-                  />
-                </label>
-                {usernameCheckBusy && (
-                  <p className="site-muted">Checking availability…</p>
-                )}
-                {!usernameCheckBusy && usernameAvailable === true && (
-                  <p className="site-auth-success">Username is available.</p>
-                )}
-                <button
-                  className="site-btn site-btn-primary"
-                  disabled={
-                    usernameBusy ||
-                    usernameCheckBusy ||
-                    usernameAvailable !== true
-                  }
-                  onClick={() => void saveUsername()}
-                >
-                  {usernameBusy ? "Saving…" : "Save username"}
-                </button>
-                {usernameNotice && usernameNotice !== "Username saved." && (
-                  <p className="site-auth-error">{usernameNotice}</p>
-                )}
-              </>
+            <p className="site-muted">
+              Finish setup by choosing a unique username (3–24 characters:
+              letters, numbers, dots, underscores).
+            </p>
+            <label className="site-field">
+              <span>Username</span>
+              <input
+                value={usernameDraft}
+                placeholder="ex: rec.coach21"
+                autoComplete="username"
+                onChange={(event) => setUsernameDraft(event.target.value)}
+              />
+            </label>
+            {usernameCheckBusy && (
+              <p className="site-muted">Checking availability…</p>
+            )}
+            {!usernameCheckBusy && usernameAvailable === true && (
+              <p className="site-auth-success">Username is available.</p>
+            )}
+            <button
+              className="site-btn site-btn-primary"
+              disabled={
+                usernameBusy ||
+                usernameCheckBusy ||
+                usernameAvailable !== true
+              }
+              onClick={() => void saveUsername()}
+            >
+              {usernameBusy ? "Saving…" : "Save username"}
+            </button>
+            {usernameNotice && usernameNotice !== "Username saved." && (
+              <p className="site-auth-error">{usernameNotice}</p>
             )}
           </>
         ) : showSubscribeInsteadOfClaim ? (

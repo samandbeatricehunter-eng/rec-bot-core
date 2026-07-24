@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   LogOut,
 } from "lucide-react";
+// Newspaper remains for league Campus Buzz tab only.
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 type NavItem = {
@@ -37,12 +38,6 @@ function globalItems(): NavItem[] {
   return [
     { key: "home", label: "Home", to: "/home", icon: <Home size={22} /> },
     { key: "leagues", label: "Leagues", to: "/leagues", icon: <Layers size={22} /> },
-    {
-      key: "headlines",
-      label: "Headlines",
-      to: "/headlines",
-      icon: <Newspaper size={22} />,
-    },
     { key: "comp", label: "Comp", to: "/comp", icon: <Trophy size={22} /> },
     {
       key: "account",

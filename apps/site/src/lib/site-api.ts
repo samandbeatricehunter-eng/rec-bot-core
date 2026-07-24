@@ -31,6 +31,8 @@ export type LinkProfileResponse = {
   recUserId: string | null;
   displayName: string | null;
   username: string | null;
+  discordUsername?: string | null;
+  avatarUrl?: string | null;
   entitlements?: EntitlementSummary | null;
   claimDropdownOpen?: boolean;
 };
@@ -184,6 +186,7 @@ export type SiteLeagueSearchHit = {
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;
+  openTeamAbbr?: string;
   difficulty?: string;
   streamingRequirement?: string;
   coinEconomyEnabled?: boolean;
@@ -303,6 +306,11 @@ export const siteApi = {
       pendingIncoming: SiteFriendship[];
       pendingOutgoing: SiteFriendship[];
     }>("/v1/site-friends/list", {});
+  },
+  listFriendSuggestions(input: { query?: string; limit?: number } = {}) {
+    return request<{
+      suggestions: Array<{ userId: string; username: string; displayName: string }>;
+    }>("/v1/site-friends/suggestions", input);
   },
   requestFriend(input: { username?: string; userId?: string }) {
     return request<{

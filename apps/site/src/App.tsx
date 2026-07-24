@@ -12,7 +12,6 @@ import { Landing } from "./routes/Landing.js";
 import { LogIn } from "./routes/LogIn.js";
 import {
   CompPage,
-  HeadlinesPage,
   LeagueMgmtInboxPage,
 } from "./routes/placeholders.js";
 import { BadgesPage } from "./routes/Badges.js";
@@ -209,7 +208,6 @@ function Routed() {
         <Route path="/home" element={<HomePage />} />
         <Route path="/badges" element={<BadgesPage />} />
         <Route path="/leagues" element={<LeaguesPage />} />
-        <Route path="/headlines" element={<HeadlinesPage />} />
         <Route path="/comp" element={<CompPage />} />
         <Route path="/account" element={<Account />} />
         <Route path="/inbox" element={<Inbox />} />
