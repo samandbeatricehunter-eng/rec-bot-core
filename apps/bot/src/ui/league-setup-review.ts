@@ -47,6 +47,7 @@ import {
   buildDynastyStructureWindow,
   buildHeatSeekerWindow,
   buildInjuryPolicyWindow,
+  buildAdvanceTimingWindow,
   buildPlayCallNumberWindow,
   buildPreorderBonusesWindow,
   buildQuarterLengthWindow,
@@ -227,7 +228,8 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Quarter Length", "quarter_length"),
       option("Accelerated Clock", "accelerated_clock_enabled"),
       option("Wear & Tear", "wear_and_tear"),
-      option("Injuries", "injury_policy")
+      option("Injuries", "injury_policy"),
+      option("Advance Timing", "advance_timing")
     ] : [
       option("Difficulty", "difficulty"),
       option("Sliders Adjusted", "sliders_adjusted"),
@@ -237,7 +239,8 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Trade Deadline", "trade_deadline"),
       option("Abilities", "abilities"),
       option("Wear & Tear", "wear_and_tear"),
-      option("Injuries", "injury_policy")
+      option("Injuries", "injury_policy"),
+      option("Advance Timing", "advance_timing")
     ],
     franchise: [
       option("Coach Firing", "coach_firing_policy"),
@@ -373,6 +376,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Abilities: ${boolText(draft.abilitiesEnabled)}`,
           `Wear & Tear: ${boolText(draft.wearAndTearEnabled)}`,
           `Injuries: ${fmt(draft.injuryPolicy)}`,
+          `Advance Timing: ${draft.advanceTiming === "other" ? (draft.advanceTimingOther || "Other") : draft.advanceTiming}`,
           `Offense Limit: ${draft.offensivePlayCallLimitsEnabled ? `${draft.offensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
           `Offense Cooldown: ${draft.offensivePlayCallCooldownEnabled ? `${draft.offensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`,
           `Defense Limit: ${draft.defensivePlayCallLimitsEnabled ? `${draft.defensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
@@ -499,6 +503,7 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
           `Quarter Length: ${draft.quarterLengthMinutes}`,
           `Accelerated Clock: ${boolText(draft.acceleratedClockEnabled)}${draft.acceleratedClockEnabled ? ` (${draft.acceleratedClockMinimumSeconds}s)` : ""}`,
           `Injuries: ${fmt(draft.injuryPolicy)}`,
+          `Advance Timing: ${draft.advanceTiming === "other" ? (draft.advanceTimingOther || "Other") : draft.advanceTiming}`,
           `Offense Limit: ${draft.offensivePlayCallLimitsEnabled ? `${draft.offensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
           `Offense Cooldown: ${draft.offensivePlayCallCooldownEnabled ? `${draft.offensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`,
           `Defense Limit: ${draft.defensivePlayCallLimitsEnabled ? `${draft.defensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
@@ -609,6 +614,7 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "abilities": return buildBooleanGameplayWindow(draft, "Gameplay: Abilities", LEAGUE_SETUP_CUSTOM_IDS.abilities, "Abilities enabled?");
     case "wear_and_tear": return buildBooleanGameplayWindow(draft, "Gameplay: Wear & Tear", LEAGUE_SETUP_CUSTOM_IDS.wearAndTear, "Wear & Tear enabled?");
     case "injury_policy": return buildInjuryPolicyWindow(draft);
+    case "advance_timing": return buildAdvanceTimingWindow(draft);
     case "coach_firing_policy": return buildCoachFiringPolicyWindow(draft);
     case "preorder_bonuses": return buildPreorderBonusesWindow(draft);
     case "coach_mode_enabled": return buildBooleanGameplayWindow(draft, "Gameplay: Coach Mode", LEAGUE_SETUP_CUSTOM_IDS.coachModeEnabled, "Coach Mode enabled?");

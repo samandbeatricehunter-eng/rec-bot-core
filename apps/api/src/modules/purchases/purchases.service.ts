@@ -115,6 +115,8 @@ export async function createPurchaseRequest(input: {
   if (config.error) throw new ApiError(500, "Failed to load league purchase configuration.", config.error);
   const cfgRow = (config.data ?? {}) as Record<string, unknown>;
   if (!cfgRow.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
+  const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
+  await assertEconomyPayoutsActive(leagueId);
   if (!cfgRow[cfg.enabled]) throw new ApiError(400, `${label} purchases are not enabled for this league.`);
 
   const seasonNumber = resolveSeasonNumber(context);

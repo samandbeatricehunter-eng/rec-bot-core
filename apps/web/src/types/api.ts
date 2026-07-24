@@ -381,7 +381,7 @@ export type HubResponse = {
   userRatings: null | { displayAsGrade: boolean; viewerUserId: string | null; users: Array<{ userId: string; displayName: string; teamId: string | null; teamName: string | null; rank: number; rating: number; grade: string; statScore: number; badgeScore: number }> };
   liveStreams: Array<{ id: string; url: string; watchPath: string; postedAt: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   highlights: Array<{
-    id: string; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
+    id: string; user_id?: string | null; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
     videoUrl: string | null; streamUid?: string | null; iframeUrl?: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
     viewCount: number; reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
   }>;

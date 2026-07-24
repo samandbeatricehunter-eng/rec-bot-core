@@ -633,7 +633,9 @@ export async function getHub(guildId: string, discordId: string) {
       };
     }),
     myTeam,
-    highlights: hydratedHighlights.map((item: any) => {
+    highlights: hydratedHighlights
+      .filter((item: any) => Boolean(item.iframeUrl || item.videoUrl))
+      .map((item: any) => {
       const rows = (reactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === item.id);
       const counts = Object.fromEntries(HUB_REACTION_KEYS.map((key) => [key, rows.filter((reaction: any) => reaction.reaction_key === key).length]));
       const viewCount = (views.data ?? []).filter((view: any) => view.highlight_post_id === item.id).length;
@@ -673,9 +675,16 @@ export async function recordHubHighlightView(input: { guildId: string; discordId
 export async function toggleHubHighlightReaction(input: { guildId: string; discordId: string; highlightId: string; reactionKey: HubReactionKey }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const userId = await userIdForDiscord(input.discordId);
-  const highlight = await supabase.from("rec_highlight_posts").select("id").eq("id", input.highlightId).eq("league_id", context.leagueId).maybeSingle();
+  const highlight = await supabase.from("rec_highlight_posts").select("id,user_id").eq("id", input.highlightId).eq("league_id", context.leagueId).maybeSingle();
   if (highlight.error) throw new ApiError(500, "Failed to verify highlight.", highlight.error);
   if (!highlight.data) throw new ApiError(404, "Highlight not found.");
+
+  if (
+    HIGHLIGHT_AWARD_REACTION_KEYS.includes(input.reactionKey) &&
+    String(highlight.data.user_id) === String(userId)
+  ) {
+    throw new ApiError(400, "You can't nominate your own highlight for Play of the Year.");
+  }
 
   const existing = await supabase.from("rec_highlight_reactions").select("id").eq("highlight_post_id", input.highlightId).eq("user_id", userId).eq("reaction_key", input.reactionKey).maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to read reaction.", existing.error);

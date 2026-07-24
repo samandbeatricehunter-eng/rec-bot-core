@@ -350,6 +350,12 @@ export type SiteLeagueSearchHit = {
 
   // Shared pills / expanded
   coinEconomyEnabled: boolean;
+  economyPayoutsActive: boolean;
+  economyLinkedUserCount: number;
+  economyMinimumLinkedUsers: number;
+  economyMembersShort: number;
+  advanceTiming: string | null;
+  advanceTimingOther: string | null;
   regularSeasonStreamingRequirement: string | null;
   postseasonStreamingRequirement: string | null;
   /** @deprecated prefer regularSeasonStreamingRequirement */
@@ -535,6 +541,9 @@ export async function searchSiteLeagues(input: {
         c.regular_season_streaming_side,
         c.postseason_streaming_side,
         coalesce(c.coin_economy_enabled, false) as coin_economy_enabled,
+        coalesce(c.coin_economy_minimum_linked_users, 8) as coin_economy_minimum_linked_users,
+        c.advance_timing,
+        c.advance_timing_other,
         coalesce(c.custom_coaches_required, false) as custom_coaches_required,
         coalesce(c.custom_playbooks_allowed, false) as custom_playbooks_allowed,
         c.quarter_length_minutes,
@@ -616,6 +625,14 @@ export async function searchSiteLeagues(input: {
                 and ta.ended_at is null
             )
         ) as open_team_count,
+        (
+          select count(distinct ta.user_id)::int
+          from rec_team_assignments ta
+          where ta.league_id = l.id
+            and ta.assignment_status = 'active'
+            and ta.ended_at is null
+            and ta.user_id is not null
+        ) as linked_user_count,
         (
           select count(distinct user_id)::int
           from (
@@ -707,6 +724,17 @@ export async function searchSiteLeagues(input: {
       isMember: Boolean(row.is_member),
 
       coinEconomyEnabled: Boolean(row.coin_economy_enabled),
+      economyLinkedUserCount: Number(row.linked_user_count ?? 0),
+      economyMinimumLinkedUsers: Math.max(8, Number(row.coin_economy_minimum_linked_users ?? 8)),
+      economyPayoutsActive:
+        Boolean(row.coin_economy_enabled) &&
+        Number(row.linked_user_count ?? 0) >= Math.max(8, Number(row.coin_economy_minimum_linked_users ?? 8)),
+      economyMembersShort: Math.max(
+        0,
+        Math.max(8, Number(row.coin_economy_minimum_linked_users ?? 8)) - Number(row.linked_user_count ?? 0),
+      ),
+      advanceTiming: (row.advance_timing as string | null) ?? "24hr",
+      advanceTimingOther: (row.advance_timing_other as string | null) ?? null,
       regularSeasonStreamingRequirement: regularStream,
       postseasonStreamingRequirement: postStream,
       streamingRequirement: regularStream,

@@ -169,9 +169,39 @@
 .hub-hero-matchup strong { margin-top: 2px; font-family: var(--font-display); font-size: clamp(16px, 2vw, 20px); line-height: 1.05; }
 .hub-hero-team strong { font-size: 14px; }
 .hub-hero-snapshot small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 11px; }
-.hub-hero-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.hub-hero-metrics { display: grid; grid-template-columns: 1fr; gap: 6px; }
 .hub-hero-metrics article { padding: 6px 8px; }
 .hub-hero-metrics strong { font-size: 13px; }
+.hub-hero-metric-wide { grid-column: 1 / -1; }
+.hub-hero-metric-scores {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.hub-hero-metric-scores > div { min-width: 0; }
+.hub-hero-funds-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 6px;
+  align-items: stretch;
+}
+.hub-hero-transfer-btn {
+  align-self: center;
+  min-width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hub-hero-transfer-btn:hover { border-color: var(--gold); color: var(--gold); }
+button.poty:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .hub-eyebrow { display: flex; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-1); color: var(--gold) !important; font-size: var(--text-xs); font-weight: 900; text-transform: uppercase !important; letter-spacing: .08em; }
 .hub-manage-button { flex-shrink: 0; text-decoration: none; }
 /* Sidebar navigation — replaces the old top hub-tabs pill bar. Sidebar on desktop

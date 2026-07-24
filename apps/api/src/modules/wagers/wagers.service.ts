@@ -129,13 +129,9 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   const userId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(userId);
 
-  // Economy gate.
-  const { data: cfg } = await supabase
-    .from("rec_league_configuration")
-    .select("coin_economy_enabled")
-    .eq("league_id", leagueId)
-    .maybeSingle();
-  if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
+  // Economy gate (settings on + linked-user floor).
+  const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
+  await assertEconomyPayoutsActive(leagueId);
 
   const stake = Math.floor(Number(input.stake));
   if (!Number.isFinite(stake) || stake <= 0) throw new ApiError(400, "Enter a positive whole-dollar stake.");
@@ -324,8 +320,8 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   const userId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(userId);
 
-  const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
-  if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
+  const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
+  await assertEconomyPayoutsActive(leagueId);
 
   const stake = Math.floor(Number(input.stake));
   const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, input.gameId, input.market, input.pick, stake, input.customLine);
@@ -710,8 +706,8 @@ export async function placeParlay(input: PlaceParlayInput) {
   const userId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(userId);
 
-  const { data: cfg } = await supabase.from("rec_league_configuration").select("coin_economy_enabled").eq("league_id", leagueId).maybeSingle();
-  if (!cfg?.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
+  const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
+  await assertEconomyPayoutsActive(leagueId);
 
   if (!Array.isArray(input.legs) || input.legs.length !== 3) throw new ApiError(400, "A parlay needs exactly 3 stat-line picks.");
   const gameIds = new Set(input.legs.map((leg) => leg.gameId));

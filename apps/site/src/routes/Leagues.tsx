@@ -267,6 +267,21 @@ function LeagueSearchCard({
 
           <ul className="site-league-search-meta">
             <Pill label="Coin economy" value={onOff(league.coinEconomyEnabled)} />
+            {league.coinEconomyEnabled && !league.economyPayoutsActive ? (
+              <Pill
+                label="Economy payouts"
+                value={`Needs ${league.economyMembersShort} more linked`}
+                title={`Payouts require ${league.economyMinimumLinkedUsers} linked users. This league has ${league.economyLinkedUserCount}.`}
+              />
+            ) : null}
+            <Pill
+              label="Advance timing"
+              value={
+                league.advanceTiming === "other"
+                  ? (league.advanceTimingOther?.trim() || "Other")
+                  : (league.advanceTiming ?? "24hr")
+              }
+            />
             <Pill
               label="Reg streaming"
               value={streamingLabel(league.regularSeasonStreamingRequirement)}

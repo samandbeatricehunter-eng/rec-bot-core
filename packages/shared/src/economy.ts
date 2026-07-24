@@ -32,7 +32,10 @@ const higher = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRul
 const lower = (tiers: Array<[RecPayoutTier, number, number]>): RecPayoutTierRule[] =>
   tiers.map(([tier, threshold, amount]) => ({ tier, threshold, amount, operator: "less_than" }));
 
-export const REC_EOS_MINIMUM_ACTIVE_LINKED_USERS = 0;
+/** Hard floor: coin economy payouts stay blocked until this many users are linked to teams. */
+export const REC_ECONOMY_MINIMUM_LINKED_USERS = 8;
+/** @deprecated Prefer REC_ECONOMY_MINIMUM_LINKED_USERS — kept for older EOS call sites. */
+export const REC_EOS_MINIMUM_ACTIVE_LINKED_USERS = REC_ECONOMY_MINIMUM_LINKED_USERS;
 
 export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   {

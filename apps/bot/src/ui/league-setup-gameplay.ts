@@ -188,6 +188,40 @@ export function buildInjuryPolicyWindow(draft: LeagueSetupDraft) {
   };
 }
 
+export function buildAdvanceTimingWindow(draft: LeagueSetupDraft) {
+  return {
+    embeds: [baseEmbed("Gameplay: Advance Timing", draft)
+      .setDescription("How long do coaches typically have between league advances?")],
+    components: [
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.advanceTiming, "Advance timing", [
+        option("24 hours", "24hr"),
+        option("48 hours", "48hr"),
+        option("72 hours", "72hr"),
+        option("Other", "other", "Enter a custom advance window.")
+      ]),
+      buildNavigationRow()
+    ]
+  };
+}
+
+export function buildAdvanceTimingOtherModal(draft: LeagueSetupDraft) {
+  return new ModalBuilder()
+    .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.advanceTimingOtherModal)
+    .setTitle("Custom Advance Timing")
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.advanceTimingOtherInput)
+          .setLabel("Advance timing window")
+          .setStyle(TextInputStyle.Short)
+          .setRequired(true)
+          .setMaxLength(120)
+          .setValue(draft.advanceTimingOther ?? "")
+          .setPlaceholder("e.g. Every Monday & Thursday at 9pm ET")
+      )
+    );
+}
+
 export function buildPlayCallNumberWindow(draft: LeagueSetupDraft, title: string, customId: string, placeholder: string, isCooldown: boolean = false) {
   const options = Array.from({ length: 10 }, (_, index) => index + 1).map((value) =>
     option(String(value), String(value), isCooldown ? `${value} plays required before repeating` : undefined)

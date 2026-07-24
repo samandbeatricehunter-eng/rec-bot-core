@@ -333,6 +333,8 @@ export function HubHome() {
   const [transferDirection, setTransferDirection] = useState<"to_savings" | "from_savings">("to_savings");
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [transferBusy, setTransferBusy] = useState(false);
+  const [heroTransferOpen, setHeroTransferOpen] = useState(false);
+  const [deadHighlightIds, setDeadHighlightIds] = useState<string[]>([]);
   const [purchaseType, setPurchaseType] = useState("");
   const [purchaseDetails, setPurchaseDetails] = useState<Record<string, string>>({});
   const [purchaseStatus, setPurchaseStatus] = useState<string | null>(null);
@@ -344,18 +346,36 @@ export function HubHome() {
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
   const viewedHighlights = useRef(new Set<string>());
 
-  const highlightCount = hub?.highlights?.length ?? 0;
+  const highlightCount = (hub?.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id)).length;
   const activeHighlightIndex = highlightCount ? highlightIndex % highlightCount : 0;
   const highlightSwipe = useSwipeNavigation({ itemCount: highlightCount, onIndexChange: setHighlightIndex });
   useEffect(() => { highlightSwipe.setCurrentIndex(activeHighlightIndex); }, [activeHighlightIndex]);
-  // Cloudflare iframes never fire video onEnded — advance the reel on a timer.
+  useEffect(() => { setDeadHighlightIds([]); setHighlightIndex(0); }, [hub?.league?.id]);
+  // Advance highlight reel only when Cloudflare reports the clip ended — no wall-clock fallback
+  // (a 90s timer was cutting longer clips short).
   useEffect(() => {
-    if (subTab !== "buzz" || highlightCount <= 1 || highlightSwipe.isDragging) return;
-    const timer = window.setInterval(() => {
-      setHighlightIndex((current) => (current + 1) % highlightCount);
-    }, 7000);
-    return () => window.clearInterval(timer);
-  }, [subTab, highlightCount, highlightSwipe.isDragging]);
+    if (subTab !== "buzz" || highlightCount <= 1) return;
+    function onMessage(event: MessageEvent) {
+      const origin = String(event.origin ?? "");
+      if (!origin.includes("videodelivery.net") && !origin.includes("cloudflarestream.com")) return;
+      let data: unknown = event.data;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          if (data === "ended") setHighlightIndex((current) => (current + 1) % highlightCount);
+          return;
+        }
+      }
+      const payload = data as { name?: string; eventName?: string; type?: string; event?: string } | null;
+      const name = payload?.name ?? payload?.eventName ?? payload?.type ?? payload?.event;
+      if (name === "ended" || name === "complete") {
+        setHighlightIndex((current) => (current + 1) % highlightCount);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [subTab, highlightCount]);
 
   useEffect(() => {
     const nextSection = parseHubSection(searchParams.get("section"));
@@ -422,7 +442,7 @@ export function HubHome() {
     if (subTab !== "buzz" || headlineCount <= 1 || mobileStorySwipe.isDragging) return;
     const timer = window.setInterval(() => {
       setStoryCarouselIndex((current) => (current + 1) % headlineCount);
-    }, 5000);
+    }, 24_000);
     return () => window.clearInterval(timer);
   }, [subTab, headlineCount, mobileStorySwipe.isDragging]);
 
@@ -909,7 +929,7 @@ export function HubHome() {
     );
   }
   const headlines = hub.headlines ?? [];
-  const highlights = hub.highlights ?? [];
+  const highlights = (hub.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id));
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
   const heroRank = profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked";
@@ -939,6 +959,13 @@ export function HubHome() {
     ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
     : "Pending";
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
+  const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
+    ?? (activeHighlight as { userId?: string | null } | null)?.userId
+    ?? null;
+  const potyOwnHighlight =
+    Boolean(highlightOwnerId) &&
+    Boolean(hub.userRatings?.viewerUserId) &&
+    String(highlightOwnerId) === String(hub.userRatings?.viewerUserId);
   const activeStory = activeStoryIndex != null ? headlines[activeStoryIndex] ?? null : null;
   const openTeamsByConference = (openTeams ?? []).reduce<Record<string, OpenTeam[]>>((groups, team) => {
     const conference = team.conference || "Other";
@@ -1050,12 +1077,53 @@ export function HubHome() {
               <div className="hub-hero-matchup"><span>This week</span><strong>{my.currentMatchupText ?? "No matchup"}</strong>{heroGotw && <small>{heroGotw}</small>}</div>
               <div className="hub-hero-team"><span>Team</span><strong>{heroTeam}</strong>{heroSchool ? <small>{heroSchool}</small> : null}</div>
               <div className="hub-hero-metrics">
-                <article><span>Record</span><strong>{heroRecord}</strong><small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff</small></article>
-                <article><span>Streak</span><strong>{heroStreak}</strong><small>Current W/L</small></article>
-                <article><span>Power Rank</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small></article>
-                <article><span>Coach Score</span><strong>{heroCoachScore}</strong><small>{heroCoachMeta}</small></article>
-                <article><span>User Score</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article>
-                <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Savings <CoinAmount amount={Number(my.savings ?? 0)} /></small></article>
+                <article className="hub-hero-metric-wide">
+                  <span>Record &amp; Streak</span>
+                  <strong>{heroRecord} · {heroStreak}</strong>
+                  <small>{heroDifferential >= 0 ? "+" : ""}{heroDifferential} diff · Current W/L</small>
+                </article>
+                <article className="hub-hero-metric-wide hub-hero-metric-scores">
+                  <div>
+                    <span>Power Rank</span>
+                    <strong>{heroRank}</strong>
+                    <small>{profile.powerRank?.rank ? `${powerRankScore} · ${powerRankSos}` : "Pending"}</small>
+                  </div>
+                  <div>
+                    <span>Coach Score</span>
+                    <strong>{heroCoachScore}</strong>
+                    <small>{heroCoachMeta}</small>
+                  </div>
+                  <div>
+                    <span>User Score</span>
+                    <strong>{heroUserScore}</strong>
+                    <small>{heroUserMeta}</small>
+                  </div>
+                </article>
+                <div className="hub-hero-funds-row">
+                  <article>
+                    <span>Wallet</span>
+                    <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong>
+                  </article>
+                  <button
+                    type="button"
+                    className="hub-hero-transfer-btn"
+                    title="Transfer between wallet and savings"
+                    aria-label="Transfer funds"
+                    onClick={() => {
+                      setTransferDirection("to_savings");
+                      setTransferAmount("");
+                      setTransferStatus(null);
+                      setHeroTransferOpen(true);
+                    }}
+                  >
+                    ↔
+                  </button>
+                  <article>
+                    <span>Savings</span>
+                    <strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong>
+                    <small>Next advance +<CoinAmount amount={Number(my.projectedInterest ?? 0)} /></small>
+                  </article>
+                </div>
               </div>
             </aside>
           </section>
@@ -1133,11 +1201,11 @@ export function HubHome() {
               onPointerUp={highlightSwipe.handlers.onPointerUp}
               onPointerCancel={highlightSwipe.handlers.onPointerCancel}
             >
-              <div className="hub-video-frame">{activeHighlight.iframeUrl || activeHighlight.streamUid ? <iframe key={activeHighlight.id} src={`${activeHighlight.iframeUrl ?? `https://iframe.videodelivery.net/${activeHighlight.streamUid}`}?autoplay=true&muted=true`} title="Highlight" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => void recordView(activeHighlight.id)} /> : activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
-              <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount} · Season {activeHighlight.season_number} · {activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
+              <div className="hub-video-frame">{activeHighlight.iframeUrl || activeHighlight.streamUid ? <iframe key={activeHighlight.id} src={`${activeHighlight.iframeUrl ?? `https://iframe.videodelivery.net/${activeHighlight.streamUid}`}?autoplay=true&muted=true`} title="Highlight" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => void recordView(activeHighlight.id)} /> : activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} onError={() => { setDeadHighlightIds((ids) => ids.includes(activeHighlight.id) ? ids : [...ids, activeHighlight.id]); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
+              <div className="hub-highlight-meta"><strong>{activeHighlight.team?.name ?? activeHighlight.user?.display_name ?? "REC Highlight"}</strong><span>{activeHighlightIndex + 1} of {highlightCount}{" \u00B7 "}Season {activeHighlight.season_number}{" \u00B7 "}{activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span></div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
               <div className="hub-highlight-reactions">
                 <button aria-label="Like" className={(activeHighlight.myReactions ?? []).includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={18} /><b>Like</b><small>{activeHighlight.reactionCounts?.like || ""}</small></button>
-                <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => (activeHighlight.myReactions ?? []).includes(key)) ? " active" : ""}`} onClick={() => { setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => (activeHighlight.myReactions ?? []).includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + (activeHighlight.reactionCounts?.[key] ?? 0), 0) || ""}</small></button>
+                <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => (activeHighlight.myReactions ?? []).includes(key)) ? " active" : ""}`} disabled={potyOwnHighlight} title={potyOwnHighlight ? "You can't nominate your own highlight" : "Nominate for Play of the Year"} onClick={() => { if (potyOwnHighlight) return; setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => (activeHighlight.myReactions ?? []).includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + (activeHighlight.reactionCounts?.[key] ?? 0), 0) || ""}</small></button>
                 <button aria-label="Dislike" className={(activeHighlight.myReactions ?? []).includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts?.dislike || ""}</small></button>
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
@@ -1323,6 +1391,62 @@ export function HubHome() {
       <div>{AWARD_REACTIONS.map((reaction) => <label key={reaction.key} className={potyCategory === reaction.key ? "active" : ""}><input type="radio" name="poty-category" value={reaction.key} checked={potyCategory === reaction.key} onChange={() => setPotyCategory(reaction.key)} /><span>{reaction.label}</span></label>)}</div>
       <Button variant="primary" disabled={!potyCategory} onClick={async () => { if (!potyCategory) return; await highlightReact(potyHighlightId, potyCategory); setPotyHighlightId(null); setPotyCategory(""); }}>Submit Nomination</Button>
     </div></Modal>}
+    {heroTransferOpen && (
+      <Modal title="Transfer Funds" onClose={() => setHeroTransferOpen(false)}>
+        <div className="hub-poty-modal">
+          <p>Move coins between wallet and savings. Amount cannot exceed your available balance.</p>
+          <label className="form-field">
+            <span className="form-label">Direction</span>
+            <select
+              className="form-input"
+              value={transferDirection}
+              onChange={(event) => setTransferDirection(event.target.value as typeof transferDirection)}
+            >
+              <option value="to_savings">Wallet → Savings</option>
+              <option value="from_savings">Savings → Wallet</option>
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="form-label">Amount</span>
+            <input
+              className="form-input"
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={
+                transferDirection === "to_savings"
+                  ? Number(my.wallet ?? 0)
+                  : Number(my.savings ?? 0)
+              }
+              placeholder="Amount"
+              value={transferAmount}
+              onChange={(event) => setTransferAmount(event.target.value)}
+            />
+          </label>
+          <p className="hub-muted">
+            Available:{" "}
+            <CoinAmount
+              amount={
+                transferDirection === "to_savings"
+                  ? Number(my.wallet ?? 0)
+                  : Number(my.savings ?? 0)
+              }
+            />
+          </p>
+          {transferStatus ? <p className="hub-transfer-status">{transferStatus}</p> : null}
+          <Button
+            variant="primary"
+            disabled={transferBusy || !transferAmount}
+            onClick={async () => {
+              await transferFunds();
+              setHeroTransferOpen(false);
+            }}
+          >
+            {transferBusy ? "Transferring…" : "Transfer"}
+          </Button>
+        </div>
+      </Modal>
+    )}
     {activeStory ? (
       <ExpandedArticleView
         stories={headlines}

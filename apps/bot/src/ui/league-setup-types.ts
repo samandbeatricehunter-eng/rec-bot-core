@@ -46,6 +46,9 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   abilities: "rec:league_setup:abilities",
   wearAndTear: "rec:league_setup:wear_and_tear",
   injuryPolicy: "rec:league_setup:injury_policy",
+  advanceTiming: "rec:league_setup:advance_timing",
+  advanceTimingOtherModal: "rec:league_setup:advance_timing_other_modal",
+  advanceTimingOtherInput: "rec:league_setup:advance_timing_other_input",
   offensiveLimitsEnabled: "rec:league_setup:off_limits_enabled",
   offensiveLimit: "rec:league_setup:off_limit",
   offensiveCooldownEnabled: "rec:league_setup:off_cooldown_enabled",
@@ -160,6 +163,7 @@ export type LeagueSetupStep =
   | "abilities"
   | "wear_and_tear"
   | "injury_policy"
+  | "advance_timing"
   | "coach_firing_policy"
   | "preorder_bonuses"
   | "coach_mode_enabled"
@@ -241,6 +245,8 @@ export type LeagueSetupDraft = {
   cpuTradingRestriction: string;
   cpuFreeAgencyPolicy: "open" | "restricted" | "disabled";
   injuryPolicy: "off" | "on_standard" | "on_reduced";
+  advanceTiming: "24hr" | "48hr" | "72hr" | "other";
+  advanceTimingOther: string;
   difficulty: "rookie" | "pro" | "all_pro" | "all_madden";
   slidersAdjusted: boolean;
   difficultyCustomSettings: string;
@@ -356,6 +362,7 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "abilities",
   "wear_and_tear",
   "injury_policy",
+  "advance_timing",
   "coach_firing_policy",
   "preorder_bonuses",
   "coach_mode_enabled",
@@ -437,6 +444,8 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     cpuTradingRestriction: "",
     cpuFreeAgencyPolicy: "disabled",
     injuryPolicy: "on_standard",
+    advanceTiming: "24hr",
+    advanceTimingOther: "",
     difficulty: "all_madden",
     slidersAdjusted: false,
     difficultyCustomSettings: "",

@@ -264,6 +264,9 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     trade_deadline_enabled: input.tradeDeadlineEnabled,
     abilities_enabled: input.abilitiesEnabled,
     wear_and_tear_enabled: input.wearAndTearEnabled,
+    advance_timing: input.advanceTiming ?? "24hr",
+    advance_timing_other:
+      (input.advanceTiming ?? "24hr") === "other" ? (input.advanceTimingOther ?? null) : null,
 
     coach_firing_policy: input.coachFiringPolicy,
     preorder_bonuses_enabled: input.preorderBonusesEnabled,
@@ -491,6 +494,9 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     trade_deadline_enabled: input.tradeDeadlineEnabled,
     abilities_enabled: input.abilitiesEnabled,
     wear_and_tear_enabled: input.wearAndTearEnabled,
+    advance_timing: input.advanceTiming ?? "24hr",
+    advance_timing_other:
+      (input.advanceTiming ?? "24hr") === "other" ? (input.advanceTimingOther ?? null) : null,
     coach_firing_policy: input.coachFiringPolicy,
     preorder_bonuses_enabled: input.preorderBonusesEnabled,
     coach_mode_enabled: input.coachModeEnabled,
@@ -620,6 +626,8 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     tradeDeadlineEnabled: c.trade_deadline_enabled ?? false,
     abilitiesEnabled: c.abilities_enabled ?? true,
     wearAndTearEnabled: c.wear_and_tear_enabled ?? true,
+    advanceTiming: c.advance_timing ?? "24hr",
+    advanceTimingOther: c.advance_timing_other ?? "",
     coachFiringPolicy: c.coach_firing_policy ?? "on",
     preorderBonusesEnabled: c.preorder_bonuses_enabled ?? true,
     coachModeEnabled: c.coach_mode_enabled ?? false,

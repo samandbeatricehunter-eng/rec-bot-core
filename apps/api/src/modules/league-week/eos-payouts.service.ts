@@ -455,6 +455,9 @@ export async function reviewEosPayoutItem(input: { itemId: string; action: "appr
     return { updated: true, item: denied.data };
   }
 
+  const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
+  await assertEconomyPayoutsActive(String(existing.data.league_id));
+
   const ledger = await supabase.rpc("add_to_wallet", {
     p_user_id: existing.data.user_id,
     p_amount: Number(existing.data.amount ?? 0),

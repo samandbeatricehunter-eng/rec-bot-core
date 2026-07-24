@@ -11,6 +11,7 @@ import {
   buildCoachAbilitiesRestrictionModal,
   buildCpuTradingRestrictionModal,
   buildDifficultyCustomModal,
+  buildAdvanceTimingOtherModal,
   buildFourthDownCustomModal,
   buildLeagueSetupWindow,
   buildLeagueSetupServerChannelModal,
@@ -283,6 +284,15 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     case LEAGUE_SETUP_CUSTOM_IDS.abilities: draft.abilitiesEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.wearAndTear: draft.wearAndTearEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.injuryPolicy: draft.injuryPolicy = value as LeagueSetupDraft["injuryPolicy"]; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.advanceTiming: {
+      draft.advanceTiming = value as LeagueSetupDraft["advanceTiming"];
+      if (draft.advanceTiming === "other") {
+        leagueSetupSessions.set(interaction.user.id, draft);
+        return interaction.showModal(buildAdvanceTimingOtherModal(draft));
+      }
+      draft.advanceTimingOther = "";
+      break;
+    }
     case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimitsEnabled: draft.offensivePlayCallLimitsEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.offensiveLimit: draft.offensivePlayCallLimit = Number(value); break;
     case LEAGUE_SETUP_CUSTOM_IDS.offensiveCooldownEnabled: draft.offensivePlayCallCooldownEnabled = value === "yes"; break;
@@ -633,6 +643,15 @@ export async function handleDifficultyCustomModal(interaction: Extract<Interacti
   if (draft.difficulty === ("custom" as LeagueSetupDraft["difficulty"])) {
     draft.difficulty = "all_madden";
   }
+  return finishModalStep(interaction, draft);
+}
+
+export async function handleAdvanceTimingOtherModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
+  if (!interaction.isModalSubmit()) return;
+  const draft = leagueSetupSessions.get(interaction.user.id);
+  if (!draft) return interaction.reply({ content: "Session expired. Reopen /menu.", flags: MessageFlags.Ephemeral });
+  draft.advanceTiming = "other";
+  draft.advanceTimingOther = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.advanceTimingOtherInput).trim();
   return finishModalStep(interaction, draft);
 }
 

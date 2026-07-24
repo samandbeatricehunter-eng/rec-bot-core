@@ -326,5 +326,25 @@ export async function subscriptionRoutes(app: FastifyInstance) {
     }
   });
 
+  app.post("/v1/subscriptions/internal/notify-free-claim", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { notifyUnclaimedCfbFreeAccounts } = await import("./free-claim-notice.service.js");
+      return reply.send(await notifyUnclaimedCfbFreeAccounts());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/subscriptions/internal/expire-unclaimed-free-lifetime", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { expireUnclaimedFreeLifetimePlatinum } = await import("./entitlements.service.js");
+      return reply.send(await expireUnclaimedFreeLifetimePlatinum());
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
 
 }

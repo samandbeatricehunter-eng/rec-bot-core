@@ -136,6 +136,7 @@ import {
   handleCoachAbilitiesRestrictionModal,
   handleCpuTradingRestrictionModal,
   handleDifficultyCustomModal,
+  handleAdvanceTimingOtherModal,
   handleFourthDownCustomModal,
   handleLeagueSetupButton,
   handleLeagueSetupSave,
@@ -917,6 +918,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.positionChangeRestrictionModal) return handlePositionRestrictionModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionModal) return handleCpuTradingRestrictionModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomModal) return handleDifficultyCustomModal(interaction);
+      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.advanceTimingOtherModal) return handleAdvanceTimingOtherModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapModalPrefix}:`)) return handleAttributeCapModal(interaction);
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);

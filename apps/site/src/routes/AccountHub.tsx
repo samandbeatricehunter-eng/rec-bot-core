@@ -55,6 +55,20 @@ export function AccountHub({
   const auth = useAuth();
   const [tab, setTab] = useState<AccountTab>(() => tabFromSearch());
   const [homeCard, setHomeCard] = useState<SiteHomeCard | null>(null);
+  const [careerGames, setCareerGames] = useState<
+    Array<{
+      game: string;
+      gameLabel: string;
+      gamesLogged: number;
+      passingYards: number;
+      rushingYards: number;
+      totalYards: number;
+      firstDowns: number;
+      turnoversGenerated: number;
+      turnoversCommitted: number;
+      turnoverDifferential: number;
+    }>
+  >([]);
   const [badges, setBadges] = useState<
     Array<{
       badge_key: string;
@@ -62,7 +76,9 @@ export function AccountHub({
       polarity: string | null;
       tier: string | null;
       earned_count: number | null;
-      league_id: string | null;
+      description?: string;
+      earnedByGame?: Record<string, number>;
+      league_id?: string | null;
     }>
   >([]);
   const [friends, setFriends] = useState<{
@@ -82,6 +98,7 @@ export function AccountHub({
     regular: SiteNotificationItem[];
     commissioner: SiteNotificationItem[];
   }>({ regular: [], commissioner: [] });
+  const [passwordEditorOpen, setPasswordEditorOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     current: "",
     next: "",
@@ -111,6 +128,7 @@ export function AccountHub({
     Promise.all([
       siteApi.getHomeCard().catch(() => null),
       siteApi.listMyBadges().catch(() => ({ badges: [], count: 0 })),
+      siteApi.listCareerStatsByGame().catch(() => ({ games: [] })),
       siteApi.listFriends().catch(() => ({
         accepted: [],
         pendingIncoming: [],
@@ -122,10 +140,11 @@ export function AccountHub({
         commissioner: [],
         unreadCount: 0,
       })),
-    ]).then(([card, badgePayload, friendPayload, suggestionPayload, notifPayload]) => {
+    ]).then(([card, badgePayload, careerPayload, friendPayload, suggestionPayload, notifPayload]) => {
       if (cancelled) return;
       setHomeCard(card);
       setBadges(badgePayload.badges ?? []);
+      setCareerGames(careerPayload.games ?? []);
       setFriends(friendPayload);
       setSuggestions(suggestionPayload.suggestions ?? []);
       setNotifications({
@@ -188,6 +207,7 @@ export function AccountHub({
       if (update.error) throw update.error;
       setPasswordForm({ current: "", next: "", confirm: "" });
       setPasswordNotice("Password updated.");
+    setPasswordEditorOpen(false);
     } catch (err) {
       setPasswordError(err instanceof Error ? err.message : "Could not update password.");
     } finally {
@@ -307,10 +327,18 @@ export function AccountHub({
             <div className="site-account-password">
               <p>
                 Password{" "}
-                <button type="button" className="site-text-link" onClick={() => void changePassword()}>
-                  Change
-                </button>{" "}
-                ·{" "}
+                <button
+                  type="button"
+                  className="site-text-link"
+                  onClick={() => {
+                    setPasswordEditorOpen((open) => !open);
+                    setPasswordError(null);
+                    setPasswordNotice(null);
+                  }}
+                >
+                  {passwordEditorOpen ? "Cancel" : "Change"}
+                </button>
+                {" · "}
                 <button
                   type="button"
                   className="site-text-link"
@@ -320,40 +348,42 @@ export function AccountHub({
                   Reset
                 </button>
               </p>
-              <div className="site-account-password-fields">
-                <input
-                  type="password"
-                  placeholder="Current password"
-                  value={passwordForm.current}
-                  onChange={(e) =>
-                    setPasswordForm((current) => ({ ...current, current: e.target.value }))
-                  }
-                />
-                <input
-                  type="password"
-                  placeholder="New password"
-                  value={passwordForm.next}
-                  onChange={(e) =>
-                    setPasswordForm((current) => ({ ...current, next: e.target.value }))
-                  }
-                />
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={passwordForm.confirm}
-                  onChange={(e) =>
-                    setPasswordForm((current) => ({ ...current, confirm: e.target.value }))
-                  }
-                />
-                <button
-                  type="button"
-                  className="site-btn site-btn-primary"
-                  disabled={passwordBusy}
-                  onClick={() => void changePassword()}
-                >
-                  {passwordBusy ? "Saving…" : "Save password"}
-                </button>
-              </div>
+              {passwordEditorOpen ? (
+                <div className="site-account-password-fields">
+                  <input
+                    type="password"
+                    placeholder="Current password"
+                    value={passwordForm.current}
+                    onChange={(e) =>
+                      setPasswordForm((current) => ({ ...current, current: e.target.value }))
+                    }
+                  />
+                  <input
+                    type="password"
+                    placeholder="New password"
+                    value={passwordForm.next}
+                    onChange={(e) =>
+                      setPasswordForm((current) => ({ ...current, next: e.target.value }))
+                    }
+                  />
+                  <input
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={passwordForm.confirm}
+                    onChange={(e) =>
+                      setPasswordForm((current) => ({ ...current, confirm: e.target.value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    className="site-btn site-btn-primary"
+                    disabled={passwordBusy}
+                    onClick={() => void changePassword()}
+                  >
+                    {passwordBusy ? "Saving..." : "Save password"}
+                  </button>
+                </div>
+              ) : null}
               {passwordError ? <p className="site-auth-error">{passwordError}</p> : null}
               {passwordNotice ? <p className="site-auth-success">{passwordNotice}</p> : null}
               {resetNotice ? <p className="site-muted">{resetNotice}</p> : null}
@@ -403,7 +433,7 @@ export function AccountHub({
         </section>
       ) : null}
 
-      {tab === "stats" ? (
+            {tab === "stats" ? (
         <section className="site-account-panel">
           <h2>Global stats</h2>
           <div className="site-account-stat-grid">
@@ -416,7 +446,7 @@ export function AccountHub({
               <strong>
                 {homeCard?.userRating?.displayAsGrade
                   ? homeCard.userRating.grade
-                  : homeCard?.userRating?.rating ?? "—"}
+                  : homeCard?.userRating?.rating ?? "-"}
               </strong>
             </article>
             <article>
@@ -424,25 +454,58 @@ export function AccountHub({
               <strong>{homeCard?.badgeCount ?? badges.length}</strong>
             </article>
           </div>
+
+          <h3>Stats by game</h3>
+          {careerGames.length ? (
+            <div className="site-account-game-stats">
+              {careerGames.map((game) => (
+                <details key={game.game} className="site-account-game-block">
+                  <summary>{game.gameLabel}</summary>
+                  <div className="site-account-stat-grid">
+                    <article><span>Games logged</span><strong>{game.gamesLogged}</strong></article>
+                    <article><span>Passing yards</span><strong>{game.passingYards.toLocaleString()}</strong></article>
+                    <article><span>Rushing yards</span><strong>{game.rushingYards.toLocaleString()}</strong></article>
+                    <article><span>Total yards</span><strong>{game.totalYards.toLocaleString()}</strong></article>
+                    <article><span>First downs</span><strong>{game.firstDowns.toLocaleString()}</strong></article>
+                    <article><span>TO generated</span><strong>{game.turnoversGenerated}</strong></article>
+                    <article><span>TO committed</span><strong>{game.turnoversCommitted}</strong></article>
+                    <article><span>TO differential</span><strong>{game.turnoverDifferential}</strong></article>
+                  </div>
+                </details>
+              ))}
+            </div>
+          ) : (
+            <p className="site-muted">No box-score career stats logged yet.</p>
+          )}
+
           <h3>All-time badges</h3>
           {badges.length ? (
             <ul className="site-account-badge-list">
-              {badges.map((badge) => (
-                <li key={`${badge.badge_key}-${badge.league_id ?? "g"}-${badge.badge_scope}`}>
-                  <strong>{badge.badge_key.replaceAll("_", " ")}</strong>
-                  <span>
-                    {badge.badge_scope}
-                    {badge.tier ? ` · ${badge.tier}` : ""}
-                    {badge.earned_count ? ` · ×${badge.earned_count}` : ""}
-                  </span>
-                </li>
-              ))}
+              {badges.map((badge) => {
+                const byGame = Object.entries(badge.earnedByGame ?? {})
+                  .map(([game, count]) => game.replaceAll("_", " ") + ": x" + count)
+                  .join(" | ");
+                const tip = [badge.description, byGame].filter(Boolean).join(" \u2014 ");
+                return (
+                  <li
+                    key={badge.badge_key + "-" + badge.badge_scope}
+                    title={tip}
+                  >
+                    <strong>{badge.badge_key.replaceAll("_", " ")}</strong>
+                    <span>
+                      {badge.badge_scope}
+                      {badge.tier ? " \u00B7 " + badge.tier : ""}
+                      {badge.earned_count ? " \u00B7 x" + badge.earned_count : ""}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="site-muted">No badges yet.</p>
           )}
           <p className="site-muted">
-            League-specific records and awards stay on each league&apos;s My Team page.
+            Hover a badge for its qualifier and per-game earn counts. League awards also live on each league&apos;s My Team page.
           </p>
         </section>
       ) : null}

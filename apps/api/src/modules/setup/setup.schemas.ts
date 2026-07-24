@@ -129,6 +129,9 @@ export const CreateLeagueSchema = z.object({
   abilitiesEnabled: z.boolean().default(true),
   wearAndTearEnabled: z.boolean().default(true),
 
+  advanceTiming: z.enum(["24hr", "48hr", "72hr", "other"]).default("24hr"),
+  advanceTimingOther: z.string().max(120).optional().nullable(),
+
   // Franchise settings (shared across Madden and CFB).
   coachFiringPolicy: z.enum(["off", "on", "cpu_only"]).default("on"),
   preorderBonusesEnabled: z.boolean().default(true),

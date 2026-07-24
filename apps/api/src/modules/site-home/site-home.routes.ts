@@ -9,6 +9,7 @@ import {
   getSpotlightReel,
   listSiteAnnouncements,
   listUserBadges,
+  listUserCareerStatsByGame,
   refreshSpotlightReel,
   toggleSpotlightReaction,
 } from "./site-home.service.js";
@@ -96,6 +97,15 @@ export async function siteHomeRoutes(app: FastifyInstance) {
       return sendError(reply, error);
     }
   });
+  app.post("/v1/site-home/career-stats", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      return reply.send(await listUserCareerStatsByGame({ authUserId: session.authUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
 
   /** Cron: daily 8:00 AM America/Chicago — refresh top-5 Spotlight Reel. */
   app.post("/v1/site-home/spotlight/refresh", async (request, reply) => {

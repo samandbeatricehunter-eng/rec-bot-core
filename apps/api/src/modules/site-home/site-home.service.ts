@@ -1,3 +1,4 @@
+import { GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { randomUUID } from "node:crypto";
 import { ApiError } from "../../lib/errors.js";
 import { streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
@@ -125,7 +126,7 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
   }
 
   return {
-    displayName: user.displayName,
+    displayName: user.username ?? user.displayName,
     username: user.username,
     globalRecord: {
       wins: Number(globalRecord.wins ?? 0),
@@ -299,6 +300,8 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
       const post = postById.get(String(slot.highlight_post_id)) as any | undefined;
       if (!post) return null;
       const play = playbackFor(post);
+      // Skip dead / not-ready clips so the carousel never lands on a black player.
+      if (!play.iframeUrl && !play.videoUrl) return null;
       const rows = (spotlightReactions.data ?? []).filter(
         (reaction) => String(reaction.highlight_post_id) === String(post.id),
       );
@@ -504,11 +507,107 @@ export async function listUserBadges(input: { authUserId: string }) {
   const rows = await supabase
     .from("rec_badge_ownership")
     .select(
-      "badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week",
+      "badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week,league:rec_leagues(game)",
     )
     .eq("user_id", user.recUserId)
     .order("updated_at", { ascending: false })
     .limit(200);
   if (rows.error) throw new ApiError(500, "Failed to load badges.", rows.error);
-  return { badges: rows.data ?? [], count: (rows.data ?? []).length };
+
+  const descByKey = new Map<string, string>();
+  for (const badge of [...GAME_BADGES, ...SEASON_BADGES]) {
+    descByKey.set(badge.key, badge.description);
+  }
+
+  const grouped = new Map<string, {
+    badge_key: string;
+    badge_scope: string;
+    polarity: string | null;
+    tier: string | null;
+    earned_count: number;
+    description: string;
+    earnedByGame: Record<string, number>;
+  }>();
+
+  for (const row of rows.data ?? []) {
+    const key = String(row.badge_key);
+    const game = String((row as any).league?.game ?? "global");
+    const count = Number(row.earned_count ?? 1);
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        badge_key: key,
+        badge_scope: String(row.badge_scope ?? "game"),
+        polarity: row.polarity ?? null,
+        tier: row.tier ?? null,
+        earned_count: count,
+        description: descByKey.get(key) ?? key.replaceAll("_", " "),
+        earnedByGame: { [game]: count },
+      });
+    } else {
+      existing.earned_count += count;
+      existing.earnedByGame[game] = (existing.earnedByGame[game] ?? 0) + count;
+    }
+  }
+
+  const badges = [...grouped.values()];
+  return { badges, count: badges.length };
+}
+
+export async function listUserCareerStatsByGame(input: { authUserId: string }) {
+  const user = await requireLinkedRecUser(input.authUserId);
+  const rows = await supabase
+    .from("rec_user_box_score_profile_stats")
+    .select(
+      "league_id,season_number,scope,games_logged,box_scores_uploaded,total_yards,passing_yards,rushing_yards,first_downs,turnovers_generated,turnovers_committed,turnover_differential,red_zone_off_pct_avg,red_zone_def_pct_avg,active_streak,league:rec_leagues(game,name)",
+    )
+    .eq("user_id", user.recUserId)
+    .eq("scope", "career");
+  if (rows.error) throw new ApiError(500, "Failed to load career stats.", rows.error);
+
+  const byGame = new Map<string, {
+    game: string;
+    gameLabel: string;
+    gamesLogged: number;
+    passingYards: number;
+    rushingYards: number;
+    totalYards: number;
+    firstDowns: number;
+    turnoversGenerated: number;
+    turnoversCommitted: number;
+    turnoverDifferential: number;
+  }>();
+
+  const labels: Record<string, string> = {
+    madden_26: "Madden 26",
+    madden_27: "Madden 27",
+    cfb_27: "CFB 27",
+  };
+
+  for (const row of rows.data ?? []) {
+    const game = String((row as any).league?.game ?? "unknown");
+    const current = byGame.get(game) ?? {
+      game,
+      gameLabel: labels[game] ?? game,
+      gamesLogged: 0,
+      passingYards: 0,
+      rushingYards: 0,
+      totalYards: 0,
+      firstDowns: 0,
+      turnoversGenerated: 0,
+      turnoversCommitted: 0,
+      turnoverDifferential: 0,
+    };
+    current.gamesLogged += Number(row.games_logged ?? 0);
+    current.passingYards += Number(row.passing_yards ?? 0);
+    current.rushingYards += Number(row.rushing_yards ?? 0);
+    current.totalYards += Number(row.total_yards ?? 0);
+    current.firstDowns += Number(row.first_downs ?? 0);
+    current.turnoversGenerated += Number(row.turnovers_generated ?? 0);
+    current.turnoversCommitted += Number(row.turnovers_committed ?? 0);
+    current.turnoverDifferential += Number(row.turnover_differential ?? 0);
+    byGame.set(game, current);
+  }
+
+  return { games: [...byGame.values()].sort((a, b) => a.gameLabel.localeCompare(b.gameLabel)) };
 }

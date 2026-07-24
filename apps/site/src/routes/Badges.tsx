@@ -8,9 +8,11 @@ type BadgeRow = {
   badge_scope: string;
   polarity: string | null;
   tier: string | null;
+  description?: string;
+  earnedByGame?: Record<string, number>;
   earned_count: number | null;
-  season: number | null;
-  week: number | null;
+  season?: number | null;
+  week?: number | null;
 };
 
 function labelFor(key: string) {

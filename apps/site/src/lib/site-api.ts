@@ -180,6 +180,12 @@ export type SiteLeagueSearchHit = {
   isMember: boolean;
 
   coinEconomyEnabled: boolean;
+  economyPayoutsActive: boolean;
+  economyLinkedUserCount: number;
+  economyMinimumLinkedUsers: number;
+  economyMembersShort: number;
+  advanceTiming: string | null;
+  advanceTimingOther: string | null;
   regularSeasonStreamingRequirement: string | null;
   postseasonStreamingRequirement: string | null;
   streamingRequirement: string | null;
@@ -576,13 +582,31 @@ export const siteApi = {
         polarity: string | null;
         tier: string | null;
         earned_count: number | null;
-        league_id: string | null;
-        season: number | null;
-        week: number | null;
-        updated_at: string | null;
+        description?: string;
+        earnedByGame?: Record<string, number>;
+        league_id?: string | null;
+        season?: number | null;
+        week?: number | null;
+        updated_at?: string | null;
       }>;
       count: number;
     }>("/v1/site-home/badges", {});
+  },
+  listCareerStatsByGame() {
+    return request<{
+      games: Array<{
+        game: string;
+        gameLabel: string;
+        gamesLogged: number;
+        passingYards: number;
+        rushingYards: number;
+        totalYards: number;
+        firstDowns: number;
+        turnoversGenerated: number;
+        turnoversCommitted: number;
+        turnoverDifferential: number;
+      }>;
+    }>("/v1/site-home/career-stats", {});
   },
 };
 

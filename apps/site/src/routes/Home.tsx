@@ -42,7 +42,7 @@ export function HomePage() {
       setProfile(me);
       setCard(homeCard);
       setAnnouncements(announcementPayload.announcements ?? []);
-      setSpotlight(spotlightPayload.items ?? []);
+      setSpotlight((spotlightPayload.items ?? []).filter((item) => Boolean(item.iframeUrl || item.videoUrl)));
     });
     return () => {
       cancelled = true;
@@ -62,13 +62,7 @@ export function HomePage() {
   }, [spotlight.length]);
 
   useEffect(() => {
-    if (spotlight.length <= 1) return;
-    const clip = spotlight[spotlightIndex % spotlight.length];
-    if (!(clip?.iframeUrl || clip?.streamUid)) return;
-    const timer = window.setTimeout(() => {
-      setSpotlightIndex((current) => (current + 1) % spotlight.length);
-    }, 45000);
-    return () => window.clearTimeout(timer);
+    // Intentionally no wall-clock advance for Stream iframes — wait for ended postMessage / video onEnded.
   }, [spotlight, spotlightIndex]);
 
   useEffect(() => {
@@ -107,8 +101,7 @@ export function HomePage() {
     return () => window.removeEventListener("message", onMessage);
   }, [spotlight.length]);
 
-  const displayName =
-    card?.displayName ?? profile?.displayName ?? profile?.username ?? "Coach";
+  const displayName = card?.username || profile?.username || "Coach";
   const activeAnnouncement =
     announcements.length > 0
       ? announcements[announcementIndex % announcements.length]
@@ -280,7 +273,15 @@ export function HomePage() {
                     muted
                     playsInline
                     preload="auto"
-                    onEnded={advanceSpotlight}
+                    onEnded={advanceSpotlight} onError={() => {
+                      setSpotlight((items) => {
+                        const id = activeClip?.id;
+                        if (!id) return items;
+                        const next = items.filter((item) => item.id !== id);
+                        if (next.length !== items.length) setSpotlightIndex(0);
+                        return next;
+                      });
+                    }}
                   />
                 ) : (
                   <p className="site-muted">Clip unavailable.</p>
@@ -292,8 +293,8 @@ export function HomePage() {
                 </strong>
                 <span>
                   {activeClip.league.name}
-                  {activeClip.weekNumber != null ? ` 뿯½ Week ${activeClip.weekNumber}` : ""}
-                  {` 뿯½ ${spotlightIndex % spotlight.length + 1} of ${spotlight.length}`}
+                  {activeClip.weekNumber != null ? ` \u00B7 Week ${activeClip.weekNumber}` : ""}
+                  {` \u00B7 ${spotlightIndex % spotlight.length + 1} of ${spotlight.length}`}
                 </span>
               </div>
               <div className="site-spotlight-reactions">

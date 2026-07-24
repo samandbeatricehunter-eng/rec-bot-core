@@ -896,6 +896,8 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   gotwStreamingSide: text("gotw_streaming_side"),
   slidersAdjusted: boolean("sliders_adjusted").notNull().default(false),
   coachXpSetting: text("coach_xp_setting"),
+  advanceTiming: text("advance_timing").notNull().default("24hr"),
+  advanceTimingOther: text("advance_timing_other"),
 });
 
 export type RecLeagueFeatureSettings = typeof recLeagueFeatureSettings.$inferSelect;

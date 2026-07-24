@@ -6,6 +6,13 @@ export const PLATINUM_JOIN_LIMIT = 20;
 export const GOLD_JOIN_LIMIT = 5;
 export const GRACE_DAYS = 14;
 
+/** Noon America/Chicago on 2026-07-31 (CDT = UTC-5). After this, new free lifetime comps stop. */
+export const FREE_LIFETIME_CLAIM_DEADLINE_ISO = "2026-07-31T17:00:00.000Z";
+
+export function isFreeLifetimeClaimOpen(now = new Date()): boolean {
+  return now.getTime() < Date.parse(FREE_LIFETIME_CLAIM_DEADLINE_ISO);
+}
+
 export type SubscriptionTier = "none" | "gold" | "platinum";
 export type BillingStatus =
   | "none"
@@ -656,10 +663,16 @@ export async function syncLifetimePlatinumForUser(userId: string): Promise<boole
   const eligible = await isActiveLifetimePlatinumMember(userId);
   const user = await loadUser(userId);
   const status = asBillingStatus(user.billing_status);
+  const claimOpen = isFreeLifetimeClaimOpen();
+  const hasSiteAccount = Boolean(user.supabase_auth_user_id);
 
   if (eligible) {
     if (status === "lifetime_comp" && asTier(user.subscription_tier) === "platinum") return true;
     if (status === "active") return false; // keep Stripe plan as source of truth while paid
+    // After the claim deadline, only users who already hold lifetime_comp keep it;
+    // newly eligible OG members must subscribe instead of receiving a free grant.
+    if (!claimOpen) return false;
+    if (!hasSiteAccount) return false;
     const updated = await supabase
       .from("rec_users")
       .update({
@@ -684,6 +697,26 @@ export async function syncLifetimePlatinumForUser(userId: string): Promise<boole
     if (updated.error) throw new ApiError(500, "Failed to clear lifetime Platinum.", updated.error);
   }
   return false;
+}
+
+/**
+ * After the free-claim deadline, strip lifetime_comp from users who never registered
+ * a site account (supabase_auth_user_id is null). Registered holders keep their grant.
+ */
+export async function expireUnclaimedFreeLifetimePlatinum(now = new Date()): Promise<{ cleared: number }> {
+  if (isFreeLifetimeClaimOpen(now)) return { cleared: 0 };
+  const updated = await supabase
+    .from("rec_users")
+    .update({
+      subscription_tier: "none",
+      billing_status: "none",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("billing_status", "lifetime_comp")
+    .is("supabase_auth_user_id", null)
+    .select("id");
+  if (updated.error) throw new ApiError(500, "Failed to expire unclaimed free lifetime comps.", updated.error);
+  return { cleared: updated.data?.length ?? 0 };
 }
 
 export async function ensureRecUserForAuthUser(
