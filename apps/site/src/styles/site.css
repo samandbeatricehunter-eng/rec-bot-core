@@ -645,7 +645,7 @@ h1, h2, h3, .site-wordmark {
 
 .site-shell-main {
   flex: 1;
-  padding: var(--space-5) var(--space-5) calc(132px + env(safe-area-inset-bottom, 0px));
+  padding: var(--space-5) var(--space-5) calc(162px + env(safe-area-inset-bottom, 0px));
   width: 100%;
   max-width: var(--content-width);
   margin: 0 auto;
@@ -655,7 +655,7 @@ h1, h2, h3, .site-wordmark {
   width: 100%;
   margin: 0;
   padding: 0;
-  padding-bottom: calc(118px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(148px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Messages inbox (next to notifications bell) */
@@ -822,15 +822,74 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-muted);
 }
 
-/* League selector + bottom nav stack (fixed) */
+/* League selector + bottom nav stack (fixed) — sits just above the site ticker, which
+   owns the true bottom edge of the viewport (see .site-ticker below). */
 .site-chrome-stack {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   z-index: 40;
   display: flex;
   flex-direction: column;
+}
+
+/* Sports-style running ticker — page-scoped (league matchups vs. site announcements,
+   picked in SiteTicker.tsx via hub scope). Always the bottom-most strip of chrome, on
+   both mobile and desktop, independent of the bottom-nav variant above it. */
+.site-ticker {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: linear-gradient(180deg, #0c0e12 0%, #050608 100%);
+  border-top: 1px solid color-mix(in srgb, #c9d4e0 32%, transparent);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.site-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: site-ticker-scroll 34s linear infinite;
+}
+.site-ticker:hover .site-ticker-track {
+  animation-play-state: paused;
+}
+.site-ticker-copy {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.site-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #eef3f8;
+  text-shadow: 0 0 6px rgba(214, 226, 238, 0.85), 0 0 16px rgba(150, 190, 230, 0.55), 0 0 28px rgba(120, 170, 220, 0.3);
+}
+.site-ticker-sep {
+  color: #7d93a8;
+  font-size: 9px;
+  text-shadow: 0 0 6px rgba(150, 190, 230, 0.5);
+}
+@keyframes site-ticker-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (min-width: 960px) {
+  .site-ticker { left: 248px; }
 }
 
 .site-league-selector {
@@ -1279,16 +1338,16 @@ h1, h2, h3, .site-wordmark {
     margin-right: 0;
     width: auto;
     max-width: none;
-    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(54px + env(safe-area-inset-bottom, 0px));
   }
 
   .site-shell.is-league-scope .site-shell-main {
-    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
   }
 
   .site-shell.is-league-scope .site-shell-main:has(.site-hub-embed) {
     padding: 0;
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(102px + env(safe-area-inset-bottom, 0px));
     max-width: none;
     width: auto;
     margin-left: 248px;

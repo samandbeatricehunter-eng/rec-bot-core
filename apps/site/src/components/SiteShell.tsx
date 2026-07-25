@@ -5,6 +5,7 @@ import { LeagueSelector } from "./LeagueSelector.js";
 import { MessagesLink } from "./MessagesLink.js";
 import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
+import { SiteTicker } from "./SiteTicker.js";
 import { useHub } from "../lib/hub-context.js";
 
 export function SiteShell({ children }: { children: ReactNode }) {
@@ -50,6 +51,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
           <BottomNav variant="league" />
         </div>
       ) : null}
+
+      <SiteTicker />
     </div>
   );
 }

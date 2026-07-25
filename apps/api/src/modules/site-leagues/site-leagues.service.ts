@@ -3,6 +3,7 @@ import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { buildWebHubUrl } from "../web-session/web-session.service.js";
+import { getHubMatchupSchedule } from "../hub/hub.service.js";
 
 const CFB_DEFAULT_CONFERENCE = new Map(
   CFB_27_TEAMS.map((team) => [team.abbreviation.toUpperCase(), team.conference]),
@@ -314,6 +315,42 @@ export async function openSiteLeagueHubContext(input: {
   }
 
   return { guildId, discordId: row.discord_id, leagueId: input.leagueId };
+}
+
+export type SiteLeagueTickerItem = {
+  gameId: string;
+  awayTeamName: string;
+  homeTeamName: string;
+  awayScore: number | null;
+  homeScore: number | null;
+  isFinal: boolean;
+  isLive: boolean;
+};
+
+/** Current-week H2H matchups for the site ticker — reuses the same schedule/live-stream
+ * logic as the Discord-activity hub (getHubMatchupSchedule), just resolved from a site
+ * session instead of a guild session. */
+export async function getSiteLeagueTicker(input: {
+  recUserId: string;
+  leagueId: string;
+}): Promise<{ items: SiteLeagueTickerItem[]; weekNumber: number }> {
+  const context = await openSiteLeagueHubContext(input);
+  const schedule = await getHubMatchupSchedule({
+    guildId: context.guildId,
+    discordId: context.discordId,
+  });
+  const items = schedule.games
+    .filter((game) => game.matchupType === "h2h")
+    .map((game) => ({
+      gameId: game.gameId,
+      awayTeamName: game.awayTeamName,
+      homeTeamName: game.homeTeamName,
+      awayScore: game.awayScore,
+      homeScore: game.homeScore,
+      isFinal: game.isFinal,
+      isLive: game.streams.length > 0 && !game.isFinal,
+    }));
+  return { items, weekNumber: schedule.currentWeek };
 }
 
 export type SiteLeagueSearchFilters = {

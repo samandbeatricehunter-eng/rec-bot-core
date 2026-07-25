@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
+  getSiteLeagueTicker,
   listMySiteLeagues,
   openSiteLeagueHub,
   requireLinkedRecUser,
@@ -70,6 +71,19 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
           view: body.view,
           embed: body.embed,
         }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/ticker", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(
+        await getSiteLeagueTicker({ recUserId: user.recUserId, leagueId: body.leagueId }),
       );
     } catch (error) {
       return sendError(reply, error);

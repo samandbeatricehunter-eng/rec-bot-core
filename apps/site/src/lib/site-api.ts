@@ -158,6 +158,16 @@ export type SiteLeagueSummary = {
   discordBotEnabled: boolean;
 };
 
+export type SiteLeagueTickerItem = {
+  gameId: string;
+  awayTeamName: string;
+  homeTeamName: string;
+  awayScore: number | null;
+  homeScore: number | null;
+  isFinal: boolean;
+  isLive: boolean;
+};
+
 export type SiteLeagueConferenceReassignment = {
   abbreviation: string;
   name: string;
@@ -473,6 +483,12 @@ export const siteApi = {
   },
   retireFromLeague(leagueId: string) {
     return request<{ ok: true }>("/v1/site-leagues/retire", { leagueId });
+  },
+  getLeagueTicker(leagueId: string) {
+    return request<{ items: SiteLeagueTickerItem[]; weekNumber: number }>(
+      "/v1/site-leagues/ticker",
+      { leagueId },
+    );
   },
   listNotifications() {
     return request<{
