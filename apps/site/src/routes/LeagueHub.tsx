@@ -1,8 +1,9 @@
 import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
-import { Link, Route, Routes, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
+import { IconBack } from "../components/icons.js";
 import {
   AdvanceHome,
   CommissionerChatHome,
@@ -148,24 +149,42 @@ function HubHomeBridge({ view }: { view: Exclude<HubView, "mgmt"> }) {
   return <HubHome />;
 }
 
+/** League Mgmt sub-pages have no chrome of their own on the site (unlike apps/web's
+ * AppShell, which always renders a Back button) — so give them one here. */
+function MgmtSubPage({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  return (
+    <div className="site-mgmt-subpage">
+      <button
+        type="button"
+        className="site-btn site-btn-ghost site-mgmt-back"
+        onClick={() => navigate(-1)}
+      >
+        <IconBack /> Back
+      </button>
+      {children}
+    </div>
+  );
+}
+
 function HubMgmtRoutes() {
   return (
     <Routes>
       <Route index element={<LeagueMgmtHome />} />
-      <Route path="first-time-setup" element={<FirstTimeSetupHome />} />
-      <Route path="notifications" element={<NotificationsHome />} />
-      <Route path="manage-league" element={<ManageLeagueHome />} />
-      <Route path="manage-league/roles" element={<RolesHome />} />
-      <Route path="manage-league/player-stats" element={<PlayerStatsReview />} />
-      <Route path="manage-league/teams" element={<TeamOwnershipTable />} />
-      <Route path="manage-league/teams/link" element={<LinkTeamForm />} />
-      <Route path="manage-league/:teamId" element={<TeamScheduleForm />} />
-      <Route path="delete-league" element={<DeleteLeagueHome />} />
-      <Route path="settings" element={<SettingsHome />} />
-      <Route path="advance" element={<AdvanceHome />} />
-      <Route path="commissioner-chat" element={<CommissionerChatHome />} />
-      <Route path="publishing" element={<PublishingHome />} />
-      <Route path="recruiting" element={<RecruitingHome />} />
+      <Route path="first-time-setup" element={<MgmtSubPage><FirstTimeSetupHome /></MgmtSubPage>} />
+      <Route path="notifications" element={<MgmtSubPage><NotificationsHome /></MgmtSubPage>} />
+      <Route path="manage-league" element={<MgmtSubPage><ManageLeagueHome /></MgmtSubPage>} />
+      <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
+      <Route path="manage-league/player-stats" element={<MgmtSubPage><PlayerStatsReview /></MgmtSubPage>} />
+      <Route path="manage-league/teams" element={<MgmtSubPage><TeamOwnershipTable /></MgmtSubPage>} />
+      <Route path="manage-league/teams/link" element={<MgmtSubPage><LinkTeamForm /></MgmtSubPage>} />
+      <Route path="manage-league/:teamId" element={<MgmtSubPage><TeamScheduleForm /></MgmtSubPage>} />
+      <Route path="delete-league" element={<MgmtSubPage><DeleteLeagueHome /></MgmtSubPage>} />
+      <Route path="settings" element={<MgmtSubPage><SettingsHome /></MgmtSubPage>} />
+      <Route path="advance" element={<MgmtSubPage><AdvanceHome /></MgmtSubPage>} />
+      <Route path="commissioner-chat" element={<MgmtSubPage><CommissionerChatHome /></MgmtSubPage>} />
+      <Route path="publishing" element={<MgmtSubPage><PublishingHome /></MgmtSubPage>} />
+      <Route path="recruiting" element={<MgmtSubPage><RecruitingHome /></MgmtSubPage>} />
       <Route path="*" element={<LeagueMgmtHome />} />
     </Routes>
   );

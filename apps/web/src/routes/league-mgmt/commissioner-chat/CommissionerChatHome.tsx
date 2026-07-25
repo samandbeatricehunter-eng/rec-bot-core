@@ -11,6 +11,12 @@ import { PollComposerModal } from "./PollComposerModal.js";
 
 const POLL_INTERVAL_MS = 5000;
 
+// created_at is a timestamptz, serialized with a UTC offset — Date + toLocaleTimeString
+// (no explicit timeZone) always renders in the viewer's own device timezone.
+function formatLocalTime(createdAt: string): string {
+  return new Date(createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 // A shared space for commissioners/co-commissioners to discuss and vote on topics — meant
 // to eventually replace the need for the Commissioner's Office Discord channel for this
 // purpose. Simple poll-every-5s read model, no WebSockets — the audience per league is a
@@ -159,7 +165,7 @@ export function CommissionerChatHome() {
                 <span style={{ color: m.author_discord_id === discordId ? "var(--gold)" : "var(--text-secondary)", fontWeight: 700, fontSize: "var(--text-xs)" }}>
                   {m.author_display_name ?? "REC Member"}
                 </span>{" "}
-                <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>{new Date(m.created_at).toLocaleTimeString()}</span>
+                <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>{formatLocalTime(m.created_at)}</span>
                 <p style={{ margin: "2px 0 0" }}>{renderMessageWithMentions(m.body, mentionable)}</p>
               </div>
             ))}

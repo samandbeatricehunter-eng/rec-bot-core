@@ -78,17 +78,6 @@ export function MatchupReactionBar({
         </button>
         <button
           type="button"
-          className={`matchup-reaction${disliked ? " is-active" : ""}`}
-          disabled={busy || saving}
-          onClick={onDislike}
-          title="Dislike this matchup"
-        >
-          <ThumbsDown size={16} />
-          <span>Dislike</span>
-          {game.reactionCounts?.dislike > 0 ? <b>{game.reactionCounts.dislike}</b> : null}
-        </button>
-        <button
-          type="button"
           className={`matchup-reaction matchup-reaction--goty${nominated ? " is-active" : ""}`}
           disabled={busy || saving}
           onClick={openGoty}
@@ -97,6 +86,17 @@ export function MatchupReactionBar({
           <Award size={16} />
           <span>GOTY</span>
           {game.reactionCounts?.goty > 0 ? <b>{game.reactionCounts.goty}</b> : null}
+        </button>
+        <button
+          type="button"
+          className={`matchup-reaction${disliked ? " is-active" : ""}`}
+          disabled={busy || saving}
+          onClick={onDislike}
+          title="Dislike this matchup"
+        >
+          <ThumbsDown size={16} />
+          <span>Dislike</span>
+          {game.reactionCounts?.dislike > 0 ? <b>{game.reactionCounts.dislike}</b> : null}
         </button>
       </div>
 

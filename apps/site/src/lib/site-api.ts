@@ -487,6 +487,9 @@ export const siteApi = {
       { ids },
     );
   },
+  clearNotifications() {
+    return request<{ ok: true; cleared: number }>("/v1/site-notifications/clear", {});
+  },
   exchangeAppHandoff(handoff: string) {
     return request<
       | {

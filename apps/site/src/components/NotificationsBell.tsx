@@ -14,6 +14,7 @@ export function NotificationsBell() {
   const [regular, setRegular] = useState<SiteNotificationItem[]>([]);
   const [commissioner, setCommissioner] = useState<SiteNotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [clearing, setClearing] = useState(false);
 
   async function refresh() {
     if (auth.status !== "signed-in") return;
@@ -74,6 +75,19 @@ export function NotificationsBell() {
     navigate(item.href);
   }
 
+  async function clearAll() {
+    setClearing(true);
+    try {
+      await siteApi.clearNotifications();
+      setRegular([]);
+      setUnreadCount(commissioner.filter((item) => !item.read && !item.isInboxLink).length);
+    } catch {
+      /* leave list as-is on failure */
+    } finally {
+      setClearing(false);
+    }
+  }
+
   return (
     <div className="site-notif-bell" ref={rootRef}>
       <button
@@ -106,7 +120,18 @@ export function NotificationsBell() {
           <div className="site-notif-panel" role="dialog" aria-label="Notifications">
           <header className="site-notif-panel-header">
             <h2>Notifications</h2>
-            {loading ? <span className="site-muted">Updating…</span> : null}
+            {loading ? (
+              <span className="site-muted">Updating…</span>
+            ) : regular.length > 0 ? (
+              <button
+                type="button"
+                className="site-text-link"
+                disabled={clearing}
+                onClick={() => void clearAll()}
+              >
+                {clearing ? "Clearing…" : "Clear"}
+              </button>
+            ) : null}
           </header>
           {error ? <p className="site-auth-error">{error}</p> : null}
 

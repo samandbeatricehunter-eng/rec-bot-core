@@ -231,6 +231,16 @@ export async function markSiteNotificationsRead(input: {
   return { ok: true, updated: result.rowCount ?? 0 };
 }
 
+export async function clearSiteNotifications(input: {
+  recUserId: string;
+}): Promise<{ ok: true; cleared: number }> {
+  const result = await getPgPool().query(
+    `delete from rec_site_notifications where user_id = $1`,
+    [input.recUserId],
+  );
+  return { ok: true, cleared: result.rowCount ?? 0 };
+}
+
 /** Helper for future producers (advance digests, friend requests, etc.). */
 export async function createSiteNotification(input: {
   userId: string;

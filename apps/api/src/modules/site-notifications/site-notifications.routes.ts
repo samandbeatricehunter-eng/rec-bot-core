@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
+  clearSiteNotifications,
   listSiteNotifications,
   markSiteNotificationsRead,
   requireLinkedRecUser,
@@ -34,6 +35,16 @@ export async function siteNotificationsRoutes(app: FastifyInstance) {
           ids: body.ids,
         }),
       );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-notifications/clear", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      return reply.send(await clearSiteNotifications({ recUserId: user.recUserId }));
     } catch (error) {
       return sendError(reply, error);
     }

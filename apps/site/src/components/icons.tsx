@@ -143,6 +143,10 @@ export function IconCaret(props: IconProps) {
   return base(props, <path d="M7 10l5 5 5-5" />);
 }
 
+export function IconBack(props: IconProps) {
+  return base(props, <path d="M15 5l-7 7 7 7" />);
+}
+
 export function IconBell(props: IconProps) {
   return base(
     props,

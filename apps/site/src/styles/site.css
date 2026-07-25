@@ -2205,6 +2205,14 @@ h1, h2, h3, .site-wordmark {
   color: var(--accent-bright);
 }
 
+.site-mgmt-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+}
+.site-mgmt-back svg { width: 18px; height: 18px; }
+
 /* Tier accents: Platinum members get silver/platinum chrome */
 [data-accent-tier="platinum"] {
   --accent: #c5cdd8;

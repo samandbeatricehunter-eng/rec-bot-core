@@ -27,6 +27,12 @@ type ChatMessageRow = {
 
 const DC_TOOLTIP = "Non-registered Discord-only member — messages forward to the Discord game channel.";
 
+// created_at is a timestamptz, serialized with a UTC offset — Date + toLocaleTimeString
+// (no explicit timeZone) always renders in the viewer's own device timezone.
+function formatLocalTime(createdAt: string): string {
+  return new Date(createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 // The Chat tab on Campus Buzz: a league-wide room plus one channel per current-week H2H
 // matchup (bridged to that matchup's Discord game channel — see game-chat.service.ts).
 // Poll-based like every other chat feature in this codebase (commissioner chat, matchup
@@ -248,7 +254,7 @@ export function LeagueChatPanel({
                 {m.author_display_name}
               </span>
               {m.is_discord_only && <span className="hub-dc-tag" title={DC_TOOLTIP}>DC</span>}
-              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}> {new Date(m.created_at).toLocaleTimeString()}</span>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}> {formatLocalTime(m.created_at)}</span>
               <p className={m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message"} style={{ margin: "2px 0 0" }}>
                 {renderMessageWithMentions(m.body, mentionable)}
               </p>
