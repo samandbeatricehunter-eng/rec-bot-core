@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
+import { americanFromDecimal } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type SiteAnnouncement, type SiteLeagueTickerItem } from "../lib/site-api.js";
 
 const LEAGUE_POLL_MS = 20_000;
 const ANNOUNCEMENT_POLL_MS = 60_000;
-
-function formatMoneyline(odds: number): string {
-  return odds > 0 ? `+${odds}` : `${odds}`;
-}
 
 function matchupSegment(item: SiteLeagueTickerItem): string {
   const line = `${item.awayTeamName} at ${item.homeTeamName}`;
@@ -22,7 +19,7 @@ function matchupSegment(item: SiteLeagueTickerItem): string {
   }
   // Odds only ever come through pre-game (server omits them once a game is live/final).
   if (item.odds) {
-    const ml = `ML ${item.awayTeamName} ${formatMoneyline(item.odds.awayMoneyline)} / ${item.homeTeamName} ${formatMoneyline(item.odds.homeMoneyline)}`;
+    const ml = `ML ${item.awayTeamName} ${americanFromDecimal(item.odds.awayMoneyline)} / ${item.homeTeamName} ${americanFromDecimal(item.odds.homeMoneyline)}`;
     const ou = item.odds.overUnder != null ? ` · O/U ${item.odds.overUnder}` : "";
     return `${line} — ${ml}${ou}`;
   }
