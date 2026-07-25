@@ -91,7 +91,14 @@ export async function boxScoreRoutes(app: FastifyInstance) {
   app.post("/v1/box-score/submit", async (request, reply) => {
     try {
       const input = SubmitSchema.parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "co_commissioner" });
+      // Self-serve submissions (commissionerSubmission: false) only need guild membership —
+      // createBoxScoreSubmission's own assertSelfServeUploaderIsExpected already restricts
+      // those to the actual game participant. commissionerSubmission: true skips that check
+      // entirely, so *that* path must stay gated at co_commissioner.
+      await requireBotOrUserSession(request, {
+        resolveGuildId: () => input.guildId,
+        permission: input.commissionerSubmission ? "co_commissioner" : "member",
+      });
       return reply.send(startBoxScoreSubmissionJob(input));
     } catch (error) {
       return sendError(reply, error);

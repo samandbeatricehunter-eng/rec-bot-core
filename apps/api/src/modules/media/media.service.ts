@@ -159,6 +159,34 @@ async function assertWeeklyHighlightUploadAllowed(input: {
 }
 
 
+// Powers the "Late Submissions" eligibility list — per-week highlight upload counts for
+// the caller this season, so the client can find weeks with fewer than the weekly limit
+// (see assertWeeklyHighlightUploadAllowed) and offer them for a late upload.
+export async function getMyHighlightWeekCounts(input: {
+  guildId: string;
+  discordId: string;
+}): Promise<{ seasonNumber: number; counts: Record<number, number> }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await getDiscordAccount(input.discordId);
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+
+  const rows = await supabase
+    .from("rec_highlight_posts")
+    .select("week_number,media_status")
+    .eq("league_id", context.leagueId)
+    .eq("user_id", account.user_id)
+    .eq("season_number", seasonNumber);
+  if (rows.error) throw new ApiError(500, "Failed to load your highlight upload history.", rows.error);
+
+  const counts: Record<number, number> = {};
+  for (const row of rows.data ?? []) {
+    if (row.media_status === "failed" || row.media_status === "deleted") continue;
+    const week = Number(row.week_number);
+    counts[week] = (counts[week] ?? 0) + 1;
+  }
+  return { seasonNumber, counts };
+}
+
 export async function createHighlightDirectUpload(input: {
   guildId: string;
   discordId: string;

@@ -158,6 +158,31 @@ export async function listMyWatchedPlayers(guildId: string, discordId: string): 
   if (!eligibility.teamId) throw new ApiError(400, "You aren't linked to a team in this league.");
   return listWatchedPlayers(guildId, eligibility.teamId);
 }
+
+// Self-serve counterparts of createWatchedPlayer/removeWatchedPlayer — the "Add Player(s)
+// to Watch" button on My Team, available to any coach for their own team (not just
+// commissioners). Team is resolved server-side from the caller's own active assignment,
+// same trust model as submitPlayerStatLine, so a coach can only ever touch their own roster.
+export async function createMyWatchedPlayer(input: {
+  guildId: string;
+  discordId: string;
+  playerName: string;
+  position: string;
+  classYear?: ClassYear | null;
+}): Promise<{ player: WatchedPlayer }> {
+  const eligibility = await getBoxScoreUploadEligibility({ guildId: input.guildId, discordId: input.discordId });
+  if (!eligibility.teamId) throw new ApiError(400, "You aren't linked to a team in this league.");
+  return createWatchedPlayer({ guildId: input.guildId, teamId: eligibility.teamId, playerName: input.playerName, position: input.position, classYear: input.classYear });
+}
+
+export async function removeMyWatchedPlayer(input: { guildId: string; discordId: string; id: string }): Promise<{ removed: true }> {
+  const eligibility = await getBoxScoreUploadEligibility({ guildId: input.guildId, discordId: input.discordId });
+  if (!eligibility.teamId) throw new ApiError(400, "You aren't linked to a team in this league.");
+  const existing = await supabase.from("rec_watched_players").select("id,team_id").eq("id", input.id).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load the watched player.", existing.error);
+  if (!existing.data || existing.data.team_id !== eligibility.teamId) throw new ApiError(404, "Watched player not found on your team.");
+  return removeWatchedPlayer({ guildId: input.guildId, id: input.id });
+}
 export async function removeMyPlayerStatLine(input:{guildId:string;discordId:string;playerName:string;category:string}){
   const eligibility=await getBoxScoreUploadEligibility({guildId:input.guildId,discordId:input.discordId}); if(!eligibility.gameId||!eligibility.teamId)throw new ApiError(400,"No current game was found.");
   const normalized=input.playerName.trim().toLowerCase().replace(/\s+/g," "); const submission=await supabase.from("rec_player_stat_submissions").select("id,watched_player_id").eq("game_id",eligibility.gameId).eq("team_id",eligibility.teamId).eq("submitted_by_discord_id",input.discordId).eq("normalized_player_name",normalized).maybeSingle(); if(submission.error||!submission.data)throw new ApiError(404,"Stat submission not found.",submission.error);

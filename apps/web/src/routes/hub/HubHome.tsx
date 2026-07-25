@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LeagueChatPanel } from "../../components/hub/LeagueChatPanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -21,6 +21,8 @@ import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
+import { MyWatchedPlayersModal } from "../../components/hub/MyWatchedPlayersModal.js";
+import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
@@ -309,6 +311,8 @@ export function HubHome() {
   const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
   const [playerStatsBusy, setPlayerStatsBusy] = useState(false);
   const [recruitModalOpen, setRecruitModalOpen] = useState(false);
+  const [myWatchedPlayersModalOpen, setMyWatchedPlayersModalOpen] = useState(false);
+  const [lateSubmissionsOpen, setLateSubmissionsOpen] = useState(false);
   const [retireModalOpen, setRetireModalOpen] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
@@ -1004,6 +1008,8 @@ export function HubHome() {
         <button className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Coach Interview</strong><span>{mediaPortal?.limits.interviewSubmitted ? `Submitted (${mediaPortal.limits.interviewStatus})` : `${coinsNumber(50)} on approval`}</span></div></button>
         {hub.league.game === "cfb_27" && <button className="hub-shortcut-card" onClick={() => setRecruitModalOpen(true)}><IconWell size="sm" icon={<GraduationCap size={18} />} /><div><strong>Confirmed Commit</strong><span>Log a recruit to your school</span></div></button>}
         <button className="hub-shortcut-card" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={18} />} /><div><strong>Full Season Schedule</strong><span>Results &amp; upcoming games</span></div></button>
+        <button className="hub-shortcut-card" onClick={() => setMyWatchedPlayersModalOpen(true)}><IconWell size="sm" icon={<UserPlus size={18} />} /><div><strong>Add Player(s) to Watch</strong><span>Track performances by name</span></div></button>
+        <button className="hub-shortcut-card" onClick={() => setLateSubmissionsOpen(true)}><IconWell size="sm" icon={<Clock size={18} />} /><div><strong>Late Submissions</strong><span>Missed a box score or highlight?</span></div></button>
       </div>
       <div className="hub-stat-grid">
       <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
@@ -1563,5 +1569,7 @@ export function HubHome() {
       {retireError && <p className="hub-transfer-status">{retireError}</p>}
       <div className="advance-modal-actions"><Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button><Button variant="danger" disabled={retireBusy} onClick={async () => { setRetireBusy(true); setRetireError(null); try { await hubChrome.retireFromCurrentLeague(); setRetireModalOpen(false); } catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire from this league."); } finally { setRetireBusy(false); } }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button></div>
     </div></Modal>}
+    {myWatchedPlayersModalOpen && auth.status === "ready" && <MyWatchedPlayersModal guildId={auth.guildId} onClose={() => setMyWatchedPlayersModalOpen(false)} />}
+    {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} onClose={() => setLateSubmissionsOpen(false)} />}
   </div>;
 }

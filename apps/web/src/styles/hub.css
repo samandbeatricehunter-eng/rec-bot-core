@@ -314,8 +314,11 @@ button.poty:disabled {
 .hub-rich-text-toolbar button:disabled { opacity:.45; cursor:not-allowed; }
 .hub-section-heading h2, .hub-section-heading p { overflow-wrap: anywhere; word-break: break-word; }
 @media (max-width: 600px) {
-  .hub-my-team-shortcuts { grid-template-columns: minmax(0, 1fr); }
-  .hub-shortcut-card { width: 100%; }
+  .hub-my-team-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .hub-shortcut-card { width: 100%; padding: var(--space-3) var(--space-2); flex-direction: column; text-align: center; gap: 6px; }
+  .hub-shortcut-card strong { font-size: var(--text-sm); }
+  .hub-shortcut-card span { font-size: 10px; }
+  .hub-my-team-shortcuts, .hub-my-team-shortcuts * { text-align: center; }
 }
 .hub-media-modal { display: flex; flex-direction: column; gap: var(--space-3); }
 .modal-panel:has(.hub-media-modal) { max-width: 640px; }

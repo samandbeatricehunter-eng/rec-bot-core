@@ -6,6 +6,7 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import {
   createHighlightDirectUpload,
   getHighlightUploadStatus,
+  getMyHighlightWeekCounts,
   handleStreamWebhook,
   markHighlightUploadReceived,
   migrateMirroredHighlightsToStream,
@@ -63,6 +64,17 @@ export async function mediaRoutes(app: FastifyInstance) {
         discordId: auth.discordId,
         highlightId: body.highlightId,
       }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/hub/highlights/my-week-counts", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "This requires a user session.");
+      return reply.send(await getMyHighlightWeekCounts({ guildId: body.guildId, discordId: auth.discordId }));
     } catch (error) {
       return sendError(reply, error);
     }

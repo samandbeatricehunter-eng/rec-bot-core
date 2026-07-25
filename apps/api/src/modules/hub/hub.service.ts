@@ -481,7 +481,10 @@ export async function getHub(guildId: string, discordId: string) {
   const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, coachRatings, userRatings] = await Promise.all([
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).order("published_at", { ascending: false }).limit(8),
     loadHubHeadlines({ leagueId: context.leagueId, seasonNumber, currentWeek, seasonStage }),
-    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("created_at", { ascending: false }),
+    // Order by the game's own week first (falling back to created_at within a week) so a
+    // highlight submitted late for an earlier week slots back into that week's place in the
+    // rotation instead of jumping to the front just because it was uploaded recently.
+    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
     computePowerRankings(guildId, discordId).catch(() => null),

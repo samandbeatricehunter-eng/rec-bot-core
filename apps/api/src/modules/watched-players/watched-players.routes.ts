@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { CLASS_YEARS, createWatchedPlayer, listMyWatchedPlayers, listPlayerStatSubmissions, listWatchedPlayers, removeMyPlayerStatLine, removePlayerStatSubmission, removeWatchedPlayer, submitPlayerStatLine, updatePlayerStatSubmission, updateWatchedPlayer } from "./watched-players.service.js";
+import { CLASS_YEARS, createMyWatchedPlayer, createWatchedPlayer, listMyWatchedPlayers, listPlayerStatSubmissions, listWatchedPlayers, removeMyPlayerStatLine, removeMyWatchedPlayer, removePlayerStatSubmission, removeWatchedPlayer, submitPlayerStatLine, updatePlayerStatSubmission, updateWatchedPlayer } from "./watched-players.service.js";
 
 const ClassYearSchema = z.enum(CLASS_YEARS).optional().nullable();
 
@@ -68,6 +68,26 @@ export async function watchedPlayersRoutes(app: FastifyInstance) {
       return reply.send(await listMyWatchedPlayers(body.guildId, discordId));
     } catch (error) { return sendError(reply, error); }
   });
+  app.post("/v1/watched-players/create-mine", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional(), playerName: z.string().trim().min(1).max(80), position: z.string().trim().min(1).max(20), classYear: ClassYearSchema }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      if (!discordId) throw new Error("Missing Discord user.");
+      return reply.send(await createMyWatchedPlayer({ ...body, discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/watched-players/remove-mine", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional(), id: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      if (!discordId) throw new Error("Missing Discord user.");
+      return reply.send(await removeMyWatchedPlayer({ ...body, discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
   app.post("/v1/watched-players/remove-stat-line",async(request,reply)=>{try{requireInternalApiKey(request);const b=z.object({guildId:z.string(),discordId:z.string(),playerName:z.string(),category:z.string()}).parse(request.body);return reply.send(await removeMyPlayerStatLine(b));}catch(e){return sendError(reply,e);}});
   app.post("/v1/player-stats/submissions/list", async(request,reply)=>{try{const b=z.object({guildId:z.string()}).parse(request.body);await requireBotOrUserSession(request,{resolveGuildId:()=>b.guildId,permission:"co_commissioner"});return reply.send(await listPlayerStatSubmissions(b.guildId));}catch(e){return sendError(reply,e);}});
   app.post("/v1/player-stats/submissions/update", async(request,reply)=>{try{const b=z.object({guildId:z.string(),id:z.string().uuid(),playerName:z.string().min(2).max(80).optional(),status:z.enum(["submitted","approved","rejected"]).optional(),lines:z.array(z.object({category:z.string(),stats:z.record(z.number().nonnegative())})).optional()}).parse(request.body);const actor=await requireBotOrUserSession(request,{resolveGuildId:()=>b.guildId,permission:"co_commissioner"});return reply.send(await updatePlayerStatSubmission({...b,actorDiscordId:actor.mode==="user"?actor.discordId:"bot"}));}catch(e){return sendError(reply,e);}});

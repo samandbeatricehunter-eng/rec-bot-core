@@ -181,6 +181,8 @@ export const recApi = {
     recApiFetch<{ posted: true; streamLogId: string; watchPath: string; service: string | null }>("/v1/hub/matchups/stream/share", { method: "POST", body: JSON.stringify(input) }),
   getMyTeamSchedule: (guildId: string) =>
     recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getMyHighlightWeekCounts: (guildId: string) =>
+    recApiFetch<{ seasonNumber: number; counts: Record<number, number> }>("/v1/hub/highlights/my-week-counts", { method: "POST", body: JSON.stringify({ guildId }) }),
   getTeamSchedule: (input: { guildId: string; teamId: string }) =>
     recApiFetch<TeamScheduleManualState>("/v1/hub/team-schedule", { method: "POST", body: JSON.stringify(input) }),
   voteGameOfWeek: (input: { guildId: string; pollId: string; selectedTeamId: string }) =>
@@ -314,6 +316,10 @@ export const recApi = {
     recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/update", { method: "POST", body: JSON.stringify(input) }),
   removeWatchedPlayer: (guildId: string, id: string) =>
     recApiFetch<{ removed: true }>("/v1/watched-players/remove", { method: "POST", body: JSON.stringify({ guildId, id }) }),
+  createMyWatchedPlayer: (input: { guildId: string; discordId?: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
+    recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/create-mine", { method: "POST", body: JSON.stringify(input) }),
+  removeMyWatchedPlayer: (input: { guildId: string; discordId?: string; id: string }) =>
+    recApiFetch<{ removed: true }>("/v1/watched-players/remove-mine", { method: "POST", body: JSON.stringify(input) }),
   listPlayerStatSubmissions: (guildId:string) => recApiFetch<{submissions:PlayerStatSubmission[]}>("/v1/player-stats/submissions/list",{method:"POST",body:JSON.stringify({guildId})}),
   updatePlayerStatSubmission: (input:{guildId:string;id:string;playerName?:string;status?:"submitted"|"approved"|"rejected";lines?:Array<{category:string;stats:Record<string,number>}>}) => recApiFetch<{updated:true}>("/v1/player-stats/submissions/update",{method:"POST",body:JSON.stringify(input)}),
   removePlayerStatSubmission: (guildId:string,id:string) => recApiFetch<{removed:true}>("/v1/player-stats/submissions/remove",{method:"POST",body:JSON.stringify({guildId,id})}),

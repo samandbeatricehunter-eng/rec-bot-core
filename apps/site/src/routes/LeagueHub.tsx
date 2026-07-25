@@ -42,10 +42,13 @@ import "../../../web/src/styles/responsive.css";
 type HubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
 
 function viewFromPath(pathname: string): HubView {
+  // Check /mgmt first — mgmt sub-routes like manage-league/teams or
+  // manage-league/teams/link otherwise match the "/team" substring below and get
+  // misrouted to the My Team view instead of League Mgmt.
+  if (pathname.includes("/mgmt")) return "mgmt";
   if (pathname.includes("/matchups")) return "matchups";
   if (pathname.includes("/team")) return "team";
   if (pathname.includes("/store")) return "store";
-  if (pathname.includes("/mgmt")) return "mgmt";
   return "buzz";
 }
 
