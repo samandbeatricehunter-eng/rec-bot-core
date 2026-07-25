@@ -25,6 +25,12 @@ function teamDisplayAbbr(team?: { display_abbr?: string | null; abbreviation?: s
 
 const SPREAD_SCALE = 45;   // power-rank score edge → points
 const MAX_SPREAD = 24;
+// Standard sportsbook home-field baseline — an otherwise-even matchup still lines the home
+// team as a small favorite (e.g. -3), not a pick'em, same as real books.
+const HOME_FIELD_ADVANTAGE = 3;
+// A turnovers O/U line can't legitimately be 0 — "under 0" isn't a real bet. Floor it at 1
+// (Over 1 / Under 1) even when both teams' actual averages round down near zero.
+const MIN_TURNOVER_LINE = 1;
 const LEAGUE_BASELINE_PPG = 24;
 const LEAGUE_BASELINE = {
   total_yards: 350,
@@ -91,7 +97,7 @@ function totalLine(statKey: string, homeAvg: any, awayAvg: any): number {
   const a = awayAvg?.[statKey] ?? baseline ?? 0;
   // Percentage markets average the two sides; counting markets sum them.
   if (statKey === "redzone_off" || statKey === "redzone_def") return Math.round(((h + a) / 2) * 10) / 10;
-  if (statKey === "turnovers") return Math.round((h + a) * 2) / 2; // nearest 0.5
+  if (statKey === "turnovers") return Math.max(MIN_TURNOVER_LINE, Math.round((h + a) * 2) / 2); // nearest 0.5, floored at 1
   return Math.round(h + a);
 }
 
@@ -126,7 +132,7 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   const total = homeScore + awayScore || 1;
   const homeProb = homeScore / total;
   const awayProb = awayScore / total;
-  const rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round((homeScore - awayScore) * SPREAD_SCALE * 2) / 2));
+  const rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(((homeScore - awayScore) * SPREAD_SCALE + HOME_FIELD_ADVANTAGE) * 2) / 2));
 
   const [homeAvg, awayAvg] = await Promise.all([
     seasonAveragesForTeam(leagueId, seasonNumber, game.home_team_id),

@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
+import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
@@ -193,6 +194,18 @@ export async function recordManualGameResult(input: {
   await supabase.from("rec_games").update({ status: "final", home_score: homeScore, away_score: awayScore, updated_at: now }).eq("id", input.gameId);
   await settleGotwPollsForGame({ guildId: input.guildId, gameId: input.gameId, winningTeamId }).catch((err) => {
     console.error("[ERROR] settleGotwPollsForGame failed after manual score entry (non-fatal):", err);
+  });
+  // Box score approval already rebuilds rec_season_user_records (point differential, W/L,
+  // etc. shown on the hero card and matchup preview) — manual entry wrote the same
+  // rec_game_results row but never triggered this rebuild, so those stats went stale for
+  // any game logged this way.
+  await rebuildOfficialRecordsAfterBoxScore({
+    leagueId: context.leagueId,
+    seasonNumber,
+    homeUserId: game.data.home_user_id,
+    awayUserId: game.data.away_user_id,
+  }).catch((err) => {
+    console.error("[ERROR] rebuildOfficialRecordsAfterBoxScore failed after manual score entry (non-fatal):", err);
   });
 
   const homeStats = input.manualStats?.home ?? {};

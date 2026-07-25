@@ -633,7 +633,7 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
 
   const { data, error } = await supabase
     .from("rec_wagers")
-    .select("id,game_id,wager_kind,challenge_type,counterparty_user_id,placed_by_user_id,placed_by_discord_id,market,pick,line,odds,stake,potential_payout,status,created_at")
+    .select("id,game_id,wager_kind,challenge_type,counterparty_user_id,placed_by_user_id,placed_by_discord_id,accepted_by_user_id,accepted_by_discord_id,market,pick,line,odds,stake,potential_payout,status,created_at")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .eq("week_number", weekNumber)
@@ -651,18 +651,60 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
   });
   const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
   const games = gameIds.length
-    ? await supabase.from("rec_games").select("id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
+    ? await supabase.from("rec_games").select("id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
     : { data: [] };
-  const gameById = new Map((games.data ?? []).map((game: any) => [game.id, `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}`]));
+  const gameById = new Map((games.data ?? []).map((game: any) => [game.id, game]));
+  const gameLabelById = new Map(
+    (games.data ?? []).map((game: any) => [game.id, `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}`]),
+  );
+
+  const userIds = [
+    ...new Set(
+      rows.flatMap((w: any) => [w.placed_by_user_id, w.accepted_by_user_id]).filter(Boolean),
+    ),
+  ];
+  const users = userIds.length
+    ? await supabase.from("rec_users").select("id,username,display_name").in("id", userIds)
+    : { data: [] };
+  const nameByUserId = new Map(
+    (users.data ?? []).map((u: any) => [u.id, u.display_name ?? u.username ?? "REC Member"]),
+  );
+
+  // A moneyline/spread wager's `pick` column stores the winning team's UUID (matches
+  // getGameWagerOptions' side.pick) — resolve it to a team abbreviation for display instead
+  // of showing the raw id. Total markets already store a human-readable "over"/"under".
+  function pickLabel(w: any): string {
+    const kind = WAGER_MARKET_BY_KEY.get(w.market)?.kind;
+    if (kind === "total") {
+      const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
+      return w.line != null ? `${side} ${w.line}` : side;
+    }
+    const game = gameById.get(w.game_id);
+    if (!game) return String(w.pick ?? "");
+    const teamLabel =
+      w.pick === game.home_team_id
+        ? teamAbbr(game.home_team)
+        : w.pick === game.away_team_id
+          ? teamAbbr(game.away_team)
+          : String(w.pick ?? "");
+    if (kind === "spread" && w.line != null) {
+      const isHome = w.pick === game.home_team_id;
+      const line = isHome ? -Number(w.line) : Number(w.line);
+      return `${teamLabel} ${line > 0 ? "+" : ""}${line}`;
+    }
+    return teamLabel;
+  }
 
   return {
     wagers: rows.map((w: any) => ({
       id: w.id,
       gameId: w.game_id,
-      gameLabel: gameById.get(w.game_id) ?? "Scheduled game",
+      gameLabel: gameLabelById.get(w.game_id) ?? "Scheduled game",
       challengeType: w.challenge_type,
       market: w.market,
+      marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
       pick: w.pick,
+      pickLabel: pickLabel(w),
       line: w.line,
       odds: w.odds,
       stake: Number(w.stake ?? 0),
@@ -670,11 +712,14 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
       status: w.status,
       boardState: w.status === "awaiting_accept" ? "open" : "active",
       placedByDiscordId: w.placed_by_discord_id,
+      placedByName: nameByUserId.get(w.placed_by_user_id) ?? "REC Member",
+      acceptedByName: w.accepted_by_user_id ? nameByUserId.get(w.accepted_by_user_id) ?? "REC Member" : null,
       isMine: w.placed_by_user_id === viewerUserId,
       canAccept:
         w.status === "awaiting_accept" &&
         w.placed_by_user_id !== viewerUserId &&
         (w.challenge_type !== "direct" || w.counterparty_user_id === viewerUserId),
+      canEdit: w.status === "awaiting_accept" && w.placed_by_user_id === viewerUserId,
       createdAt: w.created_at,
     })),
   };
