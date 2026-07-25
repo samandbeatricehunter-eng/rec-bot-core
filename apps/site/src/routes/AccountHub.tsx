@@ -113,11 +113,9 @@ export function AccountHub({
   const [friendBusy, setFriendBusy] = useState(false);
   const [friendError, setFriendError] = useState<string | null>(null);
   const [friendNotice, setFriendNotice] = useState<string | null>(null);
-  const [inboxMode, setInboxMode] = useState<"member" | "commissioner">("member");
   const [notifications, setNotifications] = useState<{
     regular: SiteNotificationItem[];
-    commissioner: SiteNotificationItem[];
-  }>({ regular: [], commissioner: [] });
+  }>({ regular: [] });
   const [passwordEditorOpen, setPasswordEditorOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     current: "",
@@ -133,7 +131,6 @@ export function AccountHub({
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
 
-  const isPlatinum = entitlements?.tier === "platinum";
   const email =
     auth.status === "signed-in" ? auth.user.email ?? null : null;
   const initial = String(linked.username ?? linked.displayName ?? "R")
@@ -170,10 +167,7 @@ export function AccountHub({
       setCareerGames(careerPayload.games ?? []);
       setFriends(friendPayload);
       setSuggestions(suggestionPayload.suggestions ?? []);
-      setNotifications({
-        regular: notifPayload.regular ?? [],
-        commissioner: notifPayload.commissioner ?? [],
-      });
+      setNotifications({ regular: notifPayload.regular ?? [] });
     });
     return () => {
       cancelled = true;
@@ -315,8 +309,7 @@ export function AccountHub({
     }
   }
 
-  const inboxItems =
-    inboxMode === "commissioner" ? notifications.commissioner : notifications.regular;
+  const inboxItems = notifications.regular;
 
   return (
     <div className="site-account-hub">
@@ -690,39 +683,16 @@ export function AccountHub({
 
       {tab === "inbox" ? (
         <section className="site-account-panel">
-          <div className="site-account-inbox-toggle" role="tablist" aria-label="Inbox mode">
-            <button
-              type="button"
-              className={inboxMode === "member" ? "is-active" : ""}
-              onClick={() => setInboxMode("member")}
-            >
-              Member
-            </button>
-            <button
-              type="button"
-              className={inboxMode === "commissioner" ? "is-active" : ""}
-              disabled={!isPlatinum}
-              title={
-                isPlatinum
-                  ? "Commissioner inbox"
-                  : "Platinum members only"
-              }
-              onClick={() => {
-                if (isPlatinum) setInboxMode("commissioner");
-              }}
-            >
-              Commissioner
-            </button>
-          </div>
-          {!isPlatinum ? (
-            <p className="site-muted">Commissioner inbox unlocks with Platinum.</p>
-          ) : null}
           <div className="site-profile-actions">
             <Link className="site-btn site-btn-primary" to="/inbox">
               Open messages
             </Link>
           </div>
-          <h3>{inboxMode === "commissioner" ? "Commissioner" : "Member"} notifications</h3>
+          <p className="site-muted">
+            Commissioner review items (box scores, highlights, payouts, and more) now live in
+            the Commissioner&apos;s Office chat window&apos;s Payouts tab under League Mgmt.
+          </p>
+          <h3>Notifications</h3>
           {inboxItems.length ? (
             <ul className="site-account-notif-list">
               {inboxItems.map((item) => (

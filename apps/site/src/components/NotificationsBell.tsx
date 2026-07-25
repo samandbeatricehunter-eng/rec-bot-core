@@ -12,9 +12,11 @@ export function NotificationsBell() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regular, setRegular] = useState<SiteNotificationItem[]>([]);
-  const [commissioner, setCommissioner] = useState<SiteNotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [clearing, setClearing] = useState(false);
+  // Commissioner review items (box scores, highlights, payouts, etc.) moved to the
+  // Commissioner's Office chat window's Payouts tab in League Mgmt — this bell only
+  // handles member-facing updates now.
+  const unreadCount = regular.filter((item) => !item.read).length;
 
   async function refresh() {
     if (auth.status !== "signed-in") return;
@@ -23,13 +25,9 @@ export function NotificationsBell() {
     try {
       const response = await siteApi.listNotifications();
       setRegular(response.regular);
-      setCommissioner(response.commissioner);
-      setUnreadCount(response.unreadCount);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load notifications.");
       setRegular([]);
-      setCommissioner([]);
-      setUnreadCount(0);
     } finally {
       setLoading(false);
     }
@@ -64,7 +62,6 @@ export function NotificationsBell() {
     if (!item.read && isStoredUuid) {
       try {
         await siteApi.markNotificationsRead([item.id]);
-        setUnreadCount((count) => Math.max(0, count - 1));
         setRegular((items) =>
           items.map((row) => (row.id === item.id ? { ...row, read: true } : row)),
         );
@@ -80,7 +77,6 @@ export function NotificationsBell() {
     try {
       await siteApi.clearNotifications();
       setRegular([]);
-      setUnreadCount(commissioner.filter((item) => !item.read && !item.isInboxLink).length);
     } catch {
       /* leave list as-is on failure */
     } finally {
@@ -158,37 +154,6 @@ export function NotificationsBell() {
               </ul>
             )}
           </section>
-
-          {commissioner.length > 0 ? (
-            <section className="site-notif-section site-notif-section-commish">
-              <h3>Commissioner</h3>
-              <p className="site-muted site-notif-section-note">
-                Review items open this league&apos;s commissioner inbox — separate from
-                the Commissioners Office tools in League Mgmt.
-              </p>
-              <ul>
-                {commissioner.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      className={[
-                        item.isInboxLink ? "is-inbox-link" : "",
-                        !item.read && !item.isInboxLink ? "is-unread" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ") || undefined}
-                      onClick={() => void openItem(item)}
-                    >
-                      <span className="site-notif-title">{item.title}</span>
-                      {item.body ? (
-                        <span className="site-notif-body">{item.body}</span>
-                      ) : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
         </div>
         </>
       ) : null}

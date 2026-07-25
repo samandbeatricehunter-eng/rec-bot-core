@@ -8,6 +8,7 @@ import { Button } from "../../../components/ui/Button.js";
 import { Badge } from "../../../components/ui/Badge.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PollComposerModal } from "./PollComposerModal.js";
+import { PendingItemsPanel } from "../notifications/PendingItemsPanel.js";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -28,7 +29,7 @@ function formatLocalTime(createdAt: string): string {
 // own tab (not merged into the message feed) so they don't get buried by chat volume.
 export function CommissionerChatHome() {
   const { guildId, discordId } = useReadyAuth();
-  const [tab, setTab] = useState<"messages" | "polls">("messages");
+  const [tab, setTab] = useState<"messages" | "polls" | "payouts">("messages");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -155,6 +156,7 @@ export function CommissionerChatHome() {
         <Button variant={tab === "polls" ? "primary" : "secondary"} onClick={() => setTab("polls")}>
           Polls {topics && topics.filter((t) => t.status === "open").length > 0 ? `(${topics.filter((t) => t.status === "open").length})` : ""}
         </Button>
+        <Button variant={tab === "payouts" ? "primary" : "secondary"} onClick={() => setTab("payouts")}>Payouts</Button>
       </div>
 
       {tab === "messages" && (
@@ -247,6 +249,8 @@ export function CommissionerChatHome() {
           </div>
         </div>
       )}
+
+      {tab === "payouts" && <PendingItemsPanel />}
 
       {showPollComposer && (
         <PollComposerModal
