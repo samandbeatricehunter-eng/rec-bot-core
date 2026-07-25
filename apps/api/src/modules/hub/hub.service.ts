@@ -252,7 +252,7 @@ async function currentH2hOpponent(guildId: string, leagueId: string, userId: str
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const games = await supabase
     .from("rec_games")
-    .select("id,home_user_id,away_user_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation)")
+    .select("id,home_user_id,away_user_id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,is_relocated)")
     .eq("league_id", leagueId)
     .eq("week_number", weekNumber);
   if (games.error) throw new ApiError(500, "Failed to load this week's opponent.", games.error);
@@ -262,13 +262,16 @@ async function currentH2hOpponent(guildId: string, leagueId: string, userId: str
   const opponentUserId = isHome ? game.away_user_id : game.home_user_id;
   if (!opponentUserId) return null;
   const opponentTeam = isHome ? game.away_team : game.home_team;
+  // A relocated/renamed team's real identity is display_abbr (e.g. "UAF") — the stock
+  // abbreviation column ("ULM") still reflects whatever school it replaced.
+  const opponentAbbr = (opponentTeam?.display_abbr || opponentTeam?.abbreviation || null) as string | null;
   return {
     gameId: game.id,
     userId: opponentUserId,
     discordId: await discordIdForUser(opponentUserId),
     teamId: isHome ? game.away_team_id : game.home_team_id,
-    teamName: opponentTeam?.name ?? opponentTeam?.abbreviation ?? "Opponent",
-    teamAbbreviation: opponentTeam?.abbreviation ?? null,
+    teamName: opponentTeam?.name ?? opponentAbbr ?? "Opponent",
+    teamAbbreviation: opponentAbbr,
     seasonNumber,
     weekNumber,
   };
@@ -1145,7 +1148,7 @@ export async function submitInterview(input: {
   if (assignment?.team_id) {
     const myTeam = await supabase
       .from("rec_teams")
-      .select("name,abbreviation,display_nick,display_city,is_relocated")
+      .select("name,abbreviation,display_abbr,display_nick,display_city,is_relocated")
       .eq("id", assignment.team_id)
       .maybeSingle();
     teamName = myTeam.data?.name ?? null;
@@ -1153,7 +1156,7 @@ export async function submitInterview(input: {
       (myTeam.data?.is_relocated && myTeam.data?.display_nick
         ? myTeam.data.display_nick
         : myTeam.data?.display_nick) ??
-      teamHandle(myTeam.data?.name, myTeam.data?.abbreviation);
+      teamHandle(myTeam.data?.name, myTeam.data?.display_abbr || myTeam.data?.abbreviation);
   }
   let title = buildInterviewHeadline({
     teamName,
