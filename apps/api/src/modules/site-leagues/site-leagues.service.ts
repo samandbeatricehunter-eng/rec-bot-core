@@ -4,6 +4,7 @@ import { ApiError } from "../../lib/errors.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { buildWebHubUrl } from "../web-session/web-session.service.js";
 import { getHubMatchupSchedule } from "../hub/hub.service.js";
+import { getGameWagerOptions } from "../wagers/odds.service.js";
 
 const CFB_DEFAULT_CONFERENCE = new Map(
   CFB_27_TEAMS.map((team) => [team.abbreviation.toUpperCase(), team.conference]),
@@ -325,6 +326,11 @@ export type SiteLeagueTickerItem = {
   homeScore: number | null;
   isFinal: boolean;
   isLive: boolean;
+  odds: {
+    awayMoneyline: number;
+    homeMoneyline: number;
+    overUnder: number | null;
+  } | null;
 };
 
 /** Current-week H2H matchups for the site ticker — reuses the same schedule/live-stream
@@ -339,17 +345,41 @@ export async function getSiteLeagueTicker(input: {
     guildId: context.guildId,
     discordId: context.discordId,
   });
-  const items = schedule.games
-    .filter((game) => game.matchupType === "h2h")
-    .map((game) => ({
-      gameId: game.gameId,
-      awayTeamName: game.awayTeamName,
-      homeTeamName: game.homeTeamName,
-      awayScore: game.awayScore,
-      homeScore: game.homeScore,
-      isFinal: game.isFinal,
-      isLive: game.streams.length > 0 && !game.isFinal,
-    }));
+  const h2hGames = schedule.games.filter((game) => game.matchupType === "h2h");
+
+  const items = await Promise.all(
+    h2hGames.map(async (game) => {
+      const isLive = game.streams.length > 0 && !game.isFinal;
+      // Odds only make sense pre-game — getGameWagerOptions itself 409s once a game
+      // leaves "scheduled" status (live or a box score already in), so treat that as
+      // "no odds to show" rather than an error.
+      let odds: SiteLeagueTickerItem["odds"] = null;
+      if (!game.isFinal && !isLive) {
+        try {
+          const options = await getGameWagerOptions(context.guildId, game.gameId);
+          const moneyline = options.markets.find((market) => market.market === "moneyline");
+          const total = options.markets.find((market) => market.market === "total_points");
+          const awaySide = moneyline?.sides.find((side) => side.pick === game.awayTeamId);
+          const homeSide = moneyline?.sides.find((side) => side.pick === game.homeTeamId);
+          if (awaySide && homeSide) {
+            odds = { awayMoneyline: awaySide.odds, homeMoneyline: homeSide.odds, overUnder: total?.line ?? null };
+          }
+        } catch {
+          odds = null;
+        }
+      }
+      return {
+        gameId: game.gameId,
+        awayTeamName: game.awayTeamName,
+        homeTeamName: game.homeTeamName,
+        awayScore: game.awayScore,
+        homeScore: game.homeScore,
+        isFinal: game.isFinal,
+        isLive,
+        odds,
+      };
+    }),
+  );
   return { items, weekNumber: schedule.currentWeek };
 }
 

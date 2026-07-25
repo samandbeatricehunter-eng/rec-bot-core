@@ -2761,10 +2761,15 @@ button.poty:disabled {
 .hub-store-card,
 .hub-matchup-card,
 .hub-shortcut-card,
+.hub-wager-board-feature,
 .hub-wager-board-feature article,
+.hub-wager-carousel > article,
 .hub-announce-carousel article,
 .hub-stat-grid article,
 .hub-profile-sections details,
+.roundtable-panel,
+.matchup-preview__wager-card,
+.scoreboard-card,
 .fp-panel {
   background:
     linear-gradient(165deg, rgba(22, 26, 34, 0.78) 0%, rgba(10, 12, 16, 0.84) 100%) !important;

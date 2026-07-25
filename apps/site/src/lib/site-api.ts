@@ -166,6 +166,7 @@ export type SiteLeagueTickerItem = {
   homeScore: number | null;
   isFinal: boolean;
   isLive: boolean;
+  odds: { awayMoneyline: number; homeMoneyline: number; overUnder: number | null } | null;
 };
 
 export type SiteLeagueConferenceReassignment = {

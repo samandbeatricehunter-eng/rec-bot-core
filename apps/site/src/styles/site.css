@@ -125,7 +125,10 @@ h1, h2, h3, .site-wordmark {
 .site-home-platinum-banner,
 .site-league-search-card,
 .site-leagues-filters,
-.site-billing-panel {
+.site-billing-panel,
+.site-league-card,
+.site-home-announce-card,
+.site-spotlight-card {
   position: relative;
   border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, 0.12));
@@ -379,9 +382,7 @@ h1, h2, h3, .site-wordmark {
   gap: var(--space-1);
   width: 100%;
   padding: var(--space-4);
-  border: var(--card-border);
   border-radius: var(--radius-md);
-  background: #0e0e0e;
   color: inherit;
   text-align: left;
   cursor: pointer;

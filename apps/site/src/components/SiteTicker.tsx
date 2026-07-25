@@ -5,6 +5,10 @@ import { siteApi, type SiteAnnouncement, type SiteLeagueTickerItem } from "../li
 const LEAGUE_POLL_MS = 20_000;
 const ANNOUNCEMENT_POLL_MS = 60_000;
 
+function formatMoneyline(odds: number): string {
+  return odds > 0 ? `+${odds}` : `${odds}`;
+}
+
 function matchupSegment(item: SiteLeagueTickerItem): string {
   const line = `${item.awayTeamName} at ${item.homeTeamName}`;
   if (item.isFinal && item.awayScore != null && item.homeScore != null) {
@@ -15,6 +19,12 @@ function matchupSegment(item: SiteLeagueTickerItem): string {
   }
   if (item.isLive) {
     return `● LIVE — ${line}`;
+  }
+  // Odds only ever come through pre-game (server omits them once a game is live/final).
+  if (item.odds) {
+    const ml = `ML ${item.awayTeamName} ${formatMoneyline(item.odds.awayMoneyline)} / ${item.homeTeamName} ${formatMoneyline(item.odds.homeMoneyline)}`;
+    const ou = item.odds.overUnder != null ? ` · O/U ${item.odds.overUnder}` : "";
+    return `${line} — ${ml}${ou}`;
   }
   return line;
 }

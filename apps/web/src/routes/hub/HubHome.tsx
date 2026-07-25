@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LeagueChatPanel } from "../../components/hub/LeagueChatPanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -289,6 +289,7 @@ export function HubHome() {
       : "h2h",
   );
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
+  const [wagerGamePickerOpen, setWagerGamePickerOpen] = useState(false);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
   const [wagersBoardNotice, setWagersBoardNotice] = useState<string | null>(null);
@@ -1253,7 +1254,7 @@ export function HubHome() {
       {subTab === "matchups" && (
         <>
 
-          <SectionFrame eyebrow="Live market" title="Wager Board">
+          <SectionFrame eyebrow="Live market" title="Wager Board" action={<Button variant="primary" size="compact" onClick={() => setWagerGamePickerOpen(true)}><Plus size={16} /> Place Wager</Button>}>
             {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
             <div className="hub-wager-board-feature">{wagersBoard === null ? <p className="hub-empty">Loading wagers...</p> : wagersBoard.length ? <>
               <button className="hub-wager-arrow" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>
@@ -1517,6 +1518,18 @@ export function HubHome() {
     </div></Modal>}
     {hub.canManageLeague && (section === "wagers" || subTab === "matchups") && <button className="hub-close-wagers-corner" onClick={openCloseWagersModal}>Close Wagers</button>}
     {closeWagersOpen && <Modal title="Manage Wagering" onClose={() => setCloseWagersOpen(false)}><div className="hub-close-wagers-list">{(matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.isFinal).map((game) => <label key={game.gameId}><span>{game.awayTeamName} at {game.homeTeamName}</span><input type="checkbox" checked={closeWagerGameIds.has(game.gameId)} disabled={!game.wageringOpen} onChange={(event) => setCloseWagerGameIds((current) => { const next = new Set(current); event.target.checked ? next.add(game.gameId) : next.delete(game.gameId); return next; })} /><b>{closeWagerGameIds.has(game.gameId) ? "Closed" : "Open"}</b></label>)}<Button variant="primary" disabled={wagersBoardBusy} onClick={() => void submitClosedWagers()}>Apply Changes</Button></div></Modal>}
+    {wagerGamePickerOpen && <Modal title="Place a Wager" onClose={() => setWagerGamePickerOpen(false)}><div className="hub-close-wagers-list">
+      {(() => {
+        const eligible = (matchupSchedule?.games ?? []).filter((game) => game.matchupType === "h2h" && !game.involvesMe && game.wageringOpen && !game.isFinal);
+        if (!eligible.length) return <p className="hub-empty">No games are open for wagering right now.</p>;
+        return eligible.map((game) => (
+          <label key={game.gameId}>
+            <span>{game.awayTeamName} at {game.homeTeamName}</span>
+            <Button variant="secondary" size="compact" onClick={() => { setWagerGamePickerOpen(false); void openWager(game); }}>Select</Button>
+          </label>
+        ));
+      })()}
+    </div></Modal>}
     {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
       {!wagerPanel.options ? <p className="hub-empty">{wagerPanel.notice ?? "Loading lines..."}</p> : <>
         <div className="hub-wager-mode"><button className={wagerPanel.mode === "single" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "single" })}>House Single</button><button className={wagerPanel.mode === "parlay" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "parlay" })}>3-Pick Parlay</button><button className={wagerPanel.mode === "peer" ? "active" : ""} onClick={() => setWagerPanel({ ...wagerPanel, mode: "peer" })}>User Wager</button></div>
