@@ -69,11 +69,26 @@ function num(v: unknown) {
   return Number(v) || 0;
 }
 
+// Every offensive stat this model uses has a matching "allowed/forced" defensive stat on
+// the same table — this is what makes a line matchup-aware instead of just each team's
+// isolated season average. redzone_off/redzone_def are each other's counterpart since
+// they're both already a single team's own percentage (unlike the others, which come in
+// separate "committed" vs "allowed" flavors of the same underlying stat).
+const DEFENSE_COUNTERPART: Record<string, string> = {
+  points: "points_against",
+  total_yards: "yards_allowed",
+  rush_yards: "rush_yards_allowed",
+  pass_yards: "pass_yards_allowed",
+  turnovers: "turnovers_forced",
+  redzone_off: "redzone_def",
+  redzone_def: "redzone_off",
+};
+
 async function seasonAveragesForTeam(leagueId: string, seasonNumber: number, teamId: string | null) {
   if (!teamId) return null;
   const { data } = await supabase
     .from("rec_team_game_stats")
-    .select("points_for,total_yards_gained,off_yards_gained,off_rush_yards,off_pass_yards,turnovers_committed,red_zone_off_percentage,red_zone_def_percentage")
+    .select("points_for,points_against,total_yards_gained,off_yards_gained,off_rush_yards,off_pass_yards,turnovers_committed,generated_turnovers,yards_allowed,rush_yards_allowed,pass_yards_allowed,red_zone_off_percentage,red_zone_def_percentage")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber)
     .eq("team_id", teamId);
@@ -82,19 +97,38 @@ async function seasonAveragesForTeam(leagueId: string, seasonNumber: number, tea
   const avg = (key: string) => data.reduce((s, r: any) => s + num(r[key]), 0) / n;
   return {
     points: avg("points_for"),
+    points_against: avg("points_against"),
     total_yards: avg("total_yards_gained") || avg("off_yards_gained"),
+    yards_allowed: avg("yards_allowed"),
     rush_yards: avg("off_rush_yards"),
+    rush_yards_allowed: avg("rush_yards_allowed"),
     pass_yards: avg("off_pass_yards"),
+    pass_yards_allowed: avg("pass_yards_allowed"),
     turnovers: avg("turnovers_committed"),
+    turnovers_forced: avg("generated_turnovers"),
     redzone_off: avg("red_zone_off_percentage"),
     redzone_def: avg("red_zone_def_percentage"),
   };
 }
 
+/** A team's expected output for a stat this game — blended half from their own season
+ * average, half from this specific opponent's average at allowing/forcing it. Falls back
+ * to whichever side is actually available, then the league baseline. */
+function matchupExpected(ownAvg: number | null | undefined, opponentAllowedAvg: number | null | undefined, baseline: number): number {
+  if (ownAvg == null && opponentAllowedAvg == null) return baseline;
+  if (ownAvg == null) return opponentAllowedAvg!;
+  if (opponentAllowedAvg == null) return ownAvg;
+  return (ownAvg + opponentAllowedAvg) / 2;
+}
+
 function totalLine(statKey: string, homeAvg: any, awayAvg: any): number {
-  const baseline = (LEAGUE_BASELINE as any)[statKey];
-  const h = homeAvg?.[statKey] ?? baseline ?? 0;
-  const a = awayAvg?.[statKey] ?? baseline ?? 0;
+  const baseline = (LEAGUE_BASELINE as any)[statKey] ?? 0;
+  const defenseKey = DEFENSE_COUNTERPART[statKey];
+  // Each side's expectation accounts for who they're actually playing, not just their own
+  // isolated average — e.g. a team's expected passing yards leans on both their own
+  // pass offense AND this opponent's pass defense, not their offense alone.
+  const h = matchupExpected(homeAvg?.[statKey], awayAvg?.[defenseKey], baseline);
+  const a = matchupExpected(awayAvg?.[statKey], homeAvg?.[defenseKey], baseline);
   // Percentage markets average the two sides; counting markets sum them.
   if (statKey === "redzone_off" || statKey === "redzone_def") return Math.round(((h + a) / 2) * 10) / 10;
   if (statKey === "turnovers") return Math.max(MIN_TURNOVER_LINE, Math.round((h + a) * 2) / 2); // nearest 0.5, floored at 1
