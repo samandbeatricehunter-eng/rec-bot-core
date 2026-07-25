@@ -8,6 +8,7 @@ import {
   CommissionerChatHome,
   DeleteLeagueHome,
   FirstTimeSetupHome,
+  HubChromeProvider,
   HubHome,
   InjectedAuthProvider,
   LeagueMgmtHome,
@@ -275,17 +276,19 @@ export function LeagueHubPage() {
           guildId={context.guildId}
           accessToken={accessToken}
         >
-          <LeagueThemeProvider game={gameTheme}>
-            <HubErrorBoundary>
-              {/\/matchups\/[^/]+$/.test(location.pathname) ? (
-                <MatchupDetailPage />
-              ) : view === "mgmt" ? (
-                <HubMgmtRoutes />
-              ) : (
-                <HubHomeBridge view={view} />
-              )}
-            </HubErrorBoundary>
-          </LeagueThemeProvider>
+          <HubChromeProvider embedded>
+            <LeagueThemeProvider game={gameTheme}>
+              <HubErrorBoundary>
+                {/\/matchups\/[^/]+$/.test(location.pathname) ? (
+                  <MatchupDetailPage />
+                ) : view === "mgmt" ? (
+                  <HubMgmtRoutes />
+                ) : (
+                  <HubHomeBridge view={view} />
+                )}
+              </HubErrorBoundary>
+            </LeagueThemeProvider>
+          </HubChromeProvider>
         </InjectedAuthProvider>
       </div>
     </div>

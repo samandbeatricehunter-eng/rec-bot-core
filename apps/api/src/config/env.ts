@@ -43,6 +43,11 @@ const EnvSchema = z.object({
   STRIPE_PRICE_GOLD_ANNUAL: z.string().optional(),
   STRIPE_PRICE_PLATINUM_ANNUAL: z.string().optional(),
   SITE_PUBLIC_URL: z.string().url().default("https://rec-leagues.com"),
+  // Web Push (Account page notification toggle). Optional so the API boots without it;
+  // /v1/push/public-key returns null and the frontend just hides the button.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default("mailto:samandbeatricehunter@gmail.com"),
   // Discord Activity hub (apps/web) — used when exchanging a site session for a hub JWT.
   WEB_APP_URL: z.string().url().optional(),
 });

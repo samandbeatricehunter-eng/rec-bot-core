@@ -616,6 +616,15 @@ export const siteApi = {
       }>;
     }>("/v1/site-home/career-stats", {});
   },
+  getPushPublicKey() {
+    return publicRequest<{ publicKey: string | null }>("/v1/push/public-key");
+  },
+  subscribeToPush(input: { endpoint: string; keys: { p256dh: string; auth: string } }) {
+    return request<{ ok: true }>("/v1/push/subscribe", input);
+  },
+  unsubscribeFromPush(endpoint: string) {
+    return request<{ ok: true }>("/v1/push/unsubscribe", { endpoint });
+  },
 };
 
 export type SiteHomeCard = {

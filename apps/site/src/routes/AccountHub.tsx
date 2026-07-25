@@ -4,6 +4,12 @@ import { useAuth } from "../lib/auth-context.js";
 import { sitePublicUrl, supabase } from "../lib/supabase-client.js";
 import { MobileAppSetup } from "../components/MobileAppSetup.js";
 import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushSubscription,
+  pushSupported,
+} from "../lib/push-notifications.js";
+import {
   siteApi,
   type EntitlementSummary,
   type LinkProfileResponse,
@@ -123,6 +129,9 @@ export function AccountHub({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetNotice, setResetNotice] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   const isPlatinum = entitlements?.tier === "platinum";
   const email =
@@ -170,6 +179,37 @@ export function AccountHub({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!pushSupported()) return;
+    let cancelled = false;
+    getPushSubscription()
+      .then((sub) => {
+        if (!cancelled) setPushEnabled(Boolean(sub));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function togglePushNotifications() {
+    setPushBusy(true);
+    setPushError(null);
+    try {
+      if (pushEnabled) {
+        await disablePushNotifications();
+        setPushEnabled(false);
+      } else {
+        await enablePushNotifications();
+        setPushEnabled(true);
+      }
+    } catch (err) {
+      setPushError(err instanceof Error ? err.message : "Could not update push notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -444,6 +484,25 @@ export function AccountHub({
               <p className="site-muted">Billing details unavailable.</p>
             )}
           </div>
+
+          {pushSupported() ? (
+            <div className="site-account-block">
+              <h3>Notifications</h3>
+              <button
+                type="button"
+                className="site-btn site-btn-ghost"
+                disabled={pushBusy}
+                onClick={() => void togglePushNotifications()}
+              >
+                {pushBusy
+                  ? "Working…"
+                  : pushEnabled
+                    ? "Disable Push Notifications"
+                    : "Enable Push Notifications"}
+              </button>
+              {pushError ? <p className="site-auth-error">{pushError}</p> : null}
+            </div>
+          ) : null}
 
           <MobileAppSetup />
         </section>

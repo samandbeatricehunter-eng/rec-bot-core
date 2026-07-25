@@ -1,6 +1,7 @@
 /** Site-facing hub UI surface. Source lives in apps/web; this package gives a single import root with React as a peer dep. */
 export { InjectedAuthProvider, useAuth, useReadyAuth } from "../../../apps/web/src/lib/auth-context.js";
 export { LeagueThemeProvider, useLeagueTheme } from "../../../apps/web/src/lib/league-theme-context.js";
+export { HubChromeProvider } from "../../../apps/web/src/lib/hub-chrome-context.js";
 export { HubHome } from "../../../apps/web/src/routes/hub/HubHome.js";
 export { MatchupDetailPage } from "../../../apps/web/src/routes/matchups/MatchupDetail.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
