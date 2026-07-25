@@ -273,27 +273,35 @@ export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[
       .eq("hub_visible", true);
     if (rows.error) throw new ApiError(500, "Failed to load highlights for cleanup.", rows.error);
 
-    const deadIds: string[] = [];
-    for (const row of rows.data ?? []) {
-      const uid = String(row.cloudflare_stream_uid ?? "").trim();
-      if (uid) {
-        try {
-          const inspected = await inspectStreamVideo(uid);
-          if (!inspected.exists) deadIds.push(String(row.id));
-          else if (
-            !inspected.ready &&
-            Date.now() - new Date(String(row.created_at)).getTime() > DEAD_HIGHLIGHT_PENDING_MAX_MS
-          ) deadIds.push(String(row.id));
-        } catch {
-          // A transient Cloudflare API failure must never delete a valid clip.
+    // Each row's liveness check is an independent network call (up to a 20s Cloudflare
+    // timeout, or 12s for a playback HEAD request) — run them in parallel instead of one
+    // at a time, or a handful of slow/unresponsive lookups can push total request time
+    // well past the platform's HTTP timeout and fail the whole cron run even though every
+    // individual check is itself guarded against throwing.
+    const results = await Promise.all(
+      (rows.data ?? []).map(async (row) => {
+        const uid = String(row.cloudflare_stream_uid ?? "").trim();
+        if (uid) {
+          try {
+            const inspected = await inspectStreamVideo(uid);
+            if (!inspected.exists) return String(row.id);
+            if (
+              !inspected.ready &&
+              Date.now() - new Date(String(row.created_at)).getTime() > DEAD_HIGHLIGHT_PENDING_MAX_MS
+            ) return String(row.id);
+          } catch {
+            // A transient Cloudflare API failure must never delete a valid clip.
+          }
+          return null;
         }
-        continue;
-      }
-      const playback = playbackFor(row);
-      if (!playback.videoUrl || !(await urlIsPlayable(playback.videoUrl))) {
-        deadIds.push(String(row.id));
-      }
-    }
+        const playback = playbackFor(row);
+        if (!playback.videoUrl || !(await urlIsPlayable(playback.videoUrl))) {
+          return String(row.id);
+        }
+        return null;
+      }),
+    );
+    const deadIds = results.filter((id): id is string => id !== null);
 
     if (deadIds.length) {
       const removed = await supabase.from("rec_highlight_posts").delete().in("id", deadIds);
