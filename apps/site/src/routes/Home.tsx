@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { useAuth } from "../lib/auth-context.js";
+import { useSwipeNavigation } from "../hooks/useSwipeNavigation.js";
 import {
   siteApi,
   type LinkProfileResponse,
@@ -109,6 +110,9 @@ export function HomePage() {
       : null;
   const activeClip =
     spotlight.length > 0 ? spotlight[spotlightIndex % spotlight.length] : null;
+  const activeSpotlightIndex = spotlight.length ? spotlightIndex % spotlight.length : 0;
+  const spotlightSwipe = useSwipeNavigation({ itemCount: spotlight.length, onIndexChange: setSpotlightIndex });
+  useEffect(() => { spotlightSwipe.setCurrentIndex(activeSpotlightIndex); }, [activeSpotlightIndex]);
 
   function advanceSpotlight() {
     if (spotlight.length <= 1) return;
@@ -252,19 +256,31 @@ export function HomePage() {
                 ‹
               </button>
             ) : null}
-            <article className="site-spotlight-card">
+            <article
+              className="site-spotlight-card"
+              onPointerDown={spotlightSwipe.handlers.onPointerDown}
+              onPointerMove={spotlightSwipe.handlers.onPointerMove}
+              onPointerUp={spotlightSwipe.handlers.onPointerUp}
+              onPointerCancel={spotlightSwipe.handlers.onPointerCancel}
+            >
               <div className="site-spotlight-video">
                 {activeClip.iframeUrl || activeClip.streamUid ? (
-                  <iframe
-                    key={activeClip.id}
-                    src={`${
-                      activeClip.iframeUrl ??
-                      `https://iframe.videodelivery.net/${activeClip.streamUid}`
-                    }?autoplay=true&muted=true`}
-                    title="Spotlight clip"
-                    allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
-                    allowFullScreen
-                  />
+                  <>
+                    <iframe
+                      key={activeClip.id}
+                      src={`${
+                        activeClip.iframeUrl ??
+                        `https://iframe.videodelivery.net/${activeClip.streamUid}`
+                      }?autoplay=true&muted=true`}
+                      title="Spotlight clip"
+                      allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                      allowFullScreen
+                    />
+                    {/* A cross-origin iframe swallows pointer gestures before they ever reach
+                        the article's swipe handler above — this transparent catcher sits over
+                        it purely so drags bubble up instead of vanishing into the iframe. */}
+                    <div className="site-spotlight-video-swipe-catcher" />
+                  </>
                 ) : activeClip.videoUrl ? (
                   <video
                     key={activeClip.id}
