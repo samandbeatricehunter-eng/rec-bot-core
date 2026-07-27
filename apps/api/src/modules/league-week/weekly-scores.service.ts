@@ -9,6 +9,7 @@ import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { parseScheduleImages, type ParsedScheduleGame } from "../schedule/schedule.parser.js";
 import { buildAbbrMap, resolveScheduleAbbr } from "../schedule/schedule.service.js";
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 const SCHEDULE_SOURCE = "schedule_screenshot";
 const REVIEW_TABLE = "rec_weekly_score_reviews";
@@ -215,6 +216,7 @@ export async function createWeeklyScoreReview(input: {
     source_id: data.id,
     payload: { reviewId: data.id, imageUrl: data.image_url ?? null },
   });
+  void notifyLeagueCommissionersOfPendingItem(leagueId);
 
   return { ...shapeReview(data), warnings: parsedWeek.warnings };
 }

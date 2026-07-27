@@ -12,6 +12,7 @@ import {
 } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
@@ -129,6 +130,8 @@ async function maybeCreateWeeklyPayoutReview(input: {
     });
     if (inbox.error) {
       console.error("[ERROR] Failed to create commissioners inbox row for weekly highlight payout:", inbox.error);
+    } else {
+      void notifyLeagueCommissionersOfPendingItem(input.leagueId);
     }
   }
 }

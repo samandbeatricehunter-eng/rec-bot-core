@@ -11,7 +11,7 @@ export async function gameChannelRoutes(app: FastifyInstance) {
   app.post("/v1/game-channels/create-current-week", async (request, reply) => {
     try {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       return reply.send(await createGameChannelsForCurrentWeek(guildId));
     } catch (error) {
       return sendError(reply, error);

@@ -11,6 +11,10 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { getGameWagerOptions } from "./odds.service.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
+import { listLeagueCommissionerUserIds, notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { sendPushToUsers } from "../push/push.service.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string | null; name?: string | null } | null): string {
   if (!team) return "TBD";
@@ -957,32 +961,32 @@ async function creditAndCloseWager(wager: any, outcome: "won" | "lost" | "push")
     // House bet: bettor wins their potential payout. Peer: winner takes the pot.
     const winnerUserId = wager.placed_by_user_id;
     const amount = isPeer ? Number(wager.stake ?? 0) * 2 : Number(wager.potential_payout ?? 0);
-    const credit = await supabase.rpc("add_to_wallet", {
-      p_user_id: winnerUserId,
-      p_amount: amount,
-      p_league_id: wager.league_id,
-      p_description: `Wager payout — ${wager.market}`,
-      p_transaction_type: "wager_payout",
-      p_source: "wager",
-      p_source_reference: { wagerId: wager.id, outcome },
+    const credit = await creditOrBacklog({
+      leagueId: wager.league_id,
+      seasonNumber: wager.season_number,
+      userId: winnerUserId,
+      amount,
+      description: `Wager payout — ${wager.market}`,
+      transactionType: "wager_payout",
+      source: "wager",
+      sourceReference: { wagerId: wager.id, outcome },
     });
-    if (credit.error) throw new ApiError(500, "Failed to credit wager payout.", credit.error);
-    payoutLedgerId = credit.data;
+    payoutLedgerId = credit.ledgerId;
     credited = amount;
   } else if (isPeer) {
     // Peer loss for the proposer means the accepter won the pot.
     const amount = Number(wager.stake ?? 0) * 2;
-    const credit = await supabase.rpc("add_to_wallet", {
-      p_user_id: wager.accepted_by_user_id,
-      p_amount: amount,
-      p_league_id: wager.league_id,
-      p_description: `Wager payout — ${wager.market}`,
-      p_transaction_type: "wager_payout",
-      p_source: "wager",
-      p_source_reference: { wagerId: wager.id, outcome: "won-by-accepter" },
+    const credit = await creditOrBacklog({
+      leagueId: wager.league_id,
+      seasonNumber: wager.season_number,
+      userId: wager.accepted_by_user_id,
+      amount,
+      description: `Wager payout — ${wager.market}`,
+      transactionType: "wager_payout",
+      source: "wager",
+      sourceReference: { wagerId: wager.id, outcome: "won-by-accepter" },
     });
-    if (credit.error) throw new ApiError(500, "Failed to credit peer wager payout.", credit.error);
-    payoutLedgerId = credit.data;
+    payoutLedgerId = credit.ledgerId;
     credited = amount;
   }
 
@@ -1037,6 +1041,7 @@ async function recordWagerInbox(wager: any): Promise<void> {
   });
   // 23505 = unique violation — a row for this wager already exists, which is fine.
   if (error && error.code !== "23505") throw new ApiError(500, "Failed to add wager to commissioner inbox.", error);
+  if (!error) void notifyLeagueCommissionersOfPendingItem(wager.league_id);
 }
 
 // Approve a wager payout — only succeeds once the game result is confirmed.
@@ -1054,16 +1059,30 @@ export async function settleWager(input: { wagerId: string; reviewedByDiscordId:
     await recordWagerInbox(wager);
     let credited = 0;
     if (r.payout > 0) {
-      const credit = await supabase.rpc("add_to_wallet", {
-        p_user_id: wager.placed_by_user_id,
-        p_amount: r.payout,
-        p_league_id: wager.league_id,
-        p_description: r.outcome === "won" ? "Parlay payout (3-pick)" : "Parlay push refund",
-        p_transaction_type: r.outcome === "won" ? "wager_payout" : "wager_refund",
-        p_source: "wager",
-        p_source_reference: { wagerId: wager.id, outcome: r.outcome, parlay: true },
-      });
-      if (credit.error) throw new ApiError(500, "Failed to credit parlay payout.", credit.error);
+      if (r.outcome === "won") {
+        await creditOrBacklog({
+          leagueId: wager.league_id,
+          seasonNumber: wager.season_number,
+          userId: wager.placed_by_user_id,
+          amount: r.payout,
+          description: "Parlay payout (3-pick)",
+          transactionType: "wager_payout",
+          source: "wager",
+          sourceReference: { wagerId: wager.id, outcome: r.outcome, parlay: true },
+        });
+      } else {
+        // Push — refunding the original stake, not a new payout, so it's never backlogged.
+        const credit = await supabase.rpc("add_to_wallet", {
+          p_user_id: wager.placed_by_user_id,
+          p_amount: r.payout,
+          p_league_id: wager.league_id,
+          p_description: "Parlay push refund",
+          p_transaction_type: "wager_refund",
+          p_source: "wager",
+          p_source_reference: { wagerId: wager.id, outcome: r.outcome, parlay: true },
+        });
+        if (credit.error) throw new ApiError(500, "Failed to refund parlay push.", credit.error);
+      }
       credited = r.payout;
     }
     await supabase.from("rec_wagers").update({ status: r.outcome, settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", wager.id);
@@ -1130,20 +1149,33 @@ export async function listOpenWagersForWeek(leagueId: string, seasonNumber: numb
   return { wagers: data ?? [] };
 }
 
-// On advance, refund + close any open wager whose game has no logged result (and any
-// peer challenge that was never accepted). Resolved-but-unapproved wagers are left
-// for the commissioner to approve. Returns Discord message coords for cleanup.
-export async function resolveWagersOnAdvance(leagueId: string, seasonNumber: number, weekNumber: number) {
+// On advance: an unaccepted open challenge always dies immediately (nobody to refund but
+// the placer, and there's nothing to wait on). A wager tied to a game with no logged result
+// yet gets a 1-week grace period — the box score Late Submissions window lets a game get a
+// score well after its own week, so a wager only gets refunded once its week is 2+ weeks
+// behind the league's new current week ("previous week" is still honored, further back is
+// not). A wager that already has a usable result (box score OR a manually-entered advance
+// score) is left "pending" for a commissioner to settle from Pending Payouts — this also
+// seeds its commissioner-inbox row, since nothing else does that anymore now that the old
+// Discord bot's periodic confirmable-wager sweep is gone. Returns Discord message coords for
+// cleanup of the immediately-expired (awaiting_accept) wagers only.
+export async function resolveWagersOnAdvance(input: {
+  leagueId: string;
+  seasonNumber: number;
+  nextWeekNumber: number;
+}) {
   const { data } = await supabase
     .from("rec_wagers")
     .select("*")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .eq("week_number", weekNumber)
+    .eq("league_id", input.leagueId)
+    .eq("season_number", input.seasonNumber)
+    .lt("week_number", input.nextWeekNumber)
     .in("status", ["awaiting_accept", "pending", "confirmed"]);
 
   const now = new Date().toISOString();
   const refundedMessages: Array<{ pendingChannelId: string | null; pendingMessageId: string | null; announcementChannelId: string | null; announcementMessageId: string | null }> = [];
+  const reminders: any[] = [];
+  const expired: any[] = [];
 
   for (const w of data ?? []) {
     if (w.status === "awaiting_accept") {
@@ -1152,16 +1184,71 @@ export async function resolveWagersOnAdvance(leagueId: string, seasonNumber: num
       refundedMessages.push({ pendingChannelId: w.pending_channel_id, pendingMessageId: w.pending_message_id, announcementChannelId: w.announcement_channel_id, announcementMessageId: w.announcement_message_id });
       continue;
     }
+
     const resolvable = w.is_parlay
-      ? (await resolveParlay(leagueId, w.id, Number(w.stake ?? 0))) != null
-      : (await resolveOutcome(leagueId, w)) != null;
-    if (!resolvable) {
-      await refundWagerStake(w, "Wager refunded — results not logged before advance");
-      await supabase.from("rec_wagers").update({ status: "refunded", settled_at: now, updated_at: now }).eq("id", w.id);
-      refundedMessages.push({ pendingChannelId: w.pending_channel_id, pendingMessageId: w.pending_message_id, announcementChannelId: w.announcement_channel_id, announcementMessageId: w.announcement_message_id });
+      ? (await resolveParlay(input.leagueId, w.id, Number(w.stake ?? 0))) != null
+      : (await resolveOutcome(input.leagueId, w)) != null;
+    if (resolvable) {
+      await recordWagerInbox(w);
+      continue;
     }
+
+    const weeksBehind = input.nextWeekNumber - Number(w.week_number ?? input.nextWeekNumber);
+    if (weeksBehind <= 1) {
+      reminders.push(w);
+      continue;
+    }
+
+    await refundWagerStake(w, "Wager refunded — no box score submitted before the grace period ended");
+    await supabase.from("rec_wagers").update({ status: "refunded", settled_at: now, updated_at: now }).eq("id", w.id);
+    refundedMessages.push({ pendingChannelId: w.pending_channel_id, pendingMessageId: w.pending_message_id, announcementChannelId: w.announcement_channel_id, announcementMessageId: w.announcement_message_id });
+    expired.push(w);
   }
+
+  await notifyCommissionersOfStaleWagers({
+    leagueId: input.leagueId,
+    nextWeekNumber: input.nextWeekNumber,
+    reminders,
+    expired,
+  }).catch((err) => console.error("[WARN] Failed to notify commissioners of stale wagers (non-fatal):", err));
+
   return { refundedCount: refundedMessages.length, refundedMessages };
+}
+
+async function notifyCommissionersOfStaleWagers(input: {
+  leagueId: string;
+  nextWeekNumber: number;
+  reminders: any[];
+  expired: any[];
+}): Promise<void> {
+  if (!input.reminders.length && !input.expired.length) return;
+  const userIds = await listLeagueCommissionerUserIds(input.leagueId);
+  if (!userIds.length) return;
+  const league = await supabase.from("rec_leagues").select("name").eq("id", input.leagueId).maybeSingle();
+  const leagueName = league.data?.name ?? "your league";
+  const href = `/l/${input.leagueId}/mgmt/inbox`;
+
+  if (input.reminders.length) {
+    const count = input.reminders.length;
+    const deadlineWeek = input.nextWeekNumber + 1;
+    const title = `${count} wager${count === 1 ? "" : "s"} waiting on a box score in ${leagueName}`;
+    const body = `Submit the missing box score${count === 1 ? "" : "s"} before advancing to week ${deadlineWeek}, or the stake will be refunded with no conclusion.`;
+    for (const userId of userIds) {
+      void createSiteNotification({ userId, leagueId: input.leagueId, kind: "wager_grace_reminder", title, body, href }).catch(() => undefined);
+    }
+    await sendPushToUsers(userIds, { title, body, url: href }).catch(() => undefined);
+  }
+
+  if (input.expired.length) {
+    const count = input.expired.length;
+    const total = input.expired.reduce((sum, w) => sum + Number(w.stake ?? 0), 0);
+    const title = `${count} wager${count === 1 ? "" : "s"} refunded in ${leagueName}`;
+    const body = `No box score was submitted in time — ${formatCoins(total)} was returned to the players involved with no wager conclusion.`;
+    for (const userId of userIds) {
+      void createSiteNotification({ userId, leagueId: input.leagueId, kind: "wager_expired", title, body, href }).catch(() => undefined);
+    }
+    await sendPushToUsers(userIds, { title, body, url: href }).catch(() => undefined);
+  }
 }
 
 // Cancel a pending wager: refund the held stake and remove the wager.

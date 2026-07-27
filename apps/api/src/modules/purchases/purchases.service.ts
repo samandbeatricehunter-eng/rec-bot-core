@@ -5,6 +5,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { getUserBaselineByDiscordId } from "../users/user.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 // purchase_type → the rec_league_configuration columns that gate it. seasonCap null means the
 // type uses a more specific cap model handled elsewhere (attributes use per-attribute caps).
@@ -239,6 +240,7 @@ export async function createPurchaseRequest(input: {
     source_id: finalized.data.id,
     payload: { purchaseId: finalized.data.id, purchaseType: input.purchaseType, cost: price },
   });
+  void notifyLeagueCommissionersOfPendingItem(leagueId);
 
   return {
     purchase: finalized.data,

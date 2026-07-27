@@ -204,7 +204,8 @@ export type CommissionerNotificationType =
   | "wager"
   | "team_request"
   | "media"
-  | "game_of_the_year";
+  | "game_of_the_year"
+  | "legend";
 
 export type CommissionerNotification = {
   id: string;
@@ -235,6 +236,27 @@ export type CompletedCommissionerTransaction = CommissionerNotification & {
   details: Array<{ label: string; value: string }>;
 };
 export type CompletedCommissionerTransactionsResponse = { transactions: CompletedCommissionerTransaction[] };
+
+export type HighlightReviewDetail = {
+  streamUid: string | null;
+  videoUrl: string | null;
+  messageUrl: string | null;
+  weekNumber: number | null;
+  seasonStage: string | null;
+  submittedByName: string | null;
+  matchup: { weekNumber: number | null; homeTeamName: string | null; awayTeamName: string | null } | null;
+};
+
+// Aggregate "N pending items in {league}" bell summary — one row per league, not one per item.
+export type CommissionerPendingSummary = {
+  leagueId: string;
+  leagueName: string;
+  game: string;
+  gameLabel: string;
+  pendingCount: number;
+  latestCreatedAt: string;
+  unread: boolean;
+};
 
 // Active Check resolve view (notification center)
 export type ActiveCheckCandidate = { discordId: string; userId: string; teamId: string; teamName: string; label: string };
@@ -567,6 +589,31 @@ export type StorePurchaseContext = {
   usedNonCore: number;
   seasonCaps: Partial<Record<"age_reset" | "dev_upgrade" | "contract" | "player_trait" | "legend" | "custom_player", number>>;
   seasonActive: Record<string, number>;
+};
+
+export type LegendCatalogEntry = {
+  id: string;
+  name: string;
+  position: string;
+  position_group: string;
+  est_ovr: number | null;
+  height: string | null;
+  weight: number | null;
+  hand: string | null;
+  jersey_number: number | null;
+  dev_trait: string;
+  archetype: string | null;
+  build_note: string | null;
+  college: string | null;
+  attributes: Record<string, number>;
+};
+
+export type LegendAvailabilityEntry = {
+  legendId: string;
+  purchaseId: string;
+  purchaserUserId: string;
+  purchaserDiscordId: string;
+  status: string;
 };
 
 export type MentionableCommissioner = { discordId: string; displayName: string };

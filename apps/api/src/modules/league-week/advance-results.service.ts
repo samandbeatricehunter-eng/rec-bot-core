@@ -757,10 +757,16 @@ export async function completeAdvanceWeek(input: {
     });
   }
 
-  // Refund + close any wager on the completed week whose result was never logged
-  // (and any peer challenge nobody took). Returns Discord message coords so the bot
-  // can delete the stale pending embeds / open-challenge announcements. Non-fatal.
-  const wagerCleanup = await resolveWagersOnAdvance(context.leagueId, seasonNumber, currentWeek).catch((err) => {
+  // Refund any wager past its 1-week box-score grace period (and any peer challenge
+  // nobody took). Wagers still within grace, or already resolvable, are left pending —
+  // see resolveWagersOnAdvance for the full grace-period rule. Returns Discord message
+  // coords so the bot can delete the stale pending embeds / open-challenge announcements.
+  // Non-fatal.
+  const wagerCleanup = await resolveWagersOnAdvance({
+    leagueId: context.leagueId,
+    seasonNumber,
+    nextWeekNumber: nextTarget.weekNumber,
+  }).catch((err) => {
     console.error("[ERROR] resolveWagersOnAdvance failed after advance (non-fatal):", err);
     return { refundedCount: 0, refundedMessages: [] as any[] };
   });

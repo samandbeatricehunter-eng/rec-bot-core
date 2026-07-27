@@ -3,13 +3,26 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
-import { listCommissionerNotifications, listCompletedCommissionerTransactions, listUnattendedCommissionerNotifications, markCommissionerNotificationsDmSent } from "./notifications.service.js";
+import {
+  getCommissionerPendingSummaryForLeague,
+  listCommissionerNotifications,
+  listCompletedCommissionerTransactions,
+  listUnattendedCommissionerNotifications,
+  markCommissionerLeagueViewed,
+  markCommissionerNotificationsDmSent,
+} from "./notifications.service.js";
 
 const ListSchema = z.object({
   guildId: z.string().min(1),
   // Set by the bot's polling loop (1e) to fetch only items created since its last check;
   // omitted by the web dashboard, which always wants the full pending list.
   sinceIso: z.string().datetime().optional().nullable(),
+});
+
+const LeagueScopedSchema = z.object({
+  guildId: z.string().min(1),
+  discordId: z.string().min(1),
+  leagueId: z.string().uuid(),
 });
 
 export async function notificationsRoutes(app: FastifyInstance) {
@@ -21,6 +34,22 @@ export async function notificationsRoutes(app: FastifyInstance) {
     } catch (error) {
       return sendError(reply, error);
     }
+  });
+
+  app.post("/v1/notifications/pending-summary", async (request, reply) => {
+    try {
+      const body = LeagueScopedSchema.parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send({ summary: await getCommissionerPendingSummaryForLeague(body.discordId, body.leagueId) });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/mark-viewed", async (request, reply) => {
+    try {
+      const body = LeagueScopedSchema.parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await markCommissionerLeagueViewed(body.discordId, body.leagueId));
+    } catch (error) { return sendError(reply, error); }
   });
 
   app.post("/v1/notifications/completed", async (request, reply) => {

@@ -18,6 +18,10 @@ import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { sendPushToUser } from "../push/push.service.js";
+import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const BOX_SCORE_WIN_PAYOUT = 100;
 const BOX_SCORE_LOSS_PAYOUT = 50;
@@ -1147,6 +1151,7 @@ export async function createBoxScoreSubmission(input: CreateSubmissionInput): Pr
       commissionerSubmission: !!input.commissionerSubmission,
     },
   });
+  void notifyLeagueCommissionersOfPendingItem(leagueId);
 
   return {
     submissionId: submission.id,
@@ -1266,14 +1271,15 @@ async function issueBadgeBonusesForSubmission(sub: {
     const badgeLabel = BADGE_LABELS.get(event.badge_key) ?? event.badge_key;
     const isNegative = BADGE_POLARITY.get(event.badge_key) === "negative";
     const amount = isNegative ? -BADGE_BONUS_PAYOUT : BADGE_BONUS_PAYOUT;
-    await supabase.rpc("add_to_wallet", {
-      p_user_id: event.user_id,
-      p_amount: amount,
-      p_league_id: sub.league_id,
-      p_description: `${isNegative ? "Badge penalty" : "Badge bonus"}: ${badgeLabel} - Wk ${sub.week_number}`,
-      p_transaction_type: isNegative ? "badge_penalty" : "badge_bonus",
-      p_source: "box_score",
-      p_source_reference: {
+    await creditOrBacklog({
+      leagueId: sub.league_id,
+      seasonNumber: sub.season_number,
+      userId: event.user_id,
+      amount,
+      description: `${isNegative ? "Badge penalty" : "Badge bonus"}: ${badgeLabel} - Wk ${sub.week_number}`,
+      transactionType: isNegative ? "badge_penalty" : "badge_bonus",
+      source: "box_score",
+      sourceReference: {
         idempotencyKey: badgeBonusIdempotencyKey(
           {
             league_id: event.league_id,
@@ -1286,7 +1292,7 @@ async function issueBadgeBonusesForSubmission(sub: {
           sub.id,
         ),
       },
-    }).throwOnError();
+    });
     paid.push({ userId: event.user_id, badgeKey: event.badge_key, badgeLabel, amount });
   }
 
@@ -1380,6 +1386,23 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       sub.submitted_by_discord_id,
       `Your Week ${sub.week_number ?? "?"} box score for **${league.data?.name ?? "your REC league"}** was denied.\n\n**Reason:** ${reason}\n\nYou may correct the screenshot and submit it again in the league's box score channel. Open **/hub** to return to the league hub.`,
     ).catch((dmError) => console.error("[WARN] Failed to DM denied box-score submitter:", dmError));
+
+    if (sub.submitted_by_user_id) {
+      const title = `Your Week ${sub.week_number ?? "?"} box score was denied`;
+      void createSiteNotification({
+        userId: sub.submitted_by_user_id,
+        leagueId: sub.league_id,
+        kind: "box_score_denied",
+        title,
+        body: reason,
+        href: `/l/${sub.league_id}/mgmt/inbox`,
+      }).catch((error) => console.error("[WARN] Failed to create denial site notification:", error));
+      void sendPushToUser(sub.submitted_by_user_id, {
+        title,
+        body: reason,
+        url: `/l/${sub.league_id}/mgmt/inbox`,
+      }).catch(() => {});
+    }
 
     return { ok: true, action: "denied" as const };
   }
@@ -1504,15 +1527,16 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
 
   let totalPaid = 0;
   for (const p of payouts) {
-    await supabase.rpc("add_to_wallet", {
-      p_user_id: p.userId,
-      p_amount: p.amount,
-      p_league_id: sub.league_id,
-      p_description: `Box score payout (${formatCoins(p.amount)}) — Wk ${sub.week_number}`,
-      p_transaction_type: "box_score_payout",
-      p_source: "box_score",
-      p_source_reference: { submissionId: sub.id },
-    }).throwOnError();
+    await creditOrBacklog({
+      leagueId: sub.league_id,
+      seasonNumber: sub.season_number,
+      userId: p.userId,
+      amount: p.amount,
+      description: `Box score payout (${formatCoins(p.amount)}) — Wk ${sub.week_number}`,
+      transactionType: "box_score_payout",
+      source: "box_score",
+      sourceReference: { submissionId: sub.id },
+    });
     totalPaid += p.amount;
   }
   for (const bonus of badgeBonuses) totalPaid += bonus.amount;
@@ -1554,6 +1578,21 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   ]);
   if (submissionUpdate.error) throw new ApiError(500, "Failed to mark box score submission approved.", submissionUpdate.error);
   if (inboxUpdate.error) throw new ApiError(500, "Failed to update box score commissioner inbox item.", inboxUpdate.error);
+
+  for (const p of payouts) {
+    const resultLabel = winningUserId == null ? "ended in a tie" : p.userId === winningUserId ? "was a win" : "was a loss";
+    const title = `Your Week ${sub.week_number ?? "?"} box score was approved`;
+    const body = `The game ${resultLabel} — you were paid ${formatCoins(p.amount)}.`;
+    void createSiteNotification({
+      userId: p.userId,
+      leagueId: sub.league_id,
+      kind: "box_score_approved",
+      title,
+      body,
+      href: `/l/${sub.league_id}/matchups`,
+    }).catch((error) => console.error("[WARN] Failed to create approval site notification:", error));
+    void sendPushToUser(p.userId, { title, body, url: `/l/${sub.league_id}/matchups` }).catch(() => {});
+  }
 
   // Approval confirms the parse — promote any fuzzy-matched labels to aliases.
   await recordLabelAliases(sub.parse_label_samples as Record<string, string> | null);

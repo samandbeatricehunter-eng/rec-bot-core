@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { createHighlightAwardReview, listHighlightAwardCandidates, recordHighlightPost, reviewGameOfYearPayout, reviewHighlightPayout } from "./highlights.service.js";
+import { createHighlightAwardReview, getHighlightReviewDetail, listHighlightAwardCandidates, recordHighlightPost, reviewGameOfYearPayout, reviewHighlightPayout } from "./highlights.service.js";
 
 const RecordHighlightSchema = z.object({
   guildId: z.string().min(1),
@@ -48,6 +48,16 @@ export async function highlightRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
       if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
       return reply.send(await reviewHighlightPayout(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/highlights/review-detail", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), reviewId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await getHighlightReviewDetail(body));
     } catch (error) {
       return sendError(reply, error);
     }

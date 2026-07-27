@@ -293,7 +293,6 @@ export type SiteNotificationItem = {
   read: boolean;
   createdAt: string;
   kind: "regular" | "commissioner";
-  isInboxLink?: boolean;
   leagueId?: string | null;
   leagueName?: string | null;
 };
@@ -506,6 +505,11 @@ export const siteApi = {
   },
   clearNotifications() {
     return request<{ ok: true; cleared: number }>("/v1/site-notifications/clear", {});
+  },
+  markCommissionerLeaguesViewed(leagueIds: string[]) {
+    return request<{ ok: true }>("/v1/site-notifications/mark-commissioner-viewed", {
+      leagueIds,
+    });
   },
   exchangeAppHandoff(handoff: string) {
     return request<

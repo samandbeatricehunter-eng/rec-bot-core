@@ -5,6 +5,8 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 
@@ -256,22 +258,22 @@ export async function autoIssueStatBasedAwards(guildId: string): Promise<{ issue
     if (!best) continue;
 
     const label = awardLabel(definition.key, context.rec_leagues.game);
-    const ledger = await supabase.rpc("add_to_wallet", {
-      p_user_id: best.userId,
-      p_amount: definition.amount,
-      p_league_id: context.leagueId,
-      p_description: `EOS Award - ${label}`,
-      p_transaction_type: "eos_award_payout",
-      p_source: "eos",
-      p_source_reference: { category: definition.key, season: seasonNumber, autoIssued: true },
+    const credit = await creditOrBacklog({
+      leagueId: context.leagueId,
+      seasonNumber,
+      userId: best.userId,
+      amount: definition.amount,
+      description: `EOS Award - ${label}`,
+      transactionType: "eos_award_payout",
+      source: "eos",
+      sourceReference: { category: definition.key, season: seasonNumber, autoIssued: true },
     });
-    if (ledger.error) throw new ApiError(500, `Failed to auto-issue ${label}.`, ledger.error);
 
     const inserted = await supabase.from("rec_eos_award_polls").insert({
       league_id: context.leagueId, season_number: seasonNumber, category_key: definition.key, category_label: label,
       category_description: label, award_amount: definition.amount, nominee_user_ids: [best.userId], nominee_payloads: [],
       status: "settled", winner_user_id: best.userId, opened_at: new Date().toISOString(), settled_at: new Date().toISOString(),
-      paid_ledger_id: ledger.data, vote_counts: {}, updated_at: new Date().toISOString(),
+      paid_ledger_id: credit.ledgerId, vote_counts: {}, updated_at: new Date().toISOString(),
     }).select("id").single();
     if (inserted.error) throw new ApiError(500, `Failed to record auto-issued ${label}.`, inserted.error);
 
@@ -339,6 +341,7 @@ export async function recordEosAwardPoll(input: {
     source_id: row.data.id,
     payload: { pollId: row.data.id, categoryKey: definition.key },
   });
+  void notifyLeagueCommissionersOfPendingItem(context.leagueId);
 
   return { poll: row.data };
 }
@@ -521,16 +524,16 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
   const winner = finalists[0]?.nominee ?? null;
   if (!winner?.userId) throw new ApiError(400, "EOS award poll has no nominees.");
   const amount = Number(poll.data.award_amount ?? 200);
-  const ledger = await supabase.rpc("add_to_wallet", {
-    p_user_id: winner.userId,
-    p_amount: amount,
-    p_league_id: poll.data.league_id,
-    p_description: `EOS Award - ${poll.data.category_label}`,
-    p_transaction_type: "eos_award_payout",
-    p_source: "eos",
-    p_source_reference: { pollId: poll.data.id, categoryKey: poll.data.category_key },
+  const credit = await creditOrBacklog({
+    leagueId: poll.data.league_id,
+    seasonNumber: poll.data.season_number,
+    userId: winner.userId,
+    amount,
+    description: `EOS Award - ${poll.data.category_label}`,
+    transactionType: "eos_award_payout",
+    source: "eos",
+    sourceReference: { pollId: poll.data.id, categoryKey: poll.data.category_key },
   });
-  if (ledger.error) throw new ApiError(500, "Failed to issue EOS award payout.", ledger.error);
   const updated = await supabase
     .from("rec_eos_award_polls")
     .update({
@@ -538,7 +541,7 @@ export async function settleEosAwardPoll(input: { pollId: string; voteCounts: Re
       winner_user_id: winner.userId,
       locked_at: new Date().toISOString(),
       settled_at: new Date().toISOString(),
-      paid_ledger_id: ledger.data,
+      paid_ledger_id: credit.ledgerId,
       vote_counts: input.voteCounts,
       tiebreaker_needed: tiebreakerNeeded,
       tied_candidate_ids: tiebreakerNeeded ? rawTied.map((row) => row.nominee.userId) : null,

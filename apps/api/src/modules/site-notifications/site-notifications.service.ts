@@ -4,8 +4,21 @@ import {
   listMySiteLeagues,
   requireLinkedRecUser,
 } from "../site-leagues/site-leagues.service.js";
+import {
+  getCommissionerPendingSummaries,
+  markCommissionerLeaguesViewed,
+  summaryTitle,
+} from "../notifications/commissioner-pending-summary.js";
 
 export { requireLinkedRecUser };
+
+export async function markSiteCommissionerLeaguesViewed(input: {
+  recUserId: string;
+  leagueIds: string[];
+}): Promise<{ ok: true }> {
+  await markCommissionerLeaguesViewed(input.recUserId, input.leagueIds);
+  return { ok: true };
+}
 
 export type SiteNotificationItem = {
   id: string;
@@ -16,52 +29,9 @@ export type SiteNotificationItem = {
   createdAt: string;
   /** Section discriminator for the site bell. */
   kind: "regular" | "commissioner";
-  /** When true, item is a synthetic link into that league's commissioner inbox. */
-  isInboxLink?: boolean;
   leagueId?: string | null;
   leagueName?: string | null;
 };
-
-function humanizeQueueTitle(input: {
-  queueType: string;
-  header: string;
-  summary: string | null;
-  leagueName: string;
-  requesterName: string | null;
-}): string {
-  const requester = input.requesterName?.trim() || "A member";
-  switch (input.queueType) {
-    case "stream":
-      return `${requester} submitted a stream in ${input.leagueName}`;
-    case "highlight":
-      return `${requester} submitted a highlight in ${input.leagueName}`;
-    case "box_score":
-      return `${requester} submitted a box score in ${input.leagueName}`;
-    case "purchase":
-      return `${requester} requested a purchase in ${input.leagueName}`;
-    case "wager":
-      return `Wager review needed in ${input.leagueName}`;
-    case "team_request":
-      return `Team request pending in ${input.leagueName}`;
-    case "weekly_score_review":
-      return `Weekly score review pending in ${input.leagueName}`;
-    case "game_of_the_year":
-      return `Game of the Year item needs review in ${input.leagueName}`;
-    case "media":
-      return `Media submission pending in ${input.leagueName}`;
-    default:
-      return input.header?.trim() || `${input.leagueName}: ${input.queueType.replaceAll("_", " ")}`;
-  }
-}
-
-function hrefForQueueType(leagueId: string, queueType: string): string {
-  // Review-queue style items open the league commissioner inbox on site.
-  // Member-facing info that isn't a review (future advance digests) goes to matchups.
-  if (queueType === "league_advanced" || queueType === "advance") {
-    return `/l/${leagueId}/matchups`;
-  }
-  return `/l/${leagueId}/mgmt/inbox`;
-}
 
 /** node-pg returns timestamps as Date; always normalize before string APIs. */
 function asIsoTimestamp(value: unknown): string {
@@ -126,84 +96,29 @@ export async function listSiteNotifications(input: {
   }));
 
   const { leagues } = await listMySiteLeagues({ recUserId: input.recUserId });
-  const commissionerLeagues = leagues.filter((league) => league.isCommissioner);
+  const commissionerLeagueIds = leagues.filter((league) => league.isCommissioner).map((league) => league.id);
 
-  const commissioner: SiteNotificationItem[] = [];
+  // One aggregate row per league ("You have N pending items in {league}"), not one row per
+  // rec_commissioners_inbox item — item-level review now lives in the Commissioner Chat
+  // window's Payouts tab (League Mgmt), so the bell only needs to say where to look.
+  const summaries = await getCommissionerPendingSummaries(input.recUserId, commissionerLeagueIds);
+  const commissioner: SiteNotificationItem[] = summaries.map((item) => ({
+    id: `pending-summary:${item.leagueId}`,
+    kind: "commissioner",
+    title: summaryTitle(item),
+    body: `${item.gameLabel} · Open the commissioner inbox to review.`,
+    href: `/l/${item.leagueId}/mgmt/inbox`,
+    leagueId: item.leagueId,
+    leagueName: item.leagueName,
+    createdAt: item.latestCreatedAt,
+    read: !item.unread,
+  }));
 
-  for (const league of commissionerLeagues) {
-    // Explicit entry so commissioners can always jump to the review inbox
-    // without conflating it with the generic bell item list.
-    commissioner.push({
-      id: `inbox-link:${league.id}`,
-      kind: "commissioner",
-      title: `Open ${league.name} commissioner inbox`,
-      body: "Review queue for this league (same inbox as Commissioners Office).",
-      href: `/l/${league.id}/mgmt/inbox`,
-      leagueId: league.id,
-      leagueName: league.name,
-      createdAt: new Date(0).toISOString(),
-      read: true,
-      isInboxLink: true,
-    });
-
-    const pending = await getPgPool().query(
-      `
-        select
-          i.id,
-          i.queue_type,
-          i.header,
-          i.summary,
-          i.created_at,
-          coalesce(u.username, u.display_name, da.username, da.global_name) as requester_name
-        from rec_commissioners_inbox i
-        left join rec_users u on u.id = i.requester_user_id
-        left join rec_discord_accounts da on da.discord_id = i.requester_discord_id
-        where i.league_id = $1
-          and i.status = 'pending'
-        order by i.priority desc, i.created_at desc
-        limit 25
-      `,
-      [league.id],
-    );
-
-    for (const row of pending.rows as Array<{
-      id: string;
-      queue_type: string;
-      header: string;
-      summary: string | null;
-      created_at: string;
-      requester_name: string | null;
-    }>) {
-      commissioner.push({
-        id: `commish:${row.id}`,
-        kind: "commissioner",
-        title: humanizeQueueTitle({
-          queueType: row.queue_type,
-          header: row.header,
-          summary: row.summary,
-          leagueName: league.name,
-          requesterName: row.requester_name,
-        }),
-        body: row.summary,
-        href: hrefForQueueType(league.id, row.queue_type),
-        leagueId: league.id,
-        leagueName: league.name,
-        createdAt: asIsoTimestamp(row.created_at),
-        read: false,
-      });
-    }
-  }
-
-  // Keep inbox links at top of commissioner section, then newest pending items.
-  commissioner.sort((a, b) => {
-    if (a.isInboxLink && !b.isInboxLink) return -1;
-    if (!a.isInboxLink && b.isInboxLink) return 1;
-    return asIsoTimestamp(b.createdAt).localeCompare(asIsoTimestamp(a.createdAt));
-  });
+  commissioner.sort((a, b) => asIsoTimestamp(b.createdAt).localeCompare(asIsoTimestamp(a.createdAt)));
 
   const unreadCount =
     regular.filter((item) => !item.read).length +
-    commissioner.filter((item) => !item.read && !item.isInboxLink).length;
+    commissioner.filter((item) => !item.read).length;
 
   return { regular, commissioner, unreadCount };
 }

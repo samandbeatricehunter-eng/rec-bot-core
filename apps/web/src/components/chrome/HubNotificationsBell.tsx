@@ -4,7 +4,7 @@ import { Bell } from "lucide-react";
 import { useAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { CommissionerNotification } from "../../types/api.js";
+import type { CommissionerPendingSummary } from "../../types/api.js";
 
 const POLL_MS = 45_000;
 
@@ -16,9 +16,10 @@ export function HubNotificationsBell() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [commissioner, setCommissioner] = useState<CommissionerNotification[]>([]);
+  const [summary, setSummary] = useState<CommissionerPendingSummary | null>(null);
 
   const canManage = hub.currentLeague?.isCommissioner ?? false;
+  const leagueId = hub.currentLeague?.id ?? null;
 
   async function refresh() {
     if (auth.status !== "ready") return;
@@ -26,18 +27,27 @@ export function HubNotificationsBell() {
     setError(null);
     try {
       // Phase 1: no Discord-user member updates API — Updates stays empty.
-      if (canManage) {
-        const res = await recApi.listCommissionerNotifications(auth.guildId);
-        setCommissioner(res.notifications);
+      if (canManage && leagueId) {
+        const res = await recApi.getCommissionerPendingSummary(auth.guildId, auth.discordId, leagueId);
+        setSummary(res.summary);
       } else {
-        setCommissioner([]);
+        setSummary(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load notifications.");
-      setCommissioner([]);
+      setSummary(null);
     } finally {
       setLoading(false);
     }
+  }
+
+  function openPendingItems() {
+    setOpen(false);
+    if (auth.status === "ready" && leagueId && summary?.unread) {
+      void recApi.markCommissionerLeagueViewed(auth.guildId, auth.discordId, leagueId).catch(() => undefined);
+      setSummary((prev) => (prev ? { ...prev, unread: false } : prev));
+    }
+    navigate("/league-mgmt/notifications");
   }
 
   useEffect(() => {
@@ -51,7 +61,7 @@ export function HubNotificationsBell() {
       window.clearInterval(timer);
       window.removeEventListener("rec:notifications-changed", load);
     };
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, canManage]);
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, canManage, leagueId]);
 
   useEffect(() => {
     if (!open) return;
@@ -70,7 +80,7 @@ export function HubNotificationsBell() {
     };
   }, [open]);
 
-  const unreadCount = commissioner.length;
+  const unreadCount = summary?.unread ? summary.pendingCount : 0;
 
   return (
     <div className="hub-chrome-notif-bell" ref={rootRef}>
@@ -110,47 +120,25 @@ export function HubNotificationsBell() {
           {canManage ? (
             <section className="hub-chrome-notif-section hub-chrome-notif-section-commish">
               <h3>Commissioner</h3>
-              <p className="hub-chrome-notif-section-note">
-                Pending Office inbox items — open League Mgmt for full review.
-              </p>
               <ul>
-                <li>
-                  <button
-                    type="button"
-                    className="is-inbox-link"
-                    onClick={() => {
-                      setOpen(false);
-                      navigate("/league-mgmt/notifications");
-                    }}
-                  >
-                    <span className="hub-chrome-notif-title">
-                      Open {hub.currentLeague?.name ?? "league"} commissioner inbox
-                    </span>
-                    <span className="hub-chrome-notif-body">League Mgmt · Office</span>
-                  </button>
-                </li>
-                {commissioner.slice(0, 8).map((item) => (
-                  <li key={item.id}>
+                {summary && summary.pendingCount > 0 ? (
+                  <li>
                     <button
                       type="button"
-                      className="is-unread"
-                      onClick={() => {
-                        setOpen(false);
-                        navigate("/league-mgmt/notifications");
-                      }}
+                      className={summary.unread ? "is-unread" : undefined}
+                      onClick={openPendingItems}
                     >
-                      <span className="hub-chrome-notif-title">{item.title}</span>
-                      {item.subtitle ? (
-                        <span className="hub-chrome-notif-body">{item.subtitle}</span>
-                      ) : null}
+                      <span className="hub-chrome-notif-title">
+                        You have {summary.pendingCount} pending item{summary.pendingCount === 1 ? "" : "s"} in {summary.leagueName}
+                      </span>
+                      <span className="hub-chrome-notif-body">{summary.gameLabel} · League Mgmt · Payouts</span>
                     </button>
                   </li>
-                ))}
-                {commissioner.length === 0 ? (
+                ) : (
                   <li>
                     <p className="hub-chrome-notif-section-note">Inbox is clear.</p>
                   </li>
-                ) : null}
+                )}
               </ul>
             </section>
           ) : null}

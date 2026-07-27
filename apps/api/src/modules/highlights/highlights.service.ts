@@ -7,6 +7,9 @@ import { resolveSeasonId } from "../league-context/season.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 import { deleteStreamVideosForHighlights } from "../media/media.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
@@ -95,6 +98,52 @@ export async function recordHighlightPost(_input: RecordHighlightInput): Promise
   );
 }
 
+// Lets a commissioner eyeball the actual clip + claimed matchup before approving a payout,
+// so a highlight from the wrong week/game (or an outright fake upload) is easy to catch
+// instead of trusting the submitter's word for it.
+export async function getHighlightReviewDetail(input: { guildId: string; reviewId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const review = await supabase
+    .from("rec_highlight_payout_reviews")
+    .select("id,highlight_post_id")
+    .eq("id", input.reviewId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (review.error) throw new ApiError(500, "Failed to load highlight review.", review.error);
+  if (!review.data) throw new ApiError(404, "Highlight review not found.");
+
+  const post = await supabase
+    .from("rec_highlight_posts")
+    .select(
+      "id,week_number,season_stage,cloudflare_stream_uid,storage_provider,playback_url,message_url,user:rec_users(display_name,username),game:rec_games(id,week_number,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,abbreviation,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,abbreviation,is_relocated))",
+    )
+    .eq("id", review.data.highlight_post_id)
+    .maybeSingle();
+  if (post.error) throw new ApiError(500, "Failed to load highlight.", post.error);
+  if (!post.data) throw new ApiError(404, "Highlight post not found.");
+
+  const game: any = Array.isArray(post.data.game) ? post.data.game[0] : post.data.game;
+  const homeTeam: any = game ? (Array.isArray(game.home_team) ? game.home_team[0] : game.home_team) : null;
+  const awayTeam: any = game ? (Array.isArray(game.away_team) ? game.away_team[0] : game.away_team) : null;
+  const submitter: any = Array.isArray(post.data.user) ? post.data.user[0] : post.data.user;
+
+  return {
+    streamUid: post.data.cloudflare_stream_uid ?? null,
+    videoUrl: post.data.storage_provider === "cloudflare_stream" ? null : post.data.playback_url ?? null,
+    messageUrl: post.data.message_url ?? null,
+    weekNumber: post.data.week_number,
+    seasonStage: post.data.season_stage,
+    submittedByName: submitter?.display_name ?? submitter?.username ?? null,
+    matchup: game
+      ? {
+          weekNumber: game.week_number,
+          homeTeamName: formatTeamDisplayName(homeTeam),
+          awayTeamName: formatTeamDisplayName(awayTeam),
+        }
+      : null,
+  };
+}
+
 export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
   const existing = await supabase
     .from("rec_highlight_payout_reviews")
@@ -108,48 +157,49 @@ export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
   }
 
   if (input.action === "deny") {
-    const denied = await supabase
-      .from("rec_highlight_payout_reviews")
-      .update({
-        status: "denied",
-        reviewed_by_discord_id: input.reviewedByDiscordId,
-        denied_reason: input.deniedReason ?? "Denied by commissioner review.",
-        reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.reviewId)
-      .select("*,highlight_post:rec_highlight_posts(*)")
-      .single();
-    if (denied.error) throw new ApiError(500, "Failed to deny highlight payout review.", denied.error);
+    const reviewedAt = new Date().toISOString();
+    const deniedReason = input.deniedReason ?? "Denied by commissioner review.";
+    const highlightPost = existing.data.highlight_post;
+
+    // A denied payout means the clip either isn't a real match to the claimed week/matchup
+    // or otherwise doesn't qualify — delete it outright rather than leaving a hidden orphan
+    // (hub_visible stays false either way, but there's no reason to keep the storage/DB row
+    // around). The review row cascades with it (rec_highlight_payout_reviews.highlight_post_id
+    // is ON DELETE CASCADE), so update the commissioners-inbox audit row first.
     await supabase
       .from("rec_commissioners_inbox")
       .update({
         status: "denied",
         reviewed_by_discord_id: input.reviewedByDiscordId,
-        reviewed_at: denied.data.reviewed_at,
-        review_reason: denied.data.denied_reason ?? null,
+        reviewed_at: reviewedAt,
+        review_reason: deniedReason,
       })
       .eq("source_table", "rec_highlight_payout_reviews")
       .eq("source_id", input.reviewId);
-    return { updated: true, review: denied.data, highlight: denied.data.highlight_post };
+
+    if (highlightPost) await deleteStreamVideosForHighlights([highlightPost]);
+    const deleted = await supabase.from("rec_highlight_posts").delete().eq("id", existing.data.highlight_post_id);
+    if (deleted.error) throw new ApiError(500, "Failed to delete denied highlight.", deleted.error);
+
+    return { updated: true, action: "denied" as const, deleted: true, highlight: highlightPost };
   }
 
   const amount = Number(existing.data.amount ?? HIGHLIGHT_PAYOUT_AMOUNT);
   let ledgerId: string | null = null;
   if (amount > 0) {
-    const ledger = await supabase.rpc("add_to_wallet", {
-      p_user_id: existing.data.user_id,
-      p_amount: amount,
-      p_league_id: existing.data.league_id,
-      p_description: existing.data.payout_kind === "season_award"
+    const credit = await creditOrBacklog({
+      leagueId: existing.data.league_id,
+      seasonNumber: existing.data.season_number,
+      userId: existing.data.user_id,
+      amount,
+      description: existing.data.payout_kind === "season_award"
         ? `Play of the Year payout (${existing.data.award_category})`
         : `Highlight payout - Wk ${existing.data.week_number}`,
-      p_transaction_type: existing.data.payout_kind === "season_award" ? "highlight_award_payout" : "highlight_payout",
-      p_source: "highlight",
-      p_source_reference: { reviewId: existing.data.id, highlightPostId: existing.data.highlight_post_id, awardCategory: existing.data.award_category ?? null },
+      transactionType: existing.data.payout_kind === "season_award" ? "highlight_award_payout" : "highlight_payout",
+      source: "highlight",
+      sourceReference: { reviewId: existing.data.id, highlightPostId: existing.data.highlight_post_id, awardCategory: existing.data.award_category ?? null },
     });
-    if (ledger.error) throw new ApiError(500, "Failed to issue highlight payout.", ledger.error);
-    ledgerId = ledger.data;
+    ledgerId = credit.ledgerId;
   }
 
   const approved = await supabase
@@ -457,6 +507,7 @@ export async function createHighlightAwardReview(input: CreateHighlightAwardRevi
     source_id: review.data.id,
     payload: { reviewId: review.data.id, highlightPostId: highlight.data.id, payoutKind: "season_award", category: input.category },
   });
+  void notifyLeagueCommissionersOfPendingItem(context.leagueId);
 
   return {
     review: review.data,
@@ -552,6 +603,7 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
       source_id: inserted.data.id,
       payload: { reviewId: inserted.data.id, gameId: game.id, likeCount: maxLikes, tied: topGames.length > 1 },
     });
+    void notifyLeagueCommissionersOfPendingItem(context.leagueId);
     candidates += 1;
   }
 
@@ -615,16 +667,19 @@ export async function reviewGameOfYearPayout(input: ReviewGameOfYearInput) {
   const amount = Number(existing.data.amount ?? GAME_OF_THE_YEAR_AMOUNT);
   for (const [userId, label] of [[existing.data.home_user_id, existing.data.home_team_label], [existing.data.away_user_id, existing.data.away_team_label]] as const) {
     if (!userId) continue;
-    const ledger = await supabase.rpc("add_to_wallet", {
-      p_user_id: userId,
-      p_amount: amount,
-      p_league_id: existing.data.league_id,
-      p_description: `Game of the Year payout (${label ?? "team"})`,
-      p_transaction_type: "game_of_the_year_payout",
-      p_source: "game_of_the_year",
-      p_source_reference: { reviewId: existing.data.id, gameId: existing.data.game_id },
+    // Note: "gotw" is the closest valid rec_source_type enum member — there is no dedicated
+    // "game_of_the_year" value (the prior "game_of_the_year" literal here would have made
+    // every one of these payouts fail with an invalid-enum-value error).
+    await creditOrBacklog({
+      leagueId: existing.data.league_id,
+      seasonNumber: existing.data.season_number,
+      userId,
+      amount,
+      description: `Game of the Year payout (${label ?? "team"})`,
+      transactionType: "game_of_the_year_payout",
+      source: "gotw",
+      sourceReference: { reviewId: existing.data.id, gameId: existing.data.game_id },
     });
-    if (ledger.error) throw new ApiError(500, "Failed to issue Game of the Year payout.", ledger.error);
   }
 
   const approved = await supabase

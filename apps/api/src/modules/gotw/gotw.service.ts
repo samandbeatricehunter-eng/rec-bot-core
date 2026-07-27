@@ -6,6 +6,7 @@ import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.se
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const GOTW_CORRECT_GUESS_PAYOUT = 25;
 
@@ -251,25 +252,27 @@ export async function settleGotwPoll(input: {
       selected_team_name: voter.selectedTeamId === poll.away_team_id ? poll.away_team_name : poll.home_team_name,
       is_correct: isCorrect,
       payout_amount: payout,
-      paid_ledger_id: null,
+      paid_ledger_id: null as string | null,
       voted_at: now,
       settled_at: now,
     };
 
     if (payout > 0 && userId) {
-      const { data: ledgerId, error } = await supabase.rpc("add_to_wallet", {
-        p_user_id: userId,
-        p_amount: payout,
-        p_league_id: context.leagueId,
-        p_description: `GOTW correct pick: ${poll.away_team_name} vs ${poll.home_team_name} - Wk ${poll.week_number}`,
-        p_transaction_type: "gotw_payout",
-        p_source: "gotw",
-        p_source_reference: { poll_id: input.pollId, week: poll.week_number },
-      });
-      if (error) console.error("[ERROR] GOTW payout failed (non-fatal):", error);
-      else {
-        voteRow.paid_ledger_id = ledgerId ?? null;
+      try {
+        const credit = await creditOrBacklog({
+          leagueId: context.leagueId,
+          seasonNumber: poll.season_number,
+          userId,
+          amount: payout,
+          description: `GOTW correct pick: ${poll.away_team_name} vs ${poll.home_team_name} - Wk ${poll.week_number}`,
+          transactionType: "gotw_payout",
+          source: "gotw",
+          sourceReference: { poll_id: input.pollId, week: poll.week_number },
+        });
+        voteRow.paid_ledger_id = credit.ledgerId;
         payouts += 1;
+      } catch (error) {
+        console.error("[ERROR] GOTW payout failed (non-fatal):", error);
       }
     }
 

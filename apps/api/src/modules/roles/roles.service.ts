@@ -50,6 +50,17 @@ async function persistManagedRole(guildId: string, discordId: string, roleKey: R
     .eq("assignment_status", "active")
     .is("ended_at", null);
   if (updated.error) throw new ApiError(500, "Failed to synchronize the site league role.", updated.error);
+
+  // rec_league_memberships.role is what the site (apps/site) reads for commissioner status —
+  // the Discord role grant above only covers the hub (apps/web), so this needs its own write
+  // or a Roles-screen promotion never shows up as commissioner on the site.
+  if (authority === "member" || authority === "co_commissioner" || authority === "commissioner") {
+    const membership = await supabase.from("rec_league_memberships")
+      .update({ role: authority, updated_at: new Date().toISOString() })
+      .eq("league_id", context.leagueId)
+      .eq("user_id", account.data.user_id);
+    if (membership.error) throw new ApiError(500, "Failed to synchronize the site league membership role.", membership.error);
+  }
 }
 
 export async function syncDiscordMemberRole(input: { guildId: string; discordId: string; roleKey: RecManagedRoleKey }) {

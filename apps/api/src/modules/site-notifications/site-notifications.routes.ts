@@ -5,6 +5,7 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   clearSiteNotifications,
   listSiteNotifications,
+  markSiteCommissionerLeaguesViewed,
   markSiteNotificationsRead,
   requireLinkedRecUser,
 } from "./site-notifications.service.js";
@@ -45,6 +46,24 @@ export async function siteNotificationsRoutes(app: FastifyInstance) {
       const session = await requireSiteUserSession(request);
       const user = await requireLinkedRecUser(session.authUserId);
       return reply.send(await clearSiteNotifications({ recUserId: user.recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-notifications/mark-commissioner-viewed", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z
+        .object({ leagueIds: z.array(z.string().uuid()).max(50) })
+        .parse(request.body ?? {});
+      return reply.send(
+        await markSiteCommissionerLeaguesViewed({
+          recUserId: user.recUserId,
+          leagueIds: body.leagueIds,
+        }),
+      );
     } catch (error) {
       return sendError(reply, error);
     }

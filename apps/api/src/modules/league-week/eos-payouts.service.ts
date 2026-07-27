@@ -5,6 +5,8 @@ import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { qualifyDefenseNickname } from "./defense-nicknames.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 type EosPayoutItem = {
   league_id: string;
@@ -159,6 +161,7 @@ async function loadOrCreateBatch(guildId: string, leagueId: string, seasonNumber
     source_id: created.data.id,
     payload: { batchId: created.data.id, batchType: "eos_regular_season" },
   });
+  void notifyLeagueCommissionersOfPendingItem(leagueId);
 
   return created.data;
 }
@@ -455,26 +458,23 @@ export async function reviewEosPayoutItem(input: { itemId: string; action: "appr
     return { updated: true, item: denied.data };
   }
 
-  const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
-  await assertEconomyPayoutsActive(String(existing.data.league_id));
-
-  const ledger = await supabase.rpc("add_to_wallet", {
-    p_user_id: existing.data.user_id,
-    p_amount: Number(existing.data.amount ?? 0),
-    p_league_id: existing.data.league_id,
-    p_description: `EOS payout - ${existing.data.payout_label}`,
-    p_transaction_type: "eos_payout",
-    p_source: "eos",
-    p_source_reference: { itemId: existing.data.id, batchId: existing.data.batch_id, payoutKey: existing.data.payout_key },
+  const credit = await creditOrBacklog({
+    leagueId: existing.data.league_id,
+    seasonNumber: existing.data.season_number,
+    userId: existing.data.user_id,
+    amount: Number(existing.data.amount ?? 0),
+    description: `EOS payout - ${existing.data.payout_label}`,
+    transactionType: "eos_payout",
+    source: "eos",
+    sourceReference: { itemId: existing.data.id, batchId: existing.data.batch_id, payoutKey: existing.data.payout_key },
   });
-  if (ledger.error) throw new ApiError(500, "Failed to issue EOS payout.", ledger.error);
 
   const issued = await supabase
     .from("rec_eos_payout_items")
     .update({
       status: "issued",
       approved_by_user_id: reviewer.data?.user_id ?? null,
-      issued_ledger_id: ledger.data,
+      issued_ledger_id: credit.ledgerId,
       approved_at: new Date().toISOString(),
       issued_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

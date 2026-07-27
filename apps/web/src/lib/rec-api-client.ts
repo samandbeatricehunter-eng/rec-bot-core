@@ -13,6 +13,8 @@ import type {
   LeagueChatMessage,
   CommissionerNotificationsResponse,
   CompletedCommissionerTransactionsResponse,
+  CommissionerPendingSummary,
+  HighlightReviewDetail,
   CommitDecision,
   CommitResult,
   DeleteLeagueResult,
@@ -272,10 +274,14 @@ export const recApi = {
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   getStorePurchaseContext: (guildId: string) =>
     recApiFetch<import("../types/api.js").StorePurchaseContext>("/v1/purchases/store-context", { method: "POST", body: JSON.stringify({ guildId }) }),
-  listHubLegends: (guildId: string) => recApiFetch<{ legends: any[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
-  listHubLegendAvailability: (guildId: string) => recApiFetch<{ soldLegendIds: string[] }>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listHubLegends: (guildId: string) =>
+    recApiFetch<{ legends: import("../types/api.js").LegendCatalogEntry[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listHubLegendAvailability: (guildId: string) =>
+    recApiFetch<{ soldLegendIds: string[]; sold: import("../types/api.js").LegendAvailabilityEntry[] }>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
   purchaseHubLegend: (input: { guildId: string; legendId: string; replacePlayerRequest?: string | null }) =>
     recApiFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
+  cancelHubLegend: (input: { guildId: string; legendId: string }) =>
+    recApiFetch<{ ok: true; refunded: number }>("/v1/legends/cancel", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   correctBoxScore: (input: { submissionId: string; field: string; team1?: string | null; team2?: string | null; gameId?: string | null }) =>
     recApiFetch<BoxScoreSubmissionDetail>("/v1/box-score/correct", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   appendBoxScoreImageCommissioner: (input: { submissionId: string; imageUrl: string }) =>
@@ -353,6 +359,10 @@ export const recApi = {
     recApiFetch<CommissionerNotificationsResponse>("/v1/notifications/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   listCompletedCommissionerTransactions: (guildId: string) =>
     recApiFetch<CompletedCommissionerTransactionsResponse>("/v1/notifications/completed", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getCommissionerPendingSummary: (guildId: string, discordId: string, leagueId: string) =>
+    recApiFetch<{ summary: CommissionerPendingSummary | null }>("/v1/notifications/pending-summary", { method: "POST", body: JSON.stringify({ guildId, discordId, leagueId }) }),
+  markCommissionerLeagueViewed: (guildId: string, discordId: string, leagueId: string) =>
+    recApiFetch<{ ok: true }>("/v1/notifications/mark-viewed", { method: "POST", body: JSON.stringify({ guildId, discordId, leagueId }) }),
 
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,
@@ -361,6 +371,8 @@ export const recApi = {
     recApiFetch<unknown>("/v1/purchases/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   reviewHighlight: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/highlights/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  getHighlightReviewDetail: (guildId: string, reviewId: string) =>
+    recApiFetch<HighlightReviewDetail>("/v1/highlights/review-detail", { method: "POST", body: JSON.stringify({ guildId, reviewId }) }),
   reviewGameOfYear: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/highlights/game-of-the-year/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   reviewStream: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>

@@ -26,7 +26,7 @@ export async function listLegendCatalog(guildId: string) {
 async function activeLeagueLegendPurchases(leagueId: string) {
   const { data, error } = await supabase
     .from("rec_purchases")
-    .select("details,discord_id")
+    .select("id,user_id,discord_id,status,details")
     .eq("league_id", leagueId)
     .eq("purchase_type", "legend")
     .in("status", ACTIVE_STATUSES);
@@ -34,11 +34,88 @@ async function activeLeagueLegendPurchases(leagueId: string) {
   return data ?? [];
 }
 
+export type LegendAvailabilityEntry = {
+  legendId: string;
+  purchaseId: string;
+  purchaserUserId: string;
+  purchaserDiscordId: string;
+  status: string;
+};
+
 export async function listLeagueLegendAvailability(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const rows = await activeLeagueLegendPurchases(context.leagueId);
-  const soldLegendIds = [...new Set(rows.map((row: any) => row.details?.legendId).filter(Boolean))];
-  return { soldLegendIds };
+  const sold: LegendAvailabilityEntry[] = rows
+    .filter((row: any) => row.details?.legendId)
+    .map((row: any) => ({
+      legendId: row.details.legendId as string,
+      purchaseId: row.id as string,
+      purchaserUserId: row.user_id as string,
+      purchaserDiscordId: row.discord_id as string,
+      status: row.status as string,
+    }));
+  // Kept for callers that only need the id set.
+  const soldLegendIds = [...new Set(sold.map((entry) => entry.legendId))];
+  return { soldLegendIds, sold };
+}
+
+/** Lets the purchaser back out and get refunded while their legend purchase is still pending
+ * (not yet approved & applied in-game) — after that point it's committed and only a
+ * commissioner denial can undo it. */
+export async function cancelMyLegendPurchase(input: { guildId: string; discordId: string; legendId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to resolve your account.", account.error);
+  if (!account.data?.user_id) throw new ApiError(403, "Link your REC account before purchasing a legend.");
+
+  const purchase = await supabase
+    .from("rec_purchases")
+    .select("*")
+    .eq("league_id", context.leagueId)
+    .eq("purchase_type", "legend")
+    .eq("user_id", account.data.user_id)
+    .eq("status", "pending")
+    .filter("details->>legendId", "eq", input.legendId)
+    .maybeSingle();
+  if (purchase.error) throw new ApiError(500, "Failed to load your legend purchase.", purchase.error);
+  if (!purchase.data) throw new ApiError(404, "You don't have a pending purchase for this legend.");
+
+  let refundLedgerId: string | null = null;
+  const cost = Number(purchase.data.cost ?? 0);
+  if (purchase.data.already_deducted && cost > 0) {
+    const refund = await supabase.rpc("add_to_wallet", {
+      p_user_id: purchase.data.user_id,
+      p_amount: cost,
+      p_league_id: context.leagueId,
+      p_description: `Legend purchase cancelled — ${purchase.data.details?.name ?? "legend"}`,
+      p_transaction_type: "purchase_refund",
+      p_source: "purchase",
+      p_source_reference: { purchaseId: purchase.data.id, cancelledByBuyer: true },
+    });
+    if (refund.error) throw new ApiError(500, "Failed to refund cancelled legend purchase.", refund.error);
+    refundLedgerId = refund.data;
+  }
+
+  const cancelled = await supabase
+    .from("rec_purchases")
+    .update({
+      status: "rejected",
+      denied_reason: "Cancelled by buyer before commissioner approval.",
+      refund_ledger_id: refundLedgerId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", purchase.data.id)
+    .select("*")
+    .single();
+  if (cancelled.error) throw new ApiError(500, "Failed to cancel legend purchase.", cancelled.error);
+
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "denied", review_reason: "Cancelled by buyer before approval.", reviewed_at: new Date().toISOString() })
+    .eq("source_table", "rec_purchases")
+    .eq("source_id", purchase.data.id);
+
+  return { ok: true, refunded: cost };
 }
 
 async function purchasingTeam(leagueId: string, discordId: string): Promise<{ teamId: string | null; teamName: string | null }> {
@@ -94,5 +171,24 @@ export async function createLegendPurchaseRequest(input: { guildId: string; disc
     replacePlayerRequest: input.replacePlayerRequest?.trim() || null,
   };
 
-  return createPurchaseRequest({ guildId: input.guildId, discordId: input.discordId, purchaseType: "legend", details });
+  const result = await createPurchaseRequest({ guildId: input.guildId, discordId: input.discordId, purchaseType: "legend", details });
+
+  // createPurchaseRequest files this under the generic "purchase" inbox category — legends
+  // get their own tab, and the notification needs the full attribute list plus an explicit
+  // warning not to approve until the player actually exists in the game save.
+  const attrLines = Object.entries((legend.data.attributes as Record<string, number>) ?? {})
+    .sort(([, a], [, b]) => b - a)
+    .map(([key, value]) => `${key} ${value}`)
+    .join(", ");
+  await supabase
+    .from("rec_commissioners_inbox")
+    .update({
+      queue_type: "legend",
+      header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR)`,
+      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replacePlayerRequest ? ` · Replacing: ${details.replacePlayerRequest}` : ""}. Dev trait: ${legend.data.dev_trait}. Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
+    })
+    .eq("source_table", "rec_purchases")
+    .eq("source_id", result.purchase.id);
+
+  return result;
 }

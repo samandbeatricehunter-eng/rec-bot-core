@@ -80,4 +80,5 @@ export type RecGlobalRecord = {
 };
 export * from "./economy.js";
 export * from "./purchases.js";
+export * from "./legends.js";
 export * from "./wagers.js";

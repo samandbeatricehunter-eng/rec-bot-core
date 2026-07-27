@@ -7,6 +7,7 @@ import { letterGradeForRating } from "../league-week/ratings.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
 import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const SPOTLIGHT_LIKE_COINS = 25;
 const POSITIVE_REACTION_KEYS = ["like", "love"] as const;
@@ -484,7 +485,7 @@ export async function toggleSpotlightReaction(input: {
 
   const highlight = await supabase
     .from("rec_highlight_posts")
-    .select("id,user_id,league_id")
+    .select("id,user_id,league_id,season_number")
     .eq("id", input.highlightId)
     .maybeSingle();
   if (highlight.error) throw new ApiError(500, "Failed to load highlight.", highlight.error);
@@ -504,16 +505,19 @@ export async function toggleSpotlightReaction(input: {
 
   async function payPoster(amount: number, description: string, reference: Record<string, unknown>) {
     if (!canPayPoster || amount === 0) return;
-    const ledger = await supabase.rpc("add_to_wallet", {
-      p_user_id: posterId,
-      p_amount: amount,
-      p_league_id: highlight.data!.league_id,
-      p_description: description,
-      p_transaction_type: "spotlight_like",
-      p_source: "spotlight",
-      p_source_reference: reference,
+    // Note: "highlight" is the closest valid rec_source_type enum member — there is no
+    // dedicated "spotlight" value (the prior "spotlight" literal here would have made every
+    // one of these coin adjustments fail with an invalid-enum-value error).
+    await creditOrBacklog({
+      leagueId: highlight.data!.league_id,
+      seasonNumber: highlight.data!.season_number,
+      userId: posterId,
+      amount,
+      description,
+      transactionType: "spotlight_like",
+      source: "highlight",
+      sourceReference: reference,
     });
-    if (ledger.error) throw new ApiError(500, "Failed to update Spotlight like coins.", ledger.error);
   }
 
   if (existing.data?.reaction_key === input.reactionKey) {

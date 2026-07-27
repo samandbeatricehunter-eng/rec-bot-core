@@ -5,6 +5,12 @@
 import { formatCoins } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import {
+  getCommissionerPendingSummaries,
+  markCommissionerLeaguesViewed,
+  resolveRecUserIdForDiscordId,
+  type CommissionerPendingSummary,
+} from "./commissioner-pending-summary.js";
 
 export type CommissionerNotification = {
   id: string;
@@ -173,6 +179,23 @@ export async function listUnattendedCommissionerNotifications(guildId: string) {
     .order("created_at", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load unattended commissioner notifications.", error);
   return { notifications: data ?? [] };
+}
+
+/** Bell summary for the current guild's league — "You have N pending items in {league}". */
+export async function getCommissionerPendingSummaryForLeague(
+  discordId: string,
+  leagueId: string,
+): Promise<CommissionerPendingSummary | null> {
+  const recUserId = await resolveRecUserIdForDiscordId(discordId);
+  if (!recUserId) return null;
+  const summaries = await getCommissionerPendingSummaries(recUserId, [leagueId]);
+  return summaries[0] ?? null;
+}
+
+export async function markCommissionerLeagueViewed(discordId: string, leagueId: string): Promise<{ ok: true }> {
+  const recUserId = await resolveRecUserIdForDiscordId(discordId);
+  if (recUserId) await markCommissionerLeaguesViewed(recUserId, [leagueId]);
+  return { ok: true };
 }
 
 export async function markCommissionerNotificationsDmSent(guildId: string, ids: string[]) {

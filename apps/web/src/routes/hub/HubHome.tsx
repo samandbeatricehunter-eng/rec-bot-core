@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
+import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LeagueChatPanel } from "../../components/hub/LeagueChatPanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
@@ -350,8 +351,6 @@ export function HubHome() {
   const [purchaseDetails, setPurchaseDetails] = useState<Record<string, string>>({});
   const [purchaseStatus, setPurchaseStatus] = useState<string | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
-  const [legends, setLegends] = useState<any[] | null>(null);
-  const [soldLegendIds, setSoldLegendIds] = useState<string[]>([]);
   const [storeContext, setStoreContext] = useState<StorePurchaseContext | null>(null);
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
@@ -654,11 +653,6 @@ export function HubHome() {
     } catch (cause) { setTransferStatus(cause instanceof Error ? cause.message : "Transfer failed."); }
     finally { setTransferBusy(false); }
   }
-  async function loadLegends() {
-    if (auth.status !== "ready" || legends) return;
-    const [catalog, availability] = await Promise.all([recApi.listHubLegends(auth.guildId), recApi.listHubLegendAvailability(auth.guildId)]);
-    setLegends(catalog.legends); setSoldLegendIds(availability.soldLegendIds);
-  }
   async function loadStoreContext() {
     if (auth.status !== "ready" || storeContext) return;
     try { setStoreContext(await recApi.getStorePurchaseContext(auth.guildId)); } catch { /* preview only — submit still works without it */ }
@@ -705,11 +699,7 @@ export function HubHome() {
     setPurchaseBusy(true); setPurchaseStatus(null);
     try {
       const details: Record<string, unknown> = overrideDetails ?? { ...purchaseDetails };
-      if (purchaseType === "legend") {
-        await recApi.purchaseHubLegend({ guildId: auth.guildId, legendId: purchaseDetails.legendId, replacePlayerRequest: purchaseDetails.replacePlayerRequest });
-      } else {
-        await recApi.createMyPurchase({ guildId: auth.guildId, purchaseType, details });
-      }
+      await recApi.createMyPurchase({ guildId: auth.guildId, purchaseType, details });
       setPurchaseStatus("Purchase submitted. Funds were reserved and a commissioner has been notified for approval.");
       setPurchaseDetails({}); setStoreContext(null); await load();
     } catch (cause) { setPurchaseStatus(cause instanceof Error ? cause.message : "Purchase failed."); }
@@ -1028,7 +1018,7 @@ export function HubHome() {
           const Icon = STORE_PRODUCT_ICONS[product.type] ?? ShoppingBag;
           const used = storeContext?.seasonActive[product.type];
           const cap = storeContext?.seasonCaps[product.type as keyof typeof storeContext.seasonCaps];
-          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); if (product.type === "legend") void loadLegends(); void loadStoreContext(); }}>
+          return <button key={product.type} disabled={product.locked} className={`hub-store-card hub-store-card-${product.type}${purchaseType === product.type ? " active" : ""}`} onClick={() => { setPurchaseType(product.type); setPurchaseDetails({}); setPurchaseStatus(null); void loadStoreContext(); }}>
             <Icon size={22} />
             <strong>{product.label}</strong>
             <span className="hub-store-card-price">{STORE_PRODUCT_PRICE_LABEL[product.type as RecPurchaseType] ?? ""}</span>
@@ -1040,9 +1030,7 @@ export function HubHome() {
 
           {purchaseType === "attribute" && <AttributePurchaseBuilder storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} onSubmit={(allocations, playerName) => void submitPurchase({ playerName, allocations })} />}
 
-          {purchaseType === "legend" && <><label className="form-field"><span className="form-label">Available legend</span><select className="form-input" value={purchaseDetails.legendId ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, legendId: event.target.value }))}><option value="">Select a legend</option>{(legends ?? []).filter((legend) => !soldLegendIds.includes(legend.id)).map((legend) => <option key={legend.id} value={legend.id}>{legend.name} · {legend.position} · {legend.est_ovr ?? "?"} OVR</option>)}</select></label><label className="form-field"><span className="form-label">Player to replace (optional)</span><input className="form-input" value={purchaseDetails.replacePlayerRequest ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, replacePlayerRequest: event.target.value }))} /></label>
-            <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={REC_LEGEND_PRICE} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.legendId} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
-          </>}
+          {purchaseType === "legend" && <LegendPurchasePanel onPurchased={() => { setStoreContext(null); void load(); }} />}
 
           {purchaseType === "custom_player" && <>
             <label className="form-field"><span className="form-label">Package</span><select className="form-input" value={purchaseDetails.package ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, package: event.target.value }))}><option value="">Select package</option><option value="bronze">Bronze · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.bronze} pts</option><option value="silver">Silver · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.silver)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.silver} pts</option><option value="gold">Gold · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.gold} pts</option></select></label>

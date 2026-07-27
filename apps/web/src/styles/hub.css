@@ -780,6 +780,21 @@ button.poty:disabled {
 .hub-store-total span { color: var(--text-secondary); }
 .hub-store-total strong { color: var(--gold); font-family: var(--font-display); font-size: var(--text-lg); }
 
+.legend-purchase-panel { display: grid; gap: var(--space-3); }
+.legend-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); margin-top: var(--space-2); }
+.legend-card { display: grid; gap: 4px; padding: var(--space-2); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); text-align: left; cursor: pointer; }
+.legend-card:hover:not(:disabled) { border-color: var(--gold); }
+.legend-card:disabled, .legend-card.is-taken { opacity: 0.45; cursor: not-allowed; }
+.legend-card.is-mine { border-color: var(--gold); opacity: 1; cursor: pointer; }
+.legend-card-name { font-size: var(--text-sm); }
+.legend-card-meta { color: var(--text-muted); font-size: var(--text-xs); }
+.legend-card-attrs { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.legend-card-attrs span { font-size: var(--text-xs); color: var(--text-secondary); }
+.legend-card-status { font-size: var(--text-xs); font-weight: 700; color: var(--gold); margin-top: 4px; }
+.legend-attr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 8px; margin-top: var(--space-3); max-height: 260px; overflow-y: auto; }
+.legend-attr-chip { font-size: var(--text-xs); color: var(--text-secondary); }
+.legend-attr-chip b { color: var(--text-primary); }
+
 .attr-builder { display: grid; gap: var(--space-3); }
 .attr-builder-group { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); overflow: hidden; }
 .attr-builder-group summary { display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); cursor: pointer; font-weight: 800; }
@@ -936,6 +951,10 @@ button.poty:disabled {
 .media-review-preview { display: grid; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-3); background: rgba(255,255,255,.03); }
 .media-review-preview h3 { margin: 0; }
 .media-review-preview p { white-space: pre-line; }
+
+.highlight-review-preview { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: var(--space-3); background: rgba(255,255,255,.03); }
+.highlight-review-player { position: relative; width: 100%; max-width: 320px; aspect-ratio: 9 / 16; border-radius: var(--radius-md); overflow: hidden; background: #000; }
+.highlight-review-player iframe, .highlight-review-player video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; object-fit: contain; }
 
 .hub-week-select { display: grid; grid-template-columns: auto minmax(180px, 260px); justify-content: end; align-items: center; gap: var(--space-2); }
 .hub-week-select span { color: var(--gold); font-size: var(--text-xs); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }

@@ -4,6 +4,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -113,6 +114,7 @@ export async function createTeamLinkRequest(input: { guildId: string; discordId:
     source_id: inserted.data.id,
     payload: { requestId: inserted.data.id, teamId: input.teamId },
   });
+  void notifyLeagueCommissionersOfPendingItem(leagueId);
 
   const teamDisplayName = formatTeamDisplayName(team.data) ?? team.data.name;
   const notifyUserIds = new Set<string>();

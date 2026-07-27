@@ -18,6 +18,8 @@ import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { createStreamPayoutReview, deriveStreamMatchupContext, postLeagueChatStreamNotice, postStreamToDiscordChannel } from "../streams/streams.service.js";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 import {
   buildInterviewHeadline,
   formatInterviewBody,
@@ -376,17 +378,17 @@ async function publishMediaStory(submission: any, discordId: string | null) {
 async function issueMediaPayout(submission: any) {
   const amount = Number(submission.amount ?? 0);
   if (!amount || !submission.submitter_user_id) return null;
-  const ledger = await supabase.rpc("add_to_wallet", {
-    p_user_id: submission.submitter_user_id,
-    p_amount: amount,
-    p_league_id: submission.league_id,
-    p_description: submission.submission_type === "interview" ? `Interview payout - Wk ${submission.week_number}` : `Article payout - Wk ${submission.week_number}`,
-    p_transaction_type: submission.submission_type === "interview" ? "interview_payout" : "article_payout",
-    p_source: "media",
-    p_source_reference: { submissionId: submission.id, submissionType: submission.submission_type },
+  const credit = await creditOrBacklog({
+    leagueId: submission.league_id,
+    seasonNumber: submission.season_number,
+    userId: submission.submitter_user_id,
+    amount,
+    description: submission.submission_type === "interview" ? `Interview payout - Wk ${submission.week_number}` : `Article payout - Wk ${submission.week_number}`,
+    transactionType: submission.submission_type === "interview" ? "interview_payout" : "article_payout",
+    source: "media",
+    sourceReference: { submissionId: submission.id, submissionType: submission.submission_type },
   });
-  if (ledger.error) throw new ApiError(500, "Failed to issue media payout.", ledger.error);
-  return ledger.data as string;
+  return credit.ledgerId;
 }
 
 function videoUrl(content: string | null) {
@@ -1122,6 +1124,7 @@ export async function submitUserMediaArticle(input: { guildId: string; discordId
     payload: { submissionType: "user_article", title: input.title.trim(), body: input.body.trim(), imageUrl: sanitizeImageUrl(input.imageUrl) },
   });
   if (inbox.error) throw new ApiError(500, "Failed to create article review notification.", inbox.error);
+  void notifyLeagueCommissionersOfPendingItem(context.leagueId);
   return { submitted: true, id: row.data.id };
 }
 
@@ -1191,6 +1194,7 @@ export async function submitInterview(input: {
     payload: { submissionType: "interview", title, answers: input.answers, tagOpponent: Boolean(input.tagOpponent), opponentDiscordId: opponent?.discordId ?? null },
   });
   if (inbox.error) throw new ApiError(500, "Failed to create interview review notification.", inbox.error);
+  void notifyLeagueCommissionersOfPendingItem(context.leagueId);
   if (opponent?.discordId) {
     sendDiscordDirectMessage(opponent.discordId, `<@${input.discordId}> called you out in a REC interview. Open /hub to check the latest media.`)
       .catch((error) => console.error("[WARN] Failed to DM tagged opponent:", error));

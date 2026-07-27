@@ -12,11 +12,12 @@ export function NotificationsBell() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regular, setRegular] = useState<SiteNotificationItem[]>([]);
+  const [commissioner, setCommissioner] = useState<SiteNotificationItem[]>([]);
   const [clearing, setClearing] = useState(false);
-  // Commissioner review items (box scores, highlights, payouts, etc.) moved to the
-  // Commissioner's Office chat window's Payouts tab in League Mgmt — this bell only
-  // handles member-facing updates now.
-  const unreadCount = regular.filter((item) => !item.read).length;
+  // Commissioner rows are one aggregate "N pending items in {league}" line per league (item-
+  // level review lives in the Commissioner Chat window's Payouts tab in League Mgmt).
+  const unreadCount =
+    regular.filter((item) => !item.read).length + commissioner.filter((item) => !item.read).length;
 
   async function refresh() {
     if (auth.status !== "signed-in") return;
@@ -25,9 +26,11 @@ export function NotificationsBell() {
     try {
       const response = await siteApi.listNotifications();
       setRegular(response.regular);
+      setCommissioner(response.commissioner);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load notifications.");
       setRegular([]);
+      setCommissioner([]);
     } finally {
       setLoading(false);
     }
@@ -63,6 +66,21 @@ export function NotificationsBell() {
       try {
         await siteApi.markNotificationsRead([item.id]);
         setRegular((items) =>
+          items.map((row) => (row.id === item.id ? { ...row, read: true } : row)),
+        );
+      } catch {
+        /* navigation still proceeds */
+      }
+    }
+    navigate(item.href);
+  }
+
+  async function openCommissionerItem(item: SiteNotificationItem) {
+    setOpen(false);
+    if (!item.read && item.leagueId) {
+      try {
+        await siteApi.markCommissionerLeaguesViewed([item.leagueId]);
+        setCommissioner((items) =>
           items.map((row) => (row.id === item.id ? { ...row, read: true } : row)),
         );
       } catch {
@@ -154,6 +172,28 @@ export function NotificationsBell() {
               </ul>
             )}
           </section>
+
+          {commissioner.length > 0 ? (
+            <section className="site-notif-section">
+              <h3>Commissioner</h3>
+              <ul>
+                {commissioner.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className={item.read ? undefined : "is-unread"}
+                      onClick={() => void openCommissionerItem(item)}
+                    >
+                      <span className="site-notif-title">{item.title}</span>
+                      {item.body ? (
+                        <span className="site-notif-body">{item.body}</span>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </div>
         </>
       ) : null}

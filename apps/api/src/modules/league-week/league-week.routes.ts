@@ -74,7 +74,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/advance-games", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await getAdvanceWeekGames(body.guildId));
     } catch (error) {
       return sendError(reply, error);
@@ -86,7 +86,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/gotw-candidates", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int() }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send({ candidates: await scoreWeekGotwCandidates(body.guildId, body.weekNumber) });
     } catch (error) {
       return sendError(reply, error);
@@ -168,7 +168,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         }).optional().nullable(),
         nextGotwGameId: z.string().uuid().optional().nullable(),
       }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
       const result = await completeAdvanceWeek(body);
       const gameChannels = await createGameChannelsForCurrentWeek(body.guildId)
@@ -205,7 +205,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/advance-jump/targets", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await getAdvanceJumpTargets(body.guildId));
     } catch (error) {
       return sendError(reply, error);
@@ -215,7 +215,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/advance-jump/plan", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1), targetWeekNumber: z.number().int().min(0).max(30), targetSeasonStage: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await getAdvanceJumpPlan(body.guildId, body.targetWeekNumber, body.targetSeasonStage));
     } catch (error) {
       return sendError(reply, error);
@@ -236,7 +236,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           awayScore: z.number().int().min(0).max(200).optional().nullable(),
         })),
       }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
       const result = await completeAdvanceJump(body);
       const discord = auth.mode === "user"
@@ -367,7 +367,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/division-winner-options", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await getDivisionWinnerOptions(body.guildId));
     } catch (error) {
       return sendError(reply, error);
@@ -385,7 +385,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           teamId: z.string().uuid(),
         })).min(1),
       }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "user") body.selectedByDiscordId = auth.discordId;
       return reply.send(await saveDivisionWinners(body));
     } catch (error) {
@@ -434,7 +434,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
         minute: z.number().int().min(0).max(59).default(0),
         tzLabel: z.enum(SUPPORTED_TZ_LABELS as [string, ...string[]]),
       }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await setNextAdvanceTime(body));
     } catch (error) {
       return sendError(reply, error);
@@ -447,7 +447,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   app.post("/v1/league-week/advance-dms", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await generateAdvanceDms(body));
     } catch (error) {
       return sendError(reply, error);

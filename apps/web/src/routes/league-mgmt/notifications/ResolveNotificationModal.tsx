@@ -1,10 +1,58 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { CommissionerNotification } from "../../../types/api.js";
+import type { CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+
+// Lets the commissioner actually watch the clip and see the claimed week/matchup before
+// approving payout — catches a highlight uploaded from the wrong game (or an outright fake
+// upload just to grab the free coins) that a bare title/subtitle can't reveal.
+function HighlightReviewPreview({ guildId, reviewId }: { guildId: string; reviewId: string }) {
+  const [detail, setDetail] = useState<HighlightReviewDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    recApi.getHighlightReviewDetail(guildId, reviewId)
+      .then((result) => { if (!cancelled) setDetail(result); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Could not load the highlight preview."); });
+    return () => { cancelled = true; };
+  }, [guildId, reviewId]);
+
+  if (error) return <p className="form-hint">{error}</p>;
+  if (!detail) return <p className="form-hint">Loading highlight preview…</p>;
+
+  return (
+    <div className="highlight-review-preview">
+      {detail.matchup ? (
+        <p style={{ fontWeight: 600 }}>
+          Week {detail.matchup.weekNumber ?? "?"} — {detail.matchup.awayTeamName ?? "?"} @ {detail.matchup.homeTeamName ?? "?"}
+        </p>
+      ) : (
+        <p className="form-hint">No matchup on record for this highlight (Week {detail.weekNumber ?? "?"}).</p>
+      )}
+      {detail.submittedByName && <p className="form-hint" style={{ marginTop: 0 }}>Submitted by {detail.submittedByName}</p>}
+      <div className="highlight-review-player">
+        {detail.streamUid ? (
+          <iframe
+            src={`https://iframe.videodelivery.net/${detail.streamUid}`}
+            title="Highlight preview"
+            allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+          />
+        ) : detail.videoUrl ? (
+          <video src={detail.videoUrl} controls preload="metadata" />
+        ) : detail.messageUrl ? (
+          <a href={detail.messageUrl} target="_blank" rel="noreferrer">Open highlight</a>
+        ) : (
+          <p className="form-hint">No playable media for this highlight.</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // One shared resolve panel for the notification types that don't get their own dedicated
 // modal. Box Scores reuse ReviewBoxScoreModal, Active Checks reuse ActiveCheckReviewModal,
@@ -23,6 +71,8 @@ function resolveModeFor(type: string): ResolveMode {
   switch (type) {
     case "purchase":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
+    case "legend":
+      return { kind: "approve_deny", reasonField: true, approveLabel: "Approved & Applied In-Game", denyLabel: "Deny" };
     case "highlight":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
     case "game_of_the_year":
@@ -50,6 +100,7 @@ async function resolveAction(guildId: string, notification: CommissionerNotifica
   const sourceId = notification.sourceId ?? "";
   switch (notification.type) {
     case "purchase":
+    case "legend":
       return recApi.reviewPurchase({ guildId, purchaseId: sourceId, action, deniedReason: reason || undefined });
     case "highlight":
       return recApi.reviewHighlight({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
@@ -106,6 +157,9 @@ export function ResolveNotificationModal({
     <Modal title={notification.title} onClose={onClose}>
       {error && <ErrorState message={error} />}
       <p style={{ color: "var(--text-secondary)", marginTop: 0 }}>{notification.subtitle}</p>
+      {notification.type === "highlight" && notification.sourceId && (
+        <HighlightReviewPreview guildId={guildId} reviewId={notification.sourceId} />
+      )}
       {notification.type === "media" && notification.payload && (
         <div className="media-review-preview">
           <h3>{String(notification.payload.title ?? notification.title)}</h3>

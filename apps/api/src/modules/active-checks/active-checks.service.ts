@@ -1,6 +1,7 @@
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 type LinkedCoach = {
   userId: string;
@@ -92,6 +93,7 @@ export async function createActiveCheckEvent(input: {
     source_id: inserted.data.id,
     payload: { eventId: inserted.data.id, discordChannelId: input.discordChannelId, discordMessageId: input.discordMessageId, closesAt: input.closesAt },
   });
+  void notifyLeagueCommissionersOfPendingItem(inserted.data.league_id);
 
   return { event: inserted.data };
 }

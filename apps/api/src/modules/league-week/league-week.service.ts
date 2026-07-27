@@ -5,6 +5,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { applyAdvanceSavingsInterest } from "./advance-interest.service.js";
 import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { wipeLeagueChatForSeasonRollover } from "../league-chat/league-chat.service.js";
+import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -51,6 +52,11 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     });
     await wipeLeagueChatForSeasonRollover(context.leagueId).catch((error) => {
       console.error("[ERROR] Failed to wipe league chat on season rollover:", error);
+    });
+    // Any payout still sitting in the backlog for the ending season doesn't carry into the
+    // new one — it's dropped rather than released once the season it belongs to is over.
+    await wipeBacklogForSeason(context.leagueId, previousSeasonNumber).catch((error) => {
+      console.error("[ERROR] Failed to wipe payout backlog on season rollover:", error);
     });
   }
 

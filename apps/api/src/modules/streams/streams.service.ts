@@ -6,6 +6,8 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const STREAM_PAYOUT_AMOUNT = 50;
 
@@ -218,6 +220,7 @@ export async function createStreamPayoutReview(input: CreateStreamPayoutReviewIn
     source_id: review.data.id,
     payload: { reviewId: review.data.id, streamLogId: input.streamLogId },
   });
+  void notifyLeagueCommissionersOfPendingItem(input.leagueId);
 
   return { created: true, review: review.data };
 }
@@ -355,26 +358,26 @@ export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
   }
 
   const amount = Number(existing.data.amount ?? STREAM_PAYOUT_AMOUNT);
-  const ledger = await supabase.rpc("add_to_wallet", {
-    p_user_id: existing.data.user_id,
-    p_amount: amount,
-    p_league_id: existing.data.league_id,
-    p_description: `Discord Live stream payout - Wk ${existing.data.week_number}`,
-    p_transaction_type: "stream_payout",
-    p_source: "stream",
-    p_source_reference: {
+  const credit = await creditOrBacklog({
+    leagueId: existing.data.league_id,
+    seasonNumber: existing.data.season_number,
+    userId: existing.data.user_id,
+    amount,
+    description: `Discord Live stream payout - Wk ${existing.data.week_number}`,
+    transactionType: "stream_payout",
+    source: "stream",
+    sourceReference: {
       reviewId: existing.data.id,
       streamLogId: existing.data.stream_log_id
     }
   });
-  if (ledger.error) throw new ApiError(500, "Failed to issue stream payout.", ledger.error);
 
   const approved = await supabase
     .from("rec_stream_payout_reviews")
     .update({
       status: "issued",
       reviewed_by_discord_id: input.reviewedByDiscordId,
-      issued_ledger_id: ledger.data,
+      issued_ledger_id: credit.ledgerId,
       reviewed_at: new Date().toISOString(),
       issued_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

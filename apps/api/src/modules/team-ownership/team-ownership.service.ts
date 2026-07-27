@@ -9,6 +9,7 @@ import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries
 import { addMemberRole, ensureManagedRoleId, getGuildMemberDisplayNameMap, listGuildMembers } from "../../lib/discord-guild.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { assertCanJoinLeague } from "../subscriptions/entitlements.service.js";
+import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
 
 export async function getCurrentLeagueForGuild(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -360,6 +361,13 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     newValue: { guildId: input.guildId, leagueId: league.id, discordId: input.discordId, teamId: input.teamId, teamName: team.data.name, authority: input.authority },
     reason: "User linked to team through Team Ownership setup.",
     source: "manual_admin_entry"
+  });
+
+  // A new active assignment may have just crossed the economy's linked-user floor —
+  // release any queued backlog for the league's current season if so (no-op otherwise).
+  const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);
+  await releaseBacklogForLeague(league.id, seasonNumber).catch((error) => {
+    console.error("[ERROR] releaseBacklogForLeague failed after team link (non-fatal):", error);
   });
 
   const isDiscordOnly = !linkedUser.data?.supabase_auth_user_id;
