@@ -126,7 +126,7 @@ export async function generateAdvanceDms(input: { guildId: string }): Promise<Ad
 
   const { data: accounts } = await supabase
     .from("rec_discord_accounts")
-    .select("user_id,discord_id,username,global_name")
+    .select("user_id,discord_id,username,global_name,user:rec_users(username)")
     .in("user_id", userIds);
   const accountByUser = new Map((accounts ?? []).map((a) => [a.user_id, a]));
 
@@ -173,9 +173,10 @@ export async function generateAdvanceDms(input: { guildId: string }): Promise<Ad
       powerRanking: teamId ? buildPowerRankingSection(rankByTeam.get(teamId)) : null,
     };
 
+    const recUser = Array.isArray((account as any).user) ? (account as any).user[0] : (account as any).user;
     users.push({
       discordId: account.discord_id,
-      displayName: account.global_name ?? account.username ?? "Coach",
+      displayName: recUser?.username ?? account.global_name ?? account.username ?? "Coach",
       teamName: null,
       sections,
     });

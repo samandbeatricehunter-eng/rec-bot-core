@@ -277,7 +277,7 @@ export async function listLinkCandidates(input: {
       )
       select *
       from claimable
-      order by lower(coalesce(nullif(stored_username, discord_id), stored_global_name, user_username, user_display_name, discord_id)), rec_user_id
+      order by lower(coalesce(user_username, nullif(stored_username, discord_id), stored_global_name, user_display_name, discord_id)), rec_user_id
       limit $2
       offset $3
     `,
@@ -316,9 +316,9 @@ export async function listLinkCandidates(input: {
   }> = [];
   for (const row of rows.rows as Array<Record<string, unknown>>) {
     const stored = pickDiscordHandle(
+      row.user_username as string | null,
       row.stored_username as string | null,
       row.stored_global_name as string | null,
-      row.user_username as string | null,
       row.user_display_name as string | null,
     );
     const resolved = stored ?? await resolveDiscordAccountHandle({

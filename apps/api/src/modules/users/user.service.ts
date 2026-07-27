@@ -525,7 +525,7 @@ export async function getLeagueUserIdentities(guildId: string) {
   const [{ data: assignments, error: assignmentError }, { data: badges, error: badgeError }] = await Promise.all([
     supabase
       .from("rec_team_assignments")
-      .select("user_id,team_id,user:rec_users(display_name,supabase_auth_user_id),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+      .select("user_id,team_id,user:rec_users(username,display_name,supabase_auth_user_id),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
       .eq("league_id", leagueId)
       .eq("assignment_status", "active")
       .is("ended_at", null),
@@ -568,7 +568,7 @@ export async function getLeagueUserIdentities(guildId: string) {
       userId: assignment.user_id,
       teamId: assignment.team_id,
       discordId: discordAcc?.discord_id ?? null,
-      displayName: assignment.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
+      displayName: assignment.user?.username ?? assignment.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
       teamName: formatTeamDisplayName(assignment.team) ?? assignment.team?.name ?? null,
       seasonStats,
       careerTrophies: careerBadges,
@@ -633,7 +633,7 @@ export async function getLeagueSeasonXfBadges(guildId: string, seasonNumber?: nu
       .order("updated_at", { ascending: false }),
     supabase
       .from("rec_team_assignments")
-      .select("user_id,team_id,user:rec_users(display_name),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
+      .select("user_id,team_id,user:rec_users(username,display_name),team:rec_teams(name,abbreviation,display_city,display_nick,is_relocated)")
       .eq("league_id", leagueId)
       .eq("assignment_status", "active")
       .is("ended_at", null),
@@ -656,7 +656,7 @@ export async function getLeagueSeasonXfBadges(guildId: string, seasonNumber?: nu
       badgeLabel: BADGE_LABELS.get(row.badge_key) ?? row.badge_key,
       badgeDescription: BADGE_DESCRIPTIONS.get(row.badge_key) ?? null,
       discordId: discordAcc?.discord_id ?? null,
-      displayName: assignment?.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
+      displayName: assignment?.user?.username ?? assignment?.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Coach",
       teamName: formatTeamDisplayName(assignment?.team) ?? null,
     };
   });
@@ -1467,7 +1467,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     display: {
       discordUsername: baseline.discord.global_name ?? baseline.discord.username ?? baseline.user.display_name,
       siteUsername: baseline.user.username ?? null,
-      displayName: baseline.user.display_name ?? baseline.user.username ?? baseline.discord.global_name ?? baseline.discord.username ?? "REC Member",
+      displayName: baseline.user.username ?? baseline.user.display_name ?? baseline.discord.global_name ?? baseline.discord.username ?? "REC Member",
       teamName:
         league?.game === "cfb_27"
           ? resolveTeamSchool(assignment?.team) ?? assignment?.team?.name ?? null

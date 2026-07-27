@@ -44,7 +44,7 @@ export async function requireLinkedSiteUser(authUserId: string): Promise<LinkedS
   return {
     recUserId: row.id,
     username: row.username,
-    displayName: row.display_name ?? row.username,
+    displayName: row.username ?? row.display_name,
   };
 }
 
@@ -265,7 +265,7 @@ async function resolveUserByIdOrUsername(input: {
     return {
       id: row.id,
       username: row.username,
-      displayName: row.display_name ?? row.username,
+      displayName: row.username ?? row.display_name,
     };
   }
   const username = String(input.username ?? "").trim();
@@ -288,7 +288,7 @@ async function resolveUserByIdOrUsername(input: {
   return {
     id: row.id,
     username: row.username,
-    displayName: row.display_name ?? row.username,
+    displayName: row.username ?? row.display_name,
   };
 }
 
@@ -496,8 +496,8 @@ export async function searchDmTargets(input: {
       userId: String((row as { id: string }).id),
       username: String((row as { username: string }).username),
       displayName: String(
-        (row as { display_name: string | null }).display_name ??
-          (row as { username: string }).username,
+        (row as { username: string }).username ??
+          (row as { display_name: string | null }).display_name,
       ),
     })),
   };

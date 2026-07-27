@@ -66,11 +66,8 @@ function jsonNum(raw: unknown, key: string) {
   return num((raw as Record<string, unknown>)[key]);
 }
 
-function streakFromGameStats(rows: Array<{ result?: string | null; week_number?: number | null }>) {
-  const sorted = [...rows]
-    .filter((row) => row.result)
-    .sort((a, b) => Number(a.week_number ?? 0) - Number(b.week_number ?? 0));
-
+function computeStreak(rows: Array<{ result: "win" | "loss" | "tie"; sortKey: number }>): string {
+  const sorted = [...rows].sort((a, b) => a.sortKey - b.sortKey);
   let streak = 0;
   let type: "W" | "L" | "T" | null = null;
   for (let index = sorted.length - 1; index >= 0; index -= 1) {
@@ -84,8 +81,29 @@ function streakFromGameStats(rows: Array<{ result?: string | null; week_number?:
       break;
     }
   }
-
   return type && streak > 0 ? `${type}${streak}` : "—";
+}
+
+// rec_team_game_stats only gets a row when a box score is approved OR a manual entry
+// includes per-team stat fields — a plain manual score entry (result only, no stats
+// typed in) writes no row there at all, silently dropping that game from the old
+// stats-based streak while rec_game_results (used for the W/L record right next to it)
+// always gets one. Source the streak from rec_game_results instead so it can't skip games.
+async function loadActiveStreak(userId: string, leagueId?: string | null, seasonNumber?: number | null): Promise<string> {
+  let query = supabase
+    .from("rec_game_results")
+    .select("season_number,week_number,is_tie,winning_user_id,home_user_id,away_user_id")
+    .or(`home_user_id.eq.${userId},away_user_id.eq.${userId}`);
+  if (leagueId) query = query.eq("league_id", leagueId);
+  if (seasonNumber != null) query = query.eq("season_number", seasonNumber);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const rows = (data ?? []).map((row) => ({
+    result: (row.is_tie ? "tie" : row.winning_user_id === userId ? "win" : "loss") as "win" | "loss" | "tie",
+    sortKey: Number(row.season_number ?? 0) * 1000 + Number(row.week_number ?? 0),
+  }));
+  return computeStreak(rows);
 }
 
 export function aggregateBoxScoreStats(rows: any[]): ProfileBoxScoreStats {
@@ -196,7 +214,10 @@ export function aggregateBoxScoreStats(rows: any[]): ProfileBoxScoreStats {
     redZoneOffPctAvg: pctAvg(redZoneOffSum, redZoneOffGames),
     redZoneDefPct: pctAvg(redZoneDefSum, redZoneDefGames),
     redZoneDefPctAvg: pctAvg(redZoneDefSum, redZoneDefGames),
-    activeStreak: streakFromGameStats(rows),
+    // Placeholder — loadSeasonBoxScoreStats/loadCareerBoxScoreStats override this with
+    // loadActiveStreak's rec_game_results-sourced value, which can't skip a game the way
+    // this stats-rows-only view can (see loadActiveStreak's comment above).
+    activeStreak: "—",
   };
 }
 
@@ -210,7 +231,9 @@ export async function loadSeasonBoxScoreStats(userId: string, leagueId: string, 
     .order("week_number", { ascending: true });
 
   if (error) throw error;
-  return aggregateBoxScoreStats(data ?? []);
+  const stats = aggregateBoxScoreStats(data ?? []);
+  stats.activeStreak = await loadActiveStreak(userId, leagueId, seasonNumber);
+  return stats;
 }
 
 export async function loadCareerBoxScoreStats(userId: string, leagueId?: string | null) {
@@ -225,7 +248,9 @@ export async function loadCareerBoxScoreStats(userId: string, leagueId?: string 
   const { data, error } = await query;
 
   if (error) throw error;
-  return aggregateBoxScoreStats(data ?? []);
+  const stats = aggregateBoxScoreStats(data ?? []);
+  stats.activeStreak = await loadActiveStreak(userId, leagueId ?? null, null);
+  return stats;
 }
 
 export async function countDistinctWeeksLogged(userId: string, leagueId?: string | null) {

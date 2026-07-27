@@ -404,7 +404,7 @@ export type HubResponse = {
   liveStreams: Array<{ id: string; url: string; watchPath: string; postedAt: string | null; user: { display_name: string | null; username?: string | null } | null; team: { name: string; abbreviation: string | null } | null; awayTeamName: string | null; homeTeamName: string | null; matchupLabel: "H2H" | "CPU" | null; viewCount: number; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null }>;
   highlights: Array<{
     id: string; user_id?: string | null; season_number: number; week_number: number; season_stage: string | null; message_url: string | null; content: string | null; created_at: string;
-    videoUrl: string | null; streamUid?: string | null; iframeUrl?: string | null; user: { display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
+    videoUrl: string | null; streamUid?: string | null; iframeUrl?: string | null; user: { username?: string | null; display_name: string | null } | null; team: { name: string; abbreviation: string | null } | null;
     matchupLabel?: string | null; viewCount: number; reactionCounts: Record<HubReactionKey, number>; myReactions: HubReactionKey[];
   }>;
 };

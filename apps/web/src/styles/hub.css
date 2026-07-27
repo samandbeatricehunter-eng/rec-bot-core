@@ -958,6 +958,13 @@ button.poty:disabled {
 
 .hub-week-select { display: grid; grid-template-columns: auto minmax(180px, 260px); justify-content: end; align-items: center; gap: var(--space-2); }
 .hub-week-select span { color: var(--gold); font-size: var(--text-xs); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+/* The select itself picks up .form-input's near-white text color on a transparent
+   background, which reads fine against the dark page — but the option POPUP list falls
+   through to native rendering with no explicit color/background, and many browsers still
+   inherit that near-white text color into the popup's native (light) background, making
+   every option unreadable. Force a legible light popup explicitly, matching .form-select's
+   existing option override elsewhere. */
+.hub-week-select select option { color: #111; background: #fff; }
 /* Without an explicit column track, a single-column grid sizes its column to fit
    content's max-content width — a long unwrapped team name (e.g. "MISSISSIPPI STATE" at
    the wordmark's ~50px font) blew this column out past the viewport, and every

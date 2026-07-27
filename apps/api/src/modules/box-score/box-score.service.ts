@@ -1327,17 +1327,21 @@ async function loadXfSeasonBadgeEventsForSubmission(sub: {
 
   const userIds = [...new Set((data ?? []).map((event) => event.user_id).filter(Boolean))];
   const accounts = userIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
+    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name,user:rec_users(username)").in("user_id", userIds)
     : { data: [], error: null };
-  const accountByUser = new Map((accounts.data ?? []).map((account) => [account.user_id, account]));
+  const accountByUser = new Map((accounts.data ?? []).map((account: any) => [account.user_id, account]));
 
-  return (data ?? []).map((event) => ({
-    ...event,
-    userDiscordId: accountByUser.get(event.user_id)?.discord_id ?? null,
-    userDisplayName: accountByUser.get(event.user_id)?.global_name ?? accountByUser.get(event.user_id)?.username ?? null,
-    badgeLabel: BADGE_LABELS.get(event.badge_key) ?? event.badge_key,
-    badgeDescription: BADGE_DESCRIPTIONS.get(event.badge_key) ?? null,
-  }));
+  return (data ?? []).map((event) => {
+    const account = accountByUser.get(event.user_id) as any;
+    const recUser = Array.isArray(account?.user) ? account.user[0] : account?.user;
+    return {
+      ...event,
+      userDiscordId: account?.discord_id ?? null,
+      userDisplayName: recUser?.username ?? account?.global_name ?? account?.username ?? null,
+      badgeLabel: BADGE_LABELS.get(event.badge_key) ?? event.badge_key,
+      badgeDescription: BADGE_DESCRIPTIONS.get(event.badge_key) ?? null,
+    };
+  });
 }
 
 export type ReviewBoxScoreInput = {
@@ -1844,7 +1848,7 @@ async function getBoxScorePaidPlayers(payouts: { userId: string; amount: number 
 
   const { data, error } = await supabase
     .from("rec_discord_accounts")
-    .select("user_id,discord_id,username,global_name")
+    .select("user_id,discord_id,username,global_name,user:rec_users(username)")
     .in("user_id", uniqueUserIds);
 
   if (error) {
@@ -1852,14 +1856,15 @@ async function getBoxScorePaidPlayers(payouts: { userId: string; amount: number 
     return payouts.map((p) => ({ userId: p.userId, amount: p.amount, discordId: null, displayName: null }));
   }
 
-  const accountByUserId = new Map((data ?? []).map((row) => [row.user_id, row]));
+  const accountByUserId = new Map((data ?? []).map((row: any) => [row.user_id, row]));
   return payouts.map((p) => {
-    const account = accountByUserId.get(p.userId);
+    const account = accountByUserId.get(p.userId) as any;
+    const recUser = Array.isArray(account?.user) ? account.user[0] : account?.user;
     return {
       userId: p.userId,
       amount: p.amount,
       discordId: account?.discord_id ?? null,
-      displayName: account?.global_name ?? account?.username ?? null,
+      displayName: recUser?.username ?? account?.global_name ?? account?.username ?? null,
     };
   });
 }

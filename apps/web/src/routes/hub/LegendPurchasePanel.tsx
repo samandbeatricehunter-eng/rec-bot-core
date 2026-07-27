@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
+import { REC_DEFENSE_POSITIONS, REC_LEGEND_POSITION_GROUPS, REC_LEGEND_PRICE, REC_OFFENSE_POSITIONS, legendPositionGroupFor, legendTopAttributes, type RecLegendPositionGroup } from "@rec/shared";
+
+type ReplaceTarget = { position: string; firstName: string; lastName: string };
+const REPLACE_TARGET_POSITIONS = [...REC_OFFENSE_POSITIONS, ...REC_DEFENSE_POSITIONS];
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LegendAvailabilityEntry, LegendCatalogEntry } from "../../types/api.js";
@@ -49,11 +52,11 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
     return legends.filter((legend) => legendPositionGroupFor(legend.position) === group);
   }, [legends, group]);
 
-  async function purchase(legend: LegendCatalogEntry, replacePlayerRequest: string) {
+  async function purchase(legend: LegendCatalogEntry, replaceTarget: ReplaceTarget | null) {
     setBusy(true);
     setError(null);
     try {
-      await recApi.purchaseHubLegend({ guildId, legendId: legend.id, replacePlayerRequest: replacePlayerRequest.trim() || null });
+      await recApi.purchaseHubLegend({ guildId, legendId: legend.id, replaceTarget });
       setNotice(`${legend.name} purchased — a commissioner has been notified for approval.`);
       setActiveLegend(null);
       load();
@@ -136,7 +139,7 @@ export function LegendPurchasePanel({ onPurchased }: { onPurchased: () => void }
           isMine={soldByLegendId.get(activeLegend.id)?.purchaserDiscordId === discordId}
           busy={busy}
           onClose={() => setActiveLegend(null)}
-          onPurchase={(replacePlayerRequest) => void purchase(activeLegend, replacePlayerRequest)}
+          onPurchase={(replaceTarget) => void purchase(activeLegend, replaceTarget)}
           onCancel={() => void cancel(activeLegend)}
         />
       )}
@@ -158,17 +161,21 @@ function LegendDetailModal({
   isMine: boolean;
   busy: boolean;
   onClose: () => void;
-  onPurchase: (replacePlayerRequest: string) => void;
+  onPurchase: (replaceTarget: ReplaceTarget | null) => void;
   onCancel: () => void;
 }) {
-  const [replacePlayerRequest, setReplacePlayerRequest] = useState("");
+  const [designateReplacement, setDesignateReplacement] = useState(false);
+  const [replacePosition, setReplacePosition] = useState("");
+  const [replaceFirstName, setReplaceFirstName] = useState("");
+  const [replaceLastName, setReplaceLastName] = useState("");
   const isTaken = Boolean(soldEntry) && !isMine;
   const canCancel = isMine && soldEntry?.status === "pending";
+  const canSubmitReplacement = !designateReplacement || (replacePosition && replaceFirstName.trim() && replaceLastName.trim());
 
   return (
     <Modal title={legend.name} onClose={onClose}>
       <p className="hub-muted" style={{ marginTop: 0 }}>
-        {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"} · {legend.college ?? "College unknown"}
+        {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}
       </p>
       <p><strong>Dev Trait:</strong> {legend.dev_trait} · <strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
       {legend.build_note && <p className="hub-muted">{legend.build_note}</p>}
@@ -190,18 +197,38 @@ function LegendDetailModal({
 
       {!isTaken && !isMine && (
         <>
-          <label className="form-field">
-            <span className="form-label">Player to replace (optional)</span>
-            <input
-              className="form-input"
-              value={replacePlayerRequest}
-              onChange={(event) => setReplacePlayerRequest(event.target.value)}
-              placeholder="Leave blank to replace your lowest-OVR player at this position"
-            />
+          <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
+            <input type="checkbox" checked={designateReplacement} onChange={(event) => setDesignateReplacement(event.target.checked)} />
+            <span className="form-label" style={{ margin: 0 }}>Pick which roster player this replaces</span>
           </label>
+          {designateReplacement ? (
+            <>
+              <label className="form-field">
+                <span className="form-label">Position</span>
+                <select className="form-input" value={replacePosition} onChange={(event) => setReplacePosition(event.target.value)}>
+                  <option value="">Select position</option>
+                  {REPLACE_TARGET_POSITIONS.map((position) => <option key={position} value={position}>{position}</option>)}
+                </select>
+              </label>
+              <label className="form-field">
+                <span className="form-label">First name</span>
+                <input className="form-input" value={replaceFirstName} onChange={(event) => setReplaceFirstName(event.target.value)} />
+              </label>
+              <label className="form-field">
+                <span className="form-label">Last name</span>
+                <input className="form-input" value={replaceLastName} onChange={(event) => setReplaceLastName(event.target.value)} />
+              </label>
+            </>
+          ) : (
+            <p className="form-hint">Leave unchecked to let your commissioner choose which player this replaces.</p>
+          )}
           <div className="hub-store-total">
             <span>Total: <strong><CoinAmount amount={REC_LEGEND_PRICE} /></strong></span>
-            <Button variant="primary" disabled={busy} onClick={() => onPurchase(replacePlayerRequest)}>
+            <Button
+              variant="primary"
+              disabled={busy || !canSubmitReplacement}
+              onClick={() => onPurchase(designateReplacement ? { position: replacePosition, firstName: replaceFirstName, lastName: replaceLastName } : null)}
+            >
               {busy ? "Submitting…" : "Purchase"}
             </Button>
           </div>

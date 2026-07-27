@@ -135,7 +135,12 @@ async function purchasingTeam(leagueId: string, discordId: string): Promise<{ te
   return { teamId: assignment.data?.team_id ?? null, teamName: team?.name ?? team?.display_abbr ?? team?.abbreviation ?? null };
 }
 
-export async function createLegendPurchaseRequest(input: { guildId: string; discordId: string; legendId: string; replacePlayerRequest?: string | null }) {
+export async function createLegendPurchaseRequest(input: {
+  guildId: string;
+  discordId: string;
+  legendId: string;
+  replaceTarget?: { position: string; firstName: string; lastName: string } | null;
+}) {
   const context = await getCurrentLeagueContext(input.guildId);
 
   const legend = await supabase.from("rec_legend_catalog").select("*").eq("id", input.legendId).maybeSingle();
@@ -166,9 +171,13 @@ export async function createLegendPurchaseRequest(input: { guildId: string; disc
     attributes: legend.data.attributes,
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,
-    // Buyer's requested replacement player, if any. When blank, the installing
-    // admin defaults to replacing the roster's lowest-OVR player at this position.
-    replacePlayerRequest: input.replacePlayerRequest?.trim() || null,
+    // Buyer's requested replacement target, if any — position + name of the roster player
+    // this legend replaces. The commissioner can accept, change, or skip this designation
+    // independently when they approve (see reviewLegendPurchase-equivalent flow); blank
+    // means the buyer left it entirely up to the commissioner to choose.
+    replaceTarget: input.replaceTarget
+      ? { position: input.replaceTarget.position, firstName: input.replaceTarget.firstName.trim(), lastName: input.replaceTarget.lastName.trim() }
+      : null,
   };
 
   const result = await createPurchaseRequest({ guildId: input.guildId, discordId: input.discordId, purchaseType: "legend", details });
@@ -185,7 +194,8 @@ export async function createLegendPurchaseRequest(input: { guildId: string; disc
     .update({
       queue_type: "legend",
       header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR)`,
-      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replacePlayerRequest ? ` · Replacing: ${details.replacePlayerRequest}` : ""}. Dev trait: ${legend.data.dev_trait}. Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
+      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replaceTarget ? ` · Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}` : " · Buyer left the replaced player up to you"}. Dev trait: ${legend.data.dev_trait}. Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
+      payload: { purchaseId: result.purchase.id, purchaseType: "legend", cost: result.price, replaceTarget: details.replaceTarget },
     })
     .eq("source_table", "rec_purchases")
     .eq("source_id", result.purchase.id);

@@ -34,7 +34,7 @@ export async function requireLinkedRecUser(authUserId: string): Promise<{
   return {
     recUserId: row.id,
     username: row.username,
-    displayName: row.display_name ?? row.username ?? "REC Member",
+    displayName: row.username ?? row.display_name ?? "REC Member",
   };
 }
 

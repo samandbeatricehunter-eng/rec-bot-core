@@ -38,12 +38,12 @@ async function discordNameMap(discordIds: Array<string | null | undefined>) {
   if (!ids.length) return new Map<string, string>();
   const accounts = await supabase
     .from("rec_discord_accounts")
-    .select("discord_id,username,global_name,user:rec_users(display_name)")
+    .select("discord_id,username,global_name,user:rec_users(username,display_name)")
     .in("discord_id", ids);
   if (accounts.error) throw new ApiError(500, "Failed to resolve member names.", accounts.error);
   return new Map<string, string>((accounts.data ?? []).map((account: any): [string, string] => {
     const user = Array.isArray(account.user) ? account.user[0] : account.user;
-    return [account.discord_id, user?.display_name || account.global_name || account.username || "REC Member"];
+    return [account.discord_id, user?.username || user?.display_name || account.global_name || account.username || "REC Member"];
   }));
 }
 

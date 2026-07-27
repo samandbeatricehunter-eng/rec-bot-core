@@ -52,13 +52,13 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
 
   const assignmentsRes = await supabase
     .from("rec_team_assignments")
-    .select("team_id,user_id,user:rec_users(id,display_name)")
+    .select("team_id,user_id,user:rec_users(id,username,display_name)")
     .eq("league_id", leagueId)
     .eq("assignment_status", "active")
     .is("ended_at", null);
   if (assignmentsRes.error) throw new ApiError(500, "Failed to load team assignments.", assignmentsRes.error);
   const assignmentByTeam = new Map(
-    (assignmentsRes.data ?? []).map((row: any) => [row.team_id, { userId: row.user_id, displayName: row.user?.display_name ?? null }]),
+    (assignmentsRes.data ?? []).map((row: any) => [row.team_id, { userId: row.user_id, displayName: row.user?.username ?? row.user?.display_name ?? null }]),
   );
 
   const userIds = [...new Set([...assignmentByTeam.values()].map((a) => a.userId).filter(Boolean))];
@@ -67,9 +67,9 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     : { data: [], error: null };
   if (accountsRes.error) throw new ApiError(500, "Failed to load Discord accounts.", accountsRes.error);
   const discordByUser = new Map((accountsRes.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
-  // rec_users.display_name can be a stale placeholder (some accounts were auto-provisioned
-  // with their raw Discord ID as the name) — prefer the live Discord nickname/username when
-  // available, falling back to the stored value only if the live lookup fails.
+  // A rec-leagues username is the canonical display name once set (see assignmentByTeam
+  // above); the live Discord nickname/username lookup below is only a fallback for accounts
+  // that never set one — some were auto-provisioned with their raw Discord ID as the name.
   const liveDiscordNames = await getGuildMemberDisplayNameMap(guildId).catch(() => new Map<string, string>());
 
   const season = await listScheduleSeason(guildId, resolvedSeasonNumber);
@@ -142,7 +142,7 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
         ? {
             userId: assignment.userId,
             discordId: assignmentDiscordId,
-            displayName: (assignmentDiscordId && liveDiscordNames.get(assignmentDiscordId)) ?? assignment.displayName,
+            displayName: assignment.displayName ?? (assignmentDiscordId && liveDiscordNames.get(assignmentDiscordId)) ?? null,
           }
         : null,
       scheduleStatus,

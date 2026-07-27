@@ -30,6 +30,11 @@ const ReviewPurchaseSchema = z.object({
   action: z.enum(["approve", "deny"]),
   reviewedByDiscordId: z.string().min(1),
   deniedReason: z.string().optional().nullable(),
+  finalReplaceTarget: z.object({
+    position: z.string().min(1),
+    firstName: z.string(),
+    lastName: z.string(),
+  }).optional().nullable(),
 });
 
 export async function purchaseRoutes(app: FastifyInstance) {

@@ -7,16 +7,20 @@
 export const REC_LEGEND_POSITION_GROUPS = ["QB", "HB", "FB", "WR", "TE", "OLine", "DLine", "LB", "Secondary"] as const;
 export type RecLegendPositionGroup = (typeof REC_LEGEND_POSITION_GROUPS)[number];
 
+// rec_legend_catalog.position is already stored as one of these 9 coarse codes (not the
+// finer per-slot abbreviations used elsewhere in the app for scheduled rosters) — this map
+// is mostly a rename, with a few finer-grained aliases kept in case catalog data is ever
+// entered at that granularity instead.
 const POSITION_TO_GROUP: Record<string, RecLegendPositionGroup> = {
   QB: "QB",
   HB: "HB", RB: "HB",
   FB: "FB",
   WR: "WR",
   TE: "TE",
-  LT: "OLine", LG: "OLine", C: "OLine", RG: "OLine", RT: "OLine", OL: "OLine", G: "OLine", T: "OLine",
-  LE: "DLine", RE: "DLine", DT: "DLine", DE: "DLine",
-  LOLB: "LB", MLB: "LB", ROLB: "LB", LB: "LB",
-  CB: "Secondary", FS: "Secondary", SS: "Secondary", S: "Secondary",
+  OL: "OLine", LT: "OLine", LG: "OLine", C: "OLine", RG: "OLine", RT: "OLine", G: "OLine", T: "OLine",
+  DL: "DLine", LE: "DLine", RE: "DLine", DT: "DLine", DE: "DLine",
+  LB: "LB", LOLB: "LB", MLB: "LB", ROLB: "LB",
+  DB: "Secondary", CB: "Secondary", FS: "Secondary", SS: "Secondary", S: "Secondary",
 };
 
 export function legendPositionGroupFor(position: string | null | undefined): RecLegendPositionGroup | null {

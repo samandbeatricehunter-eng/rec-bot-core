@@ -254,6 +254,10 @@ export async function reviewPurchase(input: {
   action: "approve" | "deny";
   reviewedByDiscordId: string;
   deniedReason?: string | null;
+  // Legend/Custom Recruit only: the commissioner's final call on which roster player this
+  // replaces — independent of whatever the buyer requested. Undefined leaves details
+  // untouched; null explicitly records "commissioner chose not to designate one".
+  finalReplaceTarget?: { position: string; firstName: string; lastName: string } | null;
 }) {
   const existing = await supabase.from("rec_purchases").select("*").eq("id", input.purchaseId).maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load purchase.", existing.error);
@@ -310,6 +314,9 @@ export async function reviewPurchase(input: {
       reviewed_by_discord_id: input.reviewedByDiscordId,
       approved_at: now,
       updated_at: now,
+      ...(input.finalReplaceTarget !== undefined
+        ? { details: { ...(existing.data.details as Record<string, unknown>), finalReplaceTarget: input.finalReplaceTarget } }
+        : {}),
     })
     .eq("id", input.purchaseId)
     .select("*")

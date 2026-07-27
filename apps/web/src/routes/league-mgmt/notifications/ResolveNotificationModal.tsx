@@ -1,10 +1,72 @@
 import { useEffect, useState } from "react";
+import { REC_DEFENSE_POSITIONS, REC_OFFENSE_POSITIONS } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+
+type ReplaceTarget = { position: string; firstName: string; lastName: string };
+const REPLACE_TARGET_POSITIONS = [...REC_OFFENSE_POSITIONS, ...REC_DEFENSE_POSITIONS];
+
+// Legend (and future Custom Recruit) approval: lets the commissioner confirm or override
+// which roster player this replaces, independent of whatever the buyer requested — or
+// explicitly skip designating one at all.
+function ReplacementDesignator({
+  initial,
+  designate,
+  setDesignate,
+  position,
+  setPosition,
+  firstName,
+  setFirstName,
+  lastName,
+  setLastName,
+}: {
+  initial: ReplaceTarget | null;
+  designate: boolean;
+  setDesignate: (value: boolean) => void;
+  position: string;
+  setPosition: (value: string) => void;
+  firstName: string;
+  setFirstName: (value: string) => void;
+  lastName: string;
+  setLastName: (value: string) => void;
+}) {
+  return (
+    <div className="form-field">
+      {initial ? (
+        <p className="form-hint" style={{ marginTop: 0 }}>Buyer requested replacing: {initial.position} {initial.firstName} {initial.lastName}</p>
+      ) : (
+        <p className="form-hint" style={{ marginTop: 0 }}>Buyer left the replaced player up to you.</p>
+      )}
+      <label className="form-field" style={{ flexDirection: "row", alignItems: "center", gap: "var(--space-2)" }}>
+        <input type="checkbox" checked={designate} onChange={(event) => setDesignate(event.target.checked)} />
+        <span className="form-label" style={{ margin: 0 }}>Designate replaced player</span>
+      </label>
+      {designate && (
+        <>
+          <label className="form-field">
+            <span className="form-label">Position</span>
+            <select className="form-input" value={position} onChange={(event) => setPosition(event.target.value)}>
+              <option value="">Select position</option>
+              {REPLACE_TARGET_POSITIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <label className="form-field">
+            <span className="form-label">First name</span>
+            <input className="form-input" value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+          </label>
+          <label className="form-field">
+            <span className="form-label">Last name</span>
+            <input className="form-input" value={lastName} onChange={(event) => setLastName(event.target.value)} />
+          </label>
+        </>
+      )}
+    </div>
+  );
+}
 
 // Lets the commissioner actually watch the clip and see the claimed week/matchup before
 // approving payout — catches a highlight uploaded from the wrong game (or an outright fake
@@ -96,12 +158,19 @@ function resolveModeFor(type: string): ResolveMode {
   }
 }
 
-async function resolveAction(guildId: string, notification: CommissionerNotification, action: "approve" | "deny", reason: string) {
+async function resolveAction(
+  guildId: string,
+  notification: CommissionerNotification,
+  action: "approve" | "deny",
+  reason: string,
+  finalReplaceTarget?: ReplaceTarget | null,
+) {
   const sourceId = notification.sourceId ?? "";
   switch (notification.type) {
     case "purchase":
-    case "legend":
       return recApi.reviewPurchase({ guildId, purchaseId: sourceId, action, deniedReason: reason || undefined });
+    case "legend":
+      return recApi.reviewPurchase({ guildId, purchaseId: sourceId, action, deniedReason: reason || undefined, finalReplaceTarget: action === "approve" ? finalReplaceTarget : undefined });
     case "highlight":
       return recApi.reviewHighlight({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "game_of_the_year":
@@ -141,11 +210,18 @@ export function ResolveNotificationModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const buyerReplaceTarget = (notification.payload?.replaceTarget as ReplaceTarget | null | undefined) ?? null;
+  const [designateReplacement, setDesignateReplacement] = useState(false);
+  const [replacePosition, setReplacePosition] = useState(buyerReplaceTarget?.position ?? "");
+  const [replaceFirstName, setReplaceFirstName] = useState(buyerReplaceTarget?.firstName ?? "");
+  const [replaceLastName, setReplaceLastName] = useState(buyerReplaceTarget?.lastName ?? "");
+
   async function handle(action: "approve" | "deny") {
     setBusy(true);
     setError(null);
     try {
-      await resolveAction(guildId, notification, action, reason);
+      const finalReplaceTarget = designateReplacement ? { position: replacePosition, firstName: replaceFirstName, lastName: replaceLastName } : undefined;
+      await resolveAction(guildId, notification, action, reason, finalReplaceTarget);
       onResolved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to resolve this notification.");
@@ -173,6 +249,20 @@ export function ResolveNotificationModal({
       )}
       {notification.amount != null && (
         <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</p>
+      )}
+
+      {notification.type === "legend" && (
+        <ReplacementDesignator
+          initial={buyerReplaceTarget}
+          designate={designateReplacement}
+          setDesignate={setDesignateReplacement}
+          position={replacePosition}
+          setPosition={setReplacePosition}
+          firstName={replaceFirstName}
+          setFirstName={setReplaceFirstName}
+          lastName={replaceLastName}
+          setLastName={setReplaceLastName}
+        />
       )}
 
       {mode.kind === "info" && <p className="form-hint">{mode.message}</p>}

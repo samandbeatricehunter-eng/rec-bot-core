@@ -489,7 +489,7 @@ export async function getHub(guildId: string, discordId: string) {
     // Order by the game's own week first (falling back to created_at within a week) so a
     // highlight submitted late for an earlier week slots back into that week's place in the
     // rotation instead of jumping to the front just because it was uploaded recently.
-    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }),
+    supabase.from("rec_highlight_posts").select("id,league_id,user_id,team_id,season_number,week_number,season_stage,message_url,content,discord_channel_id,discord_message_id,cloudflare_stream_uid,storage_provider,media_status,playback_url,hub_visible,created_at,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("hub_visible", true).in("media_status", ["ready"]).order("week_number", { ascending: false }).order("created_at", { ascending: false }),
     getWeeklyH2hGames(guildId),
     Promise.all([getUserMenuProfileByDiscordId(discordId, guildId), getUserSnapshot(discordId, guildId)]).then(([menu, profile]) => ({ ...menu, profile })),
     computePowerRankings(guildId, discordId).catch(() => null),
@@ -1284,7 +1284,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").gte("posted_at", streamLiveSince()).is("ended_at", null).order("posted_at", { ascending: false }),
     supabase.from("rec_stream_views").select("stream_log_id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
-    supabase.from("rec_team_assignments").select("user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(display_name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
+    supabase.from("rec_team_assignments").select("user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(username,display_name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
     supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   if (games.error || weeks.error || results.error || streamLogs.error || assignments.error || gotwPoll.error) throw new ApiError(500, "Failed to load matchup schedule.", games.error ?? weeks.error ?? results.error ?? streamLogs.error ?? assignments.error ?? gotwPoll.error);
@@ -1309,11 +1309,13 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const isSnowflake = (value: unknown) => /^\d{15,}$/.test(String(value ?? ""));
   const displayNameForUser = (row: any) => {
     const account = accountByUserId.get(row.user_id) as any;
+    const recUsername = row.user?.username ?? null;
     const storedName = row.user?.display_name ?? null;
-    // The matchup directory is an account directory, not a guild roster. Use the
-    // immutable Discord username instead of a server nickname/global display name.
-    // Guard every source against a raw snowflake — accounts can be poisoned with the
+    // A rec-leagues username is the canonical name once set. Only fall back to Discord
+    // (immutable username, then global display name) for accounts with no site username,
+    // and guard every source against a raw snowflake — accounts can be poisoned with the
     // Discord ID as a placeholder when the live lookup fails at link time.
+    if (recUsername && !isSnowflake(recUsername)) return recUsername;
     if (account?.username && !isSnowflake(account.username)) return account.username;
     if (account?.global_name && !isSnowflake(account.global_name)) return account.global_name;
     if (storedName && !isSnowflake(storedName)) return storedName;

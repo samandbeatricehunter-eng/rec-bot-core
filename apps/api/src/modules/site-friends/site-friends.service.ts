@@ -27,7 +27,7 @@ async function resolveTargetUser(input: {
     return {
       id: row.id,
       username: row.username,
-      displayName: row.display_name ?? row.username,
+      displayName: row.username ?? row.display_name,
     };
   }
   const username = String(input.username ?? "").trim();
@@ -74,8 +74,8 @@ function mapFriendshipRow(row: Record<string, unknown>, viewerUserId: string) {
       ),
       displayName: String(
         peerIsRequester
-          ? row.requester_display_name ?? row.requester_username
-          : row.addressee_display_name ?? row.addressee_username,
+          ? row.requester_username ?? row.requester_display_name
+          : row.addressee_username ?? row.addressee_display_name,
       ),
     },
   };
@@ -184,7 +184,7 @@ export async function listSharedLeagueFriendSuggestions(input: {
     ).map((row) => ({
       userId: row.id,
       username: row.username,
-      displayName: row.display_name ?? row.username,
+      displayName: row.username ?? row.display_name,
     })),
   };
 }

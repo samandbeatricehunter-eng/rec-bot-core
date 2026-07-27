@@ -211,12 +211,12 @@ export async function getActiveCheckReview(eventId: string) {
 
   const discordIds = [...new Set([...(misses.data ?? []), ...(responses.data ?? [])].map((row: any) => row.discord_id).filter(Boolean))];
   const accounts = discordIds.length
-    ? await supabase.from("rec_discord_accounts").select("discord_id,username,global_name,user:rec_users(display_name)").in("discord_id", discordIds)
+    ? await supabase.from("rec_discord_accounts").select("discord_id,username,global_name,user:rec_users(username,display_name)").in("discord_id", discordIds)
     : { data: [], error: null };
   if (accounts.error) throw new ApiError(500, "Failed to load active-check member names.", accounts.error);
   const nameByDiscord = new Map<string, string>((accounts.data ?? []).map((account: any): [string, string] => {
     const user = Array.isArray(account.user) ? account.user[0] : account.user;
-    return [account.discord_id, user?.display_name || account.global_name || account.username || "REC Member"];
+    return [account.discord_id, user?.username || user?.display_name || account.global_name || account.username || "REC Member"];
   }));
 
   const teamById = new Map((teams.data ?? []).map((team: any) => [team.id, teamName(team)]));

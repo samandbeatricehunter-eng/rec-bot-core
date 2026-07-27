@@ -317,7 +317,11 @@ export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[
 }
 
 export async function getSpotlightReel(input: { authUserId: string | null }) {
-  await pruneDeadHighlightsOnceDaily();
+  // Non-fatal — a Cloudflare Stream liveness-check hiccup here must never take down the
+  // whole home page load. Worst case, dead highlights linger an extra day.
+  await pruneDeadHighlightsOnceDaily().catch((error) => {
+    console.error("[ERROR] pruneDeadHighlightsOnceDaily failed (non-fatal):", error);
+  });
   let reel = await supabase
     .from("rec_spotlight_reel")
     .select("id,highlight_post_id,rank,like_count,selected_at")
@@ -332,12 +336,18 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
     : null;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago" }).format(new Date());
   if ((reel.data ?? []).length < 5 || selectedDay !== today) {
-    await refreshSpotlightReel();
-    reel = await supabase
-      .from("rec_spotlight_reel")
-      .select("id,highlight_post_id,rank,like_count,selected_at")
-      .order("rank", { ascending: true });
-    if (reel.error) throw new ApiError(500, "Failed to load spotlight reel.", reel.error);
+    // Also non-fatal — if today's refresh throws (e.g. a slow/failed Stream check), fall
+    // back to serving yesterday's reel instead of a hard failure with nothing to show.
+    try {
+      await refreshSpotlightReel();
+      reel = await supabase
+        .from("rec_spotlight_reel")
+        .select("id,highlight_post_id,rank,like_count,selected_at")
+        .order("rank", { ascending: true });
+      if (reel.error) throw new ApiError(500, "Failed to load spotlight reel.", reel.error);
+    } catch (error) {
+      console.error("[ERROR] refreshSpotlightReel failed, serving stale reel (non-fatal):", error);
+    }
   }
 
   const highlightIds = (reel.data ?? []).map((row) => String(row.highlight_post_id));
@@ -418,7 +428,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
           body: comment.body,
           createdAt: comment.created_at,
           author: {
-            displayName: comment.user?.display_name ?? comment.user?.username ?? "REC Member",
+            displayName: comment.user?.username ?? comment.user?.display_name ?? "REC Member",
             username: comment.user?.username ?? null,
           },
         }));
@@ -437,7 +447,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
         seasonStage: post.season_stage,
         author: {
           userId: post.user_id,
-          displayName: post.user?.display_name ?? post.user?.username ?? "REC Member",
+          displayName: post.user?.username ?? post.user?.display_name ?? "REC Member",
           username: post.user?.username ?? null,
         },
         team: post.team

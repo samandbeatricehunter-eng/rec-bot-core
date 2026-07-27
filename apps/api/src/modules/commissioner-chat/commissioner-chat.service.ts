@@ -12,6 +12,23 @@ async function resolveUserId(discordId: string): Promise<string | null> {
   return data?.user_id ?? null;
 }
 
+/** A rec-leagues username is canonical once set — only unlinked/username-less accounts fall back to the live Discord nickname/username lookup. */
+async function resolveUsernamesByDiscordId(discordIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(discordIds)];
+  if (!ids.length) return new Map();
+  const { data, error } = await supabase
+    .from("rec_discord_accounts")
+    .select("discord_id,user:rec_users(username)")
+    .in("discord_id", ids);
+  if (error) throw new ApiError(500, "Failed to resolve chat author usernames.", error);
+  const map = new Map<string, string>();
+  for (const row of (data ?? []) as any[]) {
+    const user = Array.isArray(row.user) ? row.user[0] : row.user;
+    if (user?.username) map.set(row.discord_id, user.username);
+  }
+  return map;
+}
+
 // No scheduled job in this codebase for chat-specific cleanup — piggyback a lazy purge of
 // anything past the retention window onto the read path, which already runs on every 5s
 // poll. Fire-and-forget: a failed purge just means cleanup happens on the next read instead.
@@ -39,11 +56,18 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
   const { data, error } = await query;
   if (error) throw new ApiError(500, "Failed to load commissioner chat messages.", error);
 
-  // Resolve each author's live Discord nickname/username rather than showing the raw
-  // snowflake — rec_users.display_name can't be relied on here (it's sometimes just a
-  // placeholder copy of the Discord ID from account auto-provisioning).
-  const names = await getGuildMemberDisplayNameMap(guildId).catch(() => new Map<string, string>());
-  const messages = (data ?? []).reverse().map((row) => ({ ...row, author_display_name: names.get(row.author_discord_id) ?? null }));
+  // A rec-leagues username wins when set; otherwise fall back to the live Discord
+  // nickname/username — rec_users.display_name can't be relied on here (it's sometimes
+  // just a placeholder copy of the Discord ID from account auto-provisioning).
+  const authorDiscordIds = [...new Set((data ?? []).map((row) => row.author_discord_id))] as string[];
+  const [usernames, liveNames] = await Promise.all([
+    resolveUsernamesByDiscordId(authorDiscordIds),
+    getGuildMemberDisplayNameMap(guildId).catch(() => new Map<string, string>()),
+  ]);
+  const messages = (data ?? []).reverse().map((row) => ({
+    ...row,
+    author_display_name: usernames.get(row.author_discord_id) ?? liveNames.get(row.author_discord_id) ?? null,
+  }));
   return { messages };
 }
 
@@ -65,7 +89,11 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     .select("id,author_discord_id,body,created_at")
     .single();
   if (error) throw new ApiError(500, "Failed to post message.", error);
-  const names = await getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>());
+  const [usernames, liveNames] = await Promise.all([
+    resolveUsernamesByDiscordId([input.discordId]),
+    getGuildMemberDisplayNameMap(input.guildId).catch(() => new Map<string, string>()),
+  ]);
+  const authorDisplayName = usernames.get(input.discordId) ?? liveNames.get(input.discordId) ?? null;
   const directMentions = [...trimmed.matchAll(/<@!?(\d+)>/g)].map((match) => match[1]);
   const roleMentioned = /<@&(\d+)>/.test(trimmed);
   void (async () => {
@@ -76,11 +104,11 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     }
     recipients.delete(input.discordId);
     if (!recipients.size) return;
-    const author = names.get(input.discordId) ?? "A commissioner";
+    const author = authorDisplayName ?? "A commissioner";
     const message = `**${author}** mentioned you in the Commissioner's Office:\n\n${trimmed.slice(0, 1200)}\n\nRun **/hub**, open **League Management**, then **Commissioner's Office** to reply.`;
     await Promise.allSettled([...recipients].map((discordId) => sendDiscordDirectMessage(discordId, message)));
   })().catch((notifyError) => console.error("[ERROR] Failed to send commissioner-chat mention DMs (non-fatal):", notifyError));
-  return { message: { ...data, author_display_name: names.get(input.discordId) ?? null } };
+  return { message: { ...data, author_display_name: authorDisplayName } };
 }
 
 export async function listChatTopics(guildId: string) {

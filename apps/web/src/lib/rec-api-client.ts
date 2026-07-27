@@ -278,7 +278,7 @@ export const recApi = {
     recApiFetch<{ legends: import("../types/api.js").LegendCatalogEntry[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegendAvailability: (guildId: string) =>
     recApiFetch<{ soldLegendIds: string[]; sold: import("../types/api.js").LegendAvailabilityEntry[] }>("/v1/legends/availability", { method: "POST", body: JSON.stringify({ guildId }) }),
-  purchaseHubLegend: (input: { guildId: string; legendId: string; replacePlayerRequest?: string | null }) =>
+  purchaseHubLegend: (input: { guildId: string; legendId: string; replaceTarget?: { position: string; firstName: string; lastName: string } | null }) =>
     recApiFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   cancelHubLegend: (input: { guildId: string; legendId: string }) =>
     recApiFetch<{ ok: true; refunded: number }>("/v1/legends/cancel", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
@@ -367,7 +367,7 @@ export const recApi = {
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,
   // same convention as reviewBoxScore above.
-  reviewPurchase: (input: { guildId: string; purchaseId: string; action: "approve" | "deny"; deniedReason?: string }) =>
+  reviewPurchase: (input: { guildId: string; purchaseId: string; action: "approve" | "deny"; deniedReason?: string; finalReplaceTarget?: { position: string; firstName: string; lastName: string } | null }) =>
     recApiFetch<unknown>("/v1/purchases/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   reviewHighlight: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/highlights/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),

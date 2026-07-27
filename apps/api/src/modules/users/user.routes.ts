@@ -45,7 +45,7 @@ export async function userRoutes(app: FastifyInstance) {
       if (!context?.leagueId) return reply.send({ coaches: [] });
       const { data } = await supabase
         .from("rec_team_assignments")
-        .select("user_id,team_id,user:rec_users(display_name),team:rec_teams(name,abbreviation)")
+        .select("user_id,team_id,user:rec_users(username,display_name),team:rec_teams(name,abbreviation)")
         .eq("league_id", context.leagueId)
         .eq("assignment_status", "active")
         .is("ended_at", null);
@@ -59,7 +59,7 @@ export async function userRoutes(app: FastifyInstance) {
         return {
           userId: row.user_id,
           teamId: row.team_id,
-          displayName: row.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Unknown",
+          displayName: row.user?.username ?? row.user?.display_name ?? discordAcc?.global_name ?? discordAcc?.username ?? "Unknown",
           discordId: discordAcc?.discord_id ?? null,
           teamName: row.team?.name ?? null,
           teamAbbreviation: row.team?.abbreviation ?? null
