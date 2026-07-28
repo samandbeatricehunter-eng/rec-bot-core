@@ -7,6 +7,7 @@ import {
   type SubscriptionTier,
 } from "../lib/site-api.js";
 import { annualSavingsPercent, PLANS, priceLabel, type BillingInterval } from "../lib/plans.js";
+import { SiteFooter } from "../components/SiteFooter.js";
 
 function tierLabel(tier: SubscriptionTier): string {
   if (tier === "gold") return "Gold";
@@ -221,6 +222,8 @@ export function Pricing() {
           })}
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

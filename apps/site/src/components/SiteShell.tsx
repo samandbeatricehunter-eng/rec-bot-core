@@ -5,6 +5,7 @@ import { LeagueSelector } from "./LeagueSelector.js";
 import { MessagesLink } from "./MessagesLink.js";
 import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
+import { SiteFooter } from "./SiteFooter.js";
 import { SiteTicker } from "./SiteTicker.js";
 import { useHub } from "../lib/hub-context.js";
 
@@ -39,7 +40,10 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
       <DesktopSidebar />
 
-      <main className="site-shell-main">{children}</main>
+      <main className="site-shell-main">
+        {children}
+        {!isLeague ? <SiteFooter /> : null}
+      </main>
 
       <div className="site-chrome-stack site-chrome-stack-mobile">
         <LeagueSelector />

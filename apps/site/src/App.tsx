@@ -21,6 +21,9 @@ import { LeagueHubPage } from "./routes/LeagueHub.js";
 import { Pricing } from "./routes/Pricing.js";
 import { SignUp } from "./routes/SignUp.js";
 import { SignUpComplete } from "./routes/SignUpComplete.js";
+import { Help } from "./routes/Help.js";
+import { Privacy } from "./routes/Privacy.js";
+import { Terms } from "./routes/Terms.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 
@@ -205,6 +208,9 @@ function Routed() {
       <Route path="/auth/callback" element={<AuthCallback />} />
 
       <Route path="/pricing" element={<Pricing />} />
+      <Route path="/help" element={<Help />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
 
       <Route element={<AuthedLayout />}>
         <Route path="/home" element={<HomePage />} />

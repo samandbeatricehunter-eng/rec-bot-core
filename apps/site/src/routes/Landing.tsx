@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { siteApi } from "../lib/site-api.js";
 import { annualSavingsPercent, PLANS, priceLabel, type BillingInterval, type PlanTier } from "../lib/plans.js";
+import { SiteFooter } from "../components/SiteFooter.js";
 
 const PILLARS = [
   {
@@ -177,6 +178,8 @@ export function Landing() {
           Active REC OG (CFB 27) members get lifetime Platinum when they sign in with Discord.
         </p>
       </section>
+
+      <SiteFooter />
     </div>
   );
 }
