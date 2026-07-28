@@ -1,7 +1,8 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
 import type { SiteLeagueSummary } from "../lib/site-api.js";
 import { BottomNav } from "./BottomNav.js";
+import { IconHelp } from "./icons.js";
 
 function roleLabel(league: SiteLeagueSummary) {
   const role = league.commissionerRole ?? (league.isCommissioner ? "co" : "member");
@@ -38,6 +39,15 @@ export function DesktopSidebar() {
         <span className="site-sidebar-brand-name">Leagues</span>
       </div>
       <BottomNav variant="global" layout="sidebar" />
+      <div className="site-sidebar-nav">
+        <NavLink
+          to="/help"
+          className={({ isActive }) => ["site-sidebar-nav-btn", isActive ? "is-active" : ""].filter(Boolean).join(" ")}
+        >
+          <IconHelp />
+          <span>Help / FAQ</span>
+        </NavLink>
+      </div>
       <div className="site-sidebar-leagues">
         <div className="site-sidebar-section-label">My Leagues</div>
         {hub.leaguesLoading ? (

@@ -297,6 +297,12 @@ export type SiteNotificationItem = {
   leagueName?: string | null;
 };
 
+export type SiteActivityCounts = {
+  unreadMessages: number;
+  unreadNotifications: number;
+  unreadCommissionerItems: number;
+};
+
 export const siteApi = {
   getLinkProfile() {
     return request<LinkProfileResponse>("/v1/site-auth/me", {});
@@ -513,6 +519,9 @@ export const siteApi = {
       commissioner: SiteNotificationItem[];
       unreadCount: number;
     }>("/v1/site-notifications/list", {});
+  },
+  getActivityCounts() {
+    return request<SiteActivityCounts>("/v1/site-notifications/counts", {});
   },
   markNotificationsRead(ids: string[]) {
     return request<{ ok: true; updated: number }>(

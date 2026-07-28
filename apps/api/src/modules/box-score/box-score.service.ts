@@ -11,6 +11,7 @@ import { buildTeamNameCandidates, matchTeamNameInBlob, TEAM_NAME_BLOB_MATCH_THRE
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
+import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
@@ -1510,6 +1511,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       warnings.push("Failed to rebuild official user records before badge computation.");
     });
   }
+  if (sub.discord_guild_id) invalidateLeagueComputeCaches(sub.discord_guild_id);
 
   // Import-time badge + story computation (blueprint): qualify badges, recompute
   // streak/season/global progress, and generate the game story. Non-fatal — a
@@ -1735,6 +1737,7 @@ async function syncApprovedBoxScoreCorrection(sub: any) {
     });
     await rebuildSeasonDisplayRecords(sub.league_id, sub.season_number);
   }
+  if (sub.discord_guild_id) invalidateLeagueComputeCaches(sub.discord_guild_id);
 }
 
 export async function correctBoxScoreSubmission(input: CorrectBoxScoreInput): Promise<CreateSubmissionResult> {

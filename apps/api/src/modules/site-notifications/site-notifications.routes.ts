@@ -4,6 +4,7 @@ import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   clearSiteNotifications,
+  getSiteActivityCounts,
   listSiteNotifications,
   markSiteCommissionerLeaguesViewed,
   markSiteNotificationsRead,
@@ -11,6 +12,16 @@ import {
 } from "./site-notifications.service.js";
 
 export async function siteNotificationsRoutes(app: FastifyInstance) {
+  app.post("/v1/site-notifications/counts", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      return reply.send(await getSiteActivityCounts({ recUserId: user.recUserId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   app.post("/v1/site-notifications/list", async (request, reply) => {
     try {
       const session = await requireSiteUserSession(request);

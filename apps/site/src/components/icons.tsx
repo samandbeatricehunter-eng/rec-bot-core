@@ -147,6 +147,28 @@ export function IconBack(props: IconProps) {
   return base(props, <path d="M15 5l-7 7 7 7" />);
 }
 
+export function IconMore(props: IconProps) {
+  return base(
+    props,
+    <>
+      <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
+    </>,
+  );
+}
+
+export function IconHelp(props: IconProps) {
+  return base(
+    props,
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.3 9.3a2.7 2.7 0 0 1 5.2 1c0 1.7-2.3 1.7-2.5 3.4" />
+      <path d="M12 17.2v.1" />
+    </>,
+  );
+}
+
 export function IconBell(props: IconProps) {
   return base(
     props,

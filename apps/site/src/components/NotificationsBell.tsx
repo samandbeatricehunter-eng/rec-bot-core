@@ -2,24 +2,26 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import { siteApi, type SiteNotificationItem } from "../lib/site-api.js";
+import { useSiteActivity } from "../lib/site-activity-context.js";
 import { IconBell } from "./icons.js";
 
 export function NotificationsBell() {
   const auth = useAuth();
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
+  const { counts, refresh: refreshCounts } = useSiteActivity();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [regular, setRegular] = useState<SiteNotificationItem[]>([]);
   const [commissioner, setCommissioner] = useState<SiteNotificationItem[]>([]);
   const [clearing, setClearing] = useState(false);
-  // Commissioner rows are one aggregate "N pending items in {league}" line per league (item-
-  // level review lives in the Commissioner Chat window's Payouts tab in League Mgmt).
-  const unreadCount =
-    regular.filter((item) => !item.read).length + commissioner.filter((item) => !item.read).length;
+  // Closed-bell badge comes from the shared, lightly-polled counts context (see
+  // site-activity-context.tsx) instead of this component fetching the full lists on its own
+  // 45s timer just to derive a number. Full lists still load below only when the panel opens.
+  const unreadCount = counts.unreadNotifications + counts.unreadCommissionerItems;
 
-  async function refresh() {
+  async function refreshLists() {
     if (auth.status !== "signed-in") return;
     setLoading(true);
     setError(null);
@@ -37,14 +39,8 @@ export function NotificationsBell() {
   }
 
   useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 45_000);
-    return () => window.clearInterval(timer);
-  }, [auth.status]);
-
-  useEffect(() => {
     if (!open) return;
-    void refresh();
+    void refreshLists();
     function onPointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     }
@@ -68,6 +64,7 @@ export function NotificationsBell() {
         setRegular((items) =>
           items.map((row) => (row.id === item.id ? { ...row, read: true } : row)),
         );
+        refreshCounts();
       } catch {
         /* navigation still proceeds */
       }
@@ -83,6 +80,7 @@ export function NotificationsBell() {
         setCommissioner((items) =>
           items.map((row) => (row.id === item.id ? { ...row, read: true } : row)),
         );
+        refreshCounts();
       } catch {
         /* navigation still proceeds */
       }
@@ -95,6 +93,7 @@ export function NotificationsBell() {
     try {
       await siteApi.clearNotifications();
       setRegular([]);
+      refreshCounts();
     } catch {
       /* leave list as-is on failure */
     } finally {

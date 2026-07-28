@@ -2,9 +2,17 @@
 import { isCfb, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
+
+// Ordinary reads (hub loads, wager-option views, game-channel renders) all hit this same
+// per-league computation; a short TTL means "current week" views share one computation
+// instead of each triggering a full rec_game_results/SOS/ratings recompute. Historical
+// (completedWeekNumber) views are cheap already (served from the snapshot table) and don't
+// strictly need caching, but sharing the cache key format costs nothing.
+const POWER_RANKINGS_CACHE_TTL_MS = 60_000;
 
 // PR = 0.45·winPct + 0.20·normPD + 0.20·engagement + 0.15·closeClutch
 //   winPct      — official win% (ties = ½)
@@ -156,6 +164,23 @@ export async function snapshotPowerRankings(leagueId: string, seasonNumber: numb
   if (error) throw new ApiError(500, "Failed to write power-ranking snapshot.", error);
 }
 
+// Resolves just the week number of the latest snapshot (optionally strictly before
+// `beforeWeek`), instead of downloading every prior week's full team-row history only to
+// keep the first one client-side — a query that used to grow with every week of the season.
+async function loadLatestSnapshotWeek(leagueId: string, seasonNumber: number, beforeWeek?: number | null): Promise<number | null> {
+  let query = supabase
+    .from("rec_power_ranking_snapshots")
+    .select("week_number")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .order("week_number", { ascending: false })
+    .limit(1);
+  if (beforeWeek != null) query = query.lt("week_number", beforeWeek);
+  const { data, error } = await query;
+  if (error) throw new ApiError(500, "Failed to load latest power-ranking snapshot week.", error);
+  return data?.[0]?.week_number ?? null;
+}
+
 async function loadSnapshotRankings(leagueId: string, seasonNumber: number, weekNumber: number): Promise<RankedTeam[] | null> {
   const { data, error } = await supabase
     .from("rec_power_ranking_snapshots")
@@ -169,43 +194,42 @@ async function loadSnapshotRankings(leagueId: string, seasonNumber: number, week
   return data.map((row: any) => ({ teamId: row.team_id, rank: Number(row.rank), score: Number(row.score ?? 0) }));
 }
 
-export async function computePowerRankings(guildId: string, viewerDiscordId?: string | null, options: ComputePowerRankingsOptions = {}) {
+// Everything except the viewer-specific lookup below — this is the part shared by every
+// caller regardless of which Discord user is asking, so it's the part worth caching.
+async function computePowerRankingsBase(guildId: string, completedWeekNumber: number | null) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const currentSeason = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
-  const completedWeekNumber = options.completedWeekNumber ?? null;
   const leagueGame = context.rec_leagues.game;
   const ranked = completedWeekNumber
     ? (await loadSnapshotRankings(leagueId, currentSeason, completedWeekNumber)) ?? await rankTeams(guildId, leagueId, currentSeason, leagueGame)
     : await rankTeams(guildId, leagueId, currentSeason, leagueGame);
 
-  const prevSnapQuery = supabase
-    .from("rec_power_ranking_snapshots")
-    .select("week_number,team_id,rank")
-    .eq("league_id", leagueId)
-    .eq("season_number", currentSeason)
-    .order("week_number", { ascending: false });
-  const [teamsRes, assignmentsRes, prevSnap] = await Promise.all([
+  const [teamsRes, assignmentsRes, latestWeek] = await Promise.all([
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
-    completedWeekNumber ? prevSnapQuery.lt("week_number", completedWeekNumber) : prevSnapQuery,
+    loadLatestSnapshotWeek(leagueId, currentSeason, completedWeekNumber),
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
   if (assignmentsRes.error) throw new ApiError(500, "Failed to load assignments for power rankings.", assignmentsRes.error);
-  if (prevSnap.error) throw new ApiError(500, "Failed to load previous power rankings.", prevSnap.error);
 
   const teamById = new Map((teamsRes.data ?? []).map((t) => [t.id, t]));
   const humanTeamIds = new Set((assignmentsRes.data ?? []).map((r) => r.team_id).filter(Boolean));
   const userIdByTeam = new Map((assignmentsRes.data ?? []).map((r) => [r.team_id, r.user_id]));
 
-  // Prior ranks from the latest snapshot week only.
-  const latestWeek = (prevSnap.data ?? [])[0]?.week_number ?? null;
+  // Prior ranks from the latest snapshot week only — a single fixed-size query instead of
+  // downloading the whole season's snapshot history to discard everything but this week.
   const prevRankByTeam = new Map<string, number>();
   if (latestWeek != null) {
-    for (const row of prevSnap.data ?? []) {
-      if (row.week_number === latestWeek) prevRankByTeam.set(row.team_id, row.rank);
-    }
+    const prevSnap = await supabase
+      .from("rec_power_ranking_snapshots")
+      .select("team_id,rank")
+      .eq("league_id", leagueId)
+      .eq("season_number", currentSeason)
+      .eq("week_number", latestWeek);
+    if (prevSnap.error) throw new ApiError(500, "Failed to load previous power rankings.", prevSnap.error);
+    for (const row of prevSnap.data ?? []) prevRankByTeam.set(row.team_id, row.rank);
   }
 
   const teams = ranked.map((r) => {
@@ -223,17 +247,6 @@ export async function computePowerRankings(guildId: string, viewerDiscordId?: st
     };
   });
 
-  let viewerTeamId: string | null = null;
-  if (viewerDiscordId) {
-    const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
-    const userId = acct.data?.user_id ?? null;
-    if (userId) {
-      for (const [teamId, uId] of userIdByTeam.entries()) {
-        if (uId === userId) { viewerTeamId = teamId; break; }
-      }
-    }
-  }
-
   return {
     league: { id: leagueId, name: context.rec_leagues.name ?? null },
     currentSeason,
@@ -242,7 +255,27 @@ export async function computePowerRankings(guildId: string, viewerDiscordId?: st
     hasPreviousWeek: latestWeek != null,
     previousWeekNumber: latestWeek,
     totalTeams: teams.length,
-    viewerTeamId,
     teams,
+    userIdByTeam,
   };
+}
+
+export async function computePowerRankings(guildId: string, viewerDiscordId?: string | null, options: ComputePowerRankingsOptions = {}) {
+  const completedWeekNumber = options.completedWeekNumber ?? null;
+  const cacheKey = `power-rankings:${guildId}:${completedWeekNumber ?? "current"}`;
+  const base = await withComputeCache(cacheKey, POWER_RANKINGS_CACHE_TTL_MS, () => computePowerRankingsBase(guildId, completedWeekNumber));
+
+  let viewerTeamId: string | null = null;
+  if (viewerDiscordId) {
+    const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
+    const userId = acct.data?.user_id ?? null;
+    if (userId) {
+      for (const [teamId, uId] of base.userIdByTeam.entries()) {
+        if (uId === userId) { viewerTeamId = teamId; break; }
+      }
+    }
+  }
+
+  const { userIdByTeam: _userIdByTeam, ...rest } = base;
+  return { ...rest, viewerTeamId };
 }

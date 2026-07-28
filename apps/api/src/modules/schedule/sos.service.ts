@@ -4,6 +4,9 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
+
+const SOS_CACHE_TTL_MS = 60_000;
 
 // ─── Tunable SOS constants ─────────────────────────────────────────────────────
 // SOS = Σ over each scheduled game (repeats counted): typeWeight(opp) × quality(opp)
@@ -51,16 +54,33 @@ function matchupKey(week: number | null | undefined, a: string, b: string): stri
   return `${week ?? 0}:${[a, b].sort().join("-")}`;
 }
 
-// Aggregate per-team W/L/T and points for/against for one league season from the
-// unified game-results ledger (covers both box-score and commissioner-advance games).
-async function loadTeamRecords(leagueId: string, seasonNumber: number): Promise<Map<string, TeamRecord>> {
+type SeasonResultRow = {
+  week_number: number | null;
+  home_team_id: string | null;
+  away_team_id: string | null;
+  home_score: number | null;
+  away_score: number | null;
+  winning_team_id: string | null;
+  losing_team_id: string | null;
+  is_tie: boolean | null;
+};
+
+// One shared fetch of a season's game results — team records, streaks, and played-matchup
+// keys all used to hit rec_game_results separately with the exact same (league_id,
+// season_number) filter, just different column subsets. Load it once and derive all three.
+async function loadSeasonGameResults(leagueId: string, seasonNumber: number): Promise<SeasonResultRow[]> {
   const { data, error } = await supabase
     .from("rec_game_results")
-    .select("home_team_id,away_team_id,home_score,away_score,winning_team_id,losing_team_id,is_tie")
+    .select("week_number,home_team_id,away_team_id,home_score,away_score,winning_team_id,losing_team_id,is_tie")
     .eq("league_id", leagueId)
     .eq("season_number", seasonNumber);
   if (error) throw new ApiError(500, "Failed to load game results for SOS.", error);
+  return (data ?? []) as SeasonResultRow[];
+}
 
+// Aggregate per-team W/L/T and points for/against for one league season from the
+// unified game-results ledger (covers both box-score and commissioner-advance games).
+function buildTeamRecords(rows: SeasonResultRow[]): Map<string, TeamRecord> {
   const map = new Map<string, TeamRecord>();
   const rec = (id: string) => {
     let r = map.get(id);
@@ -68,8 +88,8 @@ async function loadTeamRecords(leagueId: string, seasonNumber: number): Promise<
     return r;
   };
 
-  for (const g of data ?? []) {
-    const { home_team_id: h, away_team_id: a, home_score: hs, away_score: as_, winning_team_id: w, losing_team_id: l, is_tie } = g as any;
+  for (const g of rows) {
+    const { home_team_id: h, away_team_id: a, home_score: hs, away_score: as_, winning_team_id: w, losing_team_id: l, is_tie } = g;
     if (is_tie) {
       if (h) rec(h).ties++;
       if (a) rec(a).ties++;
@@ -85,17 +105,14 @@ async function loadTeamRecords(leagueId: string, seasonNumber: number): Promise<
   return map;
 }
 
+async function loadTeamRecords(leagueId: string, seasonNumber: number): Promise<Map<string, TeamRecord>> {
+  return buildTeamRecords(await loadSeasonGameResults(leagueId, seasonNumber));
+}
+
 // Each team's current win/loss streak (signed: + win streak, − loss streak),
 // from the chronological game-results sequence. Ties end a streak.
-async function loadTeamStreaks(leagueId: string, seasonNumber: number): Promise<Map<string, number>> {
-  const { data, error } = await supabase
-    .from("rec_game_results")
-    .select("week_number,winning_team_id,losing_team_id,home_team_id,away_team_id,is_tie")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .order("week_number", { ascending: true });
-  if (error) throw new ApiError(500, "Failed to load streaks for SOS.", error);
-
+function buildTeamStreaks(rows: SeasonResultRow[]): Map<string, number> {
+  const sorted = [...rows].sort((x, y) => (x.week_number ?? 0) - (y.week_number ?? 0));
   const seq = new Map<string, ("W" | "L" | "T")[]>();
   const push = (id: string | null, r: "W" | "L" | "T") => {
     if (!id) return;
@@ -103,8 +120,8 @@ async function loadTeamStreaks(leagueId: string, seasonNumber: number): Promise<
     a.push(r);
     seq.set(id, a);
   };
-  for (const g of data ?? []) {
-    const { winning_team_id: w, losing_team_id: l, home_team_id: h, away_team_id: a, is_tie } = g as any;
+  for (const g of sorted) {
+    const { winning_team_id: w, losing_team_id: l, home_team_id: h, away_team_id: a, is_tie } = g;
     if (is_tie) { push(h, "T"); push(a, "T"); }
     else { push(w, "W"); push(l, "L"); }
   }
@@ -127,15 +144,9 @@ async function loadTeamStreaks(leagueId: string, seasonNumber: number): Promise<
 
 // Scheduled matchups (this season) that already have a logged result, so SOS can
 // split full-season from remaining-games.
-async function loadPlayedMatchupKeys(leagueId: string, seasonNumber: number): Promise<Set<string>> {
-  const { data, error } = await supabase
-    .from("rec_game_results")
-    .select("week_number,home_team_id,away_team_id")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber);
-  if (error) throw new ApiError(500, "Failed to load played games for SOS.", error);
+function buildPlayedMatchupKeys(rows: SeasonResultRow[]): Set<string> {
   const keys = new Set<string>();
-  for (const r of data ?? []) {
+  for (const r of rows) {
     if (r.home_team_id && r.away_team_id) keys.add(matchupKey(r.week_number, r.home_team_id, r.away_team_id));
   }
   return keys;
@@ -157,7 +168,7 @@ export type SosTeamRow = {
   oppRecord: number; // aggregate win% of all scheduled opponents (this season)
 };
 
-export async function computeLeagueSos(guildId: string, viewerDiscordId?: string | null) {
+async function computeLeagueSosBase(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const currentSeason = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
@@ -191,12 +202,13 @@ export async function computeLeagueSos(guildId: string, viewerDiscordId?: string
   const userIdByTeam = new Map((assignmentsRes.data ?? []).map((r) => [r.team_id, r.user_id]));
 
   const hasPrior = currentSeason > 1;
-  const [currentRecords, priorRecords, playedKeys, streaks] = await Promise.all([
-    loadTeamRecords(leagueId, currentSeason),
+  const [currentSeasonRows, priorRecords] = await Promise.all([
+    loadSeasonGameResults(leagueId, currentSeason),
     hasPrior ? loadTeamRecords(leagueId, currentSeason - 1) : Promise.resolve(new Map<string, TeamRecord>()),
-    loadPlayedMatchupKeys(leagueId, currentSeason),
-    loadTeamStreaks(leagueId, currentSeason),
   ]);
+  const currentRecords = buildTeamRecords(currentSeasonRows);
+  const playedKeys = buildPlayedMatchupKeys(currentSeasonRows);
+  const streaks = buildTeamStreaks(currentSeasonRows);
 
   const typeWeight = (oppId: string) => (humanTeamIds.has(oppId) ? 1.0 : 0.5);
   const quality = (oppId: string) => {
@@ -263,17 +275,6 @@ export async function computeLeagueSos(guildId: string, viewerDiscordId?: string
   rows.sort((x, y) => y.sosFull - x.sosFull || y.oppRecord - x.oppRecord || x.teamName.localeCompare(y.teamName));
   rows.forEach((r, i) => { r.rank = i + 1; });
 
-  let viewerTeamId: string | null = null;
-  if (viewerDiscordId) {
-    const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
-    const userId = acct.data?.user_id ?? null;
-    if (userId) {
-      for (const [teamId, uId] of userIdByTeam.entries()) {
-        if (uId === userId) { viewerTeamId = teamId; break; }
-      }
-    }
-  }
-
   return {
     league: { id: leagueId, name: context.rec_leagues.name ?? null },
     currentSeason,
@@ -281,7 +282,25 @@ export async function computeLeagueSos(guildId: string, viewerDiscordId?: string
     hasPrior,
     scheduleLogged: (gamesRes.data ?? []).length > 0,
     totalTeams: rows.length,
-    viewerTeamId,
     teams: rows,
+    userIdByTeam,
   };
+}
+
+export async function computeLeagueSos(guildId: string, viewerDiscordId?: string | null) {
+  const base = await withComputeCache(`sos:${guildId}`, SOS_CACHE_TTL_MS, () => computeLeagueSosBase(guildId));
+
+  let viewerTeamId: string | null = null;
+  if (viewerDiscordId) {
+    const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
+    const userId = acct.data?.user_id ?? null;
+    if (userId) {
+      for (const [teamId, uId] of base.userIdByTeam.entries()) {
+        if (uId === userId) { viewerTeamId = teamId; break; }
+      }
+    }
+  }
+
+  const { userIdByTeam: _userIdByTeam, ...rest } = base;
+  return { ...rest, viewerTeamId };
 }

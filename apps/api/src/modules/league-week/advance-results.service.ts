@@ -8,6 +8,7 @@ import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.s
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { computePowerRankings, snapshotPowerRankings } from "../schedule/power-rankings.service.js";
+import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
@@ -651,6 +652,11 @@ export async function completeAdvanceWeek(input: {
   if (isPostseasonEnd) {
     await autoPrepareEosAwards(input.guildId).catch((err) => console.error("[ERROR] autoPrepareEosAwards failed after advance (non-fatal):", err));
   }
+
+  // Power rankings/SOS/ratings are short-TTL cached (see compute-cache.ts) — an advance
+  // changes the results those are computed from, so drop the cache now instead of leaving
+  // the next viewer looking at a stale week for up to the TTL.
+  invalidateLeagueComputeCaches(input.guildId);
 
   // Independent, non-fatal cleanup/rebuild steps — none feed data into another,
   // so run them in parallel instead of one after another.

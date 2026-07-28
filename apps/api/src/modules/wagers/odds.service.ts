@@ -84,17 +84,9 @@ const DEFENSE_COUNTERPART: Record<string, string> = {
   redzone_def: "redzone_off",
 };
 
-async function seasonAveragesForTeam(leagueId: string, seasonNumber: number, teamId: string | null) {
-  if (!teamId) return null;
-  const { data } = await supabase
-    .from("rec_team_game_stats")
-    .select("points_for,points_against,total_yards_gained,off_yards_gained,off_rush_yards,off_pass_yards,turnovers_committed,generated_turnovers,yards_allowed,rush_yards_allowed,pass_yards_allowed,red_zone_off_percentage,red_zone_def_percentage")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .eq("team_id", teamId);
-  if (!data?.length) return null;
-  const n = data.length;
-  const avg = (key: string) => data.reduce((s, r: any) => s + num(r[key]), 0) / n;
+function averageStatsFromRows(rows: any[]) {
+  const n = rows.length;
+  const avg = (key: string) => rows.reduce((s, r: any) => s + num(r[key]), 0) / n;
   return {
     points: avg("points_for"),
     points_against: avg("points_against"),
@@ -109,6 +101,29 @@ async function seasonAveragesForTeam(leagueId: string, seasonNumber: number, tea
     redzone_off: avg("red_zone_off_percentage"),
     redzone_def: avg("red_zone_def_percentage"),
   };
+}
+
+// One query for both sides of the matchup instead of two separate round-trips.
+async function seasonAveragesForTeams(leagueId: string, seasonNumber: number, teamIds: (string | null)[]) {
+  const ids = [...new Set(teamIds.filter((id): id is string => Boolean(id)))];
+  const result = new Map<string, ReturnType<typeof averageStatsFromRows>>();
+  if (!ids.length) return result;
+  const { data } = await supabase
+    .from("rec_team_game_stats")
+    .select("team_id,points_for,points_against,total_yards_gained,off_yards_gained,off_rush_yards,off_pass_yards,turnovers_committed,generated_turnovers,yards_allowed,rush_yards_allowed,pass_yards_allowed,red_zone_off_percentage,red_zone_def_percentage")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .in("team_id", ids);
+  const rowsByTeam = new Map<string, any[]>();
+  for (const row of data ?? []) {
+    const list = rowsByTeam.get(row.team_id) ?? [];
+    list.push(row);
+    rowsByTeam.set(row.team_id, list);
+  }
+  for (const [teamId, rows] of rowsByTeam) {
+    if (rows.length) result.set(teamId, averageStatsFromRows(rows));
+  }
+  return result;
 }
 
 /** A team's expected output for a stat this game — blended half from their own season
@@ -168,10 +183,9 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   const awayProb = awayScore / total;
   const rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(((homeScore - awayScore) * SPREAD_SCALE + HOME_FIELD_ADVANTAGE) * 2) / 2));
 
-  const [homeAvg, awayAvg] = await Promise.all([
-    seasonAveragesForTeam(leagueId, seasonNumber, game.home_team_id),
-    seasonAveragesForTeam(leagueId, seasonNumber, game.away_team_id),
-  ]);
+  const averagesByTeam = await seasonAveragesForTeams(leagueId, seasonNumber, [game.home_team_id, game.away_team_id]);
+  const homeAvg = averagesByTeam.get(game.home_team_id ?? "") ?? null;
+  const awayAvg = averagesByTeam.get(game.away_team_id ?? "") ?? null;
 
   const markets: WagerMarketOption[] = [];
   for (const def of marketsForGame(humanInvolved)) {

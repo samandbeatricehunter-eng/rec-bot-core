@@ -7,6 +7,7 @@ import { ApiError } from "./errors.js";
 import { requireInternalApiKey } from "./auth.js";
 import { getGuildMemberRoleNames, hasAdministratorOrManageGuild, resolveMemberPermissionBits } from "./discord-guild.js";
 import { supabase } from "./supabase.js";
+import { verifySupabaseAccessToken } from "./supabase-jwt.js";
 
 // Per-browser auth for hub APIs — Discord Activity JWT and/or site Supabase session.
 // Bot-to-API calls still use requireInternalApiKey / x-rec-api-key unchanged.
@@ -49,13 +50,16 @@ async function tryActivitySession(token: string): Promise<UserSession | null> {
 }
 
 async function trySiteDiscordSession(token: string): Promise<{ discordId: string } | null> {
-  const { data, error } = await supabaseAuth.auth.getUser(token);
-  if (error || !data.user?.id) return null;
+  // Local JWKS verification first (no network call); fall back to the network-verified
+  // getUser() only when local verification fails, so a valid session is never rejected.
+  const verified = await verifySupabaseAccessToken(token);
+  const authUserId = verified?.userId ?? (await supabaseAuth.auth.getUser(token)).data.user?.id ?? null;
+  if (!authUserId) return null;
 
   const user = await supabase
     .from("rec_users")
     .select("id")
-    .eq("supabase_auth_user_id", data.user.id)
+    .eq("supabase_auth_user_id", authUserId)
     .maybeSingle();
   if (user.error || !user.data?.id) return null;
 

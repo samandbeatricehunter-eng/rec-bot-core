@@ -123,6 +123,57 @@ export async function listSiteNotifications(input: {
   return { regular, commissioner, unreadCount };
 }
 
+export type SiteActivityCounts = {
+  unreadNotifications: number;
+  unreadMessages: number;
+  unreadCommissionerItems: number;
+};
+
+// Lightweight companion to listSiteNotifications/listConversations — counts only, no joined
+// labels/previews/peer names, so the site's polling components (MessagesLink,
+// NotificationsBell) can check "did anything change" every couple of minutes without pulling
+// full datasets on every tick. Full lists still load once the user actually opens a panel.
+export async function getSiteActivityCounts(input: { recUserId: string }): Promise<SiteActivityCounts> {
+  const [notifResult, messagesResult, { leagues }] = await Promise.all([
+    getPgPool().query(
+      `select count(*)::int as c from rec_site_notifications where user_id = $1 and read_at is null`,
+      [input.recUserId],
+    ),
+    getPgPool().query(
+      `
+        select count(*)::int as c
+        from rec_site_conversation_members m
+        inner join rec_site_conversations c on c.id = m.conversation_id
+        left join lateral (
+          select msg.author_user_id
+          from rec_site_messages msg
+          where msg.conversation_id = c.id
+          order by msg.created_at desc
+          limit 1
+        ) preview on true
+        where m.user_id = $1
+          and m.hidden_at is null
+          and c.last_message_at is not null
+          and preview.author_user_id is distinct from $1
+          and (m.last_read_at is null or c.last_message_at > m.last_read_at)
+      `,
+      [input.recUserId],
+    ),
+    listMySiteLeagues({ recUserId: input.recUserId }),
+  ]);
+
+  const commissionerLeagueIds = leagues.filter((league) => league.isCommissioner).map((league) => league.id);
+  const summaries = commissionerLeagueIds.length
+    ? await getCommissionerPendingSummaries(input.recUserId, commissionerLeagueIds)
+    : [];
+
+  return {
+    unreadNotifications: Number(notifResult.rows[0]?.c ?? 0),
+    unreadMessages: Number(messagesResult.rows[0]?.c ?? 0),
+    unreadCommissionerItems: summaries.filter((item) => item.unread).length,
+  };
+}
+
 export async function markSiteNotificationsRead(input: {
   recUserId: string;
   ids: string[];

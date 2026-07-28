@@ -4,6 +4,7 @@ import { AccentTier } from "./components/AccentTier.js";
 import { SiteShell } from "./components/SiteShell.js";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
 import { HubProvider, useHub } from "./lib/hub-context.js";
+import { SiteActivityProvider } from "./lib/site-activity-context.js";
 import { SiteThemeProvider } from "./lib/site-theme-context.js";
 import { Account } from "./routes/Account.js";
 import { Friends } from "./routes/Friends.js";
@@ -159,11 +160,13 @@ function AuthedLayout() {
   return (
     <RequireAuth>
       <HubProvider>
-        <SiteShell>
-          <OutletErrorBoundary>
-            <Outlet />
-          </OutletErrorBoundary>
-        </SiteShell>
+        <SiteActivityProvider>
+          <SiteShell>
+            <OutletErrorBoundary>
+              <Outlet />
+            </OutletErrorBoundary>
+          </SiteShell>
+        </SiteActivityProvider>
       </HubProvider>
     </RequireAuth>
   );

@@ -8,10 +8,13 @@
 import { isCfb } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
 import { rowToGameStats, type TeamGameStatsRow } from "../box-score-intelligence/game-profile.js";
 import { seasonTotalsFromGames } from "../box-score-intelligence/aggregate.js";
+
+const RATINGS_CACHE_TTL_MS = 60_000;
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 const round = (n: number, p = 1) => { const f = 10 ** p; return Math.round(n * f) / f; };
@@ -94,7 +97,7 @@ export type CoachRatingRow = {
  * intentionally separate credit from win%, not a multiplier on it), + up to 25 for
  * playoff success (made playoffs, each playoff win, winning the title game).
  */
-export async function computeCoachRatings(guildId: string, viewerDiscordId?: string | null) {
+async function computeCoachRatingsBase(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
@@ -102,7 +105,7 @@ export async function computeCoachRatings(guildId: string, viewerDiscordId?: str
 
   const [aggs, sos, teamsRes, assignmentsRes] = await Promise.all([
     aggregateTeamResults(leagueId, seasonNumber),
-    computeLeagueSos(guildId, viewerDiscordId).catch(() => null),
+    computeLeagueSos(guildId).catch(() => null),
     supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
   ]);
@@ -144,18 +147,25 @@ export async function computeCoachRatings(guildId: string, viewerDiscordId?: str
   rows.sort((x, y) => y.rating - x.rating || x.teamName.localeCompare(y.teamName));
   rows.forEach((r, i) => { r.rank = i + 1; });
 
+  return { displayAsGrade: isCfb(game), teams: rows, userIdByTeam };
+}
+
+export async function computeCoachRatings(guildId: string, viewerDiscordId?: string | null) {
+  const base = await withComputeCache(`coach-ratings:${guildId}`, RATINGS_CACHE_TTL_MS, () => computeCoachRatingsBase(guildId));
+
   let viewerTeamId: string | null = null;
   if (viewerDiscordId) {
     const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
     const userId = acct.data?.user_id ?? null;
     if (userId) {
-      for (const [teamId, uId] of userIdByTeam.entries()) {
+      for (const [teamId, uId] of base.userIdByTeam.entries()) {
         if (uId === userId) { viewerTeamId = teamId; break; }
       }
     }
   }
 
-  return { displayAsGrade: isCfb(game), viewerTeamId, teams: rows };
+  const { userIdByTeam: _userIdByTeam, ...rest } = base;
+  return { ...rest, viewerTeamId };
 }
 
 export type UserRatingRow = {
@@ -183,7 +193,7 @@ const BADGE_TIER_WEIGHT: Record<string, number> = {
  * folds in this season's game+season badge mix (tier-weighted, negative badges
  * subtract). Final rating blends 65% stats / 35% badges.
  */
-export async function computeUserRatings(guildId: string, viewerDiscordId?: string | null) {
+async function computeUserRatingsBase(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
@@ -198,10 +208,14 @@ export async function computeUserRatings(guildId: string, viewerDiscordId?: stri
   if (assignmentsRes.error) throw new ApiError(500, "Failed to load assignments for User Rating.", assignmentsRes.error);
 
   const userIds = [...new Set((assignmentsRes.data ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[];
-  if (!userIds.length) return { displayAsGrade: isCfb(game), viewerUserId: null, users: [] };
+  if (!userIds.length) return { displayAsGrade: isCfb(game), users: [] };
 
   const [statsRes, badgesRes] = await Promise.all([
-    supabase.from("rec_team_game_stats").select("*").eq("league_id", leagueId).eq("season_number", seasonNumber).in("user_id", userIds),
+    // Explicit column list instead of `select("*")` — rec_team_game_stats carries several
+    // columns (id, phase, submission_id, opponent_user_id, rush/pass_yards_allowed, the
+    // comeback_* fields, and the quarter_scores JSONB blob) that rowToGameStats never reads;
+    // this is the exact set TeamGameStatsRow (game-profile.ts) actually consumes.
+    supabase.from("rec_team_game_stats").select("league_id,season_number,week_number,game_id,team_id,user_id,opponent_team_id,is_home,result,points_for,points_against,off_pass_yards,off_rush_yards,off_yards_gained,total_yards_gained,off_first_down,turnovers_committed,red_zone_off_percentage,kick_return_yards,punt_return_yards,generated_turnovers,yards_allowed,first_downs_allowed,red_zone_def_percentage,offensive_stats,defensive_stats").eq("league_id", leagueId).eq("season_number", seasonNumber).in("user_id", userIds),
     supabase.from("rec_badge_ownership").select("user_id,badge_scope,polarity,tier,earned_count").eq("league_id", leagueId).eq("season", seasonNumber).in("badge_scope", ["game", "season"]).in("user_id", userIds),
   ]);
   if (statsRes.error) throw new ApiError(500, "Failed to load stats for User Rating.", statsRes.error);
@@ -256,11 +270,17 @@ export async function computeUserRatings(guildId: string, viewerDiscordId?: stri
   rows.sort((x, y) => y.rating - x.rating || x.displayName.localeCompare(y.displayName));
   rows.forEach((r, i) => { r.rank = i + 1; });
 
+  return { displayAsGrade: isCfb(game), users: rows };
+}
+
+export async function computeUserRatings(guildId: string, viewerDiscordId?: string | null) {
+  const base = await withComputeCache(`user-ratings:${guildId}`, RATINGS_CACHE_TTL_MS, () => computeUserRatingsBase(guildId));
+
   let viewerUserId: string | null = null;
   if (viewerDiscordId) {
     const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
     viewerUserId = acct.data?.user_id ?? null;
   }
 
-  return { displayAsGrade: isCfb(game), viewerUserId, users: rows };
+  return { ...base, viewerUserId };
 }

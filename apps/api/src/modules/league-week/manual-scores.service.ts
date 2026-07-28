@@ -6,6 +6,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
+import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
@@ -214,6 +215,7 @@ export async function recordManualGameResult(input: {
   }).catch((err) => {
     console.error("[ERROR] rebuildOfficialRecordsAfterBoxScore failed after manual score entry (non-fatal):", err);
   });
+  invalidateLeagueComputeCaches(input.guildId);
 
   const homeStats = input.manualStats?.home ?? {};
   const awayStats = input.manualStats?.away ?? {};
