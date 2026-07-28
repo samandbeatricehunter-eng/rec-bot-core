@@ -6,39 +6,7 @@ import {
   type EntitlementSummary,
   type SubscriptionTier,
 } from "../lib/site-api.js";
-
-type BillingInterval = "month" | "year";
-
-const PLANS: Array<{
-  tier: "gold" | "platinum";
-  name: string;
-  monthlyPrice: string;
-  annualPrice: string;
-  blurb: string;
-  features: string[];
-}> = [
-  {
-    tier: "gold",
-    name: "Gold",
-    monthlyPrice: "$3/mo",
-    annualPrice: "$30/yr",
-    blurb: "Join leagues and compete across seasons.",
-    features: ["Join up to 5 leagues per game", "Full site access", "Stats, inbox, and friends"],
-  },
-  {
-    tier: "platinum",
-    name: "Platinum",
-    monthlyPrice: "$6/mo",
-    annualPrice: "$60/yr",
-    blurb: "Create leagues and run Discord with the bot.",
-    features: [
-      "Create up to 5 leagues per game",
-      "Join up to 20 leagues per game",
-      "Discord bot for your leagues",
-      "Everything in Gold",
-    ],
-  },
-];
+import { annualSavingsPercent, PLANS, priceLabel, type BillingInterval } from "../lib/plans.js";
 
 function tierLabel(tier: SubscriptionTier): string {
   if (tier === "gold") return "Gold";
@@ -201,7 +169,7 @@ export function Pricing() {
         <div className="site-pricing-grid">
           {PLANS.map((plan) => {
             const isCurrent = entitlements?.tier === plan.tier;
-            const price = interval === "year" ? plan.annualPrice : plan.monthlyPrice;
+            const price = priceLabel(plan, interval);
             return (
               <article
                 key={plan.tier}
@@ -209,6 +177,7 @@ export function Pricing() {
               >
                 <h2>{plan.name}</h2>
                 <p className="site-plan-price">{price}</p>
+                {interval === "year" && <p className="site-plan-savings">Save {annualSavingsPercent(plan)}% vs. monthly</p>}
                 <p className="site-muted">{plan.blurb}</p>
                 <ul className="site-plan-features">
                   {plan.features.map((feature) => (

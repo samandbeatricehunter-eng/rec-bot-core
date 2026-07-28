@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
-import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { getWeeklyH2hGames } from "../league-week/advance-results.service.js";
@@ -484,7 +484,9 @@ export async function getHub(guildId: string, discordId: string) {
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
 
   const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, coachRatings, userRatings] = await Promise.all([
-    supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).order("published_at", { ascending: false }).limit(8),
+    // 60 covers a full season's worth of weekly announcements (even with several posts some
+    // weeks) so the hub carousel's week-by-week paging has real history to page back through.
+    supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("published_at", { ascending: false }).limit(60),
     loadHubHeadlines({ leagueId: context.leagueId, seasonNumber, currentWeek, seasonStage }),
     // Order by the game's own week first (falling back to created_at within a week) so a
     // highlight submitted late for an earlier week slots back into that week's place in the
@@ -984,10 +986,26 @@ export async function addHubStoryComment(input: { guildId: string; discordId: st
 
 export async function recordHubAnnouncement(input: { guildId: string; title: string; body: string; discordChannelId?: string | null; discordMessageId?: string | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
+
+  // Every hub announcement (automated advance summary or a commissioner's manual post)
+  // mirrors to the guild's configured Announcements channel with the exact same title/body
+  // shown on the site/app, so Discord members see the same news the hub does.
+  const channelId = input.discordChannelId ?? (context.routes?.announcements_channel_id as string | null | undefined) ?? null;
+  let messageId = input.discordMessageId ?? null;
+  if (channelId && !messageId) {
+    const sent = await postDiscordChannelMessage(channelId, {
+      embeds: [{ title: input.title, color: 0xd9a521, description: input.body.slice(0, 4096) }],
+    }).catch((err) => {
+      console.error("[ERROR] Failed to post hub announcement to Discord (non-fatal):", err);
+      return null;
+    });
+    messageId = sent?.id ?? null;
+  }
+
   const result = await supabase.from("rec_hub_announcements").insert({
     id: randomUUID(), league_id: context.leagueId, title: input.title, body: input.body,
     season_number: Number(context.rec_leagues.season_number ?? 1), week_number: Number(context.rec_leagues.current_week ?? 1),
-    discord_channel_id: input.discordChannelId ?? null, discord_message_id: input.discordMessageId ?? null,
+    discord_channel_id: channelId, discord_message_id: messageId,
     published_at: new Date().toISOString(), created_at: new Date().toISOString(),
   });
   if (result.error) throw new ApiError(500, "Failed to record hub announcement.", result.error);

@@ -25,6 +25,8 @@
 
 import { isCfb } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { seasonTotalsFromGames, careerTotalsFromGames, gameBadgeOccurrences } from "./aggregate.js";
 import {
   qualifyCareerBadges,
@@ -47,6 +49,25 @@ type SubmissionRow = {
   week_number: number;
   game_id: string | null;
 };
+
+// Mirrors an auto-generated game headline to the guild's configured Headlines channel
+// (Platinum Discord-bot add-on), stamping posted_channel_id/posted_message_id on the
+// rec_game_stories row for parity with the manual advance-story posting fields.
+async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string }): Promise<void> {
+  try {
+    const linked = await findServerRoutesForLeague(input.leagueId);
+    const channelId = linked?.routes?.headlines_channel_id as string | null | undefined;
+    if (!channelId) return;
+    const sent = await postDiscordChannelMessage(channelId, {
+      embeds: [{ title: input.headline, color: 0xd9a521, description: input.body.slice(0, 4096) }],
+    });
+    if (sent?.id) {
+      await supabase.from("rec_game_stories").update({ posted_channel_id: channelId, posted_message_id: sent.id }).eq("id", input.storyId);
+    }
+  } catch (err) {
+    console.error("[ERROR] Failed to post generated headline to Discord (non-fatal):", err);
+  }
+}
 
 type PerformanceTagRow = {
   team_id: string;
@@ -138,7 +159,8 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
       winnerBadges,
     );
     const performanceNotes = await loadPerformanceTagNotes(gameId, winner.teamId ?? null);
-    await supabase.from("rec_game_stories").insert({
+    const headline = performanceNotes.headline ?? story.headline;
+    const inserted = await supabase.from("rec_game_stories").insert({
       league_id: sub.league_id,
       season: sub.season_number,
       week: sub.week_number,
@@ -146,12 +168,15 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
       winner_team_id: winner.teamId,
       loser_team_id: loser.teamId,
       primary_angle: story.primaryAngle,
-      headline: performanceNotes.headline ?? story.headline,
+      headline,
       body: story.body,
       notes: story.notes,
       story_type: "game_article",
       roundtable: buildRoundtableDiscussion({ headline: story.headline, body: story.body, notes: [...story.notes, ...performanceNotes.notes] }),
-    });
+    }).select("id").single();
+    if (!inserted.error && inserted.data?.id) {
+      await postGeneratedHeadlineToDiscord({ leagueId: sub.league_id, storyId: inserted.data.id, headline, body: story.body });
+    }
   }
 
   // Per-team profile + per-user badge recompute — both teams are independent, run in parallel.

@@ -55,6 +55,27 @@ export async function getCurrentLeagueContext(guildId: string): Promise<CurrentL
   return context;
 }
 
+// Reverse of findCurrentLeagueContext — callers that only have a leagueId (e.g. the
+// box-score-intelligence pipeline, which runs off a submission row, not a Discord
+// interaction) use this to find the guild + configured channel routes for posting back
+// to Discord. Returns null for a league with no primary server link (a standalone,
+// non-Discord-linked league).
+export async function findServerRoutesForLeague(leagueId: string): Promise<{ guildId: string; routes: Record<string, unknown> | null } | null> {
+  const db = getDrizzleDb();
+  const link = await db.query.recServerLeagueLinks.findFirst({
+    where: (table, { and, eq }) => and(eq(table.leagueId, leagueId), eq(table.isPrimary, true)),
+  });
+  if (!link?.serverId) return null;
+
+  const [server, routes] = await Promise.all([
+    db.query.recDiscordServers.findFirst({ where: eq(recDiscordServers.id, link.serverId) }),
+    db.query.recServerRoutes.findFirst({ where: eq(recServerRoutes.serverId, link.serverId) }),
+  ]);
+  if (!server?.guildId) return null;
+
+  return { guildId: server.guildId, routes: routes ? toSnakeRow(routes) : null };
+}
+
 // A REC league can never have more than 32 real coaches, regardless of the game's team
 // catalog size — Madden's is naturally capped at 32 (one per NFL team), and CFB leagues
 // carry that same policy even though the CFB catalog itself has 136 teams (mostly

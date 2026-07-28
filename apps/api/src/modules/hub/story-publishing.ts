@@ -1,9 +1,28 @@
 import { randomUUID } from "node:crypto";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { formatInterviewBody } from "./interview-headlines.js";
+
+// Mirrors an auto-generated headline/article to the guild's configured Headlines channel
+// (Platinum Discord-bot add-on). Shared by every generated-story path in this file.
+async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string }): Promise<void> {
+  try {
+    const linked = await findServerRoutesForLeague(input.leagueId);
+    const channelId = linked?.routes?.headlines_channel_id as string | null | undefined;
+    if (!channelId) return;
+    const sent = await postDiscordChannelMessage(channelId, {
+      embeds: [{ title: input.headline, color: 0xd9a521, description: input.body.slice(0, 4096) }],
+    });
+    if (sent?.id) {
+      await supabase.from("rec_game_stories").update({ posted_channel_id: channelId, posted_message_id: sent.id }).eq("id", input.storyId);
+    }
+  } catch (err) {
+    console.error("[ERROR] Failed to post generated headline to Discord (non-fatal):", err);
+  }
+}
 
 // Shared by Recruiting and Transfer Portal — both need to drop a non-game-attached
 // headline/article into the same rec_game_stories feed the Hub already reads, using the
@@ -29,6 +48,7 @@ export async function publishTransitionStory(input: {
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).select("id").single();
   if (result.error) throw new ApiError(500, "Failed to publish the story.", result.error);
+  await postGeneratedHeadlineToDiscord({ leagueId: context.leagueId, storyId: result.data.id, headline: input.headline, body: input.body });
   return { storyId: result.data.id };
 }
 

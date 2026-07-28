@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
 import {
   siteApi,
@@ -18,6 +18,9 @@ function tierLabel(tier: EntitlementSummary["tier"]): string {
 export function Account() {
   const auth = useAuth();
   const authUserId = auth.status === "signed-in" ? auth.user.id : "";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [checkoutRedirecting, setCheckoutRedirecting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [linked, setLinked] = useState<LinkProfileResponse | null>(null);
@@ -76,6 +79,33 @@ export function Account() {
       active = false;
     };
   }, [auth.status, authUserId]);
+
+  // Continues the Welcome page's "Subscribe" buttons: those links land the user here
+  // (via /signup?next=...) with the chosen plan carried in the query string, so checkout
+  // starts automatically the moment they have a session — whether that came from email
+  // confirmation + login or an instant Discord sign-in.
+  useEffect(() => {
+    if (auth.status !== "signed-in") return;
+    const tier = searchParams.get("startCheckout");
+    if (tier !== "gold" && tier !== "platinum") return;
+    const interval = searchParams.get("interval") === "year" ? "year" : "month";
+    setSearchParams((params) => {
+      params.delete("startCheckout");
+      params.delete("interval");
+      return params;
+    }, { replace: true });
+    setCheckoutRedirecting(true);
+    setCheckoutError(null);
+    siteApi
+      .createCheckout(tier, interval)
+      .then(({ url }) => {
+        window.location.assign(url);
+      })
+      .catch((error) => {
+        setCheckoutRedirecting(false);
+        setCheckoutError(error instanceof Error ? error.message : "Failed to start checkout.");
+      });
+  }, [auth.status, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (auth.status !== "signed-in") return;
@@ -278,6 +308,17 @@ export function Account() {
     }
   }
 
+  if (checkoutRedirecting) {
+    return (
+      <div className="site-page site-auth-page">
+        <div className="site-auth-card">
+          <h1>Redirecting to checkout</h1>
+          <p className="site-muted">Taking you to secure Stripe checkout to finish subscribing…</p>
+        </div>
+      </div>
+    );
+  }
+
   if (profileLoading) {
     return (
       <div className="site-page site-auth-page">
@@ -317,6 +358,7 @@ export function Account() {
   return (
     <div className="site-page site-auth-page">
       <div className={`site-auth-card${linked?.username ? " site-account-card" : ""}`}>
+        {checkoutError && <p className="site-auth-error">{checkoutError}</p>}
         {!linked?.username ? (
           <div className="site-onboarding-steps" aria-label="Account setup progress">
             {["Link identity", "Choose username", "Complete"].map((label, index) => (

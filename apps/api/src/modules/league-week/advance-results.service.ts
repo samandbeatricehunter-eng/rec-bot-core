@@ -7,7 +7,8 @@ import { assertLeagueNotFrozen } from "../subscriptions/entitlements.service.js"
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
-import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
+import { computePowerRankings, snapshotPowerRankings } from "../schedule/power-rankings.service.js";
+import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
@@ -105,6 +106,34 @@ async function publishLeagueAdvanceAnnouncement(input: {
     title,
     body,
   });
+}
+
+function powerRankingMoveArrow(change: number | null | undefined): string {
+  if (change == null) return "NEW";
+  if (change > 0) return `+${change}`;
+  if (change < 0) return `${change}`;
+  return "–";
+}
+
+// Plain REST embed (no discord.js dependency here — apps/api posts straight to Discord's
+// REST API) mirroring the bot's own buildPowerRankingsEmbed (apps/bot/src/flows/schedule.ts).
+function buildPowerRankingsEmbedPayload(data: any) {
+  const teams: any[] = data?.teams ?? [];
+  const title = `Power Rankings — Season ${data?.currentSeason ?? 1}`;
+  if (!teams.length) return { title, color: 0x8b5cf6, description: "No teams to rank yet." };
+  const header = data.hasPreviousWeek
+    ? "Record + point differential, with bonus weight for actually playing (posted box scores) and winning close H2H games. Movement compares to last week."
+    : "Record + point differential, with bonus weight for actually playing (posted box scores) and winning close H2H games.";
+  const board = teams.map((t) => `(${powerRankingMoveArrow(t.change)}) \`${String(t.rank).padStart(2)}\` ${t.abbr ?? t.teamName} — **${(t.score ?? 0).toFixed(3)}**`);
+  return { title, color: 0x8b5cf6, description: [header, "", board.join("\n")].join("\n").slice(0, 4096) };
+}
+
+// The same Announcements channel the site/app hub announcement mirrors to (see
+// recordHubAnnouncement) also gets the weekly power-rankings board upon advance.
+async function publishPowerRankingsToDiscord(input: { guildId: string; announcementsChannelId: string | null | undefined; completedWeekNumber: number }) {
+  if (!input.announcementsChannelId) return;
+  const data = await computePowerRankings(input.guildId, null, { completedWeekNumber: input.completedWeekNumber });
+  await postDiscordChannelMessage(input.announcementsChannelId, { embeds: [buildPowerRankingsEmbedPayload(data)] });
 }
 
 const WEEKLY_SUBMISSIONS_PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
@@ -683,6 +712,14 @@ export async function completeAdvanceWeek(input: {
     nextAdvanceLabel,
   }).catch((err) => {
     console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
+  });
+
+  await publishPowerRankingsToDiscord({
+    guildId: input.guildId,
+    announcementsChannelId: context.routes?.announcements_channel_id as string | null | undefined,
+    completedWeekNumber: currentWeek,
+  }).catch((err) => {
+    console.error("[ERROR] publishPowerRankingsToDiscord failed after advance (non-fatal):", err);
   });
 
   // When the regular season ends (next stage is a playoff stage), issue the

@@ -297,7 +297,8 @@ export function HubHome() {
   const [closeWagersOpen, setCloseWagersOpen] = useState(false);
   const [closeWagerGameIds, setCloseWagerGameIds] = useState<Set<string>>(new Set());
   const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
-  const [announcementIndex, setAnnouncementIndex] = useState(0);
+  const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
+  const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -426,13 +427,41 @@ export function HubHome() {
     return () => window.clearInterval(timer);
   }, [section, subTab, wagersBoard?.length]);
 
-  // announcement carousel timer
+  // Announcements are grouped by week (newest week first) so the carousel only auto-rotates
+  // within the current week's posts; the arrows page between weeks instead of flattening
+  // the whole season into one long rotation.
+  const announcementWeekGroups = useMemo(() => {
+    const announcements = hub?.announcements ?? [];
+    const byWeek = new Map<number | null, typeof announcements>();
+    for (const item of announcements) {
+      const key = item.week_number ?? null;
+      const group = byWeek.get(key) ?? [];
+      group.push(item);
+      byWeek.set(key, group);
+    }
+    return [...byWeek.entries()]
+      .sort((a, b) => (b[0] ?? -1) - (a[0] ?? -1))
+      .map(([weekNumber, items]) => ({ weekNumber, items }));
+  }, [hub?.announcements]);
+
   useEffect(() => {
-    const count = hub?.announcements?.length ?? 0;
+    if (!announcementWeekGroups.length) return;
+    const currentWeek = hub?.league?.weekNumber;
+    const matchIndex = announcementWeekGroups.findIndex((group) => group.weekNumber === currentWeek);
+    setAnnouncementWeekIndex(matchIndex >= 0 ? matchIndex : 0);
+    setAnnouncementItemIndex(0);
+  }, [announcementWeekGroups, hub?.league?.weekNumber]);
+
+  const activeAnnouncementGroup = announcementWeekGroups[announcementWeekIndex] ?? null;
+
+  // Announcement carousel timer — rotates only within the active week's announcements;
+  // a week with a single announcement stays static (no timer at all).
+  useEffect(() => {
+    const count = activeAnnouncementGroup?.items.length ?? 0;
     if (section !== "league" || subTab !== "buzz" || count < 2) return;
-    const timer = window.setInterval(() => setAnnouncementIndex((current) => (current + 1) % count), 8000);
+    const timer = window.setInterval(() => setAnnouncementItemIndex((current) => (current + 1) % count), 8000);
     return () => window.clearInterval(timer);
-  }, [section, subTab, hub?.announcements?.length]);
+  }, [section, subTab, announcementWeekIndex, activeAnnouncementGroup?.items.length]);
 
   const headlineCount = hub?.headlines?.length ?? 0;
   const currentWeekStoryIndexes = useMemo(() => {
@@ -1148,14 +1177,23 @@ export function HubHome() {
             </aside>
           </section>
           <SectionFrame eyebrow="Official updates" title="Announcements" className="hub-announce-panel">
-            {hub.announcements.length ? (
+            {activeAnnouncementGroup ? (
               <div className="hub-announce-carousel">
-                {hub.announcements.length > 1 ? <button type="button" className="hub-highlight-arrow previous" onClick={() => setAnnouncementIndex((announcementIndex - 1 + hub.announcements.length) % hub.announcements.length)}><ChevronLeft /></button> : null}
+                {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Older week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex + 1) % announcementWeekGroups.length)}><ChevronLeft /></button> : null}
                 {(() => {
-                  const item = hub.announcements[announcementIndex % hub.announcements.length];
-                  return <article key={item.id}><time>{new Date(item.published_at).toLocaleDateString()}</time><h3>{item.title}</h3><p className="hub-announcement-body">{item.body}</p><span className="hub-announce-pos">{(announcementIndex % hub.announcements.length) + 1} / {hub.announcements.length}</span></article>;
+                  const items = activeAnnouncementGroup.items;
+                  const item = items[announcementItemIndex % items.length];
+                  const weekLabel = activeAnnouncementGroup.weekNumber == null ? "" : `Week ${activeAnnouncementGroup.weekNumber} · `;
+                  return (
+                    <article key={item.id}>
+                      <time>{weekLabel}{new Date(item.published_at).toLocaleDateString()}</time>
+                      <h3>{item.title}</h3>
+                      <p className="hub-announcement-body">{item.body}</p>
+                      {items.length > 1 ? <span className="hub-announce-pos">{(announcementItemIndex % items.length) + 1} / {items.length}</span> : null}
+                    </article>
+                  );
                 })()}
-                {hub.announcements.length > 1 ? <button type="button" className="hub-highlight-arrow next" onClick={() => setAnnouncementIndex((announcementIndex + 1) % hub.announcements.length)}><ChevronRight /></button> : null}
+                {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow next" title="Newer week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex - 1 + announcementWeekGroups.length) % announcementWeekGroups.length)}><ChevronRight /></button> : null}
               </div>
             ) : <p className="hub-empty">League announcements will appear here.</p>}
           </SectionFrame>
