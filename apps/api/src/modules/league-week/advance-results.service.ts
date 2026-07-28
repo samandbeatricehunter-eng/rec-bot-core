@@ -6,6 +6,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { assertLeagueNotFrozen } from "../subscriptions/entitlements.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
+import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
@@ -512,7 +513,14 @@ export async function completeAdvanceWeek(input: {
     const losingUserId = isTie ? null : result.outcome === "home" ? game.data.away_user_id : game.data.home_user_id;
     const winningTeamId = isTie ? null : result.outcome === "home" ? game.data.home_team_id : game.data.away_team_id;
     const losingTeamId = isTie ? null : result.outcome === "home" ? game.data.away_team_id : game.data.home_team_id;
-    const recordsApplyKey = `advance:${context.leagueId}:${seasonNumber}:${game.data.week_number ?? currentWeek}:${game.data.home_team_id}:${game.data.away_team_id}`;
+    const recordsApplyKey = gameResultsApplyKey({
+      gameId: game.data.id,
+      leagueId: context.leagueId,
+      seasonNumber,
+      weekNumber: game.data.week_number ?? currentWeek,
+      homeTeamId: game.data.home_team_id,
+      awayTeamId: game.data.away_team_id,
+    });
 
     await supabase.from("rec_game_results").upsert(
       {
@@ -634,6 +642,12 @@ export async function completeAdvanceWeek(input: {
     // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
     rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);
+    }),
+    // commissioner_advance is an OFFICIAL_RESULT_SOURCES member (a league that advances
+    // weeks without ever uploading a box score would otherwise have most of its games
+    // missing from official/global win-loss and point-differential records).
+    rebuildOfficialRecordsAfterBoxScore({ leagueId: context.leagueId, seasonNumber }).catch((err) => {
+      console.error("[ERROR] rebuildOfficialRecordsAfterBoxScore failed after advance (non-fatal):", err);
     }),
     recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance (non-fatal):", err);

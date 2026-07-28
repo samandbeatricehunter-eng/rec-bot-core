@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
+import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { parseScheduleImages, type ParsedScheduleGame } from "../schedule/schedule.parser.js";
@@ -374,7 +375,14 @@ async function writePrelogResults(
       is_tie: isTie,
       is_playoff: !isRegularSeasonWeek(weekNumber, leagueGame),
       source: SCHEDULE_SOURCE,
-      records_apply_key: `schedule:${leagueId}:${seasonNumber}:${weekNumber}:${game.home_team_id}:${game.away_team_id}`,
+      records_apply_key: gameResultsApplyKey({
+        gameId: game.id,
+        leagueId,
+        seasonNumber,
+        weekNumber,
+        homeTeamId: game.home_team_id,
+        awayTeamId: game.away_team_id,
+      }),
       created_at: now,
       updated_at: now,
     });
@@ -387,6 +395,13 @@ async function writePrelogResults(
 
     await rebuildSeasonDisplayRecords(leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] rebuildSeasonDisplayRecords failed after weekly score prelog (non-fatal):", err);
+    });
+    // schedule_screenshot is an OFFICIAL_RESULT_SOURCES member — these games must also feed
+    // the official/global records tables, not just the display table above (this call was
+    // previously missing entirely, silently excluding every game logged this way from
+    // season/league/global win-loss and point-differential records).
+    await rebuildOfficialRecordsAfterBoxScore({ leagueId, seasonNumber }).catch((err) => {
+      console.error("[ERROR] rebuildOfficialRecordsAfterBoxScore failed after weekly score prelog (non-fatal):", err);
     });
     await snapshotPowerRankings(leagueId, seasonNumber, weekNumber, leagueGame).catch((err) => {
       console.error("[ERROR] snapshotPowerRankings failed after weekly score prelog (non-fatal):", err);

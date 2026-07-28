@@ -10,7 +10,7 @@ import { parseCfbBoxScoreImages } from "./box-score-cfb.parser.js";
 import { buildTeamNameCandidates, matchTeamNameInBlob, TEAM_NAME_BLOB_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
 import { syncUsersAfterBoxScoreApproval } from "../users/user-profile-stats.service.js";
 import { syncCpuTeamsAfterBoxScoreApproval } from "../cpu-team-stats/cpu-team-stats.service.js";
-import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
+import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
@@ -1436,9 +1436,14 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     const losingUserId = isTie
       ? null
       : (sub.home_score > sub.away_score ? sub.away_user_id : sub.home_user_id);
-    const recordsApplyKey = sub.game_id
-      ? `boxscore:game:${sub.game_id}`
-      : `boxscore:${sub.league_id}:${sub.season_number}:${sub.week_number}:${sub.home_team_id}:${sub.away_team_id}`;
+    const recordsApplyKey = gameResultsApplyKey({
+      gameId: sub.game_id,
+      leagueId: sub.league_id,
+      seasonNumber: sub.season_number,
+      weekNumber: sub.week_number,
+      homeTeamId: sub.home_team_id,
+      awayTeamId: sub.away_team_id,
+    });
 
     const winningTeamId = isTie ? null : (sub.home_score > sub.away_score ? sub.home_team_id : sub.away_team_id);
     const { error: resultError } = await supabase.from("rec_game_results").upsert(
@@ -1680,9 +1685,14 @@ async function syncApprovedBoxScoreCorrection(sub: any) {
     const losingUserId = isTie ? null : (sub.home_score > sub.away_score ? sub.away_user_id : sub.home_user_id);
     const winningTeamId = isTie ? null : (sub.home_score > sub.away_score ? sub.home_team_id : sub.away_team_id);
     const losingTeamId = isTie ? null : (sub.home_score > sub.away_score ? sub.away_team_id : sub.home_team_id);
-    const recordsApplyKey = sub.game_id
-      ? `boxscore:game:${sub.game_id}`
-      : `boxscore:${sub.league_id}:${sub.season_number}:${sub.week_number}:${sub.home_team_id}:${sub.away_team_id}`;
+    const recordsApplyKey = gameResultsApplyKey({
+      gameId: sub.game_id,
+      leagueId: sub.league_id,
+      seasonNumber: sub.season_number,
+      weekNumber: sub.week_number,
+      homeTeamId: sub.home_team_id,
+      awayTeamId: sub.away_team_id,
+    });
 
     const { error } = await supabase.from("rec_game_results").upsert(
       {

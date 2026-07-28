@@ -3,10 +3,33 @@ import { isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/sh
 import { supabase } from "../../lib/supabase.js";
 
 // Every source a game result can legitimately be logged from — box-score OCR,
-// schedule-screenshot import (weekly scores), and manual commissioner entry are
-// all equally final results and must count toward records/W-L the same way.
-export const OFFICIAL_RESULT_SOURCES = ["box_score", "box_score_screenshot", "schedule_screenshot", "manual"] as const;
+// schedule-screenshot import (weekly scores), manual commissioner entry, and the
+// week-advance score entry are all equally final results and must count toward
+// records/W-L the same way. (commissioner_advance used to be excluded here and only fed
+// the display-records table — but leagues that advance weeks without ever uploading a box
+// score had the *majority* of their games silently missing from official/global records.)
+export const OFFICIAL_RESULT_SOURCES = ["box_score", "box_score_screenshot", "schedule_screenshot", "manual", "commissioner_advance"] as const;
 export const DISPLAY_ADVANCE_SOURCE = "commissioner_advance";
+
+// A single canonical key per REAL game, shared across every source that can log a result
+// for it. Each source previously prefixed its own key format (manual:..., boxscore:game:...,
+// schedule:..., advance:...), so the same real game logged through two different paths (e.g.
+// a manual placeholder score later corrected by an approved box score) created two separate
+// rows that both counted in every aggregation reading this table — silently double-counting
+// that game's win/loss/point-differential. Keying by game_id when available means whichever
+// source reports a game LAST simply overwrites the same row instead of duplicating it.
+export function gameResultsApplyKey(input: {
+  gameId?: string | null;
+  leagueId: string;
+  seasonNumber: number;
+  weekNumber: number | null | undefined;
+  homeTeamId: string;
+  awayTeamId: string;
+}): string {
+  return input.gameId
+    ? `game:${input.gameId}`
+    : `noGame:${input.leagueId}:${input.seasonNumber}:${input.weekNumber ?? 0}:${input.homeTeamId}:${input.awayTeamId}`;
+}
 
 export type RecordTotals = {
   wins: number;

@@ -5,7 +5,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { rebuildSeasonDisplayRecords } from "../display-records/display-records.service.js";
-import { rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
+import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
@@ -182,7 +182,14 @@ export async function recordManualGameResult(input: {
     is_tie: isTie,
     is_playoff: !isRegularSeasonWeek(weekNumber, context.rec_leagues.game),
     source: MANUAL_SOURCE,
-    records_apply_key: `manual:${context.leagueId}:${seasonNumber}:${weekNumber}:${homeTeamId}:${awayTeamId}`,
+    records_apply_key: gameResultsApplyKey({
+      gameId: input.gameId,
+      leagueId: context.leagueId,
+      seasonNumber,
+      weekNumber,
+      homeTeamId,
+      awayTeamId,
+    }),
     manual_stats: input.manualStats ?? null,
     created_at: now,
     updated_at: now,
