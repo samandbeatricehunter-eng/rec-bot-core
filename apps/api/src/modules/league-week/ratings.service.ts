@@ -11,8 +11,6 @@ import { supabase } from "../../lib/supabase.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
-import { rowToGameStats, type TeamGameStatsRow } from "../box-score-intelligence/game-profile.js";
-import { seasonTotalsFromGames } from "../box-score-intelligence/aggregate.js";
 
 const RATINGS_CACHE_TTL_MS = 60_000;
 
@@ -210,25 +208,36 @@ async function computeUserRatingsBase(guildId: string) {
   const userIds = [...new Set((assignmentsRes.data ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[];
   if (!userIds.length) return { displayAsGrade: isCfb(game), users: [] };
 
-  const [statsRes, badgesRes] = await Promise.all([
-    // Explicit column list instead of `select("*")` — rec_team_game_stats carries several
-    // columns (id, phase, submission_id, opponent_user_id, rush/pass_yards_allowed, the
-    // comeback_* fields, and the quarter_scores JSONB blob) that rowToGameStats never reads;
-    // this is the exact set TeamGameStatsRow (game-profile.ts) actually consumes.
-    supabase.from("rec_team_game_stats").select("league_id,season_number,week_number,game_id,team_id,user_id,opponent_team_id,is_home,result,points_for,points_against,off_pass_yards,off_rush_yards,off_yards_gained,total_yards_gained,off_first_down,turnovers_committed,red_zone_off_percentage,kick_return_yards,punt_return_yards,generated_turnovers,yards_allowed,first_downs_allowed,red_zone_def_percentage,offensive_stats,defensive_stats").eq("league_id", leagueId).eq("season_number", seasonNumber).in("user_id", userIds),
+  const [statTotalsRes, badgesRes] = await Promise.all([
+    // Aggregated server-side (rec_user_rating_stat_totals, see supabase/migrations) instead
+    // of pulling every rec_team_game_stats row for the season over the wire — this returns
+    // one row per user with the exact totals computeUserRatings needs, computed by
+    // replicating rowToGameStats' quarantine checks + seasonTotalsFromGames' sums/averages
+    // directly in SQL. Cuts a hundreds-of-wide-rows fetch down to ~10-30 small rows.
+    supabase.rpc("rec_user_rating_stat_totals", {
+      p_league_id: leagueId,
+      p_season_number: seasonNumber,
+      p_user_ids: userIds,
+      p_is_cfb: isCfb(game),
+    }),
     supabase.from("rec_badge_ownership").select("user_id,badge_scope,polarity,tier,earned_count").eq("league_id", leagueId).eq("season", seasonNumber).in("badge_scope", ["game", "season"]).in("user_id", userIds),
   ]);
-  if (statsRes.error) throw new ApiError(500, "Failed to load stats for User Rating.", statsRes.error);
+  if (statTotalsRes.error) throw new ApiError(500, "Failed to load stats for User Rating.", statTotalsRes.error);
   if (badgesRes.error) throw new ApiError(500, "Failed to load badges for User Rating.", badgesRes.error);
 
-  const gamesByUser = new Map<string, ReturnType<typeof rowToGameStats>[]>();
-  for (const row of statsRes.data ?? []) {
-    const g = rowToGameStats(row as TeamGameStatsRow, game);
-    if (!g.userId || g.statsQuarantined) continue;
-    const list = gamesByUser.get(g.userId) ?? [];
-    list.push(g);
-    gamesByUser.set(g.userId, list);
-  }
+  type StatTotalsRow = {
+    user_id: string;
+    games_played: number;
+    passing_yards: number;
+    rushing_yards: number;
+    first_downs: number;
+    turnovers_committed: number;
+    opponent_turnovers: number;
+    red_zone_off_pct_avg: number;
+  };
+  const statTotalsByUser = new Map<string, StatTotalsRow>(
+    ((statTotalsRes.data ?? []) as StatTotalsRow[]).map((row) => [row.user_id, row]),
+  );
 
   const badgeScoreByUser = new Map<string, number>();
   for (const row of badgesRes.data ?? []) {
@@ -241,15 +250,17 @@ async function computeUserRatingsBase(guildId: string) {
   const rows: UserRatingRow[] = (assignmentsRes.data ?? []).map((a: any) => {
     const team = Array.isArray(a.team) ? a.team[0] : a.team;
     const user = Array.isArray(a.user) ? a.user[0] : a.user;
-    const games = gamesByUser.get(a.user_id) ?? [];
-    const totals = seasonTotalsFromGames(games);
-    const gp = totals.gamesPlayed || 1;
-    const yardsPerGame = (totals.passingYards + totals.rushingYards) / gp;
+    const totals = statTotalsByUser.get(a.user_id);
+    const gamesPlayed = Number(totals?.games_played ?? 0);
+    const gp = gamesPlayed || 1;
+    const passingYards = Number(totals?.passing_yards ?? 0);
+    const rushingYards = Number(totals?.rushing_yards ?? 0);
+    const yardsPerGame = (passingYards + rushingYards) / gp;
     const normYards = clamp(yardsPerGame / 400, 0, 1.2);
-    const normRedZone = clamp(totals.seasonRedZoneOffPct / 100, 0, 1);
-    const normTurnovers = clamp(1 - (totals.turnoversCommitted / gp) / 3, 0, 1);
-    const normTakeaways = clamp((totals.opponentTurnovers / gp) / 2, 0, 1);
-    const normFirstDowns = clamp((totals.firstDowns / gp) / 22, 0, 1);
+    const normRedZone = clamp(Number(totals?.red_zone_off_pct_avg ?? 0) / 100, 0, 1);
+    const normTurnovers = clamp(1 - (Number(totals?.turnovers_committed ?? 0) / gp) / 3, 0, 1);
+    const normTakeaways = clamp((Number(totals?.opponent_turnovers ?? 0) / gp) / 2, 0, 1);
+    const normFirstDowns = clamp((Number(totals?.first_downs ?? 0) / gp) / 22, 0, 1);
     const statScore = clamp(30 * normYards + 20 * normRedZone + 20 * normTurnovers + 15 * normTakeaways + 15 * normFirstDowns, 0, 100);
     const badgeScore = badgeScoreByUser.get(a.user_id) ?? 0;
     const badgeComponent = clamp(50 + badgeScore * 2, 0, 100);
