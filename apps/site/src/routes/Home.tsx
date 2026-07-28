@@ -308,6 +308,11 @@ export function HomePage() {
                 <strong>
                   {activeClip.matchupLabel ?? activeClip.team?.name ?? activeClip.author.displayName}
                 </strong>
+                <small className="site-spotlight-participants">
+                  {activeClip.matchupParticipants
+                    ? `H2H: @${activeClip.matchupParticipants.away} VS @${activeClip.matchupParticipants.home}`
+                    : `CPU: @${activeClip.author.username ?? activeClip.author.displayName}`}
+                </small>
                 <span>
                   {activeClip.league.name}
                   {activeClip.weekNumber != null ? ` \u00B7 Week ${activeClip.weekNumber}` : ""}

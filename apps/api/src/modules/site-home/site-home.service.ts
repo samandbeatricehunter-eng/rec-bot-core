@@ -377,7 +377,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
       .limit(200),
     supabase
       .from("rec_games")
-      .select("league_id,week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
+      .select("league_id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
       .in("league_id", [...new Set((posts.data ?? []).map((post: any) => String(post.league_id)))])
       .order("week_number", { ascending: false }),
   ]);
@@ -397,19 +397,30 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
     }
   }
 
+  const spotlightGameUserIds = [...new Set((games.data ?? []).flatMap((game: any) => [game.home_user_id, game.away_user_id]).filter(Boolean))];
+  const spotlightGameUsers = spotlightGameUserIds.length
+    ? await supabase.from("rec_users").select("id,username,display_name").in("id", spotlightGameUserIds)
+    : { data: [], error: null };
+  if (spotlightGameUsers.error) throw new ApiError(500, "Failed to load spotlight matchup participants.", spotlightGameUsers.error);
+  const spotlightGameUserNameById = new Map<string, string>((spotlightGameUsers.data ?? []).map((u: any) => [u.id, String(u.username ?? u.display_name ?? "REC Member")]));
+
   const postById = new Map<string, any>((posts.data ?? []).map((row: any) => [String(row.id), row]));
   const gameByLeagueId = new Map<string, string>((posts.data ?? []).map((post: any) => [String(post.league_id), String(post.league?.game ?? "")]));
   const reelTeamName = (leagueId: string, team: any, fallback: string) =>
     gameByLeagueId.get(leagueId) === "cfb_27"
       ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback
       : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
-  const matchupByTeamWeek = new Map<string, string>();
+  const matchupByTeamWeek = new Map<string, { label: string; participants: { away: string; home: string } | null }>();
   for (const game of games.data ?? []) {
     const awayName = reelTeamName(String(game.league_id), (game as any).away_team, "Away");
     const homeName = reelTeamName(String(game.league_id), (game as any).home_team, "Home");
     const label = `${awayName} VS ${homeName}`;
-    if (game.away_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.away_team_id}`, label);
-    if (game.home_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.home_team_id}`, label);
+    const participants = game.home_user_id && game.away_user_id
+      ? { away: spotlightGameUserNameById.get(game.away_user_id) ?? "REC Member", home: spotlightGameUserNameById.get(game.home_user_id) ?? "REC Member" }
+      : null;
+    const entry = { label, participants };
+    if (game.away_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.away_team_id}`, entry);
+    if (game.home_team_id) matchupByTeamWeek.set(`${game.league_id}:${game.week_number}:${game.home_team_id}`, entry);
   }
   const items = (reel.data ?? [])
     .map((slot) => {
@@ -455,7 +466,11 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
           : null,
         matchupLabel:
           post.team_id && post.week_number != null
-            ? matchupByTeamWeek.get(`${post.league_id}:${post.week_number}:${post.team_id}`) ?? null
+            ? matchupByTeamWeek.get(`${post.league_id}:${post.week_number}:${post.team_id}`)?.label ?? null
+            : null,
+        matchupParticipants:
+          post.team_id && post.week_number != null
+            ? matchupByTeamWeek.get(`${post.league_id}:${post.week_number}:${post.team_id}`)?.participants ?? null
             : null,
         videoUrl: play.videoUrl,
         streamUid: play.streamUid,

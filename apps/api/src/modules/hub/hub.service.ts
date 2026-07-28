@@ -546,18 +546,28 @@ export async function getHub(guildId: string, discordId: string) {
   }));
   const highlightGames = await supabase
     .from("rec_games")
-    .select("week_number,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
+    .select("week_number,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_city,display_nick,is_relocated)")
     .eq("league_id", context.leagueId);
   if (highlightGames.error) throw new ApiError(500, "Failed to load highlight matchups.", highlightGames.error);
-  const highlightMatchupByTeamWeek = new Map<string, string>();
+  const highlightGameUserIds = [...new Set((highlightGames.data ?? []).flatMap((game: any) => [game.home_user_id, game.away_user_id]).filter(Boolean))];
+  const highlightGameUsers = highlightGameUserIds.length
+    ? await supabase.from("rec_users").select("id,username,display_name").in("id", highlightGameUserIds)
+    : { data: [], error: null };
+  if (highlightGameUsers.error) throw new ApiError(500, "Failed to load highlight matchup participants.", highlightGameUsers.error);
+  const highlightGameUserNameById = new Map<string, string>((highlightGameUsers.data ?? []).map((u: any) => [u.id, String(u.username ?? u.display_name ?? "REC Member")]));
+  const highlightMatchupByTeamWeek = new Map<string, { label: string; participants: { away: string; home: string } | null }>();
   const hubTeamName = (team: any, fallback: string) =>
     context.rec_leagues.game === "cfb_27"
       ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback
       : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   for (const game of highlightGames.data ?? []) {
     const label = `${hubTeamName((game as any).away_team, "Away")} VS ${hubTeamName((game as any).home_team, "Home")}`;
-    if (game.away_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.away_team_id}`, label);
-    if (game.home_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.home_team_id}`, label);
+    const participants = game.home_user_id && game.away_user_id
+      ? { away: highlightGameUserNameById.get(game.away_user_id) ?? "REC Member", home: highlightGameUserNameById.get(game.home_user_id) ?? "REC Member" }
+      : null;
+    const entry = { label, participants };
+    if (game.away_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.away_team_id}`, entry);
+    if (game.home_team_id) highlightMatchupByTeamWeek.set(`${game.week_number}:${game.home_team_id}`, entry);
   }
   const currentStreamLogs = await supabase
     .from("rec_stream_compliance_logs")
@@ -687,11 +697,13 @@ export async function getHub(guildId: string, discordId: string) {
       const rows = (reactions.data ?? []).filter((reaction: any) => reaction.highlight_post_id === item.id);
       const counts = Object.fromEntries(HUB_REACTION_KEYS.map((key) => [key, rows.filter((reaction: any) => reaction.reaction_key === key).length]));
       const viewCount = (views.data ?? []).filter((view: any) => view.highlight_post_id === item.id).length;
+      const matchup = item.team_id && item.week_number != null
+        ? highlightMatchupByTeamWeek.get(`${item.week_number}:${item.team_id}`)
+        : undefined;
       return {
         ...item,
-        matchupLabel: item.team_id && item.week_number != null
-          ? highlightMatchupByTeamWeek.get(`${item.week_number}:${item.team_id}`) ?? null
-          : null,
+        matchupLabel: matchup?.label ?? null,
+        matchupParticipants: matchup?.participants ?? null,
         viewCount,
         reactionCounts: counts,
         myReactions: rows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key),

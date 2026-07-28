@@ -2243,6 +2243,11 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-muted);
   font-size: 13px;
 }
+.site-spotlight-participants {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
 .site-spotlight-reactions {
   display: flex;
   gap: var(--space-2);

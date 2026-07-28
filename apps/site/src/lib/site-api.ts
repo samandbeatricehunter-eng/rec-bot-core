@@ -706,6 +706,7 @@ export type SpotlightItem = {
   author: { userId: string; displayName: string; username: string | null };
   team: { name: string; abbreviation: string | null } | null;
   matchupLabel: string | null;
+  matchupParticipants: { away: string; home: string } | null;
   videoUrl: string | null;
   streamUid: string | null;
   iframeUrl: string | null;
