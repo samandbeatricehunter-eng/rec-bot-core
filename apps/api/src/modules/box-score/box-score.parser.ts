@@ -46,6 +46,7 @@ import {
   type ParsedScore,
   type ParsedStat,
 } from "./box-score.parser.types.js";
+import { fetchTrustedRemoteMedia } from "../../lib/remote-media.js";
 
 // ─── Re-exports: OCR worker lifecycle ───────────────────────────────────────
 export { recognizeWithPool, terminateTesseractWorker, flattenPageWords, preprocessImage, groupIntoRows };
@@ -65,9 +66,12 @@ export { REQUIRED_STAT_KEYS } from "./box-score.parser.types.js";
 // ─── Image fetch helper ───────────────────────────────────────────────────────
 
 export async function fetchImageBuffer(url: string): Promise<Buffer> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch image: ${response.status} ${url}`);
-  return Buffer.from(await response.arrayBuffer());
+  const media = await fetchTrustedRemoteMedia(url, {
+    maxBytes: 15 * 1024 * 1024,
+    timeoutMs: 25_000,
+    expectedTypePrefix: "image/",
+  });
+  return media.buffer;
 }
 
 // ─── Main parse entry point ───────────────────────────────────────────────────

@@ -397,7 +397,7 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
   const accepterId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(accepterId);
 
-  const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
+  const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).eq("league_id", leagueId).maybeSingle();
   if (error) throw new ApiError(500, "Failed to load wager.", error);
   if (!wager || wager.status !== "awaiting_accept") throw new ApiError(409, "This wager is no longer open to accept.");
   if (wager.placed_by_user_id === accepterId) throw new ApiError(400, "You can't take your own wager.");
@@ -449,7 +449,8 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
 
 // Load an open peer wager's game options so a counter-er can pick new terms.
 export async function getPeerWagerForCounter(guildId: string, wagerId: string) {
-  const { data: wager } = await supabase.from("rec_wagers").select("*").eq("id", wagerId).maybeSingle();
+  const { leagueId } = await getCurrentLeagueContext(guildId);
+  const { data: wager } = await supabase.from("rec_wagers").select("*").eq("id", wagerId).eq("league_id", leagueId).maybeSingle();
   if (!wager || wager.status !== "awaiting_accept") throw new ApiError(409, "This wager is no longer open.");
   if (!wager.game_id) throw new ApiError(400, "This wager has no game to counter.");
   const options = await getGameWagerOptions(guildId, wager.game_id);
@@ -476,7 +477,7 @@ export async function placeCounterWager(input: PlaceCounterInput) {
   const counterUserId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(counterUserId);
 
-  const { data: original } = await supabase.from("rec_wagers").select("*").eq("id", input.originalWagerId).maybeSingle();
+  const { data: original } = await supabase.from("rec_wagers").select("*").eq("id", input.originalWagerId).eq("league_id", leagueId).maybeSingle();
   if (!original || original.status !== "awaiting_accept") throw new ApiError(409, "That wager is no longer open to counter.");
   if (original.placed_by_user_id === counterUserId) throw new ApiError(400, "You can't counter your own wager.");
 
@@ -527,12 +528,12 @@ export async function acceptCounter(input: { guildId: string; discordId: string;
   const proposerUserId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(proposerUserId);
 
-  const { data: counter } = await supabase.from("rec_wagers").select("*").eq("id", input.counterWagerId).maybeSingle();
+  const { data: counter } = await supabase.from("rec_wagers").select("*").eq("id", input.counterWagerId).eq("league_id", leagueId).maybeSingle();
   if (!counter || counter.status !== "awaiting_accept") throw new ApiError(409, "This counter is no longer pending.");
   if (counter.counterparty_user_id !== proposerUserId) throw new ApiError(403, "Only the original poster can accept this counter.");
 
   const { data: original } = counter.countered_from_wager_id
-    ? await supabase.from("rec_wagers").select("*").eq("id", counter.countered_from_wager_id).maybeSingle()
+    ? await supabase.from("rec_wagers").select("*").eq("id", counter.countered_from_wager_id).eq("league_id", leagueId).maybeSingle()
     : { data: null };
 
   const counterStake = Number(counter.stake ?? 0);

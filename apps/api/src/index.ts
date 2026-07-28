@@ -1,12 +1,42 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import { env, shouldMigrateMirroredHighlightsOnBoot } from "./config/env.js";
 import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
+import { hasValidInternalApiKey } from "./lib/auth.js";
 
-const app = Fastify({ logger: true });
-await app.register(cors, { origin: true });
+const app = Fastify({ logger: true, trustProxy: true, bodyLimit: 16 * 1024 * 1024 });
+await app.register(helmet, {
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+});
+await app.register(cors, {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    const allowed = new Set(
+      [
+        env.SITE_PUBLIC_URL,
+        env.WEB_APP_URL,
+        ...(env.API_CORS_ALLOWED_ORIGINS?.split(",").map((value) => value.trim()).filter(Boolean) ?? []),
+        ...(env.NODE_ENV === "production" ? [] : ["http://localhost:5173", "http://localhost:5174"]),
+      ]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => new URL(value).origin),
+    );
+    callback(null, allowed.has(origin));
+  },
+  allowedHeaders: ["authorization", "content-type", "x-rec-api-key", "x-rec-guild-id", "webhook-signature", "stripe-signature"],
+});
+await app.register(rateLimit, {
+  max: 300,
+  timeWindow: "1 minute",
+  allowList(request) {
+    return hasValidInternalApiKey(request);
+  },
+});
 // Preserve raw JSON for Cloudflare Stream webhook HMAC verification.
 app.addContentTypeParser("application/json", { parseAs: "string" }, (request, body, done) => {
   const raw = typeof body === "string" ? body : body.toString("utf8");

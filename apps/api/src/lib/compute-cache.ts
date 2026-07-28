@@ -8,20 +8,55 @@
 type CacheEntry<T> = { value: T; expiresAt: number };
 
 const store = new Map<string, CacheEntry<unknown>>();
+const inflight = new Map<string, Promise<unknown>>();
+const MAX_CACHE_ENTRIES = 500;
+let cacheEpoch = 0;
+
+function sweepCache(now = Date.now()): void {
+  for (const [key, entry] of store) {
+    if (entry.expiresAt <= now) store.delete(key);
+  }
+  while (store.size > MAX_CACHE_ENTRIES) {
+    const oldestKey = store.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    store.delete(oldestKey);
+  }
+}
 
 /** Returns the cached value for `key` if still fresh, otherwise computes, stores, and returns it. */
 export async function withComputeCache<T>(key: string, ttlMs: number, compute: () => Promise<T>): Promise<T> {
+  const now = Date.now();
   const hit = store.get(key);
-  if (hit && hit.expiresAt > Date.now()) return hit.value as T;
-  const value = await compute();
-  store.set(key, { value, expiresAt: Date.now() + ttlMs });
-  return value;
+  if (hit && hit.expiresAt > now) return hit.value as T;
+
+  const pending = inflight.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const startedAtEpoch = cacheEpoch;
+  const work = compute()
+    .then((value) => {
+      if (startedAtEpoch === cacheEpoch) {
+        store.delete(key);
+        store.set(key, { value, expiresAt: Date.now() + ttlMs });
+        sweepCache();
+      }
+      return value;
+    })
+    .finally(() => {
+      inflight.delete(key);
+    });
+  inflight.set(key, work);
+  return work;
 }
 
 /** Drops every cached entry whose key starts with `prefix` — call after a mutation that should invalidate it immediately (e.g. an advance) rather than waiting out the TTL. */
 export function invalidateComputeCache(prefix: string): void {
+  cacheEpoch += 1;
   for (const key of store.keys()) {
     if (key.startsWith(prefix)) store.delete(key);
+  }
+  for (const key of inflight.keys()) {
+    if (key.startsWith(prefix)) inflight.delete(key);
   }
 }
 

@@ -19,6 +19,16 @@ function ratingDisplay(card: SiteHomeCard | null) {
   return String(card.userRating.rating);
 }
 
+function safeAnnouncementHref(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 export function HomePage() {
   const auth = useAuth();
   const [profile, setProfile] = useState<LinkProfileResponse | null>(null);
@@ -205,8 +215,8 @@ export function HomePage() {
             <article className="site-home-announce-card">
               <h3>{activeAnnouncement.title}</h3>
               <p>{activeAnnouncement.body}</p>
-              {activeAnnouncement.href ? (
-                <a href={activeAnnouncement.href} target="_blank" rel="noreferrer">
+              {safeAnnouncementHref(activeAnnouncement.href) ? (
+                <a href={safeAnnouncementHref(activeAnnouncement.href)!} target="_blank" rel="noreferrer">
                   Read more
                 </a>
               ) : null}

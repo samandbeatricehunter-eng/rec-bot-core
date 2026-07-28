@@ -8,6 +8,12 @@ const siteUrl = (process.env.VITE_SITE_PUBLIC_URL || process.env.SITE_PUBLIC_URL
 );
 
 createServer((req, res) => {
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("referrer-policy", "no-referrer");
+  res.setHeader("content-security-policy", "default-src 'none'; frame-ancestors 'none'");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
+  }
   const incoming = req.url ?? "/";
   const target = new URL(incoming, `${siteUrl}/`);
   // Preserve Discord JWT deep-links by sending people through /open-app when possible;

@@ -15,11 +15,11 @@ const EnvSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   REC_DATABASE_URL: z.string().url().optional(),
-  REC_INTERNAL_API_KEY: z.string().optional(),
+  REC_INTERNAL_API_KEY: z.string().min(1).optional(),
   // Web dashboard (apps/web) auth — session signing, and server-side guild role/permission
   // lookups for requests coming from the browser. Optional so the API still boots without
   // these configured; routes that need them fail closed via the zod checks in their own modules.
-  ACTIVITY_JWT_SECRET: z.string().optional(),
+  ACTIVITY_JWT_SECRET: z.string().min(1).optional(),
   // Same bot token apps/bot authenticates with (DISCORD_TOKEN there) — one source of truth
   // instead of a second env var that has to be kept in sync across every environment.
   // Also accept DISCORD_BOT_TOKEN (Railway naming used on some services).
@@ -43,6 +43,7 @@ const EnvSchema = z.object({
   STRIPE_PRICE_GOLD_ANNUAL: z.string().optional(),
   STRIPE_PRICE_PLATINUM_ANNUAL: z.string().optional(),
   SITE_PUBLIC_URL: z.string().url().default("https://rec-leagues.com"),
+  API_CORS_ALLOWED_ORIGINS: z.string().optional(),
   // Web Push (Account page notification toggle). Optional so the API boots without it;
   // /v1/push/public-key returns null and the frontend just hides the button.
   VAPID_PUBLIC_KEY: z.string().optional(),

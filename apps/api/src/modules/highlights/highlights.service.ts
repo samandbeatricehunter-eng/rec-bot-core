@@ -10,6 +10,7 @@ import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
+import { fetchTrustedRemoteMedia } from "../../lib/remote-media.js";
 
 const HIGHLIGHT_PAYOUT_AMOUNT = 25;
 const HIGHLIGHT_WEEKLY_PAID_LIMIT = 2;
@@ -30,11 +31,13 @@ function mediaExtension(url: string, contentType: string) {
 
 export async function mirrorHighlightMedia(url: string, leagueId: string, discordMessageId: string) {
   if (!/^https?:\/\//i.test(url) || url.includes(`/storage/v1/object/public/${HIGHLIGHT_BUCKET}/`)) return url;
-  const response = await fetch(url, { signal: AbortSignal.timeout(25_000) });
-  if (!response.ok) throw new Error(`Highlight download failed (${response.status}).`);
-  const contentType = response.headers.get("content-type")?.split(";")[0] ?? "video/mp4";
-  if (!contentType.startsWith("video/")) return url;
-  const body = await response.arrayBuffer();
+  const media = await fetchTrustedRemoteMedia(url, {
+    maxBytes: 100 * 1024 * 1024,
+    timeoutMs: 25_000,
+    expectedTypePrefix: "video/",
+  });
+  const contentType = media.contentType;
+  const body = media.buffer;
   const path = `${leagueId}/${discordMessageId}.${mediaExtension(url, contentType)}`;
   const uploaded = await supabase.storage.from(HIGHLIGHT_BUCKET).upload(path, body, { contentType, cacheControl: "31536000", upsert: true });
   if (uploaded.error) throw uploaded.error;

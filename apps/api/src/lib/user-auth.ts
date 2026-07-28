@@ -4,7 +4,7 @@ import { jwtVerify } from "jose";
 import { classifyGuildRoleNames } from "@rec/shared";
 import { env } from "../config/env.js";
 import { ApiError } from "./errors.js";
-import { requireInternalApiKey } from "./auth.js";
+import { hasValidInternalApiKey, requireInternalApiKey } from "./auth.js";
 import { getGuildMemberRoleNames, hasAdministratorOrManageGuild, resolveMemberPermissionBits } from "./discord-guild.js";
 import { supabase } from "./supabase.js";
 import { verifySupabaseAccessToken } from "./supabase-jwt.js";
@@ -114,9 +114,7 @@ export async function assertGuildPermission(guildId: string, discordId: string, 
 // must do their own scoping check after fetching the record. Routes that DO have a
 // guildId should use requireBotOrUserSession below instead.
 export async function resolveBotOrUserAuth(request: FastifyRequest): Promise<{ mode: "bot" } | ({ mode: "user" } & UserSession)> {
-  const header = request.headers["x-rec-api-key"];
-  const provided = Array.isArray(header) ? header[0] : header;
-  if (env.REC_INTERNAL_API_KEY && provided === env.REC_INTERNAL_API_KEY) {
+  if (hasValidInternalApiKey(request)) {
     return { mode: "bot" };
   }
   const session = await requireUserSession(request);

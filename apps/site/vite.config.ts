@@ -37,16 +37,19 @@ function copyWebPublicAssets(): Plugin {
 export default defineConfig({
   plugins: [react(), copyWebPublicAssets()],
   resolve: {
-    alias: {
-      "@rec/hub-ui": hubUi,
-      react: siteReact,
-      "react-dom": siteReactDom,
-      "react-dom/client": path.resolve(siteReactDom, "client.js"),
-      "react/jsx-runtime": path.resolve(siteReact, "jsx-runtime.js"),
-      "react/jsx-dev-runtime": path.resolve(siteReact, "jsx-dev-runtime.js"),
-      "react-router": siteRouter,
-      "react-router-dom": siteRouterDom,
-    },
+    alias: [
+      { find: "@rec/hub-ui", replacement: hubUi },
+      { find: /^react$/, replacement: siteReact },
+      { find: /^react-dom$/, replacement: siteReactDom },
+      { find: "react-dom/client", replacement: path.resolve(siteReactDom, "client.js") },
+      { find: "react/jsx-runtime", replacement: path.resolve(siteReact, "jsx-runtime.js") },
+      { find: "react/jsx-dev-runtime", replacement: path.resolve(siteReact, "jsx-dev-runtime.js") },
+      // Exact-match aliases are important: a prefix alias for `react-router` also rewrites
+      // `react-router/dom` to a nonexistent filesystem path and bypasses package exports.
+      { find: /^react-router$/, replacement: siteRouter },
+      { find: /^react-router\/dom$/, replacement: path.resolve(siteRouter, "dist/development/dom-export.mjs") },
+      { find: /^react-router-dom$/, replacement: siteRouterDom },
+    ],
     dedupe: ["react", "react-dom", "react-router", "react-router-dom"],
   },
   optimizeDeps: {

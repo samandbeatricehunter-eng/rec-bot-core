@@ -51,6 +51,7 @@ async function discordBotFetch(path: string, init?: RequestInit): Promise<Respon
   if (!env.DISCORD_TOKEN) throw new ApiError(500, "DISCORD_TOKEN is not configured — required for Activity guild role lookups.");
   return fetch(`${DISCORD_API_BASE}${path}`, {
     ...init,
+    signal: init?.signal ?? AbortSignal.timeout(15_000),
     headers: { Authorization: `Bot ${env.DISCORD_TOKEN}`, ...(init?.headers ?? {}) },
   });
 }

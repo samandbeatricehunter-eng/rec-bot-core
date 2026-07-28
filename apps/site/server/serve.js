@@ -22,9 +22,21 @@ const runtimeConfig = {
   VITE_SITE_URL: process.env.VITE_SITE_URL || "https://rec-leagues.com",
 };
 
-const configScript = `<script>window.__REC_SITE_CONFIG__=${JSON.stringify(runtimeConfig)};</script>`;
+const serializedConfig = JSON.stringify(runtimeConfig).replaceAll("<", "\\u003c");
+const configScript = `<script>window.__REC_SITE_CONFIG__=${serializedConfig};</script>`;
+
+function setSecurityHeaders(res) {
+  res.setHeader("x-content-type-options", "nosniff");
+  res.setHeader("referrer-policy", "strict-origin-when-cross-origin");
+  res.setHeader("permissions-policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("content-security-policy", "frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
+  }
+}
 
 function sendIndex(res) {
+  setSecurityHeaders(res);
   if (!existsSync(indexPath)) {
     res.statusCode = 500;
     res.end("Site build missing (apps/site/dist).");
@@ -40,6 +52,7 @@ function sendIndex(res) {
 const assets = sirv(dist, { single: false, etag: true });
 
 createServer((req, res) => {
+  setSecurityHeaders(res);
   const url = req.url?.split("?")[0] ?? "/";
   if (url === "/" || url === "/index.html" || !url.includes(".")) {
     sendIndex(res);
