@@ -16,9 +16,12 @@ import {
   setIdentityClaimDropdownClosed,
 } from "./entitlements.service.js";
 import {
+  attachCheckoutSessionToUser,
   createCheckoutSession,
   createCustomerPortalSession,
+  createPublicCheckoutSession,
   handleStripeWebhook,
+  redeemPublicCheckoutSession,
 } from "./stripe.service.js";
 import { claimBotInvite } from "./bot-invite.service.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
@@ -97,6 +100,54 @@ export async function subscriptionRoutes(app: FastifyInstance) {
           cancelUrl: body.cancelUrl,
         }),
       );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Guest checkout — no site session required. Pays first; the account is only created
+  // once the user comes back to redeem/attach this session (see below), so a declined card
+  // never leaves behind an unpaid rec_users row.
+  app.post("/v1/subscriptions/checkout/public", async (request, reply) => {
+    try {
+      const body = z
+        .object({
+          tier: z.enum(["gold", "platinum"]),
+          interval: z.enum(["month", "year"]).optional().default("month"),
+        })
+        .parse(request.body ?? {});
+      return reply.send(await createPublicCheckoutSession(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Public — read-only, used by the post-checkout "set your password" page to show which
+  // email/plan was just paid for before any account exists.
+  app.post("/v1/subscriptions/checkout/redeem", async (request, reply) => {
+    try {
+      const body = z.object({ sessionId: z.string().min(1) }).parse(request.body ?? {});
+      return reply.send(await redeemPublicCheckoutSession(body.sessionId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Session-authenticated — applies an already-paid guest checkout to the calling account.
+  // Requires the checkout session's email to match the signed-in account's email, so a
+  // leaked/observed session id can't be used to attach someone else's payment.
+  app.post("/v1/subscriptions/checkout/attach", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const body = z.object({ sessionId: z.string().min(1) }).parse(request.body ?? {});
+      const redeemed = await redeemPublicCheckoutSession(body.sessionId);
+      if (!redeemed.paid) throw new ApiError(402, "This checkout session has not completed payment yet.");
+      if (redeemed.email && session.email && redeemed.email.toLowerCase() !== session.email.toLowerCase()) {
+        throw new ApiError(403, "This checkout session belongs to a different email address.");
+      }
+      const recUserId = await resolveCheckoutRecUserId(session.authUserId, session.email);
+      await attachCheckoutSessionToUser({ userId: recUserId, sessionId: body.sessionId });
+      return reply.send(await getEntitlementSummary(recUserId));
     } catch (error) {
       return sendError(reply, error);
     }

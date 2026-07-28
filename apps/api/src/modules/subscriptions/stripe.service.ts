@@ -135,6 +135,73 @@ export async function createCheckoutSession(input: {
   return { url: session.url, sessionId: session.id };
 }
 
+// Guest checkout (no rec_users row, no Supabase Auth account) — Stripe collects the email
+// itself on its own hosted page. Nothing is created on our side until the payment actually
+// succeeds and the user redeems this session (see redeemPublicCheckoutSession /
+// attachCheckoutSessionToUser below), so a declined card never leaves behind an account
+// that looks like a broken signup.
+export async function createPublicCheckoutSession(input: {
+  tier: "gold" | "platinum";
+  interval?: "month" | "year";
+  successUrl?: string;
+  cancelUrl?: string;
+}) {
+  const stripe = getStripe();
+  const interval = input.interval ?? "month";
+  const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
+  const session = await stripe.checkout.sessions.create({
+    mode: "subscription",
+    line_items: [{ price: priceIdForTier(input.tier, interval), quantity: 1 }],
+    success_url: input.successUrl ?? `${base}/signup/complete?checkout_session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: input.cancelUrl ?? `${base}/pricing?checkout=cancel`,
+    metadata: { tier: input.tier, interval },
+  });
+  return { url: session.url, sessionId: session.id };
+}
+
+export type RedeemedCheckoutSession = {
+  paid: boolean;
+  email: string | null;
+  tier: "gold" | "platinum";
+  interval: "month" | "year";
+};
+
+/** Read-only lookup — safe to call from a public (unauthenticated) route. */
+export async function redeemPublicCheckoutSession(sessionId: string): Promise<RedeemedCheckoutSession> {
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.retrieve(sessionId);
+  const paid = session.payment_status === "paid" || session.status === "complete";
+  const email = session.customer_details?.email ?? null;
+  const tier = session.metadata?.tier === "platinum" ? "platinum" : "gold";
+  const interval = session.metadata?.interval === "year" ? "year" : "month";
+  return { paid, email, tier, interval };
+}
+
+/**
+ * Applies an already-paid guest checkout session to a just-created (or existing) rec_user —
+ * called right after the user sets a password / signs in for the first time post-payment.
+ * Re-verifies payment status itself rather than trusting the caller.
+ */
+export async function attachCheckoutSessionToUser(input: { userId: string; sessionId: string }): Promise<void> {
+  const stripe = getStripe();
+  const session = await stripe.checkout.sessions.retrieve(input.sessionId, { expand: ["subscription"] });
+  const paid = session.payment_status === "paid" || session.status === "complete";
+  if (!paid) throw new ApiError(402, "This checkout session has not completed payment yet.");
+  const subscription = session.subscription;
+  if (!subscription || typeof subscription === "string") {
+    throw new ApiError(500, "Checkout session has no subscription attached.");
+  }
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  if (customerId) {
+    const updated = await supabase
+      .from("rec_users")
+      .update({ stripe_customer_id: customerId, updated_at: new Date().toISOString() })
+      .eq("id", input.userId);
+    if (updated.error) throw new ApiError(500, "Failed to link Stripe customer.", updated.error);
+  }
+  await applyActiveSubscription(input.userId, subscription);
+}
+
 export async function createCustomerPortalSession(input: {
   userId: string;
   returnUrl?: string;

@@ -19,7 +19,7 @@ export function Account() {
   const auth = useAuth();
   const authUserId = auth.status === "signed-in" ? auth.user.id : "";
   const [searchParams, setSearchParams] = useSearchParams();
-  const [checkoutRedirecting, setCheckoutRedirecting] = useState(false);
+  const [subscriptionActivating, setSubscriptionActivating] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -80,30 +80,29 @@ export function Account() {
     };
   }, [auth.status, authUserId]);
 
-  // Continues the Welcome page's "Subscribe" buttons: those links land the user here
-  // (via /signup?next=...) with the chosen plan carried in the query string, so checkout
-  // starts automatically the moment they have a session — whether that came from email
-  // confirmation + login or an instant Discord sign-in.
+  // Continues the Welcome page's guest checkout: payment already happened on Stripe before
+  // the account existed, and /signup/complete just finished creating (or logging into) the
+  // account. This lands here with the paid checkout session id in the query string and
+  // attaches it to the now-existing account — no new Stripe redirect needed, payment is done.
   useEffect(() => {
     if (auth.status !== "signed-in") return;
-    const tier = searchParams.get("startCheckout");
-    if (tier !== "gold" && tier !== "platinum") return;
-    const interval = searchParams.get("interval") === "year" ? "year" : "month";
+    const sessionId = searchParams.get("checkoutSessionId");
+    if (!sessionId) return;
     setSearchParams((params) => {
-      params.delete("startCheckout");
-      params.delete("interval");
+      params.delete("checkoutSessionId");
       return params;
     }, { replace: true });
-    setCheckoutRedirecting(true);
+    setSubscriptionActivating(true);
     setCheckoutError(null);
     siteApi
-      .createCheckout(tier, interval)
-      .then(({ url }) => {
-        window.location.assign(url);
+      .attachCheckoutSession(sessionId)
+      .then((summary) => {
+        setEntitlements(summary);
+        setSubscriptionActivating(false);
       })
       .catch((error) => {
-        setCheckoutRedirecting(false);
-        setCheckoutError(error instanceof Error ? error.message : "Failed to start checkout.");
+        setSubscriptionActivating(false);
+        setCheckoutError(error instanceof Error ? error.message : "Failed to finish activating your subscription.");
       });
   }, [auth.status, searchParams, setSearchParams]);
 
@@ -308,12 +307,12 @@ export function Account() {
     }
   }
 
-  if (checkoutRedirecting) {
+  if (subscriptionActivating) {
     return (
       <div className="site-page site-auth-page">
         <div className="site-auth-card">
-          <h1>Redirecting to checkout</h1>
-          <p className="site-muted">Taking you to secure Stripe checkout to finish subscribing…</p>
+          <h1>Activating your subscription</h1>
+          <p className="site-muted">Finishing up — this only takes a second.</p>
         </div>
       </div>
     );

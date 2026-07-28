@@ -343,6 +343,23 @@ export const siteApi = {
       cancelUrl: `${origin}/pricing?checkout=cancel`,
     });
   },
+  // Guest checkout: no session required, and no account is created until the payment is
+  // confirmed and redeemed/attached below — a declined card leaves nothing behind.
+  createPublicCheckout(tier: "gold" | "platinum", interval: "month" | "year" = "month") {
+    return publicRequest<{ url: string; sessionId: string }>("/v1/subscriptions/checkout/public", {
+      method: "POST",
+      body: JSON.stringify({ tier, interval }),
+    });
+  },
+  redeemCheckoutSession(sessionId: string) {
+    return publicRequest<{ paid: boolean; email: string | null; tier: "gold" | "platinum"; interval: "month" | "year" }>(
+      "/v1/subscriptions/checkout/redeem",
+      { method: "POST", body: JSON.stringify({ sessionId }) },
+    );
+  },
+  attachCheckoutSession(sessionId: string) {
+    return request<EntitlementSummary>("/v1/subscriptions/checkout/attach", { sessionId });
+  },
   openBillingPortal() {
     const origin = window.location.origin;
     return request<{ url: string }>("/v1/subscriptions/portal", {

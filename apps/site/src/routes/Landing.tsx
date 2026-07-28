@@ -1,12 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
-import { annualSavingsPercent, PLANS, priceLabel, type BillingInterval } from "../lib/plans.js";
-
-function checkoutHref(tier: "gold" | "platinum", interval: BillingInterval): string {
-  const startCheckout = encodeURIComponent(`/account?startCheckout=${tier}&interval=${interval}`);
-  return `/signup?next=${startCheckout}`;
-}
+import { siteApi } from "../lib/site-api.js";
+import { annualSavingsPercent, PLANS, priceLabel, type BillingInterval, type PlanTier } from "../lib/plans.js";
 
 const PILLARS = [
   {
@@ -69,6 +65,23 @@ function PreviewMock({ kind }: { kind: "matchups" | "store" | "badges" }) {
 export function Landing() {
   const auth = useAuth();
   const [interval, setIntervalValue] = useState<BillingInterval>("month");
+  const [busyTier, setBusyTier] = useState<PlanTier | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Pays first: Stripe collects the email and card on its own hosted page before anything
+  // is created on our side. Only a successful payment lands the user on /signup/complete to
+  // set a password — a declined card never leaves behind an account.
+  async function startCheckout(tier: PlanTier) {
+    setCheckoutError(null);
+    setBusyTier(tier);
+    try {
+      const { url } = await siteApi.createPublicCheckout(tier, interval);
+      window.location.assign(url);
+    } catch (err) {
+      setCheckoutError(err instanceof Error ? err.message : "Checkout failed.");
+      setBusyTier(null);
+    }
+  }
 
   return (
     <div className="site-page site-landing">
@@ -137,6 +150,7 @@ export function Landing() {
           <button type="button" role="tab" aria-selected={interval === "month"} className={interval === "month" ? "is-active" : ""} onClick={() => setIntervalValue("month")}>Monthly</button>
           <button type="button" role="tab" aria-selected={interval === "year"} className={interval === "year" ? "is-active" : ""} onClick={() => setIntervalValue("year")}>Annual</button>
         </div>
+        {checkoutError && <p className="site-auth-error">{checkoutError}</p>}
         <div className="site-pricing-grid">
           {PLANS.map((plan) => (
             <article key={plan.tier} className="site-page-card site-plan-card">
@@ -147,13 +161,19 @@ export function Landing() {
               <ul className="site-plan-features">
                 {plan.features.map((feature) => <li key={feature}>{feature}</li>)}
               </ul>
-              <Link className="site-btn site-btn-primary site-btn-lg" to={checkoutHref(plan.tier, interval)}>
-                Subscribe to {plan.name}
-              </Link>
+              <button
+                type="button"
+                className="site-btn site-btn-primary site-btn-lg"
+                disabled={busyTier != null}
+                onClick={() => void startCheckout(plan.tier)}
+              >
+                {busyTier === plan.tier ? "Redirecting…" : `Subscribe to ${plan.name}`}
+              </button>
             </article>
           ))}
         </div>
         <p className="site-muted site-landing-plans-footnote">
+          Already have a REC League account? <Link to="/pricing">Manage your plan</Link>.
           Active REC OG (CFB 27) members get lifetime Platinum when they sign in with Discord.
         </p>
       </section>

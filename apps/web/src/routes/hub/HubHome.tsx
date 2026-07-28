@@ -338,7 +338,8 @@ export function HubHome() {
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
   const [potyCategory, setPotyCategory] = useState<HubReactionKey | "">("");
-  const [storyCarouselIndex, setStoryCarouselIndex] = useState(0);
+  const [headlineWeekIndex, setHeadlineWeekIndex] = useState(0);
+  const [headlineItemIndex, setHeadlineItemIndex] = useState(0);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [comments, setComments] = useState<StoryComment[] | null>(null);
   const [commentBody, setCommentBody] = useState("");
@@ -454,36 +455,59 @@ export function HubHome() {
 
   const activeAnnouncementGroup = announcementWeekGroups[announcementWeekIndex] ?? null;
 
-  // Announcement carousel timer — rotates only within the active week's announcements;
-  // a week with a single announcement stays static (no timer at all).
+  // Announcement carousel timer — rotates only within the current/most-recent week's
+  // announcements (index 0); paging back to an older week freezes rotation entirely while
+  // it's being browsed. A week with a single announcement stays static regardless.
   useEffect(() => {
     const count = activeAnnouncementGroup?.items.length ?? 0;
-    if (section !== "league" || subTab !== "buzz" || count < 2) return;
+    if (section !== "league" || subTab !== "buzz" || announcementWeekIndex !== 0 || count < 2) return;
     const timer = window.setInterval(() => setAnnouncementItemIndex((current) => (current + 1) % count), 8000);
     return () => window.clearInterval(timer);
   }, [section, subTab, announcementWeekIndex, activeAnnouncementGroup?.items.length]);
 
-  const headlineCount = hub?.headlines?.length ?? 0;
-  const currentWeekStoryIndexes = useMemo(() => {
+  // Headlines are grouped by week (newest week first), mirroring the announcements
+  // carousel: auto-rotation only runs for the current/most-recent week's headlines (fully
+  // paused once the user pages back to browse an older week), and the arrows/swipe page
+  // between weeks instead of flattening the whole season into one long rotation.
+  const headlineWeekGroups = useMemo(() => {
     const stories = hub?.headlines ?? [];
+    const byWeek = new Map<number | null, Array<{ story: (typeof stories)[number]; flatIndex: number }>>();
+    stories.forEach((story, flatIndex) => {
+      const key = story.week ?? null;
+      const group = byWeek.get(key) ?? [];
+      group.push({ story, flatIndex });
+      byWeek.set(key, group);
+    });
+    return [...byWeek.entries()]
+      .sort((a, b) => (b[0] ?? -1) - (a[0] ?? -1))
+      .map(([week, items]) => ({ week, items }));
+  }, [hub?.headlines]);
+
+  useEffect(() => {
+    if (!headlineWeekGroups.length) return;
     const currentWeek = hub?.league?.weekNumber;
-    const indexes = stories.map((story, index) => story.week === currentWeek ? index : -1).filter((index) => index >= 0);
-    return indexes.length ? indexes : stories.map((_, index) => index);
-  }, [hub?.headlines, hub?.league?.weekNumber]);
-  const mobileStorySwipe = useSwipeNavigation({ itemCount: headlineCount, onIndexChange: (index) => setStoryCarouselIndex(index) });
+    const matchIndex = headlineWeekGroups.findIndex((group) => group.week === currentWeek);
+    setHeadlineWeekIndex(matchIndex >= 0 ? matchIndex : 0);
+    setHeadlineItemIndex(0);
+  }, [headlineWeekGroups, hub?.league?.weekNumber]);
+
+  const activeHeadlineGroup = headlineWeekGroups[headlineWeekIndex] ?? null;
+  const headlineWeekCount = headlineWeekGroups.length;
+
+  const mobileStorySwipe = useSwipeNavigation({
+    itemCount: headlineWeekCount,
+    onIndexChange: (index) => { setHeadlineWeekIndex(index); setHeadlineItemIndex(0); },
+  });
+  useEffect(() => { mobileStorySwipe.setCurrentIndex(headlineWeekIndex); }, [headlineWeekIndex]);
+
   useEffect(() => {
-    if (!headlineCount) return;
-    const firstCurrent = currentWeekStoryIndexes[0] ?? 0;
-    setStoryCarouselIndex((current) => current < headlineCount ? current : firstCurrent);
-  }, [headlineCount, currentWeekStoryIndexes]);
-  useEffect(() => { mobileStorySwipe.setCurrentIndex(storyCarouselIndex); }, [storyCarouselIndex]);
-  useEffect(() => {
-    if (subTab !== "buzz" || headlineCount <= 1 || mobileStorySwipe.isDragging) return;
+    const count = activeHeadlineGroup?.items.length ?? 0;
+    if (subTab !== "buzz" || headlineWeekIndex !== 0 || count < 2 || mobileStorySwipe.isDragging) return;
     const timer = window.setInterval(() => {
-      setStoryCarouselIndex((current) => (current + 1) % headlineCount);
+      setHeadlineItemIndex((current) => (current + 1) % count);
     }, 24_000);
     return () => window.clearInterval(timer);
-  }, [subTab, headlineCount, mobileStorySwipe.isDragging]);
+  }, [subTab, headlineWeekIndex, activeHeadlineGroup?.items.length, mobileStorySwipe.isDragging]);
 
   async function load() {
     if (auth.status !== "ready") return;
@@ -1212,49 +1236,45 @@ export function HubHome() {
           ) : null
         ) : <>
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
-          {headlines.length ? (
-            isMobile ? (
+          {(() => {
+            const items = activeHeadlineGroup?.items ?? [];
+            const active = items.length ? items[headlineItemIndex % items.length] : null;
+            if (!active) return <p className="hub-empty">Headlines publish here after games or from League Publishing.</p>;
+            const { story, flatIndex } = active;
+            const weekLabel = activeHeadlineGroup?.week == null ? "League Story" : `Week ${activeHeadlineGroup.week}`;
+            const itemPos = items.length > 1 ? `${(headlineItemIndex % items.length) + 1} of ${items.length}` : null;
+            return isMobile ? (
               <div className="hub-story-mobile-swipe" style={{ position: "relative" }}>
-                {(() => {
-                  const index = Math.min(storyCarouselIndex, headlineCount - 1);
-                  const story = headlines[index];
-                  if (!story) return null;
-                  return (
-                    <article
-                      className={(story.story_type === "headline" ? "hub-story-card" : "hub-story-card article") + " swipe-card-surface"}
-                      style={{
-                        transform: mobileStorySwipe.isDragging ? `translateX(${mobileStorySwipe.dragOffsetPx}px)` : undefined,
-                        transition: mobileStorySwipe.isDragging || mobileStorySwipe.reducedMotion ? "none" : "transform var(--duration-standard) var(--ease-standard)",
-                      }}
-                      onPointerDown={mobileStorySwipe.handlers.onPointerDown}
-                      onPointerMove={mobileStorySwipe.handlers.onPointerMove}
-                      onPointerUp={mobileStorySwipe.handlers.onPointerUp}
-                      onPointerCancel={mobileStorySwipe.handlers.onPointerCancel}
-                    >
-                      {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
-                      <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
-                    </article>
-                  );
-                })()}
-                <p className="hub-story-swipe-hint">Swipe for more · {storyCarouselIndex + 1} of {headlineCount}</p>
+                <article
+                  className={(story.story_type === "headline" ? "hub-story-card" : "hub-story-card article") + " swipe-card-surface"}
+                  style={{
+                    transform: mobileStorySwipe.isDragging ? `translateX(${mobileStorySwipe.dragOffsetPx}px)` : undefined,
+                    transition: mobileStorySwipe.isDragging || mobileStorySwipe.reducedMotion ? "none" : "transform var(--duration-standard) var(--ease-standard)",
+                  }}
+                  onPointerDown={mobileStorySwipe.handlers.onPointerDown}
+                  onPointerMove={mobileStorySwipe.handlers.onPointerMove}
+                  onPointerUp={mobileStorySwipe.handlers.onPointerUp}
+                  onPointerCancel={mobileStorySwipe.handlers.onPointerCancel}
+                >
+                  {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
+                  <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
+                </article>
+                <p className="hub-story-swipe-hint">
+                  {headlineWeekCount > 1 ? "Swipe for older weeks" : weekLabel}{itemPos ? ` · ${itemPos}` : ""}
+                </p>
               </div>
             ) : (
               <div className="hub-story-carousel">
-                {headlineCount > 1 && <button type="button" className="hub-highlight-arrow previous" onClick={() => setStoryCarouselIndex((storyCarouselIndex - 1 + headlineCount) % headlineCount)}><ChevronLeft /></button>}
-                {(() => {
-                  const index = Math.min(storyCarouselIndex, headlineCount - 1);
-                  const story = headlines[index];
-                  if (!story) return null;
-                  return <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
-                    {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
-                    <button type="button" className="hub-story-open" onClick={() => openStory(index)}><time>Week {story.week}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
-                  </article>;
-                })()}
-                {headlineCount > 1 && <button type="button" className="hub-highlight-arrow next" onClick={() => setStoryCarouselIndex((storyCarouselIndex + 1) % headlineCount)}><ChevronRight /></button>}
-                <p className="hub-story-swipe-hint">Showing {storyCarouselIndex + 1} of {headlineCount}</p>
+                {headlineWeekCount > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Older week" onClick={() => setHeadlineWeekIndex((headlineWeekIndex + 1) % headlineWeekCount)}><ChevronLeft /></button> : null}
+                <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
+                  {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
+                  <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
+                </article>
+                {headlineWeekCount > 1 ? <button type="button" className="hub-highlight-arrow next" title="Newer week" onClick={() => setHeadlineWeekIndex((headlineWeekIndex - 1 + headlineWeekCount) % headlineWeekCount)}><ChevronRight /></button> : null}
+                <p className="hub-story-swipe-hint">{weekLabel}{itemPos ? ` · Showing ${itemPos}` : ""}</p>
               </div>
-            )
-          ) : <p className="hub-empty">Headlines publish here after games or from League Publishing.</p>}
+            );
+          })()}
         </SectionFrame>
         <SectionFrame eyebrow="Community clips" title="Highlight Reel" className="hub-highlight-section">
           {activeHighlight ? <div className="hub-highlight-carousel">

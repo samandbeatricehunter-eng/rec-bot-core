@@ -20,6 +20,7 @@ import { LeaguesPage } from "./routes/Leagues.js";
 import { LeagueHubPage } from "./routes/LeagueHub.js";
 import { Pricing } from "./routes/Pricing.js";
 import { SignUp } from "./routes/SignUp.js";
+import { SignUpComplete } from "./routes/SignUpComplete.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 
@@ -198,6 +199,7 @@ function Routed() {
     <Routes>
       <Route path="/" element={<RootEntry />} />
       <Route path="/signup" element={<SignUp />} />
+      <Route path="/signup/complete" element={<SignUpComplete />} />
       <Route path="/login" element={<LogIn />} />
       <Route path="/open-app" element={<OpenApp />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
