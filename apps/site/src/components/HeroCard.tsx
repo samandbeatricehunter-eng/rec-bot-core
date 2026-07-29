@@ -92,8 +92,12 @@ export function HeroCard({
               </strong>
             </article>
             <article>
-              <span>Power rank</span>
+              <span>Dynasty power rank</span>
               <strong>{card?.powerRank ? `#${card.powerRank.rank} of ${card.powerRank.of}` : "—"}</strong>
+            </article>
+            <article>
+              <span>Comp power rank</span>
+              <strong title="Global H2H Comp ranking launches with the matchmaking queue.">Coming soon</strong>
             </article>
             <article>
               <span>Current streak</span>

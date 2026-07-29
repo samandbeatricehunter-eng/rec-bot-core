@@ -27,6 +27,7 @@ import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
 import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
+import { writeAuditLog } from "../audit/audit.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 
 async function notifyLeagueMembersOfAdvance(input: {
@@ -684,8 +685,24 @@ export async function completeAdvanceWeek(input: {
     rebuildOfficialRecordsAfterBoxScore({ leagueId: context.leagueId, seasonNumber }).catch((err) => {
       console.error("[ERROR] rebuildOfficialRecordsAfterBoxScore failed after advance (non-fatal):", err);
     }),
-    recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber).catch((err) => {
-      console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance (non-fatal):", err);
+    recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber).catch(async (err) => {
+      console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed after advance, retrying once:", err);
+      try {
+        await recomputeActiveLeagueBadgeBaselines(context.leagueId, seasonNumber);
+      } catch (retryErr) {
+        // Recompute is a pure read-and-overwrite (no incremental state), so retrying is safe.
+        // A second failure means badges are genuinely stale for this league until someone
+        // notices — write it to the audit log so it's discoverable instead of only ever
+        // existing as a line in Railway logs nobody is watching.
+        console.error("[ERROR] recomputeActiveLeagueBadgeBaselines failed again after retry:", retryErr);
+        await writeAuditLog({
+          action: "badge_baselines.recompute_failed",
+          entityType: "rec_leagues",
+          entityId: context.leagueId,
+          reason: retryErr instanceof Error ? retryErr.message : String(retryErr),
+          newValue: { seasonNumber },
+        }).catch(() => undefined);
+      }
     }),
     // Snapshot power rankings for the week that just completed, so next week can show movement.
     snapshotPowerRankings(context.leagueId, seasonNumber, currentWeek, context.rec_leagues.game).catch((err) => {

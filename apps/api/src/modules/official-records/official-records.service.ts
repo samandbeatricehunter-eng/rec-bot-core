@@ -197,12 +197,15 @@ function recordRowFromTotals(totals: RecordTotals, extra: Record<string, unknown
 }
 
 function allGamesRecordRowFromTotals(totals: RecordTotals, championshipWins: number, extra: Record<string, unknown> = {}) {
+  // recordRowFromTotals already computes playoff_wins/playoff_losses/superbowl_losses
+  // correctly from totals (baseline + box-score games merged) — only superbowl_wins needs
+  // overriding here, to fold in manual championship credits on top of box-score-detected
+  // ones. A previous version hardcoded playoff_wins/playoff_losses/superbowl_losses to 0
+  // unconditionally, discarding real data (e.g. legacy-baseline playoff history) that had
+  // just been correctly computed one line above.
   return {
     ...recordRowFromTotals(totals, extra),
-    playoff_wins: 0,
-    playoff_losses: 0,
     superbowl_wins: championshipWins,
-    superbowl_losses: 0,
   };
 }
 
@@ -392,6 +395,62 @@ export async function rebuildLeagueOfficialRecords(leagueId: string) {
   }
 
   return { usersUpdated: userIds.size };
+}
+
+/**
+ * Call BEFORE rec_delete_league for a league that's about to be torn down. rec_delete_league
+ * hard-deletes rec_game_results/rec_league_user_records/rec_award_winners/rec_eos_award_polls
+ * for the league — without this, a user's entire history in that league (win/loss/playoff/
+ * superbowl record contribution, and any awards they won) vanishes instead of traveling with
+ * them as part of their global all-time stats. Freezes W/L/playoff/superbowl/point-differential
+ * into rec_global_user_records (untouched by rec_delete_league) and archives settled awards into
+ * rec_manual_award_credits (also untouched) before the source rows are destroyed.
+ */
+export async function preserveGlobalContributionsBeforeLeagueDelete(leagueId: string): Promise<void> {
+  const assignments = await supabase
+    .from("rec_team_assignments")
+    .select("user_id")
+    .eq("league_id", leagueId)
+    .not("user_id", "is", null);
+  if (assignments.error) throw assignments.error;
+  const userIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))];
+  if (userIds.length) await rebuildOfficialGlobalRecords(userIds);
+
+  const [statAwards, votedAwards] = await Promise.all([
+    supabase.from("rec_award_winners").select("winner_user_id,award_key,award_name,season_number").eq("league_id", leagueId),
+    supabase
+      .from("rec_eos_award_polls")
+      .select("winner_user_id,category_key,category_label,season_number")
+      .eq("league_id", leagueId)
+      .eq("status", "settled")
+      .not("winner_user_id", "is", null),
+  ]);
+  if (statAwards.error) throw statAwards.error;
+  if (votedAwards.error) throw votedAwards.error;
+
+  const credits = [
+    ...(statAwards.data ?? []).map((row: any) => ({
+      user_id: row.winner_user_id,
+      award_key: row.award_key,
+      award_name: row.award_name,
+      season_number: row.season_number ?? null,
+      source_key: `league_delete_archive:${leagueId}`,
+      note: "Auto-archived when the league that issued this award was deleted.",
+    })),
+    ...(votedAwards.data ?? []).map((row: any) => ({
+      user_id: row.winner_user_id,
+      award_key: row.category_key,
+      award_name: row.category_label,
+      season_number: row.season_number ?? null,
+      source_key: `league_delete_archive:${leagueId}`,
+      note: "Auto-archived when the league that issued this award was deleted.",
+    })),
+  ].filter((credit) => credit.user_id);
+
+  if (credits.length) {
+    const inserted = await supabase.from("rec_manual_award_credits").insert(credits);
+    if (inserted.error) throw inserted.error;
+  }
 }
 
 export async function rebuildOfficialGlobalRecords(userIds?: string[]) {

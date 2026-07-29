@@ -5,6 +5,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
+import { preserveGlobalContributionsBeforeLeagueDelete } from "../official-records/official-records.service.js";
 import {
   assertCanCreateLeague,
   resolveRecUserIdByDiscordId,
@@ -738,6 +739,13 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
   // rec_delete_league cascades highlight rows but cannot reach Stream.
   await deleteAllLeagueStreamHighlights(context.leagueId).catch((error) => {
     console.error("[ERROR] Failed to delete league Stream highlights before league wipe:", error);
+  });
+
+  // Freeze this league's contribution to each member's global record and archive any awards
+  // they won here — rec_delete_league hard-deletes the source rows, so a user's history in
+  // this league must travel with them before it's gone, not disappear with the league.
+  await preserveGlobalContributionsBeforeLeagueDelete(context.leagueId).catch((error) => {
+    console.error("[ERROR] Failed to preserve global contributions before league wipe:", error);
   });
 
   const { data, error } = await supabase.rpc("rec_delete_league", { p_league_id: context.leagueId });

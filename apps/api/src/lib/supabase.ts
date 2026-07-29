@@ -515,7 +515,7 @@ class PostgresQueryBuilder {
 // jsonb value, so it needs the `SELECT fn(...) AS data` branch below to unwrap it correctly —
 // listing it here wrapped the payload as `[{ rec_roster_league_conferences: {...} }]` instead of
 // `{ conferences: [...] }`, which made every league (not just CFB) appear to have zero conferences.
-const tableRpcs = new Set(["rec_eos_rank_payouts"]);
+const tableRpcs = new Set(["rec_eos_rank_payouts", "rec_user_rating_stat_totals"]);
 
 async function executeRpc(name: string, args: Record<string, unknown> = {}): Promise<QueryResult> {
   try {

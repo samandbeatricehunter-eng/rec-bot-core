@@ -2300,18 +2300,6 @@ export const recAdvanceDmRuns = pgTable("rec_advance_dm_runs", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
-export const recUserSeasonBadgeTrophies = pgTable("rec_user_season_badge_trophies", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  userId: uuid("user_id").notNull(),
-  badgeKey: text("badge_key").notNull(),
-  tier: text("tier").notNull().default("normal"),
-  seasonNumber: integer("season_number").notNull(),
-  badgeLabel: text("badge_label"),
-  badgeDescription: text("badge_description"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recManualChampionshipCredits = pgTable("rec_manual_championship_credits", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id").notNull().references(() => recUsers.id),
@@ -2400,7 +2388,6 @@ export type RecBadgeOwnership = typeof recBadgeOwnership.$inferSelect;
 export type RecBadgeEvent = typeof recBadgeEvents.$inferSelect;
 export type RecWeeklyScoreReview = typeof recWeeklyScoreReviews.$inferSelect;
 export type RecAdvanceDmRun = typeof recAdvanceDmRuns.$inferSelect;
-export type RecUserSeasonBadgeTrophy = typeof recUserSeasonBadgeTrophies.$inferSelect;
 export type RecManualChampionshipCredit = typeof recManualChampionshipCredits.$inferSelect;
 export type RecWager = typeof recWagers.$inferSelect;
 export type RecWagerLeg = typeof recWagerLegs.$inferSelect;
@@ -2919,10 +2906,6 @@ export const recWeeklyScoreReviewsRelations = relations(recWeeklyScoreReviews, (
 
 export const recAdvanceDmRunsRelations = relations(recAdvanceDmRuns, ({ one }) => ({
   league: one(recLeagues, { fields: [recAdvanceDmRuns.leagueId], references: [recLeagues.id] })
-}));
-
-export const recUserSeasonBadgeTrophiesRelations = relations(recUserSeasonBadgeTrophies, ({ one }) => ({
-  league: one(recLeagues, { fields: [recUserSeasonBadgeTrophies.leagueId], references: [recLeagues.id] })
 }));
 
 export const recManualChampionshipCreditsRelations = relations(recManualChampionshipCredits, ({ one }) => ({

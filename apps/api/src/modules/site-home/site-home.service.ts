@@ -7,7 +7,7 @@ import { supabase } from "../../lib/supabase.js";
 import { letterGradeForRating } from "../league-week/ratings.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
-import { formatTeamDisplayName, loadCareerBoxScoreStats, resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { aggregateBoxScoreStats, formatTeamDisplayName, loadCareerBoxScoreStats, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const SPOTLIGHT_LIKE_COINS = 25;
@@ -97,6 +97,8 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
             (select count(*)::int from rec_award_winners where winner_user_id = $1)
             +
             (select count(*)::int from rec_eos_award_polls where winner_user_id = $1 and status = 'settled')
+            +
+            (select count(*)::int from rec_manual_award_credits where user_id = $1)
           ) as career_awards_won
         from rec_users u
         where u.id = $1
@@ -780,60 +782,55 @@ export async function listUserBadges(input: { authUserId: string }) {
   return { badges, count: badges.length };
 }
 
+const GAME_LABELS_FOR_STATS: Record<string, string> = {
+  madden_26: "Madden 26",
+  madden_27: "Madden 27",
+  cfb_27: "CFB 27",
+};
+
+// rec_user_box_score_profile_stats (a materialized per-game-type snapshot) has no writer
+// anywhere in apps/api or apps/bot — it has always been empty, for every user, on every
+// deployment. Compute career stats live from rec_team_game_stats instead (the same source
+// loadCareerBoxScoreStats/aggregateBoxScoreStats already use elsewhere), grouped by game
+// type. A deleted league's rows survive (rec_delete_league doesn't touch this table) but its
+// league_id now dangles, so those games fall into a synthetic "legacy" bucket instead of
+// being silently dropped by the game-type join.
 export async function listUserCareerStatsByGame(input: { authUserId: string }) {
   const user = await requireLinkedRecUser(input.authUserId);
-  const rows = await supabase
-    .from("rec_user_box_score_profile_stats")
-    .select(
-      "league_id,season_number,scope,games_logged,box_scores_uploaded,total_yards,passing_yards,rushing_yards,first_downs,turnovers_generated,turnovers_committed,turnover_differential,red_zone_off_pct_avg,red_zone_def_pct_avg,active_streak,league:rec_leagues(game,name)",
-    )
-    .eq("user_id", user.recUserId)
-    .eq("scope", "career");
-  if (rows.error) throw new ApiError(500, "Failed to load career stats.", rows.error);
+  const statRows = await supabase.from("rec_team_game_stats").select("*").eq("user_id", user.recUserId);
+  if (statRows.error) throw new ApiError(500, "Failed to load career stats.", statRows.error);
+  const rows = statRows.data ?? [];
 
-  const byGame = new Map<string, {
-    game: string;
-    gameLabel: string;
-    gamesLogged: number;
-    passingYards: number;
-    rushingYards: number;
-    totalYards: number;
-    firstDowns: number;
-    turnoversGenerated: number;
-    turnoversCommitted: number;
-    turnoverDifferential: number;
-  }>();
+  const leagueIds = [...new Set(rows.map((row: any) => row.league_id).filter(Boolean))];
+  const leaguesResult = leagueIds.length
+    ? await supabase.from("rec_leagues").select("id,game").in("id", leagueIds)
+    : { data: [], error: null };
+  if (leaguesResult.error) throw new ApiError(500, "Failed to load leagues for career stats.", leaguesResult.error);
+  const gameByLeagueId = new Map<string, string>((leaguesResult.data ?? []).map((row: any) => [row.id, String(row.game)]));
 
-  const labels: Record<string, string> = {
-    madden_26: "Madden 26",
-    madden_27: "Madden 27",
-    cfb_27: "CFB 27",
-  };
-
-  for (const row of rows.data ?? []) {
-    const game = String((row as any).league?.game ?? "unknown");
-    const current = byGame.get(game) ?? {
-      game,
-      gameLabel: labels[game] ?? game,
-      gamesLogged: 0,
-      passingYards: 0,
-      rushingYards: 0,
-      totalYards: 0,
-      firstDowns: 0,
-      turnoversGenerated: 0,
-      turnoversCommitted: 0,
-      turnoverDifferential: 0,
-    };
-    current.gamesLogged += Number(row.games_logged ?? 0);
-    current.passingYards += Number(row.passing_yards ?? 0);
-    current.rushingYards += Number(row.rushing_yards ?? 0);
-    current.totalYards += Number(row.total_yards ?? 0);
-    current.firstDowns += Number(row.first_downs ?? 0);
-    current.turnoversGenerated += Number(row.turnovers_generated ?? 0);
-    current.turnoversCommitted += Number(row.turnovers_committed ?? 0);
-    current.turnoverDifferential += Number(row.turnover_differential ?? 0);
-    byGame.set(game, current);
+  const rowsByGame = new Map<string, any[]>();
+  for (const row of rows) {
+    const game = gameByLeagueId.get(row.league_id) ?? "legacy";
+    const bucket = rowsByGame.get(game) ?? [];
+    bucket.push(row);
+    rowsByGame.set(game, bucket);
   }
 
-  return { games: [...byGame.values()].sort((a, b) => a.gameLabel.localeCompare(b.gameLabel)) };
+  const games = [...rowsByGame.entries()].map(([game, gameRows]) => {
+    const stats = aggregateBoxScoreStats(gameRows);
+    return {
+      game,
+      gameLabel: GAME_LABELS_FOR_STATS[game] ?? (game === "legacy" ? "Deleted/legacy leagues" : game),
+      gamesLogged: stats.gamesLogged,
+      passingYards: stats.passingYards,
+      rushingYards: stats.rushingYards,
+      totalYards: stats.totalYards,
+      firstDowns: stats.firstDowns,
+      turnoversGenerated: stats.turnoversGenerated,
+      turnoversCommitted: stats.turnoversCommitted,
+      turnoverDifferential: stats.turnoverDifferential,
+    };
+  });
+
+  return { games: games.sort((a, b) => a.gameLabel.localeCompare(b.gameLabel)) };
 }
