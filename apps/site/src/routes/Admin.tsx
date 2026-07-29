@@ -49,24 +49,48 @@ function StatsPanel() {
   if (error) return <p className="site-auth-error">{error}</p>;
   if (!stats) return <p className="site-muted">Loading…</p>;
 
-  const rows: Array<[string, number]> = [
-    ["Total users", stats.totalUsers],
-    ["Site-linked users", stats.siteLinkedUsers],
-    ["Gold subscribers", stats.goldSubscribers],
-    ["Platinum subscribers", stats.platinumSubscribers],
+  const notLinked = stats.totalUsers - stats.siteLinkedUsers;
+  const topRows: Array<[string, number]> = [
+    ["Total accounts", stats.totalUsers],
+    ["Registered on site", stats.siteLinkedUsers],
+    ["Discord-only (not registered)", notLinked],
+    ["New accounts (7d)", stats.usersLast7d],
+  ];
+  const subRows: Array<[string, number]> = [
+    ["Platinum — registered", stats.linkedPlatinum],
+    ["Platinum — unclaimed (Discord-only)", stats.unlinkedPlatinum],
+    ["Gold — registered", stats.linkedGold],
+    ["Gold — unclaimed (Discord-only)", stats.unlinkedGold],
+  ];
+  const leagueRows: Array<[string, number]> = [
     ["Total leagues", stats.totalLeagues],
     ["New leagues (7d)", stats.leaguesLast7d],
-    ["New users (7d)", stats.usersLast7d],
   ];
 
+  function grid(rows: Array<[string, number]>) {
+    return (
+      <div className="site-account-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+        {rows.map(([label, value]) => (
+          <article key={label}>
+            <span>{label}</span>
+            <strong>{value.toLocaleString()}</strong>
+          </article>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="site-account-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
-      {rows.map(([label, value]) => (
-        <article key={label}>
-          <span>{label}</span>
-          <strong>{value.toLocaleString()}</strong>
-        </article>
-      ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {grid(topRows)}
+      <p className="site-muted">
+        Subscription tier and site registration are independent — a user can hold free
+        lifetime Platinum without ever creating a site login (that's who the free-claim DM
+        campaign targets). {stats.platinumSubscribers} total Platinum subscribers:{" "}
+        {stats.linkedPlatinum} registered, {stats.unlinkedPlatinum} unclaimed.
+      </p>
+      {grid(subRows)}
+      {grid(leagueRows)}
     </div>
   );
 }

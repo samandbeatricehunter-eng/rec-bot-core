@@ -780,11 +780,15 @@ export type AdminUserSummary = {
 export type AdminStats = {
   totalUsers: number;
   siteLinkedUsers: number;
+  linkedPlatinum: number;
+  linkedGold: number;
+  unlinkedPlatinum: number;
+  unlinkedGold: number;
   goldSubscribers: number;
   platinumSubscribers: number;
+  usersLast7d: number;
   totalLeagues: number;
   leaguesLast7d: number;
-  usersLast7d: number;
 };
 
 export type SiteHomeCard = {

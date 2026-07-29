@@ -387,24 +387,43 @@ export async function adminImpersonateUser(input: { targetUserId: string; adminA
 // ----------------------------------------------------------------------------
 
 export async function getAdminStats() {
+  // Site registration (supabase_auth_user_id) and subscription tier are independent axes —
+  // a user can be Platinum via free-lifetime-comp without ever registering the site account
+  // (that's exactly who the CFB free-claim DM campaign targets). Report them as a nested
+  // breakdown instead of flat sibling tiles: showing "total / linked / platinum" side by side
+  // previously read as total = linked + platinum, which only held today by coincidence.
   const result = await getPgPool().query(`
     select
-      (select count(*)::int from rec_users) as total_users,
-      (select count(*)::int from rec_users where supabase_auth_user_id is not null) as site_linked_users,
-      (select count(*)::int from rec_users where subscription_tier = 'gold') as gold_subscribers,
-      (select count(*)::int from rec_users where subscription_tier = 'platinum') as platinum_subscribers,
-      (select count(*)::int from rec_leagues) as total_leagues,
-      (select count(*)::int from rec_leagues where created_at >= now() - interval '7 days') as leagues_last_7d,
-      (select count(*)::int from rec_users where created_at >= now() - interval '7 days') as users_last_7d
+      count(*)::int as total_users,
+      count(*) filter (where supabase_auth_user_id is not null)::int as site_linked_users,
+      count(*) filter (where supabase_auth_user_id is not null and subscription_tier = 'platinum')::int as linked_platinum,
+      count(*) filter (where supabase_auth_user_id is not null and subscription_tier = 'gold')::int as linked_gold,
+      count(*) filter (where supabase_auth_user_id is null and subscription_tier = 'platinum')::int as unlinked_platinum,
+      count(*) filter (where supabase_auth_user_id is null and subscription_tier = 'gold')::int as unlinked_gold,
+      count(*) filter (where subscription_tier = 'gold')::int as gold_subscribers,
+      count(*) filter (where subscription_tier = 'platinum')::int as platinum_subscribers,
+      count(*) filter (where created_at >= now() - interval '7 days')::int as users_last_7d
+    from rec_users
+  `);
+  const leagueResult = await getPgPool().query(`
+    select
+      count(*)::int as total_leagues,
+      count(*) filter (where created_at >= now() - interval '7 days')::int as leagues_last_7d
+    from rec_leagues
   `);
   const row = result.rows[0] ?? {};
+  const leagueRow = leagueResult.rows[0] ?? {};
   return {
     totalUsers: Number(row.total_users ?? 0),
     siteLinkedUsers: Number(row.site_linked_users ?? 0),
+    linkedPlatinum: Number(row.linked_platinum ?? 0),
+    linkedGold: Number(row.linked_gold ?? 0),
+    unlinkedPlatinum: Number(row.unlinked_platinum ?? 0),
+    unlinkedGold: Number(row.unlinked_gold ?? 0),
     goldSubscribers: Number(row.gold_subscribers ?? 0),
     platinumSubscribers: Number(row.platinum_subscribers ?? 0),
-    totalLeagues: Number(row.total_leagues ?? 0),
-    leaguesLast7d: Number(row.leagues_last_7d ?? 0),
     usersLast7d: Number(row.users_last_7d ?? 0),
+    totalLeagues: Number(leagueRow.total_leagues ?? 0),
+    leaguesLast7d: Number(leagueRow.leagues_last_7d ?? 0),
   };
 }

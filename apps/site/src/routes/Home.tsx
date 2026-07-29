@@ -190,60 +190,6 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="site-home-panel site-home-announcements">
-        <header className="site-home-panel-head">
-          <p>Official board</p>
-          <h2>Announcements</h2>
-        </header>
-        {activeAnnouncement ? (
-          <div className="site-home-announce-carousel">
-            {announcements.length > 1 ? (
-              <button
-                type="button"
-                className="site-home-carousel-arrow"
-                aria-label="Previous announcement"
-                onClick={() =>
-                  setAnnouncementIndex(
-                    (current) =>
-                      (current - 1 + announcements.length) % announcements.length,
-                  )
-                }
-              >
-                ‹
-              </button>
-            ) : null}
-            <article className="site-home-announce-card">
-              <h3>{activeAnnouncement.title}</h3>
-              <p>{activeAnnouncement.body}</p>
-              {safeAnnouncementHref(activeAnnouncement.href) ? (
-                <a href={safeAnnouncementHref(activeAnnouncement.href)!} target="_blank" rel="noreferrer">
-                  Read more
-                </a>
-              ) : null}
-              {announcements.length > 1 ? (
-                <span className="site-home-carousel-pos">
-                  {announcementIndex % announcements.length + 1} / {announcements.length}
-                </span>
-              ) : null}
-            </article>
-            {announcements.length > 1 ? (
-              <button
-                type="button"
-                className="site-home-carousel-arrow"
-                aria-label="Next announcement"
-                onClick={() =>
-                  setAnnouncementIndex((current) => (current + 1) % announcements.length)
-                }
-              >
-                ›
-              </button>
-            ) : null}
-          </div>
-        ) : (
-          <p className="site-muted">No announcements right now.</p>
-        )}
-      </section>
-
       <section className="site-home-panel site-home-spotlight">
         <header className="site-home-panel-head">
           <p>Global top clips</p>
@@ -400,6 +346,60 @@ export function HomePage() {
           </div>
         ) : (
           <p className="site-muted">Spotlight clips refresh daily at 8 AM CT.</p>
+        )}
+      </section>
+
+      <section className="site-home-panel site-home-announcements">
+        <header className="site-home-panel-head">
+          <p>Official board</p>
+          <h2>Announcements</h2>
+        </header>
+        {activeAnnouncement ? (
+          <div className="site-home-announce-carousel">
+            {announcements.length > 1 ? (
+              <button
+                type="button"
+                className="site-home-carousel-arrow"
+                aria-label="Previous announcement"
+                onClick={() =>
+                  setAnnouncementIndex(
+                    (current) =>
+                      (current - 1 + announcements.length) % announcements.length,
+                  )
+                }
+              >
+                ‹
+              </button>
+            ) : null}
+            <article className="site-home-announce-card">
+              <h3>{activeAnnouncement.title}</h3>
+              <p>{activeAnnouncement.body}</p>
+              {safeAnnouncementHref(activeAnnouncement.href) ? (
+                <a href={safeAnnouncementHref(activeAnnouncement.href)!} target="_blank" rel="noreferrer">
+                  Read more
+                </a>
+              ) : null}
+              {announcements.length > 1 ? (
+                <span className="site-home-carousel-pos">
+                  {announcementIndex % announcements.length + 1} / {announcements.length}
+                </span>
+              ) : null}
+            </article>
+            {announcements.length > 1 ? (
+              <button
+                type="button"
+                className="site-home-carousel-arrow"
+                aria-label="Next announcement"
+                onClick={() =>
+                  setAnnouncementIndex((current) => (current + 1) % announcements.length)
+                }
+              >
+                ›
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <p className="site-muted">No announcements right now.</p>
         )}
       </section>
     </div>
