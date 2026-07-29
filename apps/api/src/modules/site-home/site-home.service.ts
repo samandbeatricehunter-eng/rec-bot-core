@@ -8,6 +8,7 @@ import { letterGradeForRating } from "../league-week/ratings.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
 import { aggregateBoxScoreStats, formatTeamDisplayName, loadCareerBoxScoreStats, resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { getUserPowerRank } from "../rankings/rankings.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const SPOTLIGHT_LIKE_COINS = 25;
@@ -72,7 +73,7 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     supabase.from("rec_discord_accounts").select("discord_id,first_seen_at").eq("user_id", user.recUserId).order("first_seen_at", { ascending: true }).limit(1).maybeSingle(),
     supabase
       .from("rec_team_assignments")
-      .select("league_id")
+      .select("league_id,league:rec_leagues(game)")
       .eq("user_id", user.recUserId)
       .eq("assignment_status", "active")
       .is("ended_at", null)
@@ -133,10 +134,10 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     grade: string;
     displayAsGrade: boolean;
   } | null = null;
-  let powerRank: { rank: number; of: number } | null = null;
 
   const discordId = discordRow.data?.discord_id ? String(discordRow.data.discord_id) : null;
   const leagueId = assignmentRow.data?.league_id ? String(assignmentRow.data.league_id) : null;
+  const currentGame = (assignmentRow.data as any)?.league?.game ? String((assignmentRow.data as any).league.game) : null;
   if (discordId && leagueId) {
     const guildId = await resolveGuildForLeague(leagueId);
     if (guildId) {
@@ -149,13 +150,17 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
             grade: mine.grade,
             displayAsGrade: ratings.displayAsGrade,
           };
-          powerRank = { rank: mine.rank, of: ratings.users.length };
         }
       } catch {
-        // Rating/power rank are optional on the home card when league context is incomplete.
+        // Rating is optional on the home card when league context is incomplete.
       }
     }
   }
+
+  const [dynastyPowerRank, compPowerRank] = await Promise.all([
+    getUserPowerRank({ game: currentGame, scope: "dynasty", userId: user.recUserId }).catch(() => null),
+    getUserPowerRank({ game: currentGame, scope: "comp", userId: user.recUserId }).catch(() => null),
+  ]);
 
   if (!userRating) {
     const wins = Number(globalRecord.wins ?? 0);
@@ -213,7 +218,9 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
       currentStreak: streak,
     },
     userRating,
-    powerRank,
+    currentGame,
+    dynastyPowerRank,
+    compPowerRank,
     badgeCount: Number(extrasRow.badge_count ?? 0),
     recentBadge,
     careerAwardsWon: Number(extrasRow.career_awards_won ?? 0),
@@ -728,12 +735,16 @@ export async function addHighlightComment(input: {
 
 export async function listUserBadges(input: { authUserId: string }) {
   const user = await requireLinkedRecUser(input.authUserId);
+  return badgesForUser(user.recUserId);
+}
+
+export async function badgesForUser(recUserId: string) {
   const rows = await supabase
     .from("rec_badge_ownership")
     .select(
       "badge_key,badge_scope,polarity,tier,earned_count,last_earned_week,created_at,updated_at,league_id,season,week,league:rec_leagues(game)",
     )
-    .eq("user_id", user.recUserId)
+    .eq("user_id", recUserId)
     .order("updated_at", { ascending: false })
     .limit(200);
   if (rows.error) throw new ApiError(500, "Failed to load badges.", rows.error);
@@ -797,7 +808,11 @@ const GAME_LABELS_FOR_STATS: Record<string, string> = {
 // being silently dropped by the game-type join.
 export async function listUserCareerStatsByGame(input: { authUserId: string }) {
   const user = await requireLinkedRecUser(input.authUserId);
-  const statRows = await supabase.from("rec_team_game_stats").select("*").eq("user_id", user.recUserId);
+  return careerStatsByGameForUser(user.recUserId);
+}
+
+export async function careerStatsByGameForUser(recUserId: string) {
+  const statRows = await supabase.from("rec_team_game_stats").select("*").eq("user_id", recUserId);
   if (statRows.error) throw new ApiError(500, "Failed to load career stats.", statRows.error);
   const rows = statRows.data ?? [];
 

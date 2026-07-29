@@ -41,15 +41,6 @@ export function HeadlinesPage() {
   );
 }
 
-export function CompPage() {
-  return (
-    <PlaceholderCard
-      title="Comp"
-      body="Competition board placeholder — standings across events and ladders."
-    />
-  );
-}
-
 export function LeagueBuzzPage() {
   const { leagueId = "" } = useParams();
   const hub = useHub();

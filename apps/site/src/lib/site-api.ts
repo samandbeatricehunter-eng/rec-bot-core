@@ -1,3 +1,4 @@
+import type { SiteBadge } from "./badge-display.js";
 import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 
 const apiBaseUrl = () => siteApiBaseUrl() || (import.meta.env.VITE_REC_CORE_API_URL as string | undefined);
@@ -731,6 +732,68 @@ export const siteApi = {
       { userId },
     );
   },
+  listRankedGames() {
+    return request<{ games: Array<{ game: string; label: string; dynastyLabel: string }> }>("/v1/rankings/games", {});
+  },
+  listPowerRankings(input: { game: string; scope: "dynasty" | "comp" }) {
+    return request<{ rankings: PowerRankingRow[]; asOf: string | null }>("/v1/rankings/list", input);
+  },
+  listCompUsers(input: { page?: number } = {}) {
+    return request<{ users: CompUserSummary[]; page: number; pageSize: number; total: number }>(
+      "/v1/comp/users/list",
+      input,
+    );
+  },
+  getCompUserDetail(userId: string) {
+    return request<CompUserDetail>("/v1/comp/users/detail", { userId });
+  },
+};
+
+export type CompUserSummary = {
+  id: string;
+  username: string | null;
+  displayName: string;
+  subscriptionTier: string;
+};
+
+export type CompUserDetail = {
+  displayName: string;
+  username: string | null;
+  memberSince: string | null;
+  globalRecord: {
+    wins: number;
+    losses: number;
+    ties: number;
+    playoffWins: number;
+    playoffLosses: number;
+    superbowlWins: number;
+    superbowlLosses: number;
+    gamesPlayed: number;
+  };
+  careerStats: Array<{
+    game: string;
+    gameLabel: string;
+    gamesLogged: number;
+    passingYards: number;
+    rushingYards: number;
+    totalYards: number;
+    firstDowns: number;
+    turnoversGenerated: number;
+    turnoversCommitted: number;
+    turnoverDifferential: number;
+  }>;
+  badges: SiteBadge[];
+};
+
+export type PowerRankPosition = { rank: number; of: number; previousRank: number | null };
+
+export type PowerRankingRow = {
+  rank: number;
+  previousRank: number | null;
+  userId: string;
+  username: string | null;
+  displayName: string;
+  score: number;
 };
 
 export type AdminAnnouncement = {
@@ -807,7 +870,9 @@ export type SiteHomeCard = {
     currentStreak: string;
   };
   userRating: { rating: number; grade: string; displayAsGrade: boolean } | null;
-  powerRank: { rank: number; of: number } | null;
+  currentGame: string | null;
+  dynastyPowerRank: PowerRankPosition | null;
+  compPowerRank: PowerRankPosition | null;
   badgeCount: number;
   recentBadge: { key: string; label: string; scope: string; tier: string | null; earnedAt: string } | null;
   careerAwardsWon: number;

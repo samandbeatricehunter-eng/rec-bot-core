@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { badgeAsset, badgeTooltip, type SiteBadge } from "../lib/badge-display.js";
-import { siteApi, type SiteHomeCard } from "../lib/site-api.js";
+import { siteApi, type PowerRankPosition, type SiteHomeCard } from "../lib/site-api.js";
 
 type HeroTab = "profile" | "stats" | "badges";
 
@@ -24,6 +24,14 @@ function formatMemberSince(iso: string | null): string {
 
 function recordText(wins: number, losses: number): string {
   return `${wins}-${losses}`;
+}
+
+function powerRankMovement(pos: PowerRankPosition): string {
+  if (pos.previousRank == null) return "NEW";
+  const delta = pos.previousRank - pos.rank;
+  if (delta > 0) return `▲${delta}`;
+  if (delta < 0) return `▼${Math.abs(delta)}`;
+  return "—";
 }
 
 export function HeroCard({
@@ -92,12 +100,19 @@ export function HeroCard({
               </strong>
             </article>
             <article>
-              <span>Dynasty power rank</span>
-              <strong>{card?.powerRank ? `#${card.powerRank.rank} of ${card.powerRank.of}` : "—"}</strong>
+              <span>{card?.currentGame?.startsWith("madden") ? "Franchise" : "Dynasty"} power rank</span>
+              <strong>
+                {card?.dynastyPowerRank ? `#${card.dynastyPowerRank.rank} of ${card.dynastyPowerRank.of}` : "Unranked"}
+              </strong>
+              {card?.dynastyPowerRank ? (
+                <small className="site-hero-rank-move">{powerRankMovement(card.dynastyPowerRank)}</small>
+              ) : null}
             </article>
             <article>
               <span>Comp power rank</span>
-              <strong title="Global H2H Comp ranking launches with the matchmaking queue.">Coming soon</strong>
+              <strong title="Global H2H Comp ranking launches with the matchmaking queue.">
+                {card?.compPowerRank ? `#${card.compPowerRank.rank} of ${card.compPowerRank.of}` : "Not ranked yet"}
+              </strong>
             </article>
             <article>
               <span>Current streak</span>

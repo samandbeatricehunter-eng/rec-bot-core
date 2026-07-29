@@ -11,10 +11,8 @@ import { Friends } from "./routes/Friends.js";
 import { Inbox } from "./routes/Inbox.js";
 import { Landing } from "./routes/Landing.js";
 import { LogIn } from "./routes/LogIn.js";
-import {
-  CompPage,
-  LeagueMgmtInboxPage,
-} from "./routes/placeholders.js";
+import { LeagueMgmtInboxPage } from "./routes/placeholders.js";
+import { CompPage } from "./routes/Comp.js";
 import { BadgesPage } from "./routes/Badges.js";
 import { HomePage } from "./routes/Home.js";
 import { LeaguesPage } from "./routes/Leagues.js";
