@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ThumbsDown, ThumbsUp } from "lucide-react";
 import { useAuth } from "../lib/auth-context.js";
+import { HeroCard } from "../components/HeroCard.js";
 import { useSwipeNavigation } from "../hooks/useSwipeNavigation.js";
 import {
   siteApi,
@@ -12,12 +13,6 @@ import {
 } from "../lib/site-api.js";
 
 const ANNOUNCEMENT_MS = 8000;
-
-function ratingDisplay(card: SiteHomeCard | null) {
-  if (!card?.userRating) return "—";
-  if (card.userRating.displayAsGrade) return card.userRating.grade;
-  return String(card.userRating.rating);
-}
 
 function safeAnnouncementHref(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -172,23 +167,7 @@ export function HomePage() {
 
   return (
     <div className="site-home">
-      <section className="site-home-hero">
-        <div className="site-home-hero-copy">
-          <p className="site-home-eyebrow">REC Leagues Sports</p>
-          <h1>Welcome back, {displayName}</h1>
-          <p>Your season hub starts here.</p>
-          <div className="site-home-hero-stats site-home-hero-stats--two">
-            <div>
-              <span className="site-home-stat-label">All-time record</span>
-              <strong>{card?.globalRecord?.text ?? "0-0"}</strong>
-            </div>
-            <div>
-              <span className="site-home-stat-label">User rating</span>
-              <strong>{ratingDisplay(card)}</strong>
-            </div>
-          </div>
-        </div>
-      </section>
+      <HeroCard displayName={displayName} card={card} />
 
       <section className="site-home-panel site-home-spotlight">
         <header className="site-home-panel-head">

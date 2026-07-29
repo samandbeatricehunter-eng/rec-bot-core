@@ -1,12 +1,13 @@
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { randomUUID } from "node:crypto";
+import { getPgPool } from "../../db/client.js";
 import { ApiError } from "../../lib/errors.js";
 import { inspectStreamVideo, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { letterGradeForRating } from "../league-week/ratings.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
-import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName, loadCareerBoxScoreStats, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 
 const SPOTLIGHT_LIKE_COINS = 25;
@@ -66,13 +67,9 @@ async function resolveGuildForLeague(leagueId: string): Promise<string | null> {
 export async function getSiteHomeCard(input: { authUserId: string }) {
   const user = await requireLinkedRecUser(input.authUserId);
 
-  const [globalRecordRow, badgeCountRow, discordRow, assignmentRow] = await Promise.all([
+  const [globalRecordRow, discordRow, assignmentRow, extras, recentBadgeRow, streak] = await Promise.all([
     supabase.from("rec_global_user_records").select("*").eq("user_id", user.recUserId).maybeSingle(),
-    supabase
-      .from("rec_badge_ownership")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.recUserId),
-    supabase.from("rec_discord_accounts").select("discord_id").eq("user_id", user.recUserId).maybeSingle(),
+    supabase.from("rec_discord_accounts").select("discord_id,first_seen_at").eq("user_id", user.recUserId).order("first_seen_at", { ascending: true }).limit(1).maybeSingle(),
     supabase
       .from("rec_team_assignments")
       .select("league_id")
@@ -81,19 +78,60 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
       .is("ended_at", null)
       .limit(1)
       .maybeSingle(),
+    getPgPool().query(
+      `
+        select
+          u.created_at as user_created_at,
+          (
+            select count(distinct badge_key)::int from rec_badge_ownership where user_id = $1
+          ) as badge_count,
+          (
+            select count(distinct league_id)::int from rec_league_memberships
+            where user_id = $1 and status = 'active'
+          ) as active_leagues,
+          (
+            select count(distinct league_id)::int from rec_league_memberships
+            where user_id = $1 and status = 'active' and role in ('head', 'co')
+          ) as commissioner_of,
+          (
+            (select count(*)::int from rec_award_winners where winner_user_id = $1)
+            +
+            (select count(*)::int from rec_eos_award_polls where winner_user_id = $1 and status = 'settled')
+          ) as career_awards_won
+        from rec_users u
+        where u.id = $1
+      `,
+      [user.recUserId],
+    ),
+    supabase
+      .from("rec_badge_ownership")
+      .select("badge_key,badge_scope,tier,updated_at")
+      .eq("user_id", user.recUserId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    loadCareerBoxScoreStats(user.recUserId).then(
+      (stats) => stats.activeStreak,
+      () => "—",
+    ),
   ]);
 
   if (globalRecordRow.error) throw new ApiError(500, "Failed to load global record.", globalRecordRow.error);
-  if (badgeCountRow.error) throw new ApiError(500, "Failed to count badges.", badgeCountRow.error);
   if (discordRow.error) throw new ApiError(500, "Failed to load Discord link.", discordRow.error);
   if (assignmentRow.error) throw new ApiError(500, "Failed to load team assignment.", assignmentRow.error);
+  if (recentBadgeRow.error) throw new ApiError(500, "Failed to load most recent badge.", recentBadgeRow.error);
 
-  const globalRecord = globalRecordRow.data ?? { wins: 0, losses: 0, ties: 0 };
+  const globalRecord = globalRecordRow.data ?? {
+    wins: 0, losses: 0, ties: 0, playoff_wins: 0, playoff_losses: 0,
+    superbowl_wins: 0, superbowl_losses: 0, point_differential: 0, avg_point_differential: 0, games_played: 0,
+  };
+  const extrasRow = extras.rows[0] ?? {};
   let userRating: {
     rating: number;
     grade: string;
     displayAsGrade: boolean;
   } | null = null;
+  let powerRank: { rank: number; of: number } | null = null;
 
   const discordId = discordRow.data?.discord_id ? String(discordRow.data.discord_id) : null;
   const leagueId = assignmentRow.data?.league_id ? String(assignmentRow.data.league_id) : null;
@@ -109,9 +147,10 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
             grade: mine.grade,
             displayAsGrade: ratings.displayAsGrade,
           };
+          powerRank = { rank: mine.rank, of: ratings.users.length };
         }
       } catch {
-        // Rating is optional on the home card when league context is incomplete.
+        // Rating/power rank are optional on the home card when league context is incomplete.
       }
     }
   }
@@ -130,17 +169,56 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     };
   }
 
+  const descByKey = new Map<string, string>();
+  const labelByKey = new Map<string, string>();
+  for (const badge of [...GAME_BADGES, ...SEASON_BADGES, ...CAREER_BADGES]) {
+    descByKey.set(badge.key, badge.description);
+    labelByKey.set(badge.key, badge.label);
+  }
+  const recentBadge = recentBadgeRow.data
+    ? {
+        key: String(recentBadgeRow.data.badge_key),
+        label: labelByKey.get(String(recentBadgeRow.data.badge_key)) ?? String(recentBadgeRow.data.badge_key).replaceAll("_", " "),
+        scope: String(recentBadgeRow.data.badge_scope ?? "game"),
+        tier: recentBadgeRow.data.tier ?? null,
+        earnedAt: recentBadgeRow.data.updated_at,
+      }
+    : null;
+
+  // "Member since" reflects REC league tenure (first seen by the Discord bot), not the
+  // site-registration date — nearly everyone registered the site account this week, so that
+  // date isn't meaningful, while first_seen_at traces back to actual league history.
+  const memberSince = discordRow.data?.first_seen_at ?? extrasRow.user_created_at ?? null;
+
   return {
     displayName: user.username ?? user.displayName,
     username: user.username,
+    memberSince,
     globalRecord: {
       wins: Number(globalRecord.wins ?? 0),
       losses: Number(globalRecord.losses ?? 0),
       ties: Number(globalRecord.ties ?? 0),
       text: recordText(globalRecord),
     },
+    performanceRecord: {
+      playoffWins: Number((globalRecord as any).playoff_wins ?? 0),
+      playoffLosses: Number((globalRecord as any).playoff_losses ?? 0),
+      superbowlWins: Number((globalRecord as any).superbowl_wins ?? 0),
+      superbowlLosses: Number((globalRecord as any).superbowl_losses ?? 0),
+      pointDifferential: Number((globalRecord as any).point_differential ?? 0),
+      avgPointDifferential: Number((globalRecord as any).avg_point_differential ?? 0),
+      gamesPlayed: Number((globalRecord as any).games_played ?? 0),
+      currentStreak: streak,
+    },
     userRating,
-    badgeCount: badgeCountRow.count ?? 0,
+    powerRank,
+    badgeCount: Number(extrasRow.badge_count ?? 0),
+    recentBadge,
+    careerAwardsWon: Number(extrasRow.career_awards_won ?? 0),
+    leaguesActivity: {
+      activeLeagues: Number(extrasRow.active_leagues ?? 0),
+      commissionerOf: Number(extrasRow.commissioner_of ?? 0),
+    },
   };
 }
 

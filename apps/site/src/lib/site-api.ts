@@ -794,9 +794,24 @@ export type AdminStats = {
 export type SiteHomeCard = {
   displayName: string;
   username: string | null;
+  memberSince: string | null;
   globalRecord: { wins: number; losses: number; ties: number; text: string };
+  performanceRecord: {
+    playoffWins: number;
+    playoffLosses: number;
+    superbowlWins: number;
+    superbowlLosses: number;
+    pointDifferential: number;
+    avgPointDifferential: number;
+    gamesPlayed: number;
+    currentStreak: string;
+  };
   userRating: { rating: number; grade: string; displayAsGrade: boolean } | null;
+  powerRank: { rank: number; of: number } | null;
   badgeCount: number;
+  recentBadge: { key: string; label: string; scope: string; tier: string | null; earnedAt: string } | null;
+  careerAwardsWon: number;
+  leaguesActivity: { activeLeagues: number; commissionerOf: number };
 };
 
 export type SiteAnnouncement = {
