@@ -175,6 +175,8 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
     opponentFourthDownConversions: oppFourthMade,
     opponentFourthDownAttempts: oppFourthAttempts,
     opponentTurnovers,
+    opponentInterceptionsThrown: cfb ? jsonNum(row.defensive_stats, "interceptions_thrown") : null,
+    opponentFumblesLost: cfb ? jsonNum(row.defensive_stats, "fumbles_lost") : null,
     opponentRedZoneOffensivePct: oppRzFromDef,
 
     totalPlays: cfb ? jsonNum(row.offensive_stats, "total_plays") || null : null,

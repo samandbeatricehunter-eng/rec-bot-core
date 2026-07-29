@@ -170,6 +170,13 @@ export type SiteLeagueTickerItem = {
   odds: { awayMoneyline: number; homeMoneyline: number; overUnder: number | null } | null;
 };
 
+export type SiteOpenTeam = {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  mascot: string | null;
+};
+
 export type SiteLeagueConferenceReassignment = {
   abbreviation: string;
   name: string;
@@ -492,6 +499,18 @@ export const siteApi = {
   searchLeagues(filters: SiteLeagueSearchFilters = {}) {
     return request<{ leagues: SiteLeagueSearchHit[] }>("/v1/site-leagues/search", filters);
   },
+  listOpenLeagueTeams(leagueId: string) {
+    return request<{ teams: SiteOpenTeam[]; pendingTeamId: string | null }>(
+      "/v1/site-leagues/open-teams",
+      { leagueId },
+    );
+  },
+  requestLeagueTeam(leagueId: string, teamId: string) {
+    return request<{ ok: true; requestId: string }>("/v1/site-leagues/request-team", {
+      leagueId,
+      teamId,
+    });
+  },
   openLeagueHub(input: {
     leagueId: string;
     view?: "buzz" | "matchups" | "team" | "store" | "mgmt";
@@ -747,13 +766,79 @@ export const siteApi = {
   getCompUserDetail(userId: string) {
     return request<CompUserDetail>("/v1/comp/users/detail", { userId });
   },
+  getCompProfile() {
+    return request<any>("/v1/comp/profile/get", {});
+  },
+  saveCompProfile(input: { console: "xbox" | "ps5" | "pc"; gamerTag: string; crossPlayEnabled: boolean }) {
+    return request<any>("/v1/comp/profile/save", input);
+  },
+  getCompState(game: string) {
+    return request<any>("/v1/comp/state", { game });
+  },
+  joinCompQueue(input: any) {
+    return request<any>("/v1/comp/queue/join", input);
+  },
+  leaveCompQueue() {
+    return request<any>("/v1/comp/queue/leave", {});
+  },
+  requestCompMatch(opponentUserId: string) {
+    return request<any>("/v1/comp/match/request", { opponentUserId });
+  },
+  respondCompMatch(matchId: string, accept: boolean) {
+    return request<any>("/v1/comp/match/respond", { matchId, accept });
+  },
+  listCompTeams(game: string) {
+    return request<{ teams: Array<{ id: string; name: string; abbreviation: string | null }> }>("/v1/comp/match/teams", { game });
+  },
+  selectCompTeam(matchId: string, teamId: string) {
+    return request<any>("/v1/comp/match/select-team", { matchId, teamId });
+  },
+  sendCompMessage(matchId: string, body: string) {
+    return request<any>("/v1/comp/chat/send", { matchId, body });
+  },
+  shareCompStream(matchId: string, streamUrl: string) {
+    return request<any>("/v1/comp/stream/share", { matchId, streamUrl });
+  },
+  cancelCompMatch(matchId: string) {
+    return request<any>("/v1/comp/match/cancel", { matchId });
+  },
+  concedeCompMatch(matchId: string) {
+    return request<any>("/v1/comp/match/concede", { matchId });
+  },
+  createCompReport(input: any) {
+    return request<any>("/v1/comp/report/create", input);
+  },
+  respondCompReport(input: any) {
+    return request<any>("/v1/comp/report/respond", input);
+  },
+  parseCompBoxScore(input: { game: string; imageUrls: string[] }) {
+    return request<any>("/v1/comp/box-score/parse", input);
+  },
+  submitCompBoxScore(input: any) {
+    return request<any>("/v1/comp/box-score/submit", input);
+  },
+  reviewCompBoxScore(input: any) {
+    return request<any>("/v1/comp/box-score/review", input);
+  },
+  async uploadCompImage(file: File) {
+    const base = requireApiBaseUrl();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("You are not signed in.");
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch(`${base}/v1/comp/box-score/upload`, {
+      method: "POST", headers: { authorization: `Bearer ${session.access_token}` }, body: form,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(payload?.error ?? payload?.message ?? "Upload failed.");
+    return payload as { url: string };
+  },
 };
 
 export type CompUserSummary = {
   id: string;
   username: string | null;
   displayName: string;
-  subscriptionTier: string;
 };
 
 export type CompUserDetail = {
@@ -769,8 +854,10 @@ export type CompUserDetail = {
     superbowlWins: number;
     superbowlLosses: number;
     gamesPlayed: number;
+    pointDifferential: number;
   };
   careerStats: Array<{
+    [key: string]: string | number;
     game: string;
     gameLabel: string;
     gamesLogged: number;

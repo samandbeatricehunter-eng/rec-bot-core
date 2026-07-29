@@ -316,7 +316,7 @@ export function LeagueMgmtPage() {
       title="League Mgmt"
       body="Commissioner tools live here. Retire, request demotion to member, and future primary-commissioner transfer will be managed from this page. The notification bell's Commissioner section deep-links into this league's review inbox — it does not replace the Office tools here."
       links={[
-        { to: `/l/${leagueId}/mgmt/inbox`, label: "Commissioner inbox" },
+        { to: `/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`, label: "Commissioner’s Office" },
       ]}
     >
       <div className="site-billing-panel">

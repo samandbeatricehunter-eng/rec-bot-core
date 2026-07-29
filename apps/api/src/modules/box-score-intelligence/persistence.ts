@@ -29,13 +29,12 @@ import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { seasonTotalsFromGames, careerTotalsFromGames, gameBadgeOccurrences } from "./aggregate.js";
 import {
+  CAREER_BADGES,
   qualifyCareerBadges,
   qualifyGameBadges,
   qualifyLadderBadges,
   qualifySeasonBadges,
-  tierForOccurrenceCount,
 } from "./badge-rules.js";
-import { computeFinancialBadgeRows } from "./financial-badges.js";
 import { computeGameProfile, rowToGameStats, type TeamGameStatsRow } from "./game-profile.js";
 import { generateGameStory } from "./story-angles.js";
 import { buildRoundtableDiscussion } from "../hub/roundtable.js";
@@ -265,47 +264,50 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
       badge_key: o.badgeKey,
       badge_scope: "game",
       polarity,
-      tier: tierForOccurrenceCount(o.earnedCount, polarity),
+      tier: "normal",
       season,
       week: null,
       earned_count: o.earnedCount,
       last_earned_week: o.lastEarnedWeek,
       updated_at: now,
+      game: leagueGame,
+      mode: "dynasty",
+      is_active: true,
+      earned_at: now,
+      definition_version: 2,
     };
   });
 
   // Season-scope: qualified straight from this season's cumulative totals, tier always "normal".
-  const seasonTotals = seasonTotalsFromGames(seasonGames);
-  // This badge is conclusive only once regular season play is finished.
-  // issueSeasonTotalBadges owns its end-of-season issuance.
-  const seasonRows = qualifySeasonBadges(seasonTotals, leagueGame)
-    .filter((badge) => badge.key !== "perfect_regular_season")
-    .map((b) => ({
-    league_id: leagueId,
-    user_id: userId,
-    team_id: teamId,
-    badge_key: b.key,
-    badge_scope: "season",
-    polarity: b.polarity,
-    tier: "normal",
-    season,
-    week: null,
-    earned_count: 1,
-    last_earned_week: null,
-    updated_at: now,
-    }));
+  // Season badges are conclusive awards and are issued only by the end-of-season
+  // workflow after the league enters its offseason.
+  const seasonRows: any[] = [];
 
   // Career-scope: simple boolean/threshold badges (tier "normal") + graded ladder badges.
   const careerRows = [
     ...qualifyCareerBadges(careerTotals, leagueGame).map((b) => ({
       league_id: leagueId, user_id: userId, team_id: teamId, badge_key: b.key, badge_scope: "career",
       polarity: b.polarity, tier: "normal", season: null, week: null, earned_count: 1, last_earned_week: null, updated_at: now,
+      game: leagueGame, mode: "dynasty", is_active: true, earned_at: now, definition_version: 2,
     })),
     ...qualifyLadderBadges(careerTotals, leagueGame).map((b) => ({
       league_id: leagueId, user_id: userId, team_id: teamId, badge_key: b.key, badge_scope: "career",
       polarity: "positive", tier: b.tier, season: null, week: null, earned_count: 1, last_earned_week: null, updated_at: now,
     })),
   ];
+  const earnedCareerKeys = new Set(careerRows.map((row) => row.badge_key));
+  for (const badge of CAREER_BADGES.filter((item) =>
+    ["winning_tradition", "elite_standard", "juggernaut"].includes(item.key),
+  )) {
+    if (earnedCareerKeys.has(badge.key)) continue;
+    careerRows.push({
+      league_id: leagueId, user_id: userId, team_id: teamId, badge_key: badge.key,
+      badge_scope: "career", polarity: "positive", tier: "normal", season: null,
+      week: null, earned_count: 0, last_earned_week: null, updated_at: now,
+      game: leagueGame, mode: "dynasty", is_active: false, earned_at: null,
+      definition_version: 2,
+    });
+  }
 
   // Audit trail + badge-bonus economy: log one event per game-scope badge actually
   // earned in THIS game (box-score.service.ts's issueBadgeBonusesForSubmission pays
@@ -342,11 +344,10 @@ async function recomputeSingleUserBadges(current: GameStats, leagueGame: string)
   const userId = current.userId!;
   const season = current.season;
 
-  const [statsResult, recordResult, crossGameByUser, financialRows] = await Promise.all([
+  const [statsResult, recordResult, crossGameByUser] = await Promise.all([
     supabase.from("rec_team_game_stats").select("*").eq("league_id", leagueId).eq("user_id", userId),
     supabase.from("rec_global_user_game_records").select("wins,games_played,playoff_wins,superbowl_wins").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
     loadCrossGameTotals([userId]),
-    computeFinancialBadgeRows(userId, leagueId, leagueGame),
   ]);
   if (statsResult.error) throw statsResult.error;
 
@@ -358,7 +359,7 @@ async function recomputeSingleUserBadges(current: GameStats, leagueGame: string)
     crossGameTotals: crossGameByUser.get(userId) ?? null, current,
   });
 
-  await writeBadgeUpdates(leagueId, season, [userId], result.gameRows, result.seasonRows, [...result.careerRows, ...financialRows], result.eventRows);
+  await writeBadgeUpdates(leagueId, season, [userId], result.gameRows, result.seasonRows, result.careerRows, result.eventRows);
 }
 
 function toCareerRecordOverride(record: { wins?: unknown; games_played?: unknown; playoff_wins?: unknown; superbowl_wins?: unknown } | null | undefined): CareerRecordOverride | null {
@@ -456,10 +457,6 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
   // Financial badges are per-user queries (ledger/purchases/wallet aren't batchable the
   // way rec_team_game_stats is) — run them in parallel across the roster rather than
   // sequentially, since this is the whole-league recompute path.
-  const financialRowsByUser = new Map(
-    await Promise.all(uniqueAssignments.map(async ({ user_id: userId }) => [userId!, await computeFinancialBadgeRows(userId!, leagueId, leagueGame)] as const)),
-  );
-
   const allGame: any[] = [];
   const allSeason: any[] = [];
   const allCareer: any[] = [];
@@ -478,7 +475,7 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
     });
     allGame.push(...result.gameRows);
     allSeason.push(...result.seasonRows);
-    allCareer.push(...result.careerRows, ...(financialRowsByUser.get(userId!) ?? []));
+    allCareer.push(...result.careerRows);
     allEvents.push(...result.eventRows);
   }
 
@@ -501,9 +498,8 @@ async function loadTeamNames(teamIds: string[]): Promise<Map<string, string>> {
 }
 
 /**
- * Issues season-total badges (Prolific Passer, Perfect Regular Season, etc.) plus
- * the "Reigning ___" badges (which depend on whether this user won the relevant
- * game in the PRIOR season) for every active user in a league. Call this once when
+ * Issues season-total badges (Prolific Passer, Perfect Regular Season, etc.) for
+ * every active user in a league. Call this once when
  * the league advances OUT of the regular season (i.e. nextSeasonStage becomes a
  * playoff/CFP stage). These are based on full-season totals and must not be issued
  * mid-season because the totals are still changing.
@@ -524,7 +520,6 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
   const userIds = [...new Set(assignments.map((a) => a.user_id).filter((id): id is string => Boolean(id)))];
   const now = new Date().toISOString();
   const leagueGame = await loadLeagueGame(leagueId);
-  const cfb = isCfb(leagueGame);
 
   const { data: statsRows, error: statsError } = await supabase
     .from("rec_team_game_stats")
@@ -550,14 +545,12 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
     if (!userId) continue;
     const games = gamesByUser.get(userId) ?? [];
     const seasonGames = games.filter((g) => g.season === season);
-    const priorSeasonGames = games.filter((g) => g.season === season - 1);
     if (!seasonGames.length) continue;
 
     const seasonTotals = seasonTotalsFromGames(seasonGames);
     const qualified = qualifySeasonBadges(seasonTotals, leagueGame);
-    const reigning = reigningChampionBadges(priorSeasonGames.length ? seasonTotalsFromGames(priorSeasonGames) : null, cfb);
 
-    for (const b of [...qualified, ...reigning]) {
+    for (const b of qualified) {
       badgeRows.push({
         league_id: leagueId,
         user_id: userId,
@@ -570,6 +563,11 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
         week: null,
         earned_count: 1,
         last_earned_week: null,
+        game: leagueGame,
+        mode: "dynasty",
+        is_active: true,
+        earned_at: now,
+        definition_version: 2,
         updated_at: now,
       });
     }
@@ -584,17 +582,3 @@ export async function issueSeasonTotalBadges(leagueId: string, season: number): 
 }
 
 /** "Reigning ___" badges — earned for the season right after winning the relevant game. */
-function reigningChampionBadges(priorSeason: SeasonTotals | null, cfb: boolean): Array<{ key: string; label: string }> {
-  if (!priorSeason) return [];
-  if (cfb) {
-    const out: Array<{ key: string; label: string }> = [];
-    if (priorSeason.wonChampionship) out.push({ key: "national_champion", label: "Reigning National Champ" });
-    if (priorSeason.wonAnyBowlGame) out.push({ key: "bowl_winner", label: "Won Bowl Game" });
-    return out;
-  }
-  const out: Array<{ key: string; label: string }> = [];
-  if (priorSeason.wonChampionship) out.push({ key: "super_bowl_champion", label: "Reigning SB Champ" });
-  if (priorSeason.wonConferenceChampionship) out.push({ key: "conf_champion", label: "Reigning Conference Champ" });
-  if (priorSeason.wonDivisionalRound) out.push({ key: "div_champion", label: "Divisional Round Winner" });
-  return out;
-}

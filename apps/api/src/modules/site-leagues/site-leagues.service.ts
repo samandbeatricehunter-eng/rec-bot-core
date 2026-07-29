@@ -5,6 +5,7 @@ import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { buildWebHubUrl } from "../web-session/web-session.service.js";
 import { getHubMatchupSchedule } from "../hub/hub.service.js";
 import { getGameWagerOptions } from "../wagers/odds.service.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 const CFB_DEFAULT_CONFERENCE = new Map(
   CFB_27_TEAMS.map((team) => [team.abbreviation.toUpperCase(), team.conference]),
@@ -196,6 +197,181 @@ export async function retireFromSiteLeague(input: {
   }
 
   return { ok: true };
+}
+
+export type SiteOpenTeam = {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  mascot: string | null;
+};
+
+export async function listOpenTeamsForSiteLeague(input: {
+  recUserId: string;
+  leagueId: string;
+}): Promise<{ teams: SiteOpenTeam[]; pendingTeamId: string | null }> {
+  const league = await getPgPool().query(
+    `select id from rec_leagues where id = $1 and coalesce(subscription_frozen, false) = false`,
+    [input.leagueId],
+  );
+  if (!league.rows[0]) throw new ApiError(404, "League not found.");
+
+  const result = await getPgPool().query(
+    `
+      select t.id, t.name, t.abbreviation, t.mascot
+      from rec_teams t
+      where t.league_id = $1
+        and not exists (
+          select 1
+          from rec_team_assignments ta
+          where ta.league_id = t.league_id
+            and ta.team_id = t.id
+            and ta.assignment_status = 'active'
+            and ta.ended_at is null
+        )
+        and not exists (
+          select 1
+          from rec_team_link_requests r
+          where r.league_id = t.league_id
+            and r.team_id = t.id
+            and r.status in ('pending', 'approved')
+            and r.requester_user_id <> $2
+        )
+      order by t.name asc
+    `,
+    [input.leagueId, input.recUserId],
+  );
+  const pending = await getPgPool().query(
+    `
+      select team_id
+      from rec_team_link_requests
+      where league_id = $1 and requester_user_id = $2
+        and status in ('pending', 'approved')
+      order by created_at desc
+      limit 1
+    `,
+    [input.leagueId, input.recUserId],
+  );
+  return {
+    teams: result.rows.map((row) => ({
+      id: String(row.id),
+      name: String(row.name),
+      abbreviation: row.abbreviation ? String(row.abbreviation) : null,
+      mascot: row.mascot ? String(row.mascot) : null,
+    })),
+    pendingTeamId: pending.rows[0]?.team_id ? String(pending.rows[0].team_id) : null,
+  };
+}
+
+export async function requestSiteLeagueTeam(input: {
+  recUserId: string;
+  leagueId: string;
+  teamId: string;
+}): Promise<{ ok: true; requestId: string }> {
+  const pool = getPgPool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const context = await client.query(
+      `
+        select l.name,
+          coalesce(s.guild_id, 'site:' || l.id::text) as guild_id,
+          coalesce(d.discord_id, 'site:' || $2::text) as requester_discord_id
+        from rec_leagues l
+        left join rec_server_league_links sl on sl.league_id = l.id and sl.is_primary = true
+        left join rec_discord_servers s on s.id = sl.server_id
+        left join rec_discord_accounts d on d.user_id = $2
+        where l.id = $1
+        limit 1
+        for update of l
+      `,
+      [input.leagueId, input.recUserId],
+    );
+    const league = context.rows[0] as
+      | { name: string; guild_id: string; requester_discord_id: string }
+      | undefined;
+    if (!league) throw new ApiError(404, "League not found.");
+
+    const membership = await client.query(
+      `
+        select 1 from rec_league_memberships
+        where league_id = $1 and user_id = $2 and status = 'active'
+        union all
+        select 1 from rec_team_assignments
+        where league_id = $1 and user_id = $2
+          and assignment_status = 'active' and ended_at is null
+        limit 1
+      `,
+      [input.leagueId, input.recUserId],
+    );
+    if (membership.rows[0]) throw new ApiError(409, "You are already in this league.");
+
+    const team = await client.query(
+      `
+        select t.id, t.name
+        from rec_teams t
+        where t.id = $1 and t.league_id = $2
+          and not exists (
+            select 1 from rec_team_assignments ta
+            where ta.league_id = t.league_id and ta.team_id = t.id
+              and ta.assignment_status = 'active' and ta.ended_at is null
+          )
+        limit 1
+      `,
+      [input.teamId, input.leagueId],
+    );
+    if (!team.rows[0]) throw new ApiError(409, "That team is no longer available.");
+
+    const existing = await client.query(
+      `
+        select id from rec_team_link_requests
+        where league_id = $1 and requester_user_id = $2
+          and status in ('pending', 'approved')
+        limit 1
+      `,
+      [input.leagueId, input.recUserId],
+    );
+    if (existing.rows[0]) throw new ApiError(409, "You already have a pending team request.");
+
+    const inserted = await client.query(
+      `
+        insert into rec_team_link_requests
+          (guild_id, league_id, team_id, requester_user_id, requester_discord_id, status)
+        values ($1, $2, $3, $4, $5, 'pending')
+        returning id
+      `,
+      [league.guild_id, input.leagueId, input.teamId, input.recUserId, league.requester_discord_id],
+    );
+    const requestId = String(inserted.rows[0].id);
+    await client.query(
+      `
+        insert into rec_commissioners_inbox
+          (guild_id, league_id, queue_type, status, priority, header, summary,
+           requester_discord_id, requester_user_id, team_id, source_table, source_id, payload)
+        values ($1, $2, 'team_request', 'pending', 0, $3, $4, $5, $6, $7,
+                'rec_team_link_requests', $8, $9::jsonb)
+      `,
+      [
+        league.guild_id,
+        input.leagueId,
+        `Team request: ${team.rows[0].name}`,
+        `A site member requested ${team.rows[0].name}.`,
+        league.requester_discord_id,
+        input.recUserId,
+        input.teamId,
+        requestId,
+        JSON.stringify({ requestId, teamId: input.teamId }),
+      ],
+    );
+    await client.query("commit");
+    void notifyLeagueCommissionersOfPendingItem(input.leagueId);
+    return { ok: true, requestId };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export type SiteLeagueHubView = "buzz" | "matchups" | "team" | "store" | "mgmt";

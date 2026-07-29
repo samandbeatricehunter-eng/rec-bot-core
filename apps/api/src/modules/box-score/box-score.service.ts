@@ -1400,12 +1400,12 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
         kind: "box_score_denied",
         title,
         body: reason,
-        href: `/l/${sub.league_id}/mgmt/inbox`,
+        href: `/l/${sub.league_id}/mgmt/commissioner-chat?officeTab=payouts`,
       }).catch((error) => console.error("[WARN] Failed to create denial site notification:", error));
       void sendPushToUser(sub.submitted_by_user_id, {
         title,
         body: reason,
-        url: `/l/${sub.league_id}/mgmt/inbox`,
+        url: `/l/${sub.league_id}/mgmt/commissioner-chat?officeTab=payouts`,
       }).catch(() => {});
     }
 

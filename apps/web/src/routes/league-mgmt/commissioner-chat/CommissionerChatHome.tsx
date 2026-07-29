@@ -9,6 +9,7 @@ import { Badge } from "../../../components/ui/Badge.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PollComposerModal } from "./PollComposerModal.js";
 import { PendingItemsPanel } from "../notifications/PendingItemsPanel.js";
+import { useSearchParams } from "react-router-dom";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -29,7 +30,11 @@ function formatLocalTime(createdAt: string): string {
 // own tab (not merged into the message feed) so they don't get buried by chat volume.
 export function CommissionerChatHome() {
   const { guildId, discordId } = useReadyAuth();
-  const [tab, setTab] = useState<"messages" | "polls" | "payouts">("messages");
+  const [params] = useSearchParams();
+  const requestedTab = params.get("officeTab");
+  const [tab, setTab] = useState<"messages" | "polls" | "payouts" | "requests">(
+    requestedTab === "payouts" || requestedTab === "requests" ? requestedTab : "messages",
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -157,6 +162,7 @@ export function CommissionerChatHome() {
           Polls {topics && topics.filter((t) => t.status === "open").length > 0 ? `(${topics.filter((t) => t.status === "open").length})` : ""}
         </Button>
         <Button variant={tab === "payouts" ? "primary" : "secondary"} onClick={() => setTab("payouts")}>Payouts</Button>
+        <Button variant={tab === "requests" ? "primary" : "secondary"} onClick={() => setTab("requests")}>Team Requests</Button>
       </div>
 
       {tab === "messages" && (
@@ -251,6 +257,7 @@ export function CommissionerChatHome() {
       )}
 
       {tab === "payouts" && <PendingItemsPanel />}
+      {tab === "requests" && <PendingItemsPanel initialFilter="team_request" />}
 
       {showPollComposer && (
         <PollComposerModal

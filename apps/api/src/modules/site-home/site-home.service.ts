@@ -366,29 +366,40 @@ export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[
     // at a time, or a handful of slow/unresponsive lookups can push total request time
     // well past the platform's HTTP timeout and fail the whole cron run even though every
     // individual check is itself guarded against throwing.
-    const results = await Promise.all(
-      (rows.data ?? []).map(async (row) => {
+    const sourceRows = rows.data ?? [];
+    const results: Array<string | null> = new Array(sourceRows.length).fill(null);
+    let nextIndex = 0;
+    const workers = Array.from({ length: Math.min(6, sourceRows.length) }, async () => {
+      while (nextIndex < sourceRows.length) {
+        const index = nextIndex++;
+        const row = sourceRows[index]!;
         const uid = String(row.cloudflare_stream_uid ?? "").trim();
         if (uid) {
           try {
             const inspected = await inspectStreamVideo(uid);
-            if (!inspected.exists) return String(row.id);
+            if (!inspected.exists) {
+              results[index] = String(row.id);
+              continue;
+            }
             if (
               !inspected.ready &&
               Date.now() - new Date(String(row.created_at)).getTime() > DEAD_HIGHLIGHT_PENDING_MAX_MS
-            ) return String(row.id);
+            ) {
+              results[index] = String(row.id);
+              continue;
+            }
           } catch {
             // A transient Cloudflare API failure must never delete a valid clip.
           }
-          return null;
+          continue;
         }
         const playback = playbackFor(row);
         if (!playback.videoUrl || !(await urlIsPlayable(playback.videoUrl))) {
-          return String(row.id);
+          results[index] = String(row.id);
         }
-        return null;
-      }),
-    );
+      }
+    });
+    await Promise.all(workers);
     const deadIds = results.filter((id): id is string => id !== null);
 
     if (deadIds.length) {
@@ -406,16 +417,13 @@ export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[
 export async function getSpotlightReel(input: { authUserId: string | null }) {
   // Non-fatal — a Cloudflare Stream liveness-check hiccup here must never take down the
   // whole home page load. Worst case, dead highlights linger an extra day.
-  await pruneDeadHighlightsOnceDaily().catch((error) => {
-    console.error("[ERROR] pruneDeadHighlightsOnceDaily failed (non-fatal):", error);
-  });
-  let reel = await supabase
+  const reel = await supabase
     .from("rec_spotlight_reel")
     .select("id,highlight_post_id,rank,like_count,selected_at")
     .order("rank", { ascending: true });
   if (reel.error) throw new ApiError(500, "Failed to load spotlight reel.", reel.error);
 
-  const selectedAt = (reel.data ?? [])[0]?.selected_at
+  /*const selectedAt = (reel.data ?? [])[0]?.selected_at
     ? new Date(String((reel.data ?? [])[0]?.selected_at))
     : null;
   const selectedDay = selectedAt
@@ -435,7 +443,7 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
     } catch (error) {
       console.error("[ERROR] refreshSpotlightReel failed, serving stale reel (non-fatal):", error);
     }
-  }
+  }*/
 
   const highlightIds = (reel.data ?? []).map((row) => String(row.highlight_post_id));
   if (!highlightIds.length) {
@@ -836,14 +844,7 @@ export async function careerStatsByGameForUser(recUserId: string) {
     return {
       game,
       gameLabel: GAME_LABELS_FOR_STATS[game] ?? (game === "legacy" ? "Deleted/legacy leagues" : game),
-      gamesLogged: stats.gamesLogged,
-      passingYards: stats.passingYards,
-      rushingYards: stats.rushingYards,
-      totalYards: stats.totalYards,
-      firstDowns: stats.firstDowns,
-      turnoversGenerated: stats.turnoversGenerated,
-      turnoversCommitted: stats.turnoversCommitted,
-      turnoverDifferential: stats.turnoverDifferential,
+      ...stats,
     };
   });
 

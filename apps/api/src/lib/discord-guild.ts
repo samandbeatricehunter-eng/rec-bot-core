@@ -531,6 +531,21 @@ export async function removeMemberRole(guildId: string, discordId: string, roleI
   if (!res.ok && res.status !== 204) throw new Error(`Failed to remove role (${res.status})`);
 }
 
+/** Create a short-lived, single-use server invite for an approved league member. */
+export async function createDiscordChannelInvite(channelId: string): Promise<string | null> {
+  const response = await discordBotFetch(`/channels/${channelId}/invites`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-audit-log-reason": "REC approved league team request",
+    },
+    body: JSON.stringify({ max_age: 7 * 24 * 60 * 60, max_uses: 1, unique: true }),
+  }).catch(() => null);
+  if (!response?.ok) return null;
+  const invite = await response.json() as { code?: string };
+  return invite.code ? `https://discord.gg/${invite.code}` : null;
+}
+
 export async function setGuildMemberNickname(guildId: string, discordId: string, nickname: string, reason: string): Promise<void> {
   const res = await discordBotFetch(`/guilds/${guildId}/members/${discordId}`, {
     method: "PATCH",

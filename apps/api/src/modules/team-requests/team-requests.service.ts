@@ -4,6 +4,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { createDiscordChannelInvite } from "../../lib/discord-guild.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 export async function createTeamLinkRequest(input: { guildId: string; discordId: string; teamId: string }) {
@@ -198,6 +199,13 @@ export async function approveTeamLinkRequest(input: { requestId: string; reviewe
     .eq("source_id", input.requestId);
 
   const teamRow = await supabase.from("rec_teams").select("*").eq("id", request.team_id).maybeSingle();
+  if (input.reviewerDiscordId === "web-dashboard") {
+    return completeTeamLinkRequest({
+      requestId: input.requestId,
+      authority: "member",
+      reviewerDiscordId: input.reviewerDiscordId,
+    });
+  }
   return {
     ...updated.data,
     team: teamRow.data ?? null,
@@ -237,13 +245,40 @@ export async function completeTeamLinkRequest(input: {
   const request = await getTeamLinkRequest(input.requestId);
   if (request.status !== "approved") throw new ApiError(409, "Approve the request before assigning a role.");
 
-  const link = await linkUserToTeam({
-    guildId: request.guild_id,
-    discordId: request.requester_discord_id,
-    teamId: request.team_id,
-    authority: input.authority,
-    requestedByDiscordId: input.reviewerDiscordId,
-  });
+  let link: unknown;
+  if (String(request.guild_id).startsWith("site:")) {
+    const now = new Date().toISOString();
+    const membership = await supabase
+      .from("rec_league_memberships")
+      .upsert(
+        { league_id: request.league_id, user_id: request.requester_user_id, status: "active", role: "member" },
+        { onConflict: "league_id,user_id" },
+      );
+    if (membership.error) throw new ApiError(500, "Failed to add the league member.", membership.error);
+    const assignment = await supabase
+      .from("rec_team_assignments")
+      .insert({
+        league_id: request.league_id,
+        team_id: request.team_id,
+        user_id: request.requester_user_id,
+        assignment_status: "active",
+        source: "manual_admin_entry",
+        notes: "Authority: member",
+        stats_credit_starts_at: now,
+      })
+      .select("*")
+      .single();
+    if (assignment.error) throw new ApiError(500, "Failed to assign the requested team.", assignment.error);
+    link = { assignment: assignment.data, authority: "member", accountKind: "site" };
+  } else {
+    link = await linkUserToTeam({
+      guildId: request.guild_id,
+      discordId: request.requester_discord_id,
+      teamId: request.team_id,
+      authority: "member",
+      requestedByDiscordId: input.reviewerDiscordId,
+    });
+  }
 
   const reviewerAccount = await supabase
     .from("rec_discord_accounts")
@@ -265,6 +300,51 @@ export async function completeTeamLinkRequest(input: {
     .select("*")
     .single();
   if (updated.error) throw new ApiError(500, "Failed to complete team request.", updated.error);
+
+  const leagueDetails = await supabase
+    .from("rec_leagues")
+    .select("name,league_password,discord_bot_enabled")
+    .eq("id", request.league_id)
+    .maybeSingle();
+  let serverInviteUrl: string | null = null;
+  if (leagueDetails.data?.discord_bot_enabled) {
+    const link = await supabase
+      .from("rec_server_league_links")
+      .select("server_id")
+      .eq("league_id", request.league_id)
+      .eq("is_primary", true)
+      .maybeSingle();
+    const route = link.data?.server_id
+      ? await supabase
+        .from("rec_server_routes")
+        .select("main_chat_channel_id")
+        .eq("server_id", link.data.server_id)
+        .maybeSingle()
+      : null;
+    if (route?.data?.main_chat_channel_id) {
+      serverInviteUrl = await createDiscordChannelInvite(route.data.main_chat_channel_id);
+    }
+  }
+  await createSiteNotification({
+    userId: request.requester_user_id,
+    leagueId: request.league_id,
+    kind: "team_request_approved",
+    title: `Welcome to ${leagueDetails.data?.name ?? "your new league"}`,
+    body: [
+      `Your request for ${request.team?.name ?? "the team"} was approved.`,
+      leagueDetails.data?.league_password
+        ? `League password: ${leagueDetails.data.league_password}.`
+        : "This league does not require a password.",
+      leagueDetails.data?.discord_bot_enabled
+        ? serverInviteUrl
+          ? `Discord server invite: ${serverInviteUrl}. Open My Team to enter your gamertag or PSN and request a game invite.`
+          : "Open the league to request a Discord/server invite and enter your gamertag or PSN for a game invite."
+        : "Open the league to get started.",
+    ].join(" "),
+    href: `/l/${request.league_id}/team?teamInvite=1`,
+  }).catch((error) => {
+    console.error("[WARN] Failed to notify approved team requester:", error);
+  });
 
   return { request: updated.data, link };
 }

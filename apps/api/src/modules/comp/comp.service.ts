@@ -7,7 +7,6 @@ export type CompUserSummary = {
   id: string;
   username: string | null;
   displayName: string;
-  subscriptionTier: string;
 };
 
 export async function listConnectedUsers(input: { page?: number; pageSize?: number }): Promise<{
@@ -23,14 +22,15 @@ export async function listConnectedUsers(input: { page?: number; pageSize?: numb
   const [rows, countResult] = await Promise.all([
     getPgPool().query(
       `
-        select id, username, display_name, subscription_tier
+        select id, username, display_name
         from rec_users
+        where supabase_auth_user_id is not null
         order by username nulls last, display_name
         limit $1 offset $2
       `,
       [pageSize, offset],
     ),
-    getPgPool().query(`select count(*)::int as n from rec_users`),
+    getPgPool().query(`select count(*)::int as n from rec_users where supabase_auth_user_id is not null`),
   ]);
 
   return {
@@ -38,7 +38,6 @@ export async function listConnectedUsers(input: { page?: number; pageSize?: numb
       id: row.id,
       username: row.username,
       displayName: row.username ?? row.display_name ?? "REC Member",
-      subscriptionTier: row.subscription_tier,
     })),
     page,
     pageSize,
@@ -48,7 +47,11 @@ export async function listConnectedUsers(input: { page?: number; pageSize?: numb
 
 export async function getUserCompDetail(recUserId: string) {
   const [profileResult, globalRecordRow, discordRow] = await Promise.all([
-    getPgPool().query(`select id, username, display_name from rec_users where id = $1`, [recUserId]),
+    getPgPool().query(
+      `select id, username, display_name from rec_users
+       where id = $1 and supabase_auth_user_id is not null`,
+      [recUserId],
+    ),
     supabase.from("rec_global_user_records").select("*").eq("user_id", recUserId).maybeSingle(),
     supabase
       .from("rec_discord_accounts")
@@ -85,6 +88,7 @@ export async function getUserCompDetail(recUserId: string) {
       superbowlWins: Number((globalRecord as any).superbowl_wins ?? 0),
       superbowlLosses: Number((globalRecord as any).superbowl_losses ?? 0),
       gamesPlayed: Number((globalRecord as any).games_played ?? 0),
+      pointDifferential: Number((globalRecord as any).point_differential ?? 0),
     },
     careerStats: careerStats.games,
     badges: badges.badges,

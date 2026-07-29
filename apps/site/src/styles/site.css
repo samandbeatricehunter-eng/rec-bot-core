@@ -2461,6 +2461,78 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-muted);
   line-height: 1.4;
 }
+
+.site-comp-queue,
+.site-comp-user-modal {
+  width: min(1180px, calc(100vw - 48px));
+  max-width: none;
+  margin-inline: auto;
+}
+.site-comp-profile-grid,
+.site-comp-queue-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.site-comp-match-room,
+.site-comp-candidates article,
+.site-comp-chat-log {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--site-accent) 34%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--site-panel) 42%, transparent);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+.site-comp-chat-log {
+  min-height: 220px;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.site-comp-chat-compose,
+.site-comp-candidates article {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.site-comp-chat-compose input { flex: 1; }
+.site-comp-candidates article span,
+.site-comp-candidates article em { display: block; }
+.site-comp-box-modal {
+  width: min(900px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+}
+.site-comp-shot-examples {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 16px 0;
+}
+.site-comp-shot-examples > div {
+  min-height: 130px;
+  padding: 18px;
+  border: 1px dashed var(--site-accent);
+  border-radius: 12px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: linear-gradient(135deg, rgb(255 255 255 / 8%), transparent);
+}
+.site-comp-shot-examples span { display: block; margin-top: 8px; }
+.site-league-search-card:not(.is-expanded) .site-league-pill:not(.is-card-summary) {
+  display: none;
+}
+@media (max-width: 760px) {
+  .site-comp-queue,
+  .site-comp-user-modal { width: calc(100vw - 20px); }
+  .site-comp-profile-grid,
+  .site-comp-queue-controls { grid-template-columns: 1fr; }
+  .site-comp-shot-examples { grid-template-columns: 1fr; }
+}
 .site-spotlight-comment-form {
   display: grid;
   grid-template-columns: 1fr auto;

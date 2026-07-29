@@ -72,6 +72,8 @@ export interface GameStats {
   opponentFourthDownConversions: number;
   opponentFourthDownAttempts: number | null;
   opponentTurnovers: number;
+  opponentInterceptionsThrown: number | null;
+  opponentFumblesLost: number | null;
   opponentRedZoneOffensivePct: number;
 
   // ── CFB-only (null for madden_26/madden_27) ──────────────────────────────

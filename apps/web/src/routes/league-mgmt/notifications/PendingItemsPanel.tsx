@@ -29,13 +29,13 @@ const ALWAYS_VISIBLE_TYPES: CommissionerNotificationType[] = ["eos_payout", "str
 // The guts of the commissioner pending-items workflow (category filters, list, review
 // modals) — extracted so it can be embedded both as its own League Mgmt page
 // (NotificationsHome.tsx) and inline as a tab in the Commissioner's Office chat window.
-export function PendingItemsPanel() {
+export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: CommissionerNotificationType | "all" }) {
   const { guildId } = useReadyAuth();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<CommissionerNotificationType | "all">("all");
+  const [filter, setFilter] = useState<CommissionerNotificationType | "all">(initialFilter);
   const [activeBoxScoreId, setActiveBoxScoreId] = useState<string | null>(null);
   const [activeActiveCheckId, setActiveActiveCheckId] = useState<string | null>(null);
   const [activeEosAwardId, setActiveEosAwardId] = useState<string | null>(null);

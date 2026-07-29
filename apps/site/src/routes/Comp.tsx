@@ -156,6 +156,211 @@ function RankingsTab() {
   );
 }
 
+function MatchupQueueTab() {
+  const [game, setGame] = useState("cfb_27");
+  const [state, setState] = useState<any>(null);
+  const [consoleName, setConsoleName] = useState<"xbox" | "ps5" | "pc">("xbox");
+  const [gamerTag, setGamerTag] = useState("");
+  const [crossPlay, setCrossPlay] = useState(false);
+  const [rosterMode, setRosterMode] = useState<"default" | "cut">("default");
+  const [quarterLength, setQuarterLength] = useState("");
+  const [acceleratedClock, setAcceleratedClock] = useState("");
+  const [minimumClock, setMinimumClock] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [boxScoreOpen, setBoxScoreOpen] = useState(false);
+  const [boxFiles, setBoxFiles] = useState<File[]>([]);
+  const [parsedText, setParsedText] = useState("");
+  const [boxUrls, setBoxUrls] = useState<string[]>([]);
+
+  async function reload() {
+    try {
+      const next = await siteApi.getCompState(game);
+      setState(next);
+      if (next.profile?.console) setConsoleName(next.profile.console);
+      if (next.profile?.gamer_tag) setGamerTag(next.profile.gamer_tag);
+      setCrossPlay(Boolean(next.profile?.cross_play_enabled));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load matchmaking.");
+    }
+  }
+  useEffect(() => {
+    void reload();
+    const timer = window.setInterval(() => void reload(), 15_000);
+    return () => window.clearInterval(timer);
+  }, [game]);
+
+  async function act(run: () => Promise<unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await run();
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The action could not be completed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function parseBoxScore() {
+    if (!match || boxFiles.length < 2) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const uploaded = await Promise.all(boxFiles.slice(0, 2).map((file) => siteApi.uploadCompImage(file)));
+      const urls = uploaded.map((row) => row.url);
+      const parsed = await siteApi.parseCompBoxScore({ game, imageUrls: urls });
+      setBoxUrls(urls);
+      setParsedText(JSON.stringify(parsed.parsed ?? parsed, null, 2));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not parse the box score.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitParsedBoxScore() {
+    if (!match || !parsedText || boxUrls.length < 2) return;
+    let corrected: unknown;
+    try {
+      corrected = JSON.parse(parsedText);
+    } catch {
+      setError("Corrected box-score data must remain valid JSON.");
+      return;
+    }
+    await act(() => siteApi.submitCompBoxScore({
+      matchId: match.id,
+      imageUrls: boxUrls,
+      parsedPayload: corrected,
+      correctedPayload: corrected,
+    }));
+    setBoxScoreOpen(false);
+  }
+
+  const match = state?.match;
+  const incoming = match?.status === "requested" && match?.opponent_user_id === state?.currentUserId;
+  const peerName = match
+    ? match.requester_user_id === state.currentUserId
+      ? match.opponent_username
+      : match.requester_username
+    : null;
+  const peerTag = match
+    ? match.requester_user_id === state.currentUserId
+      ? match.opponent_gamer_tag
+      : match.requester_gamer_tag
+    : null;
+
+  return (
+    <div className="site-page-card site-comp-queue">
+      <header className="site-section-heading">
+        <h2>H2H Comp Matchmaking</h2>
+        <p>Default-roster games use Play a Friend. CUT games use Play a Friend through CUT. Add your opponent as a friend to send the invite; you can remove them after the game.</p>
+      </header>
+      <div className="site-account-stat-grid site-comp-profile-grid">
+        <label className="site-field"><span>Game</span><select className="site-select" value={game} onChange={(e) => setGame(e.target.value)}><option value="cfb_27">CFB 27</option><option value="madden_26">Madden 26</option><option value="madden_27">Madden 27</option></select></label>
+        <label className="site-field"><span>Console</span><select className="site-select" value={consoleName} onChange={(e) => setConsoleName(e.target.value as any)}><option value="xbox">Xbox</option><option value="ps5">PS5</option><option value="pc">PC</option></select></label>
+        <label className="site-field"><span>Gamertag / PSN</span><input value={gamerTag} onChange={(e) => setGamerTag(e.target.value)} /></label>
+        <label className="site-check-row"><input type="checkbox" checked={crossPlay} onChange={(e) => setCrossPlay(e.target.checked)} /><span>Cross-Play Enabled</span></label>
+      </div>
+      <button className="site-btn site-btn-primary" type="button" disabled={busy || gamerTag.trim().length < 2} onClick={() => void act(() => siteApi.saveCompProfile({ console: consoleName, gamerTag, crossPlayEnabled: crossPlay }))}>Save player settings</button>
+
+      {match ? (
+        <section className="site-comp-match-room">
+          <h3>{match.status === "requested" ? `Match request with @${peerName}` : `Private matchup: @${peerName}`}</h3>
+          {incoming ? (
+            <div className="site-profile-actions">
+              <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.respondCompMatch(match.id, true))}>Accept</button>
+              <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => void act(() => siteApi.respondCompMatch(match.id, false))}>Decline</button>
+            </div>
+          ) : match.status === "requested" ? <p>Waiting for your opponent to respond.</p> : (
+            <>
+              <p><strong>Opponent ID:</strong> {peerTag}. Send a friend request and game invite. Be prepared to capture a screenshot if your opponent quits.</p>
+              <div className="site-comp-chat-log">
+                {(state.messages ?? []).map((row: any) => <p key={row.id}><strong>@{row.username ?? row.display_name}:</strong> {row.body}</p>)}
+              </div>
+              <div className="site-comp-chat-compose"><input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Message your opponent…" /><button className="site-btn site-btn-primary" disabled={!message.trim() || busy} onClick={() => void act(async () => { await siteApi.sendCompMessage(match.id, message); setMessage(""); })}>Send</button></div>
+              {state.submission ? (
+                <div className="site-comp-submission-review">
+                  <h4>Box score awaiting review</h4>
+                  <pre>{JSON.stringify(state.submission.corrected_payload ?? state.submission.parsed_payload, null, 2)}</pre>
+                  <div className="site-profile-actions">
+                    <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => siteApi.reviewCompBoxScore({ submissionId: state.submission.id, action: "approve" }))}>Confirm Result</button>
+                    <button className="site-btn site-btn-ghost" disabled={busy} onClick={() => {
+                      const raw = window.prompt("Paste the corrected JSON to return to the submitter.", JSON.stringify(state.submission.corrected_payload ?? state.submission.parsed_payload, null, 2));
+                      if (!raw) return;
+                      try {
+                        const correctedPayload = JSON.parse(raw);
+                        void act(() => siteApi.reviewCompBoxScore({ submissionId: state.submission.id, action: "correct", correctedPayload, note: "Opponent supplied corrections." }));
+                      } catch {
+                        setError("Corrections must be valid JSON.");
+                      }
+                    }}>Correct & Return</button>
+                    <button className="site-btn site-btn-danger" disabled={busy} onClick={() => {
+                      const note = window.prompt("Explain why this result still cannot be approved.");
+                      if (note) void act(() => siteApi.reviewCompBoxScore({ submissionId: state.submission.id, action: "deny", note }));
+                    }}>Flag for Admin</button>
+                  </div>
+                </div>
+              ) : null}
+              <div className="site-profile-actions">
+                <button className="site-btn site-btn-ghost" onClick={() => { const url = window.prompt("Stream URL"); if (url) void act(() => siteApi.shareCompStream(match.id, url)); }}>Share Stream</button>
+                <button className="site-btn site-btn-ghost" onClick={() => setBoxScoreOpen(true)}>Upload Box Score</button>
+                <button className="site-btn site-btn-ghost" onClick={() => { const details = window.prompt("Describe the issue. Evidence can be uploaded with the report; reports without evidence may be invalidated."); if (details) void act(() => siteApi.createCompReport({ matchId: match.id, type: "other", details, evidenceUrls: [] })); }}>Report Issue</button>
+                <button className="site-btn site-btn-danger" onClick={() => void act(() => siteApi.concedeCompMatch(match.id))}>Concede Defeat</button>
+                <button className="site-btn site-btn-ghost" onClick={() => void act(() => siteApi.cancelCompMatch(match.id))}>Cancel Matchup</button>
+              </div>
+            </>
+          )}
+        </section>
+      ) : (
+        <>
+          <section className="site-comp-queue-controls">
+            <label className="site-field"><span>Roster mode</span><select className="site-select" value={rosterMode} onChange={(e) => setRosterMode(e.target.value as any)}><option value="default">Play a Friend — default rosters</option><option value="cut">Play a Friend — CUT</option></select></label>
+            <label className="site-field"><span>Quarter length (optional)</span><input type="number" min="4" max="8" value={quarterLength} onChange={(e) => setQuarterLength(e.target.value)} /></label>
+            <label className="site-field"><span>Accelerated clock (optional)</span><select className="site-select" value={acceleratedClock} onChange={(e) => setAcceleratedClock(e.target.value)}><option value="">Any</option><option value="on">On</option><option value="off">Off</option></select></label>
+            <label className="site-field"><span>Minimum clock (15–25s)</span><input type="number" min="15" max="25" disabled={acceleratedClock !== "on"} value={minimumClock} onChange={(e) => setMinimumClock(e.target.value)} /></label>
+          </section>
+          <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => state?.ownQueue ? siteApi.leaveCompQueue() : siteApi.joinCompQueue({ game, rosterMode, quarterLength: quarterLength ? Number(quarterLength) : null, acceleratedClock: acceleratedClock ? acceleratedClock === "on" : null, acceleratedClockMinimum: acceleratedClock === "on" && minimumClock ? Number(minimumClock) : null }))}>{state?.ownQueue ? "Leave Queue" : "Join Queue"}</button>
+          <div className="site-comp-candidates">
+            {(state?.queue ?? []).map((candidate: any) => (
+              <article key={candidate.user_id}>
+                <div><strong>@{candidate.username ?? candidate.display_name}</strong><span>{candidate.console} · {candidate.roster_mode} · matchup {Math.round(candidate.matchupStrength)}%</span>{candidate.connection_issue ? <em>Connection issues reported</em> : null}{candidate.dasher ? <em>Dasher</em> : null}</div>
+                <button className="site-btn site-btn-primary" disabled={!state?.ownQueue || busy} onClick={() => void act(() => siteApi.requestCompMatch(candidate.user_id))}>Request Match</button>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+      {error ? <p className="site-auth-error">{error}</p> : null}
+      {boxScoreOpen ? (
+        <div className="site-modal-backdrop" onMouseDown={() => !busy && setBoxScoreOpen(false)}>
+          <section className="site-modal site-comp-box-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className="site-modal-close" onClick={() => setBoxScoreOpen(false)}>×</button>
+            <h3>Submit H2H Comp Box Score</h3>
+            <div className="site-comp-shot-examples">
+              <div><strong>1. Top screenshot</strong><span>Show the final score, teams, and scoring summary.</span></div>
+              <div><strong>2. Bottom screenshot</strong><span>Show the complete team statistics through the last row.</span></div>
+            </div>
+            <p>Upload both screenshots. You must review and correct every parsed field before submission.</p>
+            <input type="file" accept="image/*" multiple onChange={(event) => setBoxFiles(Array.from(event.target.files ?? []).slice(0, 2))} />
+            {!parsedText ? (
+              <button className="site-btn site-btn-primary" disabled={busy || boxFiles.length < 2} onClick={() => void parseBoxScore()}>{busy ? "Parsing…" : "Parse screenshots"}</button>
+            ) : (
+              <>
+                <label className="site-field"><span>Review and correct parsed result</span><textarea rows={18} value={parsedText} onChange={(event) => setParsedText(event.target.value)} /></label>
+                <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void submitParsedBoxScore()}>Submit for opponent confirmation</button>
+              </>
+            )}
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function UserDetailModal({ userId, onClose }: { userId: string; onClose: () => void }) {
   const [detail, setDetail] = useState<CompUserDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -212,6 +417,10 @@ function UserDetailModal({ userId, onClose }: { userId: string; onClose: () => v
                 <span>Games played</span>
                 <strong>{detail.globalRecord.gamesPlayed}</strong>
               </article>
+              <article>
+                <span>Point differential</span>
+                <strong>{detail.globalRecord.pointDifferential > 0 ? "+" : ""}{detail.globalRecord.pointDifferential}</strong>
+              </article>
             </div>
 
             <h3>Stats by game</h3>
@@ -221,12 +430,14 @@ function UserDetailModal({ userId, onClose }: { userId: string; onClose: () => v
                   <details key={game.game} className="site-account-game-block">
                     <summary>{game.gameLabel}</summary>
                     <div className="site-account-stat-grid">
-                      <article><span>Games logged</span><strong>{game.gamesLogged}</strong></article>
-                      <article><span>Passing yards</span><strong>{game.passingYards.toLocaleString()}</strong></article>
-                      <article><span>Rushing yards</span><strong>{game.rushingYards.toLocaleString()}</strong></article>
-                      <article><span>Total yards</span><strong>{game.totalYards.toLocaleString()}</strong></article>
-                      <article><span>First downs</span><strong>{game.firstDowns.toLocaleString()}</strong></article>
-                      <article><span>TO differential</span><strong>{game.turnoverDifferential}</strong></article>
+                      {Object.entries(game)
+                        .filter(([key, value]) => !["game", "gameLabel", "activeStreak"].includes(key) && typeof value === "number")
+                        .map(([key, value]) => (
+                          <article key={key}>
+                            <span>{key.replace(/([A-Z])/g, " $1").replace(/^./, (letter) => letter.toUpperCase())}</span>
+                            <strong>{Number(value).toLocaleString()}</strong>
+                          </article>
+                        ))}
                     </div>
                   </details>
                 ))}
@@ -306,7 +517,7 @@ function UsersTab() {
                 >
                   @{user.username ?? user.displayName}
                 </button>
-                <span>{user.subscriptionTier}</span>
+                <span>View career profile</span>
               </li>
             ))}
           </ul>
@@ -349,7 +560,7 @@ export function CompPage() {
       </div>
 
       {tab === "rankings" ? <RankingsTab /> : null}
-      {tab === "queue" ? <ComingSoon title="Matchup Queue" /> : null}
+      {tab === "queue" ? <MatchupQueueTab /> : null}
       {tab === "tournaments" ? <ComingSoon title="Tournaments" /> : null}
       {tab === "live" ? <ComingSoon title="Live Games" /> : null}
       {tab === "users" ? <UsersTab /> : null}

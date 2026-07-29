@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AccentTier } from "./components/AccentTier.js";
 import { SiteShell } from "./components/SiteShell.js";
@@ -11,7 +11,6 @@ import { Friends } from "./routes/Friends.js";
 import { Inbox } from "./routes/Inbox.js";
 import { Landing } from "./routes/Landing.js";
 import { LogIn } from "./routes/LogIn.js";
-import { LeagueMgmtInboxPage } from "./routes/placeholders.js";
 import { CompPage } from "./routes/Comp.js";
 import { BadgesPage } from "./routes/Badges.js";
 import { HomePage } from "./routes/Home.js";
@@ -23,6 +22,11 @@ import { SignUpComplete } from "./routes/SignUpComplete.js";
 import { Help } from "./routes/Help.js";
 import { Privacy } from "./routes/Privacy.js";
 import { Terms } from "./routes/Terms.js";
+
+function LegacyCommissionerInboxRedirect() {
+  const { leagueId = "" } = useParams();
+  return <Navigate replace to={`/l/${leagueId}/mgmt/commissioner-chat?officeTab=payouts`} />;
+}
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
 import { AdminPage } from "./routes/Admin.js";
@@ -228,7 +232,7 @@ function Routed() {
         <Route path="/l/:leagueId/matchups/:gameId" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/team" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/store" element={<LeagueHubPage />} />
-        <Route path="/l/:leagueId/mgmt/inbox" element={<LeagueMgmtInboxPage />} />
+        <Route path="/l/:leagueId/mgmt/inbox" element={<LegacyCommissionerInboxRedirect />} />
         <Route path="/l/:leagueId/mgmt/*" element={<LeagueHubPage />} />
         <Route path="/league-mgmt/*" element={<LegacyLeagueMgmtRedirect />} />
       </Route>

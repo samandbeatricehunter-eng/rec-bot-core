@@ -4,10 +4,12 @@ import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   getSiteLeagueTicker,
+  listOpenTeamsForSiteLeague,
   listMySiteLeagues,
   openSiteLeagueHub,
   requireLinkedRecUser,
   retireFromSiteLeague,
+  requestSiteLeagueTeam,
   searchSiteLeagues,
 } from "./site-leagues.service.js";
 
@@ -105,6 +107,38 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
           leagueId: body.leagueId,
         }),
       );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/open-teams", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(await listOpenTeamsForSiteLeague({
+        recUserId: user.recUserId,
+        leagueId: body.leagueId,
+      }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/request-team", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({
+        leagueId: z.string().uuid(),
+        teamId: z.string().uuid(),
+      }).parse(request.body ?? {});
+      return reply.send(await requestSiteLeagueTeam({
+        recUserId: user.recUserId,
+        leagueId: body.leagueId,
+        teamId: body.teamId,
+      }));
     } catch (error) {
       return sendError(reply, error);
     }

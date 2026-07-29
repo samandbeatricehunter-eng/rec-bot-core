@@ -9,6 +9,7 @@ import {
   type SiteLeagueSearchFilters,
   type SiteLeagueSearchHit,
   type SiteLeagueSummary,
+  type SiteOpenTeam,
 } from "../lib/site-api.js";
 
 type Tab = "search" | "mine";
@@ -181,8 +182,18 @@ function Pill({
   value: ReactNode;
   title?: string;
 }) {
+  const compactLabels = new Set([
+    "Coin economy",
+    "Advance timing",
+    "Difficulty",
+    "Quarter length",
+    "Accel clock",
+    "Injuries",
+    "Wear & tear",
+    "Coach mode",
+  ]);
   return (
-    <li className="site-league-pill" title={title}>
+    <li className={`site-league-pill${compactLabels.has(label) ? " is-card-summary" : ""}`} title={title}>
       <span className="site-league-pill-label">{label}</span>
       <span className="site-league-pill-value">{value}</span>
     </li>
@@ -217,12 +228,14 @@ function LeagueSearchCard({
   expanded,
   onToggle,
   onOpen,
+  onRequestTeam,
 }: {
   league: SiteLeagueSearchHit;
   memberTier: EntitlementSummary["tier"];
   expanded: boolean;
   onToggle: () => void;
   onOpen: () => void;
+  onRequestTeam: () => void;
 }) {
   const cfb = isCfbGame(league.game);
   const streamNeeded =
@@ -519,15 +532,15 @@ function LeagueSearchCard({
             <button
               type="button"
               className="site-btn site-btn-primary"
-              onClick={onOpen}
-              disabled={!league.isMember}
+              onClick={league.isMember ? onOpen : onRequestTeam}
+              disabled={!league.isMember && league.openTeamCount === 0}
               title={
                 league.isMember
                   ? "Open hub"
                   : "Join from Discord or request a team first"
               }
             >
-              {league.isMember ? "Open hub" : "Members only"}
+              {league.isMember ? "Open hub" : "Request Team"}
             </button>
           </div>
         </div>
@@ -536,13 +549,13 @@ function LeagueSearchCard({
           <button
             type="button"
             className="site-btn site-btn-primary"
-            onClick={onOpen}
-            disabled={!league.isMember}
+            onClick={league.isMember ? onOpen : onRequestTeam}
+            disabled={!league.isMember && league.openTeamCount === 0}
             title={
               league.isMember ? "Open hub" : "Join from Discord or request a team first"
             }
           >
-            {league.isMember ? "Open" : "Members only"}
+            {league.isMember ? "Open" : "Request Team"}
           </button>
         </div>
       )}
@@ -582,6 +595,13 @@ export function LeaguesPage() {
   const [sort, setSort] = useState(params.get("sort") ?? "name_asc");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [requestLeague, setRequestLeague] = useState<SiteLeagueSearchHit | null>(null);
+  const [requestTeams, setRequestTeams] = useState<SiteOpenTeam[]>([]);
+  const [requestTeamId, setRequestTeamId] = useState("");
+  const [requestPendingTeamId, setRequestPendingTeamId] = useState<string | null>(null);
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const [requestSent, setRequestSent] = useState(false);
 
   const [results, setResults] = useState<SiteLeagueSearchHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -696,6 +716,40 @@ export function LeaguesPage() {
   function openLeague(leagueId: string) {
     hub.selectLeague(leagueId);
     navigate(`/l/${leagueId}/buzz`);
+  }
+
+  async function openTeamRequest(league: SiteLeagueSearchHit) {
+    setRequestLeague(league);
+    setRequestTeams([]);
+    setRequestTeamId("");
+    setRequestError(null);
+    setRequestSent(false);
+    setRequestBusy(true);
+    try {
+      const result = await siteApi.listOpenLeagueTeams(league.id);
+      setRequestTeams(result.teams);
+      setRequestPendingTeamId(result.pendingTeamId);
+      if (!result.pendingTeamId && result.teams[0]) setRequestTeamId(result.teams[0].id);
+    } catch (err) {
+      setRequestError(err instanceof Error ? err.message : "Could not load open teams.");
+    } finally {
+      setRequestBusy(false);
+    }
+  }
+
+  async function submitTeamRequest() {
+    if (!requestLeague || !requestTeamId) return;
+    setRequestBusy(true);
+    setRequestError(null);
+    try {
+      await siteApi.requestLeagueTeam(requestLeague.id, requestTeamId);
+      setRequestPendingTeamId(requestTeamId);
+      setRequestSent(true);
+    } catch (err) {
+      setRequestError(err instanceof Error ? err.message : "Could not submit the request.");
+    } finally {
+      setRequestBusy(false);
+    }
   }
 
   return (
@@ -943,6 +997,7 @@ export function LeaguesPage() {
                       setExpandedId((id) => (id === league.id ? null : league.id))
                     }
                     onOpen={() => openLeague(league.id)}
+                    onRequestTeam={() => void openTeamRequest(league)}
                   />
                 ))}
               </div>
@@ -950,6 +1005,37 @@ export function LeaguesPage() {
           )}
         </section>
       )}
+      {requestLeague ? (
+        <div className="site-modal-backdrop" role="presentation" onMouseDown={() => setRequestLeague(null)}>
+          <section className="site-modal site-team-request-modal" role="dialog" aria-modal="true" aria-labelledby="team-request-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className="site-modal-close" onClick={() => setRequestLeague(null)} aria-label="Close">×</button>
+            <h2 id="team-request-title">Request a team in {requestLeague.name}</h2>
+            <p className="site-muted">Choose one available team. The league commissioner will review your request.</p>
+            {requestBusy && requestTeams.length === 0 ? <p>Loading available teams…</p> : null}
+            {requestPendingTeamId ? (
+              <p className="site-success">Your team request is pending commissioner approval.</p>
+            ) : requestTeams.length ? (
+              <>
+                <label className="site-field">
+                  <span>Available team</span>
+                  <select className="site-select" value={requestTeamId} onChange={(event) => setRequestTeamId(event.target.value)}>
+                    {requestTeams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}{team.mascot && !team.name.includes(team.mascot) ? ` ${team.mascot}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="button" className="site-btn site-btn-primary" disabled={requestBusy || !requestTeamId} onClick={() => void submitTeamRequest()}>
+                  {requestBusy ? "Submitting…" : "Submit request"}
+                </button>
+              </>
+            ) : !requestBusy ? <p>No teams are currently available.</p> : null}
+            {requestSent ? <p className="site-success">Request submitted.</p> : null}
+            {requestError ? <p className="site-auth-error">{requestError}</p> : null}
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

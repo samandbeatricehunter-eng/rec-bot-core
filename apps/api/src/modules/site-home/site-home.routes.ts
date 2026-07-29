@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
+import { runDailyMaintenance } from "../maintenance/maintenance.service.js";
 import {
   addHighlightComment,
   getSiteHomeCard,
@@ -10,7 +11,6 @@ import {
   listSiteAnnouncements,
   listUserBadges,
   listUserCareerStatsByGame,
-  refreshSpotlightReel,
   toggleSpotlightReaction,
 } from "./site-home.service.js";
 
@@ -111,7 +111,7 @@ export async function siteHomeRoutes(app: FastifyInstance) {
   app.post("/v1/site-home/spotlight/refresh", async (request, reply) => {
     try {
       requireInternalApiKey(request);
-      return reply.send(await refreshSpotlightReel());
+      return reply.send(await runDailyMaintenance());
     } catch (error) {
       return sendError(reply, error);
     }
