@@ -27,6 +27,7 @@ import { Privacy } from "./routes/Privacy.js";
 import { Terms } from "./routes/Terms.js";
 import { AuthCallback } from "./routes/AuthCallback.js";
 import { OpenApp } from "./routes/OpenApp.js";
+import { AdminPage } from "./routes/Admin.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
   const parts: string[] = [];
@@ -221,6 +222,7 @@ function Routed() {
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/comp" element={<CompPage />} />
         <Route path="/account" element={<Account />} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/friends" element={<Friends />} />
         <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />

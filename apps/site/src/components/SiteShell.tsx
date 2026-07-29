@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { BottomNav } from "./BottomNav.js";
 import { DesktopSidebar } from "./DesktopSidebar.js";
+import { ImpersonationBanner } from "./ImpersonationBanner.js";
 import { LeagueSelector } from "./LeagueSelector.js";
 import { MessagesLink } from "./MessagesLink.js";
 import { NotificationsBell } from "./NotificationsBell.js";
@@ -20,6 +21,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
         isLeague ? "is-league-scope" : "is-main-scope",
       ].join(" ")}
     >
+      <ImpersonationBanner />
       <header className="site-top-bar">
         <div className="site-top-bar-start">
           {hub.selectedLeague ? (

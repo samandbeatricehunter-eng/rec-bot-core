@@ -675,6 +675,116 @@ export const siteApi = {
   unsubscribeFromPush(endpoint: string) {
     return request<{ ok: true }>("/v1/push/unsubscribe", { endpoint });
   },
+  getAdminStatus() {
+    return request<{ isAdmin: boolean }>("/v1/admin/whoami", {});
+  },
+  getAdminStats() {
+    return request<AdminStats>("/v1/admin/stats", {});
+  },
+  listAdminAnnouncements() {
+    return request<{ announcements: AdminAnnouncement[] }>("/v1/admin/announcements/list", {});
+  },
+  createAdminAnnouncement(input: {
+    title: string;
+    body: string;
+    href?: string | null;
+    published?: boolean;
+    sortOrder?: number;
+    startsAt?: string | null;
+    endsAt?: string | null;
+  }) {
+    return request<{ announcement: AdminAnnouncement }>("/v1/admin/announcements/create", input);
+  },
+  updateAdminAnnouncement(input: {
+    id: string;
+    title?: string;
+    body?: string;
+    href?: string | null;
+    published?: boolean;
+    sortOrder?: number;
+    startsAt?: string | null;
+    endsAt?: string | null;
+  }) {
+    return request<{ announcement: AdminAnnouncement }>("/v1/admin/announcements/update", input);
+  },
+  deleteAdminAnnouncement(id: string) {
+    return request<{ ok: true }>("/v1/admin/announcements/delete", { id });
+  },
+  listAdminLeagues(input: { query?: string; limit?: number } = {}) {
+    return request<{ leagues: AdminLeagueSummary[] }>("/v1/admin/leagues/list", input);
+  },
+  listAdminLeagueMembers(leagueId: string) {
+    return request<{ members: AdminLeagueMember[] }>("/v1/admin/leagues/members", { leagueId });
+  },
+  removeAdminLeagueMember(input: { leagueId: string; userId: string }) {
+    return request<{ ok: true }>("/v1/admin/leagues/remove-member", input);
+  },
+  deleteAdminLeague(input: { leagueId: string; confirmationText: string }) {
+    return request<{ ok: true; leagueName: string }>("/v1/admin/leagues/delete", input);
+  },
+  searchAdminUsers(input: { query?: string; limit?: number } = {}) {
+    return request<{ users: AdminUserSummary[] }>("/v1/admin/users/search", input);
+  },
+  impersonateUser(userId: string) {
+    return request<{ accessToken: string; refreshToken: string; targetUsername: string | null }>(
+      "/v1/admin/impersonate",
+      { userId },
+    );
+  },
+};
+
+export type AdminAnnouncement = {
+  id: string;
+  title: string;
+  body: string;
+  href: string | null;
+  published: boolean;
+  sort_order: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminLeagueSummary = {
+  id: string;
+  name: string;
+  game: string;
+  leagueType: string;
+  currentPhase: string;
+  seasonStage: string;
+  seasonNumber: number;
+  ownerUserId: string | null;
+  ownerUsername: string | null;
+  memberCount: number;
+  teamCount: number;
+  createdAt: string;
+};
+
+export type AdminLeagueMember = {
+  userId: string;
+  username: string | null;
+  displayName: string;
+  teamName: string | null;
+  membershipRole: string | null;
+};
+
+export type AdminUserSummary = {
+  id: string;
+  username: string | null;
+  displayName: string;
+  subscriptionTier: string;
+  hasSiteAccount: boolean;
+};
+
+export type AdminStats = {
+  totalUsers: number;
+  siteLinkedUsers: number;
+  goldSubscribers: number;
+  platinumSubscribers: number;
+  totalLeagues: number;
+  leaguesLast7d: number;
+  usersLast7d: number;
 };
 
 export type SiteHomeCard = {

@@ -130,6 +130,7 @@ export function AccountHub({
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const email =
     auth.status === "signed-in" ? auth.user.email ?? null : null;
@@ -169,6 +170,19 @@ export function AccountHub({
       setSuggestions(suggestionPayload.suggestions ?? []);
       setNotifications({ regular: notifPayload.regular ?? [] });
     });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    siteApi
+      .getAdminStatus()
+      .then((res) => {
+        if (!cancelled) setIsAdmin(res.isAdmin);
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -364,6 +378,11 @@ export function AccountHub({
                 <p className="site-muted">Discord not linked</p>
               )}
             </div>
+            {isAdmin ? (
+              <Link className="site-btn site-btn-ghost" to="/admin" style={{ marginLeft: "auto" }}>
+                Admin Management
+              </Link>
+            ) : null}
           </div>
 
           <div className="site-account-block">
