@@ -17,7 +17,7 @@ export async function compUserId(authUserId: string): Promise<string> {
 
 export async function getCompProfile(userId: string) {
   const result = await getPgPool().query(
-    `select console, gamer_tag, cross_play_enabled, matchmaking_suspended_until,
+    `select console, gamer_tag, cross_play_enabled, preferred_game, matchmaking_suspended_until,
             matchmaking_suspension_reason
      from rec_comp_profiles where user_id = $1`,
     [userId],
@@ -25,6 +25,7 @@ export async function getCompProfile(userId: string) {
   return result.rows[0] ?? {
     console: null,
     gamer_tag: null,
+    preferred_game: null,
     cross_play_enabled: false,
     matchmaking_suspended_until: null,
     matchmaking_suspension_reason: null,
@@ -36,13 +37,14 @@ export async function saveCompProfile(input: {
   console: "xbox" | "ps5" | "pc";
   gamerTag: string;
   crossPlayEnabled: boolean;
+  preferredGame: "madden_26" | "madden_27" | "cfb_27";
 }) {
   await getPgPool().query(
-    `insert into rec_comp_profiles (user_id, console, gamer_tag, cross_play_enabled, updated_at)
-     values ($1,$2,$3,$4,now())
+    `insert into rec_comp_profiles (user_id, console, gamer_tag, cross_play_enabled, preferred_game, updated_at)
+     values ($1,$2,$3,$4,$5,now())
      on conflict (user_id) do update set console=excluded.console, gamer_tag=excluded.gamer_tag,
-       cross_play_enabled=excluded.cross_play_enabled, updated_at=now()`,
-    [input.userId, input.console, input.gamerTag.trim(), input.crossPlayEnabled],
+       cross_play_enabled=excluded.cross_play_enabled, preferred_game=excluded.preferred_game, updated_at=now()`,
+    [input.userId, input.console, input.gamerTag.trim(), input.crossPlayEnabled, input.preferredGame],
   );
   return getCompProfile(input.userId);
 }

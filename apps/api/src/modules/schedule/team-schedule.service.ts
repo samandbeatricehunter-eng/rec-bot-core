@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { randomUUID } from "node:crypto";
-import { isCfb, regularSeasonWeeks } from "@rec/shared";
+import { isCfb, maxSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -20,6 +20,10 @@ type ConfirmedWeek = {
   opponentName: string;
   homeAway: "home" | "away";
   matchupType: "h2h" | "cpu";
+  postseasonRound: string | null;
+  bowlName: string | null;
+  isBowlGame: boolean;
+  isNationalChampionship: boolean;
 };
 
 // Shared by the OCR-driven preview (previewCfbTeamScheduleImport, still CFB-only — that
@@ -45,6 +49,10 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
         opponentName: opponent?.name ?? opponent?.abbreviation ?? "Team",
         homeAway: isAway ? "away" : "home",
         matchupType: opponentUserId ? "h2h" : "cpu",
+        postseasonRound: game.postseason_round ?? null,
+        bowlName: game.bowl_name ?? null,
+        isBowlGame: Boolean(game.is_bowl_game),
+        isNationalChampionship: Boolean(game.is_national_championship),
       });
     }
   }
@@ -126,6 +134,11 @@ export type TeamScheduleWeekPreview = {
   weekNumber: number | null;
   weekLabel: string;
   isBye: boolean;
+  byeType: "regular_season" | "cfp_first_round";
+  postseasonRound: string | null;
+  bowlName: string | null;
+  isBowlGame: boolean;
+  isNationalChampionship: boolean;
   rivalry: { enabled: boolean; optedOut: boolean; details: any | null };
   opponentRaw: string | null;
   opponentRank: number | null;
@@ -254,14 +267,14 @@ export async function getTeamScheduleManualState(input: {
   await Promise.all(gameDescriptors.map((game) => assignKnownRivalryToGame(game.id)));
   const rivalries = await loadGameRivalries(gameDescriptors.map((game) => game.id));
 
-  const byeRows = await supabase.from("rec_team_byes").select("week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
+  const byeRows = await supabase.from("rec_team_byes").select("week_number,bye_type").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
   if (byeRows.error) throw new ApiError(500, "Failed to load bye weeks.", byeRows.error);
-  const byeWeeks = new Set((byeRows.data ?? []).map((row: any) => row.week_number));
+  const byeByWeek = new Map((byeRows.data ?? []).map((row: any) => [row.week_number, row.bye_type ?? "regular_season"]));
 
   // CFB's schedule builder also covers Conference Championship (week 15) as a schedulable
   // matchup row, so the season spans 16 weeks (0-15) instead of stopping at the regular
   // season's last week (14) — regularSeasonWeeks() itself stays 14 for stage-transition math.
-  const lastWeek = regularSeasonWeeks(context.rec_leagues.game) + (isCfb(context.rec_leagues.game) ? 1 : 0);
+  const lastWeek = maxSeasonWeek(context.rec_leagues.game);
   // CFB's regular season starts at Week 0; Madden's starts at Week 1.
   const firstWeek = context.rec_leagues.game === "cfb_27" ? 0 : 1;
   const weeks: TeamScheduleManualWeek[] = [];
@@ -280,7 +293,12 @@ export async function getTeamScheduleManualState(input: {
       pendingBoxScoreSubmissionId: extra?.pendingBoxScoreSubmissionId ?? null,
       boxScoreSubmissionId: extra?.boxScoreSubmissionId ?? null,
       boxScoreStatus: extra?.boxScoreStatus ?? null,
-      isBye: !confirmed && byeWeeks.has(weekNumber),
+      isBye: !confirmed && byeByWeek.has(weekNumber),
+      byeType: (byeByWeek.get(weekNumber) ?? (weekNumber === 16 ? "cfp_first_round" : "regular_season")) as "regular_season" | "cfp_first_round",
+      postseasonRound: confirmed?.postseasonRound ?? (weekNumber >= 15 ? ["conference_championship", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"][weekNumber - 15] : null),
+      bowlName: confirmed?.bowlName ?? null,
+      isBowlGame: confirmed?.isBowlGame ?? weekNumber >= 16,
+      isNationalChampionship: confirmed?.isNationalChampionship ?? weekNumber === 19,
       rivalry: confirmed ? (rivalries.get(confirmed.gameId) ?? { enabled: false, optedOut: false, details: null }) : { enabled: false, optedOut: false, details: null },
     });
   }
@@ -297,8 +315,17 @@ export async function commitTeamScheduleDecisions(input: {
   guildId: string;
   teamId: string;
   seasonNumber?: number | null;
-  decisions: Array<{ weekNumber: number; opponentTeamId: string; homeAway: "home" | "away" }>;
+  decisions: Array<{
+    weekNumber: number;
+    opponentTeamId: string;
+    homeAway: "home" | "away";
+    postseasonRound?: string | null;
+    bowlName?: string | null;
+    isBowlGame?: boolean;
+    isNationalChampionship?: boolean;
+  }>;
   byeWeeks?: number[];
+  firstRoundByeWeeks?: number[];
   requestedByDiscordId?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -308,7 +335,7 @@ export async function commitTeamScheduleDecisions(input: {
 
   // Full-replace diff against the checkbox state submitted by the whole-season form — a week
   // that's unchecked and re-saved needs its bye row removed, not just left un-added.
-  const desiredByeWeeks = new Set(input.byeWeeks ?? []);
+  const desiredByeWeeks = new Set([...(input.byeWeeks ?? []), ...(input.firstRoundByeWeeks ?? [])]);
   const existingByes = await supabase.from("rec_team_byes").select("week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
   if (existingByes.error) throw new ApiError(500, "Failed to load existing bye weeks.", existingByes.error);
   const existingByeWeeks = new Set((existingByes.data ?? []).map((row: any) => row.week_number));
@@ -320,9 +347,18 @@ export async function commitTeamScheduleDecisions(input: {
   }
   if (byeWeeksToInsert.length) {
     const inserted = await supabase.from("rec_team_byes").insert(byeWeeksToInsert.map((weekNumber) => ({
-      id: randomUUID(), league_id: leagueId, season_number: seasonNumber, team_id: input.teamId, week_number: weekNumber, created_at: new Date().toISOString(),
+      id: randomUUID(), league_id: leagueId, season_number: seasonNumber, team_id: input.teamId, week_number: weekNumber,
+      bye_type: (input.firstRoundByeWeeks ?? []).includes(weekNumber) ? "cfp_first_round" : "regular_season",
+      created_at: new Date().toISOString(),
     })));
     if (inserted.error) throw new ApiError(500, "Failed to save bye weeks.", inserted.error);
+  }
+  for (const weekNumber of desiredByeWeeks) {
+    const byeType = (input.firstRoundByeWeeks ?? []).includes(weekNumber) ? "cfp_first_round" : "regular_season";
+    const updated = await supabase.from("rec_team_byes").update({ bye_type: byeType })
+      .eq("league_id", leagueId).eq("season_number", seasonNumber)
+      .eq("team_id", input.teamId).eq("week_number", weekNumber);
+    if (updated.error) throw new ApiError(500, "Failed to update bye type.", updated.error);
   }
 
   const saved: Array<{ weekNumber: number; skipped: boolean; reason?: string }> = [];
@@ -349,6 +385,14 @@ export async function commitTeamScheduleDecisions(input: {
     const conflicts = existing.data ?? [];
     const exactMatch = conflicts.find((game: any) => game.home_team_id === homeTeamId && game.away_team_id === awayTeamId);
     if (exactMatch) {
+      const metadata = await supabase.from("rec_games").update({
+        postseason_round: decision.postseasonRound ?? null,
+        bowl_name: decision.bowlName?.trim() || null,
+        is_bowl_game: Boolean(decision.isBowlGame),
+        is_national_championship: Boolean(decision.isNationalChampionship),
+        updated_at: new Date().toISOString(),
+      }).eq("id", exactMatch.id);
+      if (metadata.error) throw new ApiError(500, "Failed to update postseason details.", metadata.error);
       await assignKnownRivalryToGame(exactMatch.id);
       saved.push({ weekNumber: decision.weekNumber, skipped: false });
       continue;
@@ -391,6 +435,10 @@ export async function commitTeamScheduleDecisions(input: {
         awayTeamId,
         homeTeamId,
         requestedByDiscordId: input.requestedByDiscordId,
+        postseasonRound: decision.postseasonRound ?? null,
+        bowlName: decision.bowlName ?? null,
+        isBowlGame: decision.isBowlGame,
+        isNationalChampionship: decision.isNationalChampionship,
       });
       await assignKnownRivalryToGame(savedGame.game.id);
       saved.push({ weekNumber: decision.weekNumber, skipped: false });

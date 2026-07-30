@@ -18,7 +18,16 @@ import { UploadBoxScoreModal } from "./UploadBoxScoreModal.js";
 import { EnterFinalScoreModal } from "./EnterFinalScoreModal.js";
 import { WatchedPlayersPanel } from "./WatchedPlayersPanel.js";
 
-type WeekPick = { isBye: boolean; conference: string | null; opponentTeamId: string | null; homeAway: "home" | "away" | null };
+type WeekPick = {
+  isBye: boolean;
+  conference: string | null;
+  opponentTeamId: string | null;
+  homeAway: "home" | "away" | null;
+  postseasonRound: string | null;
+  bowlName: string;
+  isBowlGame: boolean;
+  isNationalChampionship: boolean;
+};
 type SavedResult = { weekNumber: number; skipped: boolean; reason?: string };
 
 type ActiveModal =
@@ -34,9 +43,17 @@ function pickForWeek(week: TeamScheduleManualWeek, teams: ScheduleTeam[], fallba
       conference: opponent ? canonicalConferenceName(opponent.conference) : fallback?.conference ?? null,
       opponentTeamId: week.confirmedOpponentTeamId,
       homeAway: week.confirmedHomeAway,
+      postseasonRound: week.postseasonRound,
+      bowlName: week.bowlName ?? "",
+      isBowlGame: week.isBowlGame,
+      isNationalChampionship: week.isNationalChampionship,
     };
   }
-  return fallback ?? { isBye: week.isBye, conference: null, opponentTeamId: null, homeAway: null };
+  return fallback ?? {
+    isBye: week.isBye, conference: null, opponentTeamId: null, homeAway: null,
+    postseasonRound: week.postseasonRound, bowlName: week.bowlName ?? "",
+    isBowlGame: week.isBowlGame, isNationalChampionship: week.isNationalChampionship,
+  };
 }
 
 function buildPicks(manualState: TeamScheduleManualState, teams: ScheduleTeam[], previous: Record<number, WeekPick> = {}): Record<number, WeekPick> {
@@ -172,10 +189,15 @@ export function TeamScheduleForm() {
     setResults(null);
     const decisions = Object.entries(picks)
       .filter(([, pick]) => !pick.isBye && pick.opponentTeamId && pick.homeAway)
-      .map(([weekNumber, pick]) => ({ weekNumber: Number(weekNumber), opponentTeamId: pick.opponentTeamId!, homeAway: pick.homeAway! }));
-    const byeWeeks = Object.entries(picks).filter(([, pick]) => pick.isBye).map(([weekNumber]) => Number(weekNumber));
+      .map(([weekNumber, pick]) => ({
+        weekNumber: Number(weekNumber), opponentTeamId: pick.opponentTeamId!, homeAway: pick.homeAway!,
+        postseasonRound: pick.postseasonRound, bowlName: pick.bowlName || null,
+        isBowlGame: pick.isBowlGame, isNationalChampionship: pick.isNationalChampionship,
+      }));
+    const byeWeeks = Object.entries(picks).filter(([weekNumber, pick]) => pick.isBye && Number(weekNumber) !== 16).map(([weekNumber]) => Number(weekNumber));
+    const firstRoundByeWeeks = Object.entries(picks).filter(([weekNumber, pick]) => pick.isBye && Number(weekNumber) === 16).map(([weekNumber]) => Number(weekNumber));
     try {
-      const result = await recApi.commitTeamScheduleDecisions({ guildId, teamId, decisions, byeWeeks });
+      const result = await recApi.commitTeamScheduleDecisions({ guildId, teamId, decisions, byeWeeks, firstRoundByeWeeks });
       setResults(result.saved);
       // Newly-confirmed weeks need to switch over to their populated, box-score-ready
       // display without a manual page reload.
@@ -234,7 +256,7 @@ export function TeamScheduleForm() {
       />
       {notice && <p style={{ color: "var(--success)", marginTop: 0 }}>{notice}</p>}
       <Card>
-        <Table>
+        <Table className="rec-table team-schedule-table">
           <thead>
             <tr>
               <Th>Week</Th>
@@ -257,10 +279,12 @@ export function TeamScheduleForm() {
               if (showConfirmedView) {
                 return (
                   <tr key={week.weekNumber}>
-                    <Td>{label}</Td>
-                    <Td colSpan={4}>
+                    <Td data-label="Week">{week.bowlName || label}</Td>
+                    <Td data-label="Matchup" colSpan={4}>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
                         <span>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</span>
+                        {week.postseasonRound && <Badge status="info">{stageLabel(week.postseasonRound, week.weekNumber, game)}</Badge>}
+                        {week.isBowlGame && <Badge status="approved">{week.bowlName || "Bowl Game"}</Badge>}
                         {resultLabel && (
                           <Badge status="approved">
                             {resultLabel}
@@ -279,7 +303,7 @@ export function TeamScheduleForm() {
                         {game === "cfb_27" && week.gameId && <RivalryEditor week={week} guildId={guildId} teamId={teamId!} teamName={state.team.name} onSaved={load} />}
                       </div>
                     </Td>
-                    <Td>
+                    <Td data-label="Actions">
                       <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", justifyContent: "flex-end" }}>
                         {week.pendingBoxScoreSubmissionId ? (
                           <Button
@@ -324,20 +348,23 @@ export function TeamScheduleForm() {
 
               const opponentsInConference = pick?.conference
                 ? teams.filter((t) => t.id !== teamId && canonicalConferenceName(t.conference) === pick.conference)
-                : [];
+                : week.weekNumber >= 15 ? teams.filter((t) => t.id !== teamId) : [];
 
               return (
                 <tr key={week.weekNumber}>
-                  <Td>{label}</Td>
-                  <Td>
-                    <input
-                      type="checkbox"
-                      checked={pick?.isBye ?? false}
-                      disabled={week.alreadyConfirmed}
-                      onChange={(e) => updatePick(week.weekNumber, { isBye: e.target.checked, opponentTeamId: null, homeAway: null })}
-                    />
+                  <Td data-label="Week">{label}</Td>
+                  <Td data-label={week.weekNumber === 16 ? "CFP Bye" : "Bye"}>
+                    <label className="team-schedule-check">
+                      <input
+                        type="checkbox"
+                        checked={pick?.isBye ?? false}
+                        disabled={week.alreadyConfirmed}
+                        onChange={(e) => updatePick(week.weekNumber, { isBye: e.target.checked, opponentTeamId: null, homeAway: null })}
+                      />
+                      <span>{week.weekNumber === 16 ? "First-round bye" : "Bye"}</span>
+                    </label>
                   </Td>
-                  <Td>
+                  <Td data-label="Conference">
                     <select
                       className="form-select"
                       disabled={pick?.isBye}
@@ -350,10 +377,10 @@ export function TeamScheduleForm() {
                       ))}
                     </select>
                   </Td>
-                  <Td>
+                  <Td data-label="Opponent">
                     <select
                       className="form-select"
-                      disabled={pick?.isBye || !pick?.conference}
+                      disabled={pick?.isBye || (week.weekNumber < 15 && !pick?.conference)}
                       value={pick?.opponentTeamId ?? ""}
                       onChange={(e) => updatePick(week.weekNumber, { opponentTeamId: e.target.value || null })}
                     >
@@ -363,7 +390,7 @@ export function TeamScheduleForm() {
                       ))}
                     </select>
                   </Td>
-                  <Td>
+                  <Td data-label="Location">
                     <label>
                       <input
                         type="radio"
@@ -385,7 +412,20 @@ export function TeamScheduleForm() {
                       Away
                     </label>
                   </Td>
-                  <Td>
+                  <Td data-label="Actions">
+                    {game === "cfb_27" && week.weekNumber >= 15 ? (
+                      <div className="team-schedule-postseason-fields">
+                        <label><span>Round</span><select className="form-select" value={pick?.postseasonRound ?? ""} onChange={(e) => updatePick(week.weekNumber, { postseasonRound: e.target.value || null, isNationalChampionship: e.target.value === "national_championship" })}>
+                          <option value="conference_championship">Conference Championship</option>
+                          <option value="cfp_first_round">CFP First Round</option>
+                          <option value="cfp_quarterfinals">CFP Quarterfinal</option>
+                          <option value="cfp_semifinals">CFP Semifinal</option>
+                          <option value="national_championship">National Championship</option>
+                        </select></label>
+                        <label><span>Bowl / game name</span><input value={pick?.bowlName ?? ""} maxLength={100} placeholder="Rose Bowl, Sugar Bowl…" onChange={(e) => updatePick(week.weekNumber, { bowlName: e.target.value })} /></label>
+                        <label className="team-schedule-check"><input type="checkbox" checked={pick?.isBowlGame ?? false} onChange={(e) => updatePick(week.weekNumber, { isBowlGame: e.target.checked })} /><span>Bowl game / automatic GOTW</span></label>
+                      </div>
+                    ) : null}
                     {savedResult ? (
                       savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>
                     ) : (

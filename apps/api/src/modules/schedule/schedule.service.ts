@@ -85,6 +85,10 @@ type SaveManualScheduleGameInput = {
   awayTeamId: string;
   homeTeamId: string;
   requestedByDiscordId?: string | null;
+  postseasonRound?: string | null;
+  bowlName?: string | null;
+  isBowlGame?: boolean;
+  isNationalChampionship?: boolean;
 };
 
 function phaseForWeek(weekNumber: number, game: LeagueGame) {
@@ -177,7 +181,7 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
   const seasonId = await resolveSeasonId(context.leagueId, selectedSeason);
   const { data, error } = await supabase
     .from("rec_games")
-    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick)")
+    .select("id,external_game_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,is_bowl_game,is_national_championship,postseason_round,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick)")
     .eq("league_id", context.leagueId)
     .eq("season_id", seasonId)
     .order("week_number", { ascending: true })
@@ -296,6 +300,10 @@ export async function saveManualScheduleGame(input: SaveManualScheduleGameInput)
     away_user_id: userByTeam.get(input.awayTeamId) ?? null,
     home_user_id: userByTeam.get(input.homeTeamId) ?? null,
     status: "scheduled",
+    postseason_round: input.postseasonRound ?? null,
+    bowl_name: input.bowlName?.trim() || null,
+    is_bowl_game: Boolean(input.isBowlGame),
+    is_national_championship: Boolean(input.isNationalChampionship),
     updated_at: new Date().toISOString(),
   };
 

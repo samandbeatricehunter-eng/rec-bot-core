@@ -181,8 +181,13 @@ export async function scheduleRoutes(app: FastifyInstance) {
           weekNumber: z.number().int().min(0),
           opponentTeamId: z.string().uuid(),
           homeAway: z.enum(["home", "away"]),
+          postseasonRound: z.enum(["conference_championship", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]).optional().nullable(),
+          bowlName: z.string().trim().max(100).optional().nullable(),
+          isBowlGame: z.boolean().optional(),
+          isNationalChampionship: z.boolean().optional(),
         })),
         byeWeeks: z.array(z.number().int().min(0)).optional(),
+        firstRoundByeWeeks: z.array(z.number().int().min(0)).optional(),
         requestedByDiscordId: z.string().optional().nullable(),
       }).parse(request.body);
       // Attribute Activity-originated saves to the actual Discord user, not a generic bot save.

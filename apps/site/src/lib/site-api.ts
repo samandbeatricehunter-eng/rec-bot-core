@@ -769,7 +769,7 @@ export const siteApi = {
   getCompProfile() {
     return request<any>("/v1/comp/profile/get", {});
   },
-  saveCompProfile(input: { console: "xbox" | "ps5" | "pc"; gamerTag: string; crossPlayEnabled: boolean }) {
+  saveCompProfile(input: { console: "xbox" | "ps5" | "pc"; gamerTag: string; crossPlayEnabled: boolean; preferredGame: "madden_26" | "madden_27" | "cfb_27" }) {
     return request<any>("/v1/comp/profile/save", input);
   },
   getCompState(game: string) {

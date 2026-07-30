@@ -107,6 +107,86 @@
 .team-schedule-edit-button svg {
   flex-shrink: 0;
 }
+.team-schedule-check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.team-schedule-postseason-fields {
+  display: grid;
+  gap: var(--space-2);
+  min-width: min(280px, 100%);
+  margin-bottom: var(--space-2);
+}
+.team-schedule-postseason-fields > label:not(.team-schedule-check) {
+  display: grid;
+  gap: 4px;
+}
+.team-schedule-postseason-fields > label > span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 760px) {
+  .team-schedule-table,
+  .team-schedule-table tbody,
+  .team-schedule-table tr,
+  .team-schedule-table td {
+    display: block;
+    width: 100%;
+  }
+  .team-schedule-table {
+    table-layout: auto;
+  }
+  .team-schedule-table thead {
+    display: none;
+  }
+  .team-schedule-table tbody {
+    display: grid;
+    gap: var(--space-3);
+  }
+  .team-schedule-table tr {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+  }
+  .team-schedule-table td,
+  .team-schedule-table td[colspan] {
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 12px 14px;
+    border: 0;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .team-schedule-table td:last-child {
+    border-bottom: 0;
+  }
+  .team-schedule-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+  .team-schedule-table select,
+  .team-schedule-table input[type="text"],
+  .team-schedule-table input:not([type]) {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+  .team-schedule-table button {
+    width: 100%;
+    justify-content: center;
+  }
+}
 
 /* A recessed double edge makes the message area read as a chat window rather than empty
    card space, while keeping the composer visually attached to the conversation. */

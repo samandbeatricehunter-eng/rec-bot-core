@@ -62,6 +62,7 @@ export async function compRoutes(app: FastifyInstance) {
         console: z.enum(["xbox", "ps5", "pc"]),
         gamerTag: z.string().trim().min(2).max(40),
         crossPlayEnabled: z.boolean(),
+        preferredGame: gameSchema,
       }).parse(request.body ?? {});
       return reply.send(await saveCompProfile({ userId, ...body }));
     } catch (error) { return sendError(reply, error); }

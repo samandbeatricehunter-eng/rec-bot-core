@@ -182,6 +182,7 @@ function MatchupQueueTab() {
       setState(next);
       if (next.profile?.console) setConsoleName(next.profile.console);
       if (next.profile?.gamer_tag) setGamerTag(next.profile.gamer_tag);
+      if (!profileInitialized.current && next.profile?.preferred_game) setGame(next.profile.preferred_game);
       setCrossPlay(Boolean(next.profile?.cross_play_enabled));
       if (!profileInitialized.current) {
         setSettingsOpen(!(next.profile?.console && next.profile?.gamer_tag));
@@ -273,7 +274,7 @@ function MatchupQueueTab() {
             <label className="site-field"><span>Gamertag / PSN</span><input value={gamerTag} onChange={(e) => setGamerTag(e.target.value)} /></label>
             <label className="site-check-row"><input type="checkbox" checked={crossPlay} onChange={(e) => setCrossPlay(e.target.checked)} /><span>Cross-Play Enabled</span></label>
           </div>
-          <button className="site-btn site-btn-primary" type="button" disabled={busy || gamerTag.trim().length < 2} onClick={() => void act(async () => { await siteApi.saveCompProfile({ console: consoleName, gamerTag, crossPlayEnabled: crossPlay }); setSettingsOpen(false); })}>Save player settings</button>
+          <button className="site-btn site-btn-primary" type="button" disabled={busy || gamerTag.trim().length < 2} onClick={() => void act(async () => { await siteApi.saveCompProfile({ console: consoleName, gamerTag, crossPlayEnabled: crossPlay, preferredGame: game as "madden_26" | "madden_27" | "cfb_27" }); setSettingsOpen(false); })}>Save player settings</button>
         </section>
       ) : (
         <section className="site-comp-player-summary">

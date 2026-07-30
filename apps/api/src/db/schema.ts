@@ -582,7 +582,9 @@ export const recGames = pgTable("rec_games", {
   advanceOutcomeMarkedByDiscordId: text("advance_outcome_marked_by_discord_id"),
   advanceOutcomeMarkedAt: timestamp("advance_outcome_marked_at", { withTimezone: true, mode: "string" }),
   isBowlGame: boolean("is_bowl_game").notNull().default(false),
-  isNationalChampionship: boolean("is_national_championship").notNull().default(false)
+  isNationalChampionship: boolean("is_national_championship").notNull().default(false),
+  postseasonRound: text("postseason_round"),
+  bowlName: text("bowl_name")
   ,rivalryId: uuid("rivalry_id")
   ,rivalryOptOut: boolean("rivalry_opt_out").notNull().default(false)
 });
@@ -626,6 +628,7 @@ export const recTeamByes = pgTable("rec_team_byes", {
   seasonNumber: integer("season_number").notNull(),
   teamId: uuid("team_id").notNull().references(() => recTeams.id),
   weekNumber: integer("week_number").notNull(),
+  byeType: text("bye_type").notNull().default("regular_season"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
