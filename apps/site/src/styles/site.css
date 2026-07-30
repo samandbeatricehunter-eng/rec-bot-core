@@ -2501,6 +2501,31 @@ h1, h2, h3, .site-wordmark {
 .site-comp-chat-compose input { flex: 1; }
 .site-comp-candidates article span,
 .site-comp-candidates article em { display: block; }
+.site-comp-player-summary {
+  margin: 20px 0;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid color-mix(in srgb, var(--site-accent) 34%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--site-panel) 38%, transparent);
+  backdrop-filter: blur(18px) saturate(125%);
+}
+.site-comp-player-summary span { display: block; margin-top: 4px; color: var(--text-muted); }
+.site-comp-lobby-title { margin: 28px 0 4px; text-align: center; }
+.site-comp-candidates article.is-current-user {
+  border-color: color-mix(in srgb, var(--site-accent) 72%, transparent);
+  box-shadow: inset 0 0 28px color-mix(in srgb, var(--site-accent) 10%, transparent);
+}
+.site-comp-empty-lobby {
+  margin: 14px 0 0;
+  padding: 22px;
+  text-align: center;
+  border: 1px dashed color-mix(in srgb, var(--site-accent) 28%, transparent);
+  border-radius: 14px;
+}
 .site-comp-box-modal {
   width: min(900px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
@@ -2531,6 +2556,7 @@ h1, h2, h3, .site-wordmark {
   .site-comp-user-modal { width: calc(100vw - 20px); }
   .site-comp-profile-grid,
   .site-comp-queue-controls { grid-template-columns: 1fr; }
+  .site-comp-player-summary { align-items: stretch; flex-direction: column; }
   .site-comp-shot-examples { grid-template-columns: 1fr; }
 }
 .site-spotlight-comment-form {

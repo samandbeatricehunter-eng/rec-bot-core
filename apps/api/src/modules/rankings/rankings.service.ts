@@ -273,16 +273,30 @@ export async function listPowerRankings(input: {
 
   const result = await getPgPool().query(
     `
+      with current_registered as (
+        select cur.*,
+          row_number() over (order by cur.score desc, cur.user_id asc)::int as display_rank
+        from rec_global_power_rankings cur
+        join rec_users registered on registered.id = cur.user_id
+          and registered.supabase_auth_user_id is not null
+        where cur.game = $1 and cur.scope = $2 and cur.computed_date = $3
+      ),
+      previous_registered as (
+        select prev.*,
+          row_number() over (order by prev.score desc, prev.user_id asc)::int as display_rank
+        from rec_global_power_rankings prev
+        join rec_users registered on registered.id = prev.user_id
+          and registered.supabase_auth_user_id is not null
+        where prev.game = $1 and prev.scope = $2 and prev.computed_date = $4
+      )
       select
-        cur.rank, cur.score, cur.user_id,
+        cur.display_rank as rank, cur.score, cur.user_id,
         u.username, u.display_name,
-        prev.rank as previous_rank
-      from rec_global_power_rankings cur
-      inner join rec_users u on u.id = cur.user_id and u.supabase_auth_user_id is not null
-      left join rec_global_power_rankings prev
-        on prev.game = cur.game and prev.scope = cur.scope and prev.user_id = cur.user_id and prev.computed_date = $4
-      where cur.game = $1 and cur.scope = $2 and cur.computed_date = $3
-      order by cur.rank asc
+        prev.display_rank as previous_rank
+      from current_registered cur
+      join rec_users u on u.id = cur.user_id
+      left join previous_registered prev on prev.user_id = cur.user_id
+      order by cur.display_rank asc
       limit $5
     `,
     [input.game, input.scope, asOf, previousDate, limit],
@@ -316,18 +330,34 @@ export async function getUserPowerRank(input: {
 
   const result = await getPgPool().query(
     `
+      with current_registered as (
+        select cur.*,
+          row_number() over (order by cur.score desc, cur.user_id asc)::int as display_rank,
+          count(*) over ()::int as registered_total
+        from rec_global_power_rankings cur
+        join rec_users registered on registered.id = cur.user_id
+          and registered.supabase_auth_user_id is not null
+        where cur.game = $1 and cur.scope = $2 and cur.computed_date = $3
+      ),
+      previous_registered as (
+        select prev.*,
+          row_number() over (order by prev.score desc, prev.user_id asc)::int as display_rank
+        from rec_global_power_rankings prev
+        join rec_users registered on registered.id = prev.user_id
+          and registered.supabase_auth_user_id is not null
+        where prev.game = $1 and prev.scope = $2
+          and prev.computed_date = (
+            select max(computed_date) from rec_global_power_rankings
+            where game = $1 and scope = $2 and computed_date < $3
+          )
+      )
       select
-        cur.rank,
-        (select count(*)::int from rec_global_power_rankings where game = $1 and scope = $2 and computed_date = $3) as total,
-        prev.rank as previous_rank
-      from rec_global_power_rankings cur
-      left join rec_global_power_rankings prev
-        on prev.game = cur.game and prev.scope = cur.scope and prev.user_id = cur.user_id
-        and prev.computed_date = (
-          select max(computed_date) from rec_global_power_rankings
-          where game = $1 and scope = $2 and computed_date < $3
-        )
-      where cur.game = $1 and cur.scope = $2 and cur.computed_date = $3 and cur.user_id = $4
+        cur.display_rank as rank,
+        cur.registered_total as total,
+        prev.display_rank as previous_rank
+      from current_registered cur
+      left join previous_registered prev on prev.user_id = cur.user_id
+      where cur.user_id = $4
     `,
     [input.game, input.scope, asOf, input.userId],
   );

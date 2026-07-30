@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { badgeAsset, badgeTooltip } from "../lib/badge-display.js";
 import {
   siteApi,
@@ -173,6 +173,8 @@ function MatchupQueueTab() {
   const [boxFiles, setBoxFiles] = useState<File[]>([]);
   const [parsedText, setParsedText] = useState("");
   const [boxUrls, setBoxUrls] = useState<string[]>([]);
+  const [settingsOpen, setSettingsOpen] = useState(true);
+  const profileInitialized = useRef(false);
 
   async function reload() {
     try {
@@ -181,6 +183,10 @@ function MatchupQueueTab() {
       if (next.profile?.console) setConsoleName(next.profile.console);
       if (next.profile?.gamer_tag) setGamerTag(next.profile.gamer_tag);
       setCrossPlay(Boolean(next.profile?.cross_play_enabled));
+      if (!profileInitialized.current) {
+        setSettingsOpen(!(next.profile?.console && next.profile?.gamer_tag));
+        profileInitialized.current = true;
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load matchmaking.");
@@ -259,13 +265,25 @@ function MatchupQueueTab() {
         <h2>H2H Comp Matchmaking</h2>
         <p>Default-roster games use Play a Friend. CUT games use Play a Friend through CUT. Add your opponent as a friend to send the invite; you can remove them after the game.</p>
       </header>
-      <div className="site-account-stat-grid site-comp-profile-grid">
-        <label className="site-field"><span>Game</span><select className="site-select" value={game} onChange={(e) => setGame(e.target.value)}><option value="cfb_27">CFB 27</option><option value="madden_26">Madden 26</option><option value="madden_27">Madden 27</option></select></label>
-        <label className="site-field"><span>Console</span><select className="site-select" value={consoleName} onChange={(e) => setConsoleName(e.target.value as any)}><option value="xbox">Xbox</option><option value="ps5">PS5</option><option value="pc">PC</option></select></label>
-        <label className="site-field"><span>Gamertag / PSN</span><input value={gamerTag} onChange={(e) => setGamerTag(e.target.value)} /></label>
-        <label className="site-check-row"><input type="checkbox" checked={crossPlay} onChange={(e) => setCrossPlay(e.target.checked)} /><span>Cross-Play Enabled</span></label>
-      </div>
-      <button className="site-btn site-btn-primary" type="button" disabled={busy || gamerTag.trim().length < 2} onClick={() => void act(() => siteApi.saveCompProfile({ console: consoleName, gamerTag, crossPlayEnabled: crossPlay }))}>Save player settings</button>
+      {settingsOpen ? (
+        <section className="site-comp-player-settings">
+          <div className="site-account-stat-grid site-comp-profile-grid">
+            <label className="site-field"><span>Game</span><select className="site-select" value={game} onChange={(e) => setGame(e.target.value)}><option value="cfb_27">CFB 27</option><option value="madden_26">Madden 26</option><option value="madden_27">Madden 27</option></select></label>
+            <label className="site-field"><span>Console</span><select className="site-select" value={consoleName} onChange={(e) => setConsoleName(e.target.value as any)}><option value="xbox">Xbox</option><option value="ps5">PS5</option><option value="pc">PC</option></select></label>
+            <label className="site-field"><span>Gamertag / PSN</span><input value={gamerTag} onChange={(e) => setGamerTag(e.target.value)} /></label>
+            <label className="site-check-row"><input type="checkbox" checked={crossPlay} onChange={(e) => setCrossPlay(e.target.checked)} /><span>Cross-Play Enabled</span></label>
+          </div>
+          <button className="site-btn site-btn-primary" type="button" disabled={busy || gamerTag.trim().length < 2} onClick={() => void act(async () => { await siteApi.saveCompProfile({ console: consoleName, gamerTag, crossPlayEnabled: crossPlay }); setSettingsOpen(false); })}>Save player settings</button>
+        </section>
+      ) : (
+        <section className="site-comp-player-summary">
+          <div>
+            <strong>{game === "cfb_27" ? "CFB 27" : game === "madden_26" ? "Madden 26" : "Madden 27"}</strong>
+            <span>{consoleName.toUpperCase()} · {gamerTag} · Cross-play {crossPlay ? "on" : "off"}</span>
+          </div>
+          <button type="button" className="site-btn site-btn-ghost" onClick={() => setSettingsOpen(true)}>Change player settings</button>
+        </section>
+      )}
 
       {match ? (
         <section className="site-comp-match-room">
@@ -324,13 +342,25 @@ function MatchupQueueTab() {
             <label className="site-field"><span>Minimum clock (15–25s)</span><input type="number" min="15" max="25" disabled={acceleratedClock !== "on"} value={minimumClock} onChange={(e) => setMinimumClock(e.target.value)} /></label>
           </section>
           <button className="site-btn site-btn-primary" disabled={busy} onClick={() => void act(() => state?.ownQueue ? siteApi.leaveCompQueue() : siteApi.joinCompQueue({ game, rosterMode, quarterLength: quarterLength ? Number(quarterLength) : null, acceleratedClock: acceleratedClock ? acceleratedClock === "on" : null, acceleratedClockMinimum: acceleratedClock === "on" && minimumClock ? Number(minimumClock) : null }))}>{state?.ownQueue ? "Leave Queue" : "Join Queue"}</button>
+          <h3 className="site-comp-lobby-title">Matchmaking Lobby</h3>
           <div className="site-comp-candidates">
+            {state?.ownQueue ? (
+              <article className="is-current-user">
+                <div><strong>You · @{gamerTag}</strong><span>{consoleName.toUpperCase()} · {state.ownQueue.roster_mode} · waiting for a matchup</span></div>
+                <em>In queue</em>
+              </article>
+            ) : null}
             {(state?.queue ?? []).map((candidate: any) => (
               <article key={candidate.user_id}>
                 <div><strong>@{candidate.username ?? candidate.display_name}</strong><span>{candidate.console} · {candidate.roster_mode} · matchup {Math.round(candidate.matchupStrength)}%</span>{candidate.connection_issue ? <em>Connection issues reported</em> : null}{candidate.dasher ? <em>Dasher</em> : null}</div>
                 <button className="site-btn site-btn-primary" disabled={!state?.ownQueue || busy} onClick={() => void act(() => siteApi.requestCompMatch(candidate.user_id))}>Request Match</button>
               </article>
             ))}
+            {state?.ownQueue && !(state?.queue ?? []).length ? (
+              <p className="site-muted site-comp-empty-lobby">You are in the lobby. No compatible opponents are queued right now; this list refreshes automatically.</p>
+            ) : !state?.ownQueue ? (
+              <p className="site-muted site-comp-empty-lobby">Join the queue to enter the lobby and request a matchup.</p>
+            ) : null}
           </div>
         </>
       )}
