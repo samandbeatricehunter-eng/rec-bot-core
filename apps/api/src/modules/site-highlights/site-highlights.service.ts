@@ -10,6 +10,7 @@ import {
 } from "../media/media.service.js";
 import { isLeagueCommissioner } from "../site-inbox/site-inbox.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
+import { assertNotLeagueRestricted } from "../moderation/moderation.service.js";
 
 async function resolveLeagueGuild(leagueId: string): Promise<{ guildId: string; serverId: string }> {
   const link = await supabase
@@ -54,6 +55,7 @@ export async function createSiteHighlightDirectUpload(input: {
   fileName?: string | null;
 }) {
   const linked = await requireLinkedDiscord(input.authUserId);
+  await assertNotLeagueRestricted(input.leagueId, linked.recUserId, "highlights");
   const { guildId } = await resolveLeagueGuild(input.leagueId);
   return createHighlightDirectUpload({
     guildId,

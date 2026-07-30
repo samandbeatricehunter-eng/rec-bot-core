@@ -6,6 +6,7 @@ export { HubHome } from "../../../apps/web/src/routes/hub/HubHome.js";
 export { MatchupDetailPage } from "../../../apps/web/src/routes/matchups/MatchupDetail.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
+export { CfpPostseasonManager } from "../../../apps/web/src/routes/league-mgmt/manage-league/CfpPostseasonManager.js";
 export { TeamScheduleForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamScheduleForm.js";
 export { TeamOwnershipTable } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamOwnershipTable.js";
 export { LinkTeamForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/LinkTeamForm.js";

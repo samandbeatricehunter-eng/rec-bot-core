@@ -116,7 +116,7 @@ function RankingsTab() {
               className={scope === "comp" ? "is-active" : ""}
               onClick={() => setScope("comp")}
             >
-              H2H Comp
+              H2H Comp (BETA)
             </button>
           </div>
 
@@ -263,7 +263,7 @@ function MatchupQueueTab() {
   return (
     <div className="site-page-card site-comp-queue">
       <header className="site-section-heading">
-        <h2>H2H Comp Matchmaking</h2>
+        <h2>H2H Comp Matchmaking (BETA)</h2>
         <p>Default-roster games use Play a Friend. CUT games use Play a Friend through CUT. Add your opponent as a friend to send the invite; you can remove them after the game.</p>
       </header>
       {settingsOpen ? (

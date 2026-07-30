@@ -2,11 +2,13 @@ import Stripe from "stripe";
 import { env } from "../../config/env.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { getPgPool } from "../../db/client.js";
 import {
   GRACE_DAYS,
   type SubscriptionTier,
   unfreezeOwnedLeagues,
 } from "./entitlements.service.js";
+import { billingStatusForStripeStatus, isPaidActiveCheckout } from "./billing-policy.js";
 
 let stripeClient: Stripe | null = null;
 
@@ -105,10 +107,17 @@ export async function createCheckoutSession(input: {
   email: string | null;
   tier: "gold" | "platinum";
   interval?: "month" | "year";
-  successUrl?: string;
-  cancelUrl?: string;
 }) {
   const stripe = getStripe();
+  const existing = await supabase
+    .from("rec_users")
+    .select("stripe_subscription_id,billing_status")
+    .eq("id", input.userId)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to check the current subscription.", existing.error);
+  if (existing.data?.stripe_subscription_id && ["active", "trialing", "past_due", "grace"].includes(String(existing.data.billing_status))) {
+    throw new ApiError(409, "Manage or change your existing subscription through the billing portal.");
+  }
   const customerId = await ensureStripeCustomer(input.userId, input.email);
   const interval = input.interval ?? "month";
   const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
@@ -117,8 +126,8 @@ export async function createCheckoutSession(input: {
     customer: customerId,
     client_reference_id: input.userId,
     line_items: [{ price: priceIdForTier(input.tier, interval), quantity: 1 }],
-    success_url: input.successUrl ?? `${base}/account?checkout=success`,
-    cancel_url: input.cancelUrl ?? `${base}/account?checkout=cancel`,
+    success_url: `${base}/account?checkout=success`,
+    cancel_url: `${base}/account?checkout=cancel`,
     metadata: {
       rec_user_id: input.userId,
       tier: input.tier,
@@ -143,8 +152,6 @@ export async function createCheckoutSession(input: {
 export async function createPublicCheckoutSession(input: {
   tier: "gold" | "platinum";
   interval?: "month" | "year";
-  successUrl?: string;
-  cancelUrl?: string;
 }) {
   const stripe = getStripe();
   const interval = input.interval ?? "month";
@@ -152,8 +159,8 @@ export async function createPublicCheckoutSession(input: {
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: priceIdForTier(input.tier, interval), quantity: 1 }],
-    success_url: input.successUrl ?? `${base}/signup/complete?checkout_session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: input.cancelUrl ?? `${base}/pricing?checkout=cancel`,
+    success_url: `${base}/signup/complete?checkout_session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${base}/pricing?checkout=cancel`,
     metadata: { tier: input.tier, interval },
   });
   return { url: session.url, sessionId: session.id };
@@ -169,8 +176,9 @@ export type RedeemedCheckoutSession = {
 /** Read-only lookup — safe to call from a public (unauthenticated) route. */
 export async function redeemPublicCheckoutSession(sessionId: string): Promise<RedeemedCheckoutSession> {
   const stripe = getStripe();
-  const session = await stripe.checkout.sessions.retrieve(sessionId);
-  const paid = session.payment_status === "paid" || session.status === "complete";
+  const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ["subscription"] });
+  const subscription = typeof session.subscription === "object" ? session.subscription : null;
+  const paid = isPaidActiveCheckout(session.payment_status, subscription?.status);
   const email = session.customer_details?.email ?? null;
   const tier = session.metadata?.tier === "platinum" ? "platinum" : "gold";
   const interval = session.metadata?.interval === "year" ? "year" : "month";
@@ -185,9 +193,12 @@ export async function redeemPublicCheckoutSession(sessionId: string): Promise<Re
 export async function attachCheckoutSessionToUser(input: { userId: string; sessionId: string }): Promise<void> {
   const stripe = getStripe();
   const session = await stripe.checkout.sessions.retrieve(input.sessionId, { expand: ["subscription"] });
-  const paid = session.payment_status === "paid" || session.status === "complete";
-  if (!paid) throw new ApiError(402, "This checkout session has not completed payment yet.");
   const subscription = session.subscription;
+  const paid = isPaidActiveCheckout(
+    session.payment_status,
+    subscription !== null && typeof subscription === "object" ? subscription.status : null,
+  );
+  if (!paid) throw new ApiError(402, "This checkout session has not completed payment yet.");
   if (!subscription || typeof subscription === "string") {
     throw new ApiError(500, "Checkout session has no subscription attached.");
   }
@@ -204,7 +215,6 @@ export async function attachCheckoutSessionToUser(input: { userId: string; sessi
 
 export async function createCustomerPortalSession(input: {
   userId: string;
-  returnUrl?: string;
 }) {
   const stripe = getStripe();
   const user = await supabase
@@ -219,7 +229,7 @@ export async function createCustomerPortalSession(input: {
   const base = env.SITE_PUBLIC_URL.replace(/\/$/, "");
   const session = await stripe.billingPortal.sessions.create({
     customer: String(user.data.stripe_customer_id),
-    return_url: input.returnUrl ?? `${base}/account`,
+    return_url: `${base}/account`,
   });
   return { url: session.url };
 }
@@ -251,14 +261,7 @@ async function applyActiveSubscription(userId: string, subscription: Stripe.Subs
   const tier = tierFromPriceId(priceId) ?? (subscription.metadata?.tier as SubscriptionTier | undefined) ?? "gold";
   const periodEnd = subscriptionPeriodEnd(subscription);
   const now = new Date().toISOString();
-  const billingStatus =
-    subscription.status === "past_due"
-      ? "past_due"
-      : subscription.status === "active" || subscription.status === "trialing"
-        ? "active"
-        : subscription.status === "canceled"
-          ? "canceled"
-          : "active";
+  const billingStatus = billingStatusForStripeStatus(subscription.status);
 
   const update: Record<string, unknown> = {
     subscription_tier: tier === "platinum" || tier === "gold" ? tier : "gold",
@@ -324,7 +327,26 @@ export async function handleStripeWebhook(rawBody: string, signature: string): P
     throw new ApiError(400, "Invalid Stripe webhook signature.", error);
   }
 
-  switch (event.type) {
+  const inserted = await getPgPool().query(
+    `insert into rec_stripe_webhook_events(event_id,event_type,status)
+     values($1,$2,'processing')
+     on conflict(event_id) do nothing
+     returning status`,
+    [event.id, event.type],
+  );
+  if (!inserted.rows[0]) {
+    const retry = await getPgPool().query(
+      `update rec_stripe_webhook_events
+       set status='processing',attempts=attempts+1,error_message=null
+       where event_id=$1 and status='failed'
+       returning status`,
+      [event.id],
+    );
+    if (!retry.rows[0]) return { received: true };
+  }
+
+  try {
+    switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId =
@@ -357,6 +379,17 @@ export async function handleStripeWebhook(rawBody: string, signature: string): P
       await applySubscriptionDeleted(userId, subscription);
       break;
     }
+    case "invoice.paid": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const subscriptionId = invoiceSubscriptionId(invoice);
+      if (!subscriptionId) break;
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const userId = await findUserIdForSubscription(subscription);
+      if (userId && (subscription.status === "active" || subscription.status === "trialing")) {
+        await applyActiveSubscription(userId, subscription);
+      }
+      break;
+    }
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
       const customerId = typeof invoice.customer === "string" ? invoice.customer : invoice.customer?.id;
@@ -376,6 +409,17 @@ const subscriptionId = invoiceSubscriptionId(invoice);
     }
     default:
       break;
+    }
+    await getPgPool().query(
+      `update rec_stripe_webhook_events set status='processed',processed_at=now(),error_message=null where event_id=$1`,
+      [event.id],
+    );
+  } catch (error) {
+    await getPgPool().query(
+      `update rec_stripe_webhook_events set status='failed',error_message=$2 where event_id=$1`,
+      [event.id, error instanceof Error ? error.message.slice(0, 1000) : "Unknown webhook failure"],
+    );
+    throw error;
   }
 
   return { received: true };

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Import-time orchestration: runs after a box score is approved and its
 // rec_team_game_stats rows are written. Computes game profiles, generates the
 // game story, and recomputes the participants' game/season/career badges, then
@@ -90,7 +89,7 @@ async function loadPerformanceTagNotes(gameId: string, winnerTeamId: string | nu
   const playersResult = playerIds.length
     ? await supabase.from("rec_watched_players").select("id,player_name,position,class_year").in("id", playerIds)
     : { data: [] as any[] };
-  const playerById = new Map((playersResult.data ?? []).map((row: any) => [row.id, row]));
+  const playerById = new Map<string, any>((playersResult.data ?? []).map((row: any) => [row.id, row]));
 
   const notes: string[] = [];
   let bestStandout: { text: string; magnitude: number } | null = null;
@@ -133,7 +132,7 @@ export async function processGameIntelligence(sub: SubmissionRow): Promise<void>
   if (!rows || rows.length === 0) return;
 
   const games = rows.map((r) => rowToGameStats(r as TeamGameStatsRow, leagueGame));
-  const teamIds = [...new Set(rows.map((r) => r.team_id).filter((t): t is string => !!t))];
+  const teamIds = [...new Set<string>(rows.map((r: any) => String(r.team_id)).filter(Boolean))];
   const nameById = await loadTeamNames(teamIds);
 
   // Re-import safety: clear game-scoped derived rows before recompute.
@@ -284,7 +283,7 @@ function computeUserBadgeUpdate(input: UserBadgeComputeInput): UserBadgeComputeR
   const seasonRows: any[] = [];
 
   // Career-scope: simple boolean/threshold badges (tier "normal") + graded ladder badges.
-  const careerRows = [
+  const careerRows: any[] = [
     ...qualifyCareerBadges(careerTotals, leagueGame).map((b) => ({
       league_id: leagueId, user_id: userId, team_id: teamId, badge_key: b.key, badge_scope: "career",
       polarity: b.polarity, tier: "normal", season: null, week: null, earned_count: 1, last_earned_week: null, updated_at: now,
@@ -452,7 +451,7 @@ export async function recomputeActiveLeagueBadgeBaselines(leagueId: string, seas
     list.push(g);
     gamesByUser.set(g.userId, list);
   }
-  const recordByUser = new Map((recordsResult.data ?? []).map((row) => [row.user_id, toCareerRecordOverride(row)]));
+  const recordByUser = new Map<string, CareerRecordOverride>((recordsResult.data ?? []).map((row: any) => [row.user_id, toCareerRecordOverride(row)]));
 
   // Financial badges are per-user queries (ledger/purchases/wallet aren't batchable the
   // way rec_team_game_stats is) — run them in parallel across the roster rather than

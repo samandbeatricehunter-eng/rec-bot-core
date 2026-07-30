@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { randomUUID } from "node:crypto";
 import { CFB_27_RIVALRIES } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";

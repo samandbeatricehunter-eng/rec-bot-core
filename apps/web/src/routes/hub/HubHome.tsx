@@ -9,7 +9,7 @@ import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
@@ -292,6 +292,7 @@ export function HubHome() {
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
   const [wagerGamePickerOpen, setWagerGamePickerOpen] = useState(false);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
+  const [myWagers, setMyWagers] = useState<MyWagersResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
   const [wagersBoardNotice, setWagersBoardNotice] = useState<string | null>(null);
   const [closeWagersOpen, setCloseWagersOpen] = useState(false);
@@ -548,7 +549,24 @@ export function HubHome() {
     if (auth.status !== "ready") return;
     // Buzz shows the wager board too — keep it loaded for both surfaces.
     if (section !== "wagers" && !(section === "league" && subTab === "buzz")) return;
-    recApi.getPeerWagerBoard(auth.guildId).then((result) => setWagersBoard(result.wagers)).catch(() => setWagersBoard([]));
+    const guildId = auth.guildId;
+    const refresh = () => {
+      recApi.getPeerWagerBoard(guildId).then((result) => setWagersBoard(result.wagers)).catch(() => undefined);
+      recApi.getMyWagers(guildId).then((result) => setMyWagers(result.wagers)).catch(() => undefined);
+    };
+    refresh();
+    // A counterparty accepting/declining a wager is a change made by someone else's
+    // session — poll while this surface is visible so it doesn't require a hard reload
+    // to reflect that (there's no realtime channel for wagers yet).
+    const interval = window.setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 20000);
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, subTab]);
 
   useEffect(() => {
@@ -838,15 +856,15 @@ export function HubHome() {
     finally { setRecruitBusy(false); }
   }
 
-  async function voteGotw(selectedTeamId: string) {
-    if (auth.status !== "ready" || !matchupSchedule?.gotw) return;
-    await recApi.voteGameOfWeek({ guildId: auth.guildId, pollId: matchupSchedule.gotw.pollId, selectedTeamId });
+  async function voteGotw(pollId: string, selectedTeamId: string) {
+    if (auth.status !== "ready" || !matchupSchedule) return;
+    await recApi.voteGameOfWeek({ guildId: auth.guildId, pollId, selectedTeamId });
     setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
   }
 
-  async function closeGotw() {
-    if (auth.status !== "ready" || !matchupSchedule?.gotw) return;
-    await recApi.closeGameOfWeekVoting({ guildId: auth.guildId, pollId: matchupSchedule.gotw.pollId });
+  async function closeGotw(pollId: string) {
+    if (auth.status !== "ready" || !matchupSchedule) return;
+    await recApi.closeGameOfWeekVoting({ guildId: auth.guildId, pollId });
     setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek }));
   }
 
@@ -921,6 +939,7 @@ export function HubHome() {
       await recApi.acceptPeerWager({ guildId: auth.guildId, wagerId });
       const board = await recApi.getPeerWagerBoard(auth.guildId);
       setWagersBoard(board.wagers);
+      recApi.getMyWagers(auth.guildId).then((result) => setMyWagers(result.wagers)).catch(() => undefined);
       setWagersBoardNotice("Peer wager accepted.");
       await load();
     } catch (cause) {
@@ -936,6 +955,7 @@ export function HubHome() {
     try {
       await recApi.cancelMyWager({ guildId: auth.guildId, wagerId });
       setWagersBoard((current) => (current ?? []).filter((wager) => wager.id !== wagerId));
+      setMyWagers((current) => (current ?? []).filter((wager) => wager.id !== wagerId));
       setWagersBoardNotice("Wager removed and the held stake was refunded.");
     } catch (cause) { setWagersBoardNotice(cause instanceof Error ? cause.message : String(cause)); }
     finally { setWagersBoardBusy(false); }
@@ -1141,6 +1161,39 @@ export function HubHome() {
       <h3 className="hub-wagers-subhead">Peer Wager Board</h3>
       {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · {wager.pickLabel} · <CoinAmount amount={wager.stake} /></span><span className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.canEdit && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
+
+      <h3 className="hub-wagers-subhead">My Wagers</h3>
+      {(() => {
+        if (myWagers === null) return <p className="hub-empty">Loading your wagers...</p>;
+        if (!myWagers.length) return <p className="hub-empty">You haven't placed a wager this season.</p>;
+        const groups: Array<{ key: string; label: string; wagers: typeof myWagers }> = [
+          { key: "open", label: "Open Challenges", wagers: myWagers.filter((w) => w.boardState === "open") },
+          { key: "active", label: "Active (Accepted)", wagers: myWagers.filter((w) => w.boardState === "active") },
+          { key: "settled", label: "Settled", wagers: myWagers.filter((w) => w.boardState === "settled") },
+        ].filter((group) => group.wagers.length);
+        return <div className="hub-my-wagers-list">{groups.map((group) => (
+          <div key={group.key} className="hub-my-wagers-group">
+            <h4>{group.label} <span>{group.wagers.length}</span></h4>
+            {group.wagers.map((wager) => (
+              <article key={wager.id} className={`hub-my-wager-row hub-my-wager-row--${wager.status}`}>
+                <div>
+                  <strong>{wager.gameLabel}</strong>
+                  <span>{wager.wagerKind === "house" ? "House" : "Peer"} · {displayLabel(wager.market)} · {wager.pickLabel}</span>
+                  <span className="hub-wager-parties">
+                    {wager.wagerKind === "house" ? "vs House" : `${wager.isMine ? "You" : wager.placedByName} vs ${wager.acceptedByName ?? "open challenge"}`}
+                  </span>
+                </div>
+                <div className="hub-my-wager-row-figures">
+                  <b><CoinAmount amount={wager.stake} /> stake</b>
+                  <small>{wager.status === "won" ? `Won ` : "Payout "}<CoinAmount amount={wager.potentialPayout} /></small>
+                  <StatusChip status={wager.status === "won" ? "approved" : wager.status === "lost" ? "denied" : wager.status === "refunded" ? "info" : wager.boardState === "open" ? "pending" : "locked"} label={displayLabel(wager.status)} />
+                </div>
+                {wager.canEdit && <button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button>}
+              </article>
+            ))}
+          </div>
+        ))}</div>;
+      })()}
     </section> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
@@ -1341,7 +1394,7 @@ export function HubHome() {
                     type="button"
                     className={`hub-gotw-vote away${matchupSchedule.gotw.myVote === matchupSchedule.gotw.awayTeamId ? " active" : ""}`}
                     disabled={matchupSchedule.gotw.status !== "open"}
-                    onClick={() => void voteGotw(matchupSchedule.gotw!.awayTeamId)}
+                    onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.awayTeamId)}
                     aria-label="Vote away"
                   >
                     <span>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.awayTeamName ?? "Away"}</span>
@@ -1353,7 +1406,7 @@ export function HubHome() {
                     type="button"
                     className={`hub-gotw-vote home${matchupSchedule.gotw.myVote === matchupSchedule.gotw.homeTeamId ? " active" : ""}`}
                     disabled={matchupSchedule.gotw.status !== "open"}
-                    onClick={() => void voteGotw(matchupSchedule.gotw!.homeTeamId)}
+                    onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.homeTeamId)}
                     aria-label="Vote home"
                   >
                     <span>{matchupSchedule.games.find((g) => g.gameId === matchupSchedule.gotw?.gameId)?.homeTeamName ?? "Home"}</span>
@@ -1363,7 +1416,7 @@ export function HubHome() {
                 </div>
                 {hub.canManageLeague && matchupSchedule.gotw.status === "open" ? (
                   <div className="hub-matchup-admin-slot">
-                    <Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button>
+                    <Button variant="tactical" size="compact" onClick={() => void closeGotw(matchupSchedule.gotw!.pollId)}>Close Voting</Button>
                   </div>
                 ) : null}
                 {(() => {
@@ -1435,21 +1488,21 @@ export function HubHome() {
                   const visible = schedule.games.filter((game) => matchupView === "h2h" ? game.matchupType === "h2h" : game.matchupType === "human_cpu");
                   return visible.length ? <div className="rec-matchup-list">{visible.map((game, index) => <MatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />)}</div> : <p className="hub-empty">No {matchupView === "h2h" ? "H2H" : "human vs CPU"} games are scheduled for Week {schedule.selectedWeek}.</p>;
                 })()}
-                {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : ""}`} key={game.gameId}>
-                  <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + ((game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) ? " gotw" : "")}>
-                    <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? (schedule.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
+                {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${game.gotw ? " gotw" : ""}`} key={game.gameId}>
+                  <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.gotw ? " gotw" : "")}>
+                    <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{game.gotw ? (game.gotw.status === "open" ? "Vote now" : "Voting closed") : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
                     <div className="hub-matchup-board">
-                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${schedule.gotw.myVote === schedule.gotw.awayTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>{game.awayTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</b><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>{game.awayTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
+                      {game.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote away${game.gotw.myVote === game.gotw.awayTeamId ? " active" : ""}`} disabled={game.gotw.status !== "open"} onClick={() => void voteGotw(game.gotw!.pollId, game.gotw!.awayTeamId)} aria-label={`Vote for ${game.awayTeamName}`}><span>{game.awayTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</b><small>{game.gotw.awayVotes} vote{game.gotw.awayVotes === 1 ? "" : "s"}</small><em>{game.awayConference ?? "Visiting team"}</em></button> : <div className="hub-team-side"><span>{game.awayTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</div><small>{game.awayConference ?? "Visiting team"}</small></div>}
                       <div className="hub-score-center"><span aria-hidden="true" />{game.isFinal && game.awayScore != null && game.homeScore != null ? <strong>{`${game.awayScore}–${game.homeScore}`}</strong> : null}</div>
-                      {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote home${schedule.gotw.myVote === schedule.gotw.homeTeamId ? " active" : ""}`} disabled={schedule.gotw.status !== "open"} onClick={() => void voteGotw(schedule.gotw!.homeTeamId)} aria-label={`Vote for ${game.homeTeamName}`}><span>{game.homeTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</b><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small><em>{game.homeConference ?? "Home team"}</em></button> : <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>}
+                      {game.gotw ? <button type="button" className={`hub-team-side hub-team-side-vote home${game.gotw.myVote === game.gotw.homeTeamId ? " active" : ""}`} disabled={game.gotw.status !== "open"} onClick={() => void voteGotw(game.gotw!.pollId, game.gotw!.homeTeamId)} aria-label={`Vote for ${game.homeTeamName}`}><span>{game.homeTeamName}</span><b style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</b><small>{game.gotw.homeVotes} vote{game.gotw.homeVotes === 1 ? "" : "s"}</small><em>{game.homeConference ?? "Home team"}</em></button> : <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>}
                     </div>
                     <div className="hub-matchup-rails">
                       {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                       <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
                       {game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>}
                     </div>
-                    {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && hub.canManageLeague && schedule.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw()}>Close Voting</Button></div>}
-                    {(game.isGameOfWeek || schedule.gotw?.gameId === game.gameId) && schedule.gotw && (() => { const total = schedule.gotw.awayVotes + schedule.gotw.homeVotes; const away = total ? Math.round(schedule.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{schedule.gotw.awayVotes} vote{schedule.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{schedule.gotw.homeVotes} vote{schedule.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
+                    {game.gotw && hub.canManageLeague && game.gotw.status === "open" && <div className="hub-matchup-admin-slot"><Button variant="tactical" size="compact" onClick={() => void closeGotw(game.gotw!.pollId)}>Close Voting</Button></div>}
+                    {game.gotw && (() => { const total = game.gotw.awayVotes + game.gotw.homeVotes; const away = total ? Math.round(game.gotw.awayVotes / total * 100) : 50; return <div className="hub-gotw-meter-edge" style={{ "--away-share": `${away}%` } as CSSProperties}><div className="hub-gotw-meter-side away"><strong>{away}%</strong><small>{game.gotw.awayVotes} vote{game.gotw.awayVotes === 1 ? "" : "s"}</small></div><i /><div className="hub-gotw-meter-side home"><strong>{100 - away}%</strong><small>{game.gotw.homeVotes} vote{game.gotw.homeVotes === 1 ? "" : "s"}</small></div></div>; })()}
                     {game.matchupType === "human_cpu" ? null : <>
                       {(() => {
                         const awayStream = game.streams.find((stream) => stream.side === "away");

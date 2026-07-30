@@ -5,7 +5,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
-import { preserveGlobalContributionsBeforeLeagueDelete } from "../official-records/official-records.service.js";
+import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
 import {
   assertCanCreateLeague,
   resolveRecUserIdByDiscordId,
@@ -217,9 +217,11 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     player_trait_purchases_season_cap: input.playerTraitPurchasesSeasonCap ?? 0,
     contract_purchases_season_cap: input.contractPurchasesSeasonCap ?? 0,
     core_attribute_purchases_season_cap: input.coreAttributePurchasesSeasonCap ?? 0,
+    core_attribute_group_cap: input.coreAttributeGroupCap ?? 0,
     non_core_attribute_purchases_season_cap: input.nonCoreAttributePurchasesSeasonCap ?? 0,
     core_attributes: input.coreAttributes ?? [],
     core_attribute_cap_overrides: input.coreAttributeCapOverrides ?? {},
+    non_core_attribute_cap_overrides: input.nonCoreAttributeCapOverrides ?? {},
 
     streaming_requirement: input.regularSeasonStreamingRequirement,
     regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
@@ -255,6 +257,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
 
     injury_policy: input.injuryPolicy,
     difficulty: input.difficulty,
+    cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
     sliders_adjusted: input.slidersAdjusted ?? false,
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
@@ -454,9 +457,11 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     player_trait_purchases_season_cap: input.playerTraitPurchasesSeasonCap ?? 0,
     contract_purchases_season_cap: input.contractPurchasesSeasonCap ?? 0,
     core_attribute_purchases_season_cap: input.coreAttributePurchasesSeasonCap ?? 0,
+    core_attribute_group_cap: input.coreAttributeGroupCap ?? 0,
     non_core_attribute_purchases_season_cap: input.nonCoreAttributePurchasesSeasonCap ?? 0,
     core_attributes: input.coreAttributes ?? [],
     core_attribute_cap_overrides: input.coreAttributeCapOverrides ?? {},
+    non_core_attribute_cap_overrides: input.nonCoreAttributeCapOverrides ?? {},
     streaming_requirement: input.regularSeasonStreamingRequirement,
     regular_season_streaming_requirement: input.regularSeasonStreamingRequirement,
     postseason_streaming_requirement: input.postseasonStreamingRequirement,
@@ -485,6 +490,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     cpu_free_agency_policy: "disabled",
     injury_policy: input.injuryPolicy,
     difficulty: input.difficulty,
+    cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
     sliders_adjusted: input.slidersAdjusted ?? false,
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
     coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
@@ -588,9 +594,11 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     playerTraitPurchasesSeasonCap: c.player_trait_purchases_season_cap ?? 0,
     contractPurchasesSeasonCap: c.contract_purchases_season_cap ?? 0,
     coreAttributePurchasesSeasonCap: c.core_attribute_purchases_season_cap ?? 0,
+    coreAttributeGroupCap: c.core_attribute_group_cap ?? 0,
     nonCoreAttributePurchasesSeasonCap: c.non_core_attribute_purchases_season_cap ?? 0,
     coreAttributes: Array.isArray(c.core_attributes) ? c.core_attributes.filter((code: unknown) => typeof code === "string") : [],
     coreAttributeCapOverrides: c.core_attribute_cap_overrides && typeof c.core_attribute_cap_overrides === "object" && !Array.isArray(c.core_attribute_cap_overrides) ? c.core_attribute_cap_overrides : {},
+    nonCoreAttributeCapOverrides: c.non_core_attribute_cap_overrides && typeof c.non_core_attribute_cap_overrides === "object" && !Array.isArray(c.non_core_attribute_cap_overrides) ? c.non_core_attribute_cap_overrides : {},
     streamingRequirement: c.streaming_requirement ?? "recommended",
     regularSeasonStreamingRequirement: c.regular_season_streaming_requirement ?? "recommended",
     postseasonStreamingRequirement: c.postseason_streaming_requirement ?? "required",
@@ -617,6 +625,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     cpuFreeAgencyPolicy: "disabled",
     injuryPolicy: c.injury_policy ?? "on_standard",
     difficulty: c.difficulty === "custom" ? "all_madden" : (c.difficulty ?? "all_madden"),
+    cfbDifficulty: c.cfb_difficulty ?? (c.difficulty === "all_pro" ? "all_american" : c.difficulty === "pro" ? "varsity" : c.difficulty === "rookie" ? "freshman" : "heisman"),
     slidersAdjusted: c.sliders_adjusted ?? Boolean(String(c.difficulty_custom_settings ?? "").trim()),
     difficultyCustomSettings: c.difficulty_custom_settings ?? "",
     coachXpSetting: c.coach_xp_setting ?? "casual",
@@ -746,6 +755,9 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
   // this league must travel with them before it's gone, not disappear with the league.
   await preserveGlobalContributionsBeforeLeagueDelete(context.leagueId).catch((error) => {
     console.error("[ERROR] Failed to preserve global contributions before league wipe:", error);
+  });
+  await preserveH2hHistoryBeforeLeagueDelete(context.leagueId).catch((error) => {
+    console.error("[ERROR] Failed to preserve H2H history before league wipe:", error);
   });
 
   const { data, error } = await supabase.rpc("rec_delete_league", { p_league_id: context.leagueId });

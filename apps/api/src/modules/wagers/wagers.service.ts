@@ -1,4 +1,3 @@
-// @ts-nocheck
 // House wager placement. Validates eligibility (economy on, game this week, not the
 // bettor's own game, market allowed for the game's data tier, weekly CPU-game cap,
 // funds), escrows the stake out of the wallet into holding, and stores a pending
@@ -15,6 +14,7 @@ import { listLeagueCommissionerUserIds, notifyLeagueCommissionersOfPendingItem }
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
+import { assertNotLeagueRestricted } from "../moderation/moderation.service.js";
 
 function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string | null; name?: string | null } | null): string {
   if (!team) return "TBD";
@@ -132,6 +132,7 @@ export async function placeHouseWager(input: PlaceHouseWagerInput) {
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(userId);
+  await assertNotLeagueRestricted(leagueId, userId, "wagers");
 
   // Economy gate (settings on + linked-user floor).
   const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
@@ -323,6 +324,7 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(userId);
+  await assertNotLeagueRestricted(leagueId, userId, "wagers");
 
   const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
   await assertEconomyPayoutsActive(leagueId);
@@ -396,6 +398,7 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
   const leagueId = context.leagueId;
   const accepterId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(accepterId);
+  await assertNotLeagueRestricted(leagueId, accepterId, "wagers");
 
   const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).eq("league_id", leagueId).maybeSingle();
   if (error) throw new ApiError(500, "Failed to load wager.", error);
@@ -442,6 +445,14 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
     throw new ApiError(409, "Someone else just took this wager.");
   }
 
+  if (wager.placed_by_user_id) {
+    const href = `/l/${leagueId}/matchups`;
+    const title = "Your wager was accepted";
+    const body = `${wager.market ? `${wager.market} — ` : ""}${formatCoins(stake)} is on the line. View it on the wagers board.`;
+    void createSiteNotification({ userId: wager.placed_by_user_id, leagueId, kind: "wager_accepted", title, body, href }).catch(() => undefined);
+    void sendPushToUsers([wager.placed_by_user_id], { title, body, url: href }).catch(() => undefined);
+  }
+
   return {
     wager: updated.data,
   };
@@ -476,6 +487,7 @@ export async function placeCounterWager(input: PlaceCounterInput) {
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const counterUserId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(counterUserId);
+  await assertNotLeagueRestricted(leagueId, counterUserId, "wagers");
 
   const { data: original } = await supabase.from("rec_wagers").select("*").eq("id", input.originalWagerId).eq("league_id", leagueId).maybeSingle();
   if (!original || original.status !== "awaiting_accept") throw new ApiError(409, "That wager is no longer open to counter.");
@@ -658,7 +670,7 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
   const games = gameIds.length
     ? await supabase.from("rec_games").select("id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
     : { data: [] };
-  const gameById = new Map((games.data ?? []).map((game: any) => [game.id, game]));
+  const gameById = new Map<string, any>((games.data ?? []).map((game: any) => [game.id, game]));
   const gameLabelById = new Map(
     (games.data ?? []).map((game: any) => [game.id, `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}`]),
   );
@@ -675,31 +687,6 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
     (users.data ?? []).map((u: any) => [u.id, u.display_name ?? u.username ?? "REC Member"]),
   );
 
-  // A moneyline/spread wager's `pick` column stores the winning team's UUID (matches
-  // getGameWagerOptions' side.pick) — resolve it to a team abbreviation for display instead
-  // of showing the raw id. Total markets already store a human-readable "over"/"under".
-  function pickLabel(w: any): string {
-    const kind = WAGER_MARKET_BY_KEY.get(w.market)?.kind;
-    if (kind === "total") {
-      const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
-      return w.line != null ? `${side} ${w.line}` : side;
-    }
-    const game = gameById.get(w.game_id);
-    if (!game) return String(w.pick ?? "");
-    const teamLabel =
-      w.pick === game.home_team_id
-        ? teamAbbr(game.home_team)
-        : w.pick === game.away_team_id
-          ? teamAbbr(game.away_team)
-          : String(w.pick ?? "");
-    if (kind === "spread" && w.line != null) {
-      const isHome = w.pick === game.home_team_id;
-      const line = isHome ? -Number(w.line) : Number(w.line);
-      return `${teamLabel} ${line > 0 ? "+" : ""}${line}`;
-    }
-    return teamLabel;
-  }
-
   return {
     wagers: rows.map((w: any) => ({
       id: w.id,
@@ -709,7 +696,7 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
       market: w.market,
       marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
       pick: w.pick,
-      pickLabel: pickLabel(w),
+      pickLabel: pickLabelFor(w, gameById),
       line: w.line,
       odds: w.odds,
       stake: Number(w.stake ?? 0),
@@ -728,6 +715,88 @@ export async function listPeerWagerBoard(guildId: string, discordId: string) {
       createdAt: w.created_at,
     })),
   };
+}
+
+// Sportsbook hub: every wager (house or peer) the viewer has any stake in this season —
+// placed, accepted, or a direct-challenge target — regardless of week, so "My Wagers"
+// covers open, active, and settled/refunded history in one list.
+export async function listMyWagers(guildId: string, discordId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+  const viewerUserId = await userIdFromDiscord(discordId);
+  if (!viewerUserId) return { wagers: [] };
+
+  const { data, error } = await supabase
+    .from("rec_wagers")
+    .select("id,game_id,wager_kind,challenge_type,counterparty_user_id,placed_by_user_id,placed_by_discord_id,accepted_by_user_id,accepted_by_discord_id,market,pick,line,odds,stake,potential_payout,status,week_number,settled_at,created_at")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .or(`placed_by_user_id.eq.${viewerUserId},accepted_by_user_id.eq.${viewerUserId},counterparty_user_id.eq.${viewerUserId}`)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw new ApiError(500, "Failed to load your wagers.", error);
+  const rows = data ?? [];
+
+  const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
+  const games = gameIds.length
+    ? await supabase.from("rec_games").select("id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)").in("id", gameIds)
+    : { data: [] };
+  const gameById = new Map<string, any>((games.data ?? []).map((game: any) => [game.id, game]));
+  const gameLabelById = new Map((games.data ?? []).map((game: any) => [game.id, `${teamAbbr(game.away_team)} at ${teamAbbr(game.home_team)}`]));
+
+  const userIds = [...new Set(rows.flatMap((w: any) => [w.placed_by_user_id, w.accepted_by_user_id]).filter(Boolean))];
+  const users = userIds.length ? await supabase.from("rec_users").select("id,username,display_name").in("id", userIds) : { data: [] };
+  const nameByUserId = new Map((users.data ?? []).map((u: any) => [u.id, u.display_name ?? u.username ?? "REC Member"]));
+
+  return {
+    wagers: rows.map((w: any) => ({
+      id: w.id,
+      gameId: w.game_id,
+      gameLabel: w.game_id ? gameLabelById.get(w.game_id) ?? "Scheduled game" : "House line",
+      weekNumber: Number(w.week_number ?? 0),
+      wagerKind: w.wager_kind,
+      challengeType: w.challenge_type,
+      market: w.market,
+      marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
+      pickLabel: pickLabelFor(w, gameById),
+      stake: Number(w.stake ?? 0),
+      potentialPayout: Number(w.potential_payout ?? 0),
+      status: w.status,
+      boardState: w.status === "awaiting_accept" ? "open" : ["pending", "confirmed"].includes(w.status) ? "active" : "settled",
+      placedByName: nameByUserId.get(w.placed_by_user_id) ?? "REC Member",
+      acceptedByName: w.accepted_by_user_id ? nameByUserId.get(w.accepted_by_user_id) ?? "REC Member" : null,
+      isMine: w.placed_by_user_id === viewerUserId,
+      canEdit: w.status === "awaiting_accept" && w.placed_by_user_id === viewerUserId,
+      settledAt: w.settled_at,
+      createdAt: w.created_at,
+    })),
+  };
+}
+
+// Shared by listPeerWagerBoard and listMyWagers — a moneyline/spread wager's `pick` column
+// stores the winning team's UUID; resolve it to a team abbreviation for display instead of
+// showing the raw id. Total markets already store a human-readable "over"/"under".
+function pickLabelFor(w: any, gameById: Map<string, any>): string {
+  const kind = WAGER_MARKET_BY_KEY.get(w.market)?.kind;
+  if (kind === "total") {
+    const side = String(w.pick ?? "").toLowerCase() === "under" ? "Under" : "Over";
+    return w.line != null ? `${side} ${w.line}` : side;
+  }
+  const game = gameById.get(w.game_id);
+  if (!game) return String(w.pick ?? "");
+  const teamLabel =
+    w.pick === game.home_team_id
+      ? teamAbbr(game.home_team)
+      : w.pick === game.away_team_id
+        ? teamAbbr(game.away_team)
+        : String(w.pick ?? "");
+  if (kind === "spread" && w.line != null) {
+    const isHome = w.pick === game.home_team_id;
+    const line = isHome ? -Number(w.line) : Number(w.line);
+    return `${teamLabel} ${line > 0 ? "+" : ""}${line}`;
+  }
+  return teamLabel;
 }
 
 export async function attachWagerAnnouncementMessage(input: { wagerId: string; channelId: string; messageId: string }) {
@@ -755,6 +824,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   const weekNumber = Number(context.rec_leagues.current_week ?? 1);
   const userId = await userIdFromDiscord(input.discordId);
   await assertSiteAccountForEconomy(userId);
+  await assertNotLeagueRestricted(leagueId, userId, "wagers");
 
   const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
   await assertEconomyPayoutsActive(leagueId);
@@ -779,7 +849,7 @@ export async function placeParlay(input: PlaceParlayInput) {
   const balance = await walletBalance(userId);
   if (balance < stake) throw new ApiError(400, `Insufficient funds. This stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
 
-  const prepared = [];
+  const prepared: Array<{ gameId: string; market: string; pick: string; line: number | null; odds: number; label: string }> = [];
   for (const leg of input.legs) {
     const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, leg.gameId, leg.market, leg.pick, stake, leg.customLine);
     prepared.push({ gameId: leg.gameId, market: leg.market, pick: leg.pick, line: prep.line, odds: Number(prep.side.odds), label: `${prep.options.awayLabel} at ${prep.options.homeLabel} — ${prep.marketDef.label}: ${prep.side.label}${prep.line != null && prep.marketDef.kind === "spread" ? ` (line ${prep.line > 0 ? "+" : ""}${prep.line})` : ""}` });

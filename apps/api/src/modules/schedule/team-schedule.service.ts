@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { randomUUID } from "node:crypto";
 import { isCfb, maxSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
@@ -102,7 +101,7 @@ export async function loadResultsAndPendingSubmissions(
   if (resultsRes.error) throw new ApiError(500, "Failed to load existing game results.", resultsRes.error);
   if (submissionsRes.error) throw new ApiError(500, "Failed to load pending box score submissions.", submissionsRes.error);
 
-  const resultByMatchup = new Map(
+  const resultByMatchup = new Map<string, any>(
     (resultsRes.data ?? []).map((row: any) => [`${row.week_number}:${row.home_team_id}:${row.away_team_id}`, row]),
   );
   const submissionByGameId = new Map<string, any>();
@@ -193,6 +192,12 @@ export async function previewCfbTeamScheduleImport(input: {
       weekNumber: row.weekNumber,
       weekLabel: row.weekLabel,
       isBye: row.isBye,
+      byeType: "regular_season",
+      postseasonRound: null,
+      bowlName: null,
+      isBowlGame: false,
+      isNationalChampionship: false,
+      rivalry: { enabled: false, optedOut: false, details: null },
       opponentRaw: row.opponentRaw,
       opponentRank: row.opponentRank,
       homeAway: row.homeAway,
@@ -238,6 +243,12 @@ export type TeamScheduleManualWeek = {
   pendingBoxScoreSubmissionId: string | null;
   boxScoreSubmissionId: string | null;
   boxScoreStatus: string | null;
+  byeType: "regular_season" | "cfp_first_round";
+  postseasonRound: string | null;
+  bowlName: string | null;
+  isBowlGame: boolean;
+  isNationalChampionship: boolean;
+  rivalry: { enabled: boolean; optedOut: boolean; details: any | null };
   /** Persisted from rec_team_byes — stays checked across reloads until the commissioner unchecks and re-saves. */
   isBye: boolean;
 };
@@ -264,7 +275,6 @@ export async function getTeamScheduleManualState(input: {
   const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
   const gameDescriptors = [...confirmedByWeek.values()].map((c) => ({ id: c.gameId, weekNumber: c.weekNumber, homeTeamId: c.homeTeamId, awayTeamId: c.awayTeamId }));
   const resultsAndSubmissions = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
-  await Promise.all(gameDescriptors.map((game) => assignKnownRivalryToGame(game.id)));
   const rivalries = await loadGameRivalries(gameDescriptors.map((game) => game.id));
 
   const byeRows = await supabase.from("rec_team_byes").select("week_number,bye_type").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
@@ -335,10 +345,10 @@ export async function commitTeamScheduleDecisions(input: {
 
   // Full-replace diff against the checkbox state submitted by the whole-season form — a week
   // that's unchecked and re-saved needs its bye row removed, not just left un-added.
-  const desiredByeWeeks = new Set([...(input.byeWeeks ?? []), ...(input.firstRoundByeWeeks ?? [])]);
+  const desiredByeWeeks = new Set<number>([...(input.byeWeeks ?? []), ...(input.firstRoundByeWeeks ?? [])]);
   const existingByes = await supabase.from("rec_team_byes").select("week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
   if (existingByes.error) throw new ApiError(500, "Failed to load existing bye weeks.", existingByes.error);
-  const existingByeWeeks = new Set((existingByes.data ?? []).map((row: any) => row.week_number));
+  const existingByeWeeks = new Set<number>((existingByes.data ?? []).map((row: any) => Number(row.week_number)));
   const byeWeeksToDelete = [...existingByeWeeks].filter((week) => !desiredByeWeeks.has(week));
   const byeWeeksToInsert = [...desiredByeWeeks].filter((week) => !existingByeWeeks.has(week));
   if (byeWeeksToDelete.length) {

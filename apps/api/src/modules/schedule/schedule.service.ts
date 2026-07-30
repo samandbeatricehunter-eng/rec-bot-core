@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   DEFAULT_NFL_SEASON_BY_GAME,
   getDefaultNflScheduleForGame,
@@ -678,7 +677,7 @@ export async function previewScheduleImport(input: {
 
   const abbrMap = buildAbbrMap(teams);
   const nickMap = buildNickMap(teams);
-  const labelById = new Map(teams.map((t) => [t.id, formatTeamDisplayName(t) ?? t.name ?? t.display_abbr ?? t.abbreviation ?? "Team"]));
+  const labelById = new Map<string, string>(teams.map((t: any) => [String(t.id), String(formatTeamDisplayName(t) ?? t.name ?? t.display_abbr ?? t.abbreviation ?? "Team")]));
   const resolve = (abbr: string | null, nick: string | null): string | null =>
     resolveScheduleAbbr(abbrMap, abbr) ?? (nick ? nickMap.get(nickNorm(nick)) ?? null : null);
 

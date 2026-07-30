@@ -186,13 +186,13 @@ export function Pricing() {
                   ))}
                 </ul>
                 {signedIn ? (
-                  subscribed && isCurrent ? (
+                  subscribed ? (
                     <button
                       className="site-btn site-btn-ghost site-btn-lg"
                       disabled={portalBusy}
                       onClick={() => void openPortal()}
                     >
-                      Manage billing
+                      {isCurrent ? "Manage billing" : `Switch to ${plan.name} in billing portal`}
                     </button>
                   ) : (
                     <button

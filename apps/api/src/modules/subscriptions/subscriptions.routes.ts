@@ -85,8 +85,6 @@ export async function subscriptionRoutes(app: FastifyInstance) {
         .object({
           tier: z.enum(["gold", "platinum"]),
           interval: z.enum(["month", "year"]).optional().default("month"),
-          successUrl: z.string().url().optional(),
-          cancelUrl: z.string().url().optional(),
         })
         .parse(request.body ?? {});
       const recUserId = await resolveCheckoutRecUserId(session.authUserId, session.email);
@@ -96,8 +94,6 @@ export async function subscriptionRoutes(app: FastifyInstance) {
           email: session.email,
           tier: body.tier,
           interval: body.interval,
-          successUrl: body.successUrl,
-          cancelUrl: body.cancelUrl,
         }),
       );
     } catch (error) {
@@ -156,16 +152,11 @@ export async function subscriptionRoutes(app: FastifyInstance) {
   app.post("/v1/subscriptions/portal", async (request, reply) => {
     try {
       const session = await requireSiteUserSession(request);
-      const body = z
-        .object({
-          returnUrl: z.string().url().optional(),
-        })
-        .parse(request.body ?? {});
+      z.object({}).parse(request.body ?? {});
       const recUserId = await resolveCheckoutRecUserId(session.authUserId, session.email);
       return reply.send(
         await createCustomerPortalSession({
           userId: recUserId,
-          returnUrl: body.returnUrl,
         }),
       );
     } catch (error) {

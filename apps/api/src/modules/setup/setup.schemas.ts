@@ -78,13 +78,20 @@ export const CreateLeagueSchema = z.object({
   ageResetsSeasonCap: z.number().int().min(0).max(5).default(0),
   playerTraitPurchasesSeasonCap: z.number().int().min(0).max(10).default(0),
   contractPurchasesSeasonCap: z.number().int().min(0).max(5).default(0),
-  // Attribute caps are points-per-user-per-season. coreAttributePurchasesSeasonCap is the
-  // DEFAULT per-core-attribute cap; nonCoreAttributePurchasesSeasonCap is the TOTAL non-core
-  // points cap. 0 means unlimited. core_attribute_cap_overrides override the default per code.
+  // Attribute caps are points-per-user-per-season, and every cap here is additive with the
+  // others rather than either/or: a purchase must clear its own attribute's individual cap
+  // (override, or the group default if it has none) AND the group's pooled total.
+  // coreAttributePurchasesSeasonCap / nonCoreAttributeDefaultCap-equivalent: DEFAULT individual
+  // cap applied to an attribute in that group when it has no override. *CapOverrides: per-
+  // attribute individual cap that replaces the default for that one code. *GroupCap /
+  // nonCoreAttributePurchasesSeasonCap: pooled TOTAL cap across every attribute in that group
+  // combined. 0 means unlimited for any of these.
   coreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).default(0),
+  coreAttributeGroupCap: z.number().int().min(0).max(99).default(0),
   nonCoreAttributePurchasesSeasonCap: z.number().int().min(0).max(99).default(0),
   coreAttributes: z.array(z.string()).default([]),
   coreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),
+  nonCoreAttributeCapOverrides: z.record(z.number().int().min(0).max(99)).default({}),
 
   streamingRequirement: streamingRequirement.default("recommended"),
   regularSeasonStreamingRequirement: streamingRequirement.default("recommended"),
@@ -118,6 +125,7 @@ export const CreateLeagueSchema = z.object({
   injuryPolicy: z.enum(["off", "on_standard", "on_reduced"]).default("on_standard"),
 
   difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden"]).default("all_madden"),
+  cfbDifficulty: z.enum(["freshman", "varsity", "all_american", "heisman"]).default("heisman"),
   slidersAdjusted: z.boolean().default(false),
   difficultyCustomSettings: z.string().optional().nullable(),
   coachXpSetting: z.enum(["casual", "career"]).optional().nullable(),

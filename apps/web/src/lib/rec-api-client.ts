@@ -47,6 +47,7 @@ import type {
   MediaPortalResponse,
   WagerOptionsResponse,
   PeerWagerBoardResponse,
+  MyWagersResponse,
   ChallengeableCoachesResponse,
   OpenTeamsResponse,
   RoleMgmtMember,
@@ -207,6 +208,8 @@ export const recApi = {
     recApiFetch<{ closed: true; refundedCount: number }>("/v1/wagers/close-game", { method: "POST", body: JSON.stringify(input) }),
   getPeerWagerBoard: (guildId: string) =>
     recApiFetch<PeerWagerBoardResponse>("/v1/wagers/peer-board", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getMyWagers: (guildId: string) =>
+    recApiFetch<MyWagersResponse>("/v1/wagers/my-wagers", { method: "POST", body: JSON.stringify({ guildId }) }),
   listChallengeableCoaches: (guildId: string) =>
     recApiFetch<ChallengeableCoachesResponse>("/v1/wagers/challengeable-coaches", { method: "POST", body: JSON.stringify({ guildId }) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
@@ -231,6 +234,12 @@ export const recApi = {
     recApiFetch<TeamScheduleManualState>(REC_API_ROUTES.teamScheduleManualState, { method: "POST", body: JSON.stringify(input) }),
   commitTeamScheduleDecisions: (input: { guildId: string; teamId: string; decisions: CommitDecision[]; byeWeeks?: number[]; firstRoundByeWeeks?: number[] }) =>
     recApiFetch<CommitResult>(REC_API_ROUTES.teamScheduleCommit, { method: "POST", body: JSON.stringify(input) }),
+  getCfpPostseason: (guildId: string) =>
+    recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/state", { method: "POST", body: JSON.stringify({ guildId }) }),
+  saveCfpTop25: (input: { guildId: string; rankings: Array<{ rank: number; teamId: string; conferenceChampion: boolean }> }) =>
+    recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/top-25", { method: "POST", body: JSON.stringify(input) }),
+  generateCfpBracket: (input: { guildId: string; seeds?: Array<{ seed: number; teamId: string }> }) =>
+    recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/generate", { method: "POST", body: JSON.stringify(input) }),
   setGameRivalry: (input: Record<string, unknown>) =>
     recApiFetch<{ enabled: boolean }>(REC_API_ROUTES.setGameRivalry, { method: "POST", body: JSON.stringify(input) }),
   getTeamManagementSummary: (guildId: string) =>
@@ -430,6 +439,16 @@ export const recApi = {
     recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/config", { method: "POST", body: JSON.stringify({ guildId }) }),
   updateLeagueSettings: (draft: LeagueSettingsDraft) =>
     recApiFetch<unknown>("/v1/setup/league/config/update", { method: "POST", body: JSON.stringify(draft) }),
+  listModeration: (guildId: string) =>
+    recApiFetch<any>("/v1/moderation/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  createModerationBan: (input: { guildId: string; target: string; scope: "league" | "owner_all_leagues"; reason: string; expiresAt?: string | null }) =>
+    recApiFetch<unknown>("/v1/moderation/ban", { method: "POST", body: JSON.stringify(input) }),
+  liftModerationBan: (input: { guildId: string; banId: string }) =>
+    recApiFetch<unknown>("/v1/moderation/ban/lift", { method: "POST", body: JSON.stringify(input) }),
+  createModerationRestriction: (input: { guildId: string; target: string; restrictionType: "wagers" | "highlights"; reason: string; expiresAt?: string | null }) =>
+    recApiFetch<unknown>("/v1/moderation/restrict", { method: "POST", body: JSON.stringify(input) }),
+  liftModerationRestriction: (input: { guildId: string; restrictionId: string }) =>
+    recApiFetch<unknown>("/v1/moderation/restrict/lift", { method: "POST", body: JSON.stringify(input) }),
 
   // First-Time Setup (Phase 2) — omitted fields fall back to CreateLeagueSchema's Zod
   // defaults server-side, so a minimal payload here is intentional, not a shortcut.

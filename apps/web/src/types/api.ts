@@ -497,6 +497,7 @@ export type HubMatchupSchedule = {
     involvesMe: boolean;
     viewerSide: "away" | "home" | null;
     isGameOfWeek: boolean;
+    gotw: null | { pollId: string; gameId: string; status: "open" | "closed"; canVote: boolean; awayTeamId: string; homeTeamId: string; awayTeamName: string; homeTeamName: string; awayVotes: number; homeVotes: number; myVote: string | null };
     homeTeamId: string | null;
     awayTeamId: string | null;
     homeTeamName: string;
@@ -523,6 +524,18 @@ export type HubMatchupSchedule = {
 };
 export type HubMatchupGame = HubMatchupSchedule["games"][number];
 export type MatchupChatMessage = { id: string; author_user_id: string; author_display_name: string; body: string; created_at: string };
+export type H2hMatchupRecord = {
+  leagueName: string;
+  game: string | null;
+  seasonNumber: number | null;
+  weekNumber: number | null;
+  userTeamName: string | null;
+  opponentTeamName: string | null;
+  userScore: number | null;
+  opponentScore: number | null;
+  result: "win" | "loss" | "tie";
+  playedAt: string | null;
+};
 export type HubMatchupDetail = {
   matchup: HubMatchupGame;
   streamFeature?: {
@@ -531,6 +544,8 @@ export type HubMatchupDetail = {
     secondaryStreamLogId: string | null;
   } | null;
   gotw: HubMatchupSchedule["gotw"];
+  h2hHistory: H2hMatchupRecord[];
+  lastMatchup: H2hMatchupRecord | null;
   messages: MatchupChatMessage[];
 };
 
@@ -587,6 +602,9 @@ export type WagerOptionsResponse = {
 export type PeerWagerBoardResponse = {
   wagers: Array<{ id: string; gameId: string; gameLabel: string; challengeType: string; market: string; marketLabel: string; pick: string; pickLabel: string; line: number | null; odds: number; stake: number; potentialPayout: number; placedByDiscordId: string; placedByName: string; acceptedByName: string | null; isMine: boolean; canAccept: boolean; canEdit: boolean; createdAt: string; status?: string; boardState?: "open" | "active" }>;
 };
+export type MyWagersResponse = {
+  wagers: Array<{ id: string; gameId: string | null; gameLabel: string; weekNumber: number; wagerKind: string; challengeType: string | null; market: string; marketLabel: string; pickLabel: string; stake: number; potentialPayout: number; status: string; boardState: "open" | "active" | "settled"; placedByName: string; acceptedByName: string | null; isMine: boolean; canEdit: boolean; settledAt: string | null; createdAt: string }>;
+};
 export type ChallengeableCoachesResponse = {
   coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;
 };
@@ -597,11 +615,29 @@ export type StorePurchaseContext = {
   coreAttributes: string[];
   coreAttributeDefaultCap: number;
   coreAttributeCapOverrides: Record<string, number>;
+  coreAttributeGroupCap: number;
   nonCoreAttributeCap: number;
+  nonCoreAttributeCapOverrides: Record<string, number>;
   usedCoreByCode: Record<string, number>;
+  usedNonCoreByCode: Record<string, number>;
+  usedCore: number;
   usedNonCore: number;
   seasonCaps: Partial<Record<"age_reset" | "dev_upgrade" | "contract" | "player_trait" | "legend" | "custom_player", number>>;
   seasonActive: Record<string, number>;
+};
+
+export type CfpPostseasonState = {
+  seasonNumber: number;
+  rankings: Array<{ rank: number; team_id: string; conference_champion: boolean; name: string; abbreviation: string; conference: string | null }>;
+  bracket: Array<{
+    id: string; status: string; slot_id: string | null;
+    round: "first_round" | "quarterfinal" | "semifinal" | "championship" | null;
+    slot_number: number | null; home_seed: number | null; away_seed: number | null;
+    home_team_id: string | null; away_team_id: string | null;
+    home_team_name: string | null; away_team_name: string | null;
+    game_id: string | null; game_status: string | null;
+    home_score: number | null; away_score: number | null; bowl_name: string | null;
+  }>;
 };
 
 export type LegendCatalogEntry = {

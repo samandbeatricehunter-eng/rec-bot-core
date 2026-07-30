@@ -662,6 +662,41 @@ export function MatchupDetailPage() {
             </section>
           );
         })()}
+      {matchup.matchupType === "h2h" && detail.lastMatchup && (
+        <section className="matchup-h2h-history">
+          <header className="matchup-h2h-history__head">
+            <span>Last Matchup</span>
+            {detail.h2hHistory.length > 1 && <small>{detail.h2hHistory.length} all-time meetings</small>}
+          </header>
+          <p className="matchup-h2h-history__last">
+            <strong>{detail.lastMatchup.userTeamName ?? "Coach A"}</strong> {detail.lastMatchup.userScore}
+            {" – "}
+            {detail.lastMatchup.opponentScore} <strong>{detail.lastMatchup.opponentTeamName ?? "Coach B"}</strong>
+            <span className="matchup-h2h-history__meta">
+              {" "}· {detail.lastMatchup.leagueName}
+              {detail.lastMatchup.weekNumber != null ? ` · Week ${detail.lastMatchup.weekNumber}` : ""}
+              {detail.lastMatchup.playedAt ? ` · ${new Date(detail.lastMatchup.playedAt).toLocaleDateString()}` : ""}
+            </span>
+          </p>
+          {detail.h2hHistory.length > 1 && (
+            <details className="matchup-h2h-history__full">
+              <summary>View all {detail.h2hHistory.length} meetings</summary>
+              <ul>
+                {detail.h2hHistory.map((game, index) => (
+                  <li key={index}>
+                    <span>{game.userTeamName ?? "Coach A"} {game.userScore} – {game.opponentScore} {game.opponentTeamName ?? "Coach B"}</span>
+                    <small>
+                      {game.leagueName}
+                      {game.weekNumber != null ? ` · Week ${game.weekNumber}` : ""}
+                      {game.playedAt ? ` · ${new Date(game.playedAt).toLocaleDateString()}` : ""}
+                    </small>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
       <MatchupActions
         matchup={matchup}
         canUploadBoxScore={canUploadBoxScore}

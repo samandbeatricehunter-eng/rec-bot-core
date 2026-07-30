@@ -206,6 +206,23 @@ export async function deleteDiscordMessage(channelId: string, messageId: string)
   await discordBotFetch(`/channels/${channelId}/messages/${messageId}`, { method: "DELETE" }).catch(() => undefined);
 }
 
+export async function banDiscordGuildMember(guildId: string, discordId: string, reason: string): Promise<void> {
+  const response = await discordBotFetch(`/guilds/${guildId}/bans/${discordId}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-audit-log-reason": encodeURIComponent(reason.slice(0, 480)) },
+    body: JSON.stringify({ delete_message_seconds: 0 }),
+  });
+  if (!response.ok) throw new ApiError(502, `Discord rejected the server ban (${response.status}).`);
+}
+
+export async function unbanDiscordGuildMember(guildId: string, discordId: string, reason: string): Promise<void> {
+  const response = await discordBotFetch(`/guilds/${guildId}/bans/${discordId}`, {
+    method: "DELETE",
+    headers: { "x-audit-log-reason": encodeURIComponent(reason.slice(0, 480)) },
+  });
+  if (!response.ok && response.status !== 404) throw new ApiError(502, `Discord rejected the server unban (${response.status}).`);
+}
+
 /**
  * Fetches one message's raw Discord payload — used to read its `reactions` array
  * (each entry is `{ emoji: { id, name }, count, me }`) without needing a live

@@ -586,3 +586,93 @@
 .advance-legacy-manual-control {
   display: none;
 }
+.cfp-top25-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+.cfp-ranking-row {
+  display: grid;
+  grid-template-columns: 38px minmax(150px, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cfp-ranking-row label { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cfp-bracket { display: grid; grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: var(--space-3); overflow-x: auto; }
+.cfp-bracket section { display: flex; flex-direction: column; gap: var(--space-2); }
+.cfp-bracket section > h3 { text-align: center; text-transform: capitalize; }
+.cfp-bracket article { display: grid; gap: 4px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-glass); }
+.cfp-bracket article > strong { color: var(--text-muted); font-size: var(--text-xs); }
+@media (max-width: 760px) {
+  .cfp-top25-grid { grid-template-columns: 1fr; }
+  .cfp-ranking-row { grid-template-columns: 34px minmax(0, 1fr); }
+  .cfp-ranking-row label { grid-column: 2; white-space: normal; }
+}
+.setup-tutorial {
+  position: sticky;
+  top: 1rem;
+  z-index: 30;
+  max-width: 42rem;
+  margin: 0 auto 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--accent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--panel-bg, #10151d) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(130%);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 45%);
+}
+
+.tutorial-focus {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+  box-shadow: 0 0 1.25rem color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.moderation-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .75rem 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+}
+
+.moderation-row small {
+  display: block;
+  opacity: .72;
+  margin-top: .2rem;
+}
+/* Per-attribute purchase limits stay readable at desktop and mobile widths. */
+.attribute-cap-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(6rem, 10rem);
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 560px) {
+  .attribute-cap-row {
+    grid-template-columns: 1fr;
+  }
+}
+.attribute-cap-row:has(.btn-icon) {
+  grid-template-columns: minmax(10rem, 1fr) minmax(6rem, 10rem) auto;
+}
+.btn-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.btn-icon:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}

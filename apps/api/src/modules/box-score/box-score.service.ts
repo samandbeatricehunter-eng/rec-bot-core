@@ -1,4 +1,3 @@
-// @ts-nocheck
 import sharp from "sharp";
 import { isCfb, isChampionshipWeek, isRegularSeasonWeek, formatCoins } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
@@ -2022,7 +2021,8 @@ async function recordTeamGameStats(sub: any) {
     return row;
   };
 
-  const rows = [sub.team1_id ? sideOf("team1") : null, sub.team2_id ? sideOf("team2") : null].filter(Boolean);
+  const rows = [sub.team1_id ? sideOf("team1") : null, sub.team2_id ? sideOf("team2") : null]
+    .filter((row): row is Record<string, any> => row !== null);
   if (!rows.length) return;
   const { error } = await supabase.from("rec_team_game_stats").upsert(rows, { onConflict: "submission_id,team_id" });
   if (error) throw new ApiError(500, "Failed to record team game stats from box score.", error);

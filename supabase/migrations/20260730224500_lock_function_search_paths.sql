@@ -1,0 +1,17 @@
+alter function public.enforce_rls_on_new_tables() set search_path = public, pg_temp;
+alter function public.rec_award_candidate_scores(uuid, integer) set search_path = public, pg_temp;
+alter function public.rec_award_num(jsonb, text[]) set search_path = public, pg_temp;
+alter function public.rec_coach_award_scores(uuid, integer) set search_path = public, pg_temp;
+alter function public.rec_enforce_league_configuration_dependencies() set search_path = public, pg_temp;
+alter function public.rec_enforce_league_feature_dependencies() set search_path = public, pg_temp;
+alter function public.rec_eos_rank_payouts(uuid, integer) set search_path = public, pg_temp;
+alter function public.rec_refresh_roster_snapshots(uuid, integer, integer, uuid) set search_path = public, pg_temp;
+alter function public.rec_roster_league_conferences(text) set search_path = public, pg_temp;
+alter function public.rec_roster_team(text, uuid) set search_path = public, pg_temp;
+alter function public.rec_set_updated_at() set search_path = public, pg_temp;
+alter function public.rec_touch_game_results_updated_at() set search_path = public, pg_temp;
+alter function public.rec_touch_h2h_updated_at() set search_path = public, pg_temp;
+alter function public.rec_touch_import_endpoint_attempts_updated_at() set search_path = public, pg_temp;
+alter function public.rec_touch_import_jobs_updated_at() set search_path = public, pg_temp;
+alter function public.rec_touch_user_records_updated_at() set search_path = public, pg_temp;
+alter function public.rec_user_rating_stat_totals(uuid, integer, uuid[], boolean) set search_path = public, pg_temp;

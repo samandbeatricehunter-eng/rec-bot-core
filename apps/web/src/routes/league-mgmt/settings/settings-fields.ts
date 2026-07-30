@@ -7,9 +7,8 @@ import type { LeagueSettingsDraft } from "../../../types/api.js";
 // schema-driven renderer covers far more ground than bespoke components would in the same
 // amount of code.
 //
-// Deliberately NOT covered here (left for a follow-up pass, each is a genuinely different
-// editor shape from everything below): coreAttributes / coreAttributeCapOverrides (per-
-// attribute multi-select + override map), conferenceAssignments (team->conference map), and
+// Deliberately NOT covered by this schema (each has a genuinely different editor shape):
+// conferenceAssignments (team->conference map), and
 // the ~11 *_channel_id fields — channel routing saves through a different API path entirely
 // (apps/api/src/modules/server-config/), not updateLeagueConfig, matching how the Discord
 // flow itself separates them (see apps/bot/src/flows/league-setup.ts's saveChannelEditIfNeeded).
@@ -41,6 +40,7 @@ const isCfb = (game: string) => game === "cfb_27";
 
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   { key: "channels", label: "Channels", fields: [] },
+  { key: "moderation", label: "Bans & Restrictions", fields: [] },
   {
     key: "features",
     label: "Features",
@@ -63,8 +63,9 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
       { key: "ageResetsEnabled", label: "Age Resets Enabled", type: "toggle", gameFilter: notCfb, dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
       { key: "ageResetsSeasonCap", label: "Age Resets Season Cap", type: "number", min: 0, max: 5, gameFilter: notCfb, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.ageResetsEnabled), resetTo: 0 },
       { key: "attributePurchasesEnabled", label: "Attribute Purchases Enabled", type: "toggle", dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
-      { key: "coreAttributePurchasesSeasonCap", label: "Core Attribute Season Cap (points)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
-      { key: "nonCoreAttributePurchasesSeasonCap", label: "Non-Core Attribute Season Cap (points)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
+      { key: "coreAttributePurchasesSeasonCap", label: "Core Attribute Default Cap (points, per attribute)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
+      { key: "coreAttributeGroupCap", label: "Core Attribute Group Cap (points, total across all Core)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
+      { key: "nonCoreAttributePurchasesSeasonCap", label: "Non-Core Attribute Group Cap (points, total across all Non-Core)", type: "number", min: 0, max: 99, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.attributePurchasesEnabled), resetTo: 0 },
       { key: "playerTraitPurchasesEnabled", label: "Player Trait Purchases Enabled", type: "toggle", dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
       { key: "playerTraitPurchasesSeasonCap", label: "Player Trait Purchases Season Cap", type: "number", min: 0, max: 10, dependsOn: (d) => Boolean(d.coinEconomyEnabled && d.playerTraitPurchasesEnabled), resetTo: 0 },
       { key: "contractAdjustmentPurchasesEnabled", label: "Contract Adjustment Purchases Enabled", type: "toggle", gameFilter: notCfb, dependsOn: (d) => Boolean(d.coinEconomyEnabled) },
@@ -101,8 +102,9 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     key: "gameplay",
     label: "Gameplay",
     fields: [
-      { key: "difficulty", label: "Difficulty", type: "enum", options: [{ value: "rookie", label: "Rookie" }, { value: "pro", label: "Pro" }, { value: "all_pro", label: "All-Pro" }, { value: "all_madden", label: "All-Madden" }, { value: "custom", label: "Custom" }] },
-      { key: "difficultyCustomSettings", label: "Custom Difficulty Settings", type: "textarea", dependsOn: (d) => d.difficulty === "custom" },
+      { key: "difficulty", label: "Difficulty", type: "enum", gameFilter: notCfb, options: [{ value: "rookie", label: "Rookie" }, { value: "pro", label: "Pro" }, { value: "all_pro", label: "All-Pro" }, { value: "all_madden", label: "All-Madden" }] },
+      { key: "cfbDifficulty", label: "Difficulty", type: "enum", gameFilter: isCfb, options: [{ value: "freshman", label: "Freshman" }, { value: "varsity", label: "Varsity" }, { value: "all_american", label: "All-American" }, { value: "heisman", label: "Heisman" }] },
+      { key: "difficultyCustomSettings", label: "Custom Difficulty Settings", type: "textarea" },
       { key: "quarterLengthMinutes", label: "Quarter Length (minutes)", type: "number", min: 1, max: 15 },
       { key: "acceleratedClockEnabled", label: "Accelerated Clock Enabled", type: "toggle" },
       { key: "acceleratedClockMinimumSeconds", label: "Accelerated Clock Minimum (seconds)", type: "number", min: 0, max: 40, dependsOn: (d) => Boolean(d.acceleratedClockEnabled), resetTo: 0 },

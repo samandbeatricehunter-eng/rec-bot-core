@@ -445,6 +445,18 @@ button.poty:disabled {
 .hub-icon-action.danger { color: var(--danger); }
 .hub-wagers-subhead { margin: var(--space-5) 0 var(--space-3); font-family: var(--font-display); letter-spacing: .01em; color: var(--gold); }
 .hub-wagers-subhead:first-of-type { margin-top: var(--space-4); }
+.hub-my-wagers-list { display: grid; gap: var(--space-4); }
+.hub-my-wagers-group h4 { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: .04em; }
+.hub-my-wagers-group h4 span { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--text-muted); font-size: var(--text-xs); }
+.hub-my-wagers-group { display: grid; gap: var(--space-2); }
+.hub-my-wager-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); }
+.hub-my-wager-row > div:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.hub-my-wager-row > div:first-child span { color: var(--text-muted); font-size: var(--text-sm); }
+.hub-my-wager-row-figures { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
+.hub-my-wager-row-figures b, .hub-my-wager-row-figures small { display: block; text-align: right; }
+.hub-my-wager-row-figures small { color: var(--text-muted); font-size: var(--text-xs); }
+.hub-my-wager-row--won { border-color: color-mix(in srgb, var(--success, #3fbf6f) 40%, var(--border)); }
+.hub-my-wager-row--lost { opacity: .75; }
 .hub-highlight-carousel { position: relative; width: 100%; max-width: 880px; min-width: 0; margin: 0 auto; padding: 0 58px; }
 .hub-highlight { width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: #111; }
 .hub-highlight-arrow { position: absolute; top: 42%; z-index: 2; display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border-strong); border-radius: 999px; background: rgba(15,15,15,.9); color: var(--gold); cursor: pointer; box-shadow: var(--shadow-card); }
@@ -2105,6 +2117,17 @@ button.poty:disabled {
 .matchup-gotw__meter .away { width:var(--away-share,50%); background:var(--accent); }
 .matchup-gotw__meter .home { flex:1; background:var(--accent-dark,var(--border-strong)); }
 .matchup-gotw__meter-labels { display:flex; justify-content:space-between; margin-top:5px; font-size:.75rem; font-weight:800; font-variant-numeric:tabular-nums; color:var(--text-muted); }
+.matchup-h2h-history { margin-top:var(--space-4); padding:var(--space-4); border:1px solid var(--border); border-radius:16px; background:var(--surface); }
+.matchup-h2h-history__head { display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-2); margin-bottom:var(--space-2); }
+.matchup-h2h-history__head span { font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:800; }
+.matchup-h2h-history__head small { color:var(--text-muted); font-size:.75rem; }
+.matchup-h2h-history__last { margin:0; font-family:var(--font-display); font-size:1.05rem; }
+.matchup-h2h-history__meta { display:block; margin-top:4px; font-family:inherit; font-size:.75rem; letter-spacing:normal; text-transform:none; color:var(--text-muted); font-weight:400; }
+.matchup-h2h-history__full { margin-top:var(--space-3); }
+.matchup-h2h-history__full summary { cursor:pointer; font-size:.8rem; color:var(--text-secondary); }
+.matchup-h2h-history__full ul { list-style:none; margin:var(--space-2) 0 0; padding:0; display:grid; gap:6px; }
+.matchup-h2h-history__full li { display:flex; flex-direction:column; gap:2px; padding:8px 10px; border:1px solid var(--border); border-radius:10px; background:var(--surface-raised); font-size:.85rem; }
+.matchup-h2h-history__full li small { color:var(--text-muted); font-size:.7rem; }
 
 /* Matchup action toolbar */
 .matchup-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:var(--space-4); }

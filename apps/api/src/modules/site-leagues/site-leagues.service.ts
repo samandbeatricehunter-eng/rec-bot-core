@@ -291,6 +291,14 @@ export async function requestSiteLeagueTeam(input: {
       | { name: string; guild_id: string; requester_discord_id: string }
       | undefined;
     if (!league) throw new ApiError(404, "League not found.");
+    const banned = await client.query(
+      `select 1 from rec_league_bans b join rec_leagues l on l.id=$1
+       where b.banned_user_id=$2 and b.active=true and (b.expires_at is null or b.expires_at>now())
+         and ((b.scope='league' and b.league_id=$1) or (b.scope='owner_all_leagues' and b.owner_user_id=l.owner_user_id))
+       limit 1`,
+      [input.leagueId, input.recUserId],
+    );
+    if (banned.rows[0]) throw new ApiError(403, "You are not eligible to join this league.");
 
     const membership = await client.query(
       `
@@ -377,6 +385,14 @@ export async function requestSiteLeagueTeam(input: {
 export type SiteLeagueHubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
 
 async function assertSiteLeagueAccess(recUserId: string, leagueId: string): Promise<void> {
+  const banned = await getPgPool().query(
+    `select 1 from rec_league_bans b join rec_leagues l on l.id=$2
+     where b.banned_user_id=$1 and b.active=true and (b.expires_at is null or b.expires_at>now())
+       and ((b.scope='league' and b.league_id=$2) or (b.scope='owner_all_leagues' and b.owner_user_id=l.owner_user_id))
+     limit 1`,
+    [recUserId, leagueId],
+  );
+  if (banned.rows[0]) throw new ApiError(403, "You no longer have access to this league.");
   const access = await getPgPool().query(
     `
       select 1
@@ -689,6 +705,16 @@ export async function searchSiteLeagues(input: {
   const params: unknown[] = [input.recUserId];
   const where: string[] = [
     "coalesce(l.subscription_frozen, false) = false",
+    `not exists (
+      select 1 from rec_league_bans b
+      where b.banned_user_id = $1
+        and b.active = true
+        and (b.expires_at is null or b.expires_at > now())
+        and (
+          (b.scope = 'league' and b.league_id = l.id)
+          or (b.scope = 'owner_all_leagues' and b.owner_user_id = l.owner_user_id)
+        )
+    )`,
   ];
 
   if (q) {
@@ -727,7 +753,9 @@ export async function searchSiteLeagues(input: {
   }
   if (input.filters.difficulty) {
     params.push(input.filters.difficulty);
-    where.push(`c.difficulty = $${params.length}`);
+    where.push(`case when l.game='cfb_27'
+      then coalesce(c.cfb_difficulty,case c.difficulty when 'all_madden' then 'heisman' when 'all_pro' then 'all_american' when 'pro' then 'varsity' else 'freshman' end)
+      else c.difficulty end = $${params.length}`);
   }
   if (input.filters.streamingRequirement) {
     params.push(input.filters.streamingRequirement);

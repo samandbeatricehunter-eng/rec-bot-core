@@ -39,6 +39,15 @@ export function FirstTimeSetupHome() {
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ leagueName: string; teamCount: number } | null>(null);
+  const [tutorialStep, setTutorialStep] = useState<number | null>(() =>
+    localStorage.getItem("rec:league-creation-tutorial") === "never" ? null : -1,
+  );
+  const tutorial = [
+    { target: "league-name", title: "Name your league", text: "Use the public name coaches will see in search and notifications." },
+    { target: "game-select", title: "Choose the game", text: "This controls teams, rules, difficulty labels, stats, schedules, and postseason format." },
+    { target: game === "cfb_27" ? "active-rosters" : "league-type-select", title: "Choose roster behavior", text: "You can review this with the rest of the gameplay settings after creation." },
+    { target: "create-league", title: "Create, then finish setup", text: "Continue through Settings, team assignments, optional Discord channels, and the schedule." },
+  ];
 
   useEffect(() => {
     recApi
@@ -53,6 +62,11 @@ export function FirstTimeSetupHome() {
       })
       .finally(() => setChecked(true));
   }, [guildId]);
+
+  useEffect(() => {
+    if (tutorialStep == null || tutorialStep < 0) return;
+    document.getElementById(tutorial[tutorialStep]?.target ?? "")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [tutorialStep, game]);
 
   const hasExistingLeague = Boolean(existing?.league);
   const existingName = existing?.league?.name ?? "";
@@ -82,6 +96,30 @@ export function FirstTimeSetupHome() {
     <div>
       <PageHeader title="First-Time Setup" subtitle="Create a new league for this server." />
       {error && <ErrorState message={error} />}
+      {tutorialStep === -1 ? (
+        <Card>
+          <h2>Want a guided setup?</h2>
+          <p className="form-hint">This optional walkthrough highlights each required choice and explains what it controls.</p>
+          <div className="form-actions">
+            <Button variant="primary" onClick={() => setTutorialStep(0)}>Start walkthrough</Button>
+            <Button variant="secondary" onClick={() => setTutorialStep(null)}>Skip</Button>
+            <Button variant="secondary" onClick={() => { localStorage.setItem("rec:league-creation-tutorial", "never"); setTutorialStep(null); }}>Never show again</Button>
+          </div>
+        </Card>
+      ) : null}
+      {tutorialStep != null && tutorialStep >= 0 ? (
+        <aside className="setup-tutorial" role="dialog" aria-live="polite">
+          <strong>{tutorial[tutorialStep].title}</strong>
+          <p>{tutorial[tutorialStep].text}</p>
+          <div className="form-actions">
+            <Button variant="secondary" disabled={tutorialStep === 0} onClick={() => setTutorialStep((step) => Math.max(0, (step ?? 0) - 1))}>Back</Button>
+            <Button variant="primary" onClick={() => setTutorialStep((step) => (step ?? 0) + 1 >= tutorial.length ? null : (step ?? 0) + 1)}>
+              {tutorialStep + 1 === tutorial.length ? "Finish" : "Next"}
+            </Button>
+            <Button variant="secondary" onClick={() => setTutorialStep(null)}>Exit</Button>
+          </div>
+        </aside>
+      ) : null}
 
       {result && (
         <Card>
@@ -107,12 +145,12 @@ export function FirstTimeSetupHome() {
 
           <div className="form-field">
             <label className="form-label" htmlFor="league-name">League Name</label>
-            <input id="league-name" className="form-input" value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
+            <input id="league-name" className={`form-input ${tutorialStep === 0 ? "tutorial-focus" : ""}`} value={name} disabled={busy} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div className="form-field">
             <label className="form-label" htmlFor="game-select">Game</label>
-            <select id="game-select" className="form-select" value={game} disabled={busy} onChange={(e) => setGame(e.target.value)}>
+            <select id="game-select" className={`form-select ${tutorialStep === 1 ? "tutorial-focus" : ""}`} value={game} disabled={busy} onChange={(e) => setGame(e.target.value)}>
               {GAME_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
@@ -120,7 +158,7 @@ export function FirstTimeSetupHome() {
           </div>
 
           {game === "cfb_27" ? (
-            <div className="form-field">
+            <div className={`form-field ${tutorialStep === 2 ? "tutorial-focus" : ""}`} id="active-rosters">
               <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                 <input type="checkbox" checked={activeRostersEnabled} disabled={busy} onChange={(e) => setActiveRostersEnabled(e.target.checked)} />
                 Active Rosters Enabled
@@ -129,7 +167,7 @@ export function FirstTimeSetupHome() {
           ) : (
             <div className="form-field">
               <label className="form-label" htmlFor="league-type-select">League Type</label>
-              <select id="league-type-select" className="form-select" value={leagueType} disabled={busy} onChange={(e) => setLeagueType(e.target.value)}>
+              <select id="league-type-select" className={`form-select ${tutorialStep === 2 ? "tutorial-focus" : ""}`} value={leagueType} disabled={busy} onChange={(e) => setLeagueType(e.target.value)}>
                 {LEAGUE_TYPE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}

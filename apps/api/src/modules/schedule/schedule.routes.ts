@@ -4,12 +4,14 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { listScheduleSeason, listScheduleTeams, listScheduleWeek, previewScheduleImport, replaceScheduleWeek, saveManualScheduleGame, seedDefaultScheduleForGuild } from "./schedule.service.js";
-import { commitTeamScheduleDecisions, getTeamScheduleManualState, previewCfbTeamScheduleImport } from "./team-schedule.service.js";
+import { getTeamScheduleManualState } from "./team-schedule.service.js";
 import { getLinkedRoster, getTeamManagementSummary } from "./team-schedule-summary.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 import { setGameRivalry } from "../rivalries/rivalries.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { generateCfpBracket, getCfpPostseasonState, saveCfpTop25 } from "./cfp-bracket.service.js";
+import { commitTeamScheduleDecisionsTransactional } from "./team-schedule-transaction.service.js";
 
 const GuildSchema = z.object({ guildId: z.string().min(1) });
 
@@ -31,6 +33,38 @@ const SaveManualGameSchema = z.object({
 });
 
 export async function scheduleRoutes(app: FastifyInstance) {
+  app.post("/v1/schedule/cfp/state", async (request, reply) => {
+    try {
+      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({ guildId: z.string().min(1), seasonNumber: z.number().int().positive().optional().nullable() }).parse(request.body);
+      return reply.send(await getCfpPostseasonState(input));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/schedule/cfp/top-25", async (request, reply) => {
+    try {
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({
+        guildId: z.string().min(1),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+        rankings: z.array(z.object({ rank: z.number().int().min(1).max(25), teamId: z.string().uuid(), conferenceChampion: z.boolean().default(false) })).length(25),
+      }).parse(request.body);
+      return reply.send(await saveCfpTop25({ ...input, requestedByDiscordId: auth.mode === "user" ? auth.discordId : null }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/schedule/cfp/generate", async (request, reply) => {
+    try {
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({
+        guildId: z.string().min(1),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+        seeds: z.array(z.object({ seed: z.number().int().min(1).max(12), teamId: z.string().uuid() })).length(12).optional(),
+      }).parse(request.body);
+      return reply.send(await generateCfpBracket({ ...input, requestedByDiscordId: auth.mode === "user" ? auth.discordId : null }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
   app.post("/v1/schedule/teams", async (request, reply) => {
     try {
       await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "member" });
@@ -149,26 +183,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     }
   });
 
-  // Parse a CFB Team Schedule screenshot (one team, every week) into per-week matchups
-  // matched against the league's actual teams, flagging weeks already confirmed from
-  // this or an earlier team's upload. No DB write.
-  app.post("/v1/schedule/cfb-team-import-preview", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const input = z.object({
-        guildId: z.string().min(1),
-        teamId: z.string().uuid(),
-        seasonNumber: z.number().int().positive().optional().nullable(),
-        imageUrls: z.array(z.string().url()).min(1).max(2),
-      }).parse(request.body);
-      return reply.send(await previewCfbTeamScheduleImport(input));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  // Commits the commissioner-approved per-week decisions from the preview above.
-  // Weeks already confirmed (by this or an earlier team's upload) are silently skipped.
+  // Atomically commits commissioner-approved per-week decisions from the manual editor.
   // Game-generic (cfb_27 | madden_26 | madden_27).
   app.post("/v1/schedule/team-schedule-commit", async (request, reply) => {
     try {
@@ -192,7 +207,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
       }).parse(request.body);
       // Attribute Activity-originated saves to the actual Discord user, not a generic bot save.
       if (auth.mode === "user" && !input.requestedByDiscordId) input.requestedByDiscordId = auth.discordId;
-      return reply.send(await commitTeamScheduleDecisions(input));
+      return reply.send(await commitTeamScheduleDecisionsTransactional(input));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { regularSeasonWeeks } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -293,10 +292,10 @@ export async function computeLeagueSos(guildId: string, viewerDiscordId?: string
   let viewerTeamId: string | null = null;
   if (viewerDiscordId) {
     const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
-    const userId = acct.data?.user_id ?? null;
+    const userId = (acct.data?.user_id as string | undefined) ?? null;
     if (userId) {
       for (const [teamId, uId] of base.userIdByTeam.entries()) {
-        if (uId === userId) { viewerTeamId = teamId; break; }
+        if (uId === userId) { viewerTeamId = String(teamId); break; }
       }
     }
   }

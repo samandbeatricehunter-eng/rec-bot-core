@@ -19,7 +19,7 @@ import { PublishingHome } from "./routes/league-mgmt/publishing/PublishingHome.j
 import { RecruitingHome } from "./routes/league-mgmt/recruiting/RecruitingHome.js";
 import { FirstTimeSetupHome } from "./routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";
 import { HubHome } from "./routes/hub/HubHome.js";
-import { AccountPlaceholder, HubPlaceholder } from "./routes/placeholders.js";
+import { AccountPlaceholder } from "./routes/placeholders.js";
 import { recApi } from "./lib/rec-api-client.js";
 import { MatchupDetailPage } from "./routes/matchups/MatchupDetail.js";
 
@@ -83,7 +83,7 @@ export default function App() {
                 <Route path="/" element={<HubHome />} />
                 <Route path="/home" element={<HubHome />} />
                 <Route path="/leagues" element={<HubHome />} />
-                <Route path="/comp" element={<HubPlaceholder title="Comp" blurb="Competitive / committee placeholder." />} />
+                <Route path="/comp" element={<ExternalSitePage path="/comp" />} />
                 <Route path="/account" element={<AccountPlaceholder />} />
                 <Route path="/matchups/:gameId" element={<MatchupDetailPage />} />
                 <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupGate><FirstTimeSetupHome /></FirstTimeSetupGate>} />
@@ -108,4 +108,10 @@ export default function App() {
       </HashRouter>
     </AuthProvider>
   );
+}
+
+function ExternalSitePage({ path }: { path: string }) {
+  const siteBase = (import.meta.env.VITE_SITE_PUBLIC_URL as string | undefined)?.replace(/\/$/, "") || "https://rec-leagues.com";
+  useEffect(() => { window.location.replace(`${siteBase}${path}`); }, [path, siteBase]);
+  return <div className="hub-state"><h1>Opening REC Leagues…</h1></div>;
 }

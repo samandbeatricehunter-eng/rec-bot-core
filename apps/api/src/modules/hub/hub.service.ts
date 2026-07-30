@@ -16,6 +16,7 @@ import { computeCoachRatings, computeUserRatings } from "../league-week/ratings.
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
+import { getH2hHistory } from "../official-records/official-records.service.js";
 import { createStreamPayoutReview, deriveStreamMatchupContext, postLeagueChatStreamNotice, postStreamToDiscordChannel } from "../streams/streams.service.js";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -1315,21 +1316,28 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     supabase.from("rec_stream_views").select("stream_log_id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     supabase.from("rec_team_assignments").select("user_id,team:rec_teams(id,name,abbreviation,conference,division),user:rec_users(username,display_name)").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
-    supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    // Every H2H game from Conference Championship forward is GOTW-eligible in CFB, so a
+    // week can now carry many concurrent polls, not just one — fetch them all instead of
+    // the single most-recent poll.
+    supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("created_at", { ascending: false }),
   ]);
   if (games.error || weeks.error || results.error || streamLogs.error || assignments.error || gotwPoll.error) throw new ApiError(500, "Failed to load matchup schedule.", games.error ?? weeks.error ?? results.error ?? streamLogs.error ?? assignments.error ?? gotwPoll.error);
   if (streamViewsForWeek.error && !missingRelation(streamViewsForWeek.error, "rec_stream_views")) throw new ApiError(500, "Failed to load stream views.", streamViewsForWeek.error);
   if (streamReactionsForWeek.error && !missingRelation(streamReactionsForWeek.error, "rec_stream_reactions")) throw new ApiError(500, "Failed to load stream reactions.", streamReactionsForWeek.error);
-  const poll = gotwPoll.data ?? null;
-  const voteRows = poll
-    ? await supabase.from("rec_game_of_week_votes").select("selected_team_id,discord_id").eq("poll_id", poll.id)
+  const polls = gotwPoll.data ?? [];
+  const pollIds = polls.map((row: any) => row.id);
+  const allVoteRows = pollIds.length
+    ? await supabase.from("rec_game_of_week_votes").select("poll_id,selected_team_id,discord_id").in("poll_id", pollIds)
     : { data: [], error: null };
-  if (voteRows.error) throw new ApiError(500, "Failed to load GOTW votes.", voteRows.error);
-  const gotwCounts = {
-    away: (voteRows.data ?? []).filter((vote: any) => vote.selected_team_id === poll?.away_team_id).length,
-    home: (voteRows.data ?? []).filter((vote: any) => vote.selected_team_id === poll?.home_team_id).length,
-  };
-  const myGotwVote = (voteRows.data ?? []).find((vote: any) => vote.discord_id === input.discordId)?.selected_team_id ?? null;
+  if (allVoteRows.error) throw new ApiError(500, "Failed to load GOTW votes.", allVoteRows.error);
+  const votesByPollId = new Map<string, any[]>();
+  for (const vote of allVoteRows.data ?? []) {
+    const list = votesByPollId.get(vote.poll_id) ?? [];
+    list.push(vote);
+    votesByPollId.set(vote.poll_id, list);
+  }
+  const pollForGame = (game: any) => polls.find((row: any) =>
+    row.game_id === game.id || (row.home_team_id === game.home_team?.id && row.away_team_id === game.away_team?.id));
   const assignmentUserIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))] as string[];
   const accounts = assignmentUserIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", assignmentUserIds)
@@ -1369,18 +1377,6 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   for (const result of results.data ?? []) {
     if (result.home_team_id && result.away_team_id) resultByTeams.set(`${result.home_team_id}:${result.away_team_id}`, result);
   }
-  const isPollGame = (game: any) => Boolean(poll && (
-    poll.game_id === game.id ||
-    (poll.home_team_id === game.home_team?.id && poll.away_team_id === game.away_team?.id)
-  ));
-  const gotwGame = poll ? (games.data ?? []).find(isPollGame) : null;
-  const gotwResult = poll ? resultByTeams.get(`${poll.home_team_id}:${poll.away_team_id}`) ?? null : null;
-  const gotwBoxScore = poll?.game_id
-    ? await supabase.from("rec_box_score_submissions").select("id,status").eq("game_id", poll.game_id).in("status", ["pending", "approved"]).limit(1).maybeSingle()
-    : { data: null, error: null };
-  if (gotwBoxScore.error) throw new ApiError(500, "Failed to load GOTW box-score status.", gotwBoxScore.error);
-  const gotwHasFinal = Boolean(gotwResult) || Boolean(gotwBoxScore.data) || (gotwGame && (["final", "completed", "played"].includes(String(gotwGame.status ?? "").toLowerCase()) || (gotwGame.home_score != null && gotwGame.away_score != null)));
-  const gotwVoteOpen = Boolean(poll && poll.status === "open" && !gotwHasFinal);
   const streamByUser = new Map<string, any>();
   for (const stream of streamLogs.data ?? []) {
     if (stream.user_id && stream.message_url && !streamByUser.has(stream.user_id)) streamByUser.set(stream.user_id, stream);
@@ -1408,25 +1404,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   if (boxScores.error) throw new ApiError(500, "Failed to load matchup box-score status.", boxScores.error);
   if (gameReactionsForWeek.error) throw new ApiError(500, "Failed to load matchup reactions.", gameReactionsForWeek.error);
   const boxScoreByGameId = new Map<string, any>((boxScores.data ?? []).map((row: any) => [row.game_id, row]));
-  return {
-    currentWeek,
-    selectedWeek,
-    weekNumbers,
-    usersByConference: [...usersByConference.entries()].map(([conference, users]) => ({ conference, users: users.sort((a: any, b: any) => a.teamName.localeCompare(b.teamName)) })),
-    gotw: poll ? {
-      pollId: poll.id,
-      gameId: poll.game_id,
-      status: gotwVoteOpen ? "open" : "closed",
-      canVote: gotwVoteOpen,
-      awayTeamId: poll.away_team_id,
-      homeTeamId: poll.home_team_id,
-      awayTeamName: poll.away_team_name,
-      homeTeamName: poll.home_team_name,
-      awayVotes: gotwCounts.away,
-      homeVotes: gotwCounts.home,
-      myVote: myGotwVote,
-    } : null,
-    games: (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => {
+  const mappedGames = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => {
       const result = resultByTeams.get(`${game.home_team?.id}:${game.away_team?.id}`) ?? null;
       const homeScore = result?.home_score ?? game.home_score ?? null;
       const awayScore = result?.away_score ?? game.away_score ?? null;
@@ -1436,16 +1414,33 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       const awayStream = showStreams ? streamByUser.get(game.away_user_id) ?? null : null;
       const boxScore = boxScoreByGameId.get(game.id) ?? null;
       const gameReactionRows = (gameReactionsForWeek.data ?? []).filter((reaction: any) => reaction.game_id === game.id);
+      // Older GOTW rows can point at a superseded rec_games id after a schedule refresh.
+      // Team identity is the durable fallback so a game's poll is never silently dropped.
+      const gamePoll = pollForGame(game);
+      const gameVotes = gamePoll ? votesByPollId.get(gamePoll.id) ?? [] : [];
+      const gotwHasFinal = isFinal || Boolean(boxScore);
+      const gotwCanVote = Boolean(gamePoll && gamePoll.status === "open" && !gotwHasFinal);
+      const gotw = gamePoll ? {
+        pollId: gamePoll.id,
+        gameId: game.id,
+        status: gotwCanVote ? "open" as const : "closed" as const,
+        canVote: gotwCanVote,
+        awayTeamId: gamePoll.away_team_id,
+        homeTeamId: gamePoll.home_team_id,
+        awayTeamName: gamePoll.away_team_name,
+        homeTeamName: gamePoll.home_team_name,
+        awayVotes: gameVotes.filter((vote: any) => vote.selected_team_id === gamePoll.away_team_id).length,
+        homeVotes: gameVotes.filter((vote: any) => vote.selected_team_id === gamePoll.home_team_id).length,
+        myVote: gameVotes.find((vote: any) => vote.discord_id === input.discordId)?.selected_team_id ?? null,
+      } : null;
       return {
         gameId: game.id,
         weekNumber: Number(game.week_number),
         matchupType: game.home_user_id && game.away_user_id ? "h2h" : game.home_user_id || game.away_user_id ? "human_cpu" : "cpu",
         involvesMe: game.home_user_id === userId || game.away_user_id === userId,
         viewerSide: game.home_user_id === userId ? "home" : game.away_user_id === userId ? "away" : null,
-        // Older GOTW rows can point at a superseded rec_games id after a schedule
-        // refresh. Team identity is the durable fallback so the featured card is
-        // never silently omitted from the weekly slate.
-        isGameOfWeek: isPollGame(game),
+        isGameOfWeek: Boolean(gamePoll),
+        gotw,
         homeTeamId: game.home_team?.id ?? null,
         awayTeamId: game.away_team?.id ?? null,
         homeTeamName: universityName(game.home_team, "Home"),
@@ -1472,7 +1467,18 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
           homeStream ? { side: "home", userId: game.home_user_id, teamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,
         ].filter(Boolean),
       };
-    }).sort((a: any, b: any) => Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.involvesMe) - Number(a.involvesMe) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName)),
+    }).sort((a: any, b: any) => Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.involvesMe) - Number(a.involvesMe) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName));
+  const gotwGames = mappedGames.filter((game: any) => game.gotw);
+  return {
+    currentWeek,
+    selectedWeek,
+    weekNumbers,
+    usersByConference: [...usersByConference.entries()].map(([conference, users]) => ({ conference, users: users.sort((a: any, b: any) => a.teamName.localeCompare(b.teamName)) })),
+    // Kept for the single-game "featured" hero card (regular-season style, one GOTW pick).
+    // Postseason weeks can have many concurrent GOTW games — render those from each game's
+    // own `gotw` field instead of this singular one.
+    gotw: gotwGames.length === 1 ? gotwGames[0].gotw : null,
+    games: mappedGames,
   };
 }
 
@@ -1577,6 +1583,9 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
   const messages = gameChannel
     ? await getGameChatMessages({ guildId: input.guildId, gameChannelId: gameChannel.id })
     : { messages: [] };
+  // "This isn't these two coaches' first meeting" — every prior H2H result between this
+  // game's two participants, across every league (including leagues since deleted).
+  const h2h = await getH2hHistory(game.data.home_user_id, game.data.away_user_id).catch(() => ({ lastMatchup: null, history: [] }));
   return {
     matchup: { ...matchup, streams },
     streamFeature: {
@@ -1584,7 +1593,9 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
       primaryStreamLogId: primaryStream?.streamLogId ?? null,
       secondaryStreamLogId: secondaryStream?.streamLogId ?? null,
     },
-    gotw: schedule.gotw?.gameId === input.gameId ? schedule.gotw : null,
+    gotw: matchup.gotw,
+    h2hHistory: h2h.history,
+    lastMatchup: h2h.lastMatchup,
     messages: messages.messages,
   };
 }

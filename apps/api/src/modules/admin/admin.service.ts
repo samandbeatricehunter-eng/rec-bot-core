@@ -5,7 +5,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
-import { preserveGlobalContributionsBeforeLeagueDelete } from "../official-records/official-records.service.js";
+import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
 
 const supabaseAuthAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -277,6 +277,9 @@ export async function adminDeleteLeague(input: { leagueId: string; confirmationT
 
   await preserveGlobalContributionsBeforeLeagueDelete(input.leagueId).catch((error) => {
     console.error("[ERROR] Failed to preserve global contributions before admin league wipe:", error);
+  });
+  await preserveH2hHistoryBeforeLeagueDelete(input.leagueId).catch((error) => {
+    console.error("[ERROR] Failed to preserve H2H history before admin league wipe:", error);
   });
 
   const deleted = await supabase.rpc("rec_delete_league", { p_league_id: input.leagueId });

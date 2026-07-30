@@ -622,6 +622,24 @@ export const recGameResults = pgTable("rec_game_results", {
   recordsApplyKey: text("records_apply_key")
 });
 
+export const recGlobalH2hMatchups = pgTable("rec_global_h2h_matchups", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id").notNull().references(() => recUsers.id),
+  opponentUserId: uuid("opponent_user_id").notNull().references(() => recUsers.id),
+  leagueName: text("league_name").notNull(),
+  game: text("game"),
+  seasonNumber: integer("season_number"),
+  weekNumber: integer("week_number"),
+  userTeamName: text("user_team_name"),
+  opponentTeamName: text("opponent_team_name"),
+  userScore: integer("user_score"),
+  opponentScore: integer("opponent_score"),
+  result: text("result").notNull(),
+  playedAt: timestamp("played_at", { withTimezone: true, mode: "string" }),
+  sourceGameResultId: uuid("source_game_result_id"),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+});
+
 export const recTeamByes = pgTable("rec_team_byes", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
@@ -823,6 +841,7 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   cpuFreeAgencyPolicy: text("cpu_free_agency_policy").notNull().default("open"),
   injuryPolicy: text("injury_policy").notNull().default("on_standard"),
   difficulty: text("difficulty").notNull().default("all_madden"),
+  cfbDifficulty: text("cfb_difficulty"),
   quarterLengthMinutes: integer("quarter_length_minutes").notNull().default(8),
   acceleratedClockEnabled: boolean("accelerated_clock_enabled").notNull().default(true),
   acceleratedClockMinimumSeconds: integer("accelerated_clock_minimum_seconds").notNull().default(20),
@@ -869,6 +888,8 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   contractPurchasesSeasonCap: integer("contract_purchases_season_cap").notNull().default(0),
   coreAttributePurchasesSeasonCap: integer("core_attribute_purchases_season_cap").notNull().default(0),
   nonCoreAttributePurchasesSeasonCap: integer("non_core_attribute_purchases_season_cap").notNull().default(0),
+  coreAttributeGroupCap: integer("core_attribute_group_cap").notNull().default(0),
+  nonCoreAttributeCapOverrides: jsonb("non_core_attribute_cap_overrides").$type<Record<string, unknown> | null>(),
   coreAttributes: jsonb("core_attributes").$type<Record<string, unknown> | null>(),
   dynastyType: text("dynasty_type"),
   recruitingDifficulty: text("recruiting_difficulty"),

@@ -20,6 +20,7 @@ import {
   getWagerResolvability,
   listChallengeableCoaches,
   listPeerWagerBoard,
+  listMyWagers,
   listConfirmableWagers,
   listWagerableGames,
   placeHouseWager,
@@ -205,6 +206,18 @@ export async function wagerRoutes(app: FastifyInstance) {
       if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
       if (auth.mode === "user") body.discordId = auth.discordId;
       return reply.send(await listPeerWagerBoard(body.guildId, resolvedDiscordId(body)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/my-wagers", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await listMyWagers(body.guildId, resolvedDiscordId(body)));
     } catch (error) {
       return sendError(reply, error);
     }

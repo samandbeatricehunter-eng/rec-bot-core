@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 
@@ -311,7 +310,7 @@ async function loadLeagueGamesMap(leagueIds: string[]) {
   if (!leagueIds.length) return new Map<string, string>();
   const { data, error } = await supabase.from("rec_leagues").select("id,game").in("id", leagueIds);
   if (error) throw error;
-  return new Map((data ?? []).map((row) => [row.id, String(row.game ?? "madden_26")]));
+  return new Map<string, LeagueGame>((data ?? []).map((row: any) => [String(row.id), (row.game ?? "madden_26") as LeagueGame]));
 }
 
 async function loadManualChampionshipCredits(userIds: string[]) {
@@ -413,7 +412,7 @@ export async function preserveGlobalContributionsBeforeLeagueDelete(leagueId: st
     .eq("league_id", leagueId)
     .not("user_id", "is", null);
   if (assignments.error) throw assignments.error;
-  const userIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))];
+  const userIds = [...new Set<string>((assignments.data ?? []).map((row: any) => String(row.user_id)).filter(Boolean))];
   if (userIds.length) await rebuildOfficialGlobalRecords(userIds);
 
   const [statAwards, votedAwards] = await Promise.all([
@@ -453,9 +452,121 @@ export async function preserveGlobalContributionsBeforeLeagueDelete(leagueId: st
   }
 }
 
+/**
+ * Companion to preserveGlobalContributionsBeforeLeagueDelete, same call site — copies this
+ * league's H2H games into rec_global_h2h_matchups (two rows per game, one per participant's
+ * perspective) before rec_delete_league hard-deletes rec_game_results. Without this, a user's
+ * "last time we played" history with a given opponent vanishes the moment either league
+ * involved gets deleted, even though the opponent relationship itself is durable.
+ */
+export async function preserveH2hHistoryBeforeLeagueDelete(leagueId: string): Promise<void> {
+  const league = await supabase.from("rec_leagues").select("name,game").eq("id", leagueId).maybeSingle();
+  if (league.error) throw league.error;
+  const leagueName = league.data?.name ?? "Deleted league";
+  const gameLabel = league.data?.game ?? null;
+
+  const results = await supabase
+    .from("rec_game_results")
+    .select("id,season_number,week_number,home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,is_tie,played_at,created_at")
+    .eq("league_id", leagueId)
+    .eq("is_user_h2h", true)
+    .not("home_user_id", "is", null)
+    .not("away_user_id", "is", null);
+  if (results.error) throw results.error;
+  const rows = results.data ?? [];
+  if (!rows.length) return;
+
+  const teamIds = [...new Set(rows.flatMap((r: any) => [r.home_team_id, r.away_team_id]).filter(Boolean))];
+  const teams = teamIds.length ? await supabase.from("rec_teams").select("id,name,abbreviation").in("id", teamIds) : { data: [], error: null };
+  if (teams.error) throw teams.error;
+  const teamNameById = new Map((teams.data ?? []).map((t: any) => [t.id, t.name ?? t.abbreviation ?? "Team"]));
+
+  const ledgerRows = rows.flatMap((row: any) => {
+    const playedAt = row.played_at ?? row.created_at;
+    const homeScore = Number(row.home_score ?? 0);
+    const awayScore = Number(row.away_score ?? 0);
+    const homeResult = row.is_tie ? "tie" : homeScore > awayScore ? "win" : "loss";
+    const awayResult = row.is_tie ? "tie" : awayScore > homeScore ? "win" : "loss";
+    return [
+      {
+        user_id: row.home_user_id, opponent_user_id: row.away_user_id, league_name: leagueName, game: gameLabel,
+        season_number: row.season_number, week_number: row.week_number,
+        user_team_name: teamNameById.get(row.home_team_id) ?? null, opponent_team_name: teamNameById.get(row.away_team_id) ?? null,
+        user_score: homeScore, opponent_score: awayScore, result: homeResult, played_at: playedAt, source_game_result_id: row.id,
+      },
+      {
+        user_id: row.away_user_id, opponent_user_id: row.home_user_id, league_name: leagueName, game: gameLabel,
+        season_number: row.season_number, week_number: row.week_number,
+        user_team_name: teamNameById.get(row.away_team_id) ?? null, opponent_team_name: teamNameById.get(row.home_team_id) ?? null,
+        user_score: awayScore, opponent_score: homeScore, result: awayResult, played_at: playedAt, source_game_result_id: row.id,
+      },
+    ];
+  });
+
+  const inserted = await supabase.from("rec_global_h2h_matchups").upsert(ledgerRows, { onConflict: "user_id,opponent_user_id,source_game_result_id", ignoreDuplicates: true });
+  if (inserted.error) throw inserted.error;
+}
+
+/**
+ * Every logged matchup between two users, newest first — live rec_game_results for leagues
+ * that still exist, plus rec_global_h2h_matchups for any that were preserved off a deleted
+ * league. `limit` bounds the live-league query; the preserved ledger has no natural cap since
+ * it only ever holds already-finished games.
+ */
+export async function getH2hHistory(userId: string, opponentUserId: string, limit = 25) {
+  const [live, preserved] = await Promise.all([
+    supabase
+      .from("rec_game_results")
+      .select("id,league_id,season_number,week_number,home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,is_tie,played_at,created_at,rec_leagues(name,game)")
+      .eq("is_user_h2h", true)
+      .or(`and(home_user_id.eq.${userId},away_user_id.eq.${opponentUserId}),and(home_user_id.eq.${opponentUserId},away_user_id.eq.${userId})`)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("rec_global_h2h_matchups")
+      .select("league_name,game,season_number,week_number,user_team_name,opponent_team_name,user_score,opponent_score,result,played_at,created_at")
+      .eq("user_id", userId)
+      .eq("opponent_user_id", opponentUserId)
+      .order("created_at", { ascending: false }),
+  ]);
+  if (live.error) throw live.error;
+  if (preserved.error) throw preserved.error;
+
+  const teamIds = [...new Set((live.data ?? []).flatMap((r: any) => [r.home_team_id, r.away_team_id]).filter(Boolean))];
+  const teams = teamIds.length ? await supabase.from("rec_teams").select("id,name,abbreviation").in("id", teamIds) : { data: [], error: null };
+  if (teams.error) throw teams.error;
+  const teamNameById = new Map((teams.data ?? []).map((t: any) => [t.id, t.name ?? t.abbreviation ?? "Team"]));
+
+  const fromLive = (live.data ?? []).map((row: any) => {
+    const isUserHome = row.home_user_id === userId;
+    const userScore = Number(isUserHome ? row.home_score ?? 0 : row.away_score ?? 0);
+    const opponentScore = Number(isUserHome ? row.away_score ?? 0 : row.home_score ?? 0);
+    const result = row.is_tie ? "tie" : userScore > opponentScore ? "win" : "loss";
+    const league = Array.isArray(row.rec_leagues) ? row.rec_leagues[0] : row.rec_leagues;
+    return {
+      leagueName: league?.name ?? "League", game: league?.game ?? null,
+      seasonNumber: row.season_number, weekNumber: row.week_number,
+      userTeamName: teamNameById.get(isUserHome ? row.home_team_id : row.away_team_id) ?? null,
+      opponentTeamName: teamNameById.get(isUserHome ? row.away_team_id : row.home_team_id) ?? null,
+      userScore, opponentScore, result,
+      playedAt: row.played_at ?? row.created_at,
+    };
+  });
+
+  const fromPreserved = (preserved.data ?? []).map((row: any) => ({
+    leagueName: row.league_name, game: row.game, seasonNumber: row.season_number, weekNumber: row.week_number,
+    userTeamName: row.user_team_name, opponentTeamName: row.opponent_team_name,
+    userScore: row.user_score, opponentScore: row.opponent_score, result: row.result,
+    playedAt: row.played_at ?? row.created_at,
+  }));
+
+  const history = [...fromLive, ...fromPreserved].sort((a, b) => new Date(b.playedAt ?? 0).getTime() - new Date(a.playedAt ?? 0).getTime());
+  return { lastMatchup: history[0] ?? null, history };
+}
+
 export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
   const results = await loadAllOfficialResults();
-  const leagueIds = [...new Set(results.map((row) => row.league_id).filter(Boolean))];
+  const leagueIds = [...new Set<string>(results.map((row: any) => String(row.league_id)).filter(Boolean))];
   const leagueGameById = await loadLeagueGamesMap(leagueIds);
 
   const affectedUsers = new Set<string>(userIds ?? []);

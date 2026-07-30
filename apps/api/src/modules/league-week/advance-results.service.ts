@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, nextLeagueStage, postseasonPayoutStages, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -9,7 +8,8 @@ import { rebuildSeasonDisplayRecords } from "../display-records/display-records.
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { computePowerRankings, snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
+import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
 import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
@@ -203,7 +203,7 @@ async function republishWeeklySubmissionsPanel(input: { guildId: string; routes:
     }],
   });
   if (sent) {
-    await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: sent.id });
+    await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: sent!.id });
   }
 }
 
@@ -903,8 +903,8 @@ export async function saveDivisionWinners(input: {
     .in("id", teamIds);
   if (teamsError) throw new ApiError(500, "Failed to validate division winners.", teamsError);
 
-  const teamsById = new Map((teams ?? []).map((team) => [team.id, team]));
-  const seedRows = [];
+  const teamsById = new Map<string, any>((teams ?? []).map((team: any) => [team.id, team]));
+  const seedRows: Array<Record<string, unknown>> = [];
   for (const [divisionKey, teamId] of requested.entries()) {
     const team = teamsById.get(teamId);
     if (!team) throw new ApiError(400, "One selected division winner is not in this league.");

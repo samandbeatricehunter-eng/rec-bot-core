@@ -38,7 +38,7 @@ function globalItems(): NavItem[] {
   return [
     { key: "home", label: "Home", to: "/home", icon: <Home size={22} /> },
     { key: "leagues", label: "Leagues", to: "/leagues", icon: <Layers size={22} /> },
-    { key: "comp", label: "Comp", to: "/comp", icon: <Trophy size={22} /> },
+    { key: "comp", label: "Comp (BETA)", to: "/comp", icon: <Trophy size={22} /> },
     {
       key: "account",
       label: "My Account",

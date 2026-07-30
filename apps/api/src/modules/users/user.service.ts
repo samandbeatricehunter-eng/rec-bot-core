@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
@@ -543,7 +542,7 @@ export async function getLeagueUserIdentities(guildId: string) {
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
     : { data: [], error: null };
   if (discordResult.error) throw new ApiError(500, "Failed to load Discord identities.", discordResult.error);
-  const discordByUser = new Map((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
+  const discordByUser = new Map<string, any>((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
 
   const badgesByUser = new Map<string, any[]>();
   for (const badge of badges ?? []) {
@@ -604,7 +603,7 @@ export async function refreshActiveLeagueBadgeBaselines(guildId: string) {
     .is("ended_at", null);
   if (error) throw new ApiError(500, "Failed to load active users for badge refresh.", error);
 
-  const userIds = [...new Set((assignments ?? []).map((row) => row.user_id).filter(Boolean))];
+  const userIds = [...new Set<string>((assignments ?? []).map((row: any) => String(row.user_id)).filter(Boolean))];
   if (userIds.length) await rebuildOfficialGlobalRecords(userIds);
   const seasonNumber = Number(league?.season_number ?? league?.display_season_number ?? 1);
   const badgeResult = await recomputeActiveLeagueBadgeBaselines(leagueId, seasonNumber);
@@ -645,9 +644,9 @@ export async function getLeagueSeasonXfBadges(guildId: string, seasonNumber?: nu
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", userIds)
     : { data: [], error: null };
   if (discordResult.error) throw new ApiError(500, "Failed to load Discord identities.", discordResult.error);
-  const discordByUser = new Map((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
+  const discordByUser = new Map<string, any>((discordResult.data ?? []).map((account: any) => [account.user_id, account]));
 
-  const activeByUser = new Map((assignments ?? []).map((assignment: any) => [assignment.user_id, assignment]));
+  const activeByUser = new Map<string, any>((assignments ?? []).map((assignment: any) => [assignment.user_id, assignment]));
   const badges = (rows ?? []).map((row: any) => {
     const assignment = activeByUser.get(row.user_id);
     const discordAcc = discordByUser.get(row.user_id) ?? null;
@@ -958,7 +957,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
   if (gamesError) throw new ApiError(500, "Failed to load schedule", gamesError);
   const hasLoggedSchedule = (scheduledGames ?? []).length > 0;
   if (resultsError) throw new ApiError(500, "Failed to load schedule results", resultsError);
-  const resultsByMatchup = new Map(
+  const resultsByMatchup = new Map<string, any>(
     (gameResults ?? []).map((result: any) => [
       matchupKey({
         season_number: result.season_number,
@@ -981,7 +980,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
         .in("team_id", scheduledTeamIds)
     : { data: [], error: null };
   if (teamAssignments.error) throw new ApiError(500, "Failed to load team assignments for schedule", teamAssignments.error);
-  const userByTeamId = new Map((teamAssignments.data ?? []).map((row) => [row.team_id, row.user_id]));
+  const userByTeamId = new Map<string, string>((teamAssignments.data ?? []).map((row: any) => [row.team_id, row.user_id]));
 
   const opponentUserIds = [...new Set((scheduledGames ?? []).flatMap((game: any) => {
     const isHome = game.home_team_id === teamId;
@@ -998,7 +997,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", uniqueUserIds)
     : { data: [], error: null };
   if (opponentAccounts.error) throw new ApiError(500, "Failed to load opponent Discord accounts", opponentAccounts.error);
-  const discordByUserId = new Map((opponentAccounts.data ?? []).map((row) => [row.user_id, row.discord_id]));
+  const discordByUserId = new Map<string, string>((opponentAccounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
 
   const gamesByWeek = new Map<number, any>();
   for (const game of scheduledGames ?? []) {
@@ -1037,7 +1036,7 @@ export async function getUserScheduleByDiscordId(discordId: string, guildId: str
     return resolveTeamNick(side === "home" ? game.home_team : game.away_team);
   }
 
-  const games = [];
+  const games: any[] = [];
   for (let week = 1; week <= regularSeasonWeeks(league.game); week += 1) {
     const game = gamesByWeek.get(week);
     if (!game) {
@@ -1391,7 +1390,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   // GOTW voting record — read from the settled aggregate table (populated by settleGotwVotes
   // during advance). The raw rec_game_of_week_votes table can have null user_id when the
   // Discord→user lookup fails at vote-cast time, so the aggregate is more reliable.
-  let gotwVotingRecord = null;
+  let gotwVotingRecord: { correct: number; total: number; accuracy: number } | null = null;
   const { data: gotwRecord } = await supabase
     .from("rec_global_gotw_guessing_records")
     .select("correct_guesses,wrong_guesses")

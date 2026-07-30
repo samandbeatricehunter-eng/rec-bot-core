@@ -33,16 +33,29 @@ export function AttributePurchaseBuilder({
     [points, storeContext],
   );
 
+  // Every cap is additive, not either/or — an attribute's own individual cap (override, or
+  // the group default for Core) AND its group's pooled total both apply at once, so the
+  // remaining allowance is whichever constraint is tighter.
   function remainingForCode(code: string): number | null {
     if (!storeContext) return null;
-    if (isCore(code)) {
-      const cap = storeContext.coreAttributeCapOverrides[code] ?? storeContext.coreAttributeDefaultCap;
-      if (!cap) return null;
-      return cap - (storeContext.usedCoreByCode[code] ?? 0) - (points[code] ?? 0);
-    }
-    if (!storeContext.nonCoreAttributeCap) return null;
-    const otherNonCoreSelected = Object.entries(points).reduce((sum, [c, p]) => (c !== code && !isCore(c) ? sum + p : sum), 0);
-    return storeContext.nonCoreAttributeCap - storeContext.usedNonCore - otherNonCoreSelected - (points[code] ?? 0);
+    const pending = points[code] ?? 0;
+    const core = isCore(code);
+    const individualCap = core
+      ? storeContext.coreAttributeCapOverrides[code] ?? storeContext.coreAttributeDefaultCap
+      : storeContext.nonCoreAttributeCapOverrides[code] ?? 0;
+    const individualRemaining = individualCap > 0
+      ? individualCap - (core ? storeContext.usedCoreByCode[code] ?? 0 : storeContext.usedNonCoreByCode[code] ?? 0) - pending
+      : null;
+
+    const groupCap = core ? storeContext.coreAttributeGroupCap : storeContext.nonCoreAttributeCap;
+    const otherGroupSelected = Object.entries(points).reduce((sum, [c, p]) => (c !== code && isCore(c) === core ? sum + p : sum), 0);
+    const groupRemaining = groupCap > 0
+      ? groupCap - (core ? storeContext.usedCore : storeContext.usedNonCore) - otherGroupSelected - pending
+      : null;
+
+    if (individualRemaining == null) return groupRemaining;
+    if (groupRemaining == null) return individualRemaining;
+    return Math.min(individualRemaining, groupRemaining);
   }
 
   function increment(code: string) {

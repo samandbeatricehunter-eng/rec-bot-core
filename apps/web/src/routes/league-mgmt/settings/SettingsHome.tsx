@@ -12,6 +12,7 @@ import { FirstTimeSetupHome } from "../first-time-setup/FirstTimeSetupHome.js";
 import { ChannelSettings } from "./ChannelSettings.js";
 import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
 import { BadgeMaintenance } from "./BadgeMaintenance.js";
+import { ModerationSettings } from "./ModerationSettings.js";
 
 const FIRST_TIME_SETUP_KEY = "first-time-setup";
 const EOS_PAYOUTS_KEY = "eos-payouts";
@@ -32,6 +33,7 @@ export function SettingsHome() {
   const [activeCategory, setActiveCategory] = useState(SETTINGS_CATEGORIES[0].key);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [newNonCoreCode, setNewNonCoreCode] = useState("");
 
   useEffect(() => {
     recApi
@@ -85,6 +87,13 @@ export function SettingsHome() {
   const game = String(draft.game ?? "");
   const category = SETTINGS_CATEGORIES.find((c) => c.key === activeCategory) ?? SETTINGS_CATEGORIES[0];
   const visibleFields = category.fields.filter((f) => !f.gameFilter || f.gameFilter(game));
+  const coreAttributes = Array.isArray(draft.coreAttributes) ? draft.coreAttributes.map(String) : [];
+  const coreOverrides = draft.coreAttributeCapOverrides && typeof draft.coreAttributeCapOverrides === "object"
+    ? draft.coreAttributeCapOverrides as Record<string, number>
+    : {};
+  const nonCoreOverrides = draft.nonCoreAttributeCapOverrides && typeof draft.nonCoreAttributeCapOverrides === "object"
+    ? draft.nonCoreAttributeCapOverrides as Record<string, number>
+    : {};
 
   return (
     <div>
@@ -100,7 +109,7 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><BadgeMaintenance /></> : activeCategory === FIRST_TIME_SETUP_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><BadgeMaintenance /></> : activeCategory === FIRST_TIME_SETUP_KEY ? (
         <FirstTimeSetupHome />
       ) : (
         <>
@@ -167,6 +176,97 @@ export function SettingsHome() {
                 </div>
               );
             })}
+            {activeCategory === "purchases" && Boolean(draft.attributePurchasesEnabled) ? (
+              <div className="form-field">
+                <label className="form-label" htmlFor="core-attributes">Core attributes</label>
+                <input
+                  id="core-attributes"
+                  className="form-input"
+                  value={coreAttributes.join(", ")}
+                  onChange={(event) => {
+                    const next = [...new Set(event.target.value.split(",").map((value) => value.trim().toUpperCase()).filter(Boolean))];
+                    setDraft((current) => current ? {
+                      ...current,
+                      coreAttributes: next,
+                      coreAttributeCapOverrides: Object.fromEntries(Object.entries(coreOverrides).filter(([key]) => next.includes(key))),
+                    } : current);
+                  }}
+                />
+                <p className="form-hint">Comma-separated in-game attribute codes. Each uses the default core cap unless an override is set below — and the group cap above still applies to their combined total.</p>
+                {coreAttributes.map((code) => (
+                  <label key={code} className="attribute-cap-row">
+                    <span>{code} season cap</span>
+                    <input
+                      className="form-input"
+                      type="number"
+                      min={0}
+                      max={99}
+                      placeholder={String(draft.coreAttributePurchasesSeasonCap ?? 0)}
+                      value={coreOverrides[code] ?? ""}
+                      onChange={(event) => {
+                        const next = { ...coreOverrides };
+                        if (event.target.value === "") delete next[code];
+                        else next[code] = Math.max(0, Math.min(99, Number(event.target.value)));
+                        setField("coreAttributeCapOverrides", next);
+                      }}
+                    />
+                  </label>
+                ))}
+
+                <label className="form-label" htmlFor="non-core-override-code" style={{ marginTop: "var(--space-3)" }}>Non-Core attribute overrides</label>
+                <p className="form-hint">Any attribute not listed as Core above is Non-Core. It has no individual cap by default — only the Non-Core group cap — unless you add a specific override here.</p>
+                {Object.entries(nonCoreOverrides).map(([code, cap]) => (
+                  <label key={code} className="attribute-cap-row">
+                    <span>{code} season cap</span>
+                    <input
+                      className="form-input"
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={cap}
+                      onChange={(event) => {
+                        const next = { ...nonCoreOverrides };
+                        if (event.target.value === "") delete next[code];
+                        else next[code] = Math.max(0, Math.min(99, Number(event.target.value)));
+                        setField("nonCoreAttributeCapOverrides", next);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn-icon"
+                      aria-label={`Remove ${code} override`}
+                      onClick={() => {
+                        const next = { ...nonCoreOverrides };
+                        delete next[code];
+                        setField("nonCoreAttributeCapOverrides", next);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </label>
+                ))}
+                <div className="attribute-cap-row">
+                  <input
+                    id="non-core-override-code"
+                    className="form-input"
+                    placeholder="Attribute code (e.g. SPD)"
+                    value={newNonCoreCode}
+                    onChange={(event) => setNewNonCoreCode(event.target.value.toUpperCase())}
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const code = newNonCoreCode.trim();
+                      if (!code || coreAttributes.includes(code) || nonCoreOverrides[code] != null) return;
+                      setField("nonCoreAttributeCapOverrides", { ...nonCoreOverrides, [code]: 0 });
+                      setNewNonCoreCode("");
+                    }}
+                  >
+                    Add Override
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </Card>
 
           <div style={{ marginTop: "var(--space-4)" }}>

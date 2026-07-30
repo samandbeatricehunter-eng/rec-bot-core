@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { AFC_TEAMS, CFB_27_TEAMS, CFB_TEAM_PRIMARY_COLORS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -400,7 +399,7 @@ export async function listLinkedUsersTeams(guildId: string) {
 
   if (accounts.error) throw new ApiError(500, "Failed to load linked Discord accounts.", accounts.error);
 
-  const accountByUserId = new Map((accounts.data ?? []).map((account) => [account.user_id, account]));
+  const accountByUserId = new Map<string, any>((accounts.data ?? []).map((account: any) => [account.user_id, account]));
   const linked = (result.data ?? []).map((row) => {
     const user = row.user as { id?: string; display_name?: string; supabase_auth_user_id?: string | null } | null;
     const isDiscordOnly = !user?.supabase_auth_user_id;

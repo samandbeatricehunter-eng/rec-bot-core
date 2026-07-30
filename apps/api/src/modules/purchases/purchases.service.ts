@@ -43,16 +43,19 @@ function normalizeAttributeAllocations(details: Record<string, unknown>, cfgRow:
   return { ...details, allocations };
 }
 
-// Enforce points-per-user-per-season caps: each core attribute against its effective cap
-// (override ?? default), and non-core points against one total cap. 0 ⇒ unlimited.
+// Enforce points-per-user-per-season caps. Every cap is additive, not either/or: a purchase
+// must clear BOTH its own attribute's individual cap (override, else the group default) AND
+// its group's pooled total. 0 on any cap ⇒ that particular constraint is unlimited.
 async function enforceAttributeCaps(args: {
   leagueId: string;
   userId: string;
   seasonNumber: number;
   allocations: AttributeAllocation[];
   defaultCoreCap: number;
-  nonCoreCap: number;
-  overrides: Record<string, number>;
+  coreGroupCap: number;
+  coreOverrides: Record<string, number>;
+  nonCoreGroupCap: number;
+  nonCoreOverrides: Record<string, number>;
 }) {
   const existing = await supabase
     .from("rec_purchases")
@@ -65,29 +68,40 @@ async function enforceAttributeCaps(args: {
   if (existing.error) throw new ApiError(500, "Failed to check attribute caps.", existing.error);
 
   const usedByCode: Record<string, number> = {};
+  let usedCore = 0;
   let usedNonCore = 0;
   for (const row of existing.data ?? []) {
     const allocs = ((row as any).details?.allocations as any[]) ?? [];
     for (const a of allocs) {
       const pts = Math.max(0, Number(a.points) || 0);
       usedByCode[a.code] = (usedByCode[a.code] ?? 0) + pts;
-      if (!a.core) usedNonCore += pts;
+      if (a.core) usedCore += pts;
+      else usedNonCore += pts;
     }
   }
 
+  let requestedCore = 0;
   let requestedNonCore = 0;
   for (const a of args.allocations) {
     if (a.core) {
-      const cap = Number(args.overrides[a.code] ?? args.defaultCoreCap ?? 0);
+      const cap = Number(args.coreOverrides[a.code] ?? args.defaultCoreCap ?? 0);
       if (cap > 0 && (usedByCode[a.code] ?? 0) + a.points > cap) {
         throw new ApiError(409, `${a.code} is capped at ${cap} points per season — you've already used ${usedByCode[a.code] ?? 0}.`);
       }
+      requestedCore += a.points;
     } else {
+      const cap = Number(args.nonCoreOverrides[a.code] ?? 0);
+      if (cap > 0 && (usedByCode[a.code] ?? 0) + a.points > cap) {
+        throw new ApiError(409, `${a.code} is capped at ${cap} points per season — you've already used ${usedByCode[a.code] ?? 0}.`);
+      }
       requestedNonCore += a.points;
     }
   }
-  if (args.nonCoreCap > 0 && usedNonCore + requestedNonCore > args.nonCoreCap) {
-    throw new ApiError(409, `Non-core attribute points are capped at ${args.nonCoreCap} per season — you've already used ${usedNonCore}.`);
+  if (args.coreGroupCap > 0 && usedCore + requestedCore > args.coreGroupCap) {
+    throw new ApiError(409, `Core attribute points are capped at ${args.coreGroupCap} total per season — you've already used ${usedCore}.`);
+  }
+  if (args.nonCoreGroupCap > 0 && usedNonCore + requestedNonCore > args.nonCoreGroupCap) {
+    throw new ApiError(409, `Non-core attribute points are capped at ${args.nonCoreGroupCap} total per season — you've already used ${usedNonCore}.`);
   }
 }
 
@@ -105,7 +119,7 @@ export async function createPurchaseRequest(input: {
   const leagueId = context.leagueId;
 
   const attrSelect = input.purchaseType === "attribute"
-    ? ["core_attributes", "core_attribute_cap_overrides", "core_attribute_purchases_season_cap", "non_core_attribute_purchases_season_cap"]
+    ? ["core_attributes", "core_attribute_cap_overrides", "core_attribute_purchases_season_cap", "core_attribute_group_cap", "non_core_attribute_purchases_season_cap", "non_core_attribute_cap_overrides"]
     : [];
   const selectCols = ["coin_economy_enabled", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
   const config = await supabase
@@ -154,8 +168,10 @@ export async function createPurchaseRequest(input: {
       seasonNumber,
       allocations: (details.allocations as AttributeAllocation[]) ?? [],
       defaultCoreCap: Number(cfgRow.core_attribute_purchases_season_cap ?? 0),
-      nonCoreCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
-      overrides: (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {},
+      coreGroupCap: Number(cfgRow.core_attribute_group_cap ?? 0),
+      coreOverrides: (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {},
+      nonCoreGroupCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
+      nonCoreOverrides: (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {},
     });
   } else if (cfg.seasonCap) {
     // Count-based season cap: 0/absent ⇒ unlimited (the enabled flag governs availability).
@@ -396,7 +412,7 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
 
   const config = await supabase
     .from("rec_league_configuration")
-    .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,non_core_attribute_purchases_season_cap,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,player_trait_purchases_season_cap,legends_season_cap,custom_players_season_cap")
+    .select("core_attributes,core_attribute_cap_overrides,core_attribute_purchases_season_cap,core_attribute_group_cap,non_core_attribute_purchases_season_cap,non_core_attribute_cap_overrides,age_resets_season_cap,dev_upgrades_season_cap,contract_purchases_season_cap,player_trait_purchases_season_cap,legends_season_cap,custom_players_season_cap")
     .eq("league_id", context.leagueId)
     .maybeSingle();
   if (config.error) throw new ApiError(500, "Failed to load store configuration.", config.error);
@@ -416,13 +432,15 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
   if (existingAttrs.error) throw new ApiError(500, "Failed to load attribute purchase history.", existingAttrs.error);
 
   const usedCoreByCode: Record<string, number> = {};
+  const usedNonCoreByCode: Record<string, number> = {};
+  let usedCore = 0;
   let usedNonCore = 0;
   for (const row of existingAttrs.data ?? []) {
     const allocs = ((row as any).details?.allocations as any[]) ?? [];
     for (const a of allocs) {
       const pts = Math.max(0, Number(a.points) || 0);
-      if (a.core) usedCoreByCode[a.code] = (usedCoreByCode[a.code] ?? 0) + pts;
-      else usedNonCore += pts;
+      if (a.core) { usedCoreByCode[a.code] = (usedCoreByCode[a.code] ?? 0) + pts; usedCore += pts; }
+      else { usedNonCoreByCode[a.code] = (usedNonCoreByCode[a.code] ?? 0) + pts; usedNonCore += pts; }
     }
   }
 
@@ -437,8 +455,12 @@ export async function getStorePurchaseContext(guildId: string, discordId: string
     coreAttributes: Array.isArray(cfgRow.core_attributes) ? (cfgRow.core_attributes as unknown[]).map(String) : [],
     coreAttributeDefaultCap: Number(cfgRow.core_attribute_purchases_season_cap ?? 0),
     coreAttributeCapOverrides: (cfgRow.core_attribute_cap_overrides as Record<string, number>) ?? {},
+    coreAttributeGroupCap: Number(cfgRow.core_attribute_group_cap ?? 0),
     nonCoreAttributeCap: Number(cfgRow.non_core_attribute_purchases_season_cap ?? 0),
+    nonCoreAttributeCapOverrides: (cfgRow.non_core_attribute_cap_overrides as Record<string, number>) ?? {},
     usedCoreByCode,
+    usedNonCoreByCode,
+    usedCore,
     usedNonCore,
     seasonCaps,
     seasonActive: counts.seasonActive,

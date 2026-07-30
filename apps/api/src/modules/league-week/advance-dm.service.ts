@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { evaluatePayoutTier, isPayoutEligibleForGame, isRegularSeasonWeek, nextPayoutTier, formatCoins, type RecEndSeasonPayoutDefinition } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -128,7 +127,7 @@ export async function generateAdvanceDms(input: { guildId: string }): Promise<Ad
     .from("rec_discord_accounts")
     .select("user_id,discord_id,username,global_name,user:rec_users(username)")
     .in("user_id", userIds);
-  const accountByUser = new Map((accounts ?? []).map((a) => [a.user_id, a]));
+  const accountByUser = new Map<string, any>((accounts ?? []).map((a: any) => [a.user_id, a]));
 
   // Transactions in the window, grouped by user.
   let ledgerQuery = supabase

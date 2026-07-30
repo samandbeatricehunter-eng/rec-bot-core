@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { canonicalConferenceName, isRegularSeasonWeek, regularSeasonGamesPerTeam } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -57,16 +56,16 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     .eq("assignment_status", "active")
     .is("ended_at", null);
   if (assignmentsRes.error) throw new ApiError(500, "Failed to load team assignments.", assignmentsRes.error);
-  const assignmentByTeam = new Map(
+  const assignmentByTeam = new Map<string, { userId: string; displayName: string | null }>(
     (assignmentsRes.data ?? []).map((row: any) => [row.team_id, { userId: row.user_id, displayName: row.user?.username ?? row.user?.display_name ?? null }]),
   );
 
-  const userIds = [...new Set([...assignmentByTeam.values()].map((a) => a.userId).filter(Boolean))];
+  const userIds = [...new Set<string>([...assignmentByTeam.values()].map((a) => a.userId).filter(Boolean))];
   const accountsRes = userIds.length
     ? await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds)
     : { data: [], error: null };
   if (accountsRes.error) throw new ApiError(500, "Failed to load Discord accounts.", accountsRes.error);
-  const discordByUser = new Map((accountsRes.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+  const discordByUser = new Map<string, string>((accountsRes.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
   // A rec-leagues username is the canonical display name once set (see assignmentByTeam
   // above); the live Discord nickname/username lookup below is only a fallback for accounts
   // that never set one — some were auto-provisioned with their raw Discord ID as the name.

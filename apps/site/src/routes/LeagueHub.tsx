@@ -7,6 +7,7 @@ import { IconBack } from "../components/icons.js";
 import {
   AdvanceHome,
   CommissionerChatHome,
+  CfpPostseasonManager,
   DeleteLeagueHome,
   FirstTimeSetupHome,
   HubChromeProvider,
@@ -179,6 +180,7 @@ function HubMgmtRoutes() {
       <Route path="manage-league" element={<MgmtSubPage><ManageLeagueHome /></MgmtSubPage>} />
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
       <Route path="manage-league/player-stats" element={<MgmtSubPage><PlayerStatsReview /></MgmtSubPage>} />
+      <Route path="manage-league/postseason" element={<MgmtSubPage><CfpPostseasonManager /></MgmtSubPage>} />
       <Route path="manage-league/teams" element={<MgmtSubPage><TeamOwnershipTable /></MgmtSubPage>} />
       <Route path="manage-league/teams/link" element={<MgmtSubPage><LinkTeamForm /></MgmtSubPage>} />
       <Route path="manage-league/:teamId" element={<MgmtSubPage><TeamScheduleForm /></MgmtSubPage>} />

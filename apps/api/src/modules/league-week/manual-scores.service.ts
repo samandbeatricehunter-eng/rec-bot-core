@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { isCfb, isRegularSeasonWeek, maxSeasonWeek } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -80,7 +79,7 @@ export async function listManualScoreGames(input: {
   ]);
   if (results.error) throw new ApiError(500, "Failed to load existing game results.", results.error);
 
-  const resultByMatchup = new Map((results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, row]));
+  const resultByMatchup = new Map<string, any>((results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, row]));
 
   const eligible = (games as any[]).filter((g) => !boxScored.has(String(g.id)));
   const mapped: ManualScoreGame[] = eligible.map((g) => {

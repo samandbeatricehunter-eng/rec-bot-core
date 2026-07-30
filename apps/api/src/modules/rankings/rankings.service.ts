@@ -67,7 +67,7 @@ async function computeDynastyScoresForGame(game: string): Promise<
           join rec_leagues l on l.id = g.league_id
           join rec_league_configuration c on c.league_id = l.id
           where l.game = $1 and g.home_user_id is not null
-            and c.difficulty in ('all_pro', 'all_madden')
+            and (case when l.game='cfb_27' then coalesce(c.cfb_difficulty,case c.difficulty when 'all_pro' then 'all_american' when 'all_madden' then 'heisman' else c.difficulty end) in ('all_american','heisman') else c.difficulty in ('all_pro','all_madden') end)
           union all
           select g.away_user_id,
             case when g.is_tie then 'tie' when g.winning_user_id = g.away_user_id then 'win' else 'loss' end,
@@ -76,7 +76,7 @@ async function computeDynastyScoresForGame(game: string): Promise<
           join rec_leagues l on l.id = g.league_id
           join rec_league_configuration c on c.league_id = l.id
           where l.game = $1 and g.away_user_id is not null
-            and c.difficulty in ('all_pro', 'all_madden')
+            and (case when l.game='cfb_27' then coalesce(c.cfb_difficulty,case c.difficulty when 'all_pro' then 'all_american' when 'all_madden' then 'heisman' else c.difficulty end) in ('all_american','heisman') else c.difficulty in ('all_pro','all_madden') end)
         ) p
         join rec_users registered on registered.id = p.user_id
           and registered.supabase_auth_user_id is not null
@@ -90,13 +90,13 @@ async function computeDynastyScoresForGame(game: string): Promise<
           select g.home_user_id as user_id, g.away_user_id as opponent_user_id
           from rec_game_results g join rec_leagues l on l.id = g.league_id
           join rec_league_configuration c on c.league_id = l.id
-          where l.game = $1 and c.difficulty in ('all_pro', 'all_madden')
+          where l.game = $1 and (case when l.game='cfb_27' then coalesce(c.cfb_difficulty,case c.difficulty when 'all_pro' then 'all_american' when 'all_madden' then 'heisman' else c.difficulty end) in ('all_american','heisman') else c.difficulty in ('all_pro','all_madden') end)
             and g.home_user_id is not null and g.away_user_id is not null
           union all
           select g.away_user_id, g.home_user_id
           from rec_game_results g join rec_leagues l on l.id = g.league_id
           join rec_league_configuration c on c.league_id = l.id
-          where l.game = $1 and c.difficulty in ('all_pro', 'all_madden')
+          where l.game = $1 and (case when l.game='cfb_27' then coalesce(c.cfb_difficulty,case c.difficulty when 'all_pro' then 'all_american' when 'all_madden' then 'heisman' else c.difficulty end) in ('all_american','heisman') else c.difficulty in ('all_pro','all_madden') end)
             and g.home_user_id is not null and g.away_user_id is not null
         ) p
         join records o on o.user_id = p.opponent_user_id

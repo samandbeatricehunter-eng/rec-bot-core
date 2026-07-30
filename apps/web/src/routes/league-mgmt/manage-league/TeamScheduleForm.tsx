@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
+import { CFB_BOWL_NAMES, canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
 import { PencilLine } from "lucide-react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -157,6 +157,7 @@ export function TeamScheduleForm() {
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
+  const [customBowl, setCustomBowl] = useState<{ weekNumber: number; name: string } | null>(null);
 
   const load = useCallback(() => {
     if (!teamId) return Promise.resolve();
@@ -422,7 +423,10 @@ export function TeamScheduleForm() {
                           <option value="cfp_semifinals">CFP Semifinal</option>
                           <option value="national_championship">National Championship</option>
                         </select></label>
-                        <label><span>Bowl / game name</span><input value={pick?.bowlName ?? ""} maxLength={100} placeholder="Rose Bowl, Sugar Bowl…" onChange={(e) => updatePick(week.weekNumber, { bowlName: e.target.value })} /></label>
+                        <label><span>Bowl / game name</span><select className="form-select" value={CFB_BOWL_NAMES.includes((pick?.bowlName ?? "") as (typeof CFB_BOWL_NAMES)[number]) ? pick?.bowlName ?? "" : pick?.bowlName ? "Custom Bowl" : ""} onChange={(e) => {
+                          if (e.target.value === "Custom Bowl") setCustomBowl({ weekNumber: week.weekNumber, name: pick?.bowlName === "Custom Bowl" ? "" : pick?.bowlName ?? "" });
+                          else updatePick(week.weekNumber, { bowlName: e.target.value });
+                        }}><option value="">Select bowl</option>{CFB_BOWL_NAMES.map((name) => <option key={name} value={name}>{name}</option>)}</select>{pick?.bowlName && !CFB_BOWL_NAMES.includes(pick.bowlName as (typeof CFB_BOWL_NAMES)[number]) ? <small>Custom: {pick.bowlName}</small> : null}</label>
                         <label className="team-schedule-check"><input type="checkbox" checked={pick?.isBowlGame ?? false} onChange={(e) => updatePick(week.weekNumber, { isBowlGame: e.target.checked })} /><span>Bowl game / automatic GOTW</span></label>
                       </div>
                     ) : null}
@@ -447,6 +451,7 @@ export function TeamScheduleForm() {
       </div>
 
       <WatchedPlayersPanel guildId={guildId} teamId={teamId!} />
+      {customBowl ? <div className="modal-backdrop"><Card className="stat-edit-modal"><h2>Name custom bowl</h2><label className="form-field"><span className="form-label">Bowl name</span><input className="form-input" maxLength={100} autoFocus value={customBowl.name} onChange={(event) => setCustomBowl({ ...customBowl, name: event.target.value })} /></label><div className="form-actions"><Button variant="primary" disabled={!customBowl.name.trim()} onClick={() => { updatePick(customBowl.weekNumber, { bowlName: customBowl.name.trim(), isBowlGame: true }); setCustomBowl(null); }}>Use Custom Bowl</Button><Button variant="ghost" onClick={() => setCustomBowl(null)}>Cancel</Button></div></Card></div> : null}
 
       {activeModal?.type === "upload" && (
         <UploadBoxScoreModal

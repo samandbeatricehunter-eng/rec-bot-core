@@ -36,7 +36,7 @@ function globalItems(): NavItem[] {
   return [
     { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
     { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
-    { key: "comp", label: "Comp", to: "/comp", icon: <IconComp /> },
+    { key: "comp", label: "Comp (BETA)", to: "/comp", icon: <IconComp /> },
     {
       key: "account",
       label: "My Account",
