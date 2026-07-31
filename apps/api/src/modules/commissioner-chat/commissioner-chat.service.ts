@@ -2,6 +2,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getGuildMemberDisplayNameMap, getMentionableCommissioners, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
+import { broadcastChatEvent } from "../chat/chat-realtime.js";
 
 const MESSAGE_PAGE_SIZE = 200;
 const MESSAGE_RETENTION_HOURS = 72;
@@ -87,7 +88,9 @@ export async function editChatMessage(input: { guildId: string; discordId: strin
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to edit message.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
-  return { message: { ...data, author_display_name: null } };
+  const message = { ...data, author_display_name: null };
+  broadcastChatEvent("commissioner", input.guildId, { kind: "edit", row: message });
+  return { message };
 }
 
 export async function deleteChatMessage(input: { guildId: string; discordId: string; messageId: string }) {
@@ -102,6 +105,7 @@ export async function deleteChatMessage(input: { guildId: string; discordId: str
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to delete message.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
+  broadcastChatEvent("commissioner", input.guildId, { kind: "delete", messageId: data.id });
   return { ok: true as const };
 }
 
@@ -143,7 +147,9 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     const message = `**${author}** mentioned you in the Commissioner's Office:\n\n${trimmed.slice(0, 1200)}\n\nRun **/hub**, open **League Management**, then **Commissioner's Office** to reply.`;
     await Promise.allSettled([...recipients].map((discordId) => sendDiscordDirectMessage(discordId, message)));
   })().catch((notifyError) => console.error("[ERROR] Failed to send commissioner-chat mention DMs (non-fatal):", notifyError));
-  return { message: { ...data, author_display_name: authorDisplayName } };
+  const sentMessage = { ...data, author_display_name: authorDisplayName };
+  broadcastChatEvent("commissioner", input.guildId, { kind: "message", row: sentMessage });
+  return { message: sentMessage };
 }
 
 export async function listChatTopics(guildId: string) {

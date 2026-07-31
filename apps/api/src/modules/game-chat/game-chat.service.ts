@@ -4,6 +4,7 @@ import { resolveChatAuthor, resolveChatDisplay } from "../../lib/chat-identity.j
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getGameChannelByDiscordId } from "../game-channels/game-channels.service.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { broadcastChatEvent } from "../chat/chat-realtime.js";
 
 const MESSAGE_PAGE_SIZE = 300;
 
@@ -78,10 +79,11 @@ export async function editGameChatMessage(input: { guildId: string; discordId: s
     .eq("id", input.messageId)
     .eq("author_discord_id", input.discordId)
     .is("deleted_at", null)
-    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,edited_at")
+    .select("id,game_channel_id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,edited_at")
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to edit message.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
+  broadcastChatEvent("game", data.game_channel_id, { kind: "edit", row: data });
   return { message: data };
 }
 
@@ -92,10 +94,11 @@ export async function deleteGameChatMessage(input: { guildId: string; discordId:
     .eq("id", input.messageId)
     .eq("author_discord_id", input.discordId)
     .is("deleted_at", null)
-    .select("id")
+    .select("id,game_channel_id")
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to delete message.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
+  broadcastChatEvent("game", data.game_channel_id, { kind: "delete", messageId: data.id });
   return { ok: true as const };
 }
 
@@ -123,6 +126,7 @@ export async function sendGameChatMessage(input: { guildId: string; discordId: s
     .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,reply_to_message_id")
     .single();
   if (error) throw new ApiError(500, "Failed to send game chat message.", error);
+  broadcastChatEvent("game", channel.id, { kind: "message", row: data });
 
   if (channel.discord_channel_id) {
     void forwardToDiscord({
@@ -188,7 +192,7 @@ export async function ingestDiscordGameChatMessage(input: {
   }
   const { displayName, isRegistered } = resolveChatDisplay(userRow, discordRes.data ?? null);
 
-  const { error } = await supabase.from("rec_game_chat_messages").insert({
+  const inserted = await supabase.from("rec_game_chat_messages").insert({
     game_channel_id: channel.id,
     league_id: channel.league_id,
     game_id: channel.game_id,
@@ -199,17 +203,18 @@ export async function ingestDiscordGameChatMessage(input: {
     source: "discord",
     discord_message_id: input.discordMessageId,
     body: trimmed.slice(0, 2000),
-  });
+  }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,discord_message_id,body,created_at").single();
   // Unique partial index on discord_message_id — a retried ingest hits a conflict, which is
   // "already ingested", not a real failure.
-  if (error && (error as any).code !== "23505") throw new ApiError(500, "Failed to ingest Discord game chat message.", error);
+  if (inserted.error && (inserted.error as any).code !== "23505") throw new ApiError(500, "Failed to ingest Discord game chat message.", inserted.error);
+  if (!inserted.error) broadcastChatEvent("game", channel.id, { kind: "message", row: inserted.data });
   return { ingested: true };
 }
 
 // System rows (no author) for confirmations like "Force Win requested" — not user-authored, so
 // no Discord forward. Best-effort: callers should not fail their own request if this errors.
 export async function postGameChatSystemMessage(input: { gameChannelId: string; leagueId: string; gameId: string | null; body: string }) {
-  const { error } = await supabase.from("rec_game_chat_messages").insert({
+  const { data, error } = await supabase.from("rec_game_chat_messages").insert({
     game_channel_id: input.gameChannelId,
     league_id: input.leagueId,
     game_id: input.gameId,
@@ -219,6 +224,7 @@ export async function postGameChatSystemMessage(input: { gameChannelId: string; 
     is_discord_only: false,
     source: "system",
     body: input.body.slice(0, 2000),
-  });
+  }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at").single();
   if (error) throw new ApiError(500, "Failed to post system message.", error);
+  broadcastChatEvent("game", input.gameChannelId, { kind: "message", row: data });
 }

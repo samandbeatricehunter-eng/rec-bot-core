@@ -86,6 +86,20 @@ export async function requireUserSession(request: FastifyRequest): Promise<UserS
   return { discordId: site.discordId, guildId: guildIdFromHeader(request) ?? "" };
 }
 
+// WebSocket-flavored variant of requireUserSession — the upgrade handshake has no place for a
+// Bearer header (browsers can't set custom headers on the WebSocket constructor), so the token
+// travels as a query param instead. Same two verification paths (Activity JWT, site Supabase
+// session), just sourced from a raw string instead of a FastifyRequest's headers.
+export async function resolveUserSessionFromToken(token: string, guildIdHint: string | null): Promise<UserSession | null> {
+  const activity = await tryActivitySession(token);
+  if (activity) return activity;
+
+  const site = await trySiteDiscordSession(token);
+  if (!site) return null;
+  if (!guildIdHint) return null;
+  return { discordId: site.discordId, guildId: guildIdHint };
+}
+
 export type GuildPermission = "member" | "co_commissioner" | "commissioner";
 
 // Mirrors apps/bot/src/lib/admin.ts's isFullLeagueAdminInteraction/isCoCommissionerInteraction:

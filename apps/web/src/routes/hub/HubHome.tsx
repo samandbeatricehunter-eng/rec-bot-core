@@ -1287,7 +1287,7 @@ export function HubHome() {
         </div>
         {buzzView === "chat" ? (
           auth.status === "ready" ? (
-            <LeagueChatPanel guildId={auth.guildId} discordId={auth.discordId} seasonNumber={hub.league.seasonNumber} initialGameChannelId={searchParams.get("gameChannel")} />
+            <LeagueChatPanel guildId={auth.guildId} leagueId={hub.league.id} discordId={auth.discordId} seasonNumber={hub.league.seasonNumber} initialGameChannelId={searchParams.get("gameChannel")} />
           ) : null
         ) : <>
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">

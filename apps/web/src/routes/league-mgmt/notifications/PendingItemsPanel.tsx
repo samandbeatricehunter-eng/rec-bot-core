@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CASE_STATUS_BADGE } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { CommissionerNotification, CommissionerNotificationType, CompletedCommissionerTransaction } from "../../../types/api.js";
@@ -106,7 +107,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
             {visible.map((notification) => <Card key={notification.id} style={{ cursor: "pointer" }} onClick={() => openNotification(notification)}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--space-3)" }}>
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><span style={{ fontWeight: 700 }}>{notification.title}</span></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span style={{ fontWeight: 700 }}>{notification.title}</span></div>
                   <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{notification.subtitle}</p>
                   <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
                 </div>

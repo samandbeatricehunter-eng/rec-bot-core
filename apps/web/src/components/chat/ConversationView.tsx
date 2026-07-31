@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChatChannelType, ChatMessageRow } from "@rec/shared";
+import type { ChatMessageRow } from "@rec/shared";
 import { CHAT_QUICK_REACTIONS } from "@rec/shared";
 import { formatLocalTime } from "../../lib/chat-utils.js";
 import { renderMessageWithMentions } from "../../lib/mentions.js";
-import { useChatReactions, type ReactionPill } from "../../lib/useChatReactions.js";
-import { useChatAttachments } from "../../lib/useChatAttachments.js";
+import type { ReactionPill } from "../../lib/chat-store.js";
 import type { ChatAttachment, MentionableList } from "../../types/api.js";
 
 const DC_TOOLTIP = "Non-registered Discord-only member.";
@@ -170,8 +169,9 @@ export function ConversationView({
   viewerDiscordId,
   mentionable,
   messageClassName,
-  guildId,
-  channelType,
+  reactionsByMessage,
+  attachmentsByMessage,
+  onToggleReaction,
   onEditMessage,
   onDeleteMessage,
   onReplyMessage,
@@ -182,10 +182,13 @@ export function ConversationView({
   /** Optional per-message body className (e.g. League/Game Chat's distinct styling for
    * source: "system" rows) — omit for the plain look commissioner chat has always used. */
   messageClassName?: (message: ChatMessageRow) => string | undefined;
-  /** Reactions are opt-in: pass both to enable the reaction bar/quick-react row, omit either to
-   * skip it entirely (kept optional so every existing caller works unchanged). */
-  guildId?: string;
-  channelType?: ChatChannelType;
+  /** Reactions/attachments come from the caller's chat-store subscription now (see
+   * useSharedChatChannel) rather than this component fetching its own copy — every consumer
+   * of a given channel shares the same data instead of each running an independent poll.
+   * Omit all three to skip the reaction bar/attachments entirely. */
+  reactionsByMessage?: Record<string, ReactionPill[]>;
+  attachmentsByMessage?: Record<string, ChatAttachment[]>;
+  onToggleReaction?: (messageId: string, emojiKey: string) => void;
   /** Edit/delete are opt-in too — only the message's own author ever sees the controls, so
    * omitting these just means no caller has wired the action yet, not a missing feature. */
   onEditMessage?: (messageId: string, body: string) => Promise<void>;
@@ -193,18 +196,7 @@ export function ConversationView({
   onReplyMessage?: (message: ChatMessageRow) => void;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
-  const messageIds = messages.map((m) => m.id);
-  const reactionsEnabled = Boolean(guildId && channelType);
-  const { reactionsByMessage, toggle } = useChatReactions({
-    guildId: guildId ?? "",
-    channelType: reactionsEnabled ? (channelType as ChatChannelType) : null,
-    messageIds,
-  });
-  const { attachmentsByMessage } = useChatAttachments({
-    guildId: guildId ?? "",
-    channelType: reactionsEnabled ? (channelType as ChatChannelType) : null,
-    messageIds,
-  });
+  const reactionsEnabled = Boolean(reactionsByMessage && onToggleReaction);
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });
@@ -219,13 +211,13 @@ export function ConversationView({
           viewerDiscordId={viewerDiscordId}
           mentionable={mentionable}
           messageClassName={messageClassName}
-          reactionPills={reactionsEnabled ? reactionsByMessage[m.id] ?? [] : null}
-          onToggleReaction={reactionsEnabled ? (emojiKey) => void toggle(m.id, emojiKey) : null}
+          reactionPills={reactionsEnabled ? reactionsByMessage![m.id] ?? [] : null}
+          onToggleReaction={reactionsEnabled ? (emojiKey) => onToggleReaction!(m.id, emojiKey) : null}
           onEdit={onEditMessage ? (body) => onEditMessage(m.id, body) : null}
           onDelete={onDeleteMessage ? () => onDeleteMessage(m.id) : null}
           onReply={onReplyMessage ? () => onReplyMessage(m) : null}
           replyParent={m.replyToMessageId ? messages.find((candidate) => candidate.id === m.replyToMessageId) ?? null : null}
-          attachments={attachmentsByMessage[m.id] ?? []}
+          attachments={attachmentsByMessage?.[m.id] ?? []}
         />
       ))}
       {messages.length === 0 && <p className="hub-empty">No messages yet — say hello.</p>}

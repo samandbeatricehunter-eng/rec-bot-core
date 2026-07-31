@@ -243,6 +243,8 @@ export type CommissionerNotification = {
   payload: Record<string, unknown> | null;
   internalMemo: string | null;
   votingTopicId: string | null;
+  awaitingUserResponse: boolean;
+  displayStatus: import("@rec/shared").CaseDisplayStatus;
 };
 export type CommissionerNotificationsResponse = { notifications: CommissionerNotification[] };
 export type CommissionerCaseEvent = {

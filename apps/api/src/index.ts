@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import websocket from "@fastify/websocket";
 import { env, shouldMigrateMirroredHighlightsOnBoot } from "./config/env.js";
 import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
@@ -51,6 +52,7 @@ app.addContentTypeParser("application/json", { parseAs: "string" }, (request, bo
 // unauthenticated-by-file-size-only surface (upload-image is still auth-guarded, this is
 // just a sanity limit on request body size).
 await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } });
+await app.register(websocket);
 await registerRoutes(app);
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }

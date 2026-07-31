@@ -8,6 +8,8 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { getGameChannelByGameId } from "../game-channels/game-channels.service.js";
 import { postGameChatSystemMessage } from "../game-chat/game-chat.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
+import { sendPushToUsers } from "../push/push.service.js";
 
 export type MatchupHelpKind = "force_win" | "autopilot" | "matchup_issue";
 
@@ -84,6 +86,18 @@ export async function submitMatchupHelpRequest(input: {
       gameId: input.gameId,
       body: `${author.displayName} submitted a request: ${HEADER_BY_KIND[input.kind]}. A commissioner has been notified.`,
     }).catch((error) => console.error("[ERROR] Failed to post matchup-help confirmation to game chat (non-fatal):", error));
+  }
+
+  // Private confirmation to the requester — the game-chat system message above is visible to
+  // both participants, but the requester specifically needs their own status notification per
+  // spec (a spectator/opponent seeing the system message isn't the same as the requester
+  // knowing their own request was actually received).
+  if (author.userId) {
+    const title = `${HEADER_BY_KIND[input.kind]} — request received`;
+    const body = `Your request for ${awayTeamName} @ ${homeTeamName} was sent to the commissioner team. You'll be notified when it's resolved.`;
+    const href = `/matchups/${input.gameId}`;
+    void createSiteNotification({ userId: author.userId, leagueId: context.leagueId, kind: "matchup_help_submitted", title, body, href }).catch(() => undefined);
+    void sendPushToUsers([author.userId], { title, body, url: href }).catch(() => undefined);
   }
 
   return { ok: true as const };

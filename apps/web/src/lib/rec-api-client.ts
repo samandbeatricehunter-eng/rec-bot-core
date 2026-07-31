@@ -92,6 +92,16 @@ export function setAuthToken(token: string | null) {
   authToken = token;
 }
 
+/** Read-only access to the current session token — chat-realtime-client.ts needs it to
+ * authenticate the WebSocket handshake, which (unlike fetch) can't set an Authorization header. */
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+export function wsBaseUrl(): string {
+  return apiBaseUrl().replace(/^http/, "ws");
+}
+
 export function setHubGuildId(guildId: string | null) {
   hubGuildId = guildId;
 }
@@ -392,6 +402,8 @@ export const recApi = {
     recApiFetch<{ events: import("../types/api.js").CommissionerCaseEvent[] }>("/v1/notifications/case/events", { method: "POST", body: JSON.stringify(input) }),
   linkCaseToVotingTopic: (input: { guildId: string; inboxId: string; topicId: string }) =>
     recApiFetch<{ ok: true }>("/v1/notifications/case/link-vote", { method: "POST", body: JSON.stringify(input) }),
+  setCaseAwaitingUserResponse: (input: { guildId: string; inboxId: string; awaiting: boolean }) =>
+    recApiFetch<{ ok: true }>("/v1/notifications/case/awaiting-user", { method: "POST", body: JSON.stringify(input) }),
 
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,

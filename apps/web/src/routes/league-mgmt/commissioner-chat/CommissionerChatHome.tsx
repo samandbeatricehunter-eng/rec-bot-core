@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChatMessageRow } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import { toChatMessageRow } from "../../../lib/chat-utils.js";
-import type { ChatMessage, ChatTopic, MentionableList } from "../../../types/api.js";
+import { useSharedChatChannel } from "../../../lib/chat-store.js";
+import type { ChatTopic, MentionableList } from "../../../types/api.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Badge } from "../../../components/ui/Badge.js";
@@ -14,12 +14,11 @@ import { useSearchParams } from "react-router-dom";
 import { ConversationView } from "../../../components/chat/ConversationView.js";
 import { Composer } from "../../../components/chat/Composer.js";
 
-const POLL_INTERVAL_MS = 5000;
-
 // A shared space for commissioners/co-commissioners to discuss and vote on topics — meant
 // to eventually replace the need for the Commissioner's Office Discord channel for this
-// purpose. Simple poll-every-5s read model, no WebSockets — the audience per league is a
-// handful of people, so real-time infrastructure isn't worth the complexity here.
+// purpose. Message state comes from the shared chat store (chat-store.ts), keyed by guildId
+// the same way the Universal Chat Drawer's commissioner channel is — so opening this page and
+// the drawer's Commissioner Chat at the same time is one poll/realtime cycle, not two.
 //
 // Embedded directly at the top of LeagueMgmtHome.tsx (an always-visible panel, not a tile
 // you click into) — no PageHeader here, just a compact heading, since it now shares the
@@ -32,39 +31,19 @@ export function CommissionerChatHome() {
   const [tab, setTab] = useState<"messages" | "polls" | "payouts" | "requests">(
     requestedTab === "payouts" || requestedTab === "requests" ? requestedTab : "messages",
   );
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pollInFlightRef = useRef(false);
+  const { messages, reactionsByMessage, attachmentsByMessage, sendMessage, editMessage, deleteMessage, toggleReaction, sending, error: chatError } = useSharedChatChannel({
+    guildId,
+    channelType: "commissioner",
+    channelId: guildId,
+  });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? chatError;
 
   const [topics, setTopics] = useState<ChatTopic[] | null>(null);
   const [showPollComposer, setShowPollComposer] = useState(false);
 
   const [mentionable, setMentionable] = useState<MentionableList | null>(null);
   const [replyTarget, setReplyTarget] = useState<ChatMessageRow | null>(null);
-
-  function pollMessages() {
-    if (pollInFlightRef.current) return;
-    pollInFlightRef.current = true;
-    recApi
-      .listChatMessages({ guildId })
-      .then((res) => {
-        if (!res.messages.length) {
-          setMessages([]);
-          return;
-        }
-        setMessages(res.messages);
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load chat."))
-      .finally(() => { pollInFlightRef.current = false; });
-  }
-
-  useEffect(() => {
-    pollMessages();
-    const interval = setInterval(pollMessages, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guildId]);
 
   useEffect(() => {
     recApi.getMentionableCommissioners(guildId).then(setMentionable).catch(() => setMentionable(null));
@@ -74,55 +53,48 @@ export function CommissionerChatHome() {
     recApi
       .listChatTopics(guildId)
       .then((res) => setTopics(res.topics))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load voting topics."));
+      .catch((err) => setActionError(err instanceof Error ? err.message : "Failed to load voting topics."));
   }
 
   useEffect(loadTopics, [guildId]);
 
   async function handleSend(body: string) {
-    setSending(true);
-    setError(null);
+    setActionError(null);
     try {
-      const res = await recApi.postChatMessage({ guildId, body, replyToMessageId: replyTarget?.id ?? null });
-      setMessages((prev) => prev.some((message) => message.id === res.message.id) ? prev : [...prev, res.message]);
+      const row = await sendMessage(body, replyTarget?.id ?? null);
       setReplyTarget(null);
-      pollMessages();
-      return { id: res.message.id };
+      return row ? { id: row.id } : undefined;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send message.");
+      setActionError(err instanceof Error ? err.message : "Failed to send message.");
       throw err;
-    } finally {
-      setSending(false);
     }
   }
 
   async function handleEditMessage(messageId: string, body: string) {
-    const res = await recApi.editChatMessage({ guildId, messageId, body });
-    setMessages((prev) => prev.map((m) => (m.id === res.message.id ? res.message : m)));
+    await editMessage(messageId, body);
   }
 
   async function handleDeleteMessage(messageId: string) {
-    await recApi.deleteChatMessage({ guildId, messageId });
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    await deleteMessage(messageId);
   }
 
   async function handleVote(topicId: string, optionIndex: number) {
-    setError(null);
+    setActionError(null);
     try {
       await recApi.voteOnChatTopic({ guildId, topicId, optionIndex });
       loadTopics();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record your vote.");
+      setActionError(err instanceof Error ? err.message : "Failed to record your vote.");
     }
   }
 
   async function handleClose(topicId: string) {
-    setError(null);
+    setActionError(null);
     try {
       await recApi.closeChatTopic({ guildId, topicId });
       loadTopics();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to close voting.");
+      setActionError(err instanceof Error ? err.message : "Failed to close voting.");
     }
   }
 
@@ -131,8 +103,6 @@ export function CommissionerChatHome() {
     const memberOptions = (mentionable?.members ?? []).map((m) => ({ token: `<@${m.discordId}>`, label: m.displayName }));
     return [...roleOptions, ...memberOptions];
   }, [mentionable]);
-
-  const conversationMessages = useMemo(() => messages.map((m) => toChatMessageRow(m as unknown as Record<string, unknown>)), [messages]);
 
   return (
     <Card className="commissioner-chat-card">
@@ -154,11 +124,12 @@ export function CommissionerChatHome() {
       {tab === "messages" && (
         <div className="commissioner-chat-window">
           <ConversationView
-            messages={conversationMessages}
+            messages={messages}
             viewerDiscordId={discordId}
             mentionable={mentionable}
-            guildId={guildId}
-            channelType="commissioner"
+            reactionsByMessage={reactionsByMessage}
+            attachmentsByMessage={attachmentsByMessage}
+            onToggleReaction={(messageId, emojiKey) => void toggleReaction(messageId, emojiKey)}
             onEditMessage={handleEditMessage}
             onDeleteMessage={(messageId) => void handleDeleteMessage(messageId)}
             onReplyMessage={setReplyTarget}

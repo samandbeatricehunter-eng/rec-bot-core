@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
 import type { ChatChannelSummary, ChatChannelType, ChatMessageRow } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
-import { useChatChannel } from "../../lib/useChatChannel.js";
+import { useSharedChatChannel } from "../../lib/chat-store.js";
+// Side-effect only: registers the realtime hooks chat-store.ts calls when a channel activates.
+// Imported here (not from chat-store.ts itself) to keep chat-store.ts free of a circular import
+// — the drawer is unconditionally mounted by both host apps whenever chat is available, so this
+// always loads before any channel is ever subscribed to.
+import "../../lib/chat-realtime-client.js";
 import { useChatDrawer } from "../../lib/chat-drawer-context.js";
 import type { LeagueChatMember, MentionableList } from "../../types/api.js";
 import { ChannelList } from "./ChannelList.js";
@@ -68,7 +73,7 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
     [drawer.open, guildId, selected, loadChannels],
   );
 
-  const { messages, sendMessage, editMessage, deleteMessage, sending } = useChatChannel({
+  const { messages, reactionsByMessage, attachmentsByMessage, sendMessage, editMessage, deleteMessage, toggleReaction, sending } = useSharedChatChannel({
     guildId,
     channelType: selected?.channelType ?? null,
     channelId: selected?.channelId ?? null,
@@ -122,8 +127,9 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
                   messages={messages}
                   viewerDiscordId={discordId}
                   mentionable={mentionable}
-                  guildId={guildId}
-                  channelType={selected?.channelType}
+                  reactionsByMessage={reactionsByMessage}
+                  attachmentsByMessage={attachmentsByMessage}
+                  onToggleReaction={(messageId, emojiKey) => void toggleReaction(messageId, emojiKey)}
                   onEditMessage={editMessage}
                   onDeleteMessage={(messageId) => void deleteMessage(messageId)}
                   onReplyMessage={setReplyTarget}

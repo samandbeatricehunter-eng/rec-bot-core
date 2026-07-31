@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChatMessageRow } from "@rec/shared";
+import { useEffect, useMemo, useState } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
-import { toChatMessageRow } from "../../lib/chat-utils.js";
-import type { GameChatChannel, GameChatMessage, HubMatchupDetail, LeagueChatMember, LeagueChatMessage, MentionableList } from "../../types/api.js";
+import { useSharedChatChannel } from "../../lib/chat-store.js";
+import type { GameChatChannel, HubMatchupDetail, LeagueChatMember, MentionableList } from "../../types/api.js";
 import { Button } from "../ui/Button.js";
 import { UploadBoxScoreModal } from "../../routes/league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { MatchupActions, canViewerUploadBoxScore } from "../../routes/matchups/MatchupDetail.js";
@@ -11,36 +10,34 @@ import { PlayerStatsModal } from "./PlayerStatsModal.js";
 import { HighlightUploadModal } from "./HighlightUploadModal.js";
 import { ConversationView } from "../chat/ConversationView.js";
 import { Composer } from "../chat/Composer.js";
+import type { ChatMessageRow } from "@rec/shared";
 
-const POLL_INTERVAL_MS = 5000;
 const ROSTER_POLL_INTERVAL_MS = 20_000;
 const HEARTBEAT_INTERVAL_MS = 25_000;
 
 const DC_TOOLTIP = "Non-registered Discord-only member — messages forward to the Discord game channel.";
 
 // The Chat tab on Campus Buzz: a league-wide room plus one channel per current-week H2H
-// matchup (bridged to that matchup's Discord game channel — see game-chat.service.ts).
-// Poll-based like every other chat feature in this codebase (commissioner chat, matchup
-// chat) — no realtime infra.
+// matchup (bridged to that matchup's Discord game channel — see game-chat.service.ts). Message
+// state comes from the shared chat store (chat-store.ts) — the same channel opened here and in
+// the Universal Chat Drawer share one poll/realtime cycle and one message array, not two.
 export function LeagueChatPanel({
   guildId,
+  leagueId,
   discordId,
   seasonNumber,
   initialGameChannelId,
 }: {
   guildId: string;
+  leagueId: string;
   discordId: string;
   seasonNumber: number;
   initialGameChannelId?: string | null;
 }) {
   const [channels, setChannels] = useState<GameChatChannel[]>([]);
   const [activeChannel, setActiveChannel] = useState<string>(initialGameChannelId || "league");
-  const [messages, setMessages] = useState<Array<LeagueChatMessage | GameChatMessage>>([]);
   const [members, setMembers] = useState<LeagueChatMember[]>([]);
   const [rosterOpen, setRosterOpen] = useState(true);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const pollInFlightRef = useRef(false);
 
   const [matchupDetail, setMatchupDetail] = useState<HubMatchupDetail | null>(null);
   const [boxScoreUploadOpen, setBoxScoreUploadOpen] = useState(false);
@@ -89,26 +86,15 @@ export function LeagueChatPanel({
     return () => clearInterval(interval);
   }, [guildId]);
 
-  function pollMessages() {
-    if (pollInFlightRef.current) return;
-    pollInFlightRef.current = true;
-    const request = activeChannel === "league"
-      ? recApi.listLeagueChatMessages({ guildId })
-      : recApi.listGameChatMessages({ guildId, gameChannelId: activeChannel });
-    request
-      .then((res) => setMessages(res.messages))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load chat."))
-      .finally(() => { pollInFlightRef.current = false; });
-  }
-
-  useEffect(() => {
-    setMessages([]);
-    setError(null);
-    pollMessages();
-    const interval = setInterval(pollMessages, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guildId, activeChannel]);
+  const channelType = activeChannel === "league" ? "league" : "game";
+  const channelId = activeChannel === "league" ? leagueId : activeChannel;
+  const { messages, reactionsByMessage, attachmentsByMessage, sendMessage, editMessage, deleteMessage, toggleReaction, sending, error: chatError } = useSharedChatChannel({
+    guildId,
+    channelType,
+    channelId,
+  });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? chatError;
 
   const mentionable: MentionableList = useMemo(() => ({
     members: members.filter((m) => m.discordId).map((m) => ({ discordId: m.discordId as string, displayName: m.displayName })),
@@ -120,40 +106,27 @@ export function LeagueChatPanel({
     [mentionable],
   );
 
-  const conversationMessages = useMemo(() => messages.map((m) => toChatMessageRow(m as unknown as Record<string, unknown>)), [messages]);
   const [replyTarget, setReplyTarget] = useState<ChatMessageRow | null>(null);
 
   async function handleSend(body: string) {
-    setSending(true);
-    setError(null);
+    setActionError(null);
     try {
       const replyToMessageId = replyTarget?.id ?? null;
-      const res = activeChannel === "league"
-        ? await recApi.postLeagueChatMessage({ guildId, body, replyToMessageId })
-        : await recApi.postGameChatMessage({ guildId, gameChannelId: activeChannel, body, replyToMessageId });
-      setMessages((prev) => (prev.some((m) => m.id === res.message.id) ? prev : [...prev, res.message]));
+      const row = await sendMessage(body, replyToMessageId);
       setReplyTarget(null);
-      pollMessages();
-      return { id: res.message.id };
+      return row ? { id: row.id } : undefined;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send message.");
+      setActionError(err instanceof Error ? err.message : "Failed to send message.");
       throw err;
-    } finally {
-      setSending(false);
     }
   }
 
   async function handleEdit(messageId: string, body: string) {
-    const res = activeChannel === "league"
-      ? await recApi.editLeagueChatMessage({ guildId, messageId, body })
-      : await recApi.editGameChatMessage({ guildId, messageId, body });
-    setMessages((prev) => prev.map((m) => (m.id === res.message.id ? res.message : m)));
+    await editMessage(messageId, body);
   }
 
   async function handleDelete(messageId: string) {
-    if (activeChannel === "league") await recApi.deleteLeagueChatMessage({ guildId, messageId });
-    else await recApi.deleteGameChatMessage({ guildId, messageId });
-    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    await deleteMessage(messageId);
   }
 
   const onlineMembers = members.filter((m) => m.online);
@@ -227,11 +200,12 @@ export function LeagueChatPanel({
 
       <div className="commissioner-chat-window">
         <ConversationView
-          messages={conversationMessages}
+          messages={messages}
           viewerDiscordId={discordId}
           mentionable={mentionable}
-          guildId={guildId}
-          channelType={activeChannel === "league" ? "league" : "game"}
+          reactionsByMessage={reactionsByMessage}
+          attachmentsByMessage={attachmentsByMessage}
+          onToggleReaction={(messageId, emojiKey) => void toggleReaction(messageId, emojiKey)}
           messageClassName={(m) => (m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message")}
           onEditMessage={handleEdit}
           onDeleteMessage={(messageId) => void handleDelete(messageId)}
@@ -260,9 +234,8 @@ export function LeagueChatPanel({
           onClose={() => setBoxScoreUploadOpen(false)}
           onSubmitted={() => {
             setBoxScoreUploadOpen(false);
-            // The opponent-tag notice lands server-side (createBoxScoreSubmission) — the next
-            // poll picks it up like any other message, no special handling needed here.
-            pollMessages();
+            // The opponent-tag notice lands server-side (createBoxScoreSubmission) — the shared
+            // chat store's next poll tick picks it up like any other message.
           }}
         />
       )}

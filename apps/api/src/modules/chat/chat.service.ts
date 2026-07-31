@@ -11,6 +11,7 @@ import { assertGuildPermission } from "../../lib/user-auth.js";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { listGameChatChannels } from "../game-chat/game-chat.service.js";
+import { broadcastChatEvent } from "./chat-realtime.js";
 
 const CHAT_ATTACHMENT_BUCKET = "chat-attachments";
 export const SUPPORTED_CHAT_ATTACHMENT_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -36,6 +37,21 @@ export type ChatAttachment = {
   sizeBytes: number | null;
 };
 
+// Reactions and attachments are keyed by (channelType, messageId) — neither carries the
+// channelId broadcasting needs, so resolve it from the message's own home table. One extra
+// query, only on the (infrequent relative to messages) react/attach path.
+const CHANNEL_ID_COLUMN_BY_TYPE: Record<ChatChannelType, { table: string; column: string }> = {
+  league: { table: "rec_league_chat_messages", column: "league_id" },
+  game: { table: "rec_game_chat_messages", column: "game_channel_id" },
+  commissioner: { table: "rec_commissioner_chat_messages", column: "guild_id" },
+};
+
+async function resolveChannelIdForMessage(channelType: ChatChannelType, messageId: string): Promise<string | null> {
+  const { table, column } = CHANNEL_ID_COLUMN_BY_TYPE[channelType];
+  const { data } = await supabase.from(table).select(column).eq("id", messageId).maybeSingle();
+  return (data as Record<string, string> | null)?.[column] ?? null;
+}
+
 export async function attachToMessage(input: {
   channelType: ChatChannelType;
   messageId: string;
@@ -59,6 +75,8 @@ export async function attachToMessage(input: {
     .select("id,message_id,original_url,mime_type,filename,size_bytes")
     .single();
   if (error) throw new ApiError(500, "Failed to attach file to message.", error);
+  const channelId = await resolveChannelIdForMessage(input.channelType, input.messageId);
+  if (channelId) broadcastChatEvent(input.channelType, channelId, { kind: "attachment", messageId: input.messageId });
   return {
     attachment: {
       id: data.id,
@@ -289,8 +307,10 @@ export async function toggleChatReaction(input: {
     `select id from rec_chat_reactions where channel_type = $1 and message_id = $2 and discord_id = $3 and emoji_key = $4`,
     [input.channelType, input.messageId, input.discordId, input.emojiKey],
   );
+  const channelId = await resolveChannelIdForMessage(input.channelType, input.messageId);
   if (existing.rows.length) {
     await getPgPool().query(`delete from rec_chat_reactions where id = $1`, [existing.rows[0].id]);
+    if (channelId) broadcastChatEvent(input.channelType, channelId, { kind: "reaction", messageId: input.messageId });
     return { reacted: false };
   }
   const author = await resolveChatAuthor(input.discordId);
@@ -298,6 +318,7 @@ export async function toggleChatReaction(input: {
     `insert into rec_chat_reactions (channel_type, message_id, user_id, discord_id, emoji_key, source) values ($1, $2, $3, $4, $5, 'site')`,
     [input.channelType, input.messageId, author.userId, input.discordId, input.emojiKey],
   );
+  if (channelId) broadcastChatEvent(input.channelType, channelId, { kind: "reaction", messageId: input.messageId });
   return { reacted: true };
 }
 

@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase.js";
 import { resolveChatAuthor, resolveChatDisplay } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getGuildMemberDisplayNameMap, postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { broadcastChatEvent } from "../chat/chat-realtime.js";
 
 const MESSAGE_PAGE_SIZE = 300;
 const ONLINE_WINDOW_SECONDS = 60;
@@ -120,10 +121,11 @@ export async function editLeagueChatMessage(input: { guildId: string; discordId:
     .eq("id", input.messageId)
     .eq("author_discord_id", input.discordId)
     .is("deleted_at", null)
-    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at,edited_at")
+    .select("id,league_id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at,edited_at")
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to edit message.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
+  broadcastChatEvent("league", data.league_id, { kind: "edit", row: data });
   return { message: data };
 }
 
@@ -134,10 +136,11 @@ export async function deleteLeagueChatMessage(input: { guildId: string; discordI
     .eq("id", input.messageId)
     .eq("author_discord_id", input.discordId)
     .is("deleted_at", null)
-    .select("id")
+    .select("id,league_id")
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to delete message.", error);
   if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
+  broadcastChatEvent("league", data.league_id, { kind: "delete", messageId: data.id });
   return { ok: true as const };
 }
 
@@ -191,6 +194,7 @@ export async function postLeagueChatMessage(input: { guildId: string; discordId:
       throw new ApiError(502, "The message was saved to league chat, but Discord rejected the relay. Check the bot's access to the assigned Main Chat Channel.");
     }
   }
+  broadcastChatEvent("league", context.leagueId, { kind: "message", row: data });
   return { message: data };
 }
 
@@ -232,8 +236,9 @@ export async function ingestDiscordLeagueChatMessage(input: {
     source: "discord",
     discord_message_id: input.discordMessageId,
     body: input.content.trim().slice(0, 2000),
-  });
+  }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,discord_message_id,body,created_at").single();
   if (inserted.error) throw new ApiError(500, "Failed to ingest Discord league chat message.", inserted.error);
+  broadcastChatEvent("league", context.leagueId, { kind: "message", row: inserted.data });
   return { ingested: true };
 }
 

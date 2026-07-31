@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { REC_DEFENSE_POSITIONS, REC_OFFENSE_POSITIONS } from "@rec/shared";
+import { REC_DEFENSE_POSITIONS, REC_OFFENSE_POSITIONS, CASE_STATUS_BADGE } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { ChatTopic, CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
+import { Badge } from "../../../components/ui/Badge.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 type ReplaceTarget = { position: string; firstName: string; lastName: string };
@@ -240,6 +241,8 @@ export function ResolveNotificationModal({
   const [votingTopicId, setVotingTopicId] = useState(notification.votingTopicId);
   const [votingTopic, setVotingTopic] = useState<ChatTopic | null>(null);
   const [startingVote, setStartingVote] = useState(false);
+  const [awaitingUser, setAwaitingUser] = useState(notification.awaitingUserResponse);
+  const [awaitingUserSaving, setAwaitingUserSaving] = useState(false);
 
   useEffect(() => {
     recApi.listCaseEvents({ guildId, inboxId: notification.id }).then((res) => setEvents(res.events)).catch(() => setEvents([]));
@@ -263,6 +266,19 @@ export function ResolveNotificationModal({
       setError(err instanceof Error ? err.message : "Failed to save memo.");
     } finally {
       setMemoSaving(false);
+    }
+  }
+
+  async function toggleAwaitingUser(next: boolean) {
+    setAwaitingUserSaving(true);
+    setError(null);
+    try {
+      await recApi.setCaseAwaitingUserResponse({ guildId, inboxId: notification.id, awaiting: next });
+      setAwaitingUser(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update case status.");
+    } finally {
+      setAwaitingUserSaving(false);
     }
   }
 
@@ -301,7 +317,8 @@ export function ResolveNotificationModal({
   return (
     <Modal title={notification.title} onClose={onClose}>
       {error && <ErrorState message={error} />}
-      <p style={{ color: "var(--text-secondary)", marginTop: 0 }}>{notification.subtitle}</p>
+      <Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge>
+      <p style={{ color: "var(--text-secondary)", marginTop: "var(--space-2)" }}>{notification.subtitle}</p>
       {notification.type === "highlight" && notification.sourceId && (
         <HighlightReviewPreview guildId={guildId} reviewId={notification.sourceId} />
       )}
@@ -408,6 +425,18 @@ export function ResolveNotificationModal({
             </Button>
           </div>
         )}
+      </div>
+
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", fontSize: "var(--text-sm)" }}>
+          <input
+            type="checkbox"
+            checked={awaitingUser}
+            disabled={awaitingUserSaving}
+            onChange={(e) => void toggleAwaitingUser(e.target.checked)}
+          />
+          Waiting on the requesting coach to respond
+        </label>
       </div>
 
       {events && events.length > 0 && (

@@ -17,6 +17,7 @@
     "@fastify/helmet": "^13.1.0",
     "@fastify/multipart": "^10.1.0",
     "@fastify/rate-limit": "^11.1.0",
+    "@fastify/websocket": "^11.3.0",
     "@rec/shared": "workspace:*",
     "@supabase/supabase-js": "^2.111.0",
     "dotenv": "^16.4.7",

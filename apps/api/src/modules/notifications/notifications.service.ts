@@ -2,7 +2,7 @@
 // see apps/api/src/modules/box-score/box-score.service.ts (the original source of this
 // table) and the other 9 sources' service files for the insert/update side that populates
 // it. This module only reads; the writes live next to each source's own business logic.
-import { formatCoins } from "@rec/shared";
+import { formatCoins, deriveCaseDisplayStatus, type CaseDisplayStatus } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import {
@@ -27,6 +27,8 @@ export type CommissionerNotification = {
   payload: Record<string, unknown> | null;
   internalMemo: string | null;
   votingTopicId: string | null;
+  awaitingUserResponse: boolean;
+  displayStatus: CaseDisplayStatus;
 };
 
 const COMPLETED_TRANSACTION_TYPES = ["purchase", "highlight", "stream", "eos_payout", "eos_award", "wager"];
@@ -66,7 +68,7 @@ export async function listCommissionerNotifications(
 ): Promise<{ notifications: CommissionerNotification[] }> {
   let query = supabase
     .from("rec_commissioners_inbox")
-    .select("id,queue_type,header,summary,amount,requester_discord_id,team_id,week_number,source_id,payload,created_at,internal_memo,voting_topic_id")
+    .select("id,queue_type,header,summary,amount,requester_discord_id,team_id,week_number,source_id,payload,created_at,internal_memo,voting_topic_id,awaiting_user_response")
     .eq("guild_id", guildId)
     .eq("status", "pending")
     .order("priority", { ascending: false })
@@ -93,6 +95,13 @@ export async function listCommissionerNotifications(
       payload: row.payload ?? null,
       internalMemo: row.internal_memo ?? null,
       votingTopicId: row.voting_topic_id ?? null,
+      awaitingUserResponse: Boolean(row.awaiting_user_response),
+      displayStatus: deriveCaseDisplayStatus({
+        status: "pending",
+        internalMemo: row.internal_memo,
+        votingTopicId: row.voting_topic_id,
+        awaitingUserResponse: row.awaiting_user_response,
+      }),
     })),
   };
 }
@@ -160,8 +169,12 @@ export async function listCompletedCommissionerTransactions(guildId: string) {
         weekNumber: row.week_number,
         sourceId: row.source_id,
         payload: row.payload ?? null,
+        internalMemo: row.internal_memo ?? null,
+        votingTopicId: row.voting_topic_id ?? null,
+        awaitingUserResponse: false,
         status: row.status,
         statusLabel: row.queue_type === "purchase" ? "Approved & Applied" : row.queue_type === "wager" ? "Settled" : "Approved & Issued",
+        displayStatus: deriveCaseDisplayStatus({ status: row.status }),
         reviewedBy: row.reviewed_by_discord_id,
         reviewedByName: row.reviewed_by_discord_id ? names.get(row.reviewed_by_discord_id) ?? "REC Commissioner" : null,
         completedAt: row.reviewed_at ?? row.updated_at,
@@ -219,6 +232,8 @@ export async function markCommissionerNotificationsDmSent(guildId: string, ids: 
 // notification-only request types like force_win_request/autopilot_request/matchup_issue_report)
 // — every other type is resolved by its own source-specific service function instead, per this
 // module's usual "reads only" convention, but those types don't have a source table to update.
+const MATCHUP_HELP_QUEUE_TYPES = new Set(["force_win_request", "autopilot_request", "matchup_issue_report"]);
+
 export async function markCommissionerInboxItemHandled(input: { guildId: string; inboxId: string; reviewerDiscordId: string }) {
   const { data, error } = await supabase
     .from("rec_commissioners_inbox")
@@ -226,10 +241,40 @@ export async function markCommissionerInboxItemHandled(input: { guildId: string;
     .eq("id", input.inboxId)
     .eq("guild_id", input.guildId)
     .eq("status", "pending")
-    .select("id")
+    .select("id,league_id,queue_type,header,requester_user_id,payload")
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to update item.", error);
   if (!data) throw new ApiError(404, "Item not found or already resolved.");
+
+  // The Request Help flow (Force Win / AutoPilot / Report Issue) promises the requester a
+  // private notification when their case is resolved, not just when it's submitted.
+  if (MATCHUP_HELP_QUEUE_TYPES.has(data.queue_type) && data.requester_user_id) {
+    const gameId = (data.payload as Record<string, unknown> | null)?.gameId as string | undefined;
+    const title = `${data.header ?? "Your request"} — resolved`;
+    const body = "A commissioner has resolved your request. Check the matchup for details.";
+    const href = gameId ? `/matchups/${gameId}` : "/";
+    const { createSiteNotification } = await import("../site-notifications/site-notifications.service.js");
+    const { sendPushToUsers } = await import("../push/push.service.js");
+    void createSiteNotification({ userId: data.requester_user_id, leagueId: data.league_id, kind: "matchup_help_resolved", title, body, href }).catch(() => undefined);
+    void sendPushToUsers([data.requester_user_id], { title, body, url: href }).catch(() => undefined);
+  }
+
+  return { ok: true as const };
+}
+
+// The "Waiting on User" display status (deriveCaseDisplayStatus) has no writer without this —
+// a commissioner needs to be able to flip a case into that state (e.g. "we asked the coach
+// for a screenshot") and back once the requester responds.
+export async function setCaseAwaitingUserResponse(input: { guildId: string; inboxId: string; awaiting: boolean }) {
+  const { data, error } = await supabase
+    .from("rec_commissioners_inbox")
+    .update({ awaiting_user_response: input.awaiting, updated_at: new Date().toISOString() })
+    .eq("id", input.inboxId)
+    .eq("guild_id", input.guildId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to update case.", error);
+  if (!data) throw new ApiError(404, "Case not found.");
   return { ok: true as const };
 }
 

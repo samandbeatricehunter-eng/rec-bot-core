@@ -14,6 +14,7 @@ import {
   markCommissionerInboxItemHandled,
   markCommissionerLeagueViewed,
   markCommissionerNotificationsDmSent,
+  setCaseAwaitingUserResponse,
 } from "./notifications.service.js";
 
 const ListSchema = z.object({
@@ -112,6 +113,15 @@ export async function notificationsRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Linking a vote requires a user session."));
       return reply.send(await linkCaseToVotingTopic({ guildId: body.guildId, inboxId: body.inboxId, topicId: body.topicId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/case/awaiting-user", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), inboxId: z.string().uuid(), awaiting: z.boolean() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Updating a case requires a user session."));
+      return reply.send(await setCaseAwaitingUserResponse({ guildId: body.guildId, inboxId: body.inboxId, awaiting: body.awaiting }));
     } catch (error) { return sendError(reply, error); }
   });
 }
