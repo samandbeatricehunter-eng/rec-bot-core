@@ -733,3 +733,107 @@
 .commissioner-chat-tabs button {
   white-space: nowrap;
 }
+
+/* Collapsible sections */
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--space-2) 0;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+.collapsible-header:hover {
+  color: var(--gold);
+}
+.collapsible-header:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.collapsible-content {
+  overflow: hidden;
+}
+
+/* Commissioner Chat Drawer */
+.commissioner-chat-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.commissioner-chat-drawer {
+  width: min(480px, 100vw);
+  height: 100%;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  animation: slideIn 0.2s ease;
+  box-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
+}
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.commissioner-chat-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  flex-shrink: 0;
+}
+.commissioner-chat-drawer-header h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.commissioner-chat-drawer > *:nth-child(2) {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-4);
+}
+
+/* League Actions Card */
+.league-actions-card {
+  margin-top: var(--space-4);
+}
+.league-actions-card .section-heading {
+  margin-bottom: var(--space-3);
+}
+.league-actions-card button,
+.league-actions-card a {
+  text-align: left;
+}
+.league-actions-card button svg,
+.league-actions-card a svg {
+  flex-shrink: 0;
+}
+
+/* Recent Activity / Linked Coaches collapsible */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+.section-heading svg {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}

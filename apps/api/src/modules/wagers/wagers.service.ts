@@ -1116,8 +1116,10 @@ async function recordWagerInbox(wager: any): Promise<void> {
 }
 
 // Approve a wager payout — only succeeds once the game result is confirmed.
-export async function settleWager(input: { wagerId: string; reviewedByDiscordId: string }) {
-  const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).maybeSingle();
+export async function settleWager(input: { wagerId: string; leagueId?: string | null; reviewedByDiscordId: string }) {
+  let wagerQuery = supabase.from("rec_wagers").select("*").eq("id", input.wagerId);
+  if (input.leagueId) wagerQuery = wagerQuery.eq("league_id", input.leagueId);
+  const { data: wager, error } = await wagerQuery.maybeSingle();
   if (error) throw new ApiError(500, "Failed to load wager.", error);
   if (!wager) throw new ApiError(404, "Wager not found.");
   if (!["pending", "confirmed"].includes(wager.status)) {

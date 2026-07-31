@@ -8,6 +8,7 @@ import { hasValidInternalApiKey, requireInternalApiKey } from "./auth.js";
 import { getGuildMemberRoleNames, hasAdministratorOrManageGuild, resolveMemberPermissionBits } from "./discord-guild.js";
 import { supabase } from "./supabase.js";
 import { verifySupabaseAccessToken } from "./supabase-jwt.js";
+import { getCurrentLeagueContext } from "../modules/league-context/league-context.service.js";
 
 // Per-browser auth for hub APIs — Discord Activity JWT and/or site Supabase session.
 // Bot-to-API calls still use requireInternalApiKey / x-rec-api-key unchanged.
@@ -158,6 +159,15 @@ export async function requireBotOrUserSession(
   const permission = options.permission ?? "member";
   await assertGuildPermission(claimedGuildId, auth.discordId, permission);
   return { mode: "user", discordId: auth.discordId, guildId: claimedGuildId };
+}
+
+/** Resolve the canonical REC league for an authenticated browser session. */
+export async function resolveCanonicalLeagueId(
+  auth: { mode: "bot" } | ({ mode: "user" } & UserSession),
+): Promise<string | null> {
+  if (auth.mode === "bot") return null;
+  const context = await getCurrentLeagueContext(auth.guildId);
+  return context.leagueId;
 }
 
 // Re-exported so route files that need the plain bot-only guard can still get it from one

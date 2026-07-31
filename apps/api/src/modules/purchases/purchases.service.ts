@@ -267,6 +267,7 @@ export async function createPurchaseRequest(input: {
 
 export async function reviewPurchase(input: {
   purchaseId: string;
+  leagueId?: string | null;
   action: "approve" | "deny";
   reviewedByDiscordId: string;
   deniedReason?: string | null;
@@ -275,7 +276,9 @@ export async function reviewPurchase(input: {
   // untouched; null explicitly records "commissioner chose not to designate one".
   finalReplaceTarget?: { position: string; firstName: string; lastName: string } | null;
 }) {
-  const existing = await supabase.from("rec_purchases").select("*").eq("id", input.purchaseId).maybeSingle();
+  let purchaseQuery = supabase.from("rec_purchases").select("*").eq("id", input.purchaseId);
+  if (input.leagueId) purchaseQuery = purchaseQuery.eq("league_id", input.leagueId);
+  const existing = await purchaseQuery.maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load purchase.", existing.error);
   if (!existing.data) throw new ApiError(404, "Purchase was not found.");
   if (existing.data.status !== "pending") {

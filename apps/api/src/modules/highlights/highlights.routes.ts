@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
-import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
+import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/user-auth.js";
+import { ApiError, sendError } from "../../lib/errors.js";
 import { createHighlightAwardReview, getHighlightReviewDetail, listHighlightAwardCandidates, recordHighlightPost, reviewGameOfYearPayout, reviewHighlightPayout } from "./highlights.service.js";
 
 const RecordHighlightSchema = z.object({
@@ -18,6 +18,7 @@ const ReviewHighlightSchema = z.object({
   // Optional because the bot's existing calls don't send it (bot-mode auth never checks
   // it — see resolveGuildId below); the web dashboard always sends it.
   guildId: z.string().min(1).optional(),
+  leagueId: z.string().uuid().optional(),
   reviewId: z.string().uuid(),
   action: z.enum(["approve", "deny"]),
   reviewedByDiscordId: z.string().min(1),
@@ -47,7 +48,11 @@ export async function highlightRoutes(app: FastifyInstance) {
       const body = ReviewHighlightSchema.parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
       if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
-      return reply.send(await reviewHighlightPayout(body));
+      const canonicalLeagueId = await resolveCanonicalLeagueId(auth);
+      if (auth.mode === "user" && body.leagueId && body.leagueId !== canonicalLeagueId) throw new ApiError(403, "League mismatch.");
+      const leagueId = canonicalLeagueId ?? body.leagueId;
+      if (auth.mode === "user" && !leagueId) throw new ApiError(403, "League context is required.");
+      return reply.send(await reviewHighlightPayout({ ...body, leagueId: leagueId ?? undefined }));
     } catch (error) {
       return sendError(reply, error);
     }
@@ -87,7 +92,11 @@ export async function highlightRoutes(app: FastifyInstance) {
       const body = ReviewHighlightSchema.parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
       const reviewedByDiscordId = auth.mode === "user" ? auth.discordId : body.reviewedByDiscordId;
-      return reply.send(await reviewGameOfYearPayout({ guildId: body.guildId ?? "", reviewId: body.reviewId, action: body.action, reviewedByDiscordId, deniedReason: body.deniedReason }));
+      const canonicalLeagueId = await resolveCanonicalLeagueId(auth);
+      if (auth.mode === "user" && body.leagueId && body.leagueId !== canonicalLeagueId) throw new ApiError(403, "League mismatch.");
+      const leagueId = canonicalLeagueId ?? body.leagueId;
+      if (auth.mode === "user" && !leagueId) throw new ApiError(403, "League context is required.");
+      return reply.send(await reviewGameOfYearPayout({ guildId: body.guildId ?? "", leagueId: leagueId ?? undefined, reviewId: body.reviewId, action: body.action, reviewedByDiscordId, deniedReason: body.deniedReason }));
     } catch (error) {
       return sendError(reply, error);
     }

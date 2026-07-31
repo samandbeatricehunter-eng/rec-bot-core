@@ -22,13 +22,9 @@ import { Composer } from "../../../components/chat/Composer.js";
 // the drawer's Commissioner Chat at the same time is one poll/realtime cycle, not two.
 //
 // Two presentations of this same component:
-//   - Standalone (/league-mgmt/commissioner-chat, incl. ?officeTab=payouts/requests deep
-//     links from notifications): full Messages/Polls/Payouts/Team Requests tabs.
-//   - `embedded` (LeagueMgmtHome's dashboard): Polls only. CommandCenterDashboard already
-//     covers Payouts/Team Requests via its generic Awaiting Review section, and Messages
-//     duplicating the always-available Universal Chat Drawer's Commissioner Chat channel on
-//     the same page it's embedded made the dashboard feel like two chat systems stacked on
-//     top of each other instead of one.
+  //   - Standalone (/league-mgmt/commissioner-chat): full Messages/Polls tabs.
+  //   - `embedded` (CommandCenterDashboard drawer): Polls only.
+  // Payouts and Team Requests have moved to the Awaiting Review panel (CommandCenterDashboard).
 export function CommissionerChatHome({ embedded = false }: { embedded?: boolean } = {}) {
   const { guildId, discordId } = useReadyAuth();
   const [params] = useSearchParams();
@@ -125,8 +121,6 @@ export function CommissionerChatHome({ embedded = false }: { embedded?: boolean 
           <Button variant={tab === "polls" ? "primary" : "secondary"} onClick={() => setTab("polls")}>
             Polls {topics && topics.filter((t) => t.status === "open").length > 0 ? `(${topics.filter((t) => t.status === "open").length})` : ""}
           </Button>
-          <Button variant={tab === "payouts" ? "primary" : "secondary"} onClick={() => setTab("payouts")}>Payouts</Button>
-          <Button variant={tab === "requests" ? "primary" : "secondary"} onClick={() => setTab("requests")}>Team Requests</Button>
         </div>
       )}
 
@@ -203,11 +197,9 @@ export function CommissionerChatHome({ embedded = false }: { embedded?: boolean 
         </div>
       )}
 
-      {!embedded && tab === "payouts" && <PendingItemsPanel />}
-      {!embedded && tab === "requests" && <PendingItemsPanel initialFilter="team_request" />}
       {embedded && (
         <p className="form-hint" style={{ marginTop: "var(--space-3)" }}>
-          <Link to="/league-mgmt/commissioner-chat">Open full Commissioner's Office</Link> for messages, payouts, and team requests.
+          <Link to="/league-mgmt/commissioner-chat">Open full Commissioner's Office</Link> for messages and polls.
         </p>
       )}
 

@@ -88,10 +88,6 @@ export function Account() {
     if (auth.status !== "signed-in") return;
     const sessionId = searchParams.get("checkoutSessionId");
     if (!sessionId) return;
-    setSearchParams((params) => {
-      params.delete("checkoutSessionId");
-      return params;
-    }, { replace: true });
     setSubscriptionActivating(true);
     setCheckoutError(null);
     siteApi
@@ -99,6 +95,10 @@ export function Account() {
       .then((summary) => {
         setEntitlements(summary);
         setSubscriptionActivating(false);
+        setSearchParams((params) => {
+          params.delete("checkoutSessionId");
+          return params;
+        }, { replace: true });
       })
       .catch((error) => {
         setSubscriptionActivating(false);

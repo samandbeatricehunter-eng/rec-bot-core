@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
-import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
+import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/user-auth.js";
+import { ApiError, sendError } from "../../lib/errors.js";
 import { recordStreamPost, reviewStreamPayout } from "./streams.service.js";
 
 const RecordStreamPostSchema = z.object({
@@ -20,6 +20,7 @@ const ReviewStreamPayoutSchema = z.object({
   // Optional because the bot's existing calls don't send it (bot-mode auth never checks
   // it — see resolveGuildId below); the web dashboard always sends it.
   guildId: z.string().min(1).optional(),
+  leagueId: z.string().uuid().optional(),
   reviewId: z.string().uuid(),
   action: z.enum(["approve", "deny"]),
   reviewedByDiscordId: z.string().min(1),
@@ -41,7 +42,11 @@ export async function streamRoutes(app: FastifyInstance) {
       const body = ReviewStreamPayoutSchema.parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
       if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
-      return reply.send(await reviewStreamPayout(body));
+      const canonicalLeagueId = await resolveCanonicalLeagueId(auth);
+      if (auth.mode === "user" && body.leagueId && body.leagueId !== canonicalLeagueId) throw new ApiError(403, "League mismatch.");
+      const leagueId = canonicalLeagueId ?? body.leagueId;
+      if (auth.mode === "user" && !leagueId) throw new ApiError(403, "League context is required.");
+      return reply.send(await reviewStreamPayout({ ...body, leagueId: leagueId ?? undefined }));
     } catch (error) {
       return sendError(reply, error);
     }

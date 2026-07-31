@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160" viewBox="0 0 320 160">
+  <defs>
+    <pattern id="scan" width="8" height="8" patternUnits="userSpaceOnUse">
+      <path d="M0 0h8" stroke="#fff" stroke-opacity=".08"/>
+      <path d="M0 4h8" stroke="#000" stroke-opacity=".16"/>
+    </pattern>
+    <linearGradient id="shine" x1="0" x2="1">
+      <stop stop-color="#fff" stop-opacity="0"/>
+      <stop offset=".48" stop-color="#fff" stop-opacity=".14"/>
+      <stop offset=".52" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="160" fill="url(#scan)"/>
+  <rect width="320" height="160" fill="url(#shine)"/>
+</svg>

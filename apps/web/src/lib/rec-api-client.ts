@@ -411,21 +411,21 @@ export const recApi = {
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,
   // same convention as reviewBoxScore above.
-  reviewPurchase: (input: { guildId: string; purchaseId: string; action: "approve" | "deny"; deniedReason?: string; finalReplaceTarget?: { position: string; firstName: string; lastName: string } | null }) =>
+  reviewPurchase: (input: { guildId: string; leagueId?: string; purchaseId: string; action: "approve" | "deny"; deniedReason?: string; finalReplaceTarget?: { position: string; firstName: string; lastName: string } | null }) =>
     recApiFetch<unknown>("/v1/purchases/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
-  reviewHighlight: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
+  reviewHighlight: (input: { guildId: string; leagueId?: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/highlights/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHighlightReviewDetail: (guildId: string, reviewId: string) =>
     recApiFetch<HighlightReviewDetail>("/v1/highlights/review-detail", { method: "POST", body: JSON.stringify({ guildId, reviewId }) }),
-  reviewGameOfYear: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
+  reviewGameOfYear: (input: { guildId: string; leagueId?: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/highlights/game-of-the-year/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
-  reviewStream: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
+  reviewStream: (input: { guildId: string; leagueId?: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<unknown>("/v1/streams/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
-  approveTeamRequest: (input: { guildId: string; requestId: string }) =>
+  approveTeamRequest: (input: { guildId: string; leagueId?: string; requestId: string }) =>
     recApiFetch<unknown>("/v1/team-requests/approve", { method: "POST", body: JSON.stringify({ ...input, reviewerDiscordId: "web-dashboard" }) }),
-  rejectTeamRequest: (input: { guildId: string; requestId: string }) =>
+  rejectTeamRequest: (input: { guildId: string; leagueId?: string; requestId: string }) =>
     recApiFetch<unknown>("/v1/team-requests/reject", { method: "POST", body: JSON.stringify({ ...input, reviewerDiscordId: "web-dashboard" }) }),
-  settleWager: (input: { guildId: string; wagerId: string }) =>
+  settleWager: (input: { guildId: string; leagueId?: string; wagerId: string }) =>
     recApiFetch<unknown>("/v1/wagers/settle", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   approveWeeklyScoreReview: (input: { guildId: string; reviewId: string }) =>
     recApiFetch<unknown>("/v1/league-week/weekly-scores/review/approve", { method: "POST", body: JSON.stringify({ ...input, loggedByDiscordId: "web-dashboard" }) }),

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireInternalApiKey } from "../../lib/auth.js";
-import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
+import { requireBotOrUserSession, resolveCanonicalLeagueId } from "../../lib/user-auth.js";
+import { ApiError, sendError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getGameWagerOptions, listWeekWagerLines } from "./odds.service.js";
 import {
@@ -257,10 +257,14 @@ export async function wagerRoutes(app: FastifyInstance) {
     try {
       // guildId is optional because the bot's existing calls don't send it (bot-mode auth
       // never checks it — see resolveGuildId below); the web dashboard always sends it.
-      const body = z.object({ guildId: z.string().min(1).optional(), wagerId: z.string().uuid(), reviewedByDiscordId: z.string().min(1) }).parse(request.body);
+      const body = z.object({ guildId: z.string().min(1).optional(), leagueId: z.string().uuid().optional(), wagerId: z.string().uuid(), reviewedByDiscordId: z.string().min(1) }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
       if (auth.mode === "user") body.reviewedByDiscordId = auth.discordId;
-      return reply.send(await settleWager(body));
+      const canonicalLeagueId = await resolveCanonicalLeagueId(auth);
+      if (auth.mode === "user" && body.leagueId && body.leagueId !== canonicalLeagueId) throw new ApiError(403, "League mismatch.");
+      const leagueId = canonicalLeagueId ?? body.leagueId;
+      if (auth.mode === "user" && !leagueId) throw new ApiError(403, "League context is required.");
+      return reply.send(await settleWager({ ...body, leagueId: leagueId ?? undefined }));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -55,6 +55,7 @@ type RecordHighlightInput = {
 
 type ReviewHighlightPayoutInput = {
   reviewId: string;
+  leagueId?: string | null;
   action: "approve" | "deny";
   reviewedByDiscordId: string;
   deniedReason?: string | null;
@@ -148,11 +149,12 @@ export async function getHighlightReviewDetail(input: { guildId: string; reviewI
 }
 
 export async function reviewHighlightPayout(input: ReviewHighlightPayoutInput) {
-  const existing = await supabase
+  let reviewQuery = supabase
     .from("rec_highlight_payout_reviews")
     .select("*,highlight_post:rec_highlight_posts(*)")
     .eq("id", input.reviewId)
-    .maybeSingle();
+  if (input.leagueId) reviewQuery = reviewQuery.eq("league_id", input.leagueId);
+  const existing = await reviewQuery.maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load highlight payout review.", existing.error);
   if (!existing.data) throw new ApiError(404, "Highlight payout review was not found.");
   if (existing.data.status !== "pending") {
@@ -628,7 +630,8 @@ export async function settleGameOfTheYear(guildId: string): Promise<{ candidates
 }
 
 type ReviewGameOfYearInput = {
-  guildId: string;
+  leagueId?: string | null;
+  guildId?: string | null;
   reviewId: string;
   action: "approve" | "deny";
   reviewedByDiscordId: string;
@@ -636,7 +639,9 @@ type ReviewGameOfYearInput = {
 };
 
 export async function reviewGameOfYearPayout(input: ReviewGameOfYearInput) {
-  const existing = await supabase.from("rec_game_of_year_reviews").select("*").eq("id", input.reviewId).maybeSingle();
+  let reviewQuery = supabase.from("rec_game_of_year_reviews").select("*").eq("id", input.reviewId);
+  if (input.leagueId) reviewQuery = reviewQuery.eq("league_id", input.leagueId);
+  const existing = await reviewQuery.maybeSingle();
   if (existing.error) throw new ApiError(500, "Failed to load Game of the Year review.", existing.error);
   if (!existing.data) throw new ApiError(404, "Game of the Year review was not found.");
   if (existing.data.status !== "pending") {
@@ -706,7 +711,7 @@ export async function reviewGameOfYearPayout(input: ReviewGameOfYearInput) {
   }).eq("source_table", "rec_game_of_year_reviews").eq("source_id", input.reviewId);
 
   await publishTransitionStory({
-    guildId: input.guildId,
+    guildId: input.guildId ?? "",
     headline: "Game of the Year",
     body: `${existing.data.away_team_label ?? "Away"} @ ${existing.data.home_team_label ?? "Home"} takes it home with ${existing.data.like_count} like${existing.data.like_count === 1 ? "" : "s"}.`,
     primaryAngle: "game_of_the_year",

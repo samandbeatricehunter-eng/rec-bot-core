@@ -8,7 +8,7 @@ type AuthState =
   | { status: "signed-in"; session: Session; user: User };
 
 type AuthContextValue = AuthState & {
-  signUp: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
+  signUp: (email: string, password: string, next?: string) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
   signIn: (
     email: string,
     password: string,
@@ -37,8 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.subscription.unsubscribe();
   }, []);
 
-  async function signUp(email: string, password: string) {
-    const emailRedirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback`;
+  async function signUp(email: string, password: string, next = "/account") {
+    const emailRedirectTo = `${sitePublicUrl() || window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,

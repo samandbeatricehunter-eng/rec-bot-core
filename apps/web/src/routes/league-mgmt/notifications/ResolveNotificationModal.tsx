@@ -7,6 +7,7 @@ import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { Badge } from "../../../components/ui/Badge.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 
 type ReplaceTarget = { position: string; firstName: string; lastName: string };
 const REPLACE_TARGET_POSITIONS = [...REC_OFFENSE_POSITIONS, ...REC_DEFENSE_POSITIONS];
@@ -169,6 +170,7 @@ function resolveModeFor(type: string): ResolveMode {
 
 async function resolveAction(
   guildId: string,
+  leagueId: string | undefined,
   notification: CommissionerNotification,
   action: "approve" | "deny",
   reason: string,
@@ -177,27 +179,27 @@ async function resolveAction(
   const sourceId = notification.sourceId ?? "";
   switch (notification.type) {
     case "purchase":
-      return recApi.reviewPurchase({ guildId, purchaseId: sourceId, action, deniedReason: reason || undefined });
+      return recApi.reviewPurchase({ guildId, leagueId, purchaseId: sourceId, action, deniedReason: reason || undefined });
     case "legend":
-      return recApi.reviewPurchase({ guildId, purchaseId: sourceId, action, deniedReason: reason || undefined, finalReplaceTarget: action === "approve" ? finalReplaceTarget : undefined });
+      return recApi.reviewPurchase({ guildId, leagueId, purchaseId: sourceId, action, deniedReason: reason || undefined, finalReplaceTarget: action === "approve" ? finalReplaceTarget : undefined });
     case "highlight":
-      return recApi.reviewHighlight({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
+      return recApi.reviewHighlight({ guildId, leagueId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "game_of_the_year":
-      return recApi.reviewGameOfYear({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
+      return recApi.reviewGameOfYear({ guildId, leagueId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "stream":
-      return recApi.reviewStream({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
+      return recApi.reviewStream({ guildId, leagueId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "media":
       return recApi.reviewMedia({ guildId, reviewId: sourceId, action, deniedReason: reason || undefined });
     case "team_request":
       return action === "approve"
-        ? recApi.approveTeamRequest({ guildId, requestId: sourceId })
-        : recApi.rejectTeamRequest({ guildId, requestId: sourceId });
+        ? recApi.approveTeamRequest({ guildId, leagueId, requestId: sourceId })
+        : recApi.rejectTeamRequest({ guildId, leagueId, requestId: sourceId });
     case "weekly_score_review":
       return action === "approve"
         ? recApi.approveWeeklyScoreReview({ guildId, reviewId: sourceId })
         : recApi.cancelWeeklyScoreReview({ guildId, reviewId: sourceId });
     case "wager":
-      return recApi.settleWager({ guildId, wagerId: sourceId });
+      return recApi.settleWager({ guildId, leagueId, wagerId: sourceId });
     case "force_win_request":
     case "autopilot_request":
     case "matchup_issue_report":
@@ -220,6 +222,8 @@ export function ResolveNotificationModal({
   onResolved: () => void;
 }) {
   const { guildId } = useReadyAuth();
+  const { currentLeague } = useHubChrome();
+  const leagueId = currentLeague?.id;
   const mode = resolveModeFor(notification.type);
   const [showDenyInput, setShowDenyInput] = useState(false);
   const [reason, setReason] = useState("");
@@ -306,7 +310,7 @@ export function ResolveNotificationModal({
     setError(null);
     try {
       const finalReplaceTarget = designateReplacement ? { position: replacePosition, firstName: replaceFirstName, lastName: replaceLastName } : undefined;
-      await resolveAction(guildId, notification, action, reason, finalReplaceTarget);
+      await resolveAction(guildId, leagueId, notification, action, reason, finalReplaceTarget);
       onResolved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to resolve this notification.");

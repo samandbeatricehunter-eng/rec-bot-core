@@ -181,8 +181,9 @@ export async function getTeamLinkRequest(requestId: string) {
   return data;
 }
 
-export async function approveTeamLinkRequest(input: { requestId: string; reviewerDiscordId: string }) {
+export async function approveTeamLinkRequest(input: { requestId: string; leagueId?: string | null; reviewerDiscordId: string }) {
   const request = await getTeamLinkRequest(input.requestId);
+  if (input.leagueId && request.league_id !== input.leagueId) throw new ApiError(404, "Team request not found.");
   if (request.status !== "pending") throw new ApiError(409, "This request is no longer pending.");
 
   const updated = await supabase
@@ -213,8 +214,9 @@ export async function approveTeamLinkRequest(input: { requestId: string; reviewe
   };
 }
 
-export async function rejectTeamLinkRequest(input: { requestId: string; reviewerDiscordId: string }) {
+export async function rejectTeamLinkRequest(input: { requestId: string; leagueId?: string | null; reviewerDiscordId: string }) {
   const request = await getTeamLinkRequest(input.requestId);
+  if (input.leagueId && request.league_id !== input.leagueId) throw new ApiError(404, "Team request not found.");
   if (!["pending", "approved"].includes(request.status)) throw new ApiError(409, "This request can no longer be rejected.");
 
   const updated = await supabase

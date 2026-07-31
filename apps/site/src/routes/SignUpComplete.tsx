@@ -62,7 +62,7 @@ export function SignUpComplete() {
     if (password !== confirmPassword) { setSignupError("Passwords don't match."); return; }
     if (!email) return;
     setBusy(true);
-    const result = await auth.signUp(email, password);
+    const result = await auth.signUp(email, password, nextAfterAuth);
     setBusy(false);
     if (result.error) { setSignupError(result.error); return; }
     if (result.needsEmailConfirmation) setConfirmationSent(true);

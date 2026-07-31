@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
+import { requireSiteAdmin } from "../../lib/site-admin.js";
 import { supabase } from "../../lib/supabase.js";
 import {
   canEnableDiscordBot,
@@ -178,7 +179,7 @@ export async function subscriptionRoutes(app: FastifyInstance) {
 
   app.post("/v1/subscriptions/claim-dropdown/status", async (request, reply) => {
     try {
-      await requireSiteUserSession(request);
+      await requireSiteAdmin(request);
       const body = z
         .object({
           closed: z.boolean(),

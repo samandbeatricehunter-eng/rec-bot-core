@@ -81,6 +81,7 @@ type RecordStreamPostInput = {
 
 type ReviewStreamPayoutInput = {
   reviewId: string;
+  leagueId?: string | null;
   action: "approve" | "deny";
   reviewedByDiscordId: string;
   deniedReason?: string | null;
@@ -317,11 +318,12 @@ export async function recordStreamPost(input: RecordStreamPostInput) {
 }
 
 export async function reviewStreamPayout(input: ReviewStreamPayoutInput) {
-  const existing = await supabase
+  let reviewQuery = supabase
     .from("rec_stream_payout_reviews")
     .select("*,stream_log:rec_stream_compliance_logs(*)")
     .eq("id", input.reviewId)
-    .maybeSingle();
+  if (input.leagueId) reviewQuery = reviewQuery.eq("league_id", input.leagueId);
+  const existing = await reviewQuery.maybeSingle();
 
   if (existing.error) throw new ApiError(500, "Failed to load stream payout review.", existing.error);
   if (!existing.data) throw new ApiError(404, "Stream payout review was not found.");
