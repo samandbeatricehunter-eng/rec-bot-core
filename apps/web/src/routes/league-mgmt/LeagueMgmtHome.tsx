@@ -11,7 +11,7 @@ export function LeagueMgmtHome() {
       </div>
       <div className="league-home-panels">
         <LinkedRosterPanel />
-        <CommissionerChatHome />
+        <CommissionerChatHome embedded />
         <WeeklyH2hPanel />
       </div>
     </div>

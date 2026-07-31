@@ -2,9 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { AdvanceWeekGames, ChatTopic, CompletedCommissionerTransaction } from "../../types/api.js";
+import type { AdvanceWeekGames, CompletedCommissionerTransaction } from "../../types/api.js";
 import { Card } from "../ui/Card.js";
-import { Badge } from "../ui/Badge.js";
 import { Button } from "../ui/Button.js";
 import { LoadingState } from "../ui/LoadingState.js";
 import { PendingItemsPanel } from "../../routes/league-mgmt/notifications/PendingItemsPanel.js";
@@ -48,19 +47,19 @@ function AdvanceReadinessSection() {
       ) : missing.length === 0 ? (
         <p style={{ margin: 0, color: "var(--text-secondary)" }}>Every human matchup this week has a result. Ready to advance.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+        <div className="advance-readiness-list">
           {notice && <p style={{ margin: 0, fontSize: "var(--text-sm)", color: "var(--text-secondary)" }}>{notice}</p>}
           {missing.map((game) => (
-            <div key={game.gameId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-2)", padding: "var(--space-2)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
-              <div>
-                <Link to={`/matchups/${game.gameId}`} style={{ fontWeight: 700 }}>
+            <div key={game.gameId} className="advance-readiness-row">
+              <div className="advance-readiness-row__info">
+                <Link to={`/matchups/${game.gameId}`} className="advance-readiness-row__matchup">
                   {game.awayTeamName} @ {game.homeTeamName}
                 </Link>
-                <div style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+                <div className="advance-readiness-row__status">
                   {game.hasBoxScore ? "Box score submitted, awaiting review" : "No result submitted yet"}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: "var(--space-1)" }}>
+              <div className="advance-readiness-row__actions">
                 <Button variant="secondary" size="compact" disabled={busyGameId === game.gameId} onClick={() => void notify(game.gameId, "home")}>Notify Home</Button>
                 <Button variant="secondary" size="compact" disabled={busyGameId === game.gameId} onClick={() => void notify(game.gameId, "away")}>Notify Away</Button>
                 <Button variant="secondary" size="compact" disabled={busyGameId === game.gameId} onClick={() => void notify(game.gameId, "both")}>Notify Both</Button>
@@ -69,40 +68,6 @@ function AdvanceReadinessSection() {
           ))}
         </div>
       )}
-    </Card>
-  );
-}
-
-function DecisionsAndPollsSection() {
-  const { guildId } = useReadyAuth();
-  const [topics, setTopics] = useState<ChatTopic[] | null>(null);
-
-  useEffect(() => {
-    recApi.listChatTopics(guildId).then((res) => setTopics(res.topics)).catch(() => setTopics([]));
-  }, [guildId]);
-
-  const openTopics = (topics ?? []).filter((t) => t.status === "open");
-
-  return (
-    <Card>
-      <SectionHeading>Decisions and Polls</SectionHeading>
-      {!topics ? (
-        <LoadingState label="Loading…" />
-      ) : openTopics.length === 0 ? (
-        <p style={{ margin: 0, color: "var(--text-secondary)" }}>No open polls right now.</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-          {openTopics.map((topic) => (
-            <div key={topic.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span>{topic.title}</span>
-              <Badge status="pending">{topic.voters.length} vote{topic.voters.length === 1 ? "" : "s"}</Badge>
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={{ marginTop: "var(--space-3)" }}>
-        <Link className="btn btn-ghost" to="/league-mgmt/commissioner-chat">Open Commissioner Chat</Link>
-      </div>
     </Card>
   );
 }
@@ -140,8 +105,10 @@ function RecentActivitySection() {
 }
 
 // Urgency-ordered Commissioner Command Center dashboard: Advance Readiness, then Awaiting
-// Review (the existing generic PendingItemsPanel, unchanged), then Decisions and Polls, then
-// Recent Activity. Composed entirely from existing data — no new aggregation service.
+// Review (the existing generic PendingItemsPanel, unchanged), then Recent Activity. Decisions
+// and Polls lives immediately below this (LeagueMgmtHome renders embedded CommissionerChatHome
+// next), not duplicated here — a read-only topics list plus a link-out was redundant with that
+// component's real vote/close controls once it moved to a dashboard-first layout.
 export function CommandCenterDashboard() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
@@ -150,7 +117,6 @@ export function CommandCenterDashboard() {
         <SectionHeading>Awaiting Review</SectionHeading>
         <PendingItemsPanel />
       </Card>
-      <DecisionsAndPollsSection />
       <RecentActivitySection />
     </div>
   );

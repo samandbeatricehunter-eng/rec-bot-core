@@ -807,7 +807,7 @@ export async function searchSiteLeagues(input: {
         l.season_number,
         l.current_week,
         l.created_at,
-        owner.username as commissioner_username,
+        coalesce(owner.username, owner.display_name) as commissioner_username,
         coalesce(da.global_name, da.username) as commissioner_discord_name,
         c.difficulty,
         c.sliders_adjusted,
@@ -995,7 +995,9 @@ export async function searchSiteLeagues(input: {
       currentWeek,
       openTeamCount: Number(row.open_team_count ?? 0),
       memberCount: Number(row.member_count ?? 0),
-      commissionerUsername: (row.commissioner_username as string | null) ?? null,
+      // display_name can be a raw Discord-ID placeholder left over from account
+      // auto-provisioning (same guard as hub.service.ts's displayNameForUser) — never show that.
+      commissionerUsername: /^\d{15,}$/.test(String(row.commissioner_username ?? "")) ? null : (row.commissioner_username as string | null) ?? null,
       commissionerDiscordName: (row.commissioner_discord_name as string | null) ?? null,
       isMember: Boolean(row.is_member),
 

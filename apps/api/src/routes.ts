@@ -12,6 +12,7 @@ import { leagueChatRoutes } from "./modules/league-chat/league-chat.routes.js";
 import { gameChatRoutes } from "./modules/game-chat/game-chat.routes.js";
 import { chatRoutes } from "./modules/chat/chat.routes.js";
 import { chatRealtimeRoutes } from "./modules/chat/chat-realtime.routes.js";
+import { devAuthRoutes } from "./modules/dev/dev-auth.routes.js";
 import { matchupHelpRoutes } from "./modules/matchup-help/matchup-help.routes.js";
 import { gameChannelRoutes } from "./modules/game-channels/game-channels.routes.js";
 import { highlightRoutes } from "./modules/highlights/highlights.routes.js";
@@ -70,6 +71,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await gameChatRoutes(app);
   await chatRoutes(app);
   await chatRealtimeRoutes(app);
+  await devAuthRoutes(app);
   await matchupHelpRoutes(app);
   await highlightRoutes(app);
   await mediaRoutes(app);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { ChatMessageRow } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -20,16 +21,20 @@ import { Composer } from "../../../components/chat/Composer.js";
 // the same way the Universal Chat Drawer's commissioner channel is — so opening this page and
 // the drawer's Commissioner Chat at the same time is one poll/realtime cycle, not two.
 //
-// Embedded directly at the top of LeagueMgmtHome.tsx (an always-visible panel, not a tile
-// you click into) — no PageHeader here, just a compact heading, since it now shares the
-// page with the tile grid below it instead of owning the whole screen. Polls live in their
-// own tab (not merged into the message feed) so they don't get buried by chat volume.
-export function CommissionerChatHome() {
+// Two presentations of this same component:
+//   - Standalone (/league-mgmt/commissioner-chat, incl. ?officeTab=payouts/requests deep
+//     links from notifications): full Messages/Polls/Payouts/Team Requests tabs.
+//   - `embedded` (LeagueMgmtHome's dashboard): Polls only. CommandCenterDashboard already
+//     covers Payouts/Team Requests via its generic Awaiting Review section, and Messages
+//     duplicating the always-available Universal Chat Drawer's Commissioner Chat channel on
+//     the same page it's embedded made the dashboard feel like two chat systems stacked on
+//     top of each other instead of one.
+export function CommissionerChatHome({ embedded = false }: { embedded?: boolean } = {}) {
   const { guildId, discordId } = useReadyAuth();
   const [params] = useSearchParams();
   const requestedTab = params.get("officeTab");
   const [tab, setTab] = useState<"messages" | "polls" | "payouts" | "requests">(
-    requestedTab === "payouts" || requestedTab === "requests" ? requestedTab : "messages",
+    embedded ? "polls" : requestedTab === "payouts" || requestedTab === "requests" ? requestedTab : "messages",
   );
   const { messages, reactionsByMessage, attachmentsByMessage, sendMessage, editMessage, deleteMessage, toggleReaction, sending, error: chatError } = useSharedChatChannel({
     guildId,
@@ -106,22 +111,26 @@ export function CommissionerChatHome() {
 
   return (
     <Card className="commissioner-chat-card">
-      <h2 style={{ margin: "0 0 var(--space-1)" }}>Commissioner's Office</h2>
+      <h2 style={{ margin: "0 0 var(--space-1)" }}>{embedded ? "Decisions and Polls" : "Commissioner's Office"}</h2>
       <p style={{ margin: "0 0 var(--space-3)", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
-        Discuss and vote on topics with your commissioners and co-commissioners.
+        {embedded
+          ? "Vote on topics with your commissioners and co-commissioners."
+          : "Discuss and vote on topics with your commissioners and co-commissioners."}
       </p>
       {error && <ErrorState message={error} />}
 
-      <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
-        <Button variant={tab === "messages" ? "primary" : "secondary"} onClick={() => setTab("messages")}>Messages</Button>
-        <Button variant={tab === "polls" ? "primary" : "secondary"} onClick={() => setTab("polls")}>
-          Polls {topics && topics.filter((t) => t.status === "open").length > 0 ? `(${topics.filter((t) => t.status === "open").length})` : ""}
-        </Button>
-        <Button variant={tab === "payouts" ? "primary" : "secondary"} onClick={() => setTab("payouts")}>Payouts</Button>
-        <Button variant={tab === "requests" ? "primary" : "secondary"} onClick={() => setTab("requests")}>Team Requests</Button>
-      </div>
+      {!embedded && (
+        <div className="commissioner-chat-tabs">
+          <Button variant={tab === "messages" ? "primary" : "secondary"} onClick={() => setTab("messages")}>Messages</Button>
+          <Button variant={tab === "polls" ? "primary" : "secondary"} onClick={() => setTab("polls")}>
+            Polls {topics && topics.filter((t) => t.status === "open").length > 0 ? `(${topics.filter((t) => t.status === "open").length})` : ""}
+          </Button>
+          <Button variant={tab === "payouts" ? "primary" : "secondary"} onClick={() => setTab("payouts")}>Payouts</Button>
+          <Button variant={tab === "requests" ? "primary" : "secondary"} onClick={() => setTab("requests")}>Team Requests</Button>
+        </div>
+      )}
 
-      {tab === "messages" && (
+      {!embedded && tab === "messages" && (
         <div className="commissioner-chat-window">
           <ConversationView
             messages={messages}
@@ -194,8 +203,13 @@ export function CommissionerChatHome() {
         </div>
       )}
 
-      {tab === "payouts" && <PendingItemsPanel />}
-      {tab === "requests" && <PendingItemsPanel initialFilter="team_request" />}
+      {!embedded && tab === "payouts" && <PendingItemsPanel />}
+      {!embedded && tab === "requests" && <PendingItemsPanel initialFilter="team_request" />}
+      {embedded && (
+        <p className="form-hint" style={{ marginTop: "var(--space-3)" }}>
+          <Link to="/league-mgmt/commissioner-chat">Open full Commissioner's Office</Link> for messages, payouts, and team requests.
+        </p>
+      )}
 
       {showPollComposer && (
         <PollComposerModal

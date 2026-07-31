@@ -676,3 +676,60 @@
   color: var(--danger);
   border-color: var(--danger);
 }
+
+/* Command Center: Advance Readiness rows. Mobile-first — info stacks above actions instead
+   of squeezing three buttons into a shrinking row (that's what wrapped "Notify Both" onto
+   three lines on narrow phones). */
+.advance-readiness-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.advance-readiness-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.advance-readiness-row__matchup {
+  font-weight: 700;
+}
+.advance-readiness-row__status {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.advance-readiness-row__actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: var(--space-2);
+}
+.advance-readiness-row__actions .btn,
+.advance-readiness-row__actions button {
+  white-space: nowrap;
+}
+@media (min-width: 640px) {
+  .advance-readiness-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .advance-readiness-row__actions {
+    grid-template-columns: none;
+    flex-shrink: 0;
+  }
+}
+
+/* Commissioner's Office tab strip — same wrap-safety issue as the readiness buttons above. */
+.commissioner-chat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.commissioner-chat-tabs .btn,
+.commissioner-chat-tabs button {
+  white-space: nowrap;
+}
