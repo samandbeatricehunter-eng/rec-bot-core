@@ -50,6 +50,7 @@ import type {
   HubMatchupSchedule,
   MediaPortalResponse,
   WagerOptionsResponse,
+  WeekWagerLinesResponse,
   PeerWagerBoardResponse,
   MyWagersResponse,
   ChallengeableCoachesResponse,
@@ -210,6 +211,8 @@ export const recApi = {
     recApiFetch<{ closed: true }>("/v1/hub/gotw/close", { method: "POST", body: JSON.stringify(input) }),
   getWagerOptions: (input: { guildId: string; gameId: string }) =>
     recApiFetch<WagerOptionsResponse>("/v1/wagers/options", { method: "POST", body: JSON.stringify(input) }),
+  getWeekWagerLines: (input: { guildId: string; weekNumber: number }) =>
+    recApiFetch<WeekWagerLinesResponse>("/v1/wagers/week-lines", { method: "POST", body: JSON.stringify(input) }),
   placeHouseWager: (input: { guildId: string; gameId: string; market: string; pick: string; stake: number; customLine?: number | null }) =>
     recApiFetch<{ wager: unknown; walletBalance: number; payout: number; marketLabel: string; sideLabel: string }>("/v1/wagers/place-house", { method: "POST", body: JSON.stringify(input) }),
   placeParlay: (input: { guildId: string; stake: number; legs: Array<{ gameId: string; market: string; pick: string; customLine?: number | null }> }) =>

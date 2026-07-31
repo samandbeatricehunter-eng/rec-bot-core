@@ -227,4 +227,68 @@ export async function getGameWagerOptions(guildId: string, gameId: string): Prom
   };
 }
 
+export type WeekWagerLine = {
+  gameId: string;
+  homeLabel: string;
+  awayLabel: string;
+  moneyline: { homeOdds: number; awayOdds: number } | null;
+  spread: { line: number; odds: number } | null;
+  total: { line: number; odds: number } | null;
+};
+
+/** Compact moneyline/spread/total_points line for every H2H game in a week — one shared
+ * power-rankings fetch and one batched season-averages query, instead of calling
+ * getGameWagerOptions per game (which recomputes rankings every time). Used for the inline
+ * "lines at a glance" list on the Wagers page; the full per-game markets (including
+ * box-score-gated stat props) still come from getGameWagerOptions when a wager is opened. */
+export async function listWeekWagerLines(guildId: string, weekNumber: number): Promise<WeekWagerLine[]> {
+  const context = await getCurrentLeagueContext(guildId);
+  const leagueId = context.leagueId;
+  const seasonNumber = resolveSeasonNumber(context);
+
+  const { data: games, error } = await supabase
+    .from("rec_games")
+    .select("id,home_team_id,away_team_id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated)")
+    .eq("league_id", leagueId)
+    .eq("week_number", weekNumber)
+    .eq("status", "scheduled");
+  if (error) throw new ApiError(500, "Failed to load games for wager lines.", error);
+  const h2hGames = (games ?? []).filter((g) => g.home_user_id && g.away_user_id);
+  if (!h2hGames.length) return [];
+
+  const rankings = await computePowerRankings(guildId).catch(() => null);
+  const scoreByTeam = new Map<string, number>();
+  for (const t of (rankings?.teams ?? []) as any[]) scoreByTeam.set(t.teamId, Number(t.score ?? 0));
+
+  const teamIds = h2hGames.flatMap((g) => [g.home_team_id, g.away_team_id]);
+  const averagesByTeam = await seasonAveragesForTeams(leagueId, seasonNumber, teamIds);
+
+  return h2hGames.map((game) => {
+    const home = game.home_team as unknown as TeamRow | null;
+    const away = game.away_team as unknown as TeamRow | null;
+    const homeLabel = teamDisplayAbbr(home);
+    const awayLabel = teamDisplayAbbr(away);
+
+    const homeScore = scoreByTeam.get(game.home_team_id ?? "") ?? 0.5;
+    const awayScore = scoreByTeam.get(game.away_team_id ?? "") ?? 0.5;
+    const total = homeScore + awayScore || 1;
+    const homeProb = homeScore / total;
+    const awayProb = awayScore / total;
+    const rawSpread = Math.max(-MAX_SPREAD, Math.min(MAX_SPREAD, Math.round(((homeScore - awayScore) * SPREAD_SCALE + HOME_FIELD_ADVANTAGE) * 2) / 2));
+
+    const homeAvg = averagesByTeam.get(game.home_team_id ?? "") ?? null;
+    const awayAvg = averagesByTeam.get(game.away_team_id ?? "") ?? null;
+    const line = totalLine("points", homeAvg, awayAvg);
+
+    return {
+      gameId: game.id,
+      homeLabel,
+      awayLabel,
+      moneyline: { homeOdds: moneylineOddsFromProb(homeProb), awayOdds: moneylineOddsFromProb(awayProb) },
+      spread: { line: rawSpread, odds: spreadOrTotalOdds() },
+      total: { line, odds: spreadOrTotalOdds() },
+    };
+  });
+}
+
 export { WAGER_MARKETS };

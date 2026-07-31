@@ -8,7 +8,7 @@ import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
@@ -286,6 +286,7 @@ export function HubHome() {
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
   const [wagerGamePickerOpen, setWagerGamePickerOpen] = useState(false);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
+  const [weekWagerLines, setWeekWagerLines] = useState<WeekWagerLinesResponse["lines"] | null>(null);
   const [myWagers, setMyWagers] = useState<MyWagersResponse["wagers"] | null>(null);
   const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
   const [wagersBoardNotice, setWagersBoardNotice] = useState<string | null>(null);
@@ -538,6 +539,14 @@ export function HubHome() {
       })
       .finally(() => setMatchupScheduleLoading(false));
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek, matchupReloadKey]);
+
+  useEffect(() => {
+    if (auth.status !== "ready" || section !== "wagers" || !matchupSchedule) return;
+    recApi
+      .getWeekWagerLines({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek })
+      .then((result) => setWeekWagerLines(result.lines))
+      .catch(() => setWeekWagerLines(null));
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, matchupSchedule]);
 
   useEffect(() => {
     if (auth.status !== "ready") return;
@@ -1144,12 +1153,23 @@ export function HubHome() {
         if (state) return state;
         const schedule = matchupSchedule;
         if (!schedule) return null;
-        return schedule.games.length ? <div className="hub-matchup-summary-list">{schedule.games.map((game) => (
+        return schedule.games.length ? <div className="hub-matchup-summary-list">{schedule.games.map((game) => {
+          const lines = weekWagerLines?.find((l) => l.gameId === game.gameId) ?? null;
+          return (
           <article key={game.gameId} className="hub-matchup-summary">
-            <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong></div>
+            <div><span>{game.isGameOfWeek ? "Game of the Week" : game.matchupType === "h2h" ? "H2H" : game.matchupType === "human_cpu" ? "vs CPU" : "CPU"}</span><strong>{game.awayTeamName} <em>at</em> {game.homeTeamName}</strong>
+              {lines && (
+                <div className="hub-matchup-lines">
+                  {lines.moneyline && <span>ML {americanFromDecimal(lines.moneyline.awayOdds)}/{americanFromDecimal(lines.moneyline.homeOdds)}</span>}
+                  {lines.spread && <span>Spread {game.homeTeamName} {lines.spread.line > 0 ? "+" : ""}{lines.spread.line} ({americanFromDecimal(lines.spread.odds)})</span>}
+                  {lines.total && <span>O/U {lines.total.line} ({americanFromDecimal(lines.total.odds)})</span>}
+                </div>
+              )}
+            </div>
             <div className="hub-matchup-actions">{game.involvesMe ? <StatusChip status="locked" label="Your game" /> : game.matchupType === "h2h" ? <Button variant="secondary" size="compact" onClick={() => void openWager(game)}>Build Wager</Button> : null}</div>
           </article>
-        ))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
+          );
+        })}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>;
       })()}
 
       <h3 className="hub-wagers-subhead">Peer Wager Board</h3>

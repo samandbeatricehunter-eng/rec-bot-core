@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { getGameWagerOptions } from "./odds.service.js";
+import { getGameWagerOptions, listWeekWagerLines } from "./odds.service.js";
 import {
   acceptCounter,
   acceptPeerWager,
@@ -52,6 +52,16 @@ export async function wagerRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await getGameWagerOptions(body.guildId, body.gameId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/wagers/week-lines", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send({ lines: await listWeekWagerLines(body.guildId, body.weekNumber) });
     } catch (error) {
       return sendError(reply, error);
     }
