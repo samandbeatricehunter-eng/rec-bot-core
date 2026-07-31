@@ -25,6 +25,8 @@ export type CommissionerNotification = {
   weekNumber: number | null;
   sourceId: string | null;
   payload: Record<string, unknown> | null;
+  internalMemo: string | null;
+  votingTopicId: string | null;
 };
 
 const COMPLETED_TRANSACTION_TYPES = ["purchase", "highlight", "stream", "eos_payout", "eos_award", "wager"];
@@ -64,7 +66,7 @@ export async function listCommissionerNotifications(
 ): Promise<{ notifications: CommissionerNotification[] }> {
   let query = supabase
     .from("rec_commissioners_inbox")
-    .select("id,queue_type,header,summary,amount,requester_discord_id,team_id,week_number,source_id,payload,created_at")
+    .select("id,queue_type,header,summary,amount,requester_discord_id,team_id,week_number,source_id,payload,created_at,internal_memo,voting_topic_id")
     .eq("guild_id", guildId)
     .eq("status", "pending")
     .order("priority", { ascending: false })
@@ -89,6 +91,8 @@ export async function listCommissionerNotifications(
       weekNumber: row.week_number,
       sourceId: row.source_id,
       payload: row.payload ?? null,
+      internalMemo: row.internal_memo ?? null,
+      votingTopicId: row.voting_topic_id ?? null,
     })),
   };
 }
@@ -226,5 +230,63 @@ export async function markCommissionerInboxItemHandled(input: { guildId: string;
     .maybeSingle();
   if (error) throw new ApiError(500, "Failed to update item.", error);
   if (!data) throw new ApiError(404, "Item not found or already resolved.");
+  return { ok: true as const };
+}
+
+// Commissioner Command Center — cases. internal_memo/voting_topic_id are additive columns on
+// the same rec_commissioners_inbox row (see 20260731020000_commissioner_cases.sql); the
+// audit trail below is captured automatically by that migration's trigger, not written here.
+export async function addCaseMemo(input: { guildId: string; inboxId: string; memo: string }) {
+  const { data, error } = await supabase
+    .from("rec_commissioners_inbox")
+    .update({ internal_memo: input.memo.trim() || null, updated_at: new Date().toISOString() })
+    .eq("id", input.inboxId)
+    .eq("guild_id", input.guildId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to save memo.", error);
+  if (!data) throw new ApiError(404, "Case not found.");
+  return { ok: true as const };
+}
+
+export type CommissionerCaseEvent = {
+  id: string;
+  eventType: string;
+  priorState: Record<string, unknown> | null;
+  nextState: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export async function listCaseEvents(guildId: string, inboxId: string): Promise<{ events: CommissionerCaseEvent[] }> {
+  const inbox = await supabase.from("rec_commissioners_inbox").select("id").eq("id", inboxId).eq("guild_id", guildId).maybeSingle();
+  if (inbox.error) throw new ApiError(500, "Failed to load case.", inbox.error);
+  if (!inbox.data) throw new ApiError(404, "Case not found.");
+  const { data, error } = await supabase
+    .from("rec_commissioner_case_events")
+    .select("id,event_type,prior_state,next_state,created_at")
+    .eq("case_id", inboxId)
+    .order("created_at", { ascending: true });
+  if (error) throw new ApiError(500, "Failed to load case history.", error);
+  return {
+    events: (data ?? []).map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      priorState: row.prior_state,
+      nextState: row.next_state,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
+export async function linkCaseToVotingTopic(input: { guildId: string; inboxId: string; topicId: string }) {
+  const { data, error } = await supabase
+    .from("rec_commissioners_inbox")
+    .update({ voting_topic_id: input.topicId, updated_at: new Date().toISOString() })
+    .eq("id", input.inboxId)
+    .eq("guild_id", input.guildId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to link voting topic.", error);
+  if (!data) throw new ApiError(404, "Case not found.");
   return { ok: true as const };
 }

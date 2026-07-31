@@ -377,6 +377,12 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/notifications/mark-viewed", { method: "POST", body: JSON.stringify({ guildId, discordId, leagueId }) }),
   markCommissionerInboxItemHandled: (input: { guildId: string; inboxId: string }) =>
     recApiFetch<{ ok: true }>("/v1/notifications/mark-handled", { method: "POST", body: JSON.stringify(input) }),
+  addCaseMemo: (input: { guildId: string; inboxId: string; memo: string }) =>
+    recApiFetch<{ ok: true }>("/v1/notifications/case/memo", { method: "POST", body: JSON.stringify(input) }),
+  listCaseEvents: (input: { guildId: string; inboxId: string }) =>
+    recApiFetch<{ events: import("../types/api.js").CommissionerCaseEvent[] }>("/v1/notifications/case/events", { method: "POST", body: JSON.stringify(input) }),
+  linkCaseToVotingTopic: (input: { guildId: string; inboxId: string; topicId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/notifications/case/link-vote", { method: "POST", body: JSON.stringify(input) }),
 
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,
@@ -466,6 +472,8 @@ export const recApi = {
   // @everyone announcement, all server-side via Discord's REST API.
   getAdvanceWeekGames: (guildId: string) =>
     recApiFetch<AdvanceWeekGames>("/v1/league-week/advance-games", { method: "POST", body: JSON.stringify({ guildId }) }),
+  notifyMissingBoxScore: (input: { guildId: string; gameId: string; target: "home" | "away" | "both" }) =>
+    recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/league-week/notify-missing", { method: "POST", body: JSON.stringify(input) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
     recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }) }),
   getAdvanceJumpTargets: (guildId: string) =>

@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 import { REC_DEFENSE_POSITIONS, REC_OFFENSE_POSITIONS } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import type { CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
+import type { ChatTopic, CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../types/api.js";
 import { Modal } from "../../../components/ui/Modal.js";
 import { Button } from "../../../components/ui/Button.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 type ReplaceTarget = { position: string; firstName: string; lastName: string };
 const REPLACE_TARGET_POSITIONS = [...REC_OFFENSE_POSITIONS, ...REC_DEFENSE_POSITIONS];
+
+function humanize(value: string) {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
 
 // Legend (and future Custom Recruit) approval: lets the commissioner confirm or override
 // which roster player this replaces, independent of whatever the buyer requested — or
@@ -227,6 +231,60 @@ export function ResolveNotificationModal({
   const [replaceFirstName, setReplaceFirstName] = useState(buyerReplaceTarget?.firstName ?? "");
   const [replaceLastName, setReplaceLastName] = useState(buyerReplaceTarget?.lastName ?? "");
 
+  // Commissioner Command Center: internal memo, audit timeline, and case voting — additive,
+  // shown for every notification type since the underlying columns exist on every case.
+  const [memo, setMemo] = useState(notification.internalMemo ?? "");
+  const [memoSaving, setMemoSaving] = useState(false);
+  const [memoSaved, setMemoSaved] = useState(false);
+  const [events, setEvents] = useState<CommissionerCaseEvent[] | null>(null);
+  const [votingTopicId, setVotingTopicId] = useState(notification.votingTopicId);
+  const [votingTopic, setVotingTopic] = useState<ChatTopic | null>(null);
+  const [startingVote, setStartingVote] = useState(false);
+
+  useEffect(() => {
+    recApi.listCaseEvents({ guildId, inboxId: notification.id }).then((res) => setEvents(res.events)).catch(() => setEvents([]));
+  }, [guildId, notification.id]);
+
+  useEffect(() => {
+    if (!votingTopicId) {
+      setVotingTopic(null);
+      return;
+    }
+    recApi.listChatTopics(guildId).then((res) => setVotingTopic(res.topics.find((t) => t.id === votingTopicId) ?? null)).catch(() => setVotingTopic(null));
+  }, [guildId, votingTopicId]);
+
+  async function saveMemo() {
+    setMemoSaving(true);
+    setMemoSaved(false);
+    try {
+      await recApi.addCaseMemo({ guildId, inboxId: notification.id, memo });
+      setMemoSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save memo.");
+    } finally {
+      setMemoSaving(false);
+    }
+  }
+
+  async function startVote() {
+    setStartingVote(true);
+    setError(null);
+    try {
+      const created = await recApi.createChatTopic({
+        guildId,
+        title: notification.title,
+        description: notification.subtitle,
+        options: ["Approve", "Deny"],
+      });
+      await recApi.linkCaseToVotingTopic({ guildId, inboxId: notification.id, topicId: created.topic.id });
+      setVotingTopicId(created.topic.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start a vote.");
+    } finally {
+      setStartingVote(false);
+    }
+  }
+
   async function handle(action: "approve" | "deny") {
     setBusy(true);
     setError(null);
@@ -312,6 +370,57 @@ export function ResolveNotificationModal({
             </div>
           )}
         </div>
+      )}
+
+      <div style={{ marginTop: "var(--space-4)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--border)" }}>
+        <label className="form-field">
+          <span className="form-label">Internal Memo (commissioner-only)</span>
+          <textarea
+            className="form-input"
+            rows={3}
+            maxLength={2000}
+            value={memo}
+            onChange={(e) => { setMemo(e.target.value); setMemoSaved(false); }}
+            placeholder="Notes for other commissioners — not visible to the requester."
+          />
+        </label>
+        <Button variant="secondary" size="compact" onClick={() => void saveMemo()} disabled={memoSaving}>
+          {memoSaving ? "Saving…" : memoSaved ? "Saved" : "Save Memo"}
+        </Button>
+      </div>
+
+      <div style={{ marginTop: "var(--space-4)" }}>
+        <strong style={{ fontSize: "var(--text-sm)" }}>Case Voting</strong>
+        {votingTopic ? (
+          <div style={{ marginTop: "var(--space-2)" }}>
+            {votingTopic.options.map((opt, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)" }}>
+                <span>{opt}</span>
+                <span>{votingTopic.tally[i] ?? 0} vote{(votingTopic.tally[i] ?? 0) === 1 ? "" : "s"}</span>
+              </div>
+            ))}
+            <span className="hub-muted" style={{ fontSize: "var(--text-xs)" }}>Status: {votingTopic.status}</span>
+          </div>
+        ) : (
+          <div style={{ marginTop: "var(--space-2)" }}>
+            <Button variant="secondary" size="compact" onClick={() => void startVote()} disabled={startingVote}>
+              {startingVote ? "Starting…" : "Start a Vote"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {events && events.length > 0 && (
+        <details style={{ marginTop: "var(--space-4)" }}>
+          <summary style={{ cursor: "pointer", fontSize: "var(--text-sm)", fontWeight: 700 }}>Case Timeline ({events.length})</summary>
+          <ul style={{ margin: "var(--space-2) 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
+            {events.map((event) => (
+              <li key={event.id} style={{ fontSize: "var(--text-xs)", color: "var(--text-secondary)" }}>
+                {humanize(event.eventType)} — {new Date(event.createdAt).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
     </Modal>
   );

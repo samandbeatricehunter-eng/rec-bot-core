@@ -18,6 +18,7 @@ import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-
 import { CAREER_BADGES, GAME_BADGES, SEASON_BADGES } from "../box-score-intelligence/badge-rules.js";
 import { issueSeasonTotalBadges, recomputeActiveLeagueBadgeBaselines } from "../box-score-intelligence/persistence.js";
 import { resolveWagersOnAdvance } from "../wagers/wagers.service.js";
+import { sendPushToUsers } from "../push/push.service.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
 import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 import { publishScheduledMediaForAdvance } from "../hub/story-publishing.js";
@@ -318,6 +319,38 @@ export async function getAdvanceWeekGames(guildId: string) {
     games,
     gamesNeedingInput,
   };
+}
+
+// Commissioner Command Center's missing-box-score panel: a targeted nudge to one or both
+// coaches of a specific game still needing input, distinct from the bulk advance-deadline DM
+// (advance-dm.service.ts) which fires league-wide only once, close to the deadline.
+export async function notifyMissingBoxScore(input: { guildId: string; gameId: string; target: "home" | "away" | "both"; notifiedByDiscordId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const week = await getAdvanceWeekGames(input.guildId);
+  const game = week.gamesNeedingInput.find((g) => g.gameId === input.gameId);
+  if (!game) throw new ApiError(404, "This game isn't currently missing a result.");
+
+  const userIds = [
+    input.target !== "away" ? game.homeUserId : null,
+    input.target !== "home" ? game.awayUserId : null,
+  ].filter((id): id is string => Boolean(id));
+  if (!userIds.length) throw new ApiError(400, "No user to notify for this side.");
+
+  await sendPushToUsers(userIds, {
+    title: "Box score needed",
+    body: `${game.awayTeamName} @ ${game.homeTeamName} still needs a result before the league can advance.`,
+    url: `/matchups/${game.gameId}`,
+  });
+
+  await writeAuditLog({
+    action: "notify_missing_box_score",
+    entityType: "missing_box_score_notice",
+    entityId: game.gameId,
+    newValue: { target: input.target, userIds, weekNumber: game.weekNumber, notifiedByDiscordId: input.notifiedByDiscordId, leagueId: context.leagueId },
+    reason: `Notified ${input.target} for ${game.awayTeamName} @ ${game.homeTeamName}`,
+  });
+
+  return { ok: true as const, notifiedUserIds: userIds };
 }
 
 const MAX_ADVANCE_JUMP_STEPS = 20;

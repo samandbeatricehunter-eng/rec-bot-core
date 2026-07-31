@@ -4,7 +4,10 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import {
+  addCaseMemo,
   getCommissionerPendingSummaryForLeague,
+  linkCaseToVotingTopic,
+  listCaseEvents,
   listCommissionerNotifications,
   listCompletedCommissionerTransactions,
   listUnattendedCommissionerNotifications,
@@ -83,6 +86,32 @@ export async function notificationsRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Marking an item handled requires a user session."));
       return reply.send(await markCommissionerInboxItemHandled({ guildId: body.guildId, inboxId: body.inboxId, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/case/memo", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), inboxId: z.string().uuid(), memo: z.string().max(2000) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Saving a memo requires a user session."));
+      return reply.send(await addCaseMemo({ guildId: body.guildId, inboxId: body.inboxId, memo: body.memo }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/case/events", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), inboxId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await listCaseEvents(body.guildId, body.inboxId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/case/link-vote", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), inboxId: z.string().uuid(), topicId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Linking a vote requires a user session."));
+      return reply.send(await linkCaseToVotingTopic({ guildId: body.guildId, inboxId: body.inboxId, topicId: body.topicId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

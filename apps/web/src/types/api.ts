@@ -241,8 +241,17 @@ export type CommissionerNotification = {
   weekNumber: number | null;
   sourceId: string | null;
   payload: Record<string, unknown> | null;
+  internalMemo: string | null;
+  votingTopicId: string | null;
 };
 export type CommissionerNotificationsResponse = { notifications: CommissionerNotification[] };
+export type CommissionerCaseEvent = {
+  id: string;
+  eventType: string;
+  priorState: Record<string, unknown> | null;
+  nextState: Record<string, unknown> | null;
+  createdAt: string;
+};
 export type CompletedCommissionerTransaction = CommissionerNotification & {
   status: string;
   statusLabel: string;
