@@ -87,6 +87,7 @@ export function CommissionerChatHome() {
       setMessages((prev) => prev.some((message) => message.id === res.message.id) ? prev : [...prev, res.message]);
       setReplyTarget(null);
       pollMessages();
+      return { id: res.message.id };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.");
       throw err;
@@ -166,6 +167,8 @@ export function CommissionerChatHome() {
             onSend={handleSend}
             sending={sending}
             mentionOptions={mentionOptions}
+            guildId={guildId}
+            channelType="commissioner"
             placeholder="Message… (@ to mention a commissioner)"
             replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
             onCancelReply={() => setReplyTarget(null)}

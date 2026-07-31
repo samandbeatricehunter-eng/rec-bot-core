@@ -93,6 +93,7 @@ export function useChatChannel(input: {
         const row = toChatMessageRow(res.message as unknown as Record<string, unknown>);
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
         fetchMessages();
+        return row;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to send message.");
         throw err;

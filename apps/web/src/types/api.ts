@@ -460,6 +460,14 @@ export type PublicPoll = {
   totalVotes: number;
   myVoteOptionIndex: number | null;
 };
+export type ChatAttachment = {
+  id: string;
+  messageId: string;
+  originalUrl: string;
+  mimeType: string;
+  filename: string | null;
+  sizeBytes: number | null;
+};
 // League Chat + Game Chat (Campus Buzz "Chat" tab)
 export type LeagueChatMessage = {
   id: string;

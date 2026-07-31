@@ -6,6 +6,7 @@ import type {
   AdvanceWeekGames,
   BoxScoreJobStatus,
   BoxScoreSubmissionDetail,
+  ChatAttachment,
   ChatMessage,
   ChatTopic,
   PublicPoll,
@@ -584,6 +585,18 @@ export const recApi = {
     recApiFetch<{ reactions: ChatReactionSummary[] }>("/v1/chat/reactions/list", { method: "POST", body: JSON.stringify(input) }),
   toggleChatReaction: (input: { guildId: string; channelType: ChatChannelType; messageId: string; emojiKey: string }) =>
     recApiFetch<{ reacted: boolean }>("/v1/chat/reactions/toggle", { method: "POST", body: JSON.stringify(input) }),
+  uploadChatAttachment: (guildId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return recApiFetch<{ storageKey: string; url: string; mimeType: string; filename: string | null; sizeBytes: number }>(
+      `/v1/chat/attachments/upload?guildId=${encodeURIComponent(guildId)}`,
+      { method: "POST", body: formData },
+    );
+  },
+  attachChatFile: (input: { guildId: string; channelType: ChatChannelType; messageId: string; storageKey: string; url: string; mimeType: string; filename?: string | null; sizeBytes?: number | null }) =>
+    recApiFetch<{ attachment: ChatAttachment }>("/v1/chat/attachments/attach", { method: "POST", body: JSON.stringify(input) }),
+  listChatAttachments: (input: { guildId: string; channelType: ChatChannelType; messageIds: string[] }) =>
+    recApiFetch<{ attachments: ChatAttachment[] }>("/v1/chat/attachments/list", { method: "POST", body: JSON.stringify(input) }),
 
   // Home page's weekly H2H panel
   getWeeklyH2hGames: (guildId: string) =>

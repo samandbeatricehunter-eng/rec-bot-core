@@ -134,6 +134,7 @@ export function LeagueChatPanel({
       setMessages((prev) => (prev.some((m) => m.id === res.message.id) ? prev : [...prev, res.message]));
       setReplyTarget(null);
       pollMessages();
+      return { id: res.message.id };
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.");
       throw err;
@@ -240,6 +241,8 @@ export function LeagueChatPanel({
           onSend={handleSend}
           sending={sending}
           mentionOptions={mentionOptions}
+          guildId={guildId}
+          channelType={activeChannel === "league" ? "league" : "game"}
           replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
           onCancelReply={() => setReplyTarget(null)}
         />

@@ -130,11 +130,14 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
                 />
                 <Composer
                   onSend={async (body) => {
-                    await sendMessage(body, replyTarget?.id ?? null);
+                    const row = await sendMessage(body, replyTarget?.id ?? null);
                     setReplyTarget(null);
+                    return row ? { id: row.id } : undefined;
                   }}
                   sending={sending}
                   mentionOptions={mentionOptions}
+                  guildId={guildId}
+                  channelType={selected?.channelType}
                   replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
                   onCancelReply={() => setReplyTarget(null)}
                 />

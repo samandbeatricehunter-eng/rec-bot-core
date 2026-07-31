@@ -4,7 +4,8 @@ import { CHAT_QUICK_REACTIONS } from "@rec/shared";
 import { formatLocalTime } from "../../lib/chat-utils.js";
 import { renderMessageWithMentions } from "../../lib/mentions.js";
 import { useChatReactions, type ReactionPill } from "../../lib/useChatReactions.js";
-import type { MentionableList } from "../../types/api.js";
+import { useChatAttachments } from "../../lib/useChatAttachments.js";
+import type { ChatAttachment, MentionableList } from "../../types/api.js";
 
 const DC_TOOLTIP = "Non-registered Discord-only member.";
 
@@ -56,6 +57,7 @@ function MessageRow({
   onDelete,
   onReply,
   replyParent,
+  attachments,
 }: {
   message: ChatMessageRow;
   viewerDiscordId: string;
@@ -69,6 +71,7 @@ function MessageRow({
   /** The parent message being replied to, if it's still in the currently loaded batch —
    * older chat history isn't fetched just to resolve a reply preview. */
   replyParent: ChatMessageRow | null;
+  attachments: ChatAttachment[];
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body);
@@ -148,6 +151,15 @@ function MessageRow({
           {renderMessageWithMentions(message.body, mentionable)}
         </p>
       )}
+      {attachments.length > 0 && (
+        <div className="chat-message-attachments">
+          {attachments.map((a) => (
+            <a key={a.id} href={a.originalUrl} target="_blank" rel="noreferrer">
+              <img src={a.originalUrl} alt={a.filename ?? "attachment"} />
+            </a>
+          ))}
+        </div>
+      )}
       {reactionPills && onToggleReaction && <MessageReactionRow pills={reactionPills} onToggle={onToggleReaction} />}
     </div>
   );
@@ -188,6 +200,11 @@ export function ConversationView({
     channelType: reactionsEnabled ? (channelType as ChatChannelType) : null,
     messageIds,
   });
+  const { attachmentsByMessage } = useChatAttachments({
+    guildId: guildId ?? "",
+    channelType: reactionsEnabled ? (channelType as ChatChannelType) : null,
+    messageIds,
+  });
 
   useEffect(() => {
     feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });
@@ -208,6 +225,7 @@ export function ConversationView({
           onDelete={onDeleteMessage ? () => onDeleteMessage(m.id) : null}
           onReply={onReplyMessage ? () => onReplyMessage(m) : null}
           replyParent={m.replyToMessageId ? messages.find((candidate) => candidate.id === m.replyToMessageId) ?? null : null}
+          attachments={attachmentsByMessage[m.id] ?? []}
         />
       ))}
       {messages.length === 0 && <p className="hub-empty">No messages yet — say hello.</p>}

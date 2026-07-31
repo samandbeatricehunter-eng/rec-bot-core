@@ -3385,6 +3385,16 @@ button.poty:disabled {
 .chat-reply-preview { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; margin-bottom: 6px; border-radius: 6px; background: var(--surface-raised); border: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); }
 .chat-reply-preview span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-reply-preview button { background: transparent; border: 0; color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1; }
+
+.chat-attach-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; }
+.chat-attach-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-muted); }
+.chat-attach-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-attachment-preview { display: flex; align-items: center; gap: 8px; padding: 4px 8px; margin-bottom: 6px; border-radius: 6px; background: var(--surface-raised); border: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); }
+.chat-attachment-preview img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; }
+.chat-attachment-preview span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-attachment-preview button { background: transparent; border: 0; color: var(--text-muted); cursor: pointer; line-height: 1; }
+.chat-message-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chat-message-attachments img { max-width: 220px; max-height: 220px; border-radius: 8px; border: 1px solid var(--border); object-fit: cover; }
 @media (max-width: 640px) {
   .chat-drawer-panel {
     width: 100%;

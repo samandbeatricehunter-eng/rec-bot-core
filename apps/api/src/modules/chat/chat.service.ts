@@ -2,13 +2,94 @@
 // duplicate their send/list logic. Adds the one thing none of them track today: per-user
 // unread state, via rec_chat_read_state, so the Universal Chat Drawer can show one badge
 // across all three chat surfaces without each surface reinventing read tracking.
+import { randomUUID } from "node:crypto";
 import type { ChatChannelSummary, ChatChannelType } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
+import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { listGameChatChannels } from "../game-chat/game-chat.service.js";
+
+const CHAT_ATTACHMENT_BUCKET = "chat-attachments";
+export const SUPPORTED_CHAT_ATTACHMENT_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+// Same Supabase Storage upload pattern as box-score screenshots (persistUploadedImageBuffer),
+// a dedicated bucket so chat uploads don't mix with box-score storage.
+export async function uploadChatAttachmentImage(buffer: Buffer, contentType: string): Promise<{ storageKey: string; url: string }> {
+  const ext = contentType === "image/jpeg" ? "jpeg" : contentType === "image/webp" ? "webp" : contentType === "image/gif" ? "gif" : "png";
+  const storageKey = `uploads/${randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(CHAT_ATTACHMENT_BUCKET).upload(storageKey, buffer, { contentType, upsert: true });
+  if (error) throw new ApiError(500, "Failed to upload image.", error);
+  const { data } = supabase.storage.from(CHAT_ATTACHMENT_BUCKET).getPublicUrl(storageKey);
+  if (!data?.publicUrl) throw new ApiError(500, "Failed to resolve uploaded image URL.");
+  return { storageKey, url: data.publicUrl };
+}
+
+export type ChatAttachment = {
+  id: string;
+  messageId: string;
+  originalUrl: string;
+  mimeType: string;
+  filename: string | null;
+  sizeBytes: number | null;
+};
+
+export async function attachToMessage(input: {
+  channelType: ChatChannelType;
+  messageId: string;
+  storageKey: string;
+  url: string;
+  mimeType: string;
+  filename?: string | null;
+  sizeBytes?: number | null;
+}): Promise<{ attachment: ChatAttachment }> {
+  const { data, error } = await supabase
+    .from("rec_chat_attachments")
+    .insert({
+      channel_type: input.channelType,
+      message_id: input.messageId,
+      storage_key: input.storageKey,
+      original_url: input.url,
+      mime_type: input.mimeType,
+      filename: input.filename ?? null,
+      size_bytes: input.sizeBytes ?? null,
+    })
+    .select("id,message_id,original_url,mime_type,filename,size_bytes")
+    .single();
+  if (error) throw new ApiError(500, "Failed to attach file to message.", error);
+  return {
+    attachment: {
+      id: data.id,
+      messageId: data.message_id,
+      originalUrl: data.original_url,
+      mimeType: data.mime_type,
+      filename: data.filename,
+      sizeBytes: data.size_bytes,
+    },
+  };
+}
+
+export async function listChatAttachments(channelType: ChatChannelType, messageIds: string[]): Promise<{ attachments: ChatAttachment[] }> {
+  if (!messageIds.length) return { attachments: [] };
+  const { data, error } = await supabase
+    .from("rec_chat_attachments")
+    .select("id,message_id,original_url,mime_type,filename,size_bytes")
+    .eq("channel_type", channelType)
+    .in("message_id", messageIds);
+  if (error) throw new ApiError(500, "Failed to load attachments.", error);
+  return {
+    attachments: (data ?? []).map((row) => ({
+      id: row.id,
+      messageId: row.message_id,
+      originalUrl: row.original_url,
+      mimeType: row.mime_type,
+      filename: row.filename,
+      sizeBytes: row.size_bytes,
+    })),
+  };
+}
 
 type ChannelAggregate = { unreadCount: number; lastMessageAt: string | null; lastBody: string | null };
 
