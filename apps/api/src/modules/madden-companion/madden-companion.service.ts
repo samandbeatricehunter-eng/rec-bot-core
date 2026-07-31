@@ -162,6 +162,20 @@ export async function ingestCompanionPayload(
 }
 
 /**
+ * Process the ingested Companion payload through the endpoint adapter
+ * and create staged import records. Called after ingest (sync or async).
+ */
+export async function processCompanionPayload(
+  importJobId: string,
+  leagueId: string,
+  endpointKey: MaddenEndpointKey,
+  payload: unknown
+): Promise<{ recordsCreated: number; conflictsDetected: number }> {
+  const { processCompanionPayload: processAdapter } = await import("./madden-companion.adapters.js");
+  return processAdapter(importJobId, leagueId, endpointKey, payload);
+}
+
+/**
  * Register a new Companion connection for a league.
  * Called by commissioner during setup.
  */
