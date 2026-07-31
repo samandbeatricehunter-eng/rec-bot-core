@@ -20,3 +20,5 @@ export { CommissionerChatHome } from "../../../apps/web/src/routes/league-mgmt/c
 export { PublishingHome } from "../../../apps/web/src/routes/league-mgmt/publishing/PublishingHome.js";
 export { RecruitingHome } from "../../../apps/web/src/routes/league-mgmt/recruiting/RecruitingHome.js";
 export { FirstTimeSetupHome } from "../../../apps/web/src/routes/league-mgmt/first-time-setup/FirstTimeSetupHome.js";
+export { UniversalChatDrawer } from "../../../apps/web/src/components/chat/UniversalChatDrawer.js";
+export { ChatDrawerProvider, useChatDrawer } from "../../../apps/web/src/lib/chat-drawer-context.js";

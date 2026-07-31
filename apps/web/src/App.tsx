@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth-context.js";
 import { HubChromeProvider } from "./lib/hub-chrome-context.js";
+import { ChatDrawerProvider } from "./lib/chat-drawer-context.js";
 import { AppShell } from "./components/shell/AppShell.js";
 import { LeagueMgmtHome } from "./routes/league-mgmt/LeagueMgmtHome.js";
 import { ManageLeagueHome } from "./routes/league-mgmt/manage-league/ManageLeagueHome.js";
@@ -78,31 +79,33 @@ export default function App() {
       <HashRouter>
         <AuthGate>
           <HubChromeProvider>
-            <AppShell>
-              <Routes>
-                <Route path="/" element={<HubHome />} />
-                <Route path="/home" element={<HubHome />} />
-                <Route path="/leagues" element={<HubHome />} />
-                <Route path="/comp" element={<ExternalSitePage path="/comp" />} />
-                <Route path="/account" element={<AccountPlaceholder />} />
-                <Route path="/matchups/:gameId" element={<MatchupDetailPage />} />
-                <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupGate><FirstTimeSetupHome /></FirstTimeSetupGate>} />
-                <Route path="/league-mgmt" element={managed(<LeagueMgmtHome />)} />
-                <Route path="/league-mgmt/notifications" element={managed(<NotificationsHome />)} />
-                <Route path="/league-mgmt/manage-league" element={managed(<ManageLeagueHome />)} />
-                <Route path="/league-mgmt/manage-league/roles" element={managed(<RolesHome />)} />
-                <Route path="/league-mgmt/manage-league/player-stats" element={managed(<PlayerStatsReview />)} />
-                <Route path="/league-mgmt/manage-league/teams" element={managed(<TeamOwnershipTable />)} />
-                <Route path="/league-mgmt/manage-league/teams/link" element={managed(<LinkTeamForm />)} />
-                <Route path="/league-mgmt/manage-league/:teamId" element={managed(<TeamScheduleForm />)} />
-                <Route path="/league-mgmt/delete-league" element={managed(<DeleteLeagueHome />)} />
-                <Route path="/league-mgmt/settings" element={managed(<SettingsHome />)} />
-                <Route path="/league-mgmt/advance" element={managed(<AdvanceHome />)} />
-                <Route path="/league-mgmt/commissioner-chat" element={managed(<CommissionerChatHome />)} />
-                <Route path="/league-mgmt/publishing" element={managed(<PublishingHome />)} />
-                <Route path="/league-mgmt/recruiting" element={managed(<RecruitingHome />)} />
-              </Routes>
-            </AppShell>
+            <ChatDrawerProvider>
+              <AppShell>
+                <Routes>
+                  <Route path="/" element={<HubHome />} />
+                  <Route path="/home" element={<HubHome />} />
+                  <Route path="/leagues" element={<HubHome />} />
+                  <Route path="/comp" element={<ExternalSitePage path="/comp" />} />
+                  <Route path="/account" element={<AccountPlaceholder />} />
+                  <Route path="/matchups/:gameId" element={<MatchupDetailPage />} />
+                  <Route path="/league-mgmt/first-time-setup" element={<FirstTimeSetupGate><FirstTimeSetupHome /></FirstTimeSetupGate>} />
+                  <Route path="/league-mgmt" element={managed(<LeagueMgmtHome />)} />
+                  <Route path="/league-mgmt/notifications" element={managed(<NotificationsHome />)} />
+                  <Route path="/league-mgmt/manage-league" element={managed(<ManageLeagueHome />)} />
+                  <Route path="/league-mgmt/manage-league/roles" element={managed(<RolesHome />)} />
+                  <Route path="/league-mgmt/manage-league/player-stats" element={managed(<PlayerStatsReview />)} />
+                  <Route path="/league-mgmt/manage-league/teams" element={managed(<TeamOwnershipTable />)} />
+                  <Route path="/league-mgmt/manage-league/teams/link" element={managed(<LinkTeamForm />)} />
+                  <Route path="/league-mgmt/manage-league/:teamId" element={managed(<TeamScheduleForm />)} />
+                  <Route path="/league-mgmt/delete-league" element={managed(<DeleteLeagueHome />)} />
+                  <Route path="/league-mgmt/settings" element={managed(<SettingsHome />)} />
+                  <Route path="/league-mgmt/advance" element={managed(<AdvanceHome />)} />
+                  <Route path="/league-mgmt/commissioner-chat" element={managed(<CommissionerChatHome />)} />
+                  <Route path="/league-mgmt/publishing" element={managed(<PublishingHome />)} />
+                  <Route path="/league-mgmt/recruiting" element={managed(<RecruitingHome />)} />
+                </Routes>
+              </AppShell>
+            </ChatDrawerProvider>
           </HubChromeProvider>
         </AuthGate>
       </HashRouter>

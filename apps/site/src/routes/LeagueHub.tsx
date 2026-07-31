@@ -6,6 +6,7 @@ import { siteApi } from "../lib/site-api.js";
 import { IconBack } from "../components/icons.js";
 import {
   AdvanceHome,
+  ChatDrawerProvider,
   CommissionerChatHome,
   CfpPostseasonManager,
   DeleteLeagueHome,
@@ -26,6 +27,7 @@ import {
   SettingsHome,
   TeamOwnershipTable,
   TeamScheduleForm,
+  UniversalChatDrawer,
 } from "@rec/hub-ui";
 
 import "../../../web/src/styles/tokens.css";
@@ -301,17 +303,20 @@ export function LeagueHubPage() {
           accessToken={accessToken}
         >
           <HubChromeProvider embedded>
-            <LeagueThemeProvider game={gameTheme}>
-              <HubErrorBoundary>
-                {/\/matchups\/[^/]+$/.test(location.pathname) ? (
-                  <MatchupDetailPage />
-                ) : view === "mgmt" ? (
-                  <HubMgmtRoutes />
-                ) : (
-                  <HubHomeBridge view={view} />
-                )}
-              </HubErrorBoundary>
-            </LeagueThemeProvider>
+            <ChatDrawerProvider>
+              <LeagueThemeProvider game={gameTheme}>
+                <HubErrorBoundary>
+                  {/\/matchups\/[^/]+$/.test(location.pathname) ? (
+                    <MatchupDetailPage />
+                  ) : view === "mgmt" ? (
+                    <HubMgmtRoutes />
+                  ) : (
+                    <HubHomeBridge view={view} />
+                  )}
+                </HubErrorBoundary>
+                <UniversalChatDrawer guildId={context.guildId} discordId={context.discordId} />
+              </LeagueThemeProvider>
+            </ChatDrawerProvider>
           </HubChromeProvider>
         </InjectedAuthProvider>
       </div>

@@ -1,4 +1,5 @@
 import { REC_API_ROUTES } from "@rec/shared";
+import type { ChatChannelSummary, ChatMarkReadInput } from "@rec/shared";
 import type {
   ActiveCheckReview,
   AdvanceResultInput,
@@ -534,6 +535,15 @@ export const recApi = {
     recApiFetch<{ messages: GameChatMessage[] }>("/v1/game-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
   postGameChatMessage: (input: { guildId: string; gameChannelId: string; body: string }) =>
     recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
+
+  // Universal Chat Drawer — aggregated channel list + unread state, spanning league/game/commissioner chat.
+  listChatChannels: (guildId: string) =>
+    recApiFetch<{ channels: ChatChannelSummary[]; canAccessCommissionerChat: boolean }>(REC_API_ROUTES.chatChannelsList, {
+      method: "POST",
+      body: JSON.stringify({ guildId }),
+    }),
+  markChatChannelRead: (input: { guildId: string } & ChatMarkReadInput) =>
+    recApiFetch<{ ok: true }>(REC_API_ROUTES.chatChannelsMarkRead, { method: "POST", body: JSON.stringify(input) }),
 
   // Home page's weekly H2H panel
   getWeeklyH2hGames: (guildId: string) =>

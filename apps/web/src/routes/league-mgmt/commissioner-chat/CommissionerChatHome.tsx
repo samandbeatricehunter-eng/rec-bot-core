@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import { renderMessageWithMentions } from "../../../lib/mentions.js";
+import { formatLocalTime, insertMentionToken, mentionQueryFromDraft } from "../../../lib/chat-utils.js";
 import type { ChatMessage, ChatTopic, MentionableList } from "../../../types/api.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -12,12 +13,6 @@ import { PendingItemsPanel } from "../notifications/PendingItemsPanel.js";
 import { useSearchParams } from "react-router-dom";
 
 const POLL_INTERVAL_MS = 5000;
-
-// created_at is a timestamptz, serialized with a UTC offset — Date + toLocaleTimeString
-// (no explicit timeZone) always renders in the viewer's own device timezone.
-function formatLocalTime(createdAt: string): string {
-  return new Date(createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-}
 
 // A shared space for commissioners/co-commissioners to discuss and vote on topics — meant
 // to eventually replace the need for the Commissioner's Office Discord channel for this
@@ -127,10 +122,7 @@ export function CommissionerChatHome() {
   // @-mention autocomplete: trigger on the trailing "@word" at the end of the draft (simple
   // single-line-input approach — no cursor-position tracking needed since this is a plain
   // text input, not a rich editor).
-  const mentionQuery = useMemo(() => {
-    const match = /(?:^|\s)@([a-z0-9._-]*)$/i.exec(draft);
-    return match ? match[1] : null;
-  }, [draft]);
+  const mentionQuery = useMemo(() => mentionQueryFromDraft(draft), [draft]);
 
   const mentionMatches = useMemo(() => {
     if (mentionQuery === null || !mentionable) return [];
@@ -145,7 +137,7 @@ export function CommissionerChatHome() {
   }, [mentionQuery, mentionable]);
 
   function insertMention(token: string) {
-    setDraft((prev) => prev.replace(/(?:^|\s)@[a-z0-9._-]*$/i, (m) => `${m[0] === "@" ? "" : m[0]}${token} `));
+    setDraft((prev) => insertMentionToken(prev, token));
   }
 
   return (

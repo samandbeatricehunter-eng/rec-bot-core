@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
 import { renderMessageWithMentions } from "../../lib/mentions.js";
+import { formatLocalTime, insertMentionToken, mentionQueryFromDraft } from "../../lib/chat-utils.js";
 import type { GameChatChannel, HubMatchupDetail, LeagueChatMember, MentionableList } from "../../types/api.js";
 import { Button } from "../ui/Button.js";
 import { UploadBoxScoreModal } from "../../routes/league-mgmt/manage-league/UploadBoxScoreModal.js";
@@ -26,12 +27,6 @@ type ChatMessageRow = {
 };
 
 const DC_TOOLTIP = "Non-registered Discord-only member — messages forward to the Discord game channel.";
-
-// created_at is a timestamptz, serialized with a UTC offset — Date + toLocaleTimeString
-// (no explicit timeZone) always renders in the viewer's own device timezone.
-function formatLocalTime(createdAt: string): string {
-  return new Date(createdAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-}
 
 // The Chat tab on Campus Buzz: a league-wide room plus one channel per current-week H2H
 // matchup (bridged to that matchup's Discord game channel — see game-chat.service.ts).
@@ -137,10 +132,7 @@ export function LeagueChatPanel({
   }), [members]);
 
   // Same trailing "@word" trigger as CommissionerChatHome's composer.
-  const mentionQuery = useMemo(() => {
-    const match = /(?:^|\s)@([a-z0-9._-]*)$/i.exec(draft);
-    return match ? match[1] : null;
-  }, [draft]);
+  const mentionQuery = useMemo(() => mentionQueryFromDraft(draft), [draft]);
 
   const mentionMatches = useMemo(() => {
     if (mentionQuery === null) return [];
@@ -149,7 +141,7 @@ export function LeagueChatPanel({
   }, [mentionQuery, mentionable]);
 
   function insertMention(token: string) {
-    setDraft((prev) => prev.replace(/(?:^|\s)@[a-z0-9._-]*$/i, (m) => `${m[0] === "@" ? "" : m[0]}${token} `));
+    setDraft((prev) => insertMentionToken(prev, token));
   }
 
   async function handleSend() {

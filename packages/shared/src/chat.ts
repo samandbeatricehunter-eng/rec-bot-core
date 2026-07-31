@@ -1,0 +1,34 @@
+export type ChatChannelType = "league" | "game" | "commissioner";
+
+/** Normalized message shape used by the unified chat drawer. The three
+ * underlying services (league-chat, game-chat, commissioner-chat) keep their
+ * own snake_case row types on the wire — callers adapt onto this shape. */
+export type ChatMessageRow = {
+  id: string;
+  authorUserId: string | null;
+  authorDiscordId: string | null;
+  authorDisplayName: string | null;
+  isDiscordOnly: boolean;
+  source: "site" | "discord" | "system";
+  discordMessageId: string | null;
+  body: string;
+  createdAt: string;
+};
+
+export type ChatChannelSummary = {
+  id: string;
+  type: ChatChannelType;
+  label: string;
+  unreadCount: number;
+  lastMessagePreview: string | null;
+  lastMessageAt: string | null;
+  isLive?: boolean;
+  isGotw?: boolean;
+  participantFlag?: boolean;
+};
+
+export type ChatMarkReadInput = {
+  channelType: ChatChannelType;
+  channelId: string;
+  lastReadMessageId: string;
+};

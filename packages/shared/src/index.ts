@@ -64,6 +64,8 @@ export const REC_API_ROUTES = {
   leagueHeaderSummary: "/v1/league-context/header",
   commissionerChatMentionable: "/v1/commissioner-chat/mentionable",
   weeklyH2hGames: "/v1/league-week/weekly-h2h",
+  chatChannelsList: "/v1/chat/channels/list",
+  chatChannelsMarkRead: "/v1/chat/channels/mark-read",
 } as const;
 
 export type RecTeamAuthority = "member" | "commissioner" | "co_commissioner";
@@ -83,3 +85,4 @@ export * from "./economy.js";
 export * from "./purchases.js";
 export * from "./legends.js";
 export * from "./wagers.js";
+export * from "./chat.js";

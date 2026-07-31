@@ -10,6 +10,7 @@ import { useAuth } from "../../lib/auth-context.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { LeagueThemeProvider } from "../../lib/league-theme-context.js";
+import { UniversalChatDrawer } from "../chat/UniversalChatDrawer.js";
 import type { LeagueHeaderSummary } from "../../types/api.js";
 
 const NOTIFICATION_POLL_MS = 30_000;
@@ -219,6 +220,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Trash2 size={16} />
           </button>
+        )}
+        {isLeagueScope && auth.status === "ready" && (
+          <UniversalChatDrawer guildId={auth.guildId} discordId={auth.discordId} />
         )}
       </div>
     </LeagueThemeProvider>
