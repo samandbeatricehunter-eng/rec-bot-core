@@ -19,6 +19,7 @@ import { StatusChip } from "../../components/design-system/StatusChip.js";
 import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js";
 import { InterviewBody } from "../../components/hub/InterviewBody.js";
 import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js";
+import { PublicPollsBlock } from "../../components/hub/PublicPollsBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
@@ -1279,6 +1280,7 @@ export function HubHome() {
         <LiveGamesCard liveStreams={hub.liveStreams} />
 
         <EosAwardVotingBlock />
+        <PublicPollsBlock />
         <div className="hub-buzz-toggle">
           <button type="button" className={buzzView === "buzz" ? "active" : ""} onClick={() => selectBuzzView("buzz")}>Campus Buzz</button>
           <button type="button" className={buzzView === "chat" ? "active" : ""} onClick={() => selectBuzzView("chat")}>Chat</button>

@@ -19,6 +19,7 @@ export function PollComposerModal({ guildId, onClose, onCreated }: { guildId: st
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [options, setOptions] = useState(["", ""]);
+  const [audience, setAudience] = useState<"commissioners" | "league">("commissioners");
   const [durationHours, setDurationHours] = useState("24");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +33,7 @@ export function PollComposerModal({ guildId, onClose, onCreated }: { guildId: st
     setError(null);
     try {
       const closesAt = durationHours === "none" ? null : new Date(Date.now() + Number(durationHours) * 60 * 60 * 1000).toISOString();
-      await recApi.createChatTopic({ guildId, title: title.trim(), description: description.trim() || null, options: trimmedOptions, closesAt });
+      await recApi.createChatTopic({ guildId, title: title.trim(), description: description.trim() || null, options: trimmedOptions, closesAt, audience });
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create the poll.");
@@ -68,6 +69,13 @@ export function PollComposerModal({ guildId, onClose, onCreated }: { guildId: st
         <Button variant="secondary" onClick={() => setOptions((prev) => [...prev, ""])} disabled={saving || options.length >= 10}>
           Add Option
         </Button>
+      </div>
+      <div className="form-field">
+        <label className="form-label" htmlFor="poll-audience">Who can vote</label>
+        <select id="poll-audience" className="form-select" value={audience} disabled={saving} onChange={(e) => setAudience(e.target.value as "commissioners" | "league")}>
+          <option value="commissioners">Commissioners only</option>
+          <option value="league">Whole league</option>
+        </select>
       </div>
       <div className="form-field">
         <label className="form-label" htmlFor="poll-duration">Time Limit</label>

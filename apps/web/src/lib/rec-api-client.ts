@@ -8,6 +8,7 @@ import type {
   BoxScoreSubmissionDetail,
   ChatMessage,
   ChatTopic,
+  PublicPoll,
   GameChatChannel,
   GameChatMessage,
   LeagueChatMember,
@@ -530,10 +531,14 @@ export const recApi = {
     recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
   listChatTopics: (guildId: string) =>
     recApiFetch<{ topics: ChatTopic[] }>("/v1/commissioner-chat/topics/list", { method: "POST", body: JSON.stringify({ guildId }) }),
-  createChatTopic: (input: { guildId: string; title: string; description?: string | null; options: string[]; closesAt?: string | null }) =>
+  createChatTopic: (input: { guildId: string; title: string; description?: string | null; options: string[]; closesAt?: string | null; audience?: "commissioners" | "league" }) =>
     recApiFetch<{ topic: ChatTopic }>("/v1/commissioner-chat/topics/create", { method: "POST", body: JSON.stringify(input) }),
   voteOnChatTopic: (input: { guildId: string; topicId: string; optionIndex: number }) =>
     recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/vote", { method: "POST", body: JSON.stringify(input) }),
+  listPublicPolls: (input: { guildId: string; discordId: string }) =>
+    recApiFetch<{ polls: PublicPoll[] }>("/v1/commissioner-chat/topics/public-list", { method: "POST", body: JSON.stringify(input) }),
+  voteOnPublicPoll: (input: { guildId: string; topicId: string; optionIndex: number }) =>
+    recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/public-vote", { method: "POST", body: JSON.stringify(input) }),
   closeChatTopic: (input: { guildId: string; topicId: string }) =>
     recApiFetch<{ ok: true }>("/v1/commissioner-chat/topics/close", { method: "POST", body: JSON.stringify(input) }),
   getMentionableCommissioners: (guildId: string) =>

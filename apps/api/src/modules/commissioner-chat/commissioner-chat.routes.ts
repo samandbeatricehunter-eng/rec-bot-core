@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { getMentionableCommissioners } from "../../lib/discord-guild.js";
-import { closeChatTopic, createChatTopic, listChatMessages, listChatTopics, postChatMessage, voteOnChatTopic } from "./commissioner-chat.service.js";
+import { closeChatTopic, createChatTopic, listChatMessages, listChatTopics, listPublicPolls, postChatMessage, voteOnChatTopic, voteOnPublicPoll } from "./commissioner-chat.service.js";
 
 // Everything here is co_commissioner-gated (not full-commissioner-only) — this is meant to
 // be a shared space for commissioners AND co-commissioners, matching who could already see
@@ -48,6 +48,7 @@ export async function commissionerChatRoutes(app: FastifyInstance) {
         description: z.string().max(2000).optional().nullable(),
         options: z.array(z.string().min(1).max(100)).min(2).max(10),
         closesAt: z.string().datetime().optional().nullable(),
+        audience: z.enum(["commissioners", "league"]).optional(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Commissioner chat requires a user session."));
@@ -73,6 +74,32 @@ export async function commissionerChatRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), topicId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await closeChatTopic(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // League-wide (audience:"league") polls — same underlying table as the staff-only topics
+  // above, but member-permission: any league member can list/vote, not just co-commissioners.
+  // voteOnPublicPoll defends against a member voting on a staff-only topic via this route by
+  // re-checking the topic's own audience column server-side, not just gating at the route.
+  app.post("/v1/commissioner-chat/topics/public-list", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await listPublicPolls(body.guildId, body.discordId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/commissioner-chat/topics/public-vote", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), topicId: z.string().uuid(), optionIndex: z.number().int().min(0) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Voting requires a user session."));
+      return reply.send(await voteOnPublicPoll({ ...body, discordId: auth.discordId }));
     } catch (error) {
       return sendError(reply, error);
     }

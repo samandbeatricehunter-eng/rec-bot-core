@@ -448,6 +448,18 @@ export type ChatTopic = {
   totalVotes: number;
   voters: { voterDiscordId: string; optionIndex: number }[];
 };
+export type PublicPoll = {
+  id: string;
+  title: string;
+  description: string | null;
+  options: string[];
+  status: "open" | "closed";
+  closes_at: string | null;
+  created_at: string;
+  tally: number[];
+  totalVotes: number;
+  myVoteOptionIndex: number | null;
+};
 // League Chat + Game Chat (Campus Buzz "Chat" tab)
 export type LeagueChatMessage = {
   id: string;

@@ -114,7 +114,7 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
 export async function listChatTopics(guildId: string) {
   const { data: topics, error } = await supabase
     .from("rec_commissioner_chat_topics")
-    .select("id,title,description,options,status,closes_at,created_by_discord_id,created_at")
+    .select("id,title,description,options,status,closes_at,created_by_discord_id,created_at,audience")
     .eq("guild_id", guildId)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -155,6 +155,9 @@ export async function createChatTopic(input: {
   description?: string | null;
   options: string[];
   closesAt?: string | null;
+  /** "commissioners" (default, staff-only — unchanged behavior for every existing caller) or
+   * "league" (open to every league member — see listPublicPolls/voteOnPublicPoll below). */
+  audience?: "commissioners" | "league";
 }) {
   const title = input.title.trim();
   if (!title) throw new ApiError(400, "Topic title can't be empty.");
@@ -173,11 +176,73 @@ export async function createChatTopic(input: {
       description: input.description?.trim() || null,
       options,
       closes_at: input.closesAt ?? null,
+      audience: input.audience ?? "commissioners",
     })
     .select("*")
     .single();
   if (error) throw new ApiError(500, "Failed to create voting topic.", error);
   return { topic: data };
+}
+
+// League-wide (audience:"league") polls — same table/tally mechanics as the staff-only topics
+// above, but listable/votable by any league member, not just co-commissioners. Kept as separate
+// functions (rather than loosening listChatTopics/voteOnChatTopic's own permission gate) so the
+// existing staff-only routes and their co_commissioner authorization are untouched.
+export async function listPublicPolls(guildId: string, discordId: string) {
+  const { data: topics, error } = await supabase
+    .from("rec_commissioner_chat_topics")
+    .select("id,title,description,options,status,closes_at,created_by_discord_id,created_at")
+    .eq("guild_id", guildId)
+    .eq("audience", "league")
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error) throw new ApiError(500, "Failed to load polls.", error);
+
+  const topicIds = (topics ?? []).map((t) => t.id);
+  const votes = topicIds.length
+    ? await supabase.from("rec_commissioner_chat_topic_votes").select("topic_id,voter_discord_id,option_index").in("topic_id", topicIds)
+    : { data: [], error: null };
+  if (votes.error) throw new ApiError(500, "Failed to load votes.", votes.error);
+
+  const votesByTopic = new Map<string, { voterDiscordId: string; optionIndex: number }[]>();
+  for (const row of votes.data ?? []) {
+    const list = votesByTopic.get(row.topic_id) ?? [];
+    list.push({ voterDiscordId: row.voter_discord_id, optionIndex: row.option_index });
+    votesByTopic.set(row.topic_id, list);
+  }
+
+  return {
+    polls: (topics ?? []).map((t) => {
+      const topicVotes = votesByTopic.get(t.id) ?? [];
+      const options = Array.isArray(t.options) ? (t.options as string[]) : [];
+      const tally = options.map((_, index) => topicVotes.filter((v) => v.optionIndex === index).length);
+      const isExpired = Boolean(t.closes_at && new Date(t.closes_at).getTime() <= Date.now());
+      const status = isExpired && t.status === "open" ? "closed" : t.status;
+      const myVoteOptionIndex = topicVotes.find((v) => v.voterDiscordId === discordId)?.optionIndex ?? null;
+      return { ...t, status, options, tally, totalVotes: topicVotes.length, myVoteOptionIndex };
+    }),
+  };
+}
+
+export async function voteOnPublicPoll(input: { guildId: string; discordId: string; topicId: string; optionIndex: number }) {
+  const topic = await supabase.from("rec_commissioner_chat_topics").select("id,guild_id,audience,options,status,closes_at").eq("id", input.topicId).maybeSingle();
+  if (topic.error) throw new ApiError(500, "Failed to load poll.", topic.error);
+  if (!topic.data || topic.data.guild_id !== input.guildId) throw new ApiError(404, "Poll not found.");
+  if (topic.data.audience !== "league") throw new ApiError(403, "This poll isn't open to the whole league.");
+  if (topic.data.status !== "open") throw new ApiError(400, "Voting is closed for this poll.");
+  if (topic.data.closes_at && new Date(topic.data.closes_at).getTime() <= Date.now()) throw new ApiError(400, "Voting has closed for this poll.");
+  const options = Array.isArray(topic.data.options) ? (topic.data.options as string[]) : [];
+  if (input.optionIndex < 0 || input.optionIndex >= options.length) throw new ApiError(400, "Invalid option.");
+
+  const userId = await resolveUserId(input.discordId);
+  const { error } = await supabase
+    .from("rec_commissioner_chat_topic_votes")
+    .upsert(
+      { topic_id: input.topicId, voter_user_id: userId, voter_discord_id: input.discordId, option_index: input.optionIndex, updated_at: new Date().toISOString() },
+      { onConflict: "topic_id,voter_discord_id" },
+    );
+  if (error) throw new ApiError(500, "Failed to record vote.", error);
+  return { ok: true };
 }
 
 export async function voteOnChatTopic(input: { guildId: string; discordId: string; topicId: string; optionIndex: number }) {
