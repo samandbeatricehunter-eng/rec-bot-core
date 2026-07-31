@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import type { CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { CSSProperties, RefObject } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { americanFromDecimal, formatCoins } from "@rec/shared";
 import {
@@ -36,6 +36,8 @@ import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
+import { MatchupStickyHeader } from "../../components/matchups/MatchupStickyHeader.js";
+import { ActiveGamePrompt } from "../../components/matchups/ActiveGamePrompt.js";
 
 type WagerMode = "single" | "parlay" | "peer";
 type WagerLeg = {
@@ -218,6 +220,11 @@ export function MatchupDetailPage() {
   const [reactionBusy, setReactionBusy] = useState(false);
 
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
+
+  const gotwSectionRef = useRef<HTMLElement>(null);
+  const streamsSectionRef = useRef<HTMLElement>(null);
+  const actionsSectionRef = useRef<HTMLDivElement>(null);
+  const scrollTo = (ref: RefObject<HTMLElement>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const load = useCallback(async () => {
     if (!gameId) return;
@@ -612,7 +619,18 @@ export function MatchupDetailPage() {
       <Link className="matchup-detail-back" to="/">
         <ArrowLeft size={18} /> Back to matchups
       </Link>
+      <MatchupStickyHeader matchup={matchup} gameChatLink={gameChatLink} onOpenActions={() => scrollTo(actionsSectionRef)} />
       <MatchupCard game={matchup} featured showReactions={false} />
+      <ActiveGamePrompt
+        detail={detail}
+        canUploadBoxScore={canUploadBoxScore}
+        onOpenBoxScore={() => {
+          if (!canUploadBoxScore) return;
+          setBoxScoreUploadGame(matchup);
+        }}
+        onVoteGotw={() => scrollTo(gotwSectionRef)}
+        onWatchLive={() => scrollTo(streamsSectionRef)}
+      />
       {matchup.matchupType === "h2h" ? (
         <MatchupReactionBar
           game={matchup}
@@ -633,7 +651,7 @@ export function MatchupDetailPage() {
           const awayShare = total ? Math.round((gotw.awayVotes / total) * 100) : 50;
           const canVote = gotw.status === "open" && gotw.canVote;
           return (
-            <section className="matchup-gotw">
+            <section className="matchup-gotw" ref={gotwSectionRef}>
               <header className="matchup-gotw__head">
                 <span>Game of the Week</span>
                 <strong>
@@ -715,6 +733,7 @@ export function MatchupDetailPage() {
           )}
         </section>
       )}
+      <div ref={actionsSectionRef}>
       <MatchupActions
         matchup={matchup}
         canUploadBoxScore={canUploadBoxScore}
@@ -729,6 +748,7 @@ export function MatchupDetailPage() {
         highlightUploading={false}
         onOpenRequestHelp={() => setRequestHelpOpen(true)}
       />
+      </div>
       <section className={`matchup-boxscore-status matchup-boxscore-status--${matchup.boxScoreStatus ?? "none"}`}>
         {matchup.boxScoreStatus === "pending" ? (
           <>
@@ -753,7 +773,7 @@ export function MatchupDetailPage() {
         )}
       </section>
       <div className="matchup-detail-grid">
-        <section className="matchup-detail-panel">
+        <section className="matchup-detail-panel" ref={streamsSectionRef}>
           <h2>
             <Radio size={20} /> Active Streams
           </h2>
