@@ -92,6 +92,16 @@ export function CommissionerChatHome() {
     }
   }
 
+  async function handleEditMessage(messageId: string, body: string) {
+    const res = await recApi.editChatMessage({ guildId, messageId, body });
+    setMessages((prev) => prev.map((m) => (m.id === res.message.id ? res.message : m)));
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    await recApi.deleteChatMessage({ guildId, messageId });
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }
+
   async function handleVote(topicId: string, optionIndex: number) {
     setError(null);
     try {
@@ -139,7 +149,15 @@ export function CommissionerChatHome() {
 
       {tab === "messages" && (
         <div className="commissioner-chat-window">
-          <ConversationView messages={conversationMessages} viewerDiscordId={discordId} mentionable={mentionable} guildId={guildId} channelType="commissioner" />
+          <ConversationView
+            messages={conversationMessages}
+            viewerDiscordId={discordId}
+            mentionable={mentionable}
+            guildId={guildId}
+            channelType="commissioner"
+            onEditMessage={handleEditMessage}
+            onDeleteMessage={(messageId) => void handleDeleteMessage(messageId)}
+          />
           <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} placeholder="Message… (@ to mention a commissioner)" />
         </div>
       )}

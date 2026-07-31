@@ -13,6 +13,7 @@ export type ChatMessageRow = {
   discordMessageId: string | null;
   body: string;
   createdAt: string;
+  editedAt: string | null;
 };
 
 export type ChatChannelSummary = {

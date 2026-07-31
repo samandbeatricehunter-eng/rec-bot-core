@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { getMentionableCommissioners } from "../../lib/discord-guild.js";
-import { closeChatTopic, createChatTopic, listChatMessages, listChatTopics, listPublicPolls, postChatMessage, voteOnChatTopic, voteOnPublicPoll } from "./commissioner-chat.service.js";
+import { closeChatTopic, createChatTopic, deleteChatMessage, editChatMessage, listChatMessages, listChatTopics, listPublicPolls, postChatMessage, voteOnChatTopic, voteOnPublicPoll } from "./commissioner-chat.service.js";
 
 // Everything here is co_commissioner-gated (not full-commissioner-only) — this is meant to
 // be a shared space for commissioners AND co-commissioners, matching who could already see
@@ -25,6 +25,28 @@ export async function commissionerChatRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Commissioner chat requires a user session."));
       return reply.send(await postChatMessage({ guildId: body.guildId, discordId: auth.discordId, body: body.body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/commissioner-chat/messages/edit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), messageId: z.string().uuid(), body: z.string().min(1).max(2000) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Editing requires a user session."));
+      return reply.send(await editChatMessage({ guildId: body.guildId, discordId: auth.discordId, messageId: body.messageId, body: body.body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/commissioner-chat/messages/delete", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), messageId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Deleting requires a user session."));
+      return reply.send(await deleteChatMessage({ guildId: body.guildId, discordId: auth.discordId, messageId: body.messageId }));
     } catch (error) {
       return sendError(reply, error);
     }

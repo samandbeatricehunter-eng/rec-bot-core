@@ -17,6 +17,7 @@ export function toChatMessageRow(raw: Record<string, unknown>): ChatMessageRow {
     discordMessageId: (raw.discord_message_id as string | null) ?? null,
     body: String(raw.body ?? ""),
     createdAt: String(raw.created_at),
+    editedAt: (raw.edited_at as string | null) ?? null,
   };
 }
 

@@ -48,8 +48,9 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
   purgeOldMessages(guildId);
   let query = supabase
     .from("rec_commissioner_chat_messages")
-    .select("id,author_discord_id,body,created_at")
+    .select("id,author_discord_id,body,created_at,edited_at")
     .eq("guild_id", guildId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(MESSAGE_PAGE_SIZE);
   if (sinceIso) query = query.gt("created_at", sinceIso);
@@ -69,6 +70,39 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
     author_display_name: usernames.get(row.author_discord_id) ?? liveNames.get(row.author_discord_id) ?? null,
   }));
   return { messages };
+}
+
+export async function editChatMessage(input: { guildId: string; discordId: string; messageId: string; body: string }) {
+  const trimmed = input.body.trim();
+  if (!trimmed) throw new ApiError(400, "Message can't be empty.");
+  if (trimmed.length > 2000) throw new ApiError(400, "Message is too long (2000 characters max).");
+  const { data, error } = await supabase
+    .from("rec_commissioner_chat_messages")
+    .update({ body: trimmed, edited_at: new Date().toISOString() })
+    .eq("id", input.messageId)
+    .eq("guild_id", input.guildId)
+    .eq("author_discord_id", input.discordId)
+    .is("deleted_at", null)
+    .select("id,author_discord_id,body,created_at,edited_at")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to edit message.", error);
+  if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
+  return { message: { ...data, author_display_name: null } };
+}
+
+export async function deleteChatMessage(input: { guildId: string; discordId: string; messageId: string }) {
+  const { data, error } = await supabase
+    .from("rec_commissioner_chat_messages")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", input.messageId)
+    .eq("guild_id", input.guildId)
+    .eq("author_discord_id", input.discordId)
+    .is("deleted_at", null)
+    .select("id")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to delete message.", error);
+  if (!data) throw new ApiError(404, "Message not found, or you're not its author.");
+  return { ok: true as const };
 }
 
 export async function postChatMessage(input: { guildId: string; discordId: string; body: string }) {

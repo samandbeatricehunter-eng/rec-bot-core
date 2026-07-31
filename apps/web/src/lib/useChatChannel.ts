@@ -17,6 +17,18 @@ async function sendChannelMessage(guildId: string, channelType: ChatChannelType,
   return recApi.postChatMessage({ guildId, body });
 }
 
+async function editChannelMessage(guildId: string, channelType: ChatChannelType, messageId: string, body: string) {
+  if (channelType === "league") return recApi.editLeagueChatMessage({ guildId, messageId, body });
+  if (channelType === "game") return recApi.editGameChatMessage({ guildId, messageId, body });
+  return recApi.editChatMessage({ guildId, messageId, body });
+}
+
+async function deleteChannelMessage(guildId: string, channelType: ChatChannelType, messageId: string) {
+  if (channelType === "league") return recApi.deleteLeagueChatMessage({ guildId, messageId });
+  if (channelType === "game") return recApi.deleteGameChatMessage({ guildId, messageId });
+  return recApi.deleteChatMessage({ guildId, messageId });
+}
+
 /** Per-channel polling (same proven 5s + in-flight-guard pattern as LeagueChatPanel/
  * CommissionerChatHome) for whichever channel is currently selected in the drawer.
  * `onLatestMessageId` fires only when the newest message id actually changes, so callers can
@@ -91,5 +103,24 @@ export function useChatChannel(input: {
     [active, guildId, channelType, channelId, fetchMessages],
   );
 
-  return { messages, sendMessage, loading, sending, error };
+  const editMessage = useCallback(
+    async (messageId: string, body: string) => {
+      if (!active || !channelType) return;
+      const res = await editChannelMessage(guildId, channelType, messageId, body);
+      const row = toChatMessageRow(res.message as unknown as Record<string, unknown>);
+      setMessages((prev) => prev.map((m) => (m.id === row.id ? row : m)));
+    },
+    [active, guildId, channelType],
+  );
+
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!active || !channelType) return;
+      await deleteChannelMessage(guildId, channelType, messageId);
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    },
+    [active, guildId, channelType],
+  );
+
+  return { messages, sendMessage, editMessage, deleteMessage, loading, sending, error };
 }

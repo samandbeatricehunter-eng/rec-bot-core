@@ -529,6 +529,10 @@ export const recApi = {
     recApiFetch<{ messages: ChatMessage[] }>("/v1/commissioner-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
   postChatMessage: (input: { guildId: string; body: string }) =>
     recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
+  editChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
+    recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
+  deleteChatMessage: (input: { guildId: string; messageId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/commissioner-chat/messages/delete", { method: "POST", body: JSON.stringify(input) }),
   listChatTopics: (guildId: string) =>
     recApiFetch<{ topics: ChatTopic[] }>("/v1/commissioner-chat/topics/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   createChatTopic: (input: { guildId: string; title: string; description?: string | null; options: string[]; closesAt?: string | null; audience?: "commissioners" | "league" }) =>
@@ -549,6 +553,10 @@ export const recApi = {
     recApiFetch<{ messages: LeagueChatMessage[] }>("/v1/league-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
   postLeagueChatMessage: (input: { guildId: string; body: string }) =>
     recApiFetch<{ message: LeagueChatMessage }>("/v1/league-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
+  editLeagueChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
+    recApiFetch<{ message: LeagueChatMessage }>("/v1/league-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
+  deleteLeagueChatMessage: (input: { guildId: string; messageId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/league-chat/messages/delete", { method: "POST", body: JSON.stringify(input) }),
   listLeagueMembersForChat: (guildId: string) =>
     recApiFetch<{ members: LeagueChatMember[] }>("/v1/league-chat/members/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   sendLeagueChatHeartbeat: (guildId: string) =>
@@ -559,6 +567,10 @@ export const recApi = {
     recApiFetch<{ messages: GameChatMessage[] }>("/v1/game-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
   postGameChatMessage: (input: { guildId: string; gameChannelId: string; body: string }) =>
     recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
+  editGameChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
+    recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
+  deleteGameChatMessage: (input: { guildId: string; messageId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/game-chat/messages/delete", { method: "POST", body: JSON.stringify(input) }),
 
   // Universal Chat Drawer — aggregated channel list + unread state, spanning league/game/commissioner chat.
   listChatChannels: (guildId: string) =>

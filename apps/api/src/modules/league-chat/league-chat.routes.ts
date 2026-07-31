@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { heartbeat, ingestDiscordLeagueChatMessage, listLeagueChatMessages, listLeagueMembersForChat, postLeagueChatMessage } from "./league-chat.service.js";
+import { deleteLeagueChatMessage, editLeagueChatMessage, heartbeat, ingestDiscordLeagueChatMessage, listLeagueChatMessages, listLeagueMembersForChat, postLeagueChatMessage } from "./league-chat.service.js";
 
 // League-wide chat — open to every league member (permission: "member"), unlike the
 // co_commissioner-gated commissioner chat this mirrors in shape.
@@ -48,6 +48,28 @@ export async function leagueChatRoutes(app: FastifyInstance) {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
       return reply.send(await listLeagueMembersForChat(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-chat/messages/edit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), messageId: z.string().uuid(), body: z.string().min(1).max(2000) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Editing requires a user session."));
+      return reply.send(await editLeagueChatMessage({ guildId: body.guildId, discordId: auth.discordId, messageId: body.messageId, body: body.body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-chat/messages/delete", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), messageId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Deleting requires a user session."));
+      return reply.send(await deleteLeagueChatMessage({ guildId: body.guildId, discordId: auth.discordId, messageId: body.messageId }));
     } catch (error) {
       return sendError(reply, error);
     }

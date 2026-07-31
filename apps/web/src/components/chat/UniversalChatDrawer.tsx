@@ -68,7 +68,7 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
     [drawer.open, guildId, selected, loadChannels],
   );
 
-  const { messages, sendMessage, sending } = useChatChannel({
+  const { messages, sendMessage, editMessage, deleteMessage, sending } = useChatChannel({
     guildId,
     channelType: selected?.channelType ?? null,
     channelId: selected?.channelId ?? null,
@@ -123,6 +123,8 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
                   mentionable={mentionable}
                   guildId={guildId}
                   channelType={selected?.channelType}
+                  onEditMessage={editMessage}
+                  onDeleteMessage={(messageId) => void deleteMessage(messageId)}
                 />
                 <Composer onSend={(body) => sendMessage(body)} sending={sending} mentionOptions={mentionOptions} />
               </div>

@@ -138,6 +138,19 @@ export function LeagueChatPanel({
     }
   }
 
+  async function handleEdit(messageId: string, body: string) {
+    const res = activeChannel === "league"
+      ? await recApi.editLeagueChatMessage({ guildId, messageId, body })
+      : await recApi.editGameChatMessage({ guildId, messageId, body });
+    setMessages((prev) => prev.map((m) => (m.id === res.message.id ? res.message : m)));
+  }
+
+  async function handleDelete(messageId: string) {
+    if (activeChannel === "league") await recApi.deleteLeagueChatMessage({ guildId, messageId });
+    else await recApi.deleteGameChatMessage({ guildId, messageId });
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }
+
   const onlineMembers = members.filter((m) => m.online);
   const offlineMembers = members.filter((m) => !m.online);
 
@@ -215,6 +228,8 @@ export function LeagueChatPanel({
           guildId={guildId}
           channelType={activeChannel === "league" ? "league" : "game"}
           messageClassName={(m) => (m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message")}
+          onEditMessage={handleEdit}
+          onDeleteMessage={(messageId) => void handleDelete(messageId)}
         />
         <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} />
       </div>

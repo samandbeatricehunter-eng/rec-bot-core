@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { getGameChatMessages, ingestDiscordGameChatMessage, listGameChatChannels, sendGameChatMessage } from "./game-chat.service.js";
+import { deleteGameChatMessage, editGameChatMessage, getGameChatMessages, ingestDiscordGameChatMessage, listGameChatChannels, sendGameChatMessage } from "./game-chat.service.js";
 
 // Whole-league visibility: every route below is permission: "member" (no coach/commissioner
 // restriction) except the bot-only Discord ingest endpoint.
@@ -34,6 +34,28 @@ export async function gameChatRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Game chat requires a user session."));
       return reply.send(await sendGameChatMessage({ guildId: body.guildId, discordId: auth.discordId, gameChannelId: body.gameChannelId, body: body.body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/game-chat/messages/edit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), messageId: z.string().uuid(), body: z.string().min(1).max(2000) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Editing requires a user session."));
+      return reply.send(await editGameChatMessage({ guildId: body.guildId, discordId: auth.discordId, messageId: body.messageId, body: body.body }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/game-chat/messages/delete", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), messageId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Deleting requires a user session."));
+      return reply.send(await deleteGameChatMessage({ guildId: body.guildId, discordId: auth.discordId, messageId: body.messageId }));
     } catch (error) {
       return sendError(reply, error);
     }

@@ -3375,6 +3375,12 @@ button.poty:disabled {
 .chat-reaction-add { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 12px; cursor: pointer; line-height: 1; }
 .chat-reaction-picker { position: absolute; bottom: 100%; left: 0; margin-bottom: 4px; display: flex; gap: 4px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); box-shadow: 0 4px 14px rgba(0,0,0,.35); z-index: 5; }
 .chat-reaction-picker button { background: transparent; border: 0; font-size: 15px; cursor: pointer; padding: 2px; }
+
+.chat-message-owner-actions { margin-left: 8px; font-size: 11px; }
+.chat-message-owner-actions button { background: transparent; border: 0; padding: 0 4px; color: var(--text-muted); cursor: pointer; text-decoration: underline; }
+.chat-message-owner-actions button:hover { color: var(--text-primary); }
+.chat-message-edit-row { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.chat-message-edit-row .form-input { flex: 1; }
 @media (max-width: 640px) {
   .chat-drawer-panel {
     width: 100%;
