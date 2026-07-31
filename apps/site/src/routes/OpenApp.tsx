@@ -46,19 +46,11 @@ export function OpenApp() {
   }, [auth.status, handoff, dest, navigate]);
 
   if (!handoff) {
-    return (
-      <div className="site-page site-auth-page">
-        <div className="site-auth-card">
-          <h1>Missing league link</h1>
-          <p className="site-muted">
-            Run <strong>/app</strong> in your league Discord and tap Open my league.
-          </p>
-          <Link className="site-btn site-btn-primary" to="/signup">
-            Create account
-          </Link>
-        </div>
-      </div>
-    );
+    if (auth.status === "signed-in") return <Navigate to="/leagues" replace />;
+    if (auth.status === "signed-out") {
+      return <Navigate to={`/login?next=${encodeURIComponent("/leagues")}`} replace />;
+    }
+    return <div className="site-page site-loading">Loading…</div>;
   }
 
   if (auth.status === "loading") {
