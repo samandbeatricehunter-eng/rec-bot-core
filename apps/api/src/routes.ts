@@ -36,6 +36,7 @@ import { hubRoutes } from "./modules/hub/hub.routes.js";
 import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.routes.js";
 import { recruitingRoutes } from "./modules/recruiting/recruiting.routes.js";
 import { transferPortalRoutes } from "./modules/transfer-portal/transfer-portal.routes.js";
+import { cfbBaselineRoutes } from "./modules/cfb-baseline/cfb-baseline.routes.js";
 import { submissionStateRoutes } from "./modules/submission-state/submission-state.routes.js";
 import { siteAuthRoutes } from "./modules/site-auth/site-auth.routes.js";
 import { subscriptionRoutes } from "./modules/subscriptions/subscriptions.routes.js";
@@ -85,6 +86,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await watchedPlayersRoutes(app);
   await recruitingRoutes(app);
   await transferPortalRoutes(app);
+  await cfbBaselineRoutes(app);
   await submissionStateRoutes(app);
   await siteAuthRoutes(app);
   await subscriptionRoutes(app);
