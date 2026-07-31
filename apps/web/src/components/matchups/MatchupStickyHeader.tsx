@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { MessageCircle, MoreHorizontal } from "lucide-react";
 import type { HubMatchupGame } from "../../types/api.js";
 
@@ -6,11 +5,13 @@ import type { HubMatchupGame } from "../../types/api.js";
 // page — team identity, live/final status, and quick jumps to chat and the action toolbar.
 export function MatchupStickyHeader({
   matchup,
-  gameChatLink,
+  hasGameChat,
+  onOpenChat,
   onOpenActions,
 }: {
   matchup: HubMatchupGame;
-  gameChatLink: string | null;
+  hasGameChat: boolean;
+  onOpenChat: () => void;
   onOpenActions: () => void;
 }) {
   const isLive = !matchup.isFinal && matchup.streams.length > 0;
@@ -28,10 +29,10 @@ export function MatchupStickyHeader({
         {matchup.isFinal ? "Final" : isLive ? "Live" : "Scheduled"}
       </span>
       <div className="matchup-sticky-header__actions">
-        {gameChatLink && (
-          <Link to={gameChatLink} className="matchup-sticky-header__icon-btn" aria-label="Open game chat">
+        {hasGameChat && (
+          <button type="button" className="matchup-sticky-header__icon-btn" onClick={onOpenChat} aria-label="Jump to game chat">
             <MessageCircle size={16} />
-          </Link>
+          </button>
         )}
         <button type="button" className="matchup-sticky-header__icon-btn" onClick={onOpenActions} aria-label="Jump to actions">
           <MoreHorizontal size={16} />

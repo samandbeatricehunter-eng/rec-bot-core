@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { americanFromDecimal, formatCoins } from "@rec/shared";
 import {
   ArrowLeft,
@@ -11,7 +11,6 @@ import {
   LifeBuoy,
   MessageCircle,
   Radio,
-  Send,
   Share2,
 } from "lucide-react";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
@@ -24,10 +23,15 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
+import { useSharedChatChannel } from "../../lib/chat-store.js";
+import { ConversationView } from "../../components/chat/ConversationView.js";
+import { Composer } from "../../components/chat/Composer.js";
 import type {
   HubMatchupDetail,
   HubMatchupGame,
+  LeagueChatMember,
   MatchupPreview as MatchupPreviewData,
+  MentionableList,
   PeerWagerBoardResponse,
   WagerOptionsResponse,
 } from "../../types/api.js";
@@ -200,7 +204,6 @@ export function MatchupActions({
 
 export function MatchupDetailPage() {
   const { gameId } = useParams<{ gameId: string }>();
-  const location = useLocation();
   const { guildId, discordId } = useReadyAuth();
   const [detail, setDetail] = useState<HubMatchupDetail | null>(null);
   const [preview, setPreview] = useState<MatchupPreviewData | null>(null);
@@ -209,7 +212,9 @@ export function MatchupDetailPage() {
   const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
-  const [gameChatLink, setGameChatLink] = useState<string | null>(null);
+  const [gameChannelId, setGameChannelId] = useState<string | null>(null);
+  const [chatMembers, setChatMembers] = useState<LeagueChatMember[]>([]);
+  const [replyTarget, setReplyTarget] = useState<{ id: string; authorDisplayName: string | null; body: string } | null>(null);
   const [boxScoreUploadGame, setBoxScoreUploadGame] =
     useState<HubMatchupGame | null>(null);
 
@@ -224,6 +229,7 @@ export function MatchupDetailPage() {
   const gotwSectionRef = useRef<HTMLElement>(null);
   const streamsSectionRef = useRef<HTMLElement>(null);
   const actionsSectionRef = useRef<HTMLDivElement>(null);
+  const chatSectionRef = useRef<HTMLElement>(null);
   const scrollTo = (ref: RefObject<HTMLElement>) => ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const load = useCallback(async () => {
@@ -253,21 +259,48 @@ export function MatchupDetailPage() {
       .then((res) => {
         if (!active) return;
         const channel = res.channels.find((item) => item.gameId === gameId);
-        if (!channel) {
-          setGameChatLink(null);
-          return;
-        }
-        const leagueMatch = /^\/l\/([^/]+)\//.exec(location.pathname);
-        const base = leagueMatch ? `/l/${leagueMatch[1]}/buzz` : "/home";
-        setGameChatLink(`${base}?section=league&subTab=buzz&buzzView=chat&gameChannel=${channel.gameChannelId}`);
+        setGameChannelId(channel?.gameChannelId ?? null);
       })
       .catch(() => {
-        if (active) setGameChatLink(null);
+        if (active) setGameChannelId(null);
       });
     return () => {
       active = false;
     };
-  }, [gameId, guildId, location.pathname]);
+  }, [gameId, guildId]);
+
+  useEffect(() => {
+    recApi.listLeagueMembersForChat(guildId).then((res) => setChatMembers(res.members)).catch(() => undefined);
+  }, [guildId]);
+
+  const chatMentionable: MentionableList = {
+    members: chatMembers.filter((m) => m.discordId).map((m) => ({ discordId: m.discordId as string, displayName: m.displayName })),
+    roles: [],
+  };
+  const chatMentionOptions = chatMentionable.members.map((m) => ({ token: `<@${m.discordId}>`, label: m.displayName }));
+
+  const {
+    messages: gameChatMessages,
+    reactionsByMessage: gameChatReactions,
+    attachmentsByMessage: gameChatAttachments,
+    sendMessage: sendGameChatMessage,
+    editMessage: editGameChatMessage,
+    deleteMessage: deleteGameChatMessage,
+    toggleReaction: toggleGameChatReaction,
+    sending: gameChatSending,
+    error: gameChatError,
+  } = useSharedChatChannel({
+    guildId,
+    channelType: "game",
+    channelId: gameChannelId,
+  });
+
+  async function handleSendGameChat(body: string) {
+    const replyToMessageId = replyTarget?.id ?? null;
+    const row = await sendGameChatMessage(body, replyToMessageId);
+    setReplyTarget(null);
+    return row ? { id: row.id } : undefined;
+  }
 
   useEffect(() => {
     if (!gameId) return;
@@ -619,7 +652,12 @@ export function MatchupDetailPage() {
       <Link className="matchup-detail-back" to="/">
         <ArrowLeft size={18} /> Back to matchups
       </Link>
-      <MatchupStickyHeader matchup={matchup} gameChatLink={gameChatLink} onOpenActions={() => scrollTo(actionsSectionRef)} />
+      <MatchupStickyHeader
+        matchup={matchup}
+        hasGameChat={Boolean(gameChannelId)}
+        onOpenChat={() => scrollTo(chatSectionRef)}
+        onOpenActions={() => scrollTo(actionsSectionRef)}
+      />
       <MatchupCard game={matchup} featured showReactions={false} />
       <ActiveGamePrompt
         detail={detail}
@@ -797,20 +835,34 @@ export function MatchupDetailPage() {
             <p>No active streams for this matchup.</p>
           )}
         </section>
-        <section className="matchup-detail-panel matchup-chat">
+        <section className="matchup-detail-panel matchup-chat" ref={chatSectionRef}>
           <h2>
             <MessageCircle size={20} /> Game Chat
           </h2>
-          {gameChatLink ? (
-            <>
-              <p>
-                This matchup's game chat now lives on Campus Buzz's Chat tab — bridged to the
-                Discord game channel, so messages there and here stay in sync.
-              </p>
-              <Link className="btn btn-primary" to={gameChatLink}>
-                <Send size={16} /> Open in Chat
-              </Link>
-            </>
+          {gameChannelId ? (
+            <div className="commissioner-chat-window">
+              {gameChatError && <p className="hub-transfer-status">{gameChatError}</p>}
+              <ConversationView
+                messages={gameChatMessages}
+                viewerDiscordId={discordId}
+                mentionable={chatMentionable}
+                reactionsByMessage={gameChatReactions}
+                attachmentsByMessage={gameChatAttachments}
+                onToggleReaction={(messageId, emojiKey) => void toggleGameChatReaction(messageId, emojiKey)}
+                onEditMessage={(messageId, body) => editGameChatMessage(messageId, body)}
+                onDeleteMessage={(messageId) => void deleteGameChatMessage(messageId)}
+                onReplyMessage={setReplyTarget}
+              />
+              <Composer
+                onSend={handleSendGameChat}
+                sending={gameChatSending}
+                mentionOptions={chatMentionOptions}
+                guildId={guildId}
+                channelType="game"
+                replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
+                onCancelReply={() => setReplyTarget(null)}
+              />
+            </div>
           ) : (
             <p>Chat opens once this week's game channel is created.</p>
           )}

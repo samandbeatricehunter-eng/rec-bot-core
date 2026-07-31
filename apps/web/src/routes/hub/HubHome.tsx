@@ -4,7 +4,6 @@ import { americanFromDecimal, CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
-import { LeagueChatPanel } from "../../components/hub/LeagueChatPanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
@@ -27,6 +26,7 @@ import { MyWatchedPlayersModal } from "../../components/hub/MyWatchedPlayersModa
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
+import { useChatDrawer } from "../../lib/chat-drawer-context.js";
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
 // modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
@@ -272,14 +272,7 @@ export function HubHome() {
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
   const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
   const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "buzz");
-  const [buzzView, setBuzzView] = useState<"buzz" | "chat">(() => (searchParams.get("buzzView") === "chat" ? "chat" : "buzz"));
-  function selectBuzzView(view: "buzz" | "chat") {
-    setBuzzView(view);
-    const next = new URLSearchParams(searchParams);
-    if (view === "chat") next.set("buzzView", "chat");
-    else next.delete("buzzView");
-    setSearchParams(next, { replace: true });
-  }
+  const chatDrawer = useChatDrawer();
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
   const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
@@ -1282,14 +1275,15 @@ export function HubHome() {
         <EosAwardVotingBlock />
         <PublicPollsBlock />
         <div className="hub-buzz-toggle">
-          <button type="button" className={buzzView === "buzz" ? "active" : ""} onClick={() => selectBuzzView("buzz")}>Campus Buzz</button>
-          <button type="button" className={buzzView === "chat" ? "active" : ""} onClick={() => selectBuzzView("chat")}>Chat</button>
+          <button type="button" className="active">Campus Buzz</button>
+          <button
+            type="button"
+            onClick={() => chatDrawer.openTo({ channelType: "league", channelId: hub.league.id })}
+          >
+            <MessageCircle size={14} /> League Chat
+          </button>
         </div>
-        {buzzView === "chat" ? (
-          auth.status === "ready" ? (
-            <LeagueChatPanel guildId={auth.guildId} leagueId={hub.league.id} discordId={auth.discordId} seasonNumber={hub.league.seasonNumber} initialGameChannelId={searchParams.get("gameChannel")} />
-          ) : null
-        ) : <>
+        <>
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {(() => {
             const items = activeHeadlineGroup?.items ?? [];
@@ -1364,7 +1358,7 @@ export function HubHome() {
               </div>
             </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
         </SectionFrame>
-        </>}
+        </>
       </>}
 
       {subTab === "matchups" && (
