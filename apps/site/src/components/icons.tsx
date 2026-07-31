@@ -178,6 +178,16 @@ export function IconBell(props: IconProps) {
     </>,
   );
 }
+export function IconWager(props: IconProps) {
+  return base(
+    props,
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7v10M9.2 9.2c0-1.1 1.1-1.9 2.8-1.9s2.8.8 2.8 1.9c0 2.6-5.6 1.5-5.6 4 0 1.1 1.1 1.9 2.8 1.9s2.8-.8 2.8-1.9" />
+    </>,
+  );
+}
+
 export function IconMenu(props: IconProps) {
   return base(
     props,

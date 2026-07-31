@@ -236,6 +236,7 @@ function Routed() {
         <Route path="/l/:leagueId/matchups/:gameId" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/team" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/store" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/wagers" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/mgmt/inbox" element={<LegacyCommissionerInboxRedirect />} />
         <Route path="/l/:leagueId/mgmt/*" element={<LeagueHubPage />} />
         <Route path="/league-mgmt/*" element={<LegacyLeagueMgmtRedirect />} />

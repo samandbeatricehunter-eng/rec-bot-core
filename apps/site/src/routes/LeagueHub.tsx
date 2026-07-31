@@ -43,7 +43,7 @@ import "../../../web/src/styles/hub.css";
 import "../../../web/src/styles/league-management.css";
 import "../../../web/src/styles/responsive.css";
 
-type HubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
+type HubView = "buzz" | "matchups" | "team" | "store" | "wagers" | "mgmt";
 
 function viewFromPath(pathname: string): HubView {
   // Check /mgmt first — mgmt sub-routes like manage-league/teams or
@@ -53,6 +53,7 @@ function viewFromPath(pathname: string): HubView {
   if (pathname.includes("/matchups")) return "matchups";
   if (pathname.includes("/team")) return "team";
   if (pathname.includes("/store")) return "store";
+  if (pathname.includes("/wagers")) return "wagers";
   return "buzz";
 }
 
@@ -135,6 +136,7 @@ function HubHomeBridge({ view }: { view: Exclude<HubView, "mgmt"> }) {
     if (view === "matchups") return { section: "league", subTab: "matchups" };
     if (view === "team") return { section: "team", subTab: null as string | null };
     if (view === "store") return { section: "store", subTab: null as string | null };
+    if (view === "wagers") return { section: "wagers", subTab: null as string | null };
     return { section: "league", subTab: "buzz" };
   }, [view]);
 
