@@ -14,6 +14,7 @@ export type ChatMessageRow = {
   body: string;
   createdAt: string;
   editedAt: string | null;
+  replyToMessageId: string | null;
 };
 
 export type ChatChannelSummary = {

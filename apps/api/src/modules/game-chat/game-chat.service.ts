@@ -59,7 +59,7 @@ export async function getGameChatMessages(input: { guildId: string; gameChannelI
   await requireGameChannelInLeague(input.guildId, input.gameChannelId);
   const { data, error } = await supabase
     .from("rec_game_chat_messages")
-    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,edited_at")
+    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,edited_at,reply_to_message_id")
     .eq("game_channel_id", input.gameChannelId)
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
@@ -99,7 +99,7 @@ export async function deleteGameChatMessage(input: { guildId: string; discordId:
   return { ok: true as const };
 }
 
-export async function sendGameChatMessage(input: { guildId: string; discordId: string; gameChannelId: string; body: string }) {
+export async function sendGameChatMessage(input: { guildId: string; discordId: string; gameChannelId: string; body: string; replyToMessageId?: string | null }) {
   const trimmed = input.body.trim();
   if (!trimmed) throw new ApiError(400, "Message can't be empty.");
   if (trimmed.length > 2000) throw new ApiError(400, "Message is too long (2000 characters max).");
@@ -118,8 +118,9 @@ export async function sendGameChatMessage(input: { guildId: string; discordId: s
       is_discord_only: author.isDiscordOnly,
       source: "site",
       body: trimmed,
+      reply_to_message_id: input.replyToMessageId ?? null,
     })
-    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at")
+    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,body,created_at,reply_to_message_id")
     .single();
   if (error) throw new ApiError(500, "Failed to send game chat message.", error);
 

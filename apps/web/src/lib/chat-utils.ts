@@ -18,6 +18,7 @@ export function toChatMessageRow(raw: Record<string, unknown>): ChatMessageRow {
     body: String(raw.body ?? ""),
     createdAt: String(raw.created_at),
     editedAt: (raw.edited_at as string | null) ?? null,
+    replyToMessageId: (raw.reply_to_message_id as string | null) ?? null,
   };
 }
 

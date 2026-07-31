@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChatMessageRow } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { toChatMessageRow } from "../../lib/chat-utils.js";
 import type { GameChatChannel, GameChatMessage, HubMatchupDetail, LeagueChatMember, LeagueChatMessage, MentionableList } from "../../types/api.js";
@@ -120,15 +121,18 @@ export function LeagueChatPanel({
   );
 
   const conversationMessages = useMemo(() => messages.map((m) => toChatMessageRow(m as unknown as Record<string, unknown>)), [messages]);
+  const [replyTarget, setReplyTarget] = useState<ChatMessageRow | null>(null);
 
   async function handleSend(body: string) {
     setSending(true);
     setError(null);
     try {
+      const replyToMessageId = replyTarget?.id ?? null;
       const res = activeChannel === "league"
-        ? await recApi.postLeagueChatMessage({ guildId, body })
-        : await recApi.postGameChatMessage({ guildId, gameChannelId: activeChannel, body });
+        ? await recApi.postLeagueChatMessage({ guildId, body, replyToMessageId })
+        : await recApi.postGameChatMessage({ guildId, gameChannelId: activeChannel, body, replyToMessageId });
       setMessages((prev) => (prev.some((m) => m.id === res.message.id) ? prev : [...prev, res.message]));
+      setReplyTarget(null);
       pollMessages();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.");
@@ -157,7 +161,7 @@ export function LeagueChatPanel({
   return (
     <div className="hub-league-chat">
       <div className="hub-league-chat-channels">
-        <Button variant={activeChannel === "league" ? "primary" : "secondary"} size="compact" onClick={() => setActiveChannel("league")}>
+        <Button variant={activeChannel === "league" ? "primary" : "secondary"} size="compact" onClick={() => { setActiveChannel("league"); setReplyTarget(null); }}>
           League
         </Button>
         {channels.map((channel) => (
@@ -165,7 +169,7 @@ export function LeagueChatPanel({
             key={channel.gameChannelId}
             variant={activeChannel === channel.gameChannelId ? "primary" : "secondary"}
             size="compact"
-            onClick={() => setActiveChannel(channel.gameChannelId)}
+            onClick={() => { setActiveChannel(channel.gameChannelId); setReplyTarget(null); }}
           >
             {channel.label}
           </Button>
@@ -230,8 +234,15 @@ export function LeagueChatPanel({
           messageClassName={(m) => (m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message")}
           onEditMessage={handleEdit}
           onDeleteMessage={(messageId) => void handleDelete(messageId)}
+          onReplyMessage={setReplyTarget}
         />
-        <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} />
+        <Composer
+          onSend={handleSend}
+          sending={sending}
+          mentionOptions={mentionOptions}
+          replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
+          onCancelReply={() => setReplyTarget(null)}
+        />
       </div>
 
       {boxScoreUploadOpen && matchupDetail && (

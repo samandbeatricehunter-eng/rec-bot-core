@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ChatMessageRow } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import { toChatMessageRow } from "../../../lib/chat-utils.js";
@@ -40,6 +41,7 @@ export function CommissionerChatHome() {
   const [showPollComposer, setShowPollComposer] = useState(false);
 
   const [mentionable, setMentionable] = useState<MentionableList | null>(null);
+  const [replyTarget, setReplyTarget] = useState<ChatMessageRow | null>(null);
 
   function pollMessages() {
     if (pollInFlightRef.current) return;
@@ -81,8 +83,9 @@ export function CommissionerChatHome() {
     setSending(true);
     setError(null);
     try {
-      const res = await recApi.postChatMessage({ guildId, body });
+      const res = await recApi.postChatMessage({ guildId, body, replyToMessageId: replyTarget?.id ?? null });
       setMessages((prev) => prev.some((message) => message.id === res.message.id) ? prev : [...prev, res.message]);
+      setReplyTarget(null);
       pollMessages();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.");
@@ -157,8 +160,16 @@ export function CommissionerChatHome() {
             channelType="commissioner"
             onEditMessage={handleEditMessage}
             onDeleteMessage={(messageId) => void handleDeleteMessage(messageId)}
+            onReplyMessage={setReplyTarget}
           />
-          <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} placeholder="Message… (@ to mention a commissioner)" />
+          <Composer
+            onSend={handleSend}
+            sending={sending}
+            mentionOptions={mentionOptions}
+            placeholder="Message… (@ to mention a commissioner)"
+            replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
+            onCancelReply={() => setReplyTarget(null)}
+          />
         </div>
       )}
 

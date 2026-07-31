@@ -54,6 +54,8 @@ function MessageRow({
   onToggleReaction,
   onEdit,
   onDelete,
+  onReply,
+  replyParent,
 }: {
   message: ChatMessageRow;
   viewerDiscordId: string;
@@ -63,6 +65,10 @@ function MessageRow({
   onToggleReaction: ((emojiKey: string) => void) | null;
   onEdit: ((body: string) => Promise<void>) | null;
   onDelete: (() => void) | null;
+  onReply: (() => void) | null;
+  /** The parent message being replied to, if it's still in the currently loaded batch —
+   * older chat history isn't fetched just to resolve a reply preview. */
+  replyParent: ChatMessageRow | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body);
@@ -82,6 +88,11 @@ function MessageRow({
 
   return (
     <div>
+      {message.replyToMessageId && (
+        <div className="chat-reply-quote">
+          ↳ {replyParent ? `${replyParent.authorDisplayName ?? "REC Member"}: ${replyParent.body}` : "original message"}
+        </div>
+      )}
       <span
         style={{
           fontWeight: 700,
@@ -98,14 +109,19 @@ function MessageRow({
       )}
       <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}> {formatLocalTime(message.createdAt)}</span>
       {message.editedAt && <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}> (edited)</span>}
-      {isMine && (onEdit || onDelete) && !editing && (
+      {!editing && (onReply || (isMine && (onEdit || onDelete))) && (
         <span className="chat-message-owner-actions">
-          {onEdit && (
+          {onReply && (
+            <button type="button" onClick={onReply}>
+              Reply
+            </button>
+          )}
+          {isMine && onEdit && (
             <button type="button" onClick={() => { setDraft(message.body); setEditing(true); }}>
               Edit
             </button>
           )}
-          {onDelete && (
+          {isMine && onDelete && (
             <button
               type="button"
               onClick={() => {
@@ -146,6 +162,7 @@ export function ConversationView({
   channelType,
   onEditMessage,
   onDeleteMessage,
+  onReplyMessage,
 }: {
   messages: ChatMessageRow[];
   viewerDiscordId: string;
@@ -161,6 +178,7 @@ export function ConversationView({
    * omitting these just means no caller has wired the action yet, not a missing feature. */
   onEditMessage?: (messageId: string, body: string) => Promise<void>;
   onDeleteMessage?: (messageId: string) => void;
+  onReplyMessage?: (message: ChatMessageRow) => void;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const messageIds = messages.map((m) => m.id);
@@ -188,6 +206,8 @@ export function ConversationView({
           onToggleReaction={reactionsEnabled ? (emojiKey) => void toggle(m.id, emojiKey) : null}
           onEdit={onEditMessage ? (body) => onEditMessage(m.id, body) : null}
           onDelete={onDeleteMessage ? () => onDeleteMessage(m.id) : null}
+          onReply={onReplyMessage ? () => onReplyMessage(m) : null}
+          replyParent={m.replyToMessageId ? messages.find((candidate) => candidate.id === m.replyToMessageId) ?? null : null}
         />
       ))}
       {messages.length === 0 && <p className="hub-empty">No messages yet — say hello.</p>}

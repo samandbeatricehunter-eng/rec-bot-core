@@ -99,7 +99,7 @@ export async function listLeagueChatMessages(guildId: string, sinceIso?: string 
   const context = await getCurrentLeagueContext(guildId);
   let query = supabase
     .from("rec_league_chat_messages")
-    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at,edited_at")
+    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at,edited_at,reply_to_message_id")
     .eq("league_id", context.leagueId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -141,7 +141,7 @@ export async function deleteLeagueChatMessage(input: { guildId: string; discordI
   return { ok: true as const };
 }
 
-export async function postLeagueChatMessage(input: { guildId: string; discordId: string; body: string }) {
+export async function postLeagueChatMessage(input: { guildId: string; discordId: string; body: string; replyToMessageId?: string | null }) {
   const trimmed = input.body.trim();
   if (!trimmed) throw new ApiError(400, "Message can't be empty.");
   if (trimmed.length > 2000) throw new ApiError(400, "Message is too long (2000 characters max).");
@@ -159,8 +159,9 @@ export async function postLeagueChatMessage(input: { guildId: string; discordId:
       author_display_name: author.displayName,
       is_discord_only: author.isDiscordOnly,
       body: trimmed,
+      reply_to_message_id: input.replyToMessageId ?? null,
     })
-    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at")
+    .select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,body,created_at,reply_to_message_id")
     .single();
   if (error) throw new ApiError(500, "Failed to post message.", error);
   const mainChatChannelId = (context.routes as any)?.main_chat_channel_id as string | null | undefined;

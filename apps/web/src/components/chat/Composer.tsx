@@ -7,11 +7,17 @@ export function Composer({
   sending,
   mentionOptions,
   placeholder = "Message… (@ to mention someone)",
+  replyTo,
+  onCancelReply,
 }: {
   onSend: (body: string) => Promise<void> | void;
   sending: boolean;
   mentionOptions: Array<{ token: string; label: string }>;
   placeholder?: string;
+  /** Purely visual — the actual reply-to id is threaded through onSend's closure by the
+   * caller, not through this prop, so Composer's onSend signature never has to change. */
+  replyTo?: { preview: string } | null;
+  onCancelReply?: () => void;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -40,6 +46,14 @@ export function Composer({
 
   return (
     <div className="commissioner-chat-composer">
+      {replyTo && (
+        <div className="chat-reply-preview">
+          <span>Replying to: {replyTo.preview}</span>
+          <button type="button" onClick={onCancelReply} aria-label="Cancel reply">
+            ×
+          </button>
+        </div>
+      )}
       {mentionMatches.length > 0 && (
         <div
           className="card"

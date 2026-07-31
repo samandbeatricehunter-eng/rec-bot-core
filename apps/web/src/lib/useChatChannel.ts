@@ -11,10 +11,10 @@ async function fetchChannelMessages(guildId: string, channelType: ChatChannelTyp
   return recApi.listChatMessages({ guildId });
 }
 
-async function sendChannelMessage(guildId: string, channelType: ChatChannelType, channelId: string, body: string) {
-  if (channelType === "league") return recApi.postLeagueChatMessage({ guildId, body });
-  if (channelType === "game") return recApi.postGameChatMessage({ guildId, gameChannelId: channelId, body });
-  return recApi.postChatMessage({ guildId, body });
+async function sendChannelMessage(guildId: string, channelType: ChatChannelType, channelId: string, body: string, replyToMessageId?: string | null) {
+  if (channelType === "league") return recApi.postLeagueChatMessage({ guildId, body, replyToMessageId });
+  if (channelType === "game") return recApi.postGameChatMessage({ guildId, gameChannelId: channelId, body, replyToMessageId });
+  return recApi.postChatMessage({ guildId, body, replyToMessageId });
 }
 
 async function editChannelMessage(guildId: string, channelType: ChatChannelType, messageId: string, body: string) {
@@ -84,12 +84,12 @@ export function useChatChannel(input: {
   }, [guildId, channelType, channelId]);
 
   const sendMessage = useCallback(
-    async (body: string) => {
+    async (body: string, replyToMessageId?: string | null) => {
       if (!active || !channelType || !channelId) return;
       setSending(true);
       setError(null);
       try {
-        const res = await sendChannelMessage(guildId, channelType, channelId, body);
+        const res = await sendChannelMessage(guildId, channelType, channelId, body, replyToMessageId);
         const row = toChatMessageRow(res.message as unknown as Record<string, unknown>);
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
         fetchMessages();

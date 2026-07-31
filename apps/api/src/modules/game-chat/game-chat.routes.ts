@@ -30,10 +30,10 @@ export async function gameChatRoutes(app: FastifyInstance) {
 
   app.post("/v1/game-chat/messages/post", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), gameChannelId: z.string().uuid(), body: z.string().min(1).max(2000) }).parse(request.body);
+      const body = z.object({ guildId: z.string().min(1), gameChannelId: z.string().uuid(), body: z.string().min(1).max(2000), replyToMessageId: z.string().uuid().optional().nullable() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Game chat requires a user session."));
-      return reply.send(await sendGameChatMessage({ guildId: body.guildId, discordId: auth.discordId, gameChannelId: body.gameChannelId, body: body.body }));
+      return reply.send(await sendGameChatMessage({ guildId: body.guildId, discordId: auth.discordId, gameChannelId: body.gameChannelId, body: body.body, replyToMessageId: body.replyToMessageId }));
     } catch (error) {
       return sendError(reply, error);
     }

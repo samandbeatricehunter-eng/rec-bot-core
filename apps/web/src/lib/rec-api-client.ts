@@ -527,7 +527,7 @@ export const recApi = {
   // Commissioner Chat + Voting
   listChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>
     recApiFetch<{ messages: ChatMessage[] }>("/v1/commissioner-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
-  postChatMessage: (input: { guildId: string; body: string }) =>
+  postChatMessage: (input: { guildId: string; body: string; replyToMessageId?: string | null }) =>
     recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
   editChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
     recApiFetch<{ message: ChatMessage }>("/v1/commissioner-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
@@ -551,7 +551,7 @@ export const recApi = {
   // League Chat + Game Chat (Campus Buzz "Chat" tab)
   listLeagueChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>
     recApiFetch<{ messages: LeagueChatMessage[] }>("/v1/league-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
-  postLeagueChatMessage: (input: { guildId: string; body: string }) =>
+  postLeagueChatMessage: (input: { guildId: string; body: string; replyToMessageId?: string | null }) =>
     recApiFetch<{ message: LeagueChatMessage }>("/v1/league-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
   editLeagueChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
     recApiFetch<{ message: LeagueChatMessage }>("/v1/league-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),
@@ -565,7 +565,7 @@ export const recApi = {
     recApiFetch<{ channels: GameChatChannel[] }>("/v1/game-chat/channels/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   listGameChatMessages: (input: { guildId: string; gameChannelId: string }) =>
     recApiFetch<{ messages: GameChatMessage[] }>("/v1/game-chat/messages/list", { method: "POST", body: JSON.stringify(input) }),
-  postGameChatMessage: (input: { guildId: string; gameChannelId: string; body: string }) =>
+  postGameChatMessage: (input: { guildId: string; gameChannelId: string; body: string; replyToMessageId?: string | null }) =>
     recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/post", { method: "POST", body: JSON.stringify(input) }),
   editGameChatMessage: (input: { guildId: string; messageId: string; body: string }) =>
     recApiFetch<{ message: GameChatMessage }>("/v1/game-chat/messages/edit", { method: "POST", body: JSON.stringify(input) }),

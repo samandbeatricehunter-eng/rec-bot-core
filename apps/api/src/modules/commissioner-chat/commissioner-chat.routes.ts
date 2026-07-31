@@ -21,10 +21,10 @@ export async function commissionerChatRoutes(app: FastifyInstance) {
 
   app.post("/v1/commissioner-chat/messages/post", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), body: z.string().min(1).max(2000) }).parse(request.body);
+      const body = z.object({ guildId: z.string().min(1), body: z.string().min(1).max(2000), replyToMessageId: z.string().uuid().optional().nullable() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Commissioner chat requires a user session."));
-      return reply.send(await postChatMessage({ guildId: body.guildId, discordId: auth.discordId, body: body.body }));
+      return reply.send(await postChatMessage({ guildId: body.guildId, discordId: auth.discordId, body: body.body, replyToMessageId: body.replyToMessageId }));
     } catch (error) {
       return sendError(reply, error);
     }

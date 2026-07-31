@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
-import type { ChatChannelSummary, ChatChannelType } from "@rec/shared";
+import type { ChatChannelSummary, ChatChannelType, ChatMessageRow } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { useChatChannel } from "../../lib/useChatChannel.js";
 import { useChatDrawer } from "../../lib/chat-drawer-context.js";
@@ -74,6 +74,7 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
     channelId: selected?.channelId ?? null,
     onLatestMessageId: handleLatestMessageId,
   });
+  const [replyTarget, setReplyTarget] = useState<ChatMessageRow | null>(null);
 
   const mentionable: MentionableList | null = useMemo(() => {
     if (selected?.channelType === "commissioner") return commissionerMentionable;
@@ -115,7 +116,7 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
               </button>
             </div>
             <div className="chat-drawer-body">
-              <ChannelList channels={channels} selectedChannelId={selected?.channelId ?? null} onSelect={(c) => setSelected({ channelType: c.type, channelId: c.id })} />
+              <ChannelList channels={channels} selectedChannelId={selected?.channelId ?? null} onSelect={(c) => { setSelected({ channelType: c.type, channelId: c.id }); setReplyTarget(null); }} />
               <div className="chat-drawer-conversation">
                 <ConversationView
                   messages={messages}
@@ -125,8 +126,18 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
                   channelType={selected?.channelType}
                   onEditMessage={editMessage}
                   onDeleteMessage={(messageId) => void deleteMessage(messageId)}
+                  onReplyMessage={setReplyTarget}
                 />
-                <Composer onSend={(body) => sendMessage(body)} sending={sending} mentionOptions={mentionOptions} />
+                <Composer
+                  onSend={async (body) => {
+                    await sendMessage(body, replyTarget?.id ?? null);
+                    setReplyTarget(null);
+                  }}
+                  sending={sending}
+                  mentionOptions={mentionOptions}
+                  replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
+                  onCancelReply={() => setReplyTarget(null)}
+                />
               </div>
             </div>
           </div>

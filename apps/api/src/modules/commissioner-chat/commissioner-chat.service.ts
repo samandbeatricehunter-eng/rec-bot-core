@@ -48,7 +48,7 @@ export async function listChatMessages(guildId: string, sinceIso?: string | null
   purgeOldMessages(guildId);
   let query = supabase
     .from("rec_commissioner_chat_messages")
-    .select("id,author_discord_id,body,created_at,edited_at")
+    .select("id,author_discord_id,body,created_at,edited_at,reply_to_message_id")
     .eq("guild_id", guildId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -105,7 +105,7 @@ export async function deleteChatMessage(input: { guildId: string; discordId: str
   return { ok: true as const };
 }
 
-export async function postChatMessage(input: { guildId: string; discordId: string; body: string }) {
+export async function postChatMessage(input: { guildId: string; discordId: string; body: string; replyToMessageId?: string | null }) {
   const trimmed = input.body.trim();
   if (!trimmed) throw new ApiError(400, "Message can't be empty.");
   if (trimmed.length > 2000) throw new ApiError(400, "Message is too long (2000 characters max).");
@@ -119,8 +119,9 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
       author_user_id: userId,
       author_discord_id: input.discordId,
       body: trimmed,
+      reply_to_message_id: input.replyToMessageId ?? null,
     })
-    .select("id,author_discord_id,body,created_at")
+    .select("id,author_discord_id,body,created_at,reply_to_message_id")
     .single();
   if (error) throw new ApiError(500, "Failed to post message.", error);
   const [usernames, liveNames] = await Promise.all([
