@@ -218,7 +218,10 @@ export type CommissionerNotificationType =
   | "team_request"
   | "media"
   | "game_of_the_year"
-  | "legend";
+  | "legend"
+  | "force_win_request"
+  | "autopilot_request"
+  | "matchup_issue_report";
 
 export type CommissionerNotification = {
   id: string;
@@ -516,6 +519,7 @@ export type HubMatchupSchedule = {
     winnerTeamId: string | null;
     boxScoreSubmissionId: string | null;
     boxScoreStatus: string | null;
+    boxScoreDeniedReason: string | null;
     reactionCounts: Record<"love" | "like" | "goty" | "dislike" | "poop", number>;
     myReactions: Array<"love" | "like" | "goty" | "dislike" | "poop">;
     myGotyComment?: string | null;

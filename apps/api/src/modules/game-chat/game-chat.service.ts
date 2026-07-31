@@ -172,3 +172,20 @@ export async function ingestDiscordGameChatMessage(input: {
   if (error && (error as any).code !== "23505") throw new ApiError(500, "Failed to ingest Discord game chat message.", error);
   return { ingested: true };
 }
+
+// System rows (no author) for confirmations like "Force Win requested" — not user-authored, so
+// no Discord forward. Best-effort: callers should not fail their own request if this errors.
+export async function postGameChatSystemMessage(input: { gameChannelId: string; leagueId: string; gameId: string | null; body: string }) {
+  const { error } = await supabase.from("rec_game_chat_messages").insert({
+    game_channel_id: input.gameChannelId,
+    league_id: input.leagueId,
+    game_id: input.gameId,
+    author_user_id: null,
+    author_discord_id: null,
+    author_display_name: "REC Leagues",
+    is_discord_only: false,
+    source: "system",
+    body: input.body.slice(0, 2000),
+  });
+  if (error) throw new ApiError(500, "Failed to post system message.", error);
+}

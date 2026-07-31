@@ -2,12 +2,13 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { requireInternalApiKey } from "../../lib/auth.js";
-import { sendError } from "../../lib/errors.js";
+import { ApiError, sendError } from "../../lib/errors.js";
 import {
   getCommissionerPendingSummaryForLeague,
   listCommissionerNotifications,
   listCompletedCommissionerTransactions,
   listUnattendedCommissionerNotifications,
+  markCommissionerInboxItemHandled,
   markCommissionerLeagueViewed,
   markCommissionerNotificationsDmSent,
 } from "./notifications.service.js";
@@ -73,6 +74,15 @@ export async function notificationsRoutes(app: FastifyInstance) {
       requireInternalApiKey(request);
       const body = z.object({ guildId: z.string().min(1), ids: z.array(z.string().uuid()).max(200) }).parse(request.body);
       return reply.send(await markCommissionerNotificationsDmSent(body.guildId, body.ids));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/notifications/mark-handled", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), inboxId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Marking an item handled requires a user session."));
+      return reply.send(await markCommissionerInboxItemHandled({ guildId: body.guildId, inboxId: body.inboxId, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

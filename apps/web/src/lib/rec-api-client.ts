@@ -181,6 +181,8 @@ export const recApi = {
     recApiFetch<import("../types/api.js").MatchupPreview>("/v1/hub/matchups/preview", { method: "POST", body: JSON.stringify(input) }),
   sendHubMatchupMessage: (input: { guildId: string; gameId: string; body: string }) =>
     recApiFetch<{ message: import("../types/api.js").MatchupChatMessage }>("/v1/hub/matchups/chat/send", { method: "POST", body: JSON.stringify(input) }),
+  submitMatchupHelpRequest: (input: { guildId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>
+    recApiFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
   shareHubMatchupStream: (input: { guildId: string; gameId: string; url: string }) =>
     recApiFetch<{ posted: true; streamLogId: string; watchPath: string; service: string | null }>("/v1/hub/matchups/stream/share", { method: "POST", body: JSON.stringify(input) }),
   getMyTeamSchedule: (guildId: string) =>
@@ -373,6 +375,8 @@ export const recApi = {
     recApiFetch<{ summary: CommissionerPendingSummary | null }>("/v1/notifications/pending-summary", { method: "POST", body: JSON.stringify({ guildId, discordId, leagueId }) }),
   markCommissionerLeagueViewed: (guildId: string, discordId: string, leagueId: string) =>
     recApiFetch<{ ok: true }>("/v1/notifications/mark-viewed", { method: "POST", body: JSON.stringify({ guildId, discordId, leagueId }) }),
+  markCommissionerInboxItemHandled: (input: { guildId: string; inboxId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/notifications/mark-handled", { method: "POST", body: JSON.stringify(input) }),
 
   // Notification detail/resolve actions — reviewedBy/loggedBy/reviewer placeholders are
   // required by each schema but overridden server-side from the session for browser calls,

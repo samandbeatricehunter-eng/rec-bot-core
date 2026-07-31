@@ -210,3 +210,21 @@ export async function markCommissionerNotificationsDmSent(guildId: string, ids: 
   if (error) throw new ApiError(500, "Failed to mark commissioner notification DMs.", error);
   return { updated: data?.length ?? 0 };
 }
+
+// Generic resolve action for queue_types that have no dedicated review flow of their own (e.g.
+// notification-only request types like force_win_request/autopilot_request/matchup_issue_report)
+// — every other type is resolved by its own source-specific service function instead, per this
+// module's usual "reads only" convention, but those types don't have a source table to update.
+export async function markCommissionerInboxItemHandled(input: { guildId: string; inboxId: string; reviewerDiscordId: string }) {
+  const { data, error } = await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "resolved", reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString() })
+    .eq("id", input.inboxId)
+    .eq("guild_id", input.guildId)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to update item.", error);
+  if (!data) throw new ApiError(404, "Item not found or already resolved.");
+  return { ok: true as const };
+}

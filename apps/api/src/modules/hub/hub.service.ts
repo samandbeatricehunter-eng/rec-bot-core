@@ -1395,7 +1395,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const gameIds = (games.data ?? []).map((game: any) => game.id).filter(Boolean);
   const [boxScores, gameReactionsForWeek] = await Promise.all([
     gameIds.length
-      ? supabase.from("rec_box_score_submissions").select("id,game_id,status").in("game_id", gameIds).in("status", ["pending", "approved"])
+      ? supabase.from("rec_box_score_submissions").select("id,game_id,status,denied_reason,updated_at").in("game_id", gameIds).in("status", ["pending", "approved", "denied"]).order("updated_at", { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     gameIds.length
       ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key,comment").in("game_id", gameIds)
@@ -1418,7 +1418,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       // Team identity is the durable fallback so a game's poll is never silently dropped.
       const gamePoll = pollForGame(game);
       const gameVotes = gamePoll ? votesByPollId.get(gamePoll.id) ?? [] : [];
-      const gotwHasFinal = isFinal || Boolean(boxScore);
+      const gotwHasFinal = isFinal || Boolean(boxScore && boxScore.status !== "denied");
       const gotwCanVote = Boolean(gamePoll && gamePoll.status === "open" && !gotwHasFinal);
       const gotw = gamePoll ? {
         pollId: gamePoll.id,
@@ -1459,6 +1459,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         winnerTeamId: result?.winning_team_id ?? null,
         boxScoreSubmissionId: boxScore?.id ?? null,
         boxScoreStatus: boxScore?.status ?? null,
+        boxScoreDeniedReason: boxScore?.status === "denied" ? (boxScore?.denied_reason ?? null) : null,
         reactionCounts: Object.fromEntries(["love", "like", "goty", "dislike", "poop"].map((key) => [key, gameReactionRows.filter((reaction: any) => reaction.reaction_key === key).length])),
         myReactions: gameReactionRows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key),
         myGotyComment: gameReactionRows.find((reaction: any) => reaction.user_id === userId && reaction.reaction_key === "goty")?.comment ?? null,

@@ -153,6 +153,10 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "info", message: "This active check is missing its event reference — resolve it from Discord instead." };
     case "eos_award":
       return { kind: "info", message: "This award poll is missing its poll reference — resolve it from Discord instead." };
+    case "force_win_request":
+    case "autopilot_request":
+    case "matchup_issue_report":
+      return { kind: "single", actionLabel: "Mark Handled" };
     default:
       return { kind: "info", message: "This notification type doesn't have a web resolve action yet." };
   }
@@ -189,6 +193,13 @@ async function resolveAction(
         : recApi.cancelWeeklyScoreReview({ guildId, reviewId: sourceId });
     case "wager":
       return recApi.settleWager({ guildId, wagerId: sourceId });
+    case "force_win_request":
+    case "autopilot_request":
+    case "matchup_issue_report":
+      // No dedicated review table for these — the generic handler resolves by the inbox row's
+      // own id (notification.id), not sourceId (which is the matchup's gameId, not unique
+      // per request — a game can have more than one pending help request at once).
+      return recApi.markCommissionerInboxItemHandled({ guildId, inboxId: notification.id });
     default:
       throw new Error("No resolve action for this notification type.");
   }

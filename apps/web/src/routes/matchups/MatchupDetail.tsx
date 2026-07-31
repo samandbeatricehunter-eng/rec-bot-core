@@ -8,6 +8,7 @@ import {
   ClipboardList,
   Coins,
   Film,
+  LifeBuoy,
   MessageCircle,
   Radio,
   Send,
@@ -34,6 +35,7 @@ import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScore
 import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
+import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
 
 type WagerMode = "single" | "parlay" | "peer";
 type WagerLeg = {
@@ -95,6 +97,7 @@ export function MatchupActions({
   onOpenShareStream,
   onUploadHighlight,
   highlightUploading,
+  onOpenRequestHelp,
 }: {
   matchup: HubMatchupGame;
   canUploadBoxScore: boolean;
@@ -104,10 +107,13 @@ export function MatchupActions({
   onOpenShareStream: () => void;
   onUploadHighlight: () => void;
   highlightUploading: boolean;
+  /** Optional so LeagueChatPanel's embedded MatchupActions (no Request Help there yet) doesn't
+   * need updating too — omit the prop and the button just doesn't render. */
+  onOpenRequestHelp?: () => void;
 }) {
   const isParticipant = matchup.involvesMe;
   const canOpenBoxScore = canUploadBoxScore;
-  const canOpenPlayerStats = Boolean(matchup.boxScoreSubmissionId);
+  const canOpenPlayerStats = Boolean(matchup.boxScoreSubmissionId) && matchup.boxScoreStatus !== "denied";
   const canOpenWager =
     !isParticipant &&
     matchup.matchupType === "h2h" &&
@@ -160,6 +166,16 @@ export function MatchupActions({
           >
             <Film size={16} /> {highlightUploading ? "Uploading…" : "Upload Highlight(s)"}
           </button>
+          {onOpenRequestHelp && (
+            <button
+              type="button"
+              className="matchup-action"
+              onClick={onOpenRequestHelp}
+              title="Request a Force Win, request opponent AutoPilot, or report an issue with this matchup."
+            >
+              <LifeBuoy size={16} /> Request Help
+            </button>
+          )}
         </>
       ) : (
         <button
@@ -198,6 +214,7 @@ export function MatchupDetailPage() {
   const [playerStatsOpen, setPlayerStatsOpen] = useState(false);
   const [highlightUploadOpen, setHighlightUploadOpen] = useState(false);
   const [shareStreamOpen, setShareStreamOpen] = useState(false);
+  const [requestHelpOpen, setRequestHelpOpen] = useState(false);
   const [reactionBusy, setReactionBusy] = useState(false);
 
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
@@ -581,7 +598,8 @@ export function MatchupDetailPage() {
   const canUploadBoxScore = Boolean(
     seasonNumber != null &&
       !matchup.isFinal &&
-      !Boolean(matchup.boxScoreSubmissionId) &&
+      matchup.boxScoreStatus !== "pending" &&
+      matchup.boxScoreStatus !== "approved" &&
       canViewerUploadBoxScore(matchup),
   );
   const apiBaseUrl =
@@ -709,10 +727,30 @@ export function MatchupDetailPage() {
         onOpenShareStream={() => setShareStreamOpen(true)}
         onUploadHighlight={() => setHighlightUploadOpen(true)}
         highlightUploading={false}
+        onOpenRequestHelp={() => setRequestHelpOpen(true)}
       />
-      <section className="matchup-boxscore-reminder">
-        <strong>Box score reminder</strong>
-        <p>{boxScoreExpectationText(matchup)}</p>
+      <section className={`matchup-boxscore-status matchup-boxscore-status--${matchup.boxScoreStatus ?? "none"}`}>
+        {matchup.boxScoreStatus === "pending" ? (
+          <>
+            <strong>Awaiting Review</strong>
+            <p>Submitted — a commissioner will review shortly.</p>
+          </>
+        ) : matchup.boxScoreStatus === "approved" ? (
+          <p className="matchup-boxscore-status__confirm">Box score approved.</p>
+        ) : matchup.boxScoreStatus === "denied" ? (
+          <>
+            <strong>Resubmission Required</strong>
+            <p>
+              Box score rejected{matchup.boxScoreDeniedReason ? `: ${matchup.boxScoreDeniedReason}` : "."} You can
+              resubmit below.
+            </p>
+          </>
+        ) : (
+          <>
+            <strong>Box score reminder</strong>
+            <p>{boxScoreExpectationText(matchup)}</p>
+          </>
+        )}
       </section>
       <div className="matchup-detail-grid">
         <section className="matchup-detail-panel">
@@ -800,6 +838,18 @@ export function MatchupDetailPage() {
           onClose={() => setShareStreamOpen(false)}
           onSubmitted={() => {
             setShareStreamOpen(false);
+            void load();
+          }}
+        />
+      )}
+
+      {requestHelpOpen && (
+        <RequestHelpSheet
+          matchup={matchup}
+          guildId={guildId}
+          onClose={() => setRequestHelpOpen(false)}
+          onSubmitted={() => {
+            setRequestHelpOpen(false);
             void load();
           }}
         />
