@@ -311,6 +311,7 @@ export type EosAwardVotingPoll = {
   nominees: Array<EosAwardNominee & { votes: number }>;
   myVote: string | null;
 };
+export type EosBallotSessionInfo = { status: "draft" | "submitted"; lastPollId: string | null; submittedAt: string | null };
 
 // Delete League (Phase 2)
 export type LeagueWeekView = {

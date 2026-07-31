@@ -436,6 +436,68 @@ export async function castEosAwardVote(input: { guildId: string; discordId: stri
   return { ok: true };
 }
 
+export type EosBallotSessionInfo = { status: "draft" | "submitted"; lastPollId: string | null; submittedAt: string | null };
+
+async function resolveEosVoterUserId(discordId: string): Promise<string | null> {
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
+  return account.data?.user_id ?? null;
+}
+
+// Ballot-session tracking layered on top of the per-category auto-save above (castEosAwardVote)
+// — resume position (last_poll_id) and an explicit submitted milestone, not a duplicate of the
+// vote data itself.
+export async function getOrStartEosBallotSession(guildId: string, discordId: string): Promise<EosBallotSessionInfo | null> {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const userId = await resolveEosVoterUserId(discordId);
+  if (!userId) return null;
+
+  const existing = await supabase
+    .from("rec_eos_ballot_sessions")
+    .select("status,last_poll_id,submitted_at")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("voter_user_id", userId)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "Failed to load ballot session.", existing.error);
+  if (existing.data) return { status: existing.data.status, lastPollId: existing.data.last_poll_id, submittedAt: existing.data.submitted_at };
+
+  const inserted = await supabase
+    .from("rec_eos_ballot_sessions")
+    .insert({ league_id: context.leagueId, season_number: seasonNumber, voter_user_id: userId })
+    .select("status,last_poll_id,submitted_at")
+    .single();
+  if (inserted.error) throw new ApiError(500, "Failed to start ballot session.", inserted.error);
+  return { status: inserted.data.status, lastPollId: inserted.data.last_poll_id, submittedAt: inserted.data.submitted_at };
+}
+
+export async function advanceEosBallotSession(input: { guildId: string; discordId: string; pollId: string }): Promise<{ ok: true }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const userId = await resolveEosVoterUserId(input.discordId);
+  if (!userId) throw new ApiError(404, "Discord account not linked.");
+  const { error } = await supabase.from("rec_eos_ballot_sessions").upsert(
+    { league_id: context.leagueId, season_number: seasonNumber, voter_user_id: userId, last_poll_id: input.pollId, updated_at: new Date().toISOString() },
+    { onConflict: "league_id,season_number,voter_user_id" },
+  );
+  if (error) throw new ApiError(500, "Failed to update ballot progress.", error);
+  return { ok: true };
+}
+
+export async function submitEosBallot(guildId: string, discordId: string): Promise<{ ok: true }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const userId = await resolveEosVoterUserId(discordId);
+  if (!userId) throw new ApiError(404, "Discord account not linked.");
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("rec_eos_ballot_sessions").upsert(
+    { league_id: context.leagueId, season_number: seasonNumber, voter_user_id: userId, status: "submitted", submitted_at: now, updated_at: now },
+    { onConflict: "league_id,season_number,voter_user_id" },
+  );
+  if (error) throw new ApiError(500, "Failed to submit ballot.", error);
+  return { ok: true };
+}
+
 /**
  * Drives the collapsed voting block on the hub main page: every open poll for the
  * league, this user's current pick per poll, live tallies, and whether they've voted

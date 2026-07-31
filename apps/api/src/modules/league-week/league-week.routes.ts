@@ -6,7 +6,7 @@ import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceJump, completeAdvanceWeek, getAdvanceJumpPlan, getAdvanceJumpTargets, getAdvanceWeekGames, getDivisionWinnerOptions, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, saveDivisionWinners, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
 import { adjustEosPayoutItem, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
-import { cancelOpenEosAwardPolls, castEosAwardVote, getEosAwardPoll, getEosAwardVotingBlock, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll } from "./eos-awards.service.js";
+import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { generateAdvanceDms } from "./advance-dm.service.js";
@@ -702,6 +702,41 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "user") body.discordId = auth.discordId;
       return reply.send(await castEosAwardVote(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Ballot-session tracking (resume position + submitted milestone) for the one-award-at-a-
+  // time voting flow — layered on top of the per-category votes above, not a replacement.
+  app.post("/v1/league-week/eos-awards/ballot-session", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await getOrStartEosBallotSession(body.guildId, body.discordId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/ballot-session/advance", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1), pollId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await advanceEosBallotSession(body));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/league-week/eos-awards/ballot-session/submit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      return reply.send(await submitEosBallot(body.guildId, body.discordId));
     } catch (error) {
       return sendError(reply, error);
     }

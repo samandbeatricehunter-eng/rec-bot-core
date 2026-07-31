@@ -22,6 +22,7 @@ import type {
   DivisionWinnerOptions,
   EosAwardPoll,
   EosAwardVotingPoll,
+  EosBallotSessionInfo,
   GotwCandidate,
   GotwPollStatus,
   PendingEosLedgers,
@@ -268,6 +269,12 @@ export const recApi = {
     recApiFetch<{ polls: EosAwardVotingPoll[]; hasVotedAll: boolean }>("/v1/league-week/eos-awards/voting-block", { method: "POST", body: JSON.stringify(input) }),
   castEosAwardVote: (input: { guildId: string; discordId: string; pollId: string; nomineeUserId: string }) =>
     recApiFetch<{ ok: true }>("/v1/league-week/eos-awards/vote", { method: "POST", body: JSON.stringify(input) }),
+  getEosBallotSession: (input: { guildId: string; discordId: string }) =>
+    recApiFetch<EosBallotSessionInfo | null>("/v1/league-week/eos-awards/ballot-session", { method: "POST", body: JSON.stringify(input) }),
+  advanceEosBallotSession: (input: { guildId: string; discordId: string; pollId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/league-week/eos-awards/ballot-session/advance", { method: "POST", body: JSON.stringify(input) }),
+  submitEosBallot: (input: { guildId: string; discordId: string }) =>
+    recApiFetch<{ ok: true }>("/v1/league-week/eos-awards/ballot-session/submit", { method: "POST", body: JSON.stringify(input) }),
   linkUserToTeam: (input: { guildId: string; discordId: string; teamId: string }) =>
     recApiFetch<unknown>(REC_API_ROUTES.linkUserToTeam, { method: "POST", body: JSON.stringify(input) }),
   unlinkTeam: (input: { guildId: string; teamId: string }) =>
