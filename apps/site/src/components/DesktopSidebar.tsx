@@ -38,7 +38,7 @@ export function DesktopSidebar() {
         <span className="site-sidebar-brand-mark">REC</span>
         <span className="site-sidebar-brand-name">Leagues</span>
       </div>
-      <BottomNav variant="global" layout="sidebar" />
+      <BottomNav layout="sidebar" />
       <div className="site-sidebar-nav">
         <NavLink
           to="/help"

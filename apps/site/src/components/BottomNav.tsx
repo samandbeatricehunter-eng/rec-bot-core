@@ -1,19 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../lib/auth-context.js";
-import { useHub } from "../lib/hub-context.js";
+import { useSiteActivity } from "../lib/site-activity-context.js";
 import {
   IconAccount,
-  IconBuzz,
   IconComp,
   IconHome,
+  IconInbox,
   IconLeagues,
-  IconMatchups,
-  IconMgmt,
   IconMore,
-  IconRetire,
-  IconStore,
-  IconTeam,
 } from "./icons.js";
 
 type NavItem = {
@@ -21,10 +16,10 @@ type NavItem = {
   label: string;
   to?: string;
   icon: ReactNode;
-  action?: "retire" | "more";
+  action?: "more";
+  badge?: number;
 };
 
-export type BottomNavVariant = "auto" | "global" | "league";
 export type BottomNavLayout = "bottom" | "sidebar";
 
 function isActivePath(pathname: string, to: string) {
@@ -32,11 +27,15 @@ function isActivePath(pathname: string, to: string) {
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
-function globalItems(): NavItem[] {
+// One constant global nav — Home/Leagues/Comp/Messages/(More|Account) — for every scope,
+// including inside a league. League-specific navigation (Buzz/Matchups/Team/Store/Mgmt) lives
+// in LeagueTopNav, rendered in the page body by league-scoped routes, not swapped in here.
+function globalItems(unreadMessages: number): NavItem[] {
   return [
     { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
     { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
     { key: "comp", label: "Comp (BETA)", to: "/comp", icon: <IconComp /> },
+    { key: "messages", label: "Messages", to: "/inbox", icon: <IconInbox />, badge: unreadMessages },
     {
       key: "account",
       label: "My Account",
@@ -46,85 +45,19 @@ function globalItems(): NavItem[] {
   ];
 }
 
-function buzzLabelForGame(game: string | null | undefined): string {
-  if (game && game.startsWith("madden")) return "Breaking News";
-  return "Campus Buzz";
-}
-
-function leagueItems(leagueId: string, isCommissioner: boolean, game?: string | null): NavItem[] {
-  return [
-    {
-      key: "buzz",
-      label: buzzLabelForGame(game),
-      to: `/l/${leagueId}/buzz`,
-      icon: <IconBuzz />,
-    },
-    {
-      key: "matchups",
-      label: "Matchups",
-      to: `/l/${leagueId}/matchups`,
-      icon: <IconMatchups />,
-    },
-    {
-      key: "team",
-      label: "My Team",
-      to: `/l/${leagueId}/team`,
-      icon: <IconTeam />,
-    },
-    {
-      key: "store",
-      label: "Store",
-      to: `/l/${leagueId}/store`,
-      icon: <IconStore />,
-    },
-    isCommissioner
-      ? {
-          key: "mgmt",
-          label: "League Mgmt",
-          to: `/l/${leagueId}/mgmt`,
-          icon: <IconMgmt />,
-        }
-      : {
-          key: "retire",
-          label: "Retire",
-          icon: <IconRetire />,
-          action: "retire",
-        },
-  ];
-}
-
-export function BottomNav({
-  variant = "auto",
-  layout = "bottom",
-}: {
-  variant?: BottomNavVariant;
-  layout?: BottomNavLayout;
-}) {
-  const hub = useHub();
+export function BottomNav({ layout = "bottom" }: { layout?: BottomNavLayout }) {
   const auth = useAuth();
+  const { counts } = useSiteActivity();
   const location = useLocation();
-  const [retireOpen, setRetireOpen] = useState(false);
-  const [retireBusy, setRetireBusy] = useState(false);
-  const [retireError, setRetireError] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [signOutBusy, setSignOutBusy] = useState(false);
 
-  const leagueId =
-    hub.scope.kind === "league" ? hub.scope.leagueId : null;
-  const isCommissioner = hub.selectedLeague?.isCommissioner ?? false;
-
-  const useLeague =
-    variant === "league" ||
-    (variant === "auto" && leagueId != null);
-  const baseItems: NavItem[] =
-    useLeague && leagueId != null
-      ? leagueItems(leagueId, isCommissioner, hub.selectedLeague?.game)
-      : globalItems();
+  const baseItems: NavItem[] = globalItems(counts.unreadMessages);
   // On the mobile bottom bar (not the desktop sidebar, which has room to show every item
-  // directly), the global scope's last slot becomes a "More" popup instead of a direct link
-  // to My Account — that's where My Account, Help/FAQ, and Log Out live instead.
+  // directly), the last slot becomes a "More" popup instead of a direct link to My Account —
+  // that's where My Account, Help/FAQ, and Log Out live instead.
   const items: NavItem[] =
-    !useLeague && layout === "bottom"
+    layout === "bottom"
       ? [...baseItems.slice(0, -1), { key: "more", label: "More", icon: <IconMore />, action: "more" }]
       : baseItems;
 
@@ -139,30 +72,12 @@ export function BottomNav({
   }
 
   const showLabelsAlways = layout === "sidebar";
-  const navClass =
-    layout === "sidebar" ? "site-sidebar-nav" : "site-bottom-nav";
-  const btnClass =
-    layout === "sidebar" ? "site-sidebar-nav-btn" : "site-bottom-nav-btn";
-
-  async function confirmRetire() {
-    if (!leagueId) return;
-    setRetireBusy(true);
-    setRetireError(null);
-    try {
-      await hub.retireFromLeague(leagueId);
-      setRetireOpen(false);
-    } catch (error) {
-      setRetireError(
-        error instanceof Error ? error.message : "Failed to retire.",
-      );
-    } finally {
-      setRetireBusy(false);
-    }
-  }
+  const navClass = layout === "sidebar" ? "site-sidebar-nav" : "site-bottom-nav";
+  const btnClass = layout === "sidebar" ? "site-sidebar-nav-btn" : "site-bottom-nav-btn";
 
   return (
     <>
-      <nav className={navClass} aria-label={useLeague ? "League" : "Global"}>
+      <nav className={navClass} aria-label="Global">
         {items.map((item) => {
           if (item.action === "more") {
             const active = moreOpen;
@@ -171,9 +86,7 @@ export function BottomNav({
                 key={item.key}
                 type="button"
                 aria-expanded={active}
-                className={[btnClass, active ? "is-active" : ""]
-                  .filter(Boolean)
-                  .join(" ")}
+                className={[btnClass, active ? "is-active" : ""].filter(Boolean).join(" ")}
                 onClick={() => setMoreOpen((value) => !value)}
               >
                 {item.icon}
@@ -181,52 +94,21 @@ export function BottomNav({
               </button>
             );
           }
-          if (item.action === "retire") {
-            const active = retireOpen;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={[btnClass, active ? "is-active" : ""]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={() => {
-                  setRetireError(null);
-                  setRetireOpen(true);
-                }}
-              >
-                {item.icon}
-                {showLabelsAlways || active ? <span>{item.label}</span> : null}
-              </button>
-            );
-          }
           const to = item.to!;
-          // On league routes, only MY LEAGUES (and league bottom nav) own active state.
-          const onLeagueRoute = location.pathname.startsWith("/l/");
-          let active =
-            !useLeague && onLeagueRoute
-              ? false
-              : isActivePath(location.pathname, to);
+          const active = isActivePath(location.pathname, to);
           return (
             <NavLink
               key={item.key}
               to={to}
               end={item.key === "home" || item.key === "leagues"}
-              className={[btnClass, active ? "is-active" : ""]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={(event) => {
-                if (!useLeague && hub.scope.kind === "league") {
-                  event.preventDefault();
-                  if (item.key === "home") {
-                    hub.selectMainHub();
-                    return;
-                  }
-                  hub.exitToMain(to);
-                }
-              }}
+              className={[btnClass, active ? "is-active" : ""].filter(Boolean).join(" ")}
             >
-              {item.icon}
+              <span className="site-bottom-nav-icon-wrap">
+                {item.icon}
+                {item.badge ? (
+                  <span className="site-bottom-nav-badge">{item.badge > 9 ? "9+" : item.badge}</span>
+                ) : null}
+              </span>
               {showLabelsAlways || active ? <span>{item.label}</span> : null}
             </NavLink>
           );
@@ -257,50 +139,6 @@ export function BottomNav({
             >
               {signOutBusy ? "Logging out…" : "Log Out"}
             </button>
-          </div>
-        </div>
-      ) : null}
-
-      {retireOpen ? (
-        <div
-          className="site-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="retire-title"
-        >
-          <button
-            type="button"
-            className="site-modal-backdrop"
-            aria-label="Close"
-            onClick={() => (!retireBusy ? setRetireOpen(false) : undefined)}
-          />
-          <div className="site-modal-panel">
-            <h2 id="retire-title">Retire from league?</h2>
-            <p>
-              Are you sure you want to retire from this league? Your team will
-              become open.
-            </p>
-            {retireError ? (
-              <p className="site-auth-error">{retireError}</p>
-            ) : null}
-            <div className="site-modal-actions">
-              <button
-                type="button"
-                className="site-btn site-btn-ghost"
-                disabled={retireBusy}
-                onClick={() => setRetireOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="site-btn site-btn-primary"
-                disabled={retireBusy}
-                onClick={() => void confirmRetire()}
-              >
-                {retireBusy ? "Retiring..." : "Retire"}
-              </button>
-            </div>
           </div>
         </div>
       ) : null}

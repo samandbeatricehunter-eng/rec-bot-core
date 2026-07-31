@@ -4,6 +4,7 @@ import { useAuth as useSiteAuth } from "../lib/auth-context.js";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
 import { IconBack } from "../components/icons.js";
+import { LeagueTopNav } from "../components/LeagueTopNav.js";
 import {
   AdvanceHome,
   ChatDrawerProvider,
@@ -305,6 +306,7 @@ export function LeagueHubPage() {
           <HubChromeProvider embedded>
             <ChatDrawerProvider>
               <LeagueThemeProvider game={gameTheme}>
+                <LeagueTopNav leagueId={leagueId} />
                 <HubErrorBoundary>
                   {/\/matchups\/[^/]+$/.test(location.pathname) ? (
                     <MatchupDetailPage />

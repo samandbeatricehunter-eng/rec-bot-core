@@ -3,7 +3,6 @@ import { BottomNav } from "./BottomNav.js";
 import { DesktopSidebar } from "./DesktopSidebar.js";
 import { ImpersonationBanner } from "./ImpersonationBanner.js";
 import { LeagueSelector } from "./LeagueSelector.js";
-import { MessagesLink } from "./MessagesLink.js";
 import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
 import { SiteFooter } from "./SiteFooter.js";
@@ -34,7 +33,6 @@ export function SiteShell({ children }: { children: ReactNode }) {
           )}
         </div>
         <div className="site-top-bar-end">
-          <MessagesLink />
           <NotificationsBell />
           <ProfileChip />
         </div>
@@ -49,14 +47,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
 
       <div className="site-chrome-stack site-chrome-stack-mobile">
         <LeagueSelector />
-        <BottomNav variant="auto" />
+        <BottomNav />
       </div>
-
-      {isLeague ? (
-        <div className="site-chrome-stack site-chrome-stack-desktop-league">
-          <BottomNav variant="league" />
-        </div>
-      ) : null}
 
       <SiteTicker />
     </div>

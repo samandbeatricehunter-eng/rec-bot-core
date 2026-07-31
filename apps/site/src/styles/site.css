@@ -1268,6 +1268,74 @@ h1, h2, h3, .site-wordmark {
   color: var(--accent-bright);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
+.site-bottom-nav-icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.site-bottom-nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--error);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+}
+
+/* —— League top nav (in-page, league-scoped) —— */
+.site-league-top-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--nav-bg);
+  overflow-x: auto;
+}
+.site-league-top-nav-btn {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 56px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: var(--font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.site-league-top-nav-btn span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.site-league-top-nav-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.site-league-top-nav-btn.is-active {
+  color: var(--accent-bright);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.site-league-top-nav-menu {
+  flex: 0.8 1 0;
+}
 
 /* Retire / confirm modal */
 .site-modal {
@@ -1354,6 +1422,12 @@ h1, h2, h3, .site-wordmark {
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
+}
+.site-account-menu-item svg {
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+  margin-right: 8px;
 }
 .site-account-menu-item:hover,
 .site-account-menu-item:focus-visible {
@@ -1470,9 +1544,6 @@ h1, h2, h3, .site-wordmark {
 .site-desktop-sidebar {
   display: none;
 }
-.site-chrome-stack-desktop-league {
-  display: none;
-}
 
 .site-sidebar-nav {
   display: flex;
@@ -1545,14 +1616,6 @@ h1, h2, h3, .site-wordmark {
     display: none;
   }
 
-  .site-chrome-stack-desktop-league {
-    display: flex;
-    left: 248px;
-    right: 0;
-    width: auto;
-    z-index: 40;
-  }
-
   .site-shell-main {
     margin-left: 248px;
     margin-right: 0;
@@ -1561,13 +1624,9 @@ h1, h2, h3, .site-wordmark {
     padding-bottom: calc(54px + env(safe-area-inset-bottom, 0px));
   }
 
-  .site-shell.is-league-scope .site-shell-main {
-    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
-  }
-
   .site-shell.is-league-scope .site-shell-main:has(.site-hub-embed) {
     padding: 0;
-    padding-bottom: calc(102px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(54px + env(safe-area-inset-bottom, 0px));
     max-width: none;
     width: auto;
     margin-left: 248px;
