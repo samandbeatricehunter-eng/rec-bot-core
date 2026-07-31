@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
-import { renderMessageWithMentions } from "../../../lib/mentions.js";
-import { formatLocalTime, insertMentionToken, mentionQueryFromDraft } from "../../../lib/chat-utils.js";
+import { toChatMessageRow } from "../../../lib/chat-utils.js";
 import type { ChatMessage, ChatTopic, MentionableList } from "../../../types/api.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -11,6 +10,8 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PollComposerModal } from "./PollComposerModal.js";
 import { PendingItemsPanel } from "../notifications/PendingItemsPanel.js";
 import { useSearchParams } from "react-router-dom";
+import { ConversationView } from "../../../components/chat/ConversationView.js";
+import { Composer } from "../../../components/chat/Composer.js";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -31,11 +32,9 @@ export function CommissionerChatHome() {
     requestedTab === "payouts" || requestedTab === "requests" ? requestedTab : "messages",
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollInFlightRef = useRef(false);
-  const feedRef = useRef<HTMLDivElement>(null);
 
   const [topics, setTopics] = useState<ChatTopic[] | null>(null);
   const [showPollComposer, setShowPollComposer] = useState(false);
@@ -66,10 +65,6 @@ export function CommissionerChatHome() {
   }, [guildId]);
 
   useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });
-  }, [messages]);
-
-  useEffect(() => {
     recApi.getMentionableCommissioners(guildId).then(setMentionable).catch(() => setMentionable(null));
   }, [guildId]);
 
@@ -82,18 +77,16 @@ export function CommissionerChatHome() {
 
   useEffect(loadTopics, [guildId]);
 
-  async function handleSend() {
-    const body = draft.trim();
-    if (!body) return;
+  async function handleSend(body: string) {
     setSending(true);
     setError(null);
     try {
       const res = await recApi.postChatMessage({ guildId, body });
       setMessages((prev) => prev.some((message) => message.id === res.message.id) ? prev : [...prev, res.message]);
-      setDraft("");
       pollMessages();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.");
+      throw err;
     } finally {
       setSending(false);
     }
@@ -119,26 +112,13 @@ export function CommissionerChatHome() {
     }
   }
 
-  // @-mention autocomplete: trigger on the trailing "@word" at the end of the draft (simple
-  // single-line-input approach — no cursor-position tracking needed since this is a plain
-  // text input, not a rich editor).
-  const mentionQuery = useMemo(() => mentionQueryFromDraft(draft), [draft]);
+  const mentionOptions = useMemo(() => {
+    const roleOptions = (mentionable?.roles ?? []).map((r) => ({ token: `<@&${r.roleId}>`, label: r.name }));
+    const memberOptions = (mentionable?.members ?? []).map((m) => ({ token: `<@${m.discordId}>`, label: m.displayName }));
+    return [...roleOptions, ...memberOptions];
+  }, [mentionable]);
 
-  const mentionMatches = useMemo(() => {
-    if (mentionQuery === null || !mentionable) return [];
-    const q = mentionQuery.toLowerCase();
-    const roleOptions = mentionable.roles
-      .filter((r) => r.name.toLowerCase().includes(q))
-      .map((r) => ({ token: `<@&${r.roleId}>`, label: r.name }));
-    const memberOptions = mentionable.members
-      .filter((m) => m.displayName.toLowerCase().includes(q))
-      .map((m) => ({ token: `<@${m.discordId}>`, label: m.displayName }));
-    return [...roleOptions, ...memberOptions].slice(0, 8);
-  }, [mentionQuery, mentionable]);
-
-  function insertMention(token: string) {
-    setDraft((prev) => insertMentionToken(prev, token));
-  }
+  const conversationMessages = useMemo(() => messages.map((m) => toChatMessageRow(m as unknown as Record<string, unknown>)), [messages]);
 
   return (
     <Card className="commissioner-chat-card">
@@ -159,45 +139,8 @@ export function CommissionerChatHome() {
 
       {tab === "messages" && (
         <div className="commissioner-chat-window">
-          <div ref={feedRef} className="commissioner-chat-feed">
-            {messages.map((m) => (
-              <div key={m.id}>
-                <span style={{ color: m.author_discord_id === discordId ? "var(--gold)" : "var(--text-secondary)", fontWeight: 700, fontSize: "var(--text-xs)" }}>
-                  {m.author_display_name ?? "REC Member"}
-                </span>{" "}
-                <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>{formatLocalTime(m.created_at)}</span>
-                <p style={{ margin: "2px 0 0" }}>{renderMessageWithMentions(m.body, mentionable)}</p>
-              </div>
-            ))}
-            {messages.length === 0 && <p style={{ color: "var(--text-secondary)" }}>No messages yet — say hello.</p>}
-          </div>
-          <div className="commissioner-chat-composer">
-            {mentionMatches.length > 0 && (
-              <div className="card" style={{ position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: "var(--space-1)", padding: "var(--space-1)", maxHeight: 180, overflowY: "auto", zIndex: 20 }}>
-                {mentionMatches.map((opt) => (
-                  <button
-                    key={opt.token}
-                    className="btn btn-ghost"
-                    style={{ width: "100%", justifyContent: "flex-start", textAlign: "left" }}
-                    onClick={() => insertMention(opt.token)}
-                  >
-                    @{opt.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="commissioner-chat-input-row">
-              <input
-                className="form-input"
-                placeholder="Message… (@ to mention a commissioner)"
-                value={draft}
-                disabled={sending}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              />
-              <Button variant="primary" onClick={handleSend} disabled={sending || !draft.trim()}>Send</Button>
-            </div>
-          </div>
+          <ConversationView messages={conversationMessages} viewerDiscordId={discordId} mentionable={mentionable} />
+          <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} placeholder="Message… (@ to mention a commissioner)" />
         </div>
       )}
 

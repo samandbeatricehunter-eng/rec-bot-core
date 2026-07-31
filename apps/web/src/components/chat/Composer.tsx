@@ -29,8 +29,13 @@ export function Composer({
   async function handleSend() {
     const body = draft.trim();
     if (!body) return;
-    await onSend(body);
-    setDraft("");
+    try {
+      await onSend(body);
+      setDraft("");
+    } catch {
+      // Caller is responsible for surfacing its own error state — swallow here so a failed
+      // send doesn't produce an unhandled rejection, while still leaving the draft in place.
+    }
   }
 
   return (

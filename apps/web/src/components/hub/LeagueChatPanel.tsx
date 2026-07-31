@@ -1,30 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { recApi } from "../../lib/rec-api-client.js";
-import { renderMessageWithMentions } from "../../lib/mentions.js";
-import { formatLocalTime, insertMentionToken, mentionQueryFromDraft } from "../../lib/chat-utils.js";
-import type { GameChatChannel, HubMatchupDetail, LeagueChatMember, MentionableList } from "../../types/api.js";
+import { toChatMessageRow } from "../../lib/chat-utils.js";
+import type { GameChatChannel, GameChatMessage, HubMatchupDetail, LeagueChatMember, LeagueChatMessage, MentionableList } from "../../types/api.js";
 import { Button } from "../ui/Button.js";
 import { UploadBoxScoreModal } from "../../routes/league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { MatchupActions, canViewerUploadBoxScore } from "../../routes/matchups/MatchupDetail.js";
 import { ShareStreamModal } from "./ShareStreamModal.js";
 import { PlayerStatsModal } from "./PlayerStatsModal.js";
 import { HighlightUploadModal } from "./HighlightUploadModal.js";
+import { ConversationView } from "../chat/ConversationView.js";
+import { Composer } from "../chat/Composer.js";
 
 const POLL_INTERVAL_MS = 5000;
 const ROSTER_POLL_INTERVAL_MS = 20_000;
 const HEARTBEAT_INTERVAL_MS = 25_000;
-
-// One message shape covers both league chat (no `source`) and game chat (site/discord/system)
-// rows — both list endpoints return everything this panel needs to render a feed.
-type ChatMessageRow = {
-  id: string;
-  author_discord_id: string | null;
-  author_display_name: string;
-  is_discord_only: boolean;
-  body: string;
-  created_at: string;
-  source?: "site" | "discord" | "system";
-};
 
 const DC_TOOLTIP = "Non-registered Discord-only member — messages forward to the Discord game channel.";
 
@@ -45,14 +34,12 @@ export function LeagueChatPanel({
 }) {
   const [channels, setChannels] = useState<GameChatChannel[]>([]);
   const [activeChannel, setActiveChannel] = useState<string>(initialGameChannelId || "league");
-  const [messages, setMessages] = useState<ChatMessageRow[]>([]);
+  const [messages, setMessages] = useState<Array<LeagueChatMessage | GameChatMessage>>([]);
   const [members, setMembers] = useState<LeagueChatMember[]>([]);
   const [rosterOpen, setRosterOpen] = useState(true);
-  const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollInFlightRef = useRef(false);
-  const feedRef = useRef<HTMLDivElement>(null);
 
   const [matchupDetail, setMatchupDetail] = useState<HubMatchupDetail | null>(null);
   const [boxScoreUploadOpen, setBoxScoreUploadOpen] = useState(false);
@@ -122,42 +109,30 @@ export function LeagueChatPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guildId, activeChannel]);
 
-  useEffect(() => {
-    feedRef.current?.scrollTo({ top: feedRef.current.scrollHeight });
-  }, [messages]);
-
   const mentionable: MentionableList = useMemo(() => ({
     members: members.filter((m) => m.discordId).map((m) => ({ discordId: m.discordId as string, displayName: m.displayName })),
     roles: [],
   }), [members]);
 
-  // Same trailing "@word" trigger as CommissionerChatHome's composer.
-  const mentionQuery = useMemo(() => mentionQueryFromDraft(draft), [draft]);
+  const mentionOptions = useMemo(
+    () => mentionable.members.map((m) => ({ token: `<@${m.discordId}>`, label: m.displayName })),
+    [mentionable],
+  );
 
-  const mentionMatches = useMemo(() => {
-    if (mentionQuery === null) return [];
-    const q = mentionQuery.toLowerCase();
-    return mentionable.members.filter((m) => m.displayName.toLowerCase().includes(q)).slice(0, 8);
-  }, [mentionQuery, mentionable]);
+  const conversationMessages = useMemo(() => messages.map((m) => toChatMessageRow(m as unknown as Record<string, unknown>)), [messages]);
 
-  function insertMention(token: string) {
-    setDraft((prev) => insertMentionToken(prev, token));
-  }
-
-  async function handleSend() {
-    const body = draft.trim();
-    if (!body) return;
+  async function handleSend(body: string) {
     setSending(true);
     setError(null);
     try {
       const res = activeChannel === "league"
         ? await recApi.postLeagueChatMessage({ guildId, body })
         : await recApi.postGameChatMessage({ guildId, gameChannelId: activeChannel, body });
-      setMessages((prev) => (prev.some((m) => m.id === res.message.id) ? prev : [...prev, res.message as ChatMessageRow]));
-      setDraft("");
+      setMessages((prev) => (prev.some((m) => m.id === res.message.id) ? prev : [...prev, res.message]));
       pollMessages();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send message.");
+      throw err;
     } finally {
       setSending(false);
     }
@@ -233,64 +208,13 @@ export function LeagueChatPanel({
       {error && <p className="hub-transfer-status">{error}</p>}
 
       <div className="commissioner-chat-window">
-        <div ref={feedRef} className="commissioner-chat-feed">
-          {messages.map((m) => (
-            <div key={m.id}>
-              <span
-                style={{
-                  fontWeight: 700,
-                  fontSize: "var(--text-xs)",
-                  color: m.author_discord_id === discordId ? "var(--gold)" : "var(--text-secondary)",
-                }}
-              >
-                {m.author_display_name}
-              </span>
-              {m.is_discord_only && <span className="hub-dc-tag" title={DC_TOOLTIP}>DC</span>}
-              <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}> {formatLocalTime(m.created_at)}</span>
-              <p className={m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message"} style={{ margin: "2px 0 0" }}>
-                {renderMessageWithMentions(m.body, mentionable)}
-              </p>
-            </div>
-          ))}
-          {messages.length === 0 && <p className="hub-empty">No messages yet — say hello.</p>}
-        </div>
-        <div className="commissioner-chat-composer">
-          {mentionMatches.length > 0 && (
-            <div
-              className="card"
-              style={{ position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: "var(--space-1)", padding: "var(--space-1)", maxHeight: 180, overflowY: "auto", zIndex: 20 }}
-            >
-              {mentionMatches.map((opt) => (
-                <button
-                  key={opt.discordId}
-                  className="btn btn-ghost"
-                  style={{ width: "100%", justifyContent: "flex-start", textAlign: "left" }}
-                  onClick={() => insertMention(`<@${opt.discordId}>`)}
-                >
-                  @{opt.displayName}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="commissioner-chat-input-row">
-            <input
-              className="form-input"
-              placeholder="Message… (@ to mention someone)"
-              value={draft}
-              disabled={sending}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  void handleSend();
-                }
-              }}
-            />
-            <Button variant="primary" onClick={() => void handleSend()} disabled={sending || !draft.trim()}>
-              Send
-            </Button>
-          </div>
-        </div>
+        <ConversationView
+          messages={conversationMessages}
+          viewerDiscordId={discordId}
+          mentionable={mentionable}
+          messageClassName={(m) => (m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message")}
+        />
+        <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} />
       </div>
 
       {boxScoreUploadOpen && matchupDetail && (

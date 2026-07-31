@@ -10,10 +10,14 @@ export function ConversationView({
   messages,
   viewerDiscordId,
   mentionable,
+  messageClassName,
 }: {
   messages: ChatMessageRow[];
   viewerDiscordId: string;
   mentionable: MentionableList | null;
+  /** Optional per-message body className (e.g. League/Game Chat's distinct styling for
+   * source: "system" rows) — omit for the plain look commissioner chat has always used. */
+  messageClassName?: (message: ChatMessageRow) => string | undefined;
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +44,9 @@ export function ConversationView({
             </span>
           )}
           <span style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}> {formatLocalTime(m.createdAt)}</span>
-          <p style={{ margin: "2px 0 0" }}>{renderMessageWithMentions(m.body, mentionable)}</p>
+          <p className={messageClassName?.(m)} style={{ margin: "2px 0 0" }}>
+            {renderMessageWithMentions(m.body, mentionable)}
+          </p>
         </div>
       ))}
       {messages.length === 0 && <p className="hub-empty">No messages yet — say hello.</p>}

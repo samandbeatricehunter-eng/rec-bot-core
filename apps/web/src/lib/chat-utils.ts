@@ -1,6 +1,24 @@
 // Shared helpers for every chat surface (League Chat, Game Chat, Commissioner Chat, and the
 // Universal Chat Drawer) — extracted from what LeagueChatPanel.tsx and CommissionerChatHome.tsx
 // each implemented independently.
+import type { ChatMessageRow } from "@rec/shared";
+
+// The three underlying services return slightly different snake_case row shapes (commissioner
+// chat's ChatMessage type doesn't even carry is_discord_only/source yet) — normalize them all
+// onto the shared ChatMessageRow here rather than changing the three live wire formats.
+export function toChatMessageRow(raw: Record<string, unknown>): ChatMessageRow {
+  return {
+    id: String(raw.id),
+    authorUserId: (raw.author_user_id as string | null) ?? null,
+    authorDiscordId: (raw.author_discord_id as string | null) ?? null,
+    authorDisplayName: (raw.author_display_name as string | null) ?? null,
+    isDiscordOnly: Boolean(raw.is_discord_only),
+    source: (raw.source as ChatMessageRow["source"]) ?? "site",
+    discordMessageId: (raw.discord_message_id as string | null) ?? null,
+    body: String(raw.body ?? ""),
+    createdAt: String(raw.created_at),
+  };
+}
 
 // created_at is a timestamptz, serialized with a UTC offset — Date + toLocaleTimeString
 // (no explicit timeZone) always renders in the viewer's own device timezone.
