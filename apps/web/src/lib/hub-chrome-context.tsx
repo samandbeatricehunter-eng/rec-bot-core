@@ -21,6 +21,7 @@ export type HubLeagueMeta = {
   game: string;
   gameLabel: string;
   isCommissioner: boolean;
+  commissionerTier: "commissioner" | "co_commissioner" | null;
 };
 
 const GAME_LABELS: Record<string, string> = {
@@ -115,6 +116,7 @@ export function HubChromeProvider({
         game,
         gameLabel: gameLabelFor(game),
         isCommissioner: hub?.canManageLeague ?? false,
+        commissionerTier: hub?.commissionerTier ?? null,
       };
       setCurrentLeague(meta);
       return meta;

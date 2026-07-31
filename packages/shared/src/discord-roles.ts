@@ -55,6 +55,24 @@ export function classifyGuildRoleNames(roleNames: string[]): { isCommissioner: b
 // role-sync.ts) and the API's REST-based grant/revoke (apps/api/src/modules/roles/).
 // compCommittee's name is deliberately one of CO_COMMISSIONER_ROLE_NAMES above — granting
 // it via either surface is literally what makes someone a co-commissioner elsewhere in the app.
+// Single source of truth for user-facing role titles (spec: generic "Commish"/"Co-Commish"
+// branding, consistent everywhere). Deliberately separate from COMMISSIONER_ROLE_NAMES/
+// CO_COMMISSIONER_ROLE_NAMES above (which classify existing Discord role names for
+// permission purposes) and from REC_MANAGED_ROLES below (the actual Discord role names the
+// bot grants/revokes) — changing what a title *displays as* must never change what a
+// permission check *matches on* or what an existing Discord role is literally named.
+export const ROLE_DISPLAY_TITLES = {
+  commissioner: "Commish",
+  co_commissioner: "Co-Commish",
+  member: "Member",
+} as const;
+
+export type RoleDisplayKey = keyof typeof ROLE_DISPLAY_TITLES;
+
+export function roleDisplayTitle(key: RoleDisplayKey): string {
+  return ROLE_DISPLAY_TITLES[key];
+}
+
 export const REC_MANAGED_ROLES = {
   member: { name: "REC League Member", color: 0x87ceeb },
   compCommittee: { name: "REC League Comp. Committee", color: 0xc27c0e },

@@ -480,6 +480,12 @@ export async function getHub(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const userId = await userIdForDiscord(discordId);
   const canManageLeague = await assertGuildPermission(guildId, discordId, "co_commissioner").then(() => true).catch(() => false);
+  // "co_commissioner" passes for full commissioners too (see assertGuildPermission's own
+  // comment), so canManageLeague alone can't distinguish the two for role-title display —
+  // a second, stricter check against "commissioner" resolves which tier actually applies.
+  const commissionerTier: "commissioner" | "co_commissioner" | null = !canManageLeague
+    ? null
+    : await assertGuildPermission(guildId, discordId, "commissioner").then(() => "commissioner" as const).catch(() => "co_commissioner" as const);
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
@@ -607,6 +613,7 @@ export async function getHub(guildId: string, discordId: string) {
       seasonStage,
     },
     canManageLeague,
+    commissionerTier,
     store: {
       enabled: Boolean(cfg.coin_economy_enabled),
       cfbSeasonOneLocked: cfbSeasonOne,

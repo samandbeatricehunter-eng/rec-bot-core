@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, Trash2, Trophy } from "lucide-react";
+import { roleDisplayTitle } from "@rec/shared";
 import { Button } from "../ui/Button.js";
 import { NotificationBell } from "../ui/NotificationBell.js";
 import { HubNotificationsBell } from "../chrome/HubNotificationsBell.js";
@@ -194,7 +195,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <span className="hub-sidebar-league-name">{hub.currentLeague.name}</span>
                     <span className="hub-sidebar-league-meta">
                       {hub.currentLeague.gameLabel}
-                      {hub.currentLeague.isCommissioner ? " · Commish" : " · Member"}
+                      {" · "}
+                      {roleDisplayTitle(hub.currentLeague.commissionerTier ?? "member")}
                     </span>
                   </button>
                 </div>
