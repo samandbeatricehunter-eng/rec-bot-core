@@ -86,14 +86,14 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
       </nav>
 
       {menuOpen ? (
-        <div className="site-account-menu" role="dialog" aria-modal="true" aria-label="League menu">
+        <div className="site-league-menu" role="dialog" aria-modal="true" aria-label="League menu">
           <button
             type="button"
-            className="site-account-menu-backdrop"
+            className="site-league-menu-backdrop"
             aria-label="Close menu"
             onClick={() => setMenuOpen(false)}
           />
-          <div className="site-account-menu-panel">
+          <div className="site-league-menu-panel">
             {isCommissioner ? (
               <NavLink
                 to={`/l/${leagueId}/mgmt`}

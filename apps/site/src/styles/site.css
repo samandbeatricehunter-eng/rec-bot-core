@@ -1337,6 +1337,36 @@ h1, h2, h3, .site-wordmark {
   flex: 0.8 1 0;
 }
 
+/* Dropdown anchored under the hamburger, near the top of the viewport — distinct from
+   .site-account-menu, which anchors near the bottom nav and would render off-screen or
+   behind other bottom chrome if reused here. */
+.site-league-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+}
+.site-league-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+.site-league-menu-panel {
+  position: absolute;
+  top: calc(112px + env(safe-area-inset-top, 0px));
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-width: min(280px, calc(100vw - 20px));
+  padding: var(--space-2);
+  border: var(--card-border);
+  border-radius: var(--radius-lg);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
+}
+
 /* Retire / confirm modal */
 .site-modal {
   position: fixed;
