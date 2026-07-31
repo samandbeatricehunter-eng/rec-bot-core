@@ -117,7 +117,13 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
             <div className="chat-drawer-body">
               <ChannelList channels={channels} selectedChannelId={selected?.channelId ?? null} onSelect={(c) => setSelected({ channelType: c.type, channelId: c.id })} />
               <div className="chat-drawer-conversation">
-                <ConversationView messages={messages} viewerDiscordId={discordId} mentionable={mentionable} />
+                <ConversationView
+                  messages={messages}
+                  viewerDiscordId={discordId}
+                  mentionable={mentionable}
+                  guildId={guildId}
+                  channelType={selected?.channelType}
+                />
                 <Composer onSend={(body) => sendMessage(body)} sending={sending} mentionOptions={mentionOptions} />
               </div>
             </div>

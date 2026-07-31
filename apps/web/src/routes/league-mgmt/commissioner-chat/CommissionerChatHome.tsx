@@ -139,7 +139,7 @@ export function CommissionerChatHome() {
 
       {tab === "messages" && (
         <div className="commissioner-chat-window">
-          <ConversationView messages={conversationMessages} viewerDiscordId={discordId} mentionable={mentionable} />
+          <ConversationView messages={conversationMessages} viewerDiscordId={discordId} mentionable={mentionable} guildId={guildId} channelType="commissioner" />
           <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} placeholder="Message… (@ to mention a commissioner)" />
         </div>
       )}

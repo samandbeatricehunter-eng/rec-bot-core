@@ -168,6 +168,58 @@ export async function listChatChannels(
   return { channels, canAccessCommissionerChat };
 }
 
+export type ChatReactionSummary = { messageId: string; emojiKey: string; count: number; mine: boolean };
+
+// Reactions span all three chat tables (league/game/commissioner) via the channel_type
+// discriminator, same pattern as rec_chat_read_state — no changes to the three send/list
+// services, this is purely additive.
+export async function listChatReactions(input: {
+  channelType: ChatChannelType;
+  messageIds: string[];
+  discordId: string;
+}): Promise<{ reactions: ChatReactionSummary[] }> {
+  if (!input.messageIds.length) return { reactions: [] };
+  const { rows } = await getPgPool().query(
+    `
+      select message_id, emoji_key, count(*)::int as count, bool_or(discord_id = $3) as mine
+      from rec_chat_reactions
+      where channel_type = $1 and message_id = any($2::uuid[])
+      group by message_id, emoji_key
+    `,
+    [input.channelType, input.messageIds, input.discordId],
+  );
+  return {
+    reactions: (rows as Array<{ message_id: string; emoji_key: string; count: number; mine: boolean }>).map((row) => ({
+      messageId: row.message_id,
+      emojiKey: row.emoji_key,
+      count: row.count,
+      mine: row.mine,
+    })),
+  };
+}
+
+export async function toggleChatReaction(input: {
+  discordId: string;
+  channelType: ChatChannelType;
+  messageId: string;
+  emojiKey: string;
+}): Promise<{ reacted: boolean }> {
+  const existing = await getPgPool().query(
+    `select id from rec_chat_reactions where channel_type = $1 and message_id = $2 and discord_id = $3 and emoji_key = $4`,
+    [input.channelType, input.messageId, input.discordId, input.emojiKey],
+  );
+  if (existing.rows.length) {
+    await getPgPool().query(`delete from rec_chat_reactions where id = $1`, [existing.rows[0].id]);
+    return { reacted: false };
+  }
+  const author = await resolveChatAuthor(input.discordId);
+  await getPgPool().query(
+    `insert into rec_chat_reactions (channel_type, message_id, user_id, discord_id, emoji_key, source) values ($1, $2, $3, $4, $5, 'site')`,
+    [input.channelType, input.messageId, author.userId, input.discordId, input.emojiKey],
+  );
+  return { reacted: true };
+}
+
 export async function markChannelRead(input: {
   guildId: string;
   discordId: string;

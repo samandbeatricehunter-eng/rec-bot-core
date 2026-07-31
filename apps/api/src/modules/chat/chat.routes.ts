@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { listChatChannels, markChannelRead } from "./chat.service.js";
+import { listChatChannels, listChatReactions, markChannelRead, toggleChatReaction } from "./chat.service.js";
 
 // Aggregator only — sending/listing individual channel messages still goes through
 // league-chat / game-chat / commissioner-chat directly. Unread state is per-user, so both
@@ -40,6 +40,32 @@ export async function chatRoutes(app: FastifyInstance) {
           lastReadMessageId: body.lastReadMessageId,
         }),
       );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/chat/reactions/list", async (request, reply) => {
+    try {
+      const body = z
+        .object({ guildId: z.string().min(1), channelType: z.enum(["league", "game", "commissioner"]), messageIds: z.array(z.string().uuid()).max(300) })
+        .parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Reaction list requires a user session."));
+      return reply.send(await listChatReactions({ channelType: body.channelType, messageIds: body.messageIds, discordId: auth.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/chat/reactions/toggle", async (request, reply) => {
+    try {
+      const body = z
+        .object({ guildId: z.string().min(1), channelType: z.enum(["league", "game", "commissioner"]), messageId: z.string().uuid(), emojiKey: z.string().min(1).max(32) })
+        .parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") return sendError(reply, new ApiError(400, "Reacting requires a user session."));
+      return reply.send(await toggleChatReaction({ discordId: auth.discordId, channelType: body.channelType, messageId: body.messageId, emojiKey: body.emojiKey }));
     } catch (error) {
       return sendError(reply, error);
     }

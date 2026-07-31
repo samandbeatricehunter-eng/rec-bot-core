@@ -1,5 +1,5 @@
 import { REC_API_ROUTES } from "@rec/shared";
-import type { ChatChannelSummary, ChatMarkReadInput } from "@rec/shared";
+import type { ChatChannelSummary, ChatChannelType, ChatMarkReadInput, ChatReactionSummary } from "@rec/shared";
 import type {
   ActiveCheckReview,
   AdvanceResultInput,
@@ -568,6 +568,10 @@ export const recApi = {
     }),
   markChatChannelRead: (input: { guildId: string } & ChatMarkReadInput) =>
     recApiFetch<{ ok: true }>(REC_API_ROUTES.chatChannelsMarkRead, { method: "POST", body: JSON.stringify(input) }),
+  listChatReactions: (input: { guildId: string; channelType: ChatChannelType; messageIds: string[] }) =>
+    recApiFetch<{ reactions: ChatReactionSummary[] }>("/v1/chat/reactions/list", { method: "POST", body: JSON.stringify(input) }),
+  toggleChatReaction: (input: { guildId: string; channelType: ChatChannelType; messageId: string; emojiKey: string }) =>
+    recApiFetch<{ reacted: boolean }>("/v1/chat/reactions/toggle", { method: "POST", body: JSON.stringify(input) }),
 
   // Home page's weekly H2H panel
   getWeeklyH2hGames: (guildId: string) =>

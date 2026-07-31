@@ -212,6 +212,8 @@ export function LeagueChatPanel({
           messages={conversationMessages}
           viewerDiscordId={discordId}
           mentionable={mentionable}
+          guildId={guildId}
+          channelType={activeChannel === "league" ? "league" : "game"}
           messageClassName={(m) => (m.source === "system" ? "hub-league-chat-message hub-league-chat-system" : "hub-league-chat-message")}
         />
         <Composer onSend={handleSend} sending={sending} mentionOptions={mentionOptions} />

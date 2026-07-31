@@ -32,3 +32,9 @@ export type ChatMarkReadInput = {
   channelId: string;
   lastReadMessageId: string;
 };
+
+export type ChatReactionSummary = { messageId: string; emojiKey: string; count: number; mine: boolean };
+
+/** A small fixed quick-react set rather than a full emoji picker — matches the scope of every
+ * other reaction surface in this codebase (matchup/highlight reactions are also a fixed set). */
+export const CHAT_QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "👀"] as const;
