@@ -47,7 +47,8 @@ export async function scheduleRoutes(app: FastifyInstance) {
       const input = z.object({
         guildId: z.string().min(1),
         seasonNumber: z.number().int().positive().optional().nullable(),
-        rankings: z.array(z.object({ rank: z.number().int().min(1).max(25), teamId: z.string().uuid(), conferenceChampion: z.boolean().default(false) })).length(25),
+        // Top 12 is enough to establish the playoff bracket; up to 25 for the full poll.
+        rankings: z.array(z.object({ rank: z.number().int().min(1).max(25), teamId: z.string().uuid(), conferenceChampion: z.boolean().default(false) })).min(12).max(25),
       }).parse(request.body);
       return reply.send(await saveCfpTop25({ ...input, requestedByDiscordId: auth.mode === "user" ? auth.discordId : null }));
     } catch (error) { return sendError(reply, error); }

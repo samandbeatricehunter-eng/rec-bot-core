@@ -901,6 +901,7 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   teamBuilderAllowed: boolean("team_builder_allowed"),
   coreAttributeCapOverrides: jsonb("core_attribute_cap_overrides").$type<Record<string, unknown> | null>(),
   activeRostersEnabled: boolean("active_rosters_enabled"),
+  trackRostersEnabled: boolean("track_rosters_enabled"),
   coachFiringPolicy: text("coach_firing_policy").notNull().default("on"),
   preorderBonusesEnabled: boolean("preorder_bonuses_enabled").notNull().default(true),
   coachModeEnabled: boolean("coach_mode_enabled").notNull().default(false),

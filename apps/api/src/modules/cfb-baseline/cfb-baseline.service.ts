@@ -3,7 +3,7 @@
 
 import { supabase } from "../../lib/supabase.js";
 import { z } from "zod";
-import type { ImportSourceType, ImportTrustLevel } from "@rec/shared";
+import type { ImportTrustLevel } from "@rec/shared";
 
 export type CfbBaselineDataset = {
   id: string;
@@ -182,11 +182,11 @@ export async function getCfbBaselinePlayerAttributes(playerId: string): Promise<
  * Idempotent: re-running with same dataset_id + league_id skips already-copied records.
  */
 export async function applyCfbBaselineToLeague(input: ApplyBaselineToLeagueInput): Promise<{
-  teamsCreated: number;
+  teamsUpdated: number;
   playersCreated: number;
   skipped: { teams: number; players: number };
 }> {
-  const { league_id, dataset_id, requested_by_user_id } = input;
+  const { league_id, dataset_id } = input;
 
   // Verify dataset exists and is active + approved
   const dataset = await getCfbDataset(dataset_id);
@@ -194,101 +194,128 @@ export async function applyCfbBaselineToLeague(input: ApplyBaselineToLeagueInput
   if (!dataset.is_active) throw new Error("Dataset is not active");
   if (dataset.legal_review_status !== "approved") throw new Error("Dataset legal review not approved");
 
-  // Get baseline teams for this dataset
-  const baselineTeams = await listCfbBaselineTeams(dataset_id);
-  if (!baselineTeams.length) throw new Error("Dataset has no teams");
-
-  // Check which teams already exist in league (by abbreviation match)
-  const { data: existingTeams, error: existingError } = await supabase
+  // The league's CFB teams already exist — createDefaultTeamsForGuild() seeds the full
+  // CFB_27_TEAMS catalog before baseline apply runs at league creation. Match baseline teams
+  // to those rows by abbreviation (the seed script normalizes every provider team into the
+  // catalog), stamp the provider team id onto rec_teams.madden_team_id, and skip any baseline
+  // team that has no matching league team.
+  const { data: leagueTeams, error: teamsError } = await supabase
     .from("rec_teams")
     .select("id, abbreviation")
     .eq("league_id", league_id);
-  if (existingError) throw new Error(`Failed to check existing teams: ${existingError.message}`);
+  if (teamsError) throw new Error(`Failed to check existing teams: ${teamsError.message}`);
 
-  const existingAbbrevs = new Set((existingTeams ?? []).map((t) => t.abbreviation));
+  const leagueTeamRows = (leagueTeams ?? []) as Array<{ id: string; abbreviation: string | null }>;
+  const teamByAbbreviation = new Map<string, { id: string; abbreviation: string | null }>(
+    leagueTeamRows.map((t) => [String(t.abbreviation ?? "").toUpperCase(), t] as const),
+  );
 
-  // Insert new teams
-  let teamsCreated = 0;
+  const baselineTeams = await listCfbBaselineTeams(dataset_id);
+  if (!baselineTeams.length) throw new Error("Dataset has no teams");
+
+  // baseline team id -> league rec_teams.id, plus the school name for rec_players.college.
+  const teamIdMap = new Map<string, string>();
+  const collegeByBaselineTeamId = new Map<string, string>();
+  let teamsUpdated = 0;
   let teamsSkipped = 0;
-  const teamIdMap = new Map<string, string>(); // source_team_id -> new rec_teams.id
-
   for (const bt of baselineTeams) {
-    if (existingAbbrevs.has(bt.abbreviation)) {
-      // Find existing team to map
-      const existing = existingTeams!.find((t) => t.abbreviation === bt.abbreviation);
-      if (existing) teamIdMap.set(bt.source_team_id, existing.id);
+    const leagueTeam = teamByAbbreviation.get(bt.abbreviation.toUpperCase());
+    if (!leagueTeam) {
       teamsSkipped++;
       continue;
     }
-
-    const { data: newTeam, error } = await supabase
-      .from("rec_teams")
-      .insert({
-        league_id,
-        name: bt.name,
-        abbreviation: bt.abbreviation,
-        display_name: bt.display_name,
-        conference: bt.conference,
-        color_primary: bt.color_primary,
-        color_secondary: bt.color_secondary,
-        logo_url: bt.logo_url,
-        is_relocated: false,
-        source: "cfb_baseline" as ImportSourceType,
-      })
-      .select("id")
-      .single();
-    if (error) throw new Error(`Failed to insert team ${bt.abbreviation}: ${error.message}`);
-    teamIdMap.set(bt.source_team_id, newTeam.id);
-    teamsCreated++;
+    teamIdMap.set(bt.id, leagueTeam.id);
+    collegeByBaselineTeamId.set(bt.id, bt.name);
+    if (bt.source_team_id) {
+      const { error } = await supabase
+        .from("rec_teams")
+        .update({ madden_team_id: bt.source_team_id })
+        .eq("id", leagueTeam.id);
+      if (error) throw new Error(`Failed to update team ${bt.abbreviation}: ${error.message}`);
+    }
+    teamsUpdated++;
   }
 
-  // Insert players for newly created teams (and optionally for skipped teams if they have no players)
+  // Fetch the baseline players (all rows — the REST path used here has no 1000-row cap).
   const baselinePlayers = await listCfbBaselinePlayers(dataset_id);
-  let playersCreated = 0;
-  let playersSkipped = 0;
 
+  // Pull player attributes in player-id batches and collapse them into one map per player.
+  // rec_cfb_baseline_player_attributes has no dataset_id column, so chunk by player id.
+  const attributeMap = new Map<string, Record<string, unknown>>();
+  for (let i = 0; i < baselinePlayers.length; i += 500) {
+    const chunk = baselinePlayers.slice(i, i + 500);
+    const ids = chunk.map((p) => p.id);
+    const { data, error } = await supabase
+      .from("rec_cfb_baseline_player_attributes")
+      .select("player_id, attribute_key, attribute_value")
+      .in("player_id", ids);
+    if (error) throw new Error(`Failed to fetch baseline player attributes: ${error.message}`);
+    for (const row of data ?? []) {
+      const current = attributeMap.get(row.player_id) ?? {};
+      current[row.attribute_key] = row.attribute_value;
+      attributeMap.set(row.player_id, current);
+    }
+  }
+
+  // Idempotency: re-running a seed must not duplicate players. rec_players has no
+  // source_player_id column — madden_player_id carries the synthetic stable id instead.
+  const existingPlayers = await supabase
+    .from("rec_players")
+    .select("madden_player_id")
+    .eq("league_id", league_id);
+  if (existingPlayers.error) throw new Error(`Failed to check existing players: ${existingPlayers.error.message}`);
+  const existingPlayerIds = new Set<string>((existingPlayers.data ?? []).map((p) => p.madden_player_id));
+
+  const rows: Array<Record<string, unknown>> = [];
+  let playersSkipped = 0;
   for (const bp of baselinePlayers) {
     const leagueTeamId = teamIdMap.get(bp.team_id);
     if (!leagueTeamId) {
-      // Team wasn't created/copied (maybe user skipped it) — skip player
       playersSkipped++;
       continue;
     }
-
-    // Check if player already exists on this team (by source_player_id + team)
-    const { data: existingPlayer } = await supabase
-      .from("rec_players")
-      .select("id")
-      .eq("team_id", leagueTeamId)
-      .eq("source_player_id", bp.source_player_id)
-      .maybeSingle();
-
-    if (existingPlayer) {
+    const maddenPlayerId = `cfb27:${bp.source_player_id}`;
+    if (existingPlayerIds.has(maddenPlayerId)) {
       playersSkipped++;
       continue;
     }
+    existingPlayerIds.add(maddenPlayerId);
 
-    const { error } = await supabase.from("rec_players").insert({
-      team_id: leagueTeamId,
+    const attributes = attributeMap.get(bp.id) ?? {};
+    rows.push({
       league_id,
-      source_player_id: bp.source_player_id,
+      team_id: leagueTeamId,
+      madden_player_id: maddenPlayerId,
       first_name: bp.first_name,
       last_name: bp.last_name,
-      jersey_number: bp.jersey_number,
+      full_name: `${bp.first_name} ${bp.last_name}`,
       position: bp.position,
-      year: bp.year,
+      college: collegeByBaselineTeamId.get(bp.team_id) ?? null,
       height_inches: bp.height_inches,
       weight_lbs: bp.weight_lbs,
-      hometown_city: bp.hometown_city,
-      hometown_state: bp.hometown_state,
       overall_rating: bp.overall_rating,
-      source: "cfb_baseline" as ImportSourceType,
+      // CFB baseline players are rostered (not free agents) and have no dev trait in the
+      // baseline attribute set (physicals/mentals/utility + numeric ratings only).
+      is_free_agent: false,
+      raw_payload: {
+        source_player_id: bp.source_player_id,
+        jersey_number: bp.jersey_number,
+        year: bp.year,
+        hometown: { city: bp.hometown_city, state: bp.hometown_state },
+        attributes,
+      },
     });
-    if (error) throw new Error(`Failed to insert player ${bp.first_name} ${bp.last_name}: ${error.message}`);
-    playersCreated++;
   }
 
-  return { teamsCreated, playersCreated, skipped: { teams: teamsSkipped, players: playersSkipped } };
+  let playersCreated = 0;
+  for (let i = 0; i < rows.length; i += 500) {
+    const chunk = rows.slice(i, i + 500);
+    const { error } = await supabase.from("rec_players").insert(chunk);
+    if (error) throw new Error(`Failed to insert baseline players: ${error.message}`);
+    playersCreated += chunk.length;
+  }
+
+  return { teamsUpdated, playersCreated, skipped: { teams: teamsSkipped, players: playersSkipped } };
 }
 
 /**

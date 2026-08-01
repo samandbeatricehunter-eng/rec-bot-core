@@ -487,7 +487,7 @@ export const recApi = {
 
   // First-Time Setup (Phase 2) — omitted fields fall back to CreateLeagueSchema's Zod
   // defaults server-side, so a minimal payload here is intentional, not a shortcut.
-  createLeague: (input: { guildId: string; name: string; game: string; leagueType?: string; activeRostersEnabled?: boolean }) =>
+  createLeague: (input: { guildId: string; name: string; game: string; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean }) =>
     recApiFetch<{ league: { id: string; name: string }; defaultTeams: unknown[] }>("/v1/setup/league/create", { method: "POST", body: JSON.stringify(input) }),
 
   // Advance — the web is now the sole advance surface (there is no Discord advance wizard

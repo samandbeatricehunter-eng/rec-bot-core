@@ -349,23 +349,24 @@ export async function getGotwGameResult(input: {
   return data?.[0] ?? null;
 }
 
-// Every bowl game and the national championship are automatic GOTW games in CFB leagues —
-// called both right after a commissioner flags a game in the schedule builder, and for the
-// new week's games as part of completing an advance (so pre-flagged games still get a poll
-// even if nobody visited the schedule builder again after the flip).
+// Every bowl game, the national championship, and — since the CFP bracket was introduced —
+// every postseason game from Conference Championship week forward are automatic GOTW games in
+// CFB leagues. Called both right after a commissioner flags a game in the schedule builder,
+// and for the new week's games as part of completing an advance (so pre-flagged games still
+// get a poll even if nobody visited the schedule builder again after the flip).
 export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber: number; allH2h?: boolean }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
 
   const games = await supabase
     .from("rec_games")
-    .select("id,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)")
+    .select("id,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,postseason_round,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)")
     .eq("league_id", context.leagueId)
     .eq("week_number", input.weekNumber);
   if (games.error) throw new ApiError(500, "Failed to load flagged postseason games.", games.error);
   const flagged = (games.data ?? []).filter((g: any) =>
     g.home_team_id && g.away_team_id && g.home_user_id && g.away_user_id
-    && (input.allH2h || g.is_bowl_game || g.is_national_championship));
+    && (input.allH2h || g.is_bowl_game || g.is_national_championship || Boolean(g.postseason_round)));
   if (!flagged.length) return { created: 0 };
 
   const existing = await supabase

@@ -43,12 +43,20 @@ export async function saveCfpTop25(input: {
   const context = await getCurrentLeagueContext(input.guildId);
   if (context.rec_leagues.game !== "cfb_27") throw new ApiError(400, "CFP rankings are available only for CFB 27 leagues.");
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
+  if (input.rankings.length < 12 || input.rankings.length > 25) {
+    throw new ApiError(400, "Enter at least the top 12 teams (up to 25) to establish the playoff bracket.");
+  }
   const ranks = new Set(input.rankings.map((row) => row.rank));
   const teams = new Set(input.rankings.map((row) => row.teamId));
-  if (input.rankings.length !== 25 || ranks.size !== 25 || teams.size !== 25) {
-    throw new ApiError(400, "Enter 25 unique teams with ranks 1 through 25.");
+  if (ranks.size !== input.rankings.length || teams.size !== input.rankings.length) {
+    throw new ApiError(400, "Each ranking must use a unique team and a unique rank.");
   }
   if ([...ranks].some((rank) => rank < 1 || rank > 25)) throw new ApiError(400, "CFP ranks must be 1 through 25.");
+  // The top-N must be contiguous (#1..#N) — skipping a rank (e.g. leaving #7 blank) would
+  // misread which teams are the actual field.
+  if (input.rankings.some((row, index) => row.rank !== index + 1)) {
+    throw new ApiError(400, "Enter the top teams in order — the first N rankings must be #1 through #N.");
+  }
 
   const client = await getPgPool().connect();
   try {
@@ -57,7 +65,7 @@ export async function saveCfpTop25(input: {
       `select count(*)::int as count from rec_teams where league_id=$1 and id=any($2::uuid[])`,
       [context.leagueId, [...teams]],
     );
-    if (Number(valid.rows[0]?.count) !== 25) throw new ApiError(400, "Every ranked team must belong to this league.");
+    if (Number(valid.rows[0]?.count) !== input.rankings.length) throw new ApiError(400, "Every ranked team must belong to this league.");
     const userId = await recUserIdForDiscord(input.requestedByDiscordId ?? null);
     await client.query(`delete from rec_cfp_rankings where league_id=$1 and season_number=$2`, [context.leagueId, seasonNumber]);
     const values: unknown[] = [];
@@ -72,6 +80,11 @@ export async function saveCfpTop25(input: {
       values,
     );
     await client.query("commit");
+    // Once the top 12 are in, the bracket (and the 12 teams' schedules) populate immediately —
+    // ranks 13–25 only refine the poll and conference-champion flags.
+    if (input.rankings.length >= 12) {
+      return generateCfpBracket({ guildId: input.guildId, seasonNumber, requestedByDiscordId: input.requestedByDiscordId ?? null });
+    }
     return getCfpPostseasonState({ guildId: input.guildId, seasonNumber });
   } catch (error) {
     await client.query("rollback");
@@ -232,7 +245,7 @@ export async function generateCfpBracket(input: {
       const userByTeam = new Map(users.rows.map((user) => [String(user.team_id), user.user_id]));
       await client.query(
         `insert into rec_games(id,league_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,source,external_game_id,is_bowl_game,postseason_round,created_at,updated_at)
-         values($1,$2,$3,16,'playoffs',$4,$5,$6,$7,'scheduled','cfp_bracket',$8,true,'cfp_first_round',now(),now())`,
+         values($1,$2,$3,16,'playoffs',$4,$5,$6,$7,'scheduled','cfp_bracket',$8,false,'cfp_first_round',now(),now())`,
         [gameId, context.leagueId, seasonId, row.homeTeamId, row.awayTeamId, userByTeam.get(row.homeTeamId) ?? null, userByTeam.get(row.awayTeamId) ?? null, `cfp:${context.leagueId}:${seasonNumber}:first_round:${row.slot}`],
       );
       const slot = await client.query(
@@ -385,7 +398,7 @@ async function synchronizeCfpBracket(leagueId: string, seasonId: string, seasonN
           const userByTeam = new Map(assignments.rows.map((row) => [String(row.team_id), row.user_id]));
           await client.query(
             `insert into rec_games(id,league_id,season_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,status,source,external_game_id,is_bowl_game,is_national_championship,postseason_round,bowl_name,created_at,updated_at)
-             values($1,$2,$3,$4,'playoffs',$5,$6,$7,$8,'scheduled','cfp_bracket',$9,true,$10,$11,$12,now(),now())`,
+             values($1,$2,$3,$4,'playoffs',$5,$6,$7,$8,'scheduled','cfp_bracket',$9,false,$10,$11,$12,now(),now())`,
             [gameId, leagueId, seasonId, week, homeTeamId, awayTeamId, userByTeam.get(homeTeamId) ?? null, userByTeam.get(awayTeamId) ?? null,
               `cfp:${leagueId}:${seasonNumber}:${round}:${slot.slot_number}`, round === "championship", round === "quarterfinal" ? "cfp_quarterfinals" : round === "semifinal" ? "cfp_semifinals" : "national_championship", bowlName],
           );

@@ -173,8 +173,13 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
 
   const originalAbbreviation = existing.data?.original_abbreviation ?? existing.data?.abbreviation ?? liveMatch?.original_abbreviation ?? liveMatch?.abbreviation ?? fallback?.abbreviation ?? replacementAbbr;
 
+  const isCfb = league.game === "cfb_27";
+  const name = isCfb
+    ? (input.customDisplayCity ?? "").trim() || input.customTeamName.trim()
+    : [input.customDisplayCity, input.customDisplayNick].filter((part) => part && part.trim()).map((part) => part!.trim()).join(" ") || input.customTeamName.trim();
+
   const updates = {
-    name: input.customTeamName,
+    name,
     display_city: input.customDisplayCity ?? null,
     display_nick: input.customDisplayNick ?? null,
     display_abbr: input.customDisplayAbbr ?? null,
@@ -218,7 +223,7 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     action: "team.custom_replacement.registered",
     entityType: "rec_teams",
     entityId: result.data.id,
-    newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, customTeamName: input.customTeamName, replacedAbbr: originalAbbreviation, displayAbbr: input.customDisplayAbbr },
+    newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, customTeamName: name, replacedAbbr: originalAbbreviation, displayAbbr: input.customDisplayAbbr },
     reason: "Custom/relocated team registered through Team Ownership setup.",
     source: "manual_admin_entry"
   });

@@ -52,10 +52,14 @@ function num(value: unknown) {
 
 function teamName(team: any) {
   if (!team) return "Team";
-  if (team.is_relocated && (team.display_city || team.display_nick)) {
-    return `${team.display_city ?? ""} ${team.display_nick ?? ""}`.trim() || (team.name ?? "Team");
+  const name = (team.name ?? "").trim();
+  const nick = (team.display_nick ?? "").trim();
+  if (team.is_relocated) {
+    if (name && (!nick || name.toLowerCase() !== nick.toLowerCase())) return name;
+    const combined = `${team.display_city ?? ""} ${nick}`.trim();
+    if (combined) return combined;
   }
-  return team.name ?? team.display_abbr ?? team.abbreviation ?? "Team";
+  return name || nick || team.display_abbr || team.abbreviation || "Team";
 }
 
 async function linkedTeams(leagueId: string) {

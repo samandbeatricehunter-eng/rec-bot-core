@@ -1083,10 +1083,11 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
   await interaction.deferUpdate();
 
   try {
+    const isCfb = await isCfbLeague(interaction.guildId);
     const result = await recApi.createCustomTeamReplacement({
       guildId: pending.guildId,
       replacementTeamAbbreviation: replacedAbbr,
-      customTeamName: newNick,
+      customTeamName: isCfb ? newCity : displayName,
       customDisplayCity: newCity,
       customDisplayNick: newNick,
       customDisplayAbbr: newAbbr,
@@ -1096,7 +1097,6 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
     const teamId = result.customTeam.id;
     if (result.linkedUsers?.length) {
       await ensureRecBaseRoles(interaction.guild);
-      const isCfb = await isCfbLeague(interaction.guildId);
       for (const linked of result.linkedUsers) {
         if (!linked.discordId) continue;
         const member = await interaction.guild.members.fetch(linked.discordId).catch(() => null);

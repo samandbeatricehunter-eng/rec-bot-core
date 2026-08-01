@@ -84,6 +84,8 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   attrCapModalInput: "rec:league_setup:attr_cap_input",
   // CFB 27: Active Rosters replaces the League Type select (see getNextLeagueSetupStep / buildLeagueTypeWindow).
   activeRosters: "rec:league_setup:active_rosters",
+  // CFB 27: seed the league's initial rosters from the CFB 27 baseline dataset when enabled.
+  trackRosters: "rec:league_setup:track_rosters",
   // Conference realignment editor (CFB 27 only, shown when conferenceRealignment === "allowed").
   conferenceAssignGroupPrefix: "rec:league_setup:conf_assign_group",
   conferenceAssignTargetSelect: "rec:league_setup:conf_assign_target",
@@ -122,6 +124,7 @@ export const LEAGUE_GAME_OPTIONS: Record<LeagueGame, string> = {
 export type LeagueSetupStep =
   | "game"
   | "league_type"
+  | "track_rosters"
   | "dynasty_structure"
   | "recruiting_difficulty"
   | "coach_xp_setting"
@@ -202,6 +205,8 @@ export type LeagueSetupDraft = {
   leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters";
   /** CFB 27 only: replaces League Type. On = ratings/styles track real-world changes; off = static. */
   activeRostersEnabled: boolean;
+  /** CFB 27 only: seed the league's initial rosters from the CFB 27 baseline dataset at creation. */
+  trackRostersEnabled: boolean;
   seasonWeek: string;
   coinEconomyEnabled: boolean;
   customPlayersEnabled: boolean;
@@ -322,6 +327,7 @@ export type LeagueSetupDraft = {
 const STEP_ORDER: LeagueSetupStep[] = [
   "game",
   "league_type",
+  "track_rosters",
   "dynasty_structure",
   "recruiting_difficulty",
   "coach_xp_setting",
@@ -402,6 +408,7 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     step: "game",
     leagueType: "regular_rosters",
     activeRostersEnabled: true,
+    trackRostersEnabled: false,
     seasonWeek: "training_camp",
     coinEconomyEnabled: false,
     customPlayersEnabled: false,

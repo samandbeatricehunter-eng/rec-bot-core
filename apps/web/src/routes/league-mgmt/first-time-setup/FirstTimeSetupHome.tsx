@@ -36,6 +36,7 @@ export function FirstTimeSetupHome() {
   const [game, setGame] = useState("madden_26");
   const [leagueType, setLeagueType] = useState("regular_rosters");
   const [activeRostersEnabled, setActiveRostersEnabled] = useState(true);
+  const [trackRostersEnabled, setTrackRostersEnabled] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ leagueName: string; teamCount: number } | null>(null);
@@ -81,7 +82,7 @@ export function FirstTimeSetupHome() {
         guildId,
         name: name.trim(),
         game,
-        ...(game === "cfb_27" ? { activeRostersEnabled } : { leagueType }),
+        ...(game === "cfb_27" ? { activeRostersEnabled, trackRostersEnabled } : { leagueType }),
       });
       setResult({ leagueName: res.league.name, teamCount: res.defaultTeams?.length ?? 0 });
     } catch (err) {
@@ -158,12 +159,20 @@ export function FirstTimeSetupHome() {
           </div>
 
           {game === "cfb_27" ? (
-            <div className={`form-field ${tutorialStep === 2 ? "tutorial-focus" : ""}`} id="active-rosters">
-              <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <input type="checkbox" checked={activeRostersEnabled} disabled={busy} onChange={(e) => setActiveRostersEnabled(e.target.checked)} />
-                Active Rosters Enabled
-              </label>
-            </div>
+            <>
+              <div className={`form-field ${tutorialStep === 2 ? "tutorial-focus" : ""}`} id="active-rosters">
+                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                  <input type="checkbox" checked={activeRostersEnabled} disabled={busy} onChange={(e) => setActiveRostersEnabled(e.target.checked)} />
+                  Active Rosters Enabled
+                </label>
+              </div>
+              <div className="form-field">
+                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                  <input type="checkbox" checked={trackRostersEnabled} disabled={busy} onChange={(e) => setTrackRostersEnabled(e.target.checked)} />
+                  Track Rosters from CFB 27 Baseline (seed initial rosters)
+                </label>
+              </div>
+            </>
           ) : (
             <div className="form-field">
               <label className="form-label" htmlFor="league-type-select">League Type</label>

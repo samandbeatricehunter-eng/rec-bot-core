@@ -34,10 +34,14 @@ export function letterGradeForRating(rating: number): string {
 }
 
 function teamDisplayName(t: any): string {
-  if (t?.is_relocated && (t.display_city || t.display_nick)) {
-    return `${t.display_city ?? ""} ${t.display_nick ?? ""}`.trim() || (t.name ?? "Team");
+  const name = (t?.name ?? "").trim();
+  const nick = (t?.display_nick ?? "").trim();
+  if (t?.is_relocated) {
+    if (name && (!nick || name.toLowerCase() !== nick.toLowerCase())) return name;
+    const combined = `${t?.display_city ?? ""} ${nick}`.trim();
+    if (combined) return combined;
   }
-  return t?.name ?? "Team";
+  return name || nick || "Team";
 }
 
 type TeamAgg = {

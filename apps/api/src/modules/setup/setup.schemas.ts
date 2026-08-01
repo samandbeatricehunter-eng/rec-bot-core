@@ -32,6 +32,8 @@ export const CreateLeagueSchema = z.object({
   leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters"]).default("regular_rosters"),
   // CFB 27 only: replaces the League Type question.
   activeRostersEnabled: z.boolean().default(true),
+  // CFB 27 only: seed the league's initial rosters from the CFB baseline dataset at creation.
+  trackRostersEnabled: z.boolean().default(false),
 
   dynastyType: z.enum(["real", "mixed"]).default("real"),
   recruitingDifficulty: z.enum(["easy", "normal", "hard"]).default("normal"),

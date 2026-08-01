@@ -435,6 +435,7 @@ export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
         value: [
           `Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`,
           `Active Rosters: ${yesNo(draft.activeRostersEnabled)}`,
+          `Track Rosters: ${yesNo(draft.trackRostersEnabled)}`,
           `Teams Replaced with Customs: ${yesNo(draft.dynastyType === "mixed")}`,
           `Team Builder: ${yesNo(draft.teamBuilderAllowed)}`,
           "Starts: Season 1, Preseason"
@@ -573,6 +574,7 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
   switch (draft.step) {
     case "game": return buildGameSelectWindow(draft);
     case "league_type": return buildLeagueTypeWindow(draft);
+    case "track_rosters": return buildCfbToggleWindow(draft, "CFB Setup: Track Rosters", LEAGUE_SETUP_CUSTOM_IDS.trackRosters, "Seed this league's initial rosters from the CFB 27 baseline roster dataset? Every team starts with the game-year reference roster instead of an empty one.", "Track Rosters from baseline?");
     case "dynasty_structure": return buildDynastyStructureWindow(draft);
     case "recruiting_difficulty": return buildRecruitingDifficultyWindow(draft);
     case "transfer_portal": return buildCfbToggleWindow(draft, "CFB Setup: Transfer Portal", LEAGUE_SETUP_CUSTOM_IDS.transferPortal, "Is the Transfer Portal active? Players may enter/leave via the portal between seasons.", "Transfer Portal enabled?");

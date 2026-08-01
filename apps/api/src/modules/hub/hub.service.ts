@@ -1372,7 +1372,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     const user = Array.isArray(row.user) ? row.user[0] : row.user;
     const conference = team?.conference ?? "Independent";
     const list = usersByConference.get(conference) ?? [];
-    list.push({ userId: row.user_id, displayName: displayNameForUser({ ...row, user }), teamName: team?.name ?? team?.abbreviation ?? "Team", division: team?.division ?? null });
+    list.push({ userId: row.user_id, displayName: displayNameForUser({ ...row, user }), teamName: formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? "Team", division: team?.division ?? null });
     usersByConference.set(conference, list);
   }
   const minimumMaxWeek = Math.max(14, currentWeek);
@@ -1471,8 +1471,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         myReactions: gameReactionRows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key),
         myGotyComment: gameReactionRows.find((reaction: any) => reaction.user_id === userId && reaction.reaction_key === "goty")?.comment ?? null,
         streams: [
-          awayStream ? { side: "away", userId: game.away_user_id, teamName: game.away_team?.name ?? game.away_team?.abbreviation ?? "Away", streamLogId: awayStream.id, url: awayStream.message_url, watchPath: streamWatchPath(awayStream.id), postedAt: awayStream.posted_at ?? null, ...streamEngagement(awayStream) } : null,
-          homeStream ? { side: "home", userId: game.home_user_id, teamName: game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,
+          awayStream ? { side: "away", userId: game.away_user_id, teamName: formatTeamDisplayName(game.away_team) ?? game.away_team?.name ?? game.away_team?.abbreviation ?? "Away", streamLogId: awayStream.id, url: awayStream.message_url, watchPath: streamWatchPath(awayStream.id), postedAt: awayStream.posted_at ?? null, ...streamEngagement(awayStream) } : null,
+          homeStream ? { side: "home", userId: game.home_user_id, teamName: formatTeamDisplayName(game.home_team) ?? game.home_team?.name ?? game.home_team?.abbreviation ?? "Home", streamLogId: homeStream.id, url: homeStream.message_url, watchPath: streamWatchPath(homeStream.id), postedAt: homeStream.posted_at ?? null, ...streamEngagement(homeStream) } : null,
         ].filter(Boolean),
       };
     }).sort((a: any, b: any) => Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.involvesMe) - Number(a.involvesMe) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName));

@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.service.js";
+import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
 import {
@@ -194,6 +195,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
     active_rosters_enabled: input.game === "cfb_27" ? input.activeRostersEnabled : null,
+    track_rosters_enabled: input.game === "cfb_27" ? input.trackRostersEnabled : null,
     transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
     coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
     conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
@@ -345,6 +347,32 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     conferenceOverrides: input.game === "cfb_27" ? input.conferenceAssignments : undefined,
   });
 
+  // CFB 27 only: when Track Rosters is on, seed the league's initial rosters from the active,
+  // approved baseline dataset. Runs after default teams exist — applyCfbBaselineToLeague matches
+  // baseline teams to them by abbreviation, so no duplicate teams are created.
+  let baselineSeed: Awaited<ReturnType<typeof applyCfbBaselineToLeague>> | null = null;
+  if (input.game === "cfb_27" && input.trackRostersEnabled) {
+    const activeDataset = await supabase
+      .from("rec_cfb_roster_datasets")
+      .select("id")
+      .eq("game_title", "cfb_27")
+      .eq("is_active", true)
+      .eq("legal_review_status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (activeDataset.error) {
+      throw new ApiError(500, "Failed to resolve the active CFB baseline dataset", activeDataset.error);
+    }
+    if (activeDataset.data) {
+      baselineSeed = await applyCfbBaselineToLeague({
+        league_id: league.data.id,
+        dataset_id: activeDataset.data.id,
+        requested_by_user_id: input.requestedByDiscordId ?? "system",
+      });
+    }
+  }
+
   return {
     server: serverResult.server,
     league: league.data,
@@ -352,6 +380,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     serverLeagueLink: link.data,
     defaultTeams: defaultTeams.teams,
     defaultScheduleSeed: defaultTeams.defaultScheduleSeed,
+    baselineSeed,
   };
 }
 
@@ -435,6 +464,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
     recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
     active_rosters_enabled: input.game === "cfb_27" ? input.activeRostersEnabled : null,
+    track_rosters_enabled: input.game === "cfb_27" ? input.trackRostersEnabled : null,
     transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
     coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
     conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
@@ -568,6 +598,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
     activeRostersEnabled: c.active_rosters_enabled ?? true,
+    trackRostersEnabled: c.track_rosters_enabled ?? false,
     dynastyType: c.dynasty_type ?? "real",
     recruitingDifficulty: c.recruiting_difficulty ?? "normal",
     transferPortalEnabled: c.transfer_portal_enabled ?? true,

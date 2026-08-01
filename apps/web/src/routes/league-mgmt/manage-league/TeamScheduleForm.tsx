@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CFB_BOWL_NAMES, canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
-import { PencilLine } from "lucide-react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { TeamScheduleManualState, TeamScheduleManualWeek, ScheduleTeam } from "../../../types/api.js";
@@ -156,7 +155,6 @@ export function TeamScheduleForm() {
   const [results, setResults] = useState<SavedResult[] | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [editMode, setEditMode] = useState(false);
   const [customBowl, setCustomBowl] = useState<{ weekNumber: number; name: string } | null>(null);
 
   const load = useCallback(() => {
@@ -203,7 +201,6 @@ export function TeamScheduleForm() {
       // Newly-confirmed weeks need to switch over to their populated, box-score-ready
       // display without a manual page reload.
       await load();
-      setEditMode(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save schedule.");
     } finally {
@@ -228,32 +225,11 @@ export function TeamScheduleForm() {
   const game = state.game;
   const hasConfirmedWeeks = state.weeks.some((week) => week.alreadyConfirmed);
 
-  function cancelEditMode() {
-    if (!state || !teams) return;
-    setPicks(buildPicks(state, teams));
-    setEditMode(false);
-    setResults(null);
-  }
-
   return (
     <div>
       <PageHeader
         title={`${state.team.name} - Season Schedule`}
-        subtitle={editMode ? "Edit unlocked matchups, then save the season again." : "Set matchups week by week, then resolve results as games are played."}
-        actions={hasConfirmedWeeks ? (
-          <Tooltip text={editMode ? "Cancel schedule editing" : "Edit weekly opponents and home/away"}>
-            <Button
-              variant={editMode ? "ghost" : "secondary"}
-              size="compact"
-              className="team-schedule-edit-button"
-              aria-label={editMode ? "Cancel schedule editing" : "Edit schedule"}
-              title={editMode ? "Cancel schedule editing" : "Edit schedule"}
-              onClick={editMode ? cancelEditMode : () => setEditMode(true)}
-            >
-              <PencilLine size={18} aria-hidden="true" />
-            </Button>
-          </Tooltip>
-        ) : null}
+        subtitle="Set matchups week by week, then resolve results as games are played. Any week without a recorded result stays editable."
       />
       {notice && <p style={{ color: "var(--success)", marginTop: 0 }}>{notice}</p>}
       <Card>
@@ -275,7 +251,7 @@ export function TeamScheduleForm() {
               const savedResult = resultByWeek.get(week.weekNumber);
               const resultLabel = resultLabelForDisplayedTeam(week);
               const lockedForEdit = Boolean(week.result || week.boxScoreSubmissionId);
-              const showConfirmedView = week.alreadyConfirmed && (!editMode || lockedForEdit);
+              const showConfirmedView = week.alreadyConfirmed && lockedForEdit;
 
               if (showConfirmedView) {
                 return (
@@ -414,9 +390,11 @@ export function TeamScheduleForm() {
                     </label>
                   </Td>
                   <Td data-label="Actions">
-                    {game === "cfb_27" && week.weekNumber >= 15 ? (
+                    {game === "cfb_27" && week.weekNumber >= 15 ? (() => {
+                      const isCfpRound = ["cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"].includes(pick?.postseasonRound ?? "");
+                      return (
                       <div className="team-schedule-postseason-fields">
-                        <label><span>Round</span><select className="form-select" value={pick?.postseasonRound ?? ""} onChange={(e) => updatePick(week.weekNumber, { postseasonRound: e.target.value || null, isNationalChampionship: e.target.value === "national_championship" })}>
+                        <label><span>Round</span><select className="form-select" value={pick?.postseasonRound ?? ""} onChange={(e) => updatePick(week.weekNumber, { postseasonRound: e.target.value || null, isNationalChampionship: e.target.value === "national_championship", isBowlGame: ["cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"].includes(e.target.value) ? false : (pick?.isBowlGame ?? false) })}>
                           <option value="conference_championship">Conference Championship</option>
                           <option value="cfp_first_round">CFP First Round</option>
                           <option value="cfp_quarterfinals">CFP Quarterfinal</option>
@@ -427,9 +405,13 @@ export function TeamScheduleForm() {
                           if (e.target.value === "Custom Bowl") setCustomBowl({ weekNumber: week.weekNumber, name: pick?.bowlName === "Custom Bowl" ? "" : pick?.bowlName ?? "" });
                           else updatePick(week.weekNumber, { bowlName: e.target.value });
                         }}><option value="">Select bowl</option>{CFB_BOWL_NAMES.map((name) => <option key={name} value={name}>{name}</option>)}</select>{pick?.bowlName && !CFB_BOWL_NAMES.includes(pick.bowlName as (typeof CFB_BOWL_NAMES)[number]) ? <small>Custom: {pick.bowlName}</small> : null}</label>
-                        <label className="team-schedule-check"><input type="checkbox" checked={pick?.isBowlGame ?? false} onChange={(e) => updatePick(week.weekNumber, { isBowlGame: e.target.checked })} /><span>Bowl game / automatic GOTW</span></label>
+                        {/* GOTW is automatic for every postseason game from Conference Championship
+                            forward, so this flag only marks a real bowl matchup — and CFP games
+                            (first round through the championship) are never bowl games. */}
+                        {!isCfpRound ? <label className="team-schedule-check"><input type="checkbox" checked={pick?.isBowlGame ?? false} onChange={(e) => updatePick(week.weekNumber, { isBowlGame: e.target.checked })} /><span>Bowl game</span></label> : null}
                       </div>
-                    ) : null}
+                      );
+                    })() : null}
                     {savedResult ? (
                       savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>
                     ) : (
@@ -446,7 +428,7 @@ export function TeamScheduleForm() {
       </Card>
       <div style={{ marginTop: "var(--space-4)" }}>
         <Button variant="primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : editMode ? "Save Schedule Changes" : "Save Season"}
+          {saving ? "Saving..." : hasConfirmedWeeks ? "Save Schedule Changes" : "Save Season"}
         </Button>
       </div>
 

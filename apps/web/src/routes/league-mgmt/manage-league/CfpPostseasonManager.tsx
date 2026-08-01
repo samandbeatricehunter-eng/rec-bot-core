@@ -11,11 +11,13 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 type RankingDraft = { rank: number; teamId: string; conferenceChampion: boolean };
 
+const EMPTY_DRAFT = Array.from({ length: 25 }, (_, index) => ({ rank: index + 1, teamId: "", conferenceChampion: false }));
+
 export function CfpPostseasonManager() {
   const { guildId } = useReadyAuth();
   const [teams, setTeams] = useState<ScheduleTeam[]>([]);
   const [state, setState] = useState<CfpPostseasonState | null>(null);
-  const [draft, setDraft] = useState<RankingDraft[]>(Array.from({ length: 25 }, (_, index) => ({ rank: index + 1, teamId: "", conferenceChampion: false })));
+  const [draft, setDraft] = useState<RankingDraft[]>(EMPTY_DRAFT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,21 +26,30 @@ export function CfpPostseasonManager() {
       .then(([teamResult, postseason]) => {
         setTeams(teamResult.teams);
         setState(postseason);
-        if (postseason.rankings.length) {
-          setDraft(postseason.rankings.map((row) => ({ rank: row.rank, teamId: row.team_id, conferenceChampion: row.conference_champion })));
-        }
+        const savedByRank = new Map(postseason.rankings.map((row) => [row.rank, row]));
+        // Always keep all 25 slots visible so a top-12-only save can be extended to 13+ later.
+        setDraft(EMPTY_DRAFT.map((row) => {
+          const saved = savedByRank.get(row.rank);
+          return saved ? { rank: row.rank, teamId: saved.team_id, conferenceChampion: saved.conference_champion } : row;
+        }));
       })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load CFP setup."));
   }, [guildId]);
 
   const sortedTeams = useMemo(() => [...teams].sort((a, b) => a.name.localeCompare(b.name)), [teams]);
   const selectedTeams = draft.map((row) => row.teamId).filter(Boolean);
+  const filledRanks = draft.filter((row) => row.teamId).map((row) => row.rank).sort((a, b) => a - b);
   const duplicates = new Set(selectedTeams).size !== selectedTeams.length;
-  const complete = selectedTeams.length === 25 && !duplicates;
+  // The top-N must be contiguous (#1..#N) — same rule the API enforces.
+  const contiguous = filledRanks.length > 0 && filledRanks.every((rank, index) => rank === index + 1);
+  const complete = filledRanks.length >= 12 && !duplicates && contiguous;
 
   async function saveRankings() {
     setBusy(true); setError(null);
-    try { setState(await recApi.saveCfpTop25({ guildId, rankings: draft })); }
+    try {
+      const submitted = draft.filter((row) => row.teamId);
+      setState(await recApi.saveCfpTop25({ guildId, rankings: submitted }));
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save CFP rankings."); }
     finally { setBusy(false); }
   }
@@ -56,7 +67,7 @@ export function CfpPostseasonManager() {
     {!state && !error ? <LoadingState label="Loading CFP postseason…" /> : null}
     <Card>
       <h2>In-game CFP Top 25</h2>
-      <p className="form-hint">The first 12 form the suggested playoff field. Entries remain editable until an affected CFP game has a recorded result.</p>
+      <p className="form-hint">Enter at least the top 12 — that establishes the playoff bracket and populates those teams' schedules. Seeds 1–4 get byes; #5 hosts #12, #6 hosts #11, #7 hosts #10, #8 hosts #9. Add up to #25 for the full poll and conference champions. Entries remain editable until an affected CFP game has a recorded result.</p>
       <div className="cfp-top25-grid">
         {draft.map((row, index) => <div className="cfp-ranking-row" key={row.rank}>
           <strong>#{row.rank}</strong>
@@ -68,9 +79,10 @@ export function CfpPostseasonManager() {
         </div>)}
       </div>
       {duplicates ? <p className="error-text">Each ranking must use a different team.</p> : null}
+      {!contiguous && filledRanks.length > 0 ? <p className="error-text">Rankings must be filled top-down — no gaps below the last ranked team.</p> : null}
       <div className="form-actions">
-        <Button variant="primary" disabled={!complete || busy} onClick={() => void saveRankings()}>Save Top 25</Button>
-        <Button variant="secondary" disabled={state?.rankings.length !== 25 || busy} onClick={() => void generate()}>Generate / Rebuild CFP Bracket</Button>
+        <Button variant="primary" disabled={!complete || busy} onClick={() => void saveRankings()}>Save Rankings</Button>
+        <Button variant="secondary" disabled={(state?.rankings.length ?? 0) < 12 || busy} onClick={() => void generate()}>Generate / Rebuild CFP Bracket</Button>
       </div>
     </Card>
     {state?.bracket.length ? <Card>

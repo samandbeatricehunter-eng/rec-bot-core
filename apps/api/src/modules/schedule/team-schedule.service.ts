@@ -8,6 +8,7 @@ import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_N
 import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
 import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, loadSchedulePlaceholderTeamIds, saveManualScheduleGame } from "./schedule.service.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { assignKnownRivalryToGame, ensureLeagueRivalries, loadGameRivalries } from "../rivalries/rivalries.service.js";
 
 type ConfirmedWeek = {
@@ -45,7 +46,7 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
         homeTeamId: game.home_team_id,
         awayTeamId: game.away_team_id,
         opponentTeamId: isAway ? game.home_team_id : game.away_team_id,
-        opponentName: opponent?.name ?? opponent?.abbreviation ?? "Team",
+        opponentName: formatTeamDisplayName(opponent) ?? opponent?.name ?? opponent?.abbreviation ?? "Team",
         homeAway: isAway ? "away" : "home",
         matchupType: opponentUserId ? "h2h" : "cpu",
         postseasonRound: game.postseason_round ?? null,
@@ -202,7 +203,7 @@ export async function previewCfbTeamScheduleImport(input: {
       opponentRank: row.opponentRank,
       homeAway: row.homeAway,
       matchedOpponentTeamId: match && match.score >= AUTO_MATCH_THRESHOLD ? match.teamId : null,
-      matchedOpponentName: matchedTeam?.name ?? matchedTeam?.abbreviation ?? null,
+      matchedOpponentName: formatTeamDisplayName(matchedTeam) ?? matchedTeam?.name ?? matchedTeam?.abbreviation ?? null,
       matchConfidence: match?.score ?? null,
       alreadyConfirmed: Boolean(confirmed),
       confirmedOpponentTeamId: confirmed?.opponentTeamId ?? null,
@@ -307,7 +308,9 @@ export async function getTeamScheduleManualState(input: {
       byeType: (byeByWeek.get(weekNumber) ?? (weekNumber === 16 ? "cfp_first_round" : "regular_season")) as "regular_season" | "cfp_first_round",
       postseasonRound: confirmed?.postseasonRound ?? (weekNumber >= 15 ? ["conference_championship", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"][weekNumber - 15] : null),
       bowlName: confirmed?.bowlName ?? null,
-      isBowlGame: confirmed?.isBowlGame ?? weekNumber >= 16,
+      // Postseason weeks are NOT bowl games by default — the flag is only set for a real
+      // bowl matchup (GOTW is automatic for every postseason game regardless).
+      isBowlGame: confirmed?.isBowlGame ?? false,
       isNationalChampionship: confirmed?.isNationalChampionship ?? weekNumber === 19,
       rivalry: confirmed ? (rivalries.get(confirmed.gameId) ?? { enabled: false, optedOut: false, details: null }) : { enabled: false, optedOut: false, details: null },
     });

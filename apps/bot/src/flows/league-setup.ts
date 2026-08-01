@@ -205,6 +205,7 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
   switch (interaction.customId) {
     case LEAGUE_SETUP_CUSTOM_IDS.leagueType: draft.leagueType = value as LeagueSetupDraft["leagueType"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.activeRosters: draft.activeRostersEnabled = value === "yes"; break;
+    case LEAGUE_SETUP_CUSTOM_IDS.trackRosters: draft.trackRostersEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming: draft.regularSeasonStreamingRequirement = value as LeagueSetupDraft["regularSeasonStreamingRequirement"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreamingSide: draft.regularSeasonStreamingSide = value as LeagueSetupDraft["regularSeasonStreamingSide"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming: draft.postseasonStreamingRequirement = value as LeagueSetupDraft["postseasonStreamingRequirement"]; break;

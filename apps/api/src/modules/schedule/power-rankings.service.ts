@@ -34,10 +34,14 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
 const round = (n: number, p = 3) => { const f = 10 ** p; return Math.round(n * f) / f; };
 
 function teamDisplayName(t: any): string {
-  if (t?.is_relocated && (t.display_city || t.display_nick)) {
-    return `${t.display_city ?? ""} ${t.display_nick ?? ""}`.trim() || (t.name ?? "Team");
+  const name = (t?.name ?? "").trim();
+  const nick = (t?.display_nick ?? "").trim();
+  if (t?.is_relocated) {
+    if (name && (!nick || name.toLowerCase() !== nick.toLowerCase())) return name;
+    const combined = `${t?.display_city ?? ""} ${nick}`.trim();
+    if (combined) return combined;
   }
-  return t?.name ?? "Team";
+  return name || nick || "Team";
 }
 
 type Agg = {
