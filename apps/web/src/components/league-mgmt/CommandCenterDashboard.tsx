@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { Newspaper } from "lucide-react";
+import { stageLabel } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
+import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { AdvanceWeekGames, CompletedCommissionerTransaction } from "../../types/api.js";
 import { Card } from "../ui/Card.js";
@@ -128,9 +131,20 @@ function AdvanceReadinessSection() {
 }
 
 function LeagueActionsSection({ onOpenCommissionerChat }: { onOpenCommissionerChat: () => void }) {
+  const { guildId } = useReadyAuth();
+  const { game } = useLeagueTheme();
+  const [currentStageLabel, setCurrentStageLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    recApi
+      .getAdvanceWeekGames(guildId)
+      .then((data) => setCurrentStageLabel(stageLabel(data.currentStage, data.currentWeek, game)))
+      .catch(() => setCurrentStageLabel(null));
+  }, [guildId, game]);
+
   return (
     <Card>
-      <SectionHeading>League Actions</SectionHeading>
+      <SectionHeading>League Actions{currentStageLabel ? ` — ${currentStageLabel}` : ""}</SectionHeading>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         <Link to="/league-mgmt/manage-league" style={{ textDecoration: "none", color: "inherit" }}>
           <Button variant="secondary" style={{ justifyContent: "flex-start", width: "100%" }}>
@@ -164,6 +178,14 @@ function LeagueActionsSection({ onOpenCommissionerChat }: { onOpenCommissionerCh
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
               Settings
+            </span>
+          </Button>
+        </Link>
+        <Link to="/league-mgmt/publishing" style={{ textDecoration: "none", color: "inherit" }}>
+          <Button variant="secondary" style={{ justifyContent: "flex-start", width: "100%" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+              <Newspaper size={16} style={{ flexShrink: 0 }} />
+              Media
             </span>
           </Button>
         </Link>
