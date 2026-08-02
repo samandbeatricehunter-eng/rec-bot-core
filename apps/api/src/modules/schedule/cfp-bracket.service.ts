@@ -342,7 +342,8 @@ export async function getCfpPostseasonState(input: { guildId: string; seasonNumb
       [context.leagueId, seasonNumber],
     ),
   ]);
-  return { seasonNumber, rankings: rankings.rows, bracket: bracket.rows };
+  const currentWeek = Number(context.rec_leagues.current_week ?? 0);
+  return { seasonNumber, currentWeek, top25Locked: currentWeek >= ROUND_WEEK.first_round, rankings: rankings.rows, bracket: bracket.rows };
 }
 
 export { ROUND_WEEK };
