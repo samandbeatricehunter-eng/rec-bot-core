@@ -211,29 +211,18 @@ async function postGameChannelIntro(input: { channelId: string; weekNumber: numb
   return built;
 }
 
-// Commissioner "Create Game Channels" action in League Mgmt — deletes last week's tracked
-// game channels and creates one per current-week H2H matchup, same as the bot's old
-// Game Channels menu button, but driven from the web via Discord's REST API.
-export async function createGameChannelsForCurrentWeek(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
-  const categoryId = String((context.routes as any)?.game_channels_category_id ?? "");
-  if (!categoryId) throw new ApiError(400, "Assign the Game Channels category in Settings before creating game channels.");
+type GameChannelContext = Awaited<ReturnType<typeof getCurrentLeagueContext>>;
+type AdvanceWeek = Awaited<ReturnType<typeof getAdvanceWeekGames>>;
 
-  const tracked = await listTrackedGameChannelDiscordIds(guildId);
-  const deletedIds: string[] = [];
-  for (const channelId of tracked) {
-    const id = String(channelId);
-    const deleted = await deleteGuildChannel(id, "Replacing tracked REC game channels for the current week schedule.");
-    if (deleted) deletedIds.push(id);
-  }
-  if (deletedIds.length) await markTrackedGameChannelsDeleted(deletedIds);
-
-  const week = await getAdvanceWeekGames(guildId);
-  const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
+// Shared by both createGameChannelsForCurrentWeek (full replace) and
+// repairGameChannelsForCurrentWeek (fill-only) — everything past "which games need a
+// channel" is identical: create the Discord channel, register it, post the intro embed,
+// seed the game chat system card.
+async function createChannelsForGames(context: GameChannelContext, guildId: string, categoryId: string, week: AdvanceWeek, games: any[]) {
   const [draft, powerRankings, discordByUser] = await Promise.all([
     getLeagueConfigAsDraft(guildId).then((r) => (r as any)?.draft ?? null).catch(() => null),
     computePowerRankings(guildId).catch(() => ({ teams: [] })),
-    discordIdsByUserId([...new Set(h2hGames.flatMap((game) => [game.awayUserId, game.homeUserId]).filter(Boolean))] as string[]),
+    discordIdsByUserId([...new Set(games.flatMap((game) => [game.awayUserId, game.homeUserId]).filter(Boolean))] as string[]),
   ]);
   const gotwPolls = await supabase.from("rec_game_of_week_polls").select("game_id").eq("league_id", context.leagueId)
     .eq("season_number", week.seasonNumber).eq("week_number", week.currentWeek).in("status", ["open", "closed"]);
@@ -242,7 +231,7 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
   const ranks = new Map<string, any>(((powerRankings as any)?.teams ?? []).map((team: any) => [String(team.teamId), team]));
 
   const created: Array<{ gameId: string; gameChannelId: string | null; discordChannelId: string; name: string; awayUserId: string | null; homeUserId: string | null }> = [];
-  for (const game of h2hGames) {
+  for (const game of games) {
     const name = `${channelSlug(game.awayTeamName)}-at-${channelSlug(game.homeTeamName)}`.slice(0, 100);
     const channel = await createGuildChannel(guildId, { name, type: "text", parentChannelId: categoryId });
     const gameChannelRow = await registerGameChannel({
@@ -274,6 +263,55 @@ export async function createGameChannelsForCurrentWeek(guildId: string) {
     }
     created.push({ gameId: game.gameId, gameChannelId: gameChannelRow?.id ?? null, discordChannelId: channel.id, name: channel.name, awayUserId: game.awayUserId ?? null, homeUserId: game.homeUserId ?? null });
   }
+  return created;
+}
 
+// Commissioner "Create Game Channels" action in League Mgmt — deletes last week's tracked
+// game channels and creates one per current-week H2H matchup, same as the bot's old
+// Game Channels menu button, but driven from the web via Discord's REST API.
+export async function createGameChannelsForCurrentWeek(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const categoryId = String((context.routes as any)?.game_channels_category_id ?? "");
+  if (!categoryId) throw new ApiError(400, "Assign the Game Channels category in Settings before creating game channels.");
+
+  const tracked = await listTrackedGameChannelDiscordIds(guildId);
+  const deletedIds: string[] = [];
+  for (const channelId of tracked) {
+    const id = String(channelId);
+    const deleted = await deleteGuildChannel(id, "Replacing tracked REC game channels for the current week schedule.");
+    if (deleted) deletedIds.push(id);
+  }
+  if (deletedIds.length) await markTrackedGameChannelsDeleted(deletedIds);
+
+  const week = await getAdvanceWeekGames(guildId);
+  const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
+  const created = await createChannelsForGames(context, guildId, categoryId, week, h2hGames);
   return { created, deleted: deletedIds.length, eligible: h2hGames.length };
+}
+
+// Repair variant: never deletes or touches an existing tracked channel — only creates one
+// for a current-week H2H matchup that doesn't have an active channel yet. Covers a league
+// that advanced with an incomplete schedule (channels already ran once) and then had more
+// games added afterward — this fills exactly the gap, leaving every in-use channel alone.
+export async function repairGameChannelsForCurrentWeek(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const categoryId = String((context.routes as any)?.game_channels_category_id ?? "");
+  if (!categoryId) throw new ApiError(400, "Assign the Game Channels category in Settings before creating game channels.");
+
+  const week = await getAdvanceWeekGames(guildId);
+  const h2hGames = (week.games as any[]).filter((game) => game.isH2h);
+  if (!h2hGames.length) return { created: [], skipped: 0, eligible: 0 };
+
+  const existing = await supabase
+    .from("rec_game_channels")
+    .select("game_id")
+    .eq("league_id", context.leagueId)
+    .eq("status", "active")
+    .in("game_id", h2hGames.map((game) => game.gameId));
+  if (existing.error) throw new ApiError(500, "Failed to check existing game channels.", existing.error);
+  const alreadyCovered = new Set((existing.data ?? []).map((row: any) => row.game_id));
+  const missingGames = h2hGames.filter((game) => !alreadyCovered.has(game.gameId));
+
+  const created = missingGames.length ? await createChannelsForGames(context, guildId, categoryId, week, missingGames) : [];
+  return { created, skipped: h2hGames.length - missingGames.length, eligible: h2hGames.length };
 }

@@ -519,6 +519,10 @@ export const recApi = {
   // current week's H2H matchups.
   createGameChannelsForCurrentWeek: (guildId: string) =>
     recApiFetch<{ created: Array<{ gameId: string; discordChannelId: string; name: string }>; deleted: number; eligible: number }>("/v1/game-channels/create-current-week", { method: "POST", body: JSON.stringify({ guildId }) }),
+  // Fill-only repair: only creates a channel for a current-week H2H matchup missing one —
+  // never touches an existing tracked channel.
+  repairGameChannelsForCurrentWeek: (guildId: string) =>
+    recApiFetch<{ created: Array<{ gameId: string; discordChannelId: string; name: string }>; skipped: number; eligible: number }>("/v1/game-channels/repair-current-week", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // GOTW — commissioner assigns a game from League Mgmt; voting/closing live on the Hub
   // matchup page.

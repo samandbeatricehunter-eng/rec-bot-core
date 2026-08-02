@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { getGameChannelMatchup, getGameChannelMatchupsForGuild } from "./game-channel-matchup.service.js";
-import { createGameChannelsForCurrentWeek, listTrackedGameChannelDiscordIds, markTrackedGameChannelsDeleted, registerGameChannel } from "./game-channels.service.js";
+import { createGameChannelsForCurrentWeek, listTrackedGameChannelDiscordIds, markTrackedGameChannelsDeleted, registerGameChannel, repairGameChannelsForCurrentWeek } from "./game-channels.service.js";
 
 export async function gameChannelRoutes(app: FastifyInstance) {
   // Commissioner-facing "Create Game Channels" action from League Mgmt.
@@ -13,6 +13,18 @@ export async function gameChannelRoutes(app: FastifyInstance) {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
       return reply.send(await createGameChannelsForCurrentWeek(guildId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Fill-only repair: creates a channel only for a current-week H2H matchup that doesn't
+  // have one yet — never deletes or recreates an existing tracked channel.
+  app.post("/v1/game-channels/repair-current-week", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      return reply.send(await repairGameChannelsForCurrentWeek(guildId));
     } catch (error) {
       return sendError(reply, error);
     }

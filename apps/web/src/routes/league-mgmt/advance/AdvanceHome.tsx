@@ -85,7 +85,8 @@ export function AdvanceHome() {
   const setGotwCandidates = (_value: GotwCandidate[]) => {};
   const setGotwGameId = (_value: string | ((previous: string) => string)) => {};
   const assigningGotw = false;
-  const creatingChannels = false;
+  const [creatingChannels, setCreatingChannels] = useState(false);
+  const [repairingChannels, setRepairingChannels] = useState(false);
   const [flagBusyGameId, setFlagBusyGameId] = useState<string | null>(null);
 
   const [jumpTargets, setJumpTargets] = useState<{ currentLabel: string; targets: Array<{ weekNumber: number; seasonStage: string; label: string }> } | null>(null);
@@ -271,7 +272,32 @@ export function AdvanceHome() {
   }
 
   function handleAssignGotw() {}
-  function handleCreateGameChannels() {}
+
+  async function handleCreateGameChannels() {
+    setCreatingChannels(true);
+    setError(null);
+    try {
+      const result = await recApi.createGameChannelsForCurrentWeek(guildId);
+      setNotice(`Recreated game channels: ${result.deleted} retired, ${result.created.length} of ${result.eligible} matchups created.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create game channels.");
+    } finally {
+      setCreatingChannels(false);
+    }
+  }
+
+  async function handleRepairGameChannels() {
+    setRepairingChannels(true);
+    setError(null);
+    try {
+      const result = await recApi.repairGameChannelsForCurrentWeek(guildId);
+      setNotice(`Repaired game channels: ${result.created.length} added for matchups missing one, ${result.skipped} already had a channel (untouched).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to repair game channels.");
+    } finally {
+      setRepairingChannels(false);
+    }
+  }
 
   async function handlePostseasonFlag(gameId: string, patch: { isBowlGame?: boolean; isNationalChampionship?: boolean }) {
     if (!data) return;
@@ -412,9 +438,17 @@ export function AdvanceHome() {
       <Card className="advance-card advance-legacy-manual-control">
         <h2>Game Channels</h2>
         <p className="form-hint">Creates a Discord channel for each current-week H2H matchup, replacing last week's tracked channels.</p>
-        <Button variant="secondary" disabled={creatingChannels} onClick={handleCreateGameChannels}>
-          {creatingChannels ? "Creating..." : "Create Game Channels"}
-        </Button>
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+          <Button variant="secondary" disabled={creatingChannels || repairingChannels} onClick={() => void handleCreateGameChannels()}>
+            {creatingChannels ? "Creating..." : "Create Game Channels"}
+          </Button>
+          <Button variant="ghost" disabled={creatingChannels || repairingChannels} onClick={() => void handleRepairGameChannels()}>
+            {repairingChannels ? "Repairing..." : "Repair Missing Channels"}
+          </Button>
+        </div>
+        <p className="form-hint" style={{ marginTop: "var(--space-2)" }}>
+          Repair only adds a channel for a matchup that doesn't have one yet — use it after adding games to an already-advanced week. It never deletes or recreates an existing channel.
+        </p>
       </Card>
 
       <Card className="advance-card">

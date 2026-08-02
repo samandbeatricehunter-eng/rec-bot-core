@@ -42,6 +42,13 @@ export async function saveCfpTop25(input: {
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   if (context.rec_leagues.game !== "cfb_27") throw new ApiError(400, "CFP rankings are available only for CFB 27 leagues.");
+  // The Top 25 poll is an up-to-the-playoffs system: once the league advances past the
+  // conference championship week into the CFP first round, the poll is a historical record —
+  // seeding/bracket edits from here on go through the separate bracket editor instead.
+  const currentWeek = Number(context.rec_leagues.current_week ?? 0);
+  if (currentWeek >= ROUND_WEEK.first_round) {
+    throw new ApiError(400, "The CFP Top 25 poll is locked — the league has already advanced into the playoffs.");
+  }
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
   if (input.rankings.length < 12 || input.rankings.length > 25) {
     throw new ApiError(400, "Enter at least the top 12 teams (up to 25) to establish the playoff bracket.");
@@ -80,11 +87,9 @@ export async function saveCfpTop25(input: {
       values,
     );
     await client.query("commit");
-    // Once the top 12 are in, the bracket (and the 12 teams' schedules) populate immediately —
-    // ranks 13–25 only refine the poll and conference-champion flags.
-    if (input.rankings.length >= 12) {
-      return generateCfpBracket({ guildId: input.guildId, seasonNumber, requestedByDiscordId: input.requestedByDiscordId ?? null });
-    }
+    // Saving the poll no longer generates the bracket — that's a distinct step (the
+    // seeding editor), which defaults to these top-12 rankings but is independently
+    // editable and re-generatable without touching the poll.
     return getCfpPostseasonState({ guildId: input.guildId, seasonNumber });
   } catch (error) {
     await client.query("rollback");
