@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { CFB_BOWL_NAMES } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
@@ -10,17 +11,21 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { HeismanRaceCard } from "./HeismanRaceCard.js";
 
-type RankingDraft = { rank: number; teamId: string; conferenceChampion: boolean };
+// Rank is implicit (array index + 1) — reordering/adding/removing a team never requires
+// touching any other row, unlike the old fixed-25-dropdown-slot layout.
+type PollEntry = { teamId: string; conferenceChampion: boolean };
 type SeedDraft = { seed: number; teamId: string };
 
-const EMPTY_TOP25: RankingDraft[] = Array.from({ length: 25 }, (_, index) => ({ rank: index + 1, teamId: "", conferenceChampion: false }));
 const EMPTY_SEEDS: SeedDraft[] = Array.from({ length: 12 }, (_, index) => ({ seed: index + 1, teamId: "" }));
+const MAX_POLL_SIZE = 25;
+const MIN_POLL_SIZE = 12;
 
 export function CfpPostseasonManager() {
   const { guildId } = useReadyAuth();
   const [teams, setTeams] = useState<ScheduleTeam[]>([]);
   const [state, setState] = useState<CfpPostseasonState | null>(null);
-  const [top25Draft, setTop25Draft] = useState<RankingDraft[]>(EMPTY_TOP25);
+  const [top25Draft, setTop25Draft] = useState<PollEntry[]>([]);
+  const [addTeamId, setAddTeamId] = useState("");
   const [seedDraft, setSeedDraft] = useState<SeedDraft[]>(EMPTY_SEEDS);
   const [savingTop25, setSavingTop25] = useState(false);
   const [savingSeeds, setSavingSeeds] = useState(false);
@@ -42,12 +47,11 @@ export function CfpPostseasonManager() {
       .then(([teamResult, postseason]) => {
         setTeams(teamResult.teams);
         setState(postseason);
-        const savedByRank = new Map(postseason.rankings.map((row) => [row.rank, row]));
-        // Always keep all 25 slots visible so a top-12-only save can be extended to 13+ later.
-        setTop25Draft(EMPTY_TOP25.map((row) => {
-          const saved = savedByRank.get(row.rank);
-          return saved ? { rank: row.rank, teamId: saved.team_id, conferenceChampion: saved.conference_champion } : row;
-        }));
+        setTop25Draft(
+          [...postseason.rankings]
+            .sort((a, b) => a.rank - b.rank)
+            .map((row) => ({ teamId: row.team_id, conferenceChampion: row.conference_champion })),
+        );
         setSeedDraft(seedDraftFromState(postseason));
       })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load CFP setup."));
@@ -56,21 +60,43 @@ export function CfpPostseasonManager() {
   useEffect(load, [guildId]);
 
   const sortedTeams = useMemo(() => [...teams].sort((a, b) => a.name.localeCompare(b.name)), [teams]);
+  const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
 
   // ---- Top 25 poll ----
-  const selectedTop25 = top25Draft.map((row) => row.teamId).filter(Boolean);
-  const filledRanks = top25Draft.filter((row) => row.teamId).map((row) => row.rank).sort((a, b) => a - b);
-  const top25Duplicates = new Set(selectedTop25).size !== selectedTop25.length;
-  // The top-N must be contiguous (#1..#N) — same rule the API enforces.
-  const top25Contiguous = filledRanks.length > 0 && filledRanks.every((rank, index) => rank === index + 1);
-  const top25Complete = filledRanks.length >= 12 && !top25Duplicates && top25Contiguous;
   const top25Locked = state?.top25Locked ?? false;
+  const top25Complete = top25Draft.length >= MIN_POLL_SIZE;
+  const rankedTeamIds = useMemo(() => new Set(top25Draft.map((row) => row.teamId)), [top25Draft]);
+  const availableTeamsForPoll = useMemo(() => sortedTeams.filter((t) => !rankedTeamIds.has(t.id)), [sortedTeams, rankedTeamIds]);
+
+  function moveTop25Entry(index: number, direction: -1 | 1) {
+    setTop25Draft((current) => {
+      const target = index + direction;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
+  function removeTop25Entry(index: number) {
+    setTop25Draft((current) => current.filter((_, i) => i !== index));
+  }
+
+  function toggleTop25ConferenceChampion(index: number) {
+    setTop25Draft((current) => current.map((row, i) => i === index ? { ...row, conferenceChampion: !row.conferenceChampion } : row));
+  }
+
+  function addTop25Entry() {
+    if (!addTeamId || top25Draft.length >= MAX_POLL_SIZE) return;
+    setTop25Draft((current) => [...current, { teamId: addTeamId, conferenceChampion: false }]);
+    setAddTeamId("");
+  }
 
   async function saveTop25() {
     setSavingTop25(true); setError(null);
     try {
-      const submitted = top25Draft.filter((row) => row.teamId);
-      setState(await recApi.saveCfpTop25({ guildId, rankings: submitted }));
+      const rankings = top25Draft.map((row, index) => ({ rank: index + 1, teamId: row.teamId, conferenceChampion: row.conferenceChampion }));
+      setState(await recApi.saveCfpTop25({ guildId, rankings }));
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save CFP rankings."); }
     finally { setSavingTop25(false); }
@@ -118,10 +144,11 @@ export function CfpPostseasonManager() {
     <Card>
       <h2>CFP Top 25 poll</h2>
       <p className="form-hint">
-        This is the in-game CFP Top 25 poll — enter it manually from the game's own rankings each week. Fill at least the
-        top 12 so there's a full field to seed the bracket from; ranks 13–25 just round out the complete poll and flag
-        conference champions. The poll locks once the league advances into the playoffs (Week 16) and becomes a
-        historical record — seeding from here on happens in the bracket editor below, independently of this poll.
+        This is the in-game CFP Top 25 poll — reorder, add, or remove teams as the game's own rankings change each week;
+        there's no need to re-enter the whole list. Keep at least the top 12 filled so there's a full field to seed the
+        bracket from; ranks 13–25 just round out the complete poll and flag conference champions. The poll locks once
+        the league advances into the playoffs (Week 16) and becomes a historical record — seeding from here on happens
+        in the bracket editor below, independently of this poll.
       </p>
       {top25Locked && (
         <div className="cfp-locked-banner">
@@ -129,34 +156,42 @@ export function CfpPostseasonManager() {
           rankings and can no longer be edited.
         </div>
       )}
-      <div className="cfp-top25-grid">
-        {top25Draft.map((row, index) => <div className="cfp-ranking-row" key={row.rank}>
-          <strong>#{row.rank}</strong>
-          <select
-            className="form-select"
-            value={row.teamId}
-            disabled={top25Locked}
-            onChange={(event) => setTop25Draft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, teamId: event.target.value } : item))}
-          >
-            <option value="">Select team</option>
-            {sortedTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-          </select>
+      <div className="cfp-top25-list">
+        {top25Draft.map((row, index) => <div className="cfp-ranking-row" key={row.teamId}>
+          <strong>#{index + 1}</strong>
+          <span className="cfp-ranking-team-name">{teamById.get(row.teamId)?.name ?? "Unknown team"}</span>
           <label>
             <input
               type="checkbox"
               checked={row.conferenceChampion}
               disabled={top25Locked}
-              onChange={(event) => setTop25Draft((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, conferenceChampion: event.target.checked } : item))}
+              onChange={() => toggleTop25ConferenceChampion(index)}
             /> Conf. champ
           </label>
+          {!top25Locked && (
+            <div className="cfp-ranking-row-actions">
+              <button type="button" disabled={index === 0} onClick={() => moveTop25Entry(index, -1)} aria-label="Move up"><ChevronUp size={14} /></button>
+              <button type="button" disabled={index === top25Draft.length - 1} onClick={() => moveTop25Entry(index, 1)} aria-label="Move down"><ChevronDown size={14} /></button>
+              <button type="button" onClick={() => removeTop25Entry(index)} aria-label="Remove from poll"><X size={14} /></button>
+            </div>
+          )}
         </div>)}
+        {top25Draft.length === 0 && <p className="hub-empty">No teams ranked yet.</p>}
       </div>
-      {top25Duplicates ? <p className="error-text">Each ranking must use a different team.</p> : null}
-      {!top25Contiguous && filledRanks.length > 0 ? <p className="error-text">Rankings must be filled top-down — no gaps below the last ranked team.</p> : null}
+      {!top25Locked && top25Draft.length < MAX_POLL_SIZE && (
+        <div className="cfp-top25-add-row">
+          <select className="form-select" value={addTeamId} onChange={(event) => setAddTeamId(event.target.value)}>
+            <option value="">Add a team…</option>
+            {availableTeamsForPoll.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+          </select>
+          <Button variant="secondary" disabled={!addTeamId} onClick={addTop25Entry}>Add to Poll</Button>
+        </div>
+      )}
       <div className="form-actions">
         <Button variant="primary" disabled={!top25Complete || savingTop25 || top25Locked} onClick={() => void saveTop25()}>
           {savingTop25 ? "Saving…" : "Save Rankings"}
         </Button>
+        {!top25Complete && <span className="form-hint">Need at least {MIN_POLL_SIZE} teams to save.</span>}
       </div>
     </Card>
 
