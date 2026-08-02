@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
@@ -283,6 +283,23 @@ export function HubHome() {
       ? "rankings"
       : "h2h",
   );
+  const [rankByConference, setRankByConference] = useState(false);
+  const isCfbLeague = hub?.league.game === "cfb_27";
+  const powerRankingsByConference = useMemo(() => {
+    const teams = hub?.powerRankings?.teams ?? [];
+    const groups = new Map<string, typeof teams>();
+    for (const team of teams) {
+      const key = team.conference ?? "Independents";
+      const list = groups.get(key) ?? [];
+      list.push(team);
+      groups.set(key, list);
+    }
+    const conferenceSortKey = (conference: string) => {
+      const idx = (CONFERENCE_ORDER as readonly string[]).indexOf(conference);
+      return idx === -1 ? CONFERENCE_ORDER.length : idx;
+    };
+    return [...groups.entries()].sort(([a], [b]) => conferenceSortKey(a) - conferenceSortKey(b) || a.localeCompare(b));
+  }, [hub?.powerRankings]);
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
   const [wagerGamePickerOpen, setWagerGamePickerOpen] = useState(false);
   const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
@@ -1458,10 +1475,33 @@ export function HubHome() {
 
           {matchupView === "rankings" ? (
             <>
-              <SectionFrame eyebrow="Updated on advance" title="Power Rankings">
-                {hub.powerRankings?.teams?.length ? <div className="hub-power-rankings">{hub.powerRankings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                  <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
-                </article>)}</div> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
+              <SectionFrame
+                eyebrow="Updated on advance"
+                title="Power Rankings"
+                action={isCfbLeague && hub.powerRankings?.teams?.length ? (
+                  <button type="button" className="btn btn-ghost" onClick={() => setRankByConference((v) => !v)}>
+                    {rankByConference ? "Show overall" : "Group by conference"}
+                  </button>
+                ) : undefined}
+              >
+                {hub.powerRankings?.teams?.length ? (
+                  rankByConference && isCfbLeague ? (
+                    <div className="hub-power-rankings-by-conference">
+                      {powerRankingsByConference.map(([conference, teams]) => (
+                        <div key={conference} className="hub-power-rankings-conference-group">
+                          <h4>{conference}</h4>
+                          <div className="hub-power-rankings">{teams.map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
+                            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+                          </article>)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="hub-power-rankings">{hub.powerRankings.teams.slice(0, 16).map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
+                      <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small>{team.change == null ? "New" : team.change > 0 ? `Up ${team.change}` : team.change < 0 ? `Down ${Math.abs(team.change)}` : "No change"} · Score {Number(team.score).toFixed(3)}</small></div>
+                    </article>)}</div>
+                  )
+                ) : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
               </SectionFrame>
 
               <SectionFrame eyebrow="Win%, point diff, schedule strength, playoff success" title="Coach Ratings">

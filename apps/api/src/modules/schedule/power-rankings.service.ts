@@ -210,7 +210,7 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
     : await rankTeams(guildId, leagueId, currentSeason, leagueGame);
 
   const [teamsRes, assignmentsRes, latestWeek] = await Promise.all([
-    supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated").eq("league_id", leagueId),
+    supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated,conference").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
     loadLatestSnapshotWeek(leagueId, currentSeason, completedWeekNumber),
   ]);
@@ -242,6 +242,7 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
       teamId: r.teamId,
       teamName: teamDisplayName(t),
       abbr: t?.display_abbr ?? t?.abbreviation ?? null,
+      conference: t?.conference ?? null,
       isHuman: humanTeamIds.has(r.teamId),
       rank: r.rank,
       score: round(r.score, 3),

@@ -3435,3 +3435,6 @@ button.poty:disabled {
 .cfp-heisman-add-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .cfp-heisman-add-row .form-input { flex: 1; min-width: 160px; }
 .cfp-heisman-add-row .form-select { min-width: 160px; }
+
+.hub-power-rankings-by-conference { display: flex; flex-direction: column; gap: var(--space-4); }
+.hub-power-rankings-conference-group h4 { margin: 0 0 var(--space-2); color: var(--gold); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.03em; }
