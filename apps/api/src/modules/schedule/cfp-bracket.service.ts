@@ -150,6 +150,21 @@ export async function generateCfpBracket(input: {
     );
     const bracketId = bracket.rows[0].id as string;
 
+    // A seeded team can already have a stray week-16 game that predates this bracket entirely
+    // (e.g. a manually-entered placeholder from before the bracket tool worked, or before this
+    // team was even seeded) — regenerating must not leave that sitting alongside the real
+    // bracket game as a duplicate. Safe to clear: scoped to this exact week, only unscored
+    // games, and never touches a game already tracked by any bracket slot (those are handled
+    // by the branches below, including the completed-game lock).
+    await client.query(
+      `delete from rec_games
+       where league_id=$1 and week_number=$2
+         and (home_team_id = any($3::uuid[]) or away_team_id = any($3::uuid[]))
+         and home_score is null and away_score is null
+         and id not in (select game_id from rec_cfp_bracket_slots where game_id is not null)`,
+      [context.leagueId, ROUND_WEEK.first_round, [...seedToTeam.values()]],
+    );
+
     const existingCompleted = await client.query(
       `select s.id,s.round,s.slot_number,s.home_team_id,s.away_team_id
        from rec_cfp_bracket_slots s
