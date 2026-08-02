@@ -682,6 +682,15 @@ export type HeismanCandidate = {
   created_at: string;
 };
 
+export type HeismanRaceState = {
+  seasonNumber: number;
+  candidates: HeismanCandidate[];
+  closed: boolean;
+  winnerCandidateId: string | null;
+  winnerName: string | null;
+  awardedAt: string | null;
+};
+
 export type CfpPostseasonState = {
   seasonNumber: number;
   currentWeek: number;

@@ -260,11 +260,13 @@ export const recApi = {
   generateCfpBracket: (input: { guildId: string; seeds?: Array<{ seed: number; teamId: string }> }) =>
     recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/generate", { method: "POST", body: JSON.stringify(input) }),
   listHeismanCandidates: (guildId: string) =>
-    recApiFetch<{ seasonNumber: number; candidates: import("../types/api.js").HeismanCandidate[] }>("/v1/heisman/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<import("../types/api.js").HeismanRaceState>("/v1/heisman/list", { method: "POST", body: JSON.stringify({ guildId }) }),
   addHeismanCandidate: (input: { guildId: string; playerName: string; teamId?: string | null }) =>
-    recApiFetch<{ seasonNumber: number; candidates: import("../types/api.js").HeismanCandidate[] }>("/v1/heisman/add", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<import("../types/api.js").HeismanRaceState>("/v1/heisman/add", { method: "POST", body: JSON.stringify(input) }),
   removeHeismanCandidate: (input: { guildId: string; candidateId: string }) =>
-    recApiFetch<{ seasonNumber: number; candidates: import("../types/api.js").HeismanCandidate[] }>("/v1/heisman/remove", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<import("../types/api.js").HeismanRaceState>("/v1/heisman/remove", { method: "POST", body: JSON.stringify(input) }),
+  awardHeismanWinner: (input: { guildId: string; candidateId: string }) =>
+    recApiFetch<import("../types/api.js").HeismanRaceState>("/v1/heisman/award", { method: "POST", body: JSON.stringify(input) }),
   setGameRivalry: (input: Record<string, unknown>) =>
     recApiFetch<{ enabled: boolean }>(REC_API_ROUTES.setGameRivalry, { method: "POST", body: JSON.stringify(input) }),
   getTeamManagementSummary: (guildId: string) =>

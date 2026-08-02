@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { addHeismanCandidate, listHeismanCandidates, removeHeismanCandidate } from "./heisman.service.js";
+import { addHeismanCandidate, awardHeismanWinner, listHeismanCandidates, removeHeismanCandidate } from "./heisman.service.js";
 
 export async function heismanRoutes(app: FastifyInstance) {
   app.post("/v1/heisman/list", async (request, reply) => {
@@ -31,6 +31,18 @@ export async function heismanRoutes(app: FastifyInstance) {
       await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
       const input = z.object({ guildId: z.string().min(1), candidateId: z.string().uuid() }).parse(request.body);
       return reply.send(await removeHeismanCandidate(input));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/heisman/award", async (request, reply) => {
+    try {
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
+      const input = z.object({
+        guildId: z.string().min(1),
+        seasonNumber: z.number().int().positive().optional().nullable(),
+        candidateId: z.string().uuid(),
+      }).parse(request.body);
+      return reply.send(await awardHeismanWinner({ ...input, requestedByDiscordId: auth.mode === "user" ? auth.discordId : null }));
     } catch (error) { return sendError(reply, error); }
   });
 }

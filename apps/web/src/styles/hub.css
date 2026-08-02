@@ -3428,6 +3428,8 @@ button.poty:disabled {
 
 .cfp-heisman-list { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
 .cfp-heisman-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2); border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
+.cfp-heisman-row.is-winner { border-color: var(--gold); }
+.cfp-heisman-trophy { color: var(--gold); flex-shrink: 0; }
 .cfp-heisman-name { font-weight: 700; flex: 1; }
 .cfp-heisman-team { color: var(--text-secondary); font-size: var(--text-sm); }
 .cfp-heisman-row button { background: transparent; border: 0; color: var(--text-muted); cursor: pointer; padding: var(--space-1); }
