@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BarChart3, ChevronRight, Shield, Trophy, UserPlus, Users } from "lucide-react";
+import { ArrowLeft, BarChart3, ChevronRight, GraduationCap, Shield, Trophy, UserPlus, Users, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
+import { useLeagueTheme } from "../../../lib/league-theme-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { TeamManagementSummaryRow } from "../../../types/api.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
@@ -35,9 +36,12 @@ function conferenceSortKey(conference: string): number {
 // Deep relocate/rename/custom-team actions per row are still future work — see the plan.
 export function ManageLeagueHome() {
   const { guildId } = useReadyAuth();
+  const { game } = useLeagueTheme();
   const navigate = useNavigate();
   const [summary, setSummary] = useState<{ teams: TeamManagementSummaryRow[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [repairingChannels, setRepairingChannels] = useState(false);
   const [query, setQuery] = useState("");
   const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
@@ -50,6 +54,20 @@ export function ManageLeagueHome() {
       .then((res) => setSummary(res))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load teams."));
   }, [guildId]);
+
+  async function handleRepairGameChannels() {
+    setRepairingChannels(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await recApi.repairGameChannelsForCurrentWeek(guildId);
+      setNotice(`Repaired game channels: ${result.created.length} added for matchups missing one, ${result.skipped} already had a channel (untouched).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to repair game channels.");
+    } finally {
+      setRepairingChannels(false);
+    }
+  }
 
   // Built off the full team list (not the filtered subset) so picking a conference never
   // makes other conferences disappear from the dropdown itself.
@@ -112,10 +130,15 @@ export function ManageLeagueHome() {
             </Button>
             <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/player-stats")}><BarChart3 size={16}/> Player Stats</Button>
             <Button variant="secondary" onClick={() => navigate("/league-mgmt/manage-league/postseason")}><Trophy size={16}/> CFP & Bowls</Button>
+            {game === "cfb_27" && <Button variant="secondary" onClick={() => navigate("/league-mgmt/recruiting")}><GraduationCap size={16}/> Recruits</Button>}
+            <Button variant="secondary" disabled={repairingChannels} onClick={() => void handleRepairGameChannels()}>
+              <Wrench size={16}/> {repairingChannels ? "Repairing…" : "Repair Game Channels"}
+            </Button>
           </div>
         }
       />
       {error && <ErrorState message={error} />}
+      {notice && <p className="form-hint">{notice}</p>}
       {!summary && !error && <LoadingState label="Loading teams…" />}
       {summary && (
         <>
