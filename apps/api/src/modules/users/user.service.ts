@@ -1340,8 +1340,17 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
             .eq("is_selected", true)
             .maybeSingle();
 
-          if (isPostseason) {
-            // All playoff games are GOTW — show the stage name, not a GOTW badge.
+          // Drive the label off this specific game's own flags, not the league's overall
+          // stage — during a CFP round, teams not in the bracket are simultaneously playing
+          // a separately-scheduled bowl game, and a bracket game can itself also carry a bowl
+          // name (e.g. a CFP quarterfinal hosted at the Fiesta Bowl). Show whichever apply.
+          const postseasonRoundLabel = game.postseason_round ? stageLabel(String(game.postseason_round), currentWeek, league.game) : null;
+          const bowlLabel = game.is_bowl_game ? (String(game.bowl_name ?? "").trim() || "Bowl Game") : null;
+          if (postseasonRoundLabel || bowlLabel) {
+            gotwStatus = postseasonRoundLabel && bowlLabel ? `${postseasonRoundLabel} · ${bowlLabel}` : (postseasonRoundLabel ?? bowlLabel)!;
+          } else if (isPostseason) {
+            // Postseason week, but this game isn't flagged as a bracket or bowl game —
+            // fall back to the league's overall stage name rather than showing nothing.
             gotwStatus = stageLabel(stage, currentWeek, league.game);
           } else if (!gotw.error && gotw.data) {
             gotwStatus = `Yes${gotw.data.strength_rating ? ` (${Number(gotw.data.strength_rating).toFixed(1)} rating)` : ""}`;
