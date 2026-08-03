@@ -7,6 +7,7 @@ import { Button } from "../ui/Button.js";
 import { ErrorState } from "../ui/ErrorState.js";
 import { UploadBoxScoreModal } from "../../routes/league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { HighlightUploadModal } from "./HighlightUploadModal.js";
+import { AssignBoxScoreStatsModal } from "./AssignBoxScoreStatsModal.js";
 
 function weekLabel(week: TeamScheduleManualWeek): string {
   const side = week.confirmedHomeAway === "home" ? "vs" : "at";
@@ -37,6 +38,7 @@ export function LateSubmissionsModal({
   const [selectedWeek, setSelectedWeek] = useState<number | "">("");
   const [boxScoreOpen, setBoxScoreOpen] = useState(false);
   const [highlightOpen, setHighlightOpen] = useState(false);
+  const [assignStatsSubmissionId, setAssignStatsSubmissionId] = useState<string | null>(null);
 
   function load() {
     setError(null);
@@ -134,7 +136,7 @@ export function LateSubmissionsModal({
           commissionerSubmission={false}
           requireSecondImage
           onClose={() => setBoxScoreOpen(false)}
-          onSubmitted={() => { setBoxScoreOpen(false); load(); }}
+          onSubmitted={(submissionId) => { setBoxScoreOpen(false); setAssignStatsSubmissionId(submissionId); load(); }}
         />
       )}
       {highlightOpen && selected?.gameId && (
@@ -144,6 +146,9 @@ export function LateSubmissionsModal({
           onClose={() => setHighlightOpen(false)}
           onSubmitted={() => { setHighlightOpen(false); load(); }}
         />
+      )}
+      {assignStatsSubmissionId && (
+        <AssignBoxScoreStatsModal guildId={guildId} submissionId={assignStatsSubmissionId} onClose={() => setAssignStatsSubmissionId(null)} />
       )}
     </Modal>
   );

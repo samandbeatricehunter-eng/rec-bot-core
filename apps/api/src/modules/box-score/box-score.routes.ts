@@ -20,6 +20,7 @@ import {
   updateBoxScoreLedgerMessage,
 } from "./box-score.service.js";
 import { getBoxScoreSubmissionJob, getJobGuildId, startBoxScoreSubmissionJob } from "./box-score-jobs.js";
+import { ASSIGNABLE_CATEGORIES, assignBoxScoreStatsToPlayer, getAssignableBoxScoreStats } from "./box-score-player-stats.service.js";
 
 const SUPPORTED_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -75,6 +76,40 @@ const CorrectSchema = z.object({
 });
 
 export async function boxScoreRoutes(app: FastifyInstance) {
+  // Skippable follow-up to a box score upload: assign the applicable per-player-attributable
+  // stats (passing, rushing — never team-aggregate fields) to a roster player.
+  app.post("/v1/box-score/assignable-stats", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), discordId: z.string().min(1).optional(), submissionId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await getAssignableBoxScoreStats({ guildId: body.guildId, discordId: body.discordId, submissionId: body.submissionId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/box-score/assign-player-stats", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        submissionId: z.string().uuid(),
+        category: z.enum(ASSIGNABLE_CATEGORIES),
+        rosterPlayerId: z.string().uuid(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await assignBoxScoreStatsToPlayer({ guildId: body.guildId, discordId: body.discordId, submissionId: body.submissionId, category: body.category, rosterPlayerId: body.rosterPlayerId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   // Parse screenshot URLs → parsed data + missing required fields (no DB write)
   app.post("/v1/box-score/parse", async (request, reply) => {
     try {

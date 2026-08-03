@@ -26,6 +26,7 @@ import { MyWatchedPlayersModal } from "../../components/hub/MyWatchedPlayersModa
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
 import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.js";
+import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
@@ -377,6 +378,7 @@ export function HubHome() {
   const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
   const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"boxScore" | "highlight" | null>(null);
   const [recruitingBoardOpen, setRecruitingBoardOpen] = useState(false);
+  const [assignStatsSubmissionId, setAssignStatsSubmissionId] = useState<string | null>(null);
   const [linkedTeams, setLinkedTeams] = useState<LinkedTeamRow[] | null>(null);
   const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
@@ -1715,8 +1717,9 @@ export function HubHome() {
       />
     ) : null}
     {lightboxImage && <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />}
-    {boxScoreUploadGame && auth.status === "ready" && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={boxScoreUploadGame.weekNumber} seasonNumber={hub.league.seasonNumber} gameId={boxScoreUploadGame.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setBoxScoreUploadGame(null)} onSubmitted={async () => { const weekNumber = matchupSchedule?.selectedWeek ?? boxScoreUploadGame.weekNumber; setBoxScoreUploadGame(null); setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber })); }} />}
-    {scheduleBoxScoreWeek && scheduleBoxScoreWeek.gameId && auth.status === "ready" && mySchedule && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={scheduleBoxScoreWeek.weekNumber} seasonNumber={mySchedule.seasonNumber} gameId={scheduleBoxScoreWeek.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setScheduleBoxScoreWeek(null)} onSubmitted={() => { setScheduleBoxScoreWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
+    {boxScoreUploadGame && auth.status === "ready" && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={boxScoreUploadGame.weekNumber} seasonNumber={hub.league.seasonNumber} gameId={boxScoreUploadGame.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setBoxScoreUploadGame(null)} onSubmitted={async (submissionId) => { const weekNumber = matchupSchedule?.selectedWeek ?? boxScoreUploadGame.weekNumber; setBoxScoreUploadGame(null); setAssignStatsSubmissionId(submissionId); setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber })); }} />}
+    {scheduleBoxScoreWeek && scheduleBoxScoreWeek.gameId && auth.status === "ready" && mySchedule && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={scheduleBoxScoreWeek.weekNumber} seasonNumber={mySchedule.seasonNumber} gameId={scheduleBoxScoreWeek.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setScheduleBoxScoreWeek(null)} onSubmitted={(submissionId) => { setScheduleBoxScoreWeek(null); setAssignStatsSubmissionId(submissionId); setMySchedule(null); void viewMySchedule(); }} />}
+    {assignStatsSubmissionId && auth.status === "ready" && <AssignBoxScoreStatsModal guildId={auth.guildId} submissionId={assignStatsSubmissionId} onClose={() => setAssignStatsSubmissionId(null)} />}
     {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
     {recruitingBoardOpen && auth.status === "ready" && <RecruitingBoardModal guildId={auth.guildId} onClose={() => setRecruitingBoardOpen(false)} />}
     {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">

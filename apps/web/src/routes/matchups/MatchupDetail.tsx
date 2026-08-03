@@ -37,6 +37,7 @@ import type {
   WagerOptionsResponse,
 } from "../../types/api.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
+import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { PlayerStatsModal } from "../../components/hub/PlayerStatsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
@@ -220,6 +221,7 @@ export function MatchupDetailPage() {
   const [gameChannelId, setGameChannelId] = useState<string | null>(null);
   const [chatMembers, setChatMembers] = useState<LeagueChatMember[]>([]);
   const [replyTarget, setReplyTarget] = useState<{ id: string; authorDisplayName: string | null; body: string } | null>(null);
+  const [assignStatsSubmissionId, setAssignStatsSubmissionId] = useState<string | null>(null);
   const [boxScoreUploadGame, setBoxScoreUploadGame] =
     useState<HubMatchupGame | null>(null);
 
@@ -965,11 +967,15 @@ export function MatchupDetailPage() {
           commissionerSubmission={false}
           requireSecondImage
           onClose={() => setBoxScoreUploadGame(null)}
-          onSubmitted={async () => {
+          onSubmitted={async (submissionId) => {
             setBoxScoreUploadGame(null);
+            setAssignStatsSubmissionId(submissionId);
             await load();
           }}
         />
+      )}
+      {assignStatsSubmissionId && (
+        <AssignBoxScoreStatsModal guildId={guildId} submissionId={assignStatsSubmissionId} onClose={() => setAssignStatsSubmissionId(null)} />
       )}
 
       {playerStatsOpen && (

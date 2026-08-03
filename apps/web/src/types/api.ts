@@ -660,6 +660,10 @@ export type TeamRosterResponse = {
   players: RosterPlayer[];
   positionGroups: RosterPositionGroup[];
 };
+export type AssignableBoxScoreStats = {
+  teamId: string;
+  categories: Partial<Record<"passing" | "rushing", Array<{ statKey: string; label: string; value: number }>>>;
+};
 export type RosterDepartureStatus = "drafted" | "transferred_out" | "retired" | "graduated";
 export type RosterLifecycleResult = { id: string; full_name: string; roster_status: string };
 export type WeekWagerLinesResponse = {

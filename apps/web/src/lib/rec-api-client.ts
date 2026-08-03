@@ -52,6 +52,7 @@ import type {
   WagerOptionsResponse,
   WeekWagerLinesResponse,
   TeamRosterResponse,
+  AssignableBoxScoreStats,
   RosterDepartureStatus,
   RosterLifecycleResult,
   PeerWagerBoardResponse,
@@ -361,6 +362,10 @@ export const recApi = {
   }) => recApiFetch<{ jobId: string; status: "processing" }>("/v1/box-score/submit", { method: "POST", body: JSON.stringify(input) }),
   pollBoxScoreJob: (jobId: string) =>
     recApiFetch<BoxScoreJobStatus>("/v1/box-score/job", { method: "POST", body: JSON.stringify({ jobId }) }),
+  getAssignableBoxScoreStats: (input: { guildId: string; submissionId: string }) =>
+    recApiFetch<AssignableBoxScoreStats>("/v1/box-score/assignable-stats", { method: "POST", body: JSON.stringify(input) }),
+  assignBoxScoreStatsToPlayer: (input: { guildId: string; submissionId: string; category: "passing" | "rushing"; rosterPlayerId: string }) =>
+    recApiFetch<{ tagId: string }>("/v1/box-score/assign-player-stats", { method: "POST", body: JSON.stringify(input) }),
 
   // Manual final-score entry (schedule builder)
   recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; manualStats?: { home?: Record<string, unknown>; away?: Record<string, unknown> }; performanceTags?: { home?: PerformanceTag[]; away?: PerformanceTag[] } }) =>
