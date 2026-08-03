@@ -250,8 +250,13 @@ export function TeamScheduleForm() {
               const pick = picks[week.weekNumber];
               const savedResult = resultByWeek.get(week.weekNumber);
               const resultLabel = resultLabelForDisplayedTeam(week);
-              const lockedForEdit = Boolean(week.result || week.boxScoreSubmissionId);
-              const showConfirmedView = week.alreadyConfirmed && lockedForEdit;
+              // Any confirmed matchup — regular season or a manually-declared playoff/bowl
+              // game, played or not yet played — gets the read-only card with Upload Box
+              // Score / Enter Results actions. Previously this also required a result or
+              // box-score submission to already exist, which meant a playoff game entered
+              // through this screen (no auto-generated placeholder result row, unlike
+              // regular-season games) could never reach those actions at all.
+              const showConfirmedView = week.alreadyConfirmed;
 
               if (showConfirmedView) {
                 return (
