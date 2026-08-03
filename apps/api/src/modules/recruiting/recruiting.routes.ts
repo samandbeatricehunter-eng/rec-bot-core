@@ -5,11 +5,16 @@ import { sendError } from "../../lib/errors.js";
 import { CFB_POSITIONS } from "@rec/shared";
 import { createRecruit, deleteRecruit, listRecruits, submitRecruitCommit, updateRecruitDetails, updateRecruitStatus } from "./recruiting.service.js";
 
+// list/create/update-status are member-permission — recruiting is a shared, league-wide board
+// (a prospect isn't owned by one team until committed), so any coach needs to see it and log
+// their own team's activity, not just commissioners. update-details (correcting a recruit's
+// factual info) and delete stay commissioner-only to keep those two more disruptive actions
+// gated.
 export async function recruitingRoutes(app: FastifyInstance) {
   app.post("/v1/recruiting/list", async (request, reply) => {
     try {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await listRecruits(body.guildId));
     } catch (error) { return sendError(reply, error); }
   });
@@ -21,7 +26,7 @@ export async function recruitingRoutes(app: FastifyInstance) {
         homeCity: z.string().trim().max(80).optional().nullable(), homeState: z.string().trim().max(40).optional().nullable(),
         starRating: z.number().int().min(1).max(5),
       }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       const discordId = auth.mode === "user" ? auth.discordId : "commissioner-manual-entry";
       return reply.send(await createRecruit({ ...body, discordId }));
     } catch (error) { return sendError(reply, error); }
@@ -34,7 +39,7 @@ export async function recruitingRoutes(app: FastifyInstance) {
         committedTeamId: z.string().uuid().optional().nullable(), committedTeamExternal: z.string().trim().max(120).optional().nullable(),
         commitDate: z.string().optional().nullable(),
       }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await updateRecruitStatus(body));
     } catch (error) { return sendError(reply, error); }
   });

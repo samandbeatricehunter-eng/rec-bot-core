@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -24,6 +24,8 @@ import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { MyWatchedPlayersModal } from "../../components/hub/MyWatchedPlayersModal.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
+import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
+import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
@@ -247,10 +249,27 @@ function BadgeShelf({ title, badges }: { title: string; badges: any[] }) {
   })}</div> : <p className="hub-empty">None earned yet.</p>}</div>;
 }
 
-function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }) {
+function ScheduleWeekList({
+  weeks,
+  currentWeek,
+  highlightCounts,
+  onUploadBoxScore,
+  onUploadHighlight,
+}: {
+  weeks: TeamScheduleManualState["weeks"];
+  currentWeek?: number;
+  highlightCounts?: Record<number, number>;
+  onUploadBoxScore?: (week: TeamScheduleManualState["weeks"][number]) => void;
+  onUploadHighlight?: (week: TeamScheduleManualState["weeks"][number]) => void;
+}) {
   return <div className="hub-schedule-week-list">
     {weeks.map((week) => {
       const resultLabel = scheduleResultLabel(week);
+      const eligibleForActions =
+        week.alreadyConfirmed && week.confirmedMatchupType === "h2h" && !week.isBye && Boolean(week.gameId) &&
+        (currentWeek == null || week.weekNumber <= currentWeek);
+      const missingBoxScore = eligibleForActions && !week.boxScoreSubmissionId;
+      const missingHighlight = eligibleForActions && (highlightCounts?.[week.weekNumber] ?? 0) < 2;
       return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : "missing"}`}>
       <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
       {week.alreadyConfirmed ? <>
@@ -258,6 +277,16 @@ function ScheduleWeekList({ weeks }: { weeks: TeamScheduleManualState["weeks"] }
         <StatusChip status={week.confirmedMatchupType === "h2h" ? "info" : "locked"} label={week.confirmedMatchupType === "h2h" ? "H2H" : "CPU"} />
         {resultLabel ? <b className="hub-final-score">{resultLabel}</b> : <span className="hub-muted">Not yet played</span>}
       </> : week.isBye ? <strong>Bye Week</strong> : <strong className="hub-schedule-missing">Missing Matchup</strong>}
+      {(onUploadBoxScore && missingBoxScore) || (onUploadHighlight && missingHighlight) ? (
+        <div className="hub-schedule-week-actions">
+          {onUploadBoxScore && missingBoxScore && (
+            <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadBoxScore(week)}>Box Score</button>
+          )}
+          {onUploadHighlight && missingHighlight && (
+            <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadHighlight(week)}>Highlight(s)</button>
+          )}
+        </div>
+      ) : null}
     </article>;
     })}
   </div>;
@@ -343,6 +372,11 @@ export function HubHome() {
   const [showMySchedule, setShowMySchedule] = useState(false);
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
+  const [myHighlightCounts, setMyHighlightCounts] = useState<Record<number, number> | null>(null);
+  const [scheduleBoxScoreWeek, setScheduleBoxScoreWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
+  const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
+  const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"boxScore" | "highlight" | null>(null);
+  const [recruitingBoardOpen, setRecruitingBoardOpen] = useState(false);
   const [linkedTeams, setLinkedTeams] = useState<LinkedTeamRow[] | null>(null);
   const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
@@ -759,8 +793,16 @@ export function HubHome() {
     if (auth.status !== "ready") return;
     setShowMySchedule(true); setMyScheduleError(null);
     if (mySchedule) return;
-    try { setMySchedule(await recApi.getMyTeamSchedule(auth.guildId)); }
-    catch (cause) { setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded."); }
+    try {
+      const [schedule, highlightCounts] = await Promise.all([
+        recApi.getMyTeamSchedule(auth.guildId),
+        recApi.getMyHighlightWeekCounts(auth.guildId).catch(() => ({ counts: {} })),
+      ]);
+      setMySchedule(schedule);
+      setMyHighlightCounts(highlightCounts.counts);
+    } catch (cause) {
+      setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded.");
+    }
   }
 
   function selectSection(next: HubSection) {
@@ -1306,6 +1348,18 @@ export function HubHome() {
           </SectionFrame>
         </div>
 
+        <div className="hub-gameday-card">
+          <p className="hub-eyebrow">Quick actions</p>
+          <div className="hub-gameday-actions">
+            <button type="button" className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Interview</strong><span>Answer this week's questions</span></div></button>
+            <button type="button" className="hub-shortcut-card" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={18} />} /><div><strong>Box Score</strong><span>This week or a missed one</span></div></button>
+            <button type="button" className="hub-shortcut-card" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={18} />} /><div><strong>Highlights</strong><span>2 per week, up to this week</span></div></button>
+            <button type="button" className="hub-shortcut-card" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={18} />} /><div><strong>Roster</strong><span>View your team</span></div></button>
+            <button type="button" className="hub-shortcut-card" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={18} />} /><div><strong>Full Schedule</strong><span>Results &amp; upcoming games</span></div></button>
+            {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={18} />} /><div><strong>Recruiting</strong><span>Log commits, manage your board</span></div></button>}
+          </div>
+        </div>
+
         <LiveGamesCard liveStreams={hub.liveStreams} />
 
         <EosAwardVotingBlock />
@@ -1662,6 +1716,9 @@ export function HubHome() {
     ) : null}
     {lightboxImage && <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />}
     {boxScoreUploadGame && auth.status === "ready" && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={boxScoreUploadGame.weekNumber} seasonNumber={hub.league.seasonNumber} gameId={boxScoreUploadGame.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setBoxScoreUploadGame(null)} onSubmitted={async () => { const weekNumber = matchupSchedule?.selectedWeek ?? boxScoreUploadGame.weekNumber; setBoxScoreUploadGame(null); setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber })); }} />}
+    {scheduleBoxScoreWeek && scheduleBoxScoreWeek.gameId && auth.status === "ready" && mySchedule && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={scheduleBoxScoreWeek.weekNumber} seasonNumber={mySchedule.seasonNumber} gameId={scheduleBoxScoreWeek.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setScheduleBoxScoreWeek(null)} onSubmitted={() => { setScheduleBoxScoreWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
+    {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
+    {recruitingBoardOpen && auth.status === "ready" && <RecruitingBoardModal guildId={auth.guildId} onClose={() => setRecruitingBoardOpen(false)} />}
     {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
       {playerStatsNotice && <p className="hub-transfer-status">{playerStatsNotice}</p>}<p className="hub-muted">{playerStatsGame.awayTeamName} at {playerStatsGame.homeTeamName}</p>
       <label className="form-field"><span className="form-label">Player</span><select className="form-input" value={playerStatsDraft.watchedPlayerId} onChange={(event) => { const player = myWatchedPlayers?.find((item) => item.id === event.target.value); setPlayerStatsDraft((current) => ({ ...current, watchedPlayerId: event.target.value, playerName: player?.playerName ?? "" })); }}><option value="">Enter a new player</option>{(myWatchedPlayers ?? []).map((player) => <option key={player.id} value={player.id}>{player.playerName} - {player.position}</option>)}</select></label>
@@ -1735,7 +1792,7 @@ export function HubHome() {
     </div></Modal>}
 
     {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)}><div className="hub-my-schedule">
-      {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div> : !mySchedule ? <p className="hub-empty">Loading your schedule...</p> : <ScheduleWeekList weeks={mySchedule.weeks} />}
+      {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div> : !mySchedule ? <p className="hub-empty">Loading your schedule...</p> : <ScheduleWeekList weeks={mySchedule.weeks} currentWeek={hub.league.weekNumber} highlightCounts={myHighlightCounts ?? undefined} onUploadBoxScore={setScheduleBoxScoreWeek} onUploadHighlight={setScheduleHighlightWeek} />}
     </div></Modal>}
     {retireModalOpen && <Modal title="Retire from League?" onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">
       <p>Are you sure you want to retire from this league? Your team will become open, this league will be removed from your available leagues, and you will lose access to it.</p>
@@ -1743,6 +1800,6 @@ export function HubHome() {
       <div className="advance-modal-actions"><Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button><Button variant="danger" disabled={retireBusy} onClick={async () => { setRetireBusy(true); setRetireError(null); try { await hubChrome.retireFromCurrentLeague(); setRetireModalOpen(false); } catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire from this league."); } finally { setRetireBusy(false); } }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button></div>
     </div></Modal>}
     {myWatchedPlayersModalOpen && auth.status === "ready" && <MyWatchedPlayersModal guildId={auth.guildId} onClose={() => setMyWatchedPlayersModalOpen(false)} />}
-    {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} onClose={() => setLateSubmissionsOpen(false)} />}
+    {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} focus={lateSubmissionsFocus ?? undefined} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); }} />}
   </div>;
 }

@@ -13,11 +13,23 @@ function weekLabel(week: TeamScheduleManualWeek): string {
   return `Week ${week.weekNumber} ${side} ${week.confirmedOpponentName ?? "Opponent"}`;
 }
 
-// "Missed a box score or highlight for a past week" self-serve catch-up flow, reachable
-// from My Team. Reuses UploadBoxScoreModal/HighlightUploadModal as-is (both already accept
-// an explicit past week/gameId) — this just figures out which past weeks are still
-// eligible and hands off to them.
-export function LateSubmissionsModal({ guildId, currentWeek, onClose }: { guildId: string; currentWeek: number; onClose: () => void }) {
+// "Missed a box score or highlight for this week or a past week" self-serve catch-up flow,
+// reachable from My Team and the Buzz page's GameDay card. Reuses UploadBoxScoreModal/
+// HighlightUploadModal as-is (both already accept an explicit week/gameId) — this just
+// figures out which weeks (current or past — never future) are still eligible and hands
+// off to them. An optional `focus` narrows the list to just one concern, for a GameDay
+// button that means "I specifically want to submit a box score" (or highlights).
+export function LateSubmissionsModal({
+  guildId,
+  currentWeek,
+  focus,
+  onClose,
+}: {
+  guildId: string;
+  currentWeek: number;
+  focus?: "boxScore" | "highlight";
+  onClose: () => void;
+}) {
   const { discordId } = useReadyAuth();
   const [schedule, setSchedule] = useState<TeamScheduleManualState | null>(null);
   const [highlightCounts, setHighlightCounts] = useState<Record<number, number> | null>(null);
@@ -41,12 +53,23 @@ export function LateSubmissionsModal({ guildId, currentWeek, onClose }: { guildI
     if (!schedule || !highlightCounts) return [];
     return schedule.weeks.filter((week) => {
       if (!week.alreadyConfirmed || week.confirmedMatchupType !== "h2h" || week.isBye || !week.gameId) return false;
-      if (week.weekNumber >= currentWeek) return false;
+      if (week.weekNumber > currentWeek) return false;
       const missingBoxScore = !week.boxScoreSubmissionId;
       const missingHighlight = (highlightCounts[week.weekNumber] ?? 0) < 2;
+      if (focus === "boxScore") return missingBoxScore;
+      if (focus === "highlight") return missingHighlight;
       return missingBoxScore || missingHighlight;
     });
-  }, [schedule, highlightCounts, currentWeek]);
+  }, [schedule, highlightCounts, currentWeek, focus]);
+
+  // A GameDay quick-action already knows what it wants — skip the "pick a week" step when
+  // there's exactly one eligible week for that focused concern.
+  useEffect(() => {
+    if (focus && eligibleWeeks.length === 1 && selectedWeek === "") {
+      setSelectedWeek(eligibleWeeks[0].weekNumber);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, eligibleWeeks]);
 
   useEffect(() => {
     if (selectedWeek !== "" && !eligibleWeeks.some((week) => week.weekNumber === selectedWeek)) {
@@ -58,17 +81,25 @@ export function LateSubmissionsModal({ guildId, currentWeek, onClose }: { guildI
   const missingBoxScore = selected ? !selected.boxScoreSubmissionId : false;
   const missingHighlight = selected ? (highlightCounts?.[selected.weekNumber] ?? 0) < 2 : false;
 
+  const title = focus === "boxScore" ? "Submit Box Score" : focus === "highlight" ? "Submit Highlights" : "Late Submissions";
+  const emptyText =
+    focus === "boxScore"
+      ? "No games — this week or past — are missing a box score."
+      : focus === "highlight"
+        ? "No weeks — this week or past — are missing a highlight."
+        : "No weeks — this week or past — are missing a box score or highlight.";
+
   return (
-    <Modal title="Late Submissions" onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       <p style={{ margin: "0 0 var(--space-3)", color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>
-        Catch up on a past week you missed — pick a week below, then upload whichever of the box
-        score or highlights you&apos;re still missing. Only weeks still missing at least one show up here.
+        Pick a week below, then upload whichever of the box score or highlights you&apos;re still
+        missing — this covers this week's game too, not just past ones.
       </p>
       {error && <ErrorState message={error} />}
       {!schedule || !highlightCounts ? (
         <p className="hub-empty">Loading…</p>
       ) : eligibleWeeks.length === 0 ? (
-        <p className="hub-empty">No past weeks are missing a box score or highlight — you&apos;re all caught up.</p>
+        <p className="hub-empty">{emptyText}</p>
       ) : (
         <>
           <label className="form-field">

@@ -188,7 +188,7 @@ export type PerformanceTag = {
 };
 
 // Recruiting tracker
-export type RecruitStatus = "uncommitted" | "committed" | "decommitted";
+export type RecruitStatus = "uncommitted" | "committed" | "decommitted" | "flipped" | "withdrawn" | "signed";
 export type Recruit = {
   id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
   starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;

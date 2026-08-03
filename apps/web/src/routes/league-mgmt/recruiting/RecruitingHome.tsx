@@ -10,7 +10,7 @@ import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 
-const RECRUIT_STATUS_BADGE: Record<RecruitStatus, BadgeStatus> = { uncommitted: "pending", committed: "approved", decommitted: "denied" };
+const RECRUIT_STATUS_BADGE: Record<RecruitStatus, BadgeStatus> = { uncommitted: "pending", committed: "approved", decommitted: "denied", flipped: "info", withdrawn: "denied", signed: "approved" };
 const TRANSFER_STATUS_BADGE: Record<TransferStatus, BadgeStatus> = { entered_portal: "pending", transferred: "approved", withdrawn: "denied" };
 const CLASS_YEAR_OPTIONS: Array<{ value: ClassYear | ""; label: string }> = [
   { value: "", label: "No class" }, { value: "freshman", label: "Freshman" }, { value: "sophomore", label: "Sophomore" }, { value: "junior", label: "Junior" }, { value: "senior", label: "Senior" },
