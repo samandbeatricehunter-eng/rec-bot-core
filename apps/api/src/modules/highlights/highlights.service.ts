@@ -5,7 +5,7 @@ import { deleteDiscordMessage, getDiscordMessage, getDiscordReactionUserIds } fr
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
-import { deleteStreamVideosForHighlights } from "../media/media.service.js";
+import { deleteStreamVideosForHighlights, maybeCreateWeeklyPayoutReview, migrateMirroredHighlightsToStream } from "../media/media.service.js";
 import { isDiscordOnlyUser } from "../subscriptions/discord-only.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -51,6 +51,7 @@ type RecordHighlightInput = {
   discordMessageId: string;
   messageUrl?: string | null;
   content?: string | null;
+  attachmentIndex?: number;
 };
 
 type ReviewHighlightPayoutInput = {
@@ -95,11 +96,35 @@ async function getActiveAssignment(leagueId: string, userId: string) {
   return assignment.data;
 }
 
-export async function recordHighlightPost(_input: RecordHighlightInput): Promise<never> {
-  throw new ApiError(
-    410,
-    "Discord highlight channel uploads are retired. Upload highlights from the REC Leagues website or PWA after signing in.",
-  );
+export async function recordHighlightPost(input: RecordHighlightInput) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await getDiscordAccount(input.discordId);
+  const assignment = await getActiveAssignment(context.leagueId, account.user_id);
+  const mediaUrl = String(input.content ?? "").trim();
+  if (!/^https?:\/\//i.test(mediaUrl)) throw new ApiError(400, "A highlight media URL is required.");
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? "regular_season");
+  const game = await supabase.from("rec_games").select("id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber).or(`home_user_id.eq.${account.user_id},away_user_id.eq.${account.user_id}`).limit(1).maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to match the highlight to this week's game.", game.error);
+  if (!game.data) throw new ApiError(403, "You do not have a matchup this week.");
+  const highlightId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const inserted = await supabase.from("rec_highlight_posts").insert({
+    id: highlightId, league_id: context.leagueId, user_id: account.user_id, team_id: assignment?.team_id ?? null,
+    season_number: seasonNumber, week_number: weekNumber, season_stage: seasonStage, game_id: game.data.id,
+    message_url: input.messageUrl ?? null, content: mediaUrl, playback_url: mediaUrl,
+    discord_channel_id: input.discordChannelId, discord_message_id: input.discordMessageId,
+    discord_attachment_index: input.attachmentIndex ?? 0,
+    storage_provider: "discord_cdn", media_status: "ready", hub_visible: true, created_at: now, updated_at: now,
+  }).select("id").single();
+  if (inserted.error) throw new ApiError(500, "Failed to save the Discord highlight.", inserted.error);
+  await maybeCreateWeeklyPayoutReview({ leagueId: context.leagueId, highlightId, userId: account.user_id,
+    teamId: assignment?.team_id ?? null, seasonNumber, weekNumber, seasonStage,
+    discordChannelId: input.discordChannelId, discordMessageId: input.discordMessageId,
+    game: context.rec_leagues.game ?? null, guildId: input.guildId, requesterDiscordId: input.discordId });
+  const migration = await migrateMirroredHighlightsToStream({ leagueId: context.leagueId, limit: 100 });
+  return { recorded: true, highlightId, storedInCloudflare: migration.results.some((row) => row.highlightId === highlightId && row.ok) };
 }
 
 // Lets a commissioner eyeball the actual clip + claimed matchup before approving a payout,

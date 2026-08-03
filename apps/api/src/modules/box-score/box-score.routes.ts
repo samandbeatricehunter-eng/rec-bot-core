@@ -20,7 +20,7 @@ import {
   updateBoxScoreLedgerMessage,
 } from "./box-score.service.js";
 import { getBoxScoreSubmissionJob, getJobGuildId, startBoxScoreSubmissionJob } from "./box-score-jobs.js";
-import { ASSIGNABLE_CATEGORIES, assignBoxScoreStatsToPlayer, getAssignableBoxScoreStats } from "./box-score-player-stats.service.js";
+import { ASSIGNABLE_CATEGORIES, assignBoxScoreStatAllocations, assignBoxScoreStatsToPlayer, assignTurnoverToPlayer, getAssignableBoxScoreStats, TURNOVER_KINDS } from "./box-score-player-stats.service.js";
 
 const SUPPORTED_UPLOAD_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -105,6 +105,44 @@ export async function boxScoreRoutes(app: FastifyInstance) {
       if (auth.mode === "user") body.discordId = auth.discordId;
       if (!body.discordId) throw new Error("Missing Discord id.");
       return reply.send(await assignBoxScoreStatsToPlayer({ guildId: body.guildId, discordId: body.discordId, submissionId: body.submissionId, category: body.category, rosterPlayerId: body.rosterPlayerId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/box-score/assign-player-stat-allocations", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1), discordId: z.string().min(1).optional(), submissionId: z.string().uuid(),
+        category: z.enum(ASSIGNABLE_CATEGORIES),
+        allocations: z.array(z.object({ rosterPlayerId: z.string().uuid(), stats: z.record(z.string(), z.number()) })).min(1),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await assignBoxScoreStatAllocations({ ...body, discordId: body.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Assigns ONE instance of a turnover (an interception thrown/made, a fumble lost/forced) to
+  // a player — called once per instance, so two interceptions can go to two different players.
+  app.post("/v1/box-score/assign-turnover", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1).optional(),
+        submissionId: z.string().uuid(),
+        kind: z.enum(TURNOVER_KINDS),
+        rosterPlayerId: z.string().uuid(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot" && !body.discordId) requireInternalApiKey(request);
+      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (!body.discordId) throw new Error("Missing Discord id.");
+      return reply.send(await assignTurnoverToPlayer({ guildId: body.guildId, discordId: body.discordId, submissionId: body.submissionId, kind: body.kind, rosterPlayerId: body.rosterPlayerId }));
     } catch (error) {
       return sendError(reply, error);
     }

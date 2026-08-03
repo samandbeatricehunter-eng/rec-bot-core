@@ -28,6 +28,17 @@ const SetConfigSchema = z.object({
 });
 
 export async function serverConfigRoutes(app: FastifyInstance) {
+  app.post("/v1/server-config/rec-guide/refresh", async (request, reply) => {
+    try {
+      const { guildId } = ViewConfigSchema.parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" });
+      const result = await publishRecGuideFromApi(guildId);
+      if (!result) throw new Error("Assign a REC Guide channel before refreshing the guide.");
+      return reply.send(result);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
   app.post("/v1/server-config/channels", async (request, reply) => { try { const { guildId } = ViewConfigSchema.parse(request.body); await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "co_commissioner" }); const [channels, config] = await Promise.all([listGuildChannels(guildId), getServerConfig(guildId)]); return reply.send({ channels, routes: config.routes }); } catch (error) { return sendError(reply, error); } });
   app.post("/v1/server-config/channels/create", async (request, reply) => { try {
     const body = z.object({ guildId: z.string().min(1), routeKey: z.string().min(1), name: z.string().min(1).max(100), type: z.enum(["text", "category"]), templateChannelId: z.string().optional().nullable() }).parse(request.body);
@@ -56,7 +67,7 @@ export async function serverConfigRoutes(app: FastifyInstance) {
       const body = SetConfigSchema.parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       const config = await setServerConfig(body);
-      const guide = body.recGuideChannelId ? await publishRecGuideFromApi(body.guildId, body.recGuideChannelId) : null;
+      const guide = await publishRecGuideFromApi(body.guildId, body.recGuideChannelId ?? undefined);
       return reply.send({ ...config, guide });
     } catch (error) {
       return sendError(reply, error);

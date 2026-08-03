@@ -53,6 +53,7 @@ import type {
   WeekWagerLinesResponse,
   TeamRosterResponse,
   AssignableBoxScoreStats,
+  TurnoverKind,
   RosterDepartureStatus,
   RosterLifecycleResult,
   PeerWagerBoardResponse,
@@ -140,6 +141,7 @@ export async function recApiFetch<T>(path: string, init?: RequestInit): Promise<
 }
 
 export const recApi = {
+  getMyLeagueHistory: (guildId: string) => recApiFetch<{ leagues: Array<any> }>(`/v1/users/me/league-history?guildId=${encodeURIComponent(guildId)}`),
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHubBootstrapStatus: (guildId: string) =>
@@ -366,6 +368,10 @@ export const recApi = {
     recApiFetch<AssignableBoxScoreStats>("/v1/box-score/assignable-stats", { method: "POST", body: JSON.stringify(input) }),
   assignBoxScoreStatsToPlayer: (input: { guildId: string; submissionId: string; category: "passing" | "rushing"; rosterPlayerId: string }) =>
     recApiFetch<{ tagId: string }>("/v1/box-score/assign-player-stats", { method: "POST", body: JSON.stringify(input) }),
+  assignBoxScoreStatAllocations: (input: { guildId: string; submissionId: string; category: "passing" | "rushing"; allocations: Array<{ rosterPlayerId: string; stats: Record<string, number> }> }) =>
+    recApiFetch<{ tagIds: string[] }>("/v1/box-score/assign-player-stat-allocations", { method: "POST", body: JSON.stringify(input) }),
+  assignTurnoverToPlayer: (input: { guildId: string; submissionId: string; kind: TurnoverKind; rosterPlayerId: string }) =>
+    recApiFetch<{ tagId: string }>("/v1/box-score/assign-turnover", { method: "POST", body: JSON.stringify(input) }),
 
   // Manual final-score entry (schedule builder)
   recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; manualStats?: { home?: Record<string, unknown>; away?: Record<string, unknown> }; performanceTags?: { home?: PerformanceTag[]; away?: PerformanceTag[] } }) =>
@@ -498,6 +504,7 @@ export const recApi = {
   getServerChannels: (guildId: string) => recApiFetch<{ channels: Array<{ id: string; name: string; type: "text" | "category" }>; routes: Record<string, string | null> }>("/v1/server-config/channels", { method: "POST", body: JSON.stringify({ guildId }) }),
   createServerChannel: (input: { guildId: string; routeKey: string; name: string; type: "text" | "category"; templateChannelId?: string | null }) => recApiFetch<{ channel: { id: string; name: string; type: "text" | "category" } }>("/v1/server-config/channels/create", { method: "POST", body: JSON.stringify(input) }),
   saveServerChannels: (input: Record<string, string | null> & { guildId: string }) => recApiFetch<unknown>("/v1/economy/config/set", { method: "POST", body: JSON.stringify(input) }),
+  refreshRecGuide: (guildId: string) => recApiFetch<{ posted: number; channelId: string }>("/v1/server-config/rec-guide/refresh", { method: "POST", body: JSON.stringify({ guildId }) }),
   getLeagueSettingsDraft: (guildId: string) =>
     recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/config", { method: "POST", body: JSON.stringify({ guildId }) }),
   updateLeagueSettings: (draft: LeagueSettingsDraft) =>

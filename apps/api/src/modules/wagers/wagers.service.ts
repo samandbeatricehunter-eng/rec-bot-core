@@ -23,7 +23,8 @@ function teamAbbr(team?: { display_abbr?: string | null; abbreviation?: string |
 
 const CUSTOM_SPREAD_MIN = -10;
 const CUSTOM_SPREAD_MAX = 10;
-const HOUSE_WAGER_MAX = 5000;
+const HOUSE_WAGER_MAX = 1000;
+const PEER_WAGER_MAX = 5000;
 
 // A custom spread applies directly to the bettor's chosen side (no sign flip — the
 // number they enter is their line), clamped to the house's allowed range. Odds stay
@@ -79,6 +80,18 @@ async function assertHouseWeeklyCap(leagueId: string, seasonNumber: number, week
   const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
   if (activeTotal + stake > HOUSE_WAGER_MAX) {
     throw new ApiError(400, `House wagers are capped at ${formatCoins(HOUSE_WAGER_MAX)} total per week. You already have ${formatCoins(activeTotal)} active.`);
+  }
+}
+
+async function assertPeerWeeklyCap(leagueId: string, seasonNumber: number, weekNumber: number, userId: string, stake: number) {
+  const { data, error } = await supabase.from("rec_wagers").select("stake,placed_by_user_id,accepted_by_user_id,status")
+    .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber)
+    .eq("wager_kind", "peer").in("status", ["awaiting_accept", "pending", "confirmed"])
+    .or(`placed_by_user_id.eq.${userId},accepted_by_user_id.eq.${userId}`);
+  if (error) throw new ApiError(500, "Failed to check weekly peer wager cap.", error);
+  const activeTotal = (data ?? []).reduce((sum: number, row: any) => sum + Number(row.stake ?? 0), 0);
+  if (activeTotal + stake > PEER_WAGER_MAX) {
+    throw new ApiError(400, `User-to-user wagers are capped at ${formatCoins(PEER_WAGER_MAX)} total per week. You already have ${formatCoins(activeTotal)} active.`);
   }
 }
 
@@ -330,6 +343,7 @@ export async function placePeerWager(input: PlacePeerWagerInput) {
   await assertEconomyPayoutsActive(leagueId);
 
   const stake = Math.floor(Number(input.stake));
+  await assertPeerWeeklyCap(leagueId, seasonNumber, weekNumber, userId, stake);
   const prep = await prepareSingleWager(input.guildId, userId, leagueId, weekNumber, input.gameId, input.market, input.pick, stake, input.customLine);
 
   if (input.challengeType === "direct") {
@@ -418,6 +432,7 @@ export async function acceptPeerWager(input: { guildId: string; discordId: strin
   }
 
   const stake = Number(wager.stake ?? 0);
+  await assertPeerWeeklyCap(leagueId, Number(wager.season_number), Number(wager.week_number), accepterId, stake);
   const balance = await walletBalance(accepterId);
   if (balance < stake) throw new ApiError(400, `Insufficient funds. This wager stakes ${formatCoins(stake)} and you have ${formatCoins(balance)}.`);
 
@@ -494,6 +509,7 @@ export async function placeCounterWager(input: PlaceCounterInput) {
   if (original.placed_by_user_id === counterUserId) throw new ApiError(400, "You can't counter your own wager.");
 
   const stake = Math.floor(Number(input.stake));
+  await assertPeerWeeklyCap(leagueId, seasonNumber, weekNumber, counterUserId, stake);
   const prep = await prepareSingleWager(input.guildId, counterUserId, leagueId, weekNumber, original.game_id, input.market, input.pick, stake, input.customLine);
 
   const insert = await supabase
@@ -550,6 +566,7 @@ export async function acceptCounter(input: { guildId: string; discordId: string;
 
   const counterStake = Number(counter.stake ?? 0);
   const originalStake = Number(original?.stake ?? 0);
+  await assertPeerWeeklyCap(leagueId, Number(counter.season_number), Number(counter.week_number), proposerUserId, Math.max(0, counterStake - originalStake));
   const balance = await walletBalance(proposerUserId);
   if (balance + originalStake < counterStake) {
     throw new ApiError(400, `You need ${formatCoins(counterStake)} to take this counter and only have ${formatCoins(balance + originalStake)} available.`);

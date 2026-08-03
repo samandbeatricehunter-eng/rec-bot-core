@@ -247,7 +247,7 @@ async function clearExchange(ex: Exchange, opts: { deleteUserImages: boolean }) 
 
 // ─── Channel listener (called from messageCreate) ─────────────────────────────
 
-const EXCHANGE_WINDOW_MS = 2 * 60 * 1000;
+const EXCHANGE_WINDOW_MS = 60 * 1000;
 
 export async function handleBoxScoreChannelMessage(message: Message): Promise<void> {
   if (!message.inGuild() || message.author.bot) return;
@@ -265,14 +265,15 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
 
   // Channel rule: a message here must be exactly one box-score image and nothing
   // else. Anything else (text, files, multiple images) is removed with a notice.
-  if (imageAttachments.length !== 1 || attachments.length !== imageAttachments.length) {
+  if (message.content.trim() || imageAttachments.length < 1 || imageAttachments.length > 2 || attachments.length !== imageAttachments.length) {
     await message.delete().catch(() => undefined);
-    const reason =
+    let reason =
       imageAttachments.length === 0
         ? "Only box score **images** can be posted in this channel."
         : imageAttachments.length > 1
           ? "Upload **one** box score image per message — not several."
           : "Post **only** the box score image — no other files.";
+    if (imageAttachments.length > 2) reason = "Upload no more than the **two required** box score images.";
     const notice = await channel.send({
       content: `<@${message.author.id}> ${reason} Your message was removed.`,
       allowedMentions: { users: [message.author.id] },
@@ -281,7 +282,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
     return;
   }
 
-  const imageUrl = imageAttachments[0].url;
+  const imageUrls = imageAttachments.map((attachment) => attachment.url);
 
   const key = exKey(message.guildId, message.author.id);
   const existing = exchanges.get(key);
@@ -321,7 +322,9 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
           // submission — the earlier exchange already finalized and forwarded it to
           // the commissioner inbox, so append instead of starting a new one.
           try {
-            await recApi.appendBoxScoreImage({ guildId: message.guildId, discordId: message.author.id, imageUrl });
+            for (const imageUrl of imageUrls) {
+              await recApi.appendBoxScoreImage({ guildId: message.guildId, discordId: message.author.id, imageUrl });
+            }
             await message.react("✅").catch(() => undefined);
             const notice = await channel.send({
               content: `<@${message.author.id}> Added to your pending box score submission — a commissioner will review it.`,
@@ -383,7 +386,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   }
 
   ex.channel = channel;
-  ex.imageUrls.push(imageUrl);
+  ex.imageUrls.push(...imageUrls.slice(0, Math.max(0, 2 - ex.imageUrls.length)));
   ex.userMessageIds.push(message.id);
 
   if (ex.busy) return; // a submit is already in flight; further images just sit captured
@@ -405,7 +408,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   ex.timer = setTimeout(() => { void finalizeOnTimeout(ex!); }, EXCHANGE_WINDOW_MS);
 
   const notice = await channel.send({
-    content: `<@${message.author.id}> Screenshot received. Post your **second** box score screenshot (scroll down for the bottom of the stats page) within 2 minutes.`,
+    content: `<@${message.author.id}> Screenshot received. Post your **second** box score screenshot (scroll down for the bottom of the stats page) within 60 seconds.`,
     allowedMentions: { users: [message.author.id] },
   }).catch(() => null);
   if (notice) ex.botMessageIds.push(notice.id);
@@ -416,7 +419,12 @@ async function finalizeOnTimeout(ex: Exchange) {
   if (!current || current !== ex || ex.busy) return; // already finalized by a second image
   ex.busy = true;
   try {
-    await finalizeExchange(ex, { timedOut: true });
+    await clearExchange(ex, { deleteUserImages: true });
+    const notice = await ex.channel.send({
+      content: `<@${ex.userId}> Box score submission canceled because the second required image was not received within 60 seconds. Please upload both images again.`,
+      allowedMentions: { users: [ex.userId] },
+    }).catch(() => null);
+    if (notice) setTimeout(() => void notice.delete().catch(() => undefined), 12_000);
   } finally {
     ex.busy = false;
   }

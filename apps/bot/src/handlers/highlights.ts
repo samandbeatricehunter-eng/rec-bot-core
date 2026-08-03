@@ -48,31 +48,28 @@ export async function handleHighlightReactionRestrict(
   reaction: MessageReaction | PartialMessageReaction,
   user: User | PartialUser,
 ): Promise<void> {
-  if (user.bot) return;
-  try {
-    if (reaction.partial) await reaction.fetch();
-    if (reaction.message.partial) await reaction.message.fetch();
-  } catch {
-    return;
-  }
-  const emojiId = reaction.emoji.id;
-  if (!emojiId || !HIGHLIGHT_VOTE_EMOJI_IDS.has(emojiId)) return;
-  const guildId = reaction.message.guildId ?? reaction.message.guild?.id ?? null;
-  if (!guildId) return;
-  const highlightsChannelId = await getHighlightsChannelId(guildId);
-  if (!highlightsChannelId || !isInHighlightsChannel(reaction.message as Message, highlightsChannelId)) return;
-
-  for (const other of reaction.message.reactions.cache.values()) {
-    if (other.emoji.id && other.emoji.id !== emojiId && HIGHLIGHT_VOTE_EMOJI_IDS.has(other.emoji.id)) {
-      await other.users.remove(user.id).catch(() => undefined);
-    }
-  }
+  // Highlight voting is website-only. Discord reactions are ordinary reactions
+  // and never participate in category voting or payout calculations.
+  void reaction;
+  void user;
+  return;
 }
 
 export async function handleHighlightChannelMessage(message: Message): Promise<boolean> {
   // Discord Highlights channel ingest is retired — registered users upload via site/PWA.
-  void message;
-  return false;
+  if (!message.guildId || message.author.bot) return false;
+  const highlightsChannelId = await getHighlightsChannelId(message.guildId);
+  if (!highlightsChannelId || !isInHighlightsChannel(message, highlightsChannelId)) return false;
+  const urls = [...mediaAttachments(message).map((attachment) => attachment.url), ...(message.content.match(CLIP_URL_RE) ?? [])].slice(0, 2);
+  if (!urls.length) return true;
+  // Unlinked users remain free to post; the API declines their ingest, so no
+  // payout or retained season clip is created for them.
+  for (const [index, url] of urls.entries()) {
+    await recApi.recordHighlightPost({ guildId: message.guildId, discordId: message.author.id,
+      discordChannelId: message.channelId, discordMessageId: message.id, attachmentIndex: index,
+      messageUrl: message.url, content: url }).catch(() => null);
+  }
+  return true;
 }
 
 export async function syncRecentHighlightMessages(guild: Guild): Promise<void> {
@@ -142,7 +139,7 @@ export async function settleHighlightAwardsForGuild(guildId: string, client: Mes
       // reactions are deliberately absent from webReactionCounts and never affect awards.
       // Categories with no Discord voting emoji (see HIGHLIGHT_AWARD_WEB_ONLY) tally from
       // web reactions alone.
-      const count = Math.max(0, (reaction?.count ?? 0) - 1) + Number(highlight.webReactionCounts?.[category] ?? 0);
+      const count = Number(highlight.webReactionCounts?.[category] ?? 0);
       if (count <= 0) continue;
       const entry = { ...highlight, messageUrl: message.url, authorId: message.author.id };
       const cur = leaders.get(category);

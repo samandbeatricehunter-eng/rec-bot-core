@@ -12,6 +12,7 @@ const RecordHighlightSchema = z.object({
   discordMessageId: z.string().min(1),
   messageUrl: z.string().optional().nullable(),
   content: z.string().optional().nullable(),
+  attachmentIndex: z.number().int().min(0).max(1).optional().default(0),
 });
 
 const ReviewHighlightSchema = z.object({

@@ -33,12 +33,12 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "headlinesChannelId",
     dbField: "headlines_channel_id",
   },
-  weekly_submissions: {
-    label: "Weekly Submissions",
+  box_scores: {
+    label: "Box Scores",
     defaultName: "box-scores",
     defaultParentRoute: "game_channels_category",
-    inputField: "weeklySubmissionsChannelId",
-    dbField: "weekly_submissions_channel_id",
+    inputField: "boxScoresChannelId",
+    dbField: "box_scores_channel_id",
   },
   rec_guide: {
     label: "REC Guide",

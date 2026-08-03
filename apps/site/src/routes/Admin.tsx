@@ -91,6 +91,22 @@ function StatsPanel() {
       </p>
       {grid(subRows)}
       {grid(leagueRows)}
+      <section>
+        <h3>Open operational incidents ({stats.openIncidents.length})</h3>
+        {stats.openIncidents.length ? stats.openIncidents.map((incident) => (
+          <article key={incident.id} className="site-card" style={{ marginBottom: 12 }}>
+            <strong>[{incident.severity.toUpperCase()}] {incident.title}</strong>
+            <p className="site-muted">{incident.process} · {new Date(incident.occurredAt).toLocaleString()} · League {incident.leagueId ?? "deleted/unavailable"}</p>
+            {incident.errorMessage && <p><strong>Cause:</strong> {incident.errorName ?? "Error"}: {incident.errorMessage}</p>}
+            {(incident.errorStack || incident.detail) && (
+              <details>
+                <summary>Debug details</summary>
+                <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{incident.errorStack ?? incident.detail}</pre>
+              </details>
+            )}
+          </article>
+        )) : <p className="site-muted">No open incidents.</p>}
+      </section>
     </div>
   );
 }

@@ -12,6 +12,7 @@ const DeleteLeagueSchema = z.object({
   confirmationText: z.string().min(1),
 });
 import { createLeagueForServer } from "./setup-season.service.js";
+import { publishRecGuideFromApi } from "../server-config/rec-guide-publisher.service.js";
 import {
   registerServer,
   updateServerRoutes,
@@ -69,7 +70,12 @@ export async function setupRoutes(app: FastifyInstance) {
       const body = CreateLeagueSchema.parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       if (auth.mode === "user") body.requestedByDiscordId = auth.discordId;
-      return reply.send(await updateLeagueConfig(body));
+      const result = await updateLeagueConfig(body);
+      const guide = await publishRecGuideFromApi(body.guildId).catch((error) => {
+        request.log.error({ error }, "Failed to refresh REC Guide after settings update");
+        return null;
+      });
+      return reply.send({ ...result, guide });
     } catch (error) {
       return sendError(reply, error);
     }

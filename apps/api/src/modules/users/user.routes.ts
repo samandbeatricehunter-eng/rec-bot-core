@@ -16,7 +16,15 @@ import {
 } from "./user.service.js";
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { getLeagueHistoryForDiscord } from "./league-history.service.js";
 export async function userRoutes(app: FastifyInstance) {
+  app.get("/v1/users/me/league-history", async (request, reply) => {
+    try {
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => String((r.query as any)?.guildId ?? ""), permission: "member" });
+      if (auth.mode !== "user") throw new Error("A user session is required.");
+      return reply.send(await getLeagueHistoryForDiscord(auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
   app.post("/v1/users/me/wallet/transfer", async (request, reply) => {
     try {
       const input = z.object({ guildId: z.string().min(1), amount: z.number().positive(), direction: z.enum(["to_savings", "from_savings"]) }).parse(request.body);

@@ -465,8 +465,11 @@ client.once("clientReady", async () => {
   await recoverOpenActiveChecks(client);
   await recoverOpenEosAwardPolls(client, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
   const refreshGuides = () => Promise.allSettled([...client.guilds.cache.values()].map((guild) => publishRecGuide(guild)));
+  // Reconcile once when the bot starts. League-settings saves and the explicit
+  // commissioner refresh action own subsequent guide updates. A timer here used
+  // to rewrite the guide every minute, which could publish an intermediate mix
+  // of settings while a commissioner was still editing the settings screen.
   await refreshGuides();
-  setInterval(() => { void refreshGuides(); }, 60_000).unref();
 });
 
 client.on("error", (error) => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -577,7 +577,7 @@ export function HubHome() {
   useEffect(() => { void load(); }, [auth.status, auth.status === "ready" ? auth.guildId : null]);
 
   useEffect(() => {
-    if (auth.status !== "ready" || (subTab !== "matchups" && section !== "wagers")) return;
+    if (auth.status !== "ready" || (section !== "league" && section !== "wagers")) return;
     setMatchupScheduleLoading(true);
     setMatchupScheduleError(null);
     recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupWeek })
@@ -810,6 +810,12 @@ export function HubHome() {
   function selectSection(next: HubSection) {
     setSection(next);
     writeHubParams(next, next === "league" ? subTab : undefined);
+  }
+
+  function jumpToMyMatchup() {
+    setSection("league");
+    setSubTab("matchups");
+    writeHubParams("league", "matchups");
   }
 
   async function openTeamSchedulePicker() {
@@ -1350,6 +1356,14 @@ export function HubHome() {
           </SectionFrame>
         </div>
 
+        {matchupSchedule?.gotw?.status === "open" && <div className="hub-gameday-card">
+          <p className="hub-eyebrow">GOTW voting is open</p>
+          <div className="hub-gameday-actions">
+            <button type="button" className={`hub-shortcut-card${matchupSchedule.gotw.myVote === matchupSchedule.gotw.awayTeamId ? " active" : ""}`} onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.awayTeamId)}><div><strong>{matchupSchedule.gotw.awayTeamName}</strong><span>{matchupSchedule.gotw.awayVotes} vote{matchupSchedule.gotw.awayVotes === 1 ? "" : "s"}</span></div></button>
+            <button type="button" className={`hub-shortcut-card${matchupSchedule.gotw.myVote === matchupSchedule.gotw.homeTeamId ? " active" : ""}`} onClick={() => void voteGotw(matchupSchedule.gotw!.pollId, matchupSchedule.gotw!.homeTeamId)}><div><strong>{matchupSchedule.gotw.homeTeamName}</strong><span>{matchupSchedule.gotw.homeVotes} vote{matchupSchedule.gotw.homeVotes === 1 ? "" : "s"}</span></div></button>
+          </div>
+        </div>}
+
         <div className="hub-gameday-card">
           <p className="hub-eyebrow">Quick actions</p>
           <div className="hub-gameday-actions">
@@ -1358,6 +1372,7 @@ export function HubHome() {
             <button type="button" className="hub-shortcut-card" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={18} />} /><div><strong>Highlights</strong><span>2 per week, up to this week</span></div></button>
             <button type="button" className="hub-shortcut-card" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={18} />} /><div><strong>Roster</strong><span>View your team</span></div></button>
             <button type="button" className="hub-shortcut-card" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={18} />} /><div><strong>Full Schedule</strong><span>Results &amp; upcoming games</span></div></button>
+            <button type="button" className="hub-shortcut-card" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={18} />} /><div><strong>My Matchup</strong><span>Open this week's game page</span></div></button>
             {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={18} />} /><div><strong>Recruiting</strong><span>Log commits, manage your board</span></div></button>}
           </div>
         </div>

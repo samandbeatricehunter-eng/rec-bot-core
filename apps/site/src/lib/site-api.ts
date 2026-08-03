@@ -939,6 +939,20 @@ export type AdminStats = {
   usersLast7d: number;
   totalLeagues: number;
   leaguesLast7d: number;
+  openIncidents: Array<{
+    id: string;
+    leagueId: string | null;
+    guildId: string | null;
+    process: string;
+    severity: string;
+    title: string;
+    detail: string | null;
+    errorName: string | null;
+    errorMessage: string | null;
+    errorStack: string | null;
+    context: Record<string, unknown>;
+    occurredAt: string;
+  }>;
 };
 
 export type SiteHomeCard = {

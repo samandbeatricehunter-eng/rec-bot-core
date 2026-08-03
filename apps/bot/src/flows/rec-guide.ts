@@ -60,6 +60,11 @@ function guideEmbeds(cfg: any): EmbedBuilder[] {
 }
 
 export async function publishRecGuide(guild: Guild): Promise<{ posted: number; channelId: string } | null> {
+  // The API owns the settings-aware guide content and persisted message state.
+  // Keeping the gateway entry point as a delegate prevents the bot and web saves
+  // from publishing two different guide versions.
+  return recApi.refreshRecGuide(guild.id);
+  /* legacy renderer retained temporarily for interaction component compatibility
   const cfg = await recApi.getEconomyConfig(guild.id);
   const channel = await fetchRoutedTextChannel(guild, cfg.routes?.rec_guide_channel_id);
   if (!channel) return null;
@@ -92,6 +97,7 @@ export async function publishRecGuide(guild: Guild): Promise<{ posted: number; c
   for (const obsolete of existing.slice(embeds.length)) await obsolete.delete().catch(() => undefined);
   await recApi.saveGuideMessageState({ guildId: guild.id, channelId: channel.id, messageIds });
   return { posted: embeds.length, channelId: channel.id };
+  */
 }
 
 export async function handleGuideOpenTeams(interaction: ButtonInteraction) {

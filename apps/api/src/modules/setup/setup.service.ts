@@ -7,6 +7,7 @@ import { createDefaultTeamsForGuild } from "../team-ownership/team-ownership.ser
 import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
+import { snapshotLeagueHistory } from "../users/league-history.service.js";
 import {
   assertCanCreateLeague,
   resolveRecUserIdByDiscordId,
@@ -43,13 +44,6 @@ function buildRoutePayload(input: Record<string, unknown>, existing: Record<stri
   const payload: Record<string, unknown> = {};
   for (const config of Object.values(REC_ROUTE_CHANNELS)) {
     payload[config.dbField] = preserveWhenOmitted(input[config.inputField], existing[config.dbField]);
-  }
-  const weekly = input.weeklySubmissionsChannelId ?? input.boxScoresChannelId;
-  if (weekly !== undefined) {
-    payload.weekly_submissions_channel_id = weekly;
-    payload.box_scores_channel_id = weekly;
-  } else if (!payload.weekly_submissions_channel_id && existing.box_scores_channel_id) {
-    payload.weekly_submissions_channel_id = existing.box_scores_channel_id;
   }
   return payload;
 }
@@ -777,6 +771,35 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
 
   // Delete Cloudflare Stream assets (including POTY winners) before the DB wipe —
   // rec_delete_league cascades highlight rows but cannot reach Stream.
+  const preserve = async (process: string, operation: () => Promise<unknown>) => {
+    try {
+      await operation();
+    } catch (error) {
+      const errorName = error instanceof Error ? error.name : "NonErrorThrown";
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack ?? null : null;
+      const detail = `${errorName}: ${errorMessage}${errorStack ? `\n${errorStack}` : ""}`;
+      const incident = await supabase.from("rec_admin_incidents").insert({
+        league_id: context.leagueId,
+        guild_id: input.guildId,
+        process,
+        severity: "critical",
+        status: "open",
+        title: `League deletion blocked: ${process}`,
+        detail,
+        error_name: errorName,
+        error_message: errorMessage,
+        error_stack: errorStack,
+        context: { leagueName, requestedByDiscordId: input.requestedByDiscordId ?? null },
+      });
+      if (incident.error) console.error("[ERROR] Failed to record preservation incident:", incident.error);
+      throw new ApiError(500, `League deletion was stopped because ${process} failed. The league remains intact and an admin incident was created.`, error);
+    }
+  };
+  await preserve("preserve_global_career_contributions", () => preserveGlobalContributionsBeforeLeagueDelete(context.leagueId));
+  await preserve("preserve_h2h_history", () => preserveH2hHistoryBeforeLeagueDelete(context.leagueId));
+  await preserve("preserve_user_league_history", () => snapshotLeagueHistory(context.leagueId, true));
+
   await deleteAllLeagueStreamHighlights(context.leagueId).catch((error) => {
     console.error("[ERROR] Failed to delete league Stream highlights before league wipe:", error);
   });
@@ -784,13 +807,6 @@ export async function deleteLeagueData(input: { guildId: string; requestedByDisc
   // Freeze this league's contribution to each member's global record and archive any awards
   // they won here — rec_delete_league hard-deletes the source rows, so a user's history in
   // this league must travel with them before it's gone, not disappear with the league.
-  await preserveGlobalContributionsBeforeLeagueDelete(context.leagueId).catch((error) => {
-    console.error("[ERROR] Failed to preserve global contributions before league wipe:", error);
-  });
-  await preserveH2hHistoryBeforeLeagueDelete(context.leagueId).catch((error) => {
-    console.error("[ERROR] Failed to preserve H2H history before league wipe:", error);
-  });
-
   const { data, error } = await supabase.rpc("rec_delete_league", { p_league_id: context.leagueId });
   if (error) throw new ApiError(500, "Failed to delete league data.", error);
 

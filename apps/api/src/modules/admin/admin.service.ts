@@ -419,6 +419,14 @@ export async function getAdminStats() {
       count(*) filter (where created_at >= now() - interval '7 days')::int as leagues_last_7d
     from rec_leagues
   `);
+  const incidentsResult = await getPgPool().query(`
+    select id, league_id, guild_id, process, severity, title, detail,
+           error_name, error_message, error_stack, context, occurred_at
+    from rec_admin_incidents
+    where status = 'open'
+    order by occurred_at desc
+    limit 50
+  `);
   const row = result.rows[0] ?? {};
   const leagueRow = leagueResult.rows[0] ?? {};
   return {
@@ -433,5 +441,19 @@ export async function getAdminStats() {
     usersLast7d: Number(row.users_last_7d ?? 0),
     totalLeagues: Number(leagueRow.total_leagues ?? 0),
     leaguesLast7d: Number(leagueRow.leagues_last_7d ?? 0),
+    openIncidents: incidentsResult.rows.map((incident) => ({
+      id: incident.id,
+      leagueId: incident.league_id,
+      guildId: incident.guild_id,
+      process: incident.process,
+      severity: incident.severity,
+      title: incident.title,
+      detail: incident.detail,
+      errorName: incident.error_name,
+      errorMessage: incident.error_message,
+      errorStack: incident.error_stack,
+      context: incident.context ?? {},
+      occurredAt: incident.occurred_at,
+    })),
   };
 }

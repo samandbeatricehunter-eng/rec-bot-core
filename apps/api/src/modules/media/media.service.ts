@@ -42,7 +42,7 @@ async function getActiveAssignment(leagueId: string, userId: string) {
   return assignment.data;
 }
 
-async function maybeCreateWeeklyPayoutReview(input: {
+export async function maybeCreateWeeklyPayoutReview(input: {
   leagueId: string;
   highlightId: string;
   userId: string;

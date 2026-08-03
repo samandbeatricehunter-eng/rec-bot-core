@@ -64,7 +64,7 @@ export async function getVotingPollsChannel(guild: Guild, routes: ServerRoutes) 
 }
 
 export async function getBoxScoresChannel(guild: Guild, routes: ServerRoutes) {
-  return getWeeklySubmissionsChannel(guild, routes);
+  return fetchRoutedTextChannel(guild, routes.box_scores_channel_id);
 }
 
 export async function getWeeklySubmissionsChannel(guild: Guild, routes: ServerRoutes) {

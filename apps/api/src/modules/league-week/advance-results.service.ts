@@ -160,7 +160,7 @@ function weeklySubmissionsDescription(input: { seasonNumber: number; weekText: s
 // handler still responds to clicks on this panel.
 async function republishWeeklySubmissionsPanel(input: { guildId: string; routes: Record<string, unknown>; seasonNumber: number; seasonStage: string; weekNumber: number }) {
   if (!WEEKLY_SUBMISSIONS_PLAYABLE_STAGES.has(input.seasonStage)) return;
-  const channelId = String(input.routes?.weekly_submissions_channel_id ?? input.routes?.box_scores_channel_id ?? "");
+  const channelId = String(input.routes?.box_scores_channel_id ?? "");
   if (!channelId) return;
   await purgeDiscordChannelMessages(channelId);
   const stageText = input.seasonStage.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
@@ -884,6 +884,13 @@ export async function completeAdvanceWeek(input: {
     return { refundedCount: 0, refundedMessages: [] as any[] };
   });
 
+  await republishWeeklySubmissionsPanel({
+    guildId: input.guildId,
+    routes: context.routes ?? {},
+    seasonNumber,
+    seasonStage: nextTarget.seasonStage,
+    weekNumber: nextTarget.weekNumber,
+  }).catch((error) => console.error("[WARN] Failed to refresh box-score channel after advance:", error));
   return { ...advanceResult, nextWeekNumber: nextTarget.weekNumber, nextSeasonStage: nextTarget.seasonStage, nextLabel: stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game), nextAdvanceLabel, wagerCleanup };
 }
 

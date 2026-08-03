@@ -660,9 +660,11 @@ export type TeamRosterResponse = {
   players: RosterPlayer[];
   positionGroups: RosterPositionGroup[];
 };
+export type TurnoverKind = "interceptions_thrown" | "fumbles_lost" | "interceptions_made" | "forced_fumble";
 export type AssignableBoxScoreStats = {
   teamId: string;
   categories: Partial<Record<"passing" | "rushing", Array<{ statKey: string; label: string; value: number }>>>;
+  turnovers: Partial<Record<TurnoverKind, number>>;
 };
 export type RosterDepartureStatus = "drafted" | "transferred_out" | "retired" | "graduated";
 export type RosterLifecycleResult = { id: string; full_name: string; roster_status: string };
