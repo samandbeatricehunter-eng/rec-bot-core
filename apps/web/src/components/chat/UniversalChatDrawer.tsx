@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MessageCircle, X } from "lucide-react";
 import type { ChatChannelSummary, ChatChannelType, ChatMessageRow } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -111,47 +112,49 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
         {totalUnread > 0 && <span className="chat-drawer-launcher-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
       </button>
 
-      {drawer.open && (
-        <div className="chat-drawer-overlay" role="dialog" aria-label="League chat">
-          <div className="chat-drawer-panel">
-            <div className="chat-drawer-header">
-              <strong>{selectedChannel?.label ?? "Chat"}</strong>
-              <button type="button" className="chat-drawer-close" onClick={drawer.close} aria-label="Close chat">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="chat-drawer-body">
-              <ChannelList channels={channels} selectedChannelId={selected?.channelId ?? null} onSelect={(c) => { setSelected({ channelType: c.type, channelId: c.id }); setReplyTarget(null); }} />
-              <div className="chat-drawer-conversation">
-                <ConversationView
-                  messages={messages}
-                  viewerDiscordId={discordId}
-                  mentionable={mentionable}
-                  reactionsByMessage={reactionsByMessage}
-                  attachmentsByMessage={attachmentsByMessage}
-                  onToggleReaction={(messageId, emojiKey) => void toggleReaction(messageId, emojiKey)}
-                  onEditMessage={editMessage}
-                  onDeleteMessage={(messageId) => void deleteMessage(messageId)}
-                  onReplyMessage={setReplyTarget}
-                />
-                <Composer
-                  onSend={async (body) => {
-                    const row = await sendMessage(body, replyTarget?.id ?? null);
-                    setReplyTarget(null);
-                    return row ? { id: row.id } : undefined;
-                  }}
-                  sending={sending}
-                  mentionOptions={mentionOptions}
-                  guildId={guildId}
-                  channelType={selected?.channelType}
-                  replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
-                  onCancelReply={() => setReplyTarget(null)}
-                />
+      {drawer.open &&
+        createPortal(
+          <div className="chat-drawer-overlay" role="dialog" aria-label="League chat" onClick={drawer.close}>
+            <div className="chat-drawer-panel" onClick={(event) => event.stopPropagation()}>
+              <div className="chat-drawer-header">
+                <strong>{selectedChannel?.label ?? "Chat"}</strong>
+                <button type="button" className="chat-drawer-close" onClick={drawer.close} aria-label="Close chat">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="chat-drawer-body">
+                <ChannelList channels={channels} selectedChannelId={selected?.channelId ?? null} onSelect={(c) => { setSelected({ channelType: c.type, channelId: c.id }); setReplyTarget(null); }} />
+                <div className="chat-drawer-conversation">
+                  <ConversationView
+                    messages={messages}
+                    viewerDiscordId={discordId}
+                    mentionable={mentionable}
+                    reactionsByMessage={reactionsByMessage}
+                    attachmentsByMessage={attachmentsByMessage}
+                    onToggleReaction={(messageId, emojiKey) => void toggleReaction(messageId, emojiKey)}
+                    onEditMessage={editMessage}
+                    onDeleteMessage={(messageId) => void deleteMessage(messageId)}
+                    onReplyMessage={setReplyTarget}
+                  />
+                  <Composer
+                    onSend={async (body) => {
+                      const row = await sendMessage(body, replyTarget?.id ?? null);
+                      setReplyTarget(null);
+                      return row ? { id: row.id } : undefined;
+                    }}
+                    sending={sending}
+                    mentionOptions={mentionOptions}
+                    guildId={guildId}
+                    channelType={selected?.channelType}
+                    replyTo={replyTarget ? { preview: `${replyTarget.authorDisplayName ?? "REC Member"}: ${replyTarget.body}` } : null}
+                    onCancelReply={() => setReplyTarget(null)}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

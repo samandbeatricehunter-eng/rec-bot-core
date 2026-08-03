@@ -33,7 +33,7 @@ export const recApi = {
     }),
   recordHubAnnouncement: (input: { guildId: string; title: string; body: string; discordChannelId?: string | null; discordMessageId?: string | null }) =>
     recFetch<{ recorded: boolean }>("/v1/hub/announcements/record", { method: "POST", body: JSON.stringify(input) }),
-  ingestGameChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string }) =>
+  ingestGameChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string; images?: Array<{ url: string; mimeType: string }> }) =>
     recFetch<{ ingested: boolean }>("/v1/game-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
   claimLeagueInvite: (input: { token: string; guildId: string; serverName?: string; requestedByDiscordId?: string }) =>
     recFetch<{ league: any; server: any }>("/v1/subscriptions/bot/claim-invite", { method: "POST", body: JSON.stringify(input) }),
@@ -556,7 +556,7 @@ export const recApi = {
     recFetch<{ notifications: Array<{ id: string; header: string; summary: string | null }> }>("/v1/notifications/dm-pending", { method: "POST", body: JSON.stringify({ guildId }) }),
   markCommissionerNotificationDms: (guildId: string, ids: string[]) =>
     recFetch<{ updated: number }>("/v1/notifications/dm-mark", { method: "POST", body: JSON.stringify({ guildId, ids }) }),
-  ingestLeagueChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string }) =>
+  ingestLeagueChatMessage: (input: { discordChannelId: string; discordUserId: string; discordMessageId: string; content: string; images?: Array<{ url: string; mimeType: string }> }) =>
     recFetch<{ ingested: boolean }>("/v1/league-chat/messages/ingest", { method: "POST", body: JSON.stringify(input) }),
   syncDiscordMemberRole: (input: { guildId: string; discordId: string; roleKey: "member" | "compCommittee" | "commissioner" }) =>
     recFetch<{ ok: true }>("/v1/roles/discord-sync", { method: "POST", body: JSON.stringify(input) }),

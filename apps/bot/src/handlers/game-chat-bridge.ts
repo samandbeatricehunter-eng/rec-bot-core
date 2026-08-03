@@ -1,5 +1,6 @@
 import type { Message } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
+import { extractMessageImages } from "../lib/discord-message-images.js";
 
 // Discord -> site half of the game-chat bridge. The site -> Discord half posts through
 // postDiscordChannelMessage (apps/api/src/lib/discord-guild.ts) as the bot's own user, so
@@ -7,14 +8,17 @@ import { recApi } from "../lib/rec-api.js";
 // separate "just forwarded" cache needed to prevent an echo loop.
 export async function handleGameChannelChatMessage(message: Message): Promise<boolean> {
   if (!message.guildId) return false;
-  const content = message.content?.trim();
-  if (!content) return false;
+  const content = message.content?.trim() ?? "";
+  const images = extractMessageImages(message);
+  // A GIF-only or image-only message has no text content — still worth bridging.
+  if (!content && !images.length) return false;
   const result = await recApi
     .ingestGameChatMessage({
       discordChannelId: message.channelId,
       discordUserId: message.author.id,
       discordMessageId: message.id,
       content,
+      images,
     })
     .catch(() => null);
   return Boolean(result?.ingested);

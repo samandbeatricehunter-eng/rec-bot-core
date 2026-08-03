@@ -174,9 +174,11 @@ export async function ingestDiscordGameChatMessage(input: {
   discordUserId: string;
   discordMessageId: string;
   content: string;
+  images?: Array<{ url: string; mimeType: string }>;
 }): Promise<{ ingested: boolean }> {
   const trimmed = input.content.trim();
-  if (!trimmed) return { ingested: false };
+  const images = input.images ?? [];
+  if (!trimmed && !images.length) return { ingested: false };
 
   const channel = await getGameChannelByDiscordId(input.discordChannelId);
   if (!channel || channel.status !== "active") return { ingested: false };
@@ -207,7 +209,22 @@ export async function ingestDiscordGameChatMessage(input: {
   // Unique partial index on discord_message_id — a retried ingest hits a conflict, which is
   // "already ingested", not a real failure.
   if (inserted.error && (inserted.error as any).code !== "23505") throw new ApiError(500, "Failed to ingest Discord game chat message.", inserted.error);
-  if (!inserted.error) broadcastChatEvent("game", channel.id, { kind: "message", row: inserted.data });
+  if (!inserted.error) {
+    broadcastChatEvent("game", channel.id, { kind: "message", row: inserted.data });
+    // Discord CDN URLs are referenced directly (not re-uploaded to our own storage) — they're
+    // stable for the message's lifetime in practice, but unlike site-uploaded attachments
+    // there's no storage_key we own, so storage_key just echoes the source URL.
+    for (const image of images) {
+      const attached = await supabase.from("rec_chat_attachments").insert({
+        channel_type: "game",
+        message_id: inserted.data.id,
+        storage_key: image.url,
+        original_url: image.url,
+        mime_type: image.mimeType,
+      });
+      if (!attached.error) broadcastChatEvent("game", channel.id, { kind: "attachment", messageId: inserted.data.id });
+    }
+  }
   return { ingested: true };
 }
 

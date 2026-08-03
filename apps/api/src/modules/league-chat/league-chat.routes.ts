@@ -15,7 +15,8 @@ export async function leagueChatRoutes(app: FastifyInstance) {
         discordChannelId: z.string().min(1),
         discordUserId: z.string().min(1),
         discordMessageId: z.string().min(1),
-        content: z.string().trim().min(1).max(4000),
+        content: z.string().trim().max(4000),
+        images: z.array(z.object({ url: z.string().url(), mimeType: z.string().min(1) })).max(5).optional(),
       }).parse(request.body);
       return reply.send(await ingestDiscordLeagueChatMessage(body));
     } catch (error) {

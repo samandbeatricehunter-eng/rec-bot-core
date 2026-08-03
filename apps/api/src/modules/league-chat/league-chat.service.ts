@@ -203,7 +203,11 @@ export async function ingestDiscordLeagueChatMessage(input: {
   discordUserId: string;
   discordMessageId: string;
   content: string;
+  images?: Array<{ url: string; mimeType: string }>;
 }) {
+  const trimmed = input.content.trim();
+  const images = input.images ?? [];
+  if (!trimmed && !images.length) return { ingested: false };
   const route = await supabase
     .from("rec_server_routes")
     .select("server_id")
@@ -235,10 +239,22 @@ export async function ingestDiscordLeagueChatMessage(input: {
     is_discord_only: author.isDiscordOnly,
     source: "discord",
     discord_message_id: input.discordMessageId,
-    body: input.content.trim().slice(0, 2000),
+    body: trimmed.slice(0, 2000),
   }).select("id,author_user_id,author_discord_id,author_display_name,is_discord_only,source,discord_message_id,body,created_at").single();
   if (inserted.error) throw new ApiError(500, "Failed to ingest Discord league chat message.", inserted.error);
   broadcastChatEvent("league", context.leagueId, { kind: "message", row: inserted.data });
+  // See game-chat.service.ts's ingestDiscordGameChatMessage for why storage_key echoes the
+  // source URL instead of pointing at our own storage.
+  for (const image of images) {
+    const attached = await supabase.from("rec_chat_attachments").insert({
+      channel_type: "league",
+      message_id: inserted.data.id,
+      storage_key: image.url,
+      original_url: image.url,
+      mime_type: image.mimeType,
+    });
+    if (!attached.error) broadcastChatEvent("league", context.leagueId, { kind: "attachment", messageId: inserted.data.id });
+  }
   return { ingested: true };
 }
 
