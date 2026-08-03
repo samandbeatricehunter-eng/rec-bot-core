@@ -74,7 +74,7 @@ export async function customPlayerRoutes(app: FastifyInstance) {
 
   app.post("/v1/custom-players/submit", async (request, reply) => {
     try {
-      const body = BuildSchema.extend({ idempotencyKey: z.string().uuid(), identity: IdentitySchema, replacementPlayerId: z.string().uuid() }).parse(request.body);
+      const body = BuildSchema.extend({ idempotencyKey: z.string().uuid(), identity: IdentitySchema, replacementPlayerId: z.string().uuid().nullable() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Custom-player purchases are website-only.");
       return reply.send(await submitCustomPlayer({ ...body, discordId: auth.discordId, packageTier: body.packageTier as 1|2|3|4|5 }));

@@ -83,7 +83,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
     .in("status", ["pending_review", "approved", "applied"]);
   const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
-    .eq("league_id", context.leagueId).eq("team_id", teamId).eq("roster_status", "active").order("position");
+    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]).order("position");
   const wallet = Number(baseline.wallet?.wallet_balance ?? 0);
   const attributes = new Set<string>();
   for (const position of REC_CUSTOM_PLAYER_POSITIONS) for (const code of getRecEditableAttributes(game, position)) attributes.add(code);
@@ -97,6 +97,10 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     archetypes: Object.fromEntries(REC_CUSTOM_PLAYER_POSITIONS.map((position) => [position, listRecArchetypes(game, position)])),
     attributes: [...attributes].sort().map((code) => ({ code, displayName: getRecAttributeDisplayName(code) })),
     replacementPlayers: roster.data ?? [],
+    // Backlog #42 — non-seeded-league fallback: with no active players on the team (baseline
+    // roster never applied), the replacement step is skipped and the build adds a brand-new
+    // player instead of replacing one. Whenever players exist, replacement stays mandatory.
+    replacementRequired: (roster.data ?? []).length > 0,
     contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only. Choose a replacement player whose in-game appearance matches your physical preferences.",
     versions: { package: REC_CUSTOM_PLAYER_PACKAGE_VERSION, cost: REC_CUSTOM_PLAYER_COST_VERSION, archetype: REC_ARCHETYPE_CONFIG_VERSION, rules: REC_BUILD_RULES_VERSION, ovr: REC_OVR_MODEL_VERSION, names: REC_NAME_CORPUS_VERSION },
   };
@@ -175,7 +179,7 @@ export function evaluateCustomPlayer(input: { game: RecGameFamily; packageTier: 
 export async function submitCustomPlayer(input: {
   guildId: string; discordId: string; idempotencyKey: string; packageTier: RecPackageTier;
   position: string; archetypeKey: string; developmentTrait: string; identity: Identity;
-  attributes: Record<string, number>; replacementPlayerId: string;
+  attributes: Record<string, number>; replacementPlayerId: string | null;
 }) {
   const { context, baseline, teamId, seasonNumber } = await contextFor(input.guildId, input.discordId);
   const game = gameFamily(context.rec_leagues.game); const year = gameYear(context.rec_leagues.game);
@@ -193,9 +197,24 @@ export async function submitCustomPlayer(input: {
   if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
   const pkg = getRecCustomPlayerPackage(game, input.packageTier, year);
   if (config.walletBalance < pkg.coinPrice) throw new ApiError(400, `Insufficient wallet balance. This package costs ${pkg.coinPrice} coins.`);
-  const replacement = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
-    .eq("league_id", context.leagueId).eq("team_id", teamId).eq("roster_status", "active").maybeSingle();
-  if (replacement.error || !replacement.data) throw new ApiError(400, "Select an active player from your roster to replace.");
+
+  // Backlog #42 — replacement is mandatory whenever the team has players. With an empty
+  // roster (unseeded league) the purchase proceeds without one: the approved build creates
+  // a brand-new player instead of replacing an outgoing row.
+  let replacement: { data: Record<string, unknown> | null } = { data: null };
+  if (input.replacementPlayerId) {
+    const found = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
+      .eq("league_id", context.leagueId).eq("team_id", teamId).eq("roster_status", "active").maybeSingle();
+    if (found.error || !found.data) throw new ApiError(400, "Select an active player from your roster to replace.");
+    replacement = found as { data: Record<string, unknown> };
+  } else {
+    const activeCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
+      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
+    if (activeCount.error) throw new ApiError(500, "Failed to check your roster.", activeCount.error);
+    if ((activeCount.count ?? 0) > 0) {
+      throw new ApiError(400, "This team has active players — select one to replace. Skipping the replacement is only allowed while your roster is empty (an unseeded league).");
+    }
+  }
   const existing = await supabase.from("rec_custom_player_builds").select("*").eq("league_id", context.leagueId)
     .eq("user_id", baseline.user.id).eq("idempotency_key", input.idempotencyKey).maybeSingle();
   if (existing.data) return { build: existing.data, duplicate: true };
@@ -206,8 +225,8 @@ export async function submitCustomPlayer(input: {
   if (purchase.error) throw new ApiError(500, "Failed to create the purchase.", purchase.error);
   const refundCoins = Math.ceil(evaluation.pointsRemaining * .5);
   const build = await supabase.from("rec_custom_player_builds").insert({ purchase_id: purchase.data.id, league_id: context.leagueId, season_id: seasonId,
-    season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId,
-    replacement_player_snapshot: replacement.data,
+    season_number: seasonNumber, user_id: baseline.user.id, team_id: teamId, replacement_player_id: input.replacementPlayerId ?? null,
+    replacement_player_snapshot: replacement.data ?? {},
     game_family: game, game_year: year, package_tier: input.packageTier, package_key: pkg.key, position: input.position.toUpperCase(),
     selected_archetype_key: input.archetypeKey, inferred_archetype_key: evaluation.inferredArchetypeKey, development_trait: input.developmentTrait,
     identity: input.identity, attributes: input.attributes, evaluation, coin_price: pkg.coinPrice, creation_point_budget: evaluation.creationPoints,
