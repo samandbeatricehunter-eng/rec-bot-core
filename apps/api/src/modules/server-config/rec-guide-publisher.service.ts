@@ -89,6 +89,13 @@ function guideEmbeds(cfg: { league: Record<string, any>; routes: Record<string, 
       economy ? "**Purchase or wager blocked?** Check balance, league/season availability, caps, restrictions, and whether the game has already locked." : null,
       `Announcements: ${mention(routes.announcements_channel_id, "not assigned")}. Headlines: ${mention(routes.headlines_channel_id, "not assigned")}. League-specific Rules & Policies on the site are authoritative.`,
     ]),
+    base(economy ? 9 : 8, "Discord Bot Commands", [
+      "**/app** — sends you a private, expiring link to open the REC Leagues website/app for this server.",
+      "**/openteams** — displays open and claimed teams by conference and lets you request an available team.",
+      "**/matchup** — displays your current-week matchup and its available game information.",
+      "**/schedule** — displays your linked team's full season schedule.",
+      "**/claim-league `token`** — links this Discord server to a REC league invite. This command is restricted to the Discord server owner only.",
+    ]),
   ].filter((embed): embed is NonNullable<typeof embed> => Boolean(embed));
 }
 

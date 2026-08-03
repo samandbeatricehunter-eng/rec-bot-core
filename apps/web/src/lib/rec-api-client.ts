@@ -653,10 +653,13 @@ export const recApi = {
     recApiFetch<{ attachments: ChatAttachment[] }>("/v1/chat/attachments/list", { method: "POST", body: JSON.stringify(input) }),
 
   getCustomPlayerConfig: (guildId: string) => recApiFetch<any>("/v1/custom-players/config", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getCustomPlayerDraft: (guildId: string) => recApiFetch<any>("/v1/custom-players/draft/get", { method: "POST", body: JSON.stringify({ guildId }) }),
+  saveCustomPlayerDraft: (input: Record<string, unknown>) => recApiFetch<any>("/v1/custom-players/draft/save", { method: "POST", body: JSON.stringify(input) }),
+  cancelCustomPlayerDraft: (guildId: string) => recApiFetch<any>("/v1/custom-players/draft/cancel", { method: "POST", body: JSON.stringify({ guildId }) }),
   generateCustomPlayerName: (guildId: string, seed: string) => recApiFetch<{ firstName: string; lastName: string; fullName: string }>("/v1/custom-players/name", { method: "POST", body: JSON.stringify({ guildId, seed }) }),
   submitCustomPlayer: (input: Record<string, unknown>) => recApiFetch<any>("/v1/custom-players/submit", { method: "POST", body: JSON.stringify(input) }),
   listCustomPlayerBuilds: (guildId: string, manage = false) => recApiFetch<any>("/v1/custom-players/list", { method: "POST", body: JSON.stringify({ guildId, manage }) }),
-  reviewCustomPlayer: (input: { guildId: string; buildId: string; action: "approve" | "reject"; note?: string }) => recApiFetch<any>("/v1/custom-players/review", { method: "POST", body: JSON.stringify(input) }),
+  reviewCustomPlayer: (input: { guildId: string; buildId: string; action: "approve" | "reject"; note?: string; adjustments?: Record<string, unknown> }) => recApiFetch<any>("/v1/custom-players/review", { method: "POST", body: JSON.stringify(input) }),
 
   // Home page's weekly H2H panel
   getWeeklyH2hGames: (guildId: string) =>

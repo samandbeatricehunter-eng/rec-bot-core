@@ -11,6 +11,11 @@ export async function handleClaimLeagueSlash(interaction: ChatInputCommandIntera
     await interaction.reply({ content: "Run this in a Discord server, not a DM.", flags: MessageFlags.Ephemeral });
     return;
   }
+  const ownerId = interaction.guild?.ownerId ?? (await interaction.guild?.fetchOwner())?.id;
+  if (!ownerId || interaction.user.id !== ownerId) {
+    await interaction.reply({ content: "Only the Discord server owner can run /claim-league.", flags: MessageFlags.Ephemeral });
+    return;
+  }
   const token = interaction.options.getString("token", true).trim();
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   try {

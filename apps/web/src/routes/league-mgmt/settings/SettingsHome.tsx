@@ -13,6 +13,7 @@ import { ChannelSettings } from "./ChannelSettings.js";
 import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
 import { BadgeMaintenance } from "./BadgeMaintenance.js";
 import { ModerationSettings } from "./ModerationSettings.js";
+import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
 
 const FIRST_TIME_SETUP_KEY = "first-time-setup";
 const EOS_PAYOUTS_KEY = "eos-payouts";
@@ -303,6 +304,8 @@ export function SettingsHome() {
               </div>
             ) : null}
           </Card>
+
+          {activeCategory === "purchases" && Boolean(draft.customPlayersEnabled) ? <CustomPlayerReviewQueue guildId={guildId} /> : null}
 
           <div style={{ marginTop: "var(--space-4)" }}>
             <Button variant="primary" onClick={handleSave} disabled={saving}>

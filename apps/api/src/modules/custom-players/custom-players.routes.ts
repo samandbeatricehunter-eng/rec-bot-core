@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { evaluateCustomPlayer, generateCustomPlayerName, getCustomPlayerConfig, listCustomPlayerBuilds, reviewCustomPlayer, submitCustomPlayer } from "./custom-players.service.js";
+import { cancelCustomPlayerDraft, evaluateCustomPlayer, generateCustomPlayerName, getCustomPlayerConfig, getCustomPlayerDraft, listCustomPlayerBuilds, reviewCustomPlayer, saveCustomPlayerDraft, submitCustomPlayer } from "./custom-players.service.js";
 
 const GameSchema = z.enum(["CFB", "MADDEN"]);
 const BuildSchema = z.object({
@@ -19,6 +19,32 @@ const IdentitySchema = z.object({
 });
 
 export async function customPlayerRoutes(app: FastifyInstance) {
+  app.post("/v1/custom-players/draft/get", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Custom-player drafts are website-only.");
+      return reply.send(await getCustomPlayerDraft(guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/custom-players/draft/save", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), currentStep: z.string().min(1).max(40), packageTier: z.number().int().min(1).max(5).optional(), position: z.string().max(10).optional(), archetypeKey: z.string().max(80).optional(), developmentTrait: z.string().max(40).optional(), identity: z.record(z.unknown()).optional(), attributes: z.record(z.number().int().min(0).max(99)).optional(), replacementPlayerId: z.string().uuid().optional().or(z.literal("")) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Custom-player drafts are website-only.");
+      return reply.send(await saveCustomPlayerDraft(body.guildId, auth.discordId, { ...body, packageTier: body.packageTier as 1|2|3|4|5|undefined }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/custom-players/draft/cancel", async (request, reply) => {
+    try {
+      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Custom-player drafts are website-only.");
+      return reply.send(await cancelCustomPlayerDraft(guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
   app.post("/v1/custom-players/config", async (request, reply) => {
     try {
       const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
@@ -66,7 +92,7 @@ export async function customPlayerRoutes(app: FastifyInstance) {
 
   app.post("/v1/custom-players/review", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), buildId: z.string().uuid(), action: z.enum(["approve", "reject"]), note: z.string().max(1000).optional() }).parse(request.body);
+      const body = z.object({ guildId: z.string().min(1), buildId: z.string().uuid(), action: z.enum(["approve", "reject"]), note: z.string().max(1000).optional(), adjustments: z.object({ identity: IdentitySchema, attributes: z.record(z.number().int().min(0).max(99)) }).strict().optional() }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Custom-player review requires a website session.");
       return reply.send(await reviewCustomPlayer({ ...body, reviewerDiscordId: auth.discordId }));

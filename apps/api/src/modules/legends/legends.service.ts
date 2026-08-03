@@ -20,7 +20,8 @@ export async function listLegendCatalog(guildId: string) {
     .order("position", { ascending: true })
     .order("name", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load legend catalog.", error);
-  return { legends: data ?? [] };
+  const highestDevTrait = context.rec_leagues?.game === "cfb_27" ? "elite" : "xfactor";
+  return { legends: (data ?? []).map((legend: any) => ({ ...legend, dev_trait: highestDevTrait })) };
 }
 
 async function activeLeagueLegendPurchases(leagueId: string) {
@@ -164,7 +165,7 @@ export async function createLegendPurchaseRequest(input: {
     weight: legend.data.weight,
     hand: legend.data.hand,
     jerseyNumber: legend.data.jersey_number,
-    devTrait: legend.data.dev_trait,
+    devTrait: context.rec_leagues.game === "cfb_27" ? "elite" : "xfactor",
     archetype: legend.data.archetype,
     buildNote: legend.data.build_note,
     college: legend.data.college,
@@ -194,7 +195,7 @@ export async function createLegendPurchaseRequest(input: {
     .update({
       queue_type: "legend",
       header: `Legend: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR)`,
-      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replaceTarget ? ` · Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}` : " · Buyer left the replaced player up to you"}. Dev trait: ${legend.data.dev_trait}. Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
+      summary: `DO NOT mark Approved & Applied In-Game until you have actually created this player. Team: ${teamName ?? "unassigned"}${details.replaceTarget ? ` · Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}` : " · Buyer left the replaced player up to you"}. Dev trait: ${details.devTrait}. Final in-league OVR is normalized to 88 — nudge attributes as needed. Attributes: ${attrLines}`,
       payload: { purchaseId: result.purchase.id, purchaseType: "legend", cost: result.price, replaceTarget: details.replaceTarget },
     })
     .eq("source_table", "rec_purchases")

@@ -1367,16 +1367,16 @@ export function HubHome() {
           </div>
         </div>}
 
-        <div className="hub-gameday-card">
+        <div className="hub-gameday-card hub-quick-actions-card">
           <p className="hub-eyebrow">Quick actions</p>
-          <div className="hub-gameday-actions">
-            <button type="button" className="hub-shortcut-card" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={18} />} /><div><strong>Interview</strong><span>Answer this week's questions</span></div></button>
-            <button type="button" className="hub-shortcut-card" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={18} />} /><div><strong>Box Score</strong><span>This week or a missed one</span></div></button>
-            <button type="button" className="hub-shortcut-card" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={18} />} /><div><strong>Highlights</strong><span>2 per week, up to this week</span></div></button>
-            <button type="button" className="hub-shortcut-card" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={18} />} /><div><strong>Roster</strong><span>View your team</span></div></button>
-            <button type="button" className="hub-shortcut-card" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={18} />} /><div><strong>Full Schedule</strong><span>Results &amp; upcoming games</span></div></button>
-            <button type="button" className="hub-shortcut-card" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={18} />} /><div><strong>My Matchup</strong><span>Open this week's game page</span></div></button>
-            {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={18} />} /><div><strong>Recruiting</strong><span>Log commits, manage your board</span></div></button>}
+          <div className="hub-gameday-actions hub-quick-actions-row">
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<Mic size={16} />} /><div><strong>Interview</strong><span>Weekly questions</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("boxScore"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<ClipboardList size={16} />} /><div><strong>Box Score</strong><span>Submit results</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => { setLateSubmissionsFocus("highlight"); setLateSubmissionsOpen(true); }}><IconWell size="sm" icon={<Film size={16} />} /><div><strong>Highlights</strong><span>Submit clips</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<UsersRound size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<CalendarDays size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
+            <button type="button" className="hub-shortcut-card hub-quick-action" onClick={jumpToMyMatchup}><IconWell size="sm" icon={<Swords size={16} />} /><div><strong>My Matchup</strong><span>Game page</span></div></button>
+            {hub.league.game === "cfb_27" && <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<GraduationCap size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>}
           </div>
         </div>
 
