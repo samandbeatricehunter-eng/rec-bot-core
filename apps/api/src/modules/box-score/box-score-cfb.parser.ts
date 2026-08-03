@@ -183,7 +183,12 @@ const ROW_DEFS: RowDef[] = [
   { index: 6, anchors: ["yards per rush"], apply: (raw, side, map) => { const v = parseYardsPer(raw); if (v) setStat(map, "yards_per_rush", side, v); } },
   {
     index: 7,
-    anchors: ["comp"],
+    // "comp" alone is under the 5-char includes() threshold in labelMatches, so it
+    // required an exact-match normalized label of just "comp" — but the real row label
+    // is always "Comp-Att-TD" (normalizes to "comp att td"), which never equals "comp"
+    // alone. That silently prevented this row from ever anchoring, and its value from
+    // ever being read outside lucky interpolation from neighboring rows.
+    anchors: ["comp att", "comp"],
     apply: (raw, side, map) => {
       const t = parseTriple(raw);
       if (!t) return;
@@ -594,6 +599,22 @@ function deriveTotalYards(stats: StatsMap) {
   }
 }
 
+// Some CFB box-score layouts show Total Offense and Rushing but no separate Passing
+// Yards row at all (not an OCR miss — the row genuinely isn't on screen), yet passing
+// yards is a required field. It's exact arithmetic from two rows that are always
+// present, so derive it the same way deriveTotalYards derives its own required field.
+function derivePassYards(stats: StatsMap) {
+  const off = stats["off_yards_gained"];
+  const rush = stats["off_rush_yards"];
+  for (const side of ["team1", "team2"] as const) {
+    if (stats["off_pass_yards"]?.[side]?.trim()) continue;
+    const offN = parseInt(off?.[side] ?? "", 10);
+    const rushN = parseInt(rush?.[side] ?? "", 10);
+    if (isNaN(offN) || isNaN(rushN)) continue;
+    setStat(stats, "off_pass_yards", side, String(offN - rushN));
+  }
+}
+
 function deriveRedZoneDefense(stats: StatsMap) {
   const offPct = stats["red_zone_off_percentage"];
   if (!offPct) return;
@@ -635,6 +656,7 @@ export async function parseCfbBoxScoreBuffers(buffers: Buffer[]): Promise<Parsed
   }
 
   deriveTotalYards(stats);
+  derivePassYards(stats);
   deriveRedZoneDefense(stats);
 
   const warnings: string[] = [];
