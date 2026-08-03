@@ -7,19 +7,28 @@
 // Championship at week 15, then a 4-week "Bowl Week" bracket at weeks 16-19 (CFP First Round,
 // Quarterfinals, Semifinals, National Championship — no scheduled bye week between rounds).
 //
-// After the National Championship, CFB abandons "Weeks" entirely for a 4-stage dynasty
-// offseason before looping back to Preseason -> Week 0: Players Leaving (roster
-// retention/graduation/draft declarations) -> Transfer Portal -> National Signing Day
-// (recruiting class signs + position changes) -> Training Results (progression + roster
-// cuts to reach the cap). This does not reuse Madden's franchise-mode offseason names
+// After the National Championship, CFB abandons "Weeks" entirely for a dynasty offseason
+// pipeline before looping back to Preseason -> Week 0: End of Season Recap (the actual
+// "first offseason stage" boundary — see firstOffseasonStage below, this is where EOS
+// payouts/awards automation fires) -> Players Leaving (roster retention/graduation/draft
+// declarations) -> Transfer Portal & Off-Season Recruiting (a 4-advance window, not a
+// single stage — see the transfer_portal handling in nextLeagueStage, which loops using
+// weekNumber as a 1-4 counter) -> National Signing Day (recruiting class signs + position
+// changes) -> Training Results (progression + roster cuts to reach the cap) -> Offseason
+// Phase (Encourage Transfers & Edit Conferences) -> Preseason (one advance) -> Week 0 of
+// the next season. This does not reuse Madden's franchise-mode offseason names
 // (coach_hiring/final_resigning/free_agency/draft), which are NFL-only.
 //
 // Source: community-aggregated CFP bowl-week structure (Reddit r/NCAAFBseries + EA's own
 // site), corroborated 2026-07-16. Superseded the prior provisional numbering, which was
 // extrapolated from a single non-playoff team's schedule screenshot and included an
-// unconfirmed bye week between semifinals and the championship.
+// unconfirmed bye week between semifinals and the championship. End of Season Recap /
+// Transfer Portal's 4-advance window / Offseason Phase added 2026-08-02.
 
 export type LeagueGame = "madden_26" | "madden_27" | "cfb_27" | string | null | undefined;
+
+/** Number of separate advances the CFB Transfer Portal & Off-Season Recruiting window spans. */
+export const CFB_TRANSFER_PORTAL_ADVANCES = 4;
 
 export function isCfb(game: LeagueGame) {
   return game === "cfb_27";
@@ -81,12 +90,16 @@ export function nextLeagueStage(weekNumber: number, seasonStage: string, game: L
     if (stage === "cfp_first_round") return { weekNumber: 17, seasonStage: "cfp_quarterfinals" };
     if (stage === "cfp_quarterfinals") return { weekNumber: 18, seasonStage: "cfp_semifinals" };
     if (stage === "cfp_semifinals") return { weekNumber: 19, seasonStage: "national_championship" };
-    // Dynasty offseason: no week numbers, just a 4-stage pipeline back to Preseason -> Week 0.
-    if (stage === "national_championship" || stage === "offseason") return { weekNumber: 1, seasonStage: "players_leaving" };
+    // Dynasty offseason: no week numbers except transfer_portal's 1-4 advance counter, just
+    // a pipeline back to Preseason -> Week 0.
+    if (stage === "national_championship" || stage === "offseason") return { weekNumber: 1, seasonStage: "end_of_season_recap" };
+    if (stage === "end_of_season_recap") return { weekNumber: 1, seasonStage: "players_leaving" };
     if (stage === "players_leaving") return { weekNumber: 1, seasonStage: "transfer_portal" };
-    if (stage === "transfer_portal") return { weekNumber: 1, seasonStage: "signing_day" };
+    if (stage === "transfer_portal" && weekNumber < CFB_TRANSFER_PORTAL_ADVANCES) return { weekNumber: weekNumber + 1, seasonStage: "transfer_portal" };
+    if (stage === "transfer_portal" && weekNumber >= CFB_TRANSFER_PORTAL_ADVANCES) return { weekNumber: 1, seasonStage: "signing_day" };
     if (stage === "signing_day") return { weekNumber: 1, seasonStage: "training_results" };
-    if (stage === "training_results") return { weekNumber: 1, seasonStage: "preseason" };
+    if (stage === "training_results") return { weekNumber: 1, seasonStage: "offseason_phase" };
+    if (stage === "offseason_phase") return { weekNumber: 1, seasonStage: "preseason" };
   } else {
     if (stage === "regular_season" && weekNumber < lastRegularWeek) return { weekNumber: weekNumber + 1, seasonStage: "regular_season" };
     if (stage === "regular_season" && weekNumber >= lastRegularWeek) return { weekNumber: 19, seasonStage: "wild_card" };
@@ -113,10 +126,15 @@ export function stageLabel(stage: string, week: number, game: LeagueGame = null)
     if (stage === "cfp_quarterfinals") return "CFP Quarterfinals";
     if (stage === "cfp_semifinals") return "CFP Semifinals";
     if (stage === "national_championship") return "National Championship";
+    if (stage === "end_of_season_recap") return "End of Season Recap";
     if (stage === "players_leaving") return "Players Leaving";
-    if (stage === "transfer_portal") return "Transfer Portal";
+    if (stage === "transfer_portal") {
+      const remaining = Math.max(1, CFB_TRANSFER_PORTAL_ADVANCES - week + 1);
+      return `Transfer Portal & Off-Season Recruiting (${remaining} advance${remaining === 1 ? "" : "s"} left)`;
+    }
     if (stage === "signing_day") return "National Signing Day";
     if (stage === "training_results") return "Training Results";
+    if (stage === "offseason_phase") return "Offseason Phase (Encourage Transfers & Edit Conferences)";
   } else {
     if (stage === "wild_card") return "Wild Card";
     if (stage === "divisional") return "Divisional";
@@ -141,9 +159,9 @@ export function terminalSeasonStage(game: LeagueGame): string {
   return isCfb(game) ? "national_championship" : "super_bowl";
 }
 
-/** The first offseason stage entered right after the terminal (championship) stage — "coach_hiring" for NFL, "players_leaving" for CFB. */
+/** The first offseason stage entered right after the terminal (championship) stage — "coach_hiring" for NFL, "end_of_season_recap" for CFB. This is the boundary EOS payouts/awards automation fires on, not necessarily the first *named* offseason activity stage. */
 export function firstOffseasonStage(game: LeagueGame): string {
-  return isCfb(game) ? "players_leaving" : "coach_hiring";
+  return isCfb(game) ? "end_of_season_recap" : "coach_hiring";
 }
 
 /** True if this season_stage is the terminal (championship) stage for this game. */

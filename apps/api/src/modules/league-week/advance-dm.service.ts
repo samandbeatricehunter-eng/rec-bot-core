@@ -28,6 +28,8 @@ export async function recordAdvanceDmRun(input: {
   seasonNumber: number;
   fromWeek: number;
   toWeek: number;
+  fromStage: string;
+  toStage: string;
   advancedByDiscordId: string | null;
 }): Promise<void> {
   const { data: ownership, error } = await supabase
@@ -55,6 +57,8 @@ export async function recordAdvanceDmRun(input: {
     season_number: input.seasonNumber,
     from_week: input.fromWeek,
     to_week: input.toWeek,
+    from_stage: input.fromStage,
+    to_stage: input.toStage,
     advanced_by_discord_id: input.advancedByDiscordId,
     badge_state: badgeState,
   });
@@ -106,6 +110,7 @@ export async function generateAdvanceDms(input: { guildId: string }): Promise<Ad
   const windowEnd: string = latest.advanced_at;
   const fromWeek: number = latest.from_week;
   const toWeek: number = latest.to_week;
+  const toStage: string | null = latest.to_stage ?? null;
   const latestState = (latest.badge_state ?? {}) as BadgeState;
   const prevState = (previous?.badge_state ?? {}) as BadgeState;
 
@@ -155,8 +160,14 @@ export async function generateAdvanceDms(input: { guildId: string }): Promise<Ad
     rankByTeam.set(team.teamId, { rank: team.rank, prevRank: team.prevRank ?? null, change: team.change ?? null });
   }
 
-  // EOS team-stat progress only applies to regular-season advances.
-  const eosApplicable = toWeek >= 2 && isRegularSeasonWeek(toWeek, context.rec_leagues.game);
+  // EOS team-stat progress only applies to regular-season advances. Prefer the actual
+  // recorded destination stage — the old toWeek-based heuristic (toWeek >= 2 and within the
+  // regular-season range) can no longer disambiguate a real regular-season week from
+  // transfer_portal's 1-4 advance counter, which overlaps the same numeric range. Runs
+  // recorded before to_stage existed fall back to the old heuristic.
+  const eosApplicable = toStage != null
+    ? toStage === "regular_season"
+    : toWeek >= 2 && isRegularSeasonWeek(toWeek, context.rec_leagues.game);
   const statsByUser = eosApplicable ? await loadTeamStatsByUser(leagueId, seasonNumber, fromWeek, userIds) : new Map();
 
   const users: AdvanceDmUser[] = [];

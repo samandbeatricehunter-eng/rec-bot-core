@@ -353,7 +353,11 @@ export async function notifyMissingBoxScore(input: { guildId: string; gameId: st
   return { ok: true as const, notifiedUserIds: userIds };
 }
 
-const MAX_ADVANCE_JUMP_STEPS = 20;
+// A full CFB season loop (Week 0 through the next season's Week 0) is ~30 advances once the
+// offseason pipeline is walked in full (End of Season Recap, Players Leaving, Transfer
+// Portal's 4-advance window, National Signing Day, Training Results, Offseason Phase,
+// Preseason) — leave real headroom rather than silently truncating a far-future jump target.
+const MAX_ADVANCE_JUMP_STEPS = 35;
 
 /** Every stage the league could jump to, walking forward from its current position. */
 export async function getAdvanceJumpTargets(guildId: string) {
@@ -795,6 +799,8 @@ export async function completeAdvanceWeek(input: {
     seasonNumber,
     fromWeek: currentWeek,
     toWeek: nextTarget.weekNumber,
+    fromStage: currentStage,
+    toStage: nextTarget.seasonStage,
     advancedByDiscordId: input.advancedByDiscordId,
   }).catch((err) => {
     console.error("[ERROR] recordAdvanceDmRun failed after advance (non-fatal):", err);
