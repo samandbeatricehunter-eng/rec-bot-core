@@ -10,6 +10,7 @@ import {
   acceptPeerWager,
   attachWagerAnnouncementMessage,
   attachWagerPendingMessage,
+  cancelAllWagersForGame,
   cancelWager,
   cancelOwnWager,
   closeWageringForGame,
@@ -295,6 +296,14 @@ export async function wagerRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await closeWageringForGame(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/wagers/cancel-game", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await cancelAllWagersForGame(body));
     } catch (error) { return sendError(reply, error); }
   });
 

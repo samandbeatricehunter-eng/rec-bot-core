@@ -1362,6 +1362,24 @@ export async function closeWageringForGame(input: { guildId: string; gameId: str
   return { closed: true, refundedCount: offers.data?.length ?? 0 };
 }
 
+// Full void, unlike closeWageringForGame: refunds and cancels every not-yet-settled wager on
+// the game — including already-accepted/house wagers that would otherwise ride to a normal
+// settlement — for when the game itself won't produce a real result (Fair Sim, Force Win,
+// or otherwise voided) and no wager on it should have a winner or loser.
+export async function cancelAllWagersForGame(input: { guildId: string; gameId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const game = await supabase.from("rec_games").select("id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (!game.data) throw new ApiError(404, "Scheduled game not found.");
+  const openWagers = await supabase.from("rec_wagers").select("*").eq("league_id", context.leagueId).eq("game_id", input.gameId).in("status", ["awaiting_accept", "pending", "confirmed"]);
+  if (openWagers.error) throw new ApiError(500, "Failed to load wagers to cancel.", openWagers.error);
+  for (const wager of openWagers.data ?? []) await refundWagerStake(wager, "Wager cancelled — game voided");
+  if (openWagers.data?.length) {
+    await supabase.from("rec_wagers").update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in("id", openWagers.data.map((wager) => wager.id));
+  }
+  return { cancelled: true, refundedCount: openWagers.data?.length ?? 0 };
+}
+
 async function refundWagerStake(wager: any, description: string) {
   const refund = await supabase.rpc("add_to_wallet", {
     p_user_id: wager.placed_by_user_id,

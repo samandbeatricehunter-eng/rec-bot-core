@@ -419,6 +419,20 @@ export function MatchupDetailPage() {
     }
   }
 
+  async function cancelWagers() {
+    if (!gameId) return;
+    if (!window.confirm("Cancel and refund every wager on this game — including already-accepted ones? This can't be undone.")) return;
+    setWagersActionBusy(true);
+    try {
+      await recApi.cancelGameWagering({ guildId, gameId });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to cancel wagers.");
+    } finally {
+      setWagersActionBusy(false);
+    }
+  }
+
   function patchMatchupReactions(
     updater: (game: HubMatchupGame) => HubMatchupGame,
   ) {
@@ -846,10 +860,17 @@ export function MatchupDetailPage() {
         highlightUploading={false}
         onOpenRequestHelp={() => setRequestHelpOpen(true)}
       />
-      {isCommissioner && matchup.matchupType === "h2h" && matchup.wageringOpen && (
-        <Button variant="ghost" size="compact" disabled={wagersActionBusy} onClick={() => void closeWagers()}>
-          <Coins size={14} /> Close Wagers
-        </Button>
+      {isCommissioner && matchup.matchupType === "h2h" && !matchup.isFinal && (
+        <div className="matchup-wager-admin-actions">
+          {matchup.wageringOpen && (
+            <Button variant="ghost" size="compact" disabled={wagersActionBusy} onClick={() => void closeWagers()}>
+              <Coins size={14} /> Close Wagers
+            </Button>
+          )}
+          <Button variant="ghost" size="compact" disabled={wagersActionBusy} onClick={() => void cancelWagers()}>
+            <Coins size={14} /> Cancel Wagers
+          </Button>
+        </div>
       )}
       </div>
       <section className={`matchup-boxscore-status matchup-boxscore-status--${matchup.boxScoreStatus ?? "none"}`}>
