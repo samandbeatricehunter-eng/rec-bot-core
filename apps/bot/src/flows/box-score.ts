@@ -293,8 +293,12 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
   if (!existing) {
     try {
       const eligibility = await recApi.getBoxScoreUploadEligibility({ guildId: message.guildId, discordId: message.author.id });
-      if (eligibility.hasApprovedForWeek) return;
+      if (eligibility.hasApprovedForWeek) {
+        await message.delete().catch(() => undefined);
+        return;
+      }
       if (!eligibility.teamId) {
+        await message.delete().catch(() => undefined);
         await channel.send({
           content: `<@${message.author.id}>`,
           embeds: [new EmbedBuilder()
@@ -305,6 +309,7 @@ export async function handleBoxScoreChannelMessage(message: Message): Promise<vo
         return;
       }
       if (!eligibility.hasScheduledGame) {
+        await message.delete().catch(() => undefined);
         await channel.send({
           content: `<@${message.author.id}>`,
           embeds: [new EmbedBuilder()

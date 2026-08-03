@@ -141,18 +141,6 @@ async function publishPowerRankingsToDiscord(input: { guildId: string; announcem
 
 const WEEKLY_SUBMISSIONS_PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
 
-function weeklySubmissionsDescription(input: { seasonNumber: number; weekText: string }) {
-  return [
-    `Season ${input.seasonNumber} - ${input.weekText}`,
-    "",
-    "Use the buttons below to send this week's league submissions. Anything you type or upload during a submission is captured by REC Scout and removed from this channel so the panel stays easy to find.",
-    "",
-    "**Box Scores** - upload the required game screenshots. This creates a shared box-score submission for your current matchup and sends it to commissioner review for score/stat import and payout handling.",
-    "**Player Stats** - submit standout stat lines after a box score is pending or approved. These feed player tracking, stories, and league content.",
-    "**Recruiting Commits** - CFB only. Submit a recruit commitment to your school with position, star rating, and hometown so it can be logged and used in league news.",
-  ].join("\n");
-}
-
 // Server-side twin of the bot's publishWeeklySubmissionsPanel (apps/bot/src/flows/weekly-submissions.ts)
 // — posts straight to Discord's REST API instead of through a live gateway client, since
 // advance completion can now be triggered from the web with no bot process involved. Custom
@@ -165,6 +153,40 @@ async function republishWeeklySubmissionsPanel(input: { guildId: string; routes:
   await purgeDiscordChannelMessages(channelId);
   const stageText = input.seasonStage.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
   const weekText = input.seasonStage === "regular_season" ? `Week ${input.weekNumber}` : stageText;
+  const context = await getCurrentLeagueContext(input.guildId);
+  const games = await supabase.from("rec_games")
+    .select("id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
+    .eq("league_id", context.leagueId).eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber);
+  if (games.error) throw new ApiError(500, "Failed to load box-score channel matchups.", games.error);
+  const fields = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).slice(0, 25).map((game: any) => {
+    const home = Array.isArray(game.home_team) ? game.home_team[0] : game.home_team;
+    const away = Array.isArray(game.away_team) ? game.away_team[0] : game.away_team;
+    return { name: `${away?.abbreviation ?? away?.name ?? "Away"} at ${home?.abbreviation ?? home?.name ?? "Home"}`, value: game.home_user_id && game.away_user_id ? "H2H" : "Human vs CPU", inline: false };
+  });
+  const currentPanel = await postDiscordChannelMessage(channelId, {
+    content: "@everyone",
+    embeds: [{
+      title: `SEASON ${input.seasonNumber} · ${weekText.toUpperCase()}`,
+      color: 0xd9a521,
+      description: [
+        "## BOX SCORE SUBMISSIONS",
+        "Only coaches listed below may post. Submit exactly **two console screenshots**—together in one message or one at a time within 60 seconds. Text and non-image posts are removed automatically.",
+        "For CFB, use the postgame statistics box score or reopen the completed game's box score from the Dynasty main page. Submit the overview/top screen first and remaining team-stat screen second. REC parses both images and sends the result to commissioner review.",
+      ].join("\n\n"),
+      fields: fields.length ? fields : [{ name: "No eligible matchups", value: "There are no H2H or human-vs-CPU box scores due for this stage." }],
+    }, {
+      title: "REFERENCE IMAGE 1 OF 2 · SUBMIT FIRST", color: 0xd9a521,
+      image: { url: `${process.env.REC_SITE_URL ?? "https://rec-leagues.com"}/guides/cfb-box-score-example-1.jpg` },
+    }, {
+      title: "REFERENCE IMAGE 2 OF 2 · SUBMIT SECOND", color: 0xd9a521,
+      image: { url: `${process.env.REC_SITE_URL ?? "https://rec-leagues.com"}/guides/cfb-box-score-example-2.jpg` },
+    }],
+    allowed_mentions: { parse: ["everyone"] },
+  });
+  if (currentPanel) await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: currentPanel.id });
+  return;
+
+  /* Legacy multi-purpose weekly-submissions panel retained for migration history.
   {
     const sent = await postDiscordChannelMessage(channelId, {
       content: "@everyone",
@@ -206,6 +228,7 @@ async function republishWeeklySubmissionsPanel(input: { guildId: string; routes:
   if (sent) {
     await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: sent!.id });
   }
+  */
 }
 
 type AdvanceGameResultInput = {

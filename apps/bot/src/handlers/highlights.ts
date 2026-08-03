@@ -12,8 +12,6 @@ export const HIGHLIGHT_VOTE_EMOJIS = HIGHLIGHT_AWARD_EMOJIS;
 // Emoji ids only — used to detect/restrict the one-vote-per-highlight reactions.
 export const HIGHLIGHT_VOTE_EMOJI_IDS = new Set<string>(Object.values(HIGHLIGHT_VOTE_EMOJIS).map((e) => e.id));
 
-const CLIP_URL_RE = /https?:\/\/\S+/gi;
-
 function emojiResolvable(emoji: { name: string; id: string }) {
   return `${emoji.name}:${emoji.id}`;
 }
@@ -26,10 +24,6 @@ function mediaAttachments(message: Message) {
       contentType.startsWith("image/") ||
       /\.(mp4|mov|webm|mkv|avi|png|jpe?g|gif|webp)$/i.test(name);
   });
-}
-
-function clipCount(message: Message) {
-  return mediaAttachments(message).length + ((message.content.match(CLIP_URL_RE) ?? []).length);
 }
 
 function isInHighlightsChannel(message: Pick<Message, "channelId" | "channel">, highlightsChannelId: string) {
@@ -56,11 +50,12 @@ export async function handleHighlightReactionRestrict(
 }
 
 export async function handleHighlightChannelMessage(message: Message): Promise<boolean> {
-  // Discord Highlights channel ingest is retired — registered users upload via site/PWA.
+  // Linked users' first two media attachments for the league week are ingested for
+  // payout review and season hosting. Unlinked users may still post; the API declines persistence.
   if (!message.guildId || message.author.bot) return false;
   const highlightsChannelId = await getHighlightsChannelId(message.guildId);
   if (!highlightsChannelId || !isInHighlightsChannel(message, highlightsChannelId)) return false;
-  const urls = [...mediaAttachments(message).map((attachment) => attachment.url), ...(message.content.match(CLIP_URL_RE) ?? [])].slice(0, 2);
+  const urls = mediaAttachments(message).map((attachment) => attachment.url).slice(0, 2);
   if (!urls.length) return true;
   // Unlinked users remain free to post; the API declines their ingest, so no
   // payout or retained season clip is created for them.
@@ -73,7 +68,7 @@ export async function handleHighlightChannelMessage(message: Message): Promise<b
 }
 
 export async function syncRecentHighlightMessages(guild: Guild): Promise<void> {
-  // Discord channel reconciliation retired with channel ingest.
+  // Gateway message events are authoritative; no history polling is needed.
   void guild;
 }
 

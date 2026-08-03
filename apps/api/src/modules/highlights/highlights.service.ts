@@ -108,6 +108,10 @@ export async function recordHighlightPost(input: RecordHighlightInput) {
   const game = await supabase.from("rec_games").select("id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber).or(`home_user_id.eq.${account.user_id},away_user_id.eq.${account.user_id}`).limit(1).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to match the highlight to this week's game.", game.error);
   if (!game.data) throw new ApiError(403, "You do not have a matchup this week.");
+  const weeklyCount = await supabase.from("rec_highlight_posts").select("id", { count: "exact", head: true })
+    .eq("league_id", context.leagueId).eq("user_id", account.user_id).eq("season_number", seasonNumber).eq("week_number", weekNumber);
+  if (weeklyCount.error) throw new ApiError(500, "Failed to check the weekly highlight limit.", weeklyCount.error);
+  if ((weeklyCount.count ?? 0) >= HIGHLIGHT_WEEKLY_UPLOAD_LIMIT) return { recorded: false, reason: "weekly_limit", storedInCloudflare: false };
   const highlightId = crypto.randomUUID();
   const now = new Date().toISOString();
   const inserted = await supabase.from("rec_highlight_posts").insert({
