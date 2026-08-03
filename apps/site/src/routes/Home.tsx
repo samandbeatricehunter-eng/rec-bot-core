@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ThumbsDown, ThumbsUp } from "lucide-react";
+import { Pause, Play, RotateCcw, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
 import { useAuth } from "../lib/auth-context.js";
 import { HeroCard } from "../components/HeroCard.js";
 import { useSwipeNavigation } from "../hooks/useSwipeNavigation.js";
+import { useStreamPlayerControls } from "../hooks/useStreamPlayerControls.js";
 import {
   siteApi,
   type LinkProfileResponse,
@@ -118,6 +119,7 @@ export function HomePage() {
   const activeSpotlightIndex = spotlight.length ? spotlightIndex % spotlight.length : 0;
   const spotlightSwipe = useSwipeNavigation({ itemCount: spotlight.length, onIndexChange: setSpotlightIndex });
   useEffect(() => { spotlightSwipe.setCurrentIndex(activeSpotlightIndex); }, [activeSpotlightIndex]);
+  const spotlightPlayer = useStreamPlayerControls(activeSpotlightIndex);
 
   function advanceSpotlight() {
     if (spotlight.length <= 1) return;
@@ -202,6 +204,7 @@ export function HomePage() {
                 {activeClip.iframeUrl || activeClip.streamUid ? (
                   <>
                     <iframe
+                      ref={spotlightPlayer.iframeRef}
                       key={activeClip.id}
                       src={`${
                         activeClip.iframeUrl ??
@@ -210,11 +213,26 @@ export function HomePage() {
                       title="Spotlight clip"
                       allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
                       allowFullScreen
+                      onLoad={() => spotlightPlayer.attach()}
                     />
                     {/* A cross-origin iframe swallows pointer gestures before they ever reach
                         the article's swipe handler above — this transparent catcher sits over
-                        it purely so drags bubble up instead of vanishing into the iframe. */}
+                        it purely so drags bubble up instead of vanishing into the iframe. That
+                        also blocks the iframe's own native play/pause/mute controls from ever
+                        being clicked again, so the button row below drives the embed directly
+                        through the Stream Player SDK instead. */}
                     <div className="site-spotlight-video-swipe-catcher" />
+                    <div className="site-spotlight-video-controls" onPointerDown={(event) => event.stopPropagation()}>
+                      <button type="button" aria-label={spotlightPlayer.isPaused ? "Play" : "Pause"} onClick={spotlightPlayer.togglePlay}>
+                        {spotlightPlayer.isPaused ? <Play size={16} /> : <Pause size={16} />}
+                      </button>
+                      <button type="button" aria-label="Rewind 10 seconds" onClick={() => spotlightPlayer.rewind(10)}>
+                        <RotateCcw size={16} />
+                      </button>
+                      <button type="button" aria-label={spotlightPlayer.isMuted ? "Unmute" : "Mute"} onClick={spotlightPlayer.toggleMute}>
+                        {spotlightPlayer.isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                      </button>
+                    </div>
                   </>
                 ) : activeClip.videoUrl ? (
                   <video
