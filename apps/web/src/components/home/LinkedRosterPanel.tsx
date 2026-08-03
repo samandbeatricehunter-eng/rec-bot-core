@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LinkedRosterEntry } from "../../types/api.js";
-import { Card } from "../ui/Card.js";
 import { LoadingState } from "../ui/LoadingState.js";
 import { ErrorState } from "../ui/ErrorState.js";
+import { CollapsibleSection } from "../league-mgmt/CommandCenterDashboard.js";
 
 // Home page's left column — "who's linked to what team, and how's their season going," at a
 // glance. Ordered by power ranking (see getLinkedRoster in team-schedule-summary.service.ts,
@@ -23,8 +23,7 @@ export function LinkedRosterPanel() {
   }, [guildId]);
 
   return (
-    <Card>
-      <h2 style={{ marginTop: 0 }}>Linked Coaches</h2>
+    <CollapsibleSection title="Linked Coaches" defaultOpen={false}>
       {error && <ErrorState message={error} />}
       {!entries && !error && <LoadingState />}
       {entries && (
@@ -54,6 +53,6 @@ export function LinkedRosterPanel() {
           {entries.length === 0 && <p style={{ color: "var(--text-secondary)", margin: 0 }}>No teams are linked to a user yet.</p>}
         </div>
       )}
-    </Card>
+    </CollapsibleSection>
   );
 }

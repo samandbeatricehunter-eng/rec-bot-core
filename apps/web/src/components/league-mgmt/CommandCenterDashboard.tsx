@@ -15,7 +15,7 @@ function SectionHeading({ children, className = "" }: { children: React.ReactNod
   return <h2 className={`section-heading ${className}`} style={{ margin: "0 0 var(--space-3)", fontSize: "var(--text-lg)" }}>{children}</h2>;
 }
 
-function CollapsibleSection({
+export function CollapsibleSection({
   title,
   children,
   defaultOpen = false,
