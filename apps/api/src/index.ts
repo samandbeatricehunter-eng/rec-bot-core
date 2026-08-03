@@ -8,6 +8,7 @@ import { env, shouldMigrateMirroredHighlightsOnBoot } from "./config/env.js";
 import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
 import { hasValidInternalApiKey } from "./lib/auth.js";
+import { startChatDatabaseListener } from "./modules/chat/chat-database-listener.js";
 
 const app = Fastify({ logger: true, trustProxy: true, bodyLimit: 16 * 1024 * 1024 });
 await app.register(helmet, {
@@ -54,6 +55,7 @@ app.addContentTypeParser("application/json", { parseAs: "string" }, (request, bo
 await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } });
 await app.register(websocket);
 await registerRoutes(app);
+await startChatDatabaseListener();
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }
 

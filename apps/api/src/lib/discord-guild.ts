@@ -181,7 +181,7 @@ export async function sendDiscordAdvanceAnnouncement(channelId: string, destinat
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       content: "@everyone",
-      embeds: [{ title: "📣 League Advanced", color: 0xd9a521, description: `The league has advanced to **${destinationLabel}**.\n\nNext advance: **${nextAdvanceLabel}**\n\nNavigate to **/hub** for league options and details.` }],
+      embeds: [{ title: "📣 League Advanced", color: 0xd9a521, description: `The league has advanced to **${destinationLabel}**.\n\nNext advance: **${nextAdvanceLabel}**\n\nRun **/app** for league options and details.` }],
       allowed_mentions: { parse: ["everyone"] },
     }),
   });

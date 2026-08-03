@@ -144,7 +144,7 @@ export async function postChatMessage(input: { guildId: string; discordId: strin
     recipients.delete(input.discordId);
     if (!recipients.size) return;
     const author = authorDisplayName ?? "A commissioner";
-    const message = `**${author}** mentioned you in the Commissioner's Office:\n\n${trimmed.slice(0, 1200)}\n\nRun **/hub**, open **League Management**, then **Commissioner's Office** to reply.`;
+    const message = `**${author}** mentioned you in the Commissioner's Office:\n\n${trimmed.slice(0, 1200)}\n\nRun **/app**, open **League Management**, then **Commissioner's Office** to reply.`;
     await Promise.allSettled([...recipients].map((discordId) => sendDiscordDirectMessage(discordId, message)));
   })().catch((notifyError) => console.error("[ERROR] Failed to send commissioner-chat mention DMs (non-fatal):", notifyError));
   const sentMessage = { ...data, author_display_name: authorDisplayName };

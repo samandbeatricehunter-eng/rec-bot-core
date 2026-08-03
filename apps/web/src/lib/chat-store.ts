@@ -15,7 +15,9 @@ import type { ChatAttachment } from "../types/api.js";
 // Realtime (chat-realtime.ts) pushes into this same store via applyRemoteEvent — polling here
 // is the fallback path, not the only path, once a socket is connected for a channel.
 
-const POLL_INTERVAL_MS = 5000;
+// Database-triggered WebSocket events perform immediate reconciliation. This slow poll is
+// only a recovery net for a disconnected socket, not the primary synchronization path.
+const POLL_INTERVAL_MS = 120_000;
 
 export type ReactionPill = { emojiKey: string; count: number; mine: boolean };
 
@@ -187,11 +189,13 @@ class ChatStore {
 
   /** Called by chat-realtime.ts on every push event for a channel — merges the event into
    * state immediately instead of waiting for the next poll tick. */
-  applyRealtimeEvent(channelType: ChatChannelType, channelId: string, event: { kind: "message" | "edit" | "delete" | "reaction"; row?: Record<string, unknown>; messageId?: string }) {
+  applyRealtimeEvent(channelType: ChatChannelType, channelId: string, event: { kind: "refresh" | "message" | "edit" | "delete" | "reaction"; row?: Record<string, unknown>; messageId?: string }) {
     const key = channelKey(channelType, channelId);
     if (!this.state.has(key)) return;
     const current = this.state.get(key)!;
-    if (event.kind === "message" && event.row) {
+    if (event.kind === "refresh") {
+      void this.poll(key, channelType, channelId);
+    } else if (event.kind === "message" && event.row) {
       const row = toChatMessageRow(event.row);
       if (current.messages.some((m) => m.id === row.id)) return;
       const messages = [...current.messages, row];

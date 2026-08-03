@@ -7,6 +7,7 @@ import type { ChatChannelType } from "@rec/shared";
 // so a broadcast on instance A reaches a socket connected to instance B — polling remains the
 // fallback specifically so that gap never produces a dropped message, only a delayed one.
 export type ChatRealtimeEvent =
+  | { kind: "refresh" }
   | { kind: "message"; row: Record<string, unknown> }
   | { kind: "edit"; row: Record<string, unknown> }
   | { kind: "delete"; messageId: string }

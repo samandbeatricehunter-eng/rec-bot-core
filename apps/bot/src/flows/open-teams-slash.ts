@@ -19,13 +19,14 @@ import { normalizeRosterConferences, type RosterConference } from "../ui/menu.js
 export const OPEN_TEAMS_SLASH_CUSTOM_IDS = {
   confPrefix: "rec:openteams:conf",
   cfbPagePrefix: "rec:openteams:cfb:page",
+  cfbConferenceSelect: "rec:openteams:cfb:conference",
   requestTeam: "rec:openteams:request",
   conferenceSelect: "rec:openteams:req:conference",
   teamSelectPrefix: "rec:openteams:req:team",
 } as const;
 
 function formatTeamLine(team: { name: string; linkedDiscordId?: string | null }) {
-  return team.linkedDiscordId ? `~~${team.name}~~` : `**${team.name}**`;
+  return team.linkedDiscordId ? `~~${team.name}~~ (<@${team.linkedDiscordId}>)` : `**${team.name}**`;
 }
 
 function conferenceFields(conference: RosterConference) {
@@ -65,8 +66,19 @@ function maddenRows(showing: "AFC" | "NFC") {
   ];
 }
 
-function cfbRows(pageIndex: number) {
+function cfbRows(conferences: RosterConference[], pageIndex: number) {
   return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbConferenceSelect)
+        .setPlaceholder("Switch conference")
+        .addOptions(conferences.slice(0, 25).map((conference, index) =>
+          new StringSelectMenuOptionBuilder()
+            .setLabel(conference.conference.slice(0, 100))
+            .setValue(String(index))
+            .setDefault(index === pageIndex),
+        )),
+    ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbPagePrefix}:${pageIndex - 1}`)
@@ -137,7 +149,7 @@ export async function handleOpenTeamsSlash(interaction: ChatInputCommandInteract
       const conference = conferences[page]!;
       return interaction.reply({
         embeds: [buildConferenceEmbed(conference, { footer: `Conference ${page + 1} of ${conferences.length}` })],
-        components: cfbRows(page),
+        components: cfbRows(conferences, page),
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -192,7 +204,24 @@ export async function handleOpenTeamsCfbPage(interaction: ButtonInteraction) {
     const conference = conferences[page]!;
     return interaction.editReply({
       embeds: [buildConferenceEmbed(conference, { footer: `Conference ${page + 1} of ${conferences.length}` })],
-      components: cfbRows(page),
+      components: cfbRows(conferences, page),
+    });
+  } catch (error) {
+    return interaction.followUp({ content: userFacingError(error), flags: MessageFlags.Ephemeral }).catch(() => undefined);
+  }
+}
+
+export async function handleOpenTeamsCfbConference(interaction: StringSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  try {
+    await interaction.deferUpdate();
+    const conferences = await loadConferences(interaction.guildId);
+    const page = Math.max(0, Math.min(conferences.length - 1, Number(interaction.values[0] ?? 0)));
+    const conference = conferences[page];
+    if (!conference) return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Open Teams").setDescription("No conferences found.")], components: [] });
+    return interaction.editReply({
+      embeds: [buildConferenceEmbed(conference, { footer: `Conference ${page + 1} of ${conferences.length}` })],
+      components: cfbRows(conferences, page),
     });
   } catch (error) {
     return interaction.followUp({ content: userFacingError(error), flags: MessageFlags.Ephemeral }).catch(() => undefined);

@@ -122,6 +122,7 @@ import {
 import {
   OPEN_TEAMS_SLASH_CUSTOM_IDS,
   handleOpenTeamsCfbPage,
+  handleOpenTeamsCfbConference,
   handleOpenTeamsConfToggle,
   handleOpenTeamsRequestConference,
   handleOpenTeamsRequestSelect,
@@ -537,6 +538,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.openTeams) return handleOpenTeamsSlash(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.confPrefix}:`)) return handleOpenTeamsConfToggle(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbPagePrefix}:`)) return handleOpenTeamsCfbPage(interaction);
+    if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbConferenceSelect) return handleOpenTeamsCfbConference(interaction);
     if (interaction.isButton() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.requestTeam) return handleOpenTeamsRequestTeam(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.conferenceSelect) return handleOpenTeamsRequestConference(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.teamSelectPrefix}:`)) return handleOpenTeamsRequestSelect(interaction);

@@ -1234,7 +1234,7 @@ export async function submitInterview(input: {
   if (inbox.error) throw new ApiError(500, "Failed to create interview review notification.", inbox.error);
   void notifyLeagueCommissionersOfPendingItem(context.leagueId);
   if (opponent?.discordId) {
-    sendDiscordDirectMessage(opponent.discordId, `<@${input.discordId}> called you out in a REC interview. Open /hub to check the latest media.`)
+    sendDiscordDirectMessage(opponent.discordId, `<@${input.discordId}> called you out in a REC interview. Run /app to check the latest media.`)
       .catch((error) => console.error("[WARN] Failed to DM tagged opponent:", error));
   }
   return { submitted: true, id: row.data.id };

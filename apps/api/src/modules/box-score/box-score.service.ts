@@ -1388,7 +1388,7 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     const reason = input.deniedReason?.trim() || "No reason was provided.";
     void sendDiscordDirectMessage(
       sub.submitted_by_discord_id,
-      `Your Week ${sub.week_number ?? "?"} box score for **${league.data?.name ?? "your REC league"}** was denied.\n\n**Reason:** ${reason}\n\nYou may correct the screenshot and submit it again in the league's box score channel. Open **/hub** to return to the league hub.`,
+      `Your Week ${sub.week_number ?? "?"} box score for **${league.data?.name ?? "your REC league"}** was denied.\n\n**Reason:** ${reason}\n\nYou may correct the screenshot and submit it again in the league's box score channel. Run **/app** to return to REC.`,
     ).catch((dmError) => console.error("[WARN] Failed to DM denied box-score submitter:", dmError));
 
     if (sub.submitted_by_user_id) {

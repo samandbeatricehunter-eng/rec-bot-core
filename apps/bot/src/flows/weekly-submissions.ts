@@ -94,7 +94,7 @@ export async function handleWeeklyBoxScores(interaction: ButtonInteraction) {
   if (eligibility.existingSubmission) return interaction.reply({ content: eligibility.existingSubmission.submittedByDiscordId === interaction.user.id ? "Your game's box score is already pending or approved. A late second image can still be added while it is pending." : "Your opponent already submitted the shared H2H box score. Another submission is unnecessary, but you can still submit player stats for your team.", flags: MessageFlags.Ephemeral });
   const cfb = cfg.league?.game === "cfb_27";
   const description = cfb
-    ? "Upload **two console screenshots** in this channel. Go to **CFB Tab > Team Schedule > Box Score** and press **X on PS5**.\n\n**Do NOT use the postgame box-score window shown immediately after the game. Do not use phone-camera photos.**"
+    ? "Upload **two console screenshots** in this channel, in the reference-image order below. Use the postgame box score from the game statistics display, or reopen the completed game's box score from the Dynasty main page.\n\nDo not use phone-camera photos."
     : "Upload **two in-game console screenshots** from the Madden box-score screens available when the game ends. Do not use phone-camera photos.";
   const files = cfb ? ["CFB Box Score Example 1.jpg", "CFB Box Score Example 2.jpg"].map(examplePath).filter((p): p is string => Boolean(p)).map((p) => new AttachmentBuilder(p)) : [];
   await interaction.reply({ embeds: [new EmbedBuilder().setTitle("Submit Box Scores").setColor(COLORS.gold).setDescription(description)], files, flags: MessageFlags.Ephemeral });
