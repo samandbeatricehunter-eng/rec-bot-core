@@ -13,9 +13,19 @@ function displayLabel(key: string) {
 // A pending or approved box score for the game must already exist — the server enforces this
 // (submitPlayerStatLine -> getBoxScoreUploadEligibility), and the caller is expected to only
 // open this modal once matchup.boxScoreSubmissionId is set (same gating MatchupActions uses).
-export function PlayerStatsModal({ guildId, onClose, onSubmitted }: { guildId: string; onClose: () => void; onSubmitted: () => void }) {
+export function PlayerStatsModal({
+  guildId,
+  initialPlayerName,
+  onClose,
+  onSubmitted,
+}: {
+  guildId: string;
+  initialPlayerName?: string;
+  onClose: () => void;
+  onSubmitted: () => void;
+}) {
   const [watchedPlayers, setWatchedPlayers] = useState<WatchedPlayer[] | null>(null);
-  const [playerName, setPlayerName] = useState("");
+  const [playerName, setPlayerName] = useState(initialPlayerName ?? "");
   const [watchedPlayerId, setWatchedPlayerId] = useState("");
   const [category, setCategory] = useState("passing");
   const [values, setValues] = useState<Record<string, string>>({});

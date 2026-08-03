@@ -7,6 +7,7 @@ import {
   IconMenu,
   IconMgmt,
   IconRetire,
+  IconRoster,
   IconStore,
   IconTeam,
   IconWager,
@@ -41,6 +42,7 @@ export function LeagueTopNav({ leagueId }: { leagueId: string }) {
     { key: "team", label: "My team", to: `/l/${leagueId}/team`, icon: <IconTeam /> },
     { key: "store", label: "Store", to: `/l/${leagueId}/store`, icon: <IconStore /> },
     { key: "wagers", label: "Wagers", to: `/l/${leagueId}/wagers`, icon: <IconWager /> },
+    { key: "roster", label: "Roster", to: `/l/${leagueId}/roster`, icon: <IconRoster /> },
   ];
 
   async function confirmRetire() {

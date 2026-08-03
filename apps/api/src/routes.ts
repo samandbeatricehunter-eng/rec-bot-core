@@ -33,6 +33,7 @@ import { teamOwnershipRoutes } from "./modules/team-ownership/team-ownership.rou
 import { teamRequestRoutes } from "./modules/team-requests/team-requests.routes.js";
 import { userRoutes } from "./modules/users/user.routes.js";
 import { wagerRoutes } from "./modules/wagers/wagers.routes.js";
+import { teamRosterRoutes } from "./modules/roster/roster.routes.js";
 import { hubRoutes } from "./modules/hub/hub.routes.js";
 import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.routes.js";
 import { recruitingRoutes } from "./modules/recruiting/recruiting.routes.js";
@@ -85,6 +86,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await purchaseRoutes(app);
   await rolesRoutes(app);
   await wagerRoutes(app);
+  await teamRosterRoutes(app);
   await hubRoutes(app);
   await watchedPlayersRoutes(app);
   await recruitingRoutes(app);

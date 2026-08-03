@@ -25,6 +25,7 @@ import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScore
 import { MyWatchedPlayersModal } from "../../components/hub/MyWatchedPlayersModal.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
+import { RosterHome } from "../roster/RosterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { useChatDrawer } from "../../lib/chat-drawer-context.js";
 
@@ -55,11 +56,11 @@ const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   custom_player: `${coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze)}-${coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold)}`,
 };
 type Story = HubResponse["headlines"][number];
-type HubSection = "league" | "store" | "team" | "wagers" | "openTeams" | "schedules";
+type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "openTeams" | "schedules";
 type LeagueSubTab = "buzz" | "matchups";
 type MatchupView = "h2h" | "cpu" | "rankings";
 
-const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "openTeams", "schedules"]);
+const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "wagers", "roster", "openTeams", "schedules"]);
 const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
@@ -411,7 +412,7 @@ export function HubHome() {
     if (rawSub === "rankings" || searchParams.get("matchupView") === "rankings") {
       setMatchupView("rankings");
     }
-    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "openTeams" || nextSection === "schedules") {
+    if (nextSection === "team" || nextSection === "store" || nextSection === "wagers" || nextSection === "roster" || nextSection === "openTeams" || nextSection === "schedules") {
       setSection(nextSection);
     } else if (nextSection === "league" || nextSubTab) {
       setSection("league");
@@ -1225,7 +1226,7 @@ export function HubHome() {
           </div>
         ))}</div>;
       })()}
-    </section> : <div className="hub-league-tab">
+    </section> : section === "roster" ? <RosterHome /> : <div className="hub-league-tab">
       {subTab === "buzz" && <>
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-compact">

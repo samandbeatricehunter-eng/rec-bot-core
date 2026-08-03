@@ -636,6 +636,30 @@ export type WagerOptionsResponse = {
   humanInvolved: boolean;
   markets: Array<{ market: string; label: string; kind: string; line: number | null; unit?: string; sides: Array<{ pick: string; label: string; odds: number }> }>;
 };
+export type RosterPlayer = {
+  id: string;
+  fullName: string;
+  position: string;
+  positionGroup: string;
+  heightInches: number | null;
+  weightLbs: number | null;
+  classYear: string | null;
+  overallRating: number | null;
+  rosterStatus: string;
+  isDefaultPlayer: boolean;
+  recentIncrease: number | null;
+};
+export type RosterPositionGroup = {
+  group: string;
+  grade: string;
+  avgOverall: number | null;
+  playerCount: number;
+};
+export type TeamRosterResponse = {
+  team: { id: string; name: string | null; abbreviation: string | null };
+  players: RosterPlayer[];
+  positionGroups: RosterPositionGroup[];
+};
 export type WeekWagerLinesResponse = {
   lines: Array<{
     gameId: string;
