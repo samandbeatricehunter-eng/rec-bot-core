@@ -525,6 +525,12 @@ export const recApi = {
     recApiFetch<unknown>("/v1/moderation/kick", { method: "POST", body: JSON.stringify(input) }),
   liftModerationRestriction: (input: { guildId: string; restrictionId: string }) =>
     recApiFetch<unknown>("/v1/moderation/restrict/lift", { method: "POST", body: JSON.stringify(input) }),
+  listSuspensionPlayers: (guildId: string) =>
+    recApiFetch<{ players: Array<{ id: string; full_name: string; position: string; team_name: string; team_abbreviation: string | null }> }>("/v1/moderation/suspension-players", { method: "POST", body: JSON.stringify({ guildId }) }),
+  suspendLeagueTargets: (input: { guildId: string; targetType: "user" | "player"; target?: string; playerIds?: string[]; startWeek: number; weekCount: number; reason: string }) =>
+    recApiFetch<unknown>("/v1/moderation/suspend", { method: "POST", body: JSON.stringify(input) }),
+  liftModerationSuspension: (input: { guildId: string; suspensionId: string }) =>
+    recApiFetch<unknown>("/v1/moderation/suspend/lift", { method: "POST", body: JSON.stringify(input) }),
 
   // First-Time Setup (Phase 2) — omitted fields fall back to CreateLeagueSchema's Zod
   // defaults server-side, so a minimal payload here is intentional, not a shortcut.

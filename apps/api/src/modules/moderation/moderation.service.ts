@@ -3,6 +3,7 @@ import { banDiscordGuildMember, kickDiscordGuildMember, listGuildMembers, unbanD
 import { getPgPool } from "../../db/client.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { snapshotLeagueHistory } from "../users/league-history.service.js";
+import { publishTransitionStory } from "../hub/story-publishing.js";
 
 async function resolveActor(discordId: string | null): Promise<string> {
   if (!discordId) throw new ApiError(403, "A linked commissioner account is required.");
@@ -46,7 +47,16 @@ export async function listModerationTargets(guildId: string) {
 
 export async function listLeagueModeration(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
-  const [bans, restrictions, audit] = await Promise.all([
+  const [bans, restrictions, suspensions, audit] = await Promise.all([
+    getPgPool().query(
+      `select s.*,u.username,u.display_name,p.full_name as player_name,p.position,t.name as team_name,
+              (s.active and s.season_number=$2 and $3 between s.start_week and s.end_week) as currently_active
+       from rec_league_suspensions s
+       left join rec_users u on u.id=s.user_id left join rec_players p on p.id=s.player_id
+       left join rec_teams t on t.id=p.team_id where s.league_id=$1
+       order by s.active desc,s.created_at desc`,
+      [context.leagueId, Number(context.rec_leagues.season_number ?? 1), Number(context.rec_leagues.current_week ?? 1)],
+    ),
     getPgPool().query(
       `select b.*,u.username,u.display_name,
               (b.active and (b.expires_at is null or b.expires_at>now())) as currently_active
@@ -68,7 +78,18 @@ export async function listLeagueModeration(guildId: string) {
       [context.leagueId],
     ),
   ]);
-  return { bans: bans.rows, restrictions: restrictions.rows, audit: audit.rows };
+  return { bans: bans.rows, restrictions: restrictions.rows, suspensions: suspensions.rows, audit: audit.rows };
+}
+
+export async function listSuspensionPlayers(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const result = await getPgPool().query(
+    `select p.id,p.full_name,p.position,t.name team_name,t.abbreviation team_abbreviation
+     from rec_players p join rec_teams t on t.id=p.team_id
+     where p.league_id=$1 and coalesce(p.roster_status,'active')='active'
+     order by t.name,p.position,p.full_name`, [context.leagueId],
+  );
+  return { players: result.rows };
 }
 
 export async function createLeagueBan(input: {
@@ -201,6 +222,67 @@ export async function setLeagueRestriction(input: {
   return { restriction: result.rows[0] };
 }
 
+export async function suspendLeagueTargets(input: {
+  guildId: string; targetType: "user" | "player"; target?: string; playerIds?: string[];
+  startWeek: number; weekCount: number; reason: string; actorDiscordId: string | null;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const actorUserId = await resolveActor(input.actorDiscordId);
+  const season = Number(context.rec_leagues.season_number ?? 1);
+  const endWeek = input.startWeek + input.weekCount - 1;
+  let targetUserId: string | null = null;
+  let playerRows: Array<{ id: string; full_name: string; position: string; team_name: string }> = [];
+  if (input.targetType === "user") {
+    if (!input.target) throw new ApiError(400, "Select a user to suspend.");
+    const target = await resolveTarget(input.target, input.guildId);
+    if (!target.id) throw new ApiError(400, "User suspensions require a registered REC account.");
+    targetUserId = target.id;
+  } else {
+    const ids = [...new Set(input.playerIds ?? [])];
+    if (!ids.length) throw new ApiError(400, "Select at least one player to suspend.");
+    const players = await getPgPool().query(
+      `select p.id,p.full_name,p.position,t.name team_name from rec_players p join rec_teams t on t.id=p.team_id
+       where p.league_id=$1 and p.id=any($2::uuid[])`, [context.leagueId, ids],
+    );
+    if (players.rows.length !== ids.length) throw new ApiError(400, "One or more selected players are not on an active league roster.");
+    playerRows = players.rows;
+  }
+  const client = await getPgPool().connect();
+  const insertedIds: string[] = [];
+  try {
+    await client.query("begin");
+    const targets = input.targetType === "user" ? [null] : playerRows;
+    for (const player of targets) {
+      const inserted = await client.query(
+        `insert into rec_league_suspensions(league_id,target_type,user_id,player_id,season_number,start_week,end_week,reason,created_by_user_id)
+         values($1,$2,$3,$4,$5,$6,$7,$8,$9) returning id`,
+        [context.leagueId,input.targetType,targetUserId,player?.id ?? null,season,input.startWeek,endWeek,input.reason.trim(),actorUserId],
+      );
+      insertedIds.push(String(inserted.rows[0].id));
+    }
+    await client.query(
+      `insert into rec_league_moderation_audit(league_id,actor_user_id,target_user_id,action,reason,metadata)
+       values($1,$2,$3,'suspension',$4,$5::jsonb)`,
+      [context.leagueId,actorUserId,targetUserId,input.reason.trim(),JSON.stringify({ targetType: input.targetType, playerIds: playerRows.map((p) => p.id), season, startWeek: input.startWeek, endWeek })],
+    );
+    await client.query("commit");
+  } catch (error) { await client.query("rollback"); throw error; } finally { client.release(); }
+  const subject = input.targetType === "user"
+    ? (await getPgPool().query(`select coalesce(display_name,username,'User') name from rec_users where id=$1`, [targetUserId])).rows[0]?.name
+    : playerRows.map((p) => `${p.full_name} (${p.position}, ${p.team_name})`).join(", ");
+  const story = await publishTransitionStory({ guildId: input.guildId, headline: `${subject} Suspended`, body: `${subject} has been suspended for Week ${input.startWeek}${endWeek === input.startWeek ? "" : ` through Week ${endWeek}`} of Season ${season}.\n\nLeague reason: ${input.reason.trim()}`, primaryAngle: "league_suspension", storyType: "headline" });
+  await getPgPool().query(`update rec_league_suspensions set public_story_id=$1 where id=any($2::uuid[])`, [story.storyId, insertedIds]);
+  return { suspended: true, suspensionIds: insertedIds, storyId: story.storyId };
+}
+
+export async function liftLeagueSuspension(input: { guildId: string; suspensionId: string; actorDiscordId: string | null }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const actorUserId = await resolveActor(input.actorDiscordId);
+  const result = await getPgPool().query(`update rec_league_suspensions set active=false,lifted_by_user_id=$3,lifted_at=now() where id=$1 and league_id=$2 and active=true returning *`, [input.suspensionId,context.leagueId,actorUserId]);
+  if (!result.rows[0]) throw new ApiError(404, "Active suspension not found.");
+  return { ok: true };
+}
+
 export async function kickLeagueUser(input: { guildId: string; target: string; scope: "league" | "server" | "both"; reason: string; actorDiscordId: string | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const actorUserId = await resolveActor(input.actorDiscordId);
@@ -246,4 +328,11 @@ export async function assertNotLeagueRestricted(leagueId: string, userId: string
     [leagueId, userId, type],
   );
   if (result.rows[0]) throw new ApiError(403, `You are currently restricted from ${type} in this league.`);
+  const suspended = await getPgPool().query(
+    `select 1 from rec_league_suspensions s join rec_leagues l on l.id=s.league_id
+     where s.league_id=$1 and s.user_id=$2 and s.target_type='user' and s.active=true
+       and s.season_number=l.season_number and l.current_week between s.start_week and s.end_week limit 1`,
+    [leagueId,userId],
+  );
+  if (suspended.rows[0]) throw new ApiError(403, "You are suspended from league actions for the current week.");
 }
