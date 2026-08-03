@@ -4,7 +4,22 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { publishTransitionStory } from "../hub/story-publishing.js";
 
-export type RecruitStatus = "uncommitted" | "committed" | "decommitted" | "flipped" | "withdrawn" | "signed";
+// A recruiting-stage pipeline, not just commit/decommit event outcomes: a prospect moves
+// undecided -> visit_scheduled -> verbal_commit -> hard_commit -> signed, with
+// recruiting_battle (multiple schools actively competing) and committed_elsewhere (left the
+// board for a program outside this league) reachable as side states from any stage. Flipping
+// a commit or reopening one is just changing committedTeamId / moving back to an earlier
+// stage — there's no separate "flipped"/"decommitted" status.
+export const RECRUIT_STATUSES = [
+  "undecided", "visit_scheduled", "verbal_commit", "hard_commit", "signed",
+  "recruiting_battle", "committed_elsewhere",
+] as const;
+export type RecruitStatus = (typeof RECRUIT_STATUSES)[number];
+
+/** A commit-type stage — the recruit has a team, in-league or not. */
+function isCommitStatus(status: RecruitStatus): boolean {
+  return status === "verbal_commit" || status === "hard_commit" || status === "signed" || status === "committed_elsewhere";
+}
 export type Recruit = {
   id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
   starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;
@@ -36,7 +51,7 @@ export async function createRecruit(input: { guildId: string; discordId: string;
     id: randomUUID(), league_id: context.leagueId, season_number: seasonNumber,
     player_name: input.playerName.trim(), position: input.position.trim(),
     home_city: input.homeCity?.trim() || null, home_state: input.homeState?.trim() || null,
-    star_rating: input.starRating, status: "uncommitted", created_by_discord_id: input.discordId, created_at: now, updated_at: now,
+    star_rating: input.starRating, status: "undecided", created_by_discord_id: input.discordId, created_at: now, updated_at: now,
   };
   const result = await supabase.from("rec_recruiting_profiles").insert(row).select(SELECT_COLUMNS).single();
   if (result.error) throw new ApiError(500, "Failed to add the recruit.", result.error);
@@ -62,13 +77,13 @@ export async function submitRecruitCommit(input: { guildId: string; discordId: s
     id, league_id: context.leagueId, season_number: Number(context.rec_leagues.season_number ?? 1),
     player_name: playerName, first_name: firstName, last_name: lastParts.join(" "), normalized_full_name: playerName.toLowerCase(),
     position: input.position, home_city: input.homeCity.trim(), home_state: input.homeState.trim(), star_rating: input.starRating,
-    status: "committed", committed_team_id: assignment.data.team_id, commit_date: now.slice(0, 10), committed_at: now,
+    status: "hard_commit", committed_team_id: assignment.data.team_id, commit_date: now.slice(0, 10), committed_at: now,
     created_by_discord_id: input.discordId, submitted_by_user_id: account.data.user_id, submitted_by_discord_id: input.discordId,
     created_at: now, updated_at: now,
   };
   const result = await supabase.from("rec_recruiting_profiles").insert(row).select(SELECT_COLUMNS).single();
   if (result.error) throw new ApiError(500, "Failed to save the recruiting commitment.", result.error);
-  await supabase.from("rec_recruiting_commitment_history").insert({ recruit_id: id, league_id: context.leagueId, to_status: "committed", to_team_id: assignment.data.team_id, changed_by_discord_id: input.discordId, snapshot: row });
+  await supabase.from("rec_recruiting_commitment_history").insert({ recruit_id: id, league_id: context.leagueId, to_status: "hard_commit", to_team_id: assignment.data.team_id, changed_by_discord_id: input.discordId, snapshot: row });
   const team = await supabase.from("rec_teams").select("name").eq("id", assignment.data.team_id).maybeSingle();
   const story = await publishTransitionStory({ guildId: input.guildId, headline: `${playerName} Commits to ${team.data?.name ?? "a new program"}`, body: `${input.starRating}-star ${input.position} ${playerName} from ${input.homeCity}, ${input.homeState} has committed to ${team.data?.name ?? "the program"}.`, primaryAngle: "recruit_commitment" });
   await supabase.from("rec_recruiting_profiles").update({ story_id: story.storyId }).eq("id", id);
@@ -105,16 +120,27 @@ export async function updateRecruitStatus(input: { guildId: string; id: string; 
   if (!existing.data || existing.data.league_id !== context.leagueId) throw new ApiError(404, "Recruit not found.");
 
   const patch: Record<string, unknown> = { status: input.status, updated_at: new Date().toISOString() };
-  if (input.status === "committed") {
-    patch.committed_team_id = input.committedTeamId ?? null;
-    patch.committed_team_external = input.committedTeamExternal ?? null;
+  if (isCommitStatus(input.status)) {
+    if (input.status === "committed_elsewhere") {
+      patch.committed_team_id = null;
+      patch.committed_team_external = input.committedTeamExternal ?? null;
+    } else {
+      patch.committed_team_id = input.committedTeamId ?? null;
+      patch.committed_team_external = null;
+    }
     patch.commit_date = input.commitDate ?? new Date().toISOString().slice(0, 10);
+  } else {
+    // Moving back to a non-commit stage (undecided/visit_scheduled/recruiting_battle) clears
+    // any previously-set team so a stale commitment doesn't linger on the board.
+    patch.committed_team_id = null;
+    patch.committed_team_external = null;
+    patch.commit_date = null;
   }
 
-  // Only fire a headline the moment status actually transitions INTO committed — re-saving
-  // an already-committed recruit (e.g. editing the commit date) shouldn't republish.
-  const becameCommitted = input.status === "committed" && existing.data.status !== "committed";
-  if (becameCommitted) {
+  // Only fire a headline the moment status actually transitions INTO a commit stage —
+  // re-saving an already-committed recruit (e.g. editing the commit date) shouldn't republish.
+  const becameCommitted = isCommitStatus(input.status) && !isCommitStatus(existing.data.status as RecruitStatus);
+  if (becameCommitted && input.status !== "committed_elsewhere") {
     let teamName = input.committedTeamExternal?.trim() || "an outside program";
     if (input.committedTeamId) {
       const team = await supabase.from("rec_teams").select("name").eq("id", input.committedTeamId).maybeSingle();

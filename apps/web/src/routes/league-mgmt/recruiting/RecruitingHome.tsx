@@ -10,7 +10,16 @@ import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 
-const RECRUIT_STATUS_BADGE: Record<RecruitStatus, BadgeStatus> = { uncommitted: "pending", committed: "approved", decommitted: "denied", flipped: "info", withdrawn: "denied", signed: "approved" };
+const RECRUIT_STATUS_BADGE: Record<RecruitStatus, BadgeStatus> = {
+  undecided: "pending",
+  visit_scheduled: "pending",
+  recruiting_battle: "info",
+  verbal_commit: "info",
+  hard_commit: "approved",
+  signed: "approved",
+  committed_elsewhere: "denied",
+};
+const COMMIT_STATUSES = new Set<RecruitStatus>(["verbal_commit", "hard_commit", "signed"]);
 const TRANSFER_STATUS_BADGE: Record<TransferStatus, BadgeStatus> = { entered_portal: "pending", transferred: "approved", withdrawn: "denied" };
 const CLASS_YEAR_OPTIONS: Array<{ value: ClassYear | ""; label: string }> = [
   { value: "", label: "No class" }, { value: "freshman", label: "Freshman" }, { value: "sophomore", label: "Sophomore" }, { value: "junior", label: "Junior" }, { value: "senior", label: "Senior" },
@@ -60,13 +69,13 @@ function RecruitsPanel({ guildId, teams, teamName }: { guildId: string; teams: S
   }
   async function markCommitted(id: string) {
     setBusy(true);
-    try { await recApi.updateRecruitStatus({ guildId, id, status: "committed", committedTeamId: commitTeamId || null }); setCommittingId(null); setCommitTeamId(""); load(); }
+    try { await recApi.updateRecruitStatus({ guildId, id, status: "hard_commit", committedTeamId: commitTeamId || null }); setCommittingId(null); setCommitTeamId(""); load(); }
     catch (err) { setError(err instanceof Error ? err.message : "Failed to update status."); }
     finally { setBusy(false); }
   }
   async function decommit(id: string) {
     setBusy(true);
-    try { await recApi.updateRecruitStatus({ guildId, id, status: "decommitted" }); load(); }
+    try { await recApi.updateRecruitStatus({ guildId, id, status: "undecided" }); load(); }
     catch (err) { setError(err instanceof Error ? err.message : "Failed to update status."); }
     finally { setBusy(false); }
   }
@@ -115,12 +124,12 @@ function RecruitsPanel({ guildId, teams, teamName }: { guildId: string; teams: S
                   <span style={{ color: "var(--text-secondary)", fontSize: "var(--text-sm)" }}>{recruit.position}{recruit.homeCity ? ` · ${recruit.homeCity}, ${recruit.homeState ?? ""}` : ""}</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 2, color: "var(--gold)" }}>{Array.from({ length: recruit.starRating }).map((_, i) => <Star key={i} size={13} fill="currentColor" />)}</span>
                   <Badge status={RECRUIT_STATUS_BADGE[recruit.status]}>{recruit.status}</Badge>
-                  {recruit.status === "committed" && recruit.committedTeamId && <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>→ {teamName(recruit.committedTeamId)}</span>}
+                  {COMMIT_STATUSES.has(recruit.status) && recruit.committedTeamId && <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>→ {teamName(recruit.committedTeamId)}</span>}
                 </div>
                 <div style={{ display: "flex", gap: "var(--space-2)" }}>
                   <Button variant="ghost" size="compact" disabled={busy} onClick={() => void edit(recruit)}><Pencil size={14} /> Edit</Button>
-                  {recruit.status !== "committed" && committingId !== recruit.id && <Button variant="secondary" size="compact" onClick={() => setCommittingId(recruit.id)}>Mark Committed</Button>}
-                  {recruit.status === "committed" && <Button variant="secondary" size="compact" onClick={() => void decommit(recruit.id)}>Decommit</Button>}
+                  {!COMMIT_STATUSES.has(recruit.status) && committingId !== recruit.id && <Button variant="secondary" size="compact" onClick={() => setCommittingId(recruit.id)}>Mark Committed</Button>}
+                  {COMMIT_STATUSES.has(recruit.status) && <Button variant="secondary" size="compact" onClick={() => void decommit(recruit.id)}>Decommit</Button>}
                   <Button variant="danger" size="compact" disabled={busy} onClick={() => void remove(recruit.id)}><Trash2 size={14} /></Button>
                 </div>
               </div>

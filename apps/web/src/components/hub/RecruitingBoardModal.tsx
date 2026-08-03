@@ -8,21 +8,25 @@ import { Badge, type BadgeStatus } from "../ui/Badge.js";
 import { ErrorState } from "../ui/ErrorState.js";
 
 const STATUS_OPTIONS: Array<{ value: RecruitStatus; label: string }> = [
-  { value: "uncommitted", label: "Uncommitted" },
-  { value: "committed", label: "Committed" },
-  { value: "flipped", label: "Flipped" },
-  { value: "decommitted", label: "Decommitted" },
-  { value: "withdrawn", label: "Withdrawn" },
+  { value: "undecided", label: "Undecided" },
+  { value: "visit_scheduled", label: "Visit Scheduled" },
+  { value: "recruiting_battle", label: "Recruiting Battle" },
+  { value: "verbal_commit", label: "Verbal Commit" },
+  { value: "hard_commit", label: "Hard Commit" },
   { value: "signed", label: "Signed" },
+  { value: "committed_elsewhere", label: "Committed to Another U" },
 ];
 const STATUS_BADGE: Record<RecruitStatus, BadgeStatus> = {
-  uncommitted: "pending",
-  committed: "approved",
-  flipped: "info",
-  decommitted: "denied",
-  withdrawn: "denied",
+  undecided: "pending",
+  visit_scheduled: "pending",
+  recruiting_battle: "info",
+  verbal_commit: "info",
+  hard_commit: "approved",
   signed: "approved",
+  committed_elsewhere: "denied",
 };
+// These stages mean "committed to a REC team in this league" — pick which one.
+const IN_LEAGUE_COMMIT_STATUSES = new Set<RecruitStatus>(["verbal_commit", "hard_commit", "signed"]);
 
 // A coach-facing view of the same league-wide recruiting board RecruitingHome (League Mgmt)
 // manages — recruiting is shared across every team (a prospect isn't owned by one team until
@@ -35,6 +39,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
   const [draft, setDraft] = useState({ playerName: "", position: "", homeCity: "", homeState: "", starRating: 3 });
   const [busy, setBusy] = useState(false);
   const [teamPickerId, setTeamPickerId] = useState<string | null>(null);
+  const [pickedStatus, setPickedStatus] = useState<RecruitStatus>("verbal_commit");
   const [pickedTeamId, setPickedTeamId] = useState("");
 
   function load() {
@@ -67,8 +72,9 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
   }
 
   async function setStatus(id: string, status: RecruitStatus) {
-    if (status === "committed") {
+    if (IN_LEAGUE_COMMIT_STATUSES.has(status)) {
       setTeamPickerId(id);
+      setPickedStatus(status);
       setPickedTeamId("");
       return;
     }
@@ -88,7 +94,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
     setBusy(true);
     setError(null);
     try {
-      await recApi.updateRecruitStatus({ guildId, id, status: "committed", committedTeamId: pickedTeamId || null });
+      await recApi.updateRecruitStatus({ guildId, id, status: pickedStatus, committedTeamId: pickedTeamId || null });
       setTeamPickerId(null);
       load();
     } catch (err) {
@@ -143,7 +149,7 @@ export function RecruitingBoardModal({ guildId, onClose }: { guildId: string; on
                 {teamPickerId === recruit.id ? (
                   <>
                     <select className="form-select" value={pickedTeamId} onChange={(e) => setPickedTeamId(e.target.value)}>
-                      <option value="">Outside program</option>
+                      <option value="">Select a team…</option>
                       {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
                     </select>
                     <Button variant="primary" size="compact" disabled={busy} onClick={() => void confirmCommit(recruit.id)}>Save</Button>

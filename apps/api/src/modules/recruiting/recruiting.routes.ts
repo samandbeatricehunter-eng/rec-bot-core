@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { CFB_POSITIONS } from "@rec/shared";
-import { createRecruit, deleteRecruit, listRecruits, submitRecruitCommit, updateRecruitDetails, updateRecruitStatus } from "./recruiting.service.js";
+import { createRecruit, deleteRecruit, listRecruits, RECRUIT_STATUSES, submitRecruitCommit, updateRecruitDetails, updateRecruitStatus } from "./recruiting.service.js";
 
 // list/create/update-status are member-permission — recruiting is a shared, league-wide board
 // (a prospect isn't owned by one team until committed), so any coach needs to see it and log
@@ -35,7 +35,7 @@ export async function recruitingRoutes(app: FastifyInstance) {
   app.post("/v1/recruiting/update-status", async (request, reply) => {
     try {
       const body = z.object({
-        guildId: z.string().min(1), id: z.string().uuid(), status: z.enum(["uncommitted", "committed", "decommitted", "flipped", "withdrawn", "signed"]),
+        guildId: z.string().min(1), id: z.string().uuid(), status: z.enum(RECRUIT_STATUSES),
         committedTeamId: z.string().uuid().optional().nullable(), committedTeamExternal: z.string().trim().max(120).optional().nullable(),
         commitDate: z.string().optional().nullable(),
       }).parse(request.body);
