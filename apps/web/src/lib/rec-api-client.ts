@@ -6,6 +6,9 @@ import type {
   AdvanceWeekGames,
   BoxScoreJobStatus,
   BoxScoreSubmissionDetail,
+  CfbBaselineApplyResponse,
+  CfbRollForwardResponse,
+  CfbRosterSeedStatus,
   ChatAttachment,
   CommissionerPoll,
   ChatMessage,
@@ -609,6 +612,14 @@ export const recApi = {
     recApiFetch<{ totalAmount: number }>("/v1/league-week/eos-payouts/review-user", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   wipeAndRerunEosPayouts: (input: { guildId: string; reason: string }) =>
     recApiFetch<unknown>("/v1/league-week/eos-payouts/wipe-rerun", { method: "POST", body: JSON.stringify(input) }),
+
+  // CFB baseline roster seed + maintenance (backlog #41)
+  getCfbRosterSeedStatus: (guildId: string) =>
+    recApiFetch<CfbRosterSeedStatus>("/v1/cfb-baseline/league-status", { method: "POST", body: JSON.stringify({ guildId }) }),
+  applyCfbBaseline: (guildId: string) =>
+    recApiFetch<CfbBaselineApplyResponse>("/v1/cfb-baseline/apply", { method: "POST", body: JSON.stringify({ guildId }) }),
+  rollForwardCfbRoster: (guildId: string) =>
+    recApiFetch<CfbRollForwardResponse>("/v1/cfb-baseline/roll-forward", { method: "POST", body: JSON.stringify({ guildId }) }),
 
   // Commissioner Chat + Voting
   listChatMessages: (input: { guildId: string; sinceIso?: string | null }) =>

@@ -3,6 +3,7 @@
 
 import { supabase } from "../../lib/supabase.js";
 import { z } from "zod";
+import { ApiError } from "../../lib/errors.js";
 import type { ImportTrustLevel } from "@rec/shared";
 
 export type CfbBaselineDataset = {
@@ -363,4 +364,145 @@ export async function createImportRecordsFromCfbBaseline(
   // and players flow in after team approval. Keeping it simple for Phase 2.
 
   return { recordsCreated, conflictsDetected: 0 };
+}
+
+// ——————————————————————————————————————————————————————————————
+// CFB roster-seed advisory + season roll-forward (backlog #41)
+// ——————————————————————————————————————————————————————————————
+
+export type CfbRosterSeedStatus = {
+  league: { id: string; name: string | null; game: string | null };
+  isCfb: boolean;
+  dataset: { id: string; game_title: string; published_date: string } | null;
+  seeded: boolean;
+  teams: { total: number; stamped: number };
+  players: { total: number; defaultPlayers: number; active: number; withClassYear: number };
+};
+
+/**
+ * One source-of-truth advisory for a league's CFB roster-seed state. A league counts as
+ * "seeded" when baseline teams are stamped (madden_team_id set by applyCfbBaselineToLeague)
+ * AND players actually exist. Non-CFB leagues return `isCfb: false` with zeroed counts.
+ */
+export async function getCfbRosterSeedStatus(leagueId: string): Promise<CfbRosterSeedStatus> {
+  const { data: league, error } = await supabase
+    .from("rec_leagues")
+    .select("id, name, game")
+    .eq("id", leagueId)
+    .single();
+  if (error) throw new Error(`Failed to load league: ${error.message}`);
+  if (!league) throw new Error("League not found");
+
+  const game = String(league.game ?? "");
+  const isCfb = game === "cfb_27" || game.startsWith("cfb");
+
+  if (!isCfb) {
+    return {
+      league: { id: league.id, name: league.name, game: league.game },
+      isCfb: false,
+      dataset: null,
+      seeded: false,
+      teams: { total: 0, stamped: 0 },
+      players: { total: 0, defaultPlayers: 0, active: 0, withClassYear: 0 },
+    };
+  }
+
+  const datasets = await listCfbDatasets();
+  const activeDataset = datasets.find((d) => d.is_active && d.legal_review_status === "approved") ?? null;
+
+  const [totalTeams, stampedTeams, totalPlayers, defaultPlayers, activePlayers, classYearPlayers] = await Promise.all([
+    supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
+    supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId).not("madden_team_id", "is", null),
+    supabase.from("rec_players").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
+    supabase.from("rec_players").select("id", { count: "exact", head: true }).eq("league_id", leagueId).eq("is_default_player", true),
+    supabase.from("rec_players").select("id", { count: "exact", head: true }).eq("league_id", leagueId).in("roster_status", ["active", "transferred_in"]),
+    supabase.from("rec_players").select("id", { count: "exact", head: true }).eq("league_id", leagueId).not("class_year", "is", null),
+  ]);
+  for (const res of [totalTeams, stampedTeams, totalPlayers, defaultPlayers, activePlayers, classYearPlayers]) {
+    if (res.error) throw new Error(`Failed to count roster-seed state: ${res.error.message}`);
+  }
+
+  return {
+    league: { id: league.id, name: league.name, game: league.game },
+    isCfb: true,
+    dataset: activeDataset ? { id: activeDataset.id, game_title: activeDataset.game_title, published_date: activeDataset.published_date } : null,
+    seeded: (stampedTeams.count ?? 0) > 0 && (totalPlayers.count ?? 0) > 0,
+    teams: { total: totalTeams.count ?? 0, stamped: stampedTeams.count ?? 0 },
+    players: {
+      total: totalPlayers.count ?? 0,
+      defaultPlayers: defaultPlayers.count ?? 0,
+      active: activePlayers.count ?? 0,
+      withClassYear: classYearPlayers.count ?? 0,
+    },
+  };
+}
+
+const CLASS_YEAR_NEXT: Record<string, string> = { FR: "SO", SO: "JR", JR: "SR" };
+
+export type RollForwardRosterResult = {
+  advanced: number;
+  graduated: number;
+  skipped: number;
+  total: number;
+};
+
+/**
+ * Advance every rostered player one class year (FR→SO→JR→SR), graduating seniors
+ * (roster_status → 'graduated') in the same pass. CFB-only, commissioner-triggered, and
+ * intentionally mechanical: players with no class year are skipped untouched, graduating a
+ * senior never clears team_id (matches the existing setPlayerDeparture model), and no new
+ * freshmen are introduced — commissioner re-seeds or recruits for intake separately.
+ */
+export async function rollForwardCfbRosterOneSeason(input: { leagueId: string; requestedByUserId: string }): Promise<RollForwardRosterResult> {
+  const status = await getCfbRosterSeedStatus(input.leagueId);
+  if (!status.isCfb) throw new ApiError(409, "Roster roll-forward is only available for CFB leagues.");
+
+  const { data: players, error } = await supabase
+    .from("rec_players")
+    .select("id, class_year")
+    .eq("league_id", input.leagueId)
+    .in("roster_status", ["active", "transferred_in"])
+    .not("class_year", "is", null);
+  if (error) throw new Error(`Failed to load players: ${error.message}`);
+
+  const advanceUpdates: Array<{ id: string; class_year: string }> = [];
+  const graduateIds: string[] = [];
+  let skipped = 0;
+  for (const player of players ?? []) {
+    const year = String(player.class_year ?? "").toUpperCase();
+    if (!(year in CLASS_YEAR_NEXT) && year !== "SR") {
+      skipped++;
+      continue;
+    }
+    if (year === "SR") {
+      graduateIds.push(player.id);
+    } else {
+      advanceUpdates.push({ id: player.id, class_year: CLASS_YEAR_NEXT[year] });
+    }
+  }
+
+  for (const row of advanceUpdates) {
+    const { error: updateError } = await supabase.from("rec_players").update({ class_year: row.class_year }).eq("id", row.id);
+    if (updateError) throw new Error(`Failed to advance class year: ${updateError.message}`);
+  }
+
+  const now = new Date().toISOString();
+  for (const id of graduateIds) {
+    const { error: graduateError } = await supabase
+      .from("rec_players")
+      .update({
+        roster_status: "graduated",
+        status_changed_at: now,
+        status_note: "Graduated — annual roster roll-forward",
+      })
+      .eq("id", id);
+    if (graduateError) throw new Error(`Failed to graduate player: ${graduateError.message}`);
+  }
+
+  return {
+    advanced: advanceUpdates.length,
+    graduated: graduateIds.length,
+    skipped,
+    total: (players ?? []).length,
+  };
 }

@@ -435,6 +435,21 @@ export type EosLedger = {
 };
 export type PendingEosLedgers = { batch: { id: string; seasonNumber: number } | null; ledgers: EosLedger[] };
 
+export type CfbRosterSeedStatus = {
+  league: { id: string; name: string | null; game: string | null };
+  isCfb: boolean;
+  dataset: { id: string; game_title: string; published_date: string } | null;
+  seeded: boolean;
+  teams: { total: number; stamped: number };
+  players: { total: number; defaultPlayers: number; active: number; withClassYear: number };
+};
+export type CfbRollForwardResult = { advanced: number; graduated: number; skipped: number; total: number };
+export type CfbBaselineApplyResponse = {
+  result: { teamsUpdated: number; playersCreated: number; skipped: { teams: number; players: number } };
+  status: CfbRosterSeedStatus;
+};
+export type CfbRollForwardResponse = { result: CfbRollForwardResult; status: CfbRosterSeedStatus };
+
 export type GotwPollStatus = { id: string; game_id: string; status: string; away_team_name: string; home_team_name: string };
 export type AdvanceDmPreview = {
   fromWeek: number | null;

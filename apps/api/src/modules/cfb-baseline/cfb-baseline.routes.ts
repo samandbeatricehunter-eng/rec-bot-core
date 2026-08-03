@@ -3,7 +3,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { sendError } from "../../lib/errors.js";
+import { ApiError, sendError } from "../../lib/errors.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
   listCfbDatasets,
   getCfbDataset,
@@ -14,6 +15,8 @@ import {
   listCfbBaselinePlayers,
   getCfbBaselinePlayerAttributes,
   applyCfbBaselineToLeague,
+  getCfbRosterSeedStatus,
+  rollForwardCfbRosterOneSeason,
   type CfbDatasetCreateInput,
   type CfbDatasetUpdateInput,
   type ApplyBaselineToLeagueInput,
@@ -188,6 +191,62 @@ export async function cfbBaselineRoutes(app: FastifyInstance) {
         requested_by_user_id: auth.discordId,
       } as ApplyBaselineToLeagueInput);
       return reply.send(result);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Roster-seed advisory + maintenance (backlog #41). These are guild-scoped like every other
+  // League Mgmt endpoint (the browser hub carries guildId, not league_id — resolveGuildId must
+  // return the Discord guild id so assertGuildPermission checks real guild membership).
+  app.post("/v1/cfb-baseline/league-status", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      const context = await getCurrentLeagueContext(body.guildId);
+      return reply.send(await getCfbRosterSeedStatus(context.leagueId));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Apply the approved+active baseline dataset to the league (auto-selects the dataset so the
+  // dashboard never needs to know dataset ids). Commissioner-only — league-wide, hard to reverse.
+  app.post("/v1/cfb-baseline/apply", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode === "bot") throw new Error("Browser session required");
+      const context = await getCurrentLeagueContext(body.guildId);
+
+      const status = await getCfbRosterSeedStatus(context.leagueId);
+      if (!status.isCfb) throw new ApiError(409, "Baseline seeding is only available for CFB leagues.");
+      if (!status.dataset) throw new ApiError(409, "No approved + active CFB baseline dataset is registered.");
+
+      const result = await applyCfbBaselineToLeague({
+        league_id: context.leagueId,
+        dataset_id: status.dataset.id,
+        requested_by_user_id: auth.discordId,
+      });
+      return reply.send({ result, status: await getCfbRosterSeedStatus(context.leagueId) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Advance every rostered player one class year, graduating seniors. Commissioner-only.
+  app.post("/v1/cfb-baseline/roll-forward", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      if (auth.mode === "bot") throw new Error("Browser session required");
+      const context = await getCurrentLeagueContext(body.guildId);
+
+      const result = await rollForwardCfbRosterOneSeason({
+        leagueId: context.leagueId,
+        requestedByUserId: auth.discordId,
+      });
+      return reply.send({ result, status: await getCfbRosterSeedStatus(context.leagueId) });
     } catch (error) {
       return sendError(reply, error);
     }

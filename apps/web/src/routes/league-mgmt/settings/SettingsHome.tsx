@@ -13,6 +13,7 @@ import { ChannelSettings } from "./ChannelSettings.js";
 import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
 import { BadgeMaintenance } from "./BadgeMaintenance.js";
 import { WagerMaintenance } from "./WagerMaintenance.js";
+import { CfbRosterMaintenance } from "./CfbRosterMaintenance.js";
 import { ModerationSettings } from "./ModerationSettings.js";
 import { CustomPlayerReviewQueue } from "./CustomPlayerReviewQueue.js";
 
@@ -129,7 +130,7 @@ export function SettingsHome() {
         ))}
       </div>
 
-      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><BadgeMaintenance /></> : activeCategory === FIRST_TIME_SETUP_KEY ? (
+      {activeCategory === "channels" ? <ChannelSettings /> : activeCategory === "moderation" ? <ModerationSettings /> : activeCategory === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><BadgeMaintenance /><CfbRosterMaintenance /></> : activeCategory === FIRST_TIME_SETUP_KEY ? (
         <FirstTimeSetupHome />
       ) : (
         <>
