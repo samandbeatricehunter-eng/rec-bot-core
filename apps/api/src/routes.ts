@@ -22,6 +22,7 @@ import { legendRoutes } from "./modules/legends/legends.routes.js";
 import { leagueContextRoutes } from "./modules/league-context/league-context.routes.js";
 import { notificationsRoutes } from "./modules/notifications/notifications.routes.js";
 import { purchaseRoutes } from "./modules/purchases/purchases.routes.js";
+import { customPlayerRoutes } from "./modules/custom-players/custom-players.routes.js";
 import { leagueWeekRoutes } from "./modules/league-week/league-week.routes.js";
 import { rolesRoutes } from "./modules/roles/roles.routes.js";
 import { rosterRoutes } from "./modules/rosters/rosters.routes.js";
@@ -84,6 +85,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await legendRoutes(app);
   await notificationsRoutes(app);
   await purchaseRoutes(app);
+  await customPlayerRoutes(app);
   await rolesRoutes(app);
   await wagerRoutes(app);
   await teamRosterRoutes(app);

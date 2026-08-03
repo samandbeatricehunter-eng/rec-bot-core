@@ -13,6 +13,14 @@ export async function handleLeagueChatMessage(message: Message): Promise<boolean
     discordMessageId: message.id,
     content,
     images,
-  }).catch(() => null);
+  }).catch((error) => {
+    console.error("[league-chat] Discord message ingestion failed", {
+      guildId: message.guildId,
+      channelId: message.channelId,
+      messageId: message.id,
+      error,
+    });
+    return null;
+  });
   return Boolean(result?.ingested);
 }

@@ -116,18 +116,9 @@ class ChatStore {
     };
   }
 
-  private pollTickByKey = new Map<string, number>();
-  /** Every Nth tick a realtime-connected channel still polls, purely as a correctness safety
-   * net (missed events, a reconnect gap) — 6 ticks * 5s = every 30s instead of every 5s. */
-  private static readonly REALTIME_SAFETY_NET_TICKS = 6;
-
   private activate(key: string, channelType: ChatChannelType, channelId: string) {
     void this.poll(key, channelType, channelId);
-    this.pollTickByKey.set(key, 0);
     const timer = setInterval(() => {
-      const tick = (this.pollTickByKey.get(key) ?? 0) + 1;
-      this.pollTickByKey.set(key, tick);
-      if (this.realtimeActive.has(key) && tick % ChatStore.REALTIME_SAFETY_NET_TICKS !== 0) return;
       void this.poll(key, channelType, channelId);
     }, POLL_INTERVAL_MS);
     this.timers.set(key, timer);
@@ -139,7 +130,6 @@ class ChatStore {
     const timer = this.timers.get(key);
     if (timer) clearInterval(timer);
     this.timers.delete(key);
-    this.pollTickByKey.delete(key);
     this.state.delete(key);
     this.guildByKey.delete(key);
     this.lastMessageIdByKey.delete(key);

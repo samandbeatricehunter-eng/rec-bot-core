@@ -3508,3 +3508,98 @@ button.poty:disabled {
 
 .hub-power-rankings-by-conference { display: flex; flex-direction: column; gap: var(--space-4); }
 .hub-power-rankings-conference-group h4 { margin: 0 0 var(--space-2); color: var(--gold); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.03em; }
+.custom-player-wizard {
+  display: grid;
+  gap: 1rem;
+  max-width: 72rem;
+}
+
+.custom-player-package-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: .65rem;
+}
+
+.custom-player-package-grid button {
+  display: grid;
+  gap: .35rem;
+  min-height: 8rem;
+  padding: .9rem;
+  color: var(--text-primary, #fff);
+  text-align: left;
+  background: #101318;
+  border: 1px solid #59616d;
+  border-radius: .5rem;
+}
+
+.custom-player-package-grid button.active {
+  color: #111;
+  background: #f1f4f7;
+  border-color: #fff;
+}
+
+.custom-player-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: .75rem;
+}
+
+.custom-player-fields label,
+.custom-player-wizard > label {
+  display: grid;
+  gap: .35rem;
+}
+
+.custom-player-attribute-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: .45rem;
+  max-height: 36rem;
+  overflow: auto;
+}
+
+.custom-player-attribute-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.5rem 3rem 2.5rem;
+  align-items: center;
+  gap: .35rem;
+  padding: .45rem;
+  background: #101318;
+  border: 1px solid #3d434c;
+}
+
+.custom-player-attribute-list span,
+.custom-player-attribute-list small {
+  display: block;
+}
+
+.custom-player-attribute-list button {
+  min-height: 2.25rem;
+  color: #fff;
+  background: #222831;
+  border: 1px solid #77808c;
+}
+
+.custom-player-attribute-list b { text-align: center; }
+
+.custom-player-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .75rem;
+  background: rgba(8, 10, 14, .96);
+  border: 1px solid #5b6470;
+}
+
+.custom-player-sticky > div { display: flex; gap: .5rem; }
+
+@media (max-width: 640px) {
+  .custom-player-package-grid { grid-template-columns: 1fr; }
+  .custom-player-attribute-list { grid-template-columns: 1fr; }
+  .custom-player-sticky { align-items: stretch; flex-direction: column; }
+  .custom-player-sticky > div .rec-button { flex: 1; }
+}

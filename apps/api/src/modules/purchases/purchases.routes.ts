@@ -43,7 +43,8 @@ export async function purchaseRoutes(app: FastifyInstance) {
     try {
       const body = CreatePurchaseSchema.parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "user") body.discordId = auth.discordId;
+      if (auth.mode !== "user") throw new ApiError(400, "Purchases are available on the REC website only.");
+      body.discordId = auth.discordId;
       return reply.send(await createPurchaseRequest(body));
     } catch (error) {
       return sendError(reply, error);

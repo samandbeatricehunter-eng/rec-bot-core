@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
 import { Award, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Clock, Coins, Eye, FileText, Film, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, Swords, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
+import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
@@ -55,7 +56,7 @@ const STORE_PRODUCT_PRICE_LABEL: Partial<Record<RecPurchaseType, string>> = {
   player_trait: coinsNumber(REC_PLAYER_TRAIT_PRICE),
   attribute: `${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.non_core)}-${coinsNumber(REC_ATTRIBUTE_POINT_PRICE.core)}/pt`,
   legend: coinsNumber(REC_LEGEND_PRICE),
-  custom_player: `${coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze)}-${coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold)}`,
+  custom_player: `${coinsNumber(500)}-${coinsNumber(2000)}`,
 };
 type Story = HubResponse["headlines"][number];
 type HubSection = "league" | "store" | "team" | "wagers" | "roster" | "openTeams" | "schedules";
@@ -1174,7 +1175,9 @@ export function HubHome() {
 
           {purchaseType === "legend" && <LegendPurchasePanel onPurchased={() => { setStoreContext(null); void load(); }} />}
 
-          {purchaseType === "custom_player" && <>
+          {purchaseType === "custom_player" && <CustomPlayerWizard guildId={auth.status === "ready" ? auth.guildId : ""} onPurchased={() => { setStoreContext(null); void load(); }} />}
+
+          {/* Removed obsolete Bronze/Silver/Gold custom-player form.
             <p className="form-hint">
               {hub.league.game === "cfb_27"
                 ? "This Custom Recruit won't join your roster immediately — it replaces one of your committed recruits once next season starts."
@@ -1184,7 +1187,7 @@ export function HubHome() {
             <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
             <label className="form-field"><span className="form-label">Position</span><input className="form-input" placeholder="QB, WR, CB…" value={purchaseDetails.position ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, position: event.target.value }))} /></label>
             <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.package ? REC_CUSTOM_PLAYER_PACKAGE_PRICE[purchaseDetails.package as keyof typeof REC_CUSTOM_PLAYER_PACKAGE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.package} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
-          </>}
+          */}
 
           {purchaseType === "dev_upgrade" && <>
             <label className="form-field"><span className="form-label">Upgrade to</span><select className="form-input" value={purchaseDetails.targetTier ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, targetTier: event.target.value }))}><option value="">Select tier</option><option value="star">Star · {coinsNumber(REC_DEV_UPGRADE_PRICE.star)}</option><option value="superstar">Superstar · {coinsNumber(REC_DEV_UPGRADE_PRICE.superstar)}</option><option value="xfactor">X-Factor · {coinsNumber(REC_DEV_UPGRADE_PRICE.xfactor)}</option></select></label>

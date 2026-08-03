@@ -123,7 +123,7 @@ function gcPageMain(m: any) {
     table,
     ...rules,
     "",
-    "After the game, submit your box score and player stats from the REC site or app.",
+    "Registered coaches may submit the two required box-score images through the assigned Discord Box Scores channel or through the REC website. Player stats are completed on the website.",
   ].join("\n").slice(0, 4096));
 }
 
@@ -132,7 +132,7 @@ function gcPagePosting(m: any) {
   const highlights = gcChannelMention(m.routes?.highlightsChannelId, "the highlights channel");
   return new EmbedBuilder().setTitle("Posting & Payouts").setDescription([
     "__Box Score__",
-    "After the game, submit your box score and player stats from the REC site or app.",
+    "After the game, registered coaches may submit both required box-score images in the assigned Discord Box Scores channel or through the REC website.",
     "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts.",
     "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
     "",
@@ -140,7 +140,7 @@ function gcPagePosting(m: any) {
     `Post your stream link or go Discord Live, then drop it in ${streams}. Worth **${formatCoins(50)}**, once per game week.`,
     "",
     `__Highlight Payout — ${formatCoins(25)} each__`,
-    `Post your in-game highlights in ${highlights}. Each is worth **${formatCoins(25)}**, with up to **2 paid highlights per week**.`,
+    `Registered coaches may post highlights in ${highlights} or upload them through the REC website. Only the first **2 attachments per week** are hosted and eligible for payout; voting remains website-only.`,
     "Highlights also enter Play of the Year voting (regular season) for a shot at the season-end award.",
   ].join("\n").slice(0, 4096));
 }

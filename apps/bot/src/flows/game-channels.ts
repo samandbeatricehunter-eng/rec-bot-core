@@ -108,7 +108,7 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
       "",
       ...rulesLines,
       "",
-      "After the game, submit your box score and player stats from the REC site or app.",
+      "After the game, registered coaches may submit both required box-score images in the assigned Discord Box Scores channel or through the REC website. Player stats are completed on the website.",
       "Failure to post your box score image WILL result in no payouts and no stat accumulation for awards and EOS payouts."
     ].join("\n"));
     await ch.send({
@@ -125,7 +125,7 @@ export async function handleGameChannels(interaction: ButtonInteraction, buildAd
         embeds: [new EmbedBuilder().setTitle("Weekly Box Scores Required").setDescription([
           `Game channels have been created for ${stageLabel(stage, currentWeek, leagueGame)}.`,
           "",
-          "Even if you do not have an H2H matchup this week, submit your box score from the REC site or app before the league advances if you want payouts and stats logged.",
+          "Even if you do not have an H2H matchup this week, registered coaches may submit both box-score images through the assigned Discord channel or REC website before advance.",
           "Retroactive box scores will not be accepted. Fair Sims and Force Wins receive no payout.",
           "If your opponent cannot make it, request a 1-week autopilot to get your stats and payout IF you play and submit the box score."
         ].join("\n"))],
