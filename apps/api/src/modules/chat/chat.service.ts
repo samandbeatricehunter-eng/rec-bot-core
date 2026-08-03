@@ -209,22 +209,26 @@ export async function listChatChannels(
   const context = await getCurrentLeagueContext(guildId);
   const userId = await requireLinkedUserId(discordId);
 
+  // Unread-count/preview enrichment (raw-SQL read-state joins) is best-effort — a failure
+  // there must never take down the channel list itself, or every channel silently
+  // disappears from the drawer even though the channels (and their messages) are fine.
+  const emptyAggregate: ChannelAggregate = { unreadCount: 0, lastMessageAt: null, lastBody: null };
   const [leagueAggregate, gameChannelsResult] = await Promise.all([
-    loadLeagueAggregate(userId, context.leagueId),
+    loadLeagueAggregate(userId, context.leagueId).catch(() => emptyAggregate),
     listGameChatChannels(guildId),
   ]);
 
   const gameChannelIds = gameChannelsResult.channels.map((c) => c.gameChannelId);
   const [gameAggregates, gameParticipants] = await Promise.all([
-    loadGameAggregates(userId, gameChannelIds),
-    loadGameParticipants(gameChannelIds),
+    loadGameAggregates(userId, gameChannelIds).catch(() => new Map<string, ChannelAggregate>()),
+    loadGameParticipants(gameChannelIds).catch(() => new Map<string, { away: string | null; home: string | null }>()),
   ]);
 
   const channels: ChatChannelSummary[] = [
     {
       id: context.leagueId,
       type: "league" as ChatChannelType,
-      label: "League Chat",
+      label: "General",
       unreadCount: leagueAggregate.unreadCount,
       lastMessagePreview: leagueAggregate.lastBody,
       lastMessageAt: leagueAggregate.lastMessageAt,
@@ -253,7 +257,7 @@ export async function listChatChannels(
   }
 
   if (canAccessCommissionerChat) {
-    const commissionerAggregate = await loadCommissionerAggregate(userId, guildId);
+    const commissionerAggregate = await loadCommissionerAggregate(userId, guildId).catch(() => emptyAggregate);
     channels.push({
       id: guildId,
       type: "commissioner",

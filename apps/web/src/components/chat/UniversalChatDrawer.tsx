@@ -102,15 +102,18 @@ export function UniversalChatDrawer({ guildId, discordId }: { guildId: string; d
 
   return (
     <>
-      <button
-        type="button"
-        className="chat-drawer-launcher"
-        onClick={() => drawer.openTo()}
-        aria-label="Open league chat"
-      >
-        <MessageCircle size={22} />
-        {totalUnread > 0 && <span className="chat-drawer-launcher-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
-      </button>
+      {createPortal(
+        <button
+          type="button"
+          className="chat-drawer-launcher"
+          onClick={() => drawer.openTo()}
+          aria-label="Open league chat"
+        >
+          <MessageCircle size={22} />
+          {totalUnread > 0 && <span className="chat-drawer-launcher-badge">{totalUnread > 99 ? "99+" : totalUnread}</span>}
+        </button>,
+        document.body,
+      )}
 
       {drawer.open &&
         createPortal(

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, REC_AGE_RESET_PRICE, REC_ATTRIBUTE_POINT_PRICE, REC_CONTRACT_PRICE, REC_CUSTOM_PLAYER_PACKAGE_POINTS, REC_CUSTOM_PLAYER_PACKAGE_PRICE, REC_DEV_UPGRADE_PRICE, REC_LEGEND_PRICE, REC_PLAYER_TRAIT_PRICE, coinsNumber, type RecPurchaseType } from "@rec/shared";
-import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, MessageCircle, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { Award, CalendarDays, ChevronLeft, ChevronRight, Clock, Coins, Eye, FileText, GraduationCap, Heart, Landmark, Mic, Megaphone, Pencil, Play, Plus, RefreshCw, ScrollText, ShoppingBag, Sparkles, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
@@ -27,7 +27,6 @@ import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
-import { useChatDrawer } from "../../lib/chat-drawer-context.js";
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
 // modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
@@ -273,7 +272,6 @@ export function HubHome() {
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
   const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
   const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "buzz");
-  const chatDrawer = useChatDrawer();
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
   const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
@@ -1312,15 +1310,6 @@ export function HubHome() {
 
         <EosAwardVotingBlock />
         <PublicPollsBlock />
-        <div className="hub-buzz-toggle">
-          <button type="button" className="active">Campus Buzz</button>
-          <button
-            type="button"
-            onClick={() => chatDrawer.openTo({ channelType: "league", channelId: hub.league.id })}
-          >
-            <MessageCircle size={14} /> League Chat
-          </button>
-        </div>
         <>
         <SectionFrame eyebrow="Around the league" title="Campus Buzz">
           {(() => {
