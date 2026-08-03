@@ -519,6 +519,8 @@ export const recApi = {
     recApiFetch<unknown>("/v1/moderation/ban/lift", { method: "POST", body: JSON.stringify(input) }),
   createModerationRestriction: (input: { guildId: string; target: string; restrictionType: "wagers" | "highlights"; reason: string; expiresAt?: string | null }) =>
     recApiFetch<unknown>("/v1/moderation/restrict", { method: "POST", body: JSON.stringify(input) }),
+  kickModerationUser: (input: { guildId: string; target: string; scope: "league" | "server" | "both"; reason: string }) =>
+    recApiFetch<unknown>("/v1/moderation/kick", { method: "POST", body: JSON.stringify(input) }),
   liftModerationRestriction: (input: { guildId: string; restrictionId: string }) =>
     recApiFetch<unknown>("/v1/moderation/restrict/lift", { method: "POST", body: JSON.stringify(input) }),
 

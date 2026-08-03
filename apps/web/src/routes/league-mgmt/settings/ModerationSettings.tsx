@@ -21,6 +21,7 @@ export function ModerationSettings() {
   const [customDays, setCustomDays] = useState("7");
   const [scope, setScope] = useState<"league" | "owner_all_leagues">("league");
   const [restrictionType, setRestrictionType] = useState<"wagers" | "highlights">("wagers");
+  const [kickScope, setKickScope] = useState<"league" | "server" | "both">("both");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,6 +49,9 @@ export function ModerationSettings() {
       <div className="form-actions">
         <Button variant="danger" disabled={busy || !target.trim() || reason.trim().length < 3} onClick={() => void act(() => recApi.createModerationBan({ guildId, target, reason, scope, expiresAt }))}>Ban user</Button>
       </div>
+      <hr />
+      <div className="form-field"><label className="form-label">Kick scope</label><select className="form-select" value={kickScope} onChange={(event) => setKickScope(event.target.value as typeof kickScope)}><option value="both">League and Discord server</option><option value="league">League only</option><option value="server">Discord server only</option></select></div>
+      <Button variant="danger" disabled={busy || !target.trim() || reason.trim().length < 3} onClick={() => void act(() => recApi.kickModerationUser({ guildId, target, reason, scope: kickScope }))}>Kick user</Button>
       <hr />
       <div className="form-field"><label className="form-label">Restriction</label><select className="form-select" value={restrictionType} onChange={(event) => setRestrictionType(event.target.value as typeof restrictionType)}><option value="wagers">Wagers</option><option value="highlights">Highlight submissions</option></select></div>
       <Button variant="secondary" disabled={busy || !target.trim() || reason.trim().length < 3} onClick={() => void act(() => recApi.createModerationRestriction({ guildId, target, reason, restrictionType, expiresAt }))}>Apply restriction</Button>

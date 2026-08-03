@@ -1,7 +1,8 @@
 import { ApiError } from "../../lib/errors.js";
-import { banDiscordGuildMember, listGuildMembers, unbanDiscordGuildMember } from "../../lib/discord-guild.js";
+import { banDiscordGuildMember, kickDiscordGuildMember, listGuildMembers, unbanDiscordGuildMember } from "../../lib/discord-guild.js";
 import { getPgPool } from "../../db/client.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { snapshotLeagueHistory } from "../users/league-history.service.js";
 
 async function resolveActor(discordId: string | null): Promise<string> {
   if (!discordId) throw new ApiError(403, "A linked commissioner account is required.");
@@ -198,6 +199,27 @@ export async function setLeagueRestriction(input: {
     [context.leagueId, actorUserId, target.id, input.reason.trim(), JSON.stringify({ restrictionType: input.restrictionType, expiresAt: input.expiresAt ?? null })],
   );
   return { restriction: result.rows[0] };
+}
+
+export async function kickLeagueUser(input: { guildId: string; target: string; scope: "league" | "server" | "both"; reason: string; actorDiscordId: string | null }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const actorUserId = await resolveActor(input.actorDiscordId);
+  const target = await resolveTarget(input.target, input.guildId);
+  if (target.id === actorUserId) throw new ApiError(400, "You cannot kick yourself.");
+  if ((input.scope === "league" || input.scope === "both") && target.id) {
+    await snapshotLeagueHistory(context.leagueId, false);
+    const client = await getPgPool().connect();
+    try {
+      await client.query("begin");
+      await client.query(`update rec_team_assignments set assignment_status='archived',ended_at=now(),updated_at=now() where league_id=$1 and user_id=$2 and assignment_status='active' and ended_at is null`, [context.leagueId, target.id]);
+      await client.query(`delete from rec_league_memberships where league_id=$1 and user_id=$2`, [context.leagueId, target.id]);
+      await client.query(`insert into rec_league_moderation_audit(league_id,actor_user_id,target_user_id,action,reason,metadata) values($1,$2,$3,'kick',$4,$5::jsonb)`, [context.leagueId, actorUserId, target.id, input.reason.trim(), JSON.stringify({ scope: input.scope, discordId: target.discord_id })]);
+      await client.query("commit");
+    } catch (error) { await client.query("rollback"); throw error; }
+    finally { client.release(); }
+  }
+  if ((input.scope === "server" || input.scope === "both") && target.discord_id) await kickDiscordGuildMember(input.guildId, target.discord_id, `REC commissioner kick: ${input.reason}`);
+  return { kicked: true, registered: Boolean(target.id), scope: input.scope };
 }
 
 export async function liftLeagueRestriction(input: { guildId: string; restrictionId: string; actorDiscordId: string | null }) {

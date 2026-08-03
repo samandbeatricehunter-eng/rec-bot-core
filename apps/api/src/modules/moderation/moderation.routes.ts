@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
-import { createLeagueBan, liftLeagueBan, liftLeagueRestriction, listLeagueModeration, listModerationTargets, setLeagueRestriction } from "./moderation.service.js";
+import { createLeagueBan, kickLeagueUser, liftLeagueBan, liftLeagueRestriction, listLeagueModeration, listModerationTargets, setLeagueRestriction } from "./moderation.service.js";
 
 export async function moderationRoutes(app: FastifyInstance) {
   app.post("/v1/moderation/targets", async (request, reply) => {
@@ -47,6 +47,13 @@ export async function moderationRoutes(app: FastifyInstance) {
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
       return reply.send(await setLeagueRestriction({ ...body, actorDiscordId: auth.mode === "user" ? auth.discordId : null }));
+    } catch (error) { return sendError(reply, error); }
+  });
+  app.post("/v1/moderation/kick", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), target: z.string().min(1), scope: z.enum(["league", "server", "both"]), reason: z.string().trim().min(3).max(1000) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "commissioner" });
+      return reply.send(await kickLeagueUser({ ...body, actorDiscordId: auth.mode === "user" ? auth.discordId : null }));
     } catch (error) { return sendError(reply, error); }
   });
   app.post("/v1/moderation/restrict/lift", async (request, reply) => {

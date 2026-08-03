@@ -223,6 +223,14 @@ export async function unbanDiscordGuildMember(guildId: string, discordId: string
   if (!response.ok && response.status !== 404) throw new ApiError(502, `Discord rejected the server unban (${response.status}).`);
 }
 
+export async function kickDiscordGuildMember(guildId: string, discordId: string, reason: string): Promise<void> {
+  const response = await discordBotFetch(`/guilds/${guildId}/members/${discordId}`, {
+    method: "DELETE",
+    headers: { "x-audit-log-reason": encodeURIComponent(reason.slice(0, 480)) },
+  });
+  if (!response.ok && response.status !== 404) throw new ApiError(502, `Discord rejected the server kick (${response.status}).`);
+}
+
 /**
  * Fetches one message's raw Discord payload — used to read its `reactions` array
  * (each entry is `{ emoji: { id, name }, count, me }`) without needing a live
