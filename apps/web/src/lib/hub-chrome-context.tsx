@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./auth-context.js";
 import { recApi } from "./rec-api-client.js";
 
@@ -88,6 +88,7 @@ export function HubChromeProvider({
 }) {
   const auth = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [scope, setScope] = useState<HubScope>(() => (embedded ? { kind: "league" } : readStoredScope()));
   const [currentLeague, setCurrentLeague] = useState<HubLeagueMeta | null>(null);
   const [leagueLoading, setLeagueLoading] = useState(false);
@@ -132,6 +133,21 @@ export function HubChromeProvider({
   useEffect(() => {
     applyTheme(scope, currentLeague, embedded);
   }, [scope, currentLeague, embedded]);
+
+  // Some navigation (browser/OS back gesture, direct links) lands on a main-hub-only
+  // route without going through exitToMain/selectMainHub, which left the league
+  // switcher and league bottom nav stuck showing the league. Land on one of these
+  // routes with no league-content query params → force scope back to main.
+  useEffect(() => {
+    if (embedded || scope.kind !== "league") return;
+    const mainOnlyRoutes = ["/home", "/leagues", "/comp", "/account"];
+    if (!mainOnlyRoutes.includes(location.pathname)) return;
+    const hasLeagueContentParams = new URLSearchParams(location.search).get("section") === "league";
+    if (hasLeagueContentParams) return;
+    const next: HubScope = { kind: "main" };
+    setScope(next);
+    persistScope(next);
+  }, [embedded, location.pathname, location.search, scope.kind]);
 
   const exitToMain = useCallback(
     (path = "/home") => {

@@ -130,7 +130,7 @@ function AdvanceReadinessSection() {
   );
 }
 
-function LeagueActionsSection({ onOpenCommissionerChat }: { onOpenCommissionerChat: () => void }) {
+function LeagueActionsSection() {
   const { guildId } = useReadyAuth();
   const { game } = useLeagueTheme();
   const [currentStageLabel, setCurrentStageLabel] = useState<string | null>(null);
@@ -189,14 +189,6 @@ function LeagueActionsSection({ onOpenCommissionerChat }: { onOpenCommissionerCh
             </span>
           </Button>
         </Link>
-        <Button variant="secondary" onClick={onOpenCommissionerChat} style={{ justifyContent: "flex-start", width: "100%" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            Open Commissioner Chat
-          </span>
-        </Button>
       </div>
     </Card>
   );
@@ -280,50 +272,18 @@ function LinkedCoachesSection() {
   );
 }
 
-function DecisionsAndPollsSection({ guildId }: { guildId: string }) {
-  // This will be the embedded CommissionerChatHome (polls only)
-  // Import dynamically to avoid circular deps
-  const [CommissionerChatHome, setCommissionerChatHome] = useState<any>(null);
-
-  useEffect(() => {
-    import("../../routes/league-mgmt/commissioner-chat/CommissionerChatHome.js").then((m) =>
-      setCommissionerChatHome(() => m.CommissionerChatHome)
-    );
-  }, [guildId]);
-
-  if (!CommissionerChatHome) return <LoadingState label="Loading…" />;
-
-  return <CommissionerChatHome guildId={guildId} embedded />;
-}
-
 // Urgency-ordered Commissioner Command Center dashboard:
-// Advance Readiness → League Actions → Awaiting Review → Recent Activity → Decisions & Polls
+// Advance Readiness → League Actions → Awaiting Review → Recent Activity
 export function CommandCenterDashboard() {
-  const { guildId } = useReadyAuth();
-  const [commissionerChatOpen, setCommissionerChatOpen] = useState(false);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
       <AdvanceReadinessSection />
-      <LeagueActionsSection onOpenCommissionerChat={() => setCommissionerChatOpen(true)} />
+      <LeagueActionsSection />
       <Card>
         <SectionHeading>Awaiting Review</SectionHeading>
         <PendingItemsPanel />
       </Card>
       <RecentActivitySection />
-      {commissionerChatOpen && (
-        <div className="commissioner-chat-drawer-overlay" onClick={() => setCommissionerChatOpen(false)}>
-          <div className="commissioner-chat-drawer" onClick={(e) => e.stopPropagation()}>
-            <div className="commissioner-chat-drawer-header">
-              <h3 style={{ margin: 0 }}>Decisions & Polls</h3>
-              <Button variant="ghost" size="compact" onClick={() => setCommissionerChatOpen(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-              </Button>
-            </div>
-            <DecisionsAndPollsSection guildId={guildId} />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

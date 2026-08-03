@@ -1271,7 +1271,25 @@ export function HubHome() {
                   <small>{wager.status === "won" ? `Won ` : "Payout "}<CoinAmount amount={wager.potentialPayout} /></small>
                   <StatusChip status={wager.status === "won" ? "approved" : wager.status === "lost" ? "denied" : wager.status === "refunded" ? "info" : wager.boardState === "open" ? "pending" : "locked"} label={displayLabel(wager.status)} />
                 </div>
-                {wager.canEdit && <button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button>}
+                {wager.canEdit && (
+                  <div className="hub-my-wager-row-actions">
+                    {wager.wagerKind !== "house" && (
+                      <button
+                        className="hub-icon-action"
+                        title="Edit wager terms"
+                        aria-label="Edit wager terms"
+                        disabled={wagersBoardBusy}
+                        onClick={() => {
+                          const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId);
+                          if (game) void openWager(game);
+                        }}
+                      >
+                        <Pencil size={17} />
+                      </button>
+                    )}
+                    <button className="hub-icon-action danger" title="Cancel wager" aria-label="Cancel wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button>
+                  </div>
+                )}
               </article>
             ))}
           </div>

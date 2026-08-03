@@ -315,9 +315,13 @@ button.poty:disabled {
 .hub-shortcut-card strong { display: block; font-family: var(--font-display); letter-spacing: .01em; }
 .hub-shortcut-card span { display: block; margin-top: 2px; color: var(--text-muted); font-size: var(--text-xs); }
 .hub-my-team-shortcuts, .hub-my-team-shortcuts * { text-align: left; }
-.hub-my-team > .hub-section-heading { display:flex; justify-content:center; width:100%; text-align:center; }
-.hub-my-team > .hub-section-heading > div { width:100%; text-align:center; }
-.hub-my-team > .hub-section-heading .hub-eyebrow { justify-content:center; }
+.hub-my-team > .hub-section-heading,
+.hub-wagers-section > .hub-section-heading { display:flex; justify-content:center; width:100%; text-align:center; }
+.hub-my-team > .hub-section-heading > div,
+.hub-wagers-section > .hub-section-heading > div { width:100%; text-align:center; }
+.hub-my-team > .hub-section-heading .hub-eyebrow,
+.hub-wagers-section > .hub-section-heading .hub-eyebrow { justify-content:center; }
+.hub-wagers-section .hub-wagers-subhead { text-align:center; }
 .hub-rich-text-toolbar { display:flex; gap:6px; margin-bottom:6px; }
 .hub-rich-text-toolbar button { display:grid; place-items:center; width:36px; height:32px; border:1px solid var(--border-strong); border-radius:6px; background:var(--surface-raised); color:var(--text-primary); cursor:pointer; }
 .hub-rich-text-toolbar button:hover:not(:disabled) { border-color:var(--accent); color:var(--accent-bright); }
@@ -497,6 +501,7 @@ button.poty:disabled {
 .hub-my-wager-row-figures { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
 .hub-my-wager-row-figures b, .hub-my-wager-row-figures small { display: block; text-align: right; }
 .hub-my-wager-row-figures small { color: var(--text-muted); font-size: var(--text-xs); }
+.hub-my-wager-row-actions { display: flex; align-items: center; gap: var(--space-1); flex-shrink: 0; }
 .hub-my-wager-row--won { border-color: color-mix(in srgb, var(--success, #3fbf6f) 40%, var(--border)); }
 .hub-my-wager-row--lost { opacity: .75; }
 .hub-highlight-carousel { position: relative; width: 100%; max-width: 880px; min-width: 0; margin: 0 auto; padding: 0 58px; }
@@ -830,7 +835,11 @@ button.poty:disabled {
 .hub-store-form { max-width: 680px; margin: var(--space-4) auto 0; padding: var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); }
 .hub-store-form h3 { margin-top: 0; }
 .hub-team-wordmark { display:grid; place-items:center; min-height:72px; padding:10px; border:2px solid var(--gold); border-radius:50% 50% 45% 45%; background:linear-gradient(145deg,#252525,#070707); color:var(--gold); font-family:var(--font-display); font-size:clamp(.78rem,2vw,1.15rem); font-weight:950; font-style:italic; text-align:center; text-transform:uppercase; text-shadow:0 2px 0 #000; box-shadow:inset 0 0 0 3px #111,0 8px 18px rgba(0,0,0,.35); }
-.hub-close-wagers-corner { position:fixed; right:18px; bottom:18px; z-index:40; border:1px solid var(--gold); border-radius:999px; padding:10px 16px; background:#111; color:var(--gold); font-weight:900; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); }
+/* Left corner, not right — the chat launcher FAB (UniversalChatDrawer, portaled to body,
+   z-index 2000) owns the bottom-right corner everywhere else in the app; sharing that corner
+   here put this button underneath it regardless of z-index since they occupied the same
+   fixed coordinates. */
+.hub-close-wagers-corner { position:fixed; left:18px; bottom:18px; z-index:40; border:1px solid var(--gold); border-radius:999px; padding:10px 16px; background:#111; color:var(--gold); font-weight:900; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); }
 .hub-close-wagers-list { display:grid; gap:10px; }
 .hub-close-wagers-list label { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:12px; padding:12px; border:1px solid var(--border); border-radius:var(--radius-sm); }
 .hub-store-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
@@ -3294,6 +3303,20 @@ button.poty:disabled {
   color: #fff;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   cursor: pointer;
+}
+/* On mobile the bottom-right FAB position collides with the "More"/last tab of the
+   bottom nav bar. Move it up into the header row instead, just left of the notification
+   bell — offsets mirror the header's own padding tokens so it lines up without JS
+   measurement. AppShell only mounts this component while hub.scope.kind === "league",
+   so it's already league-only; this just repositions it on small screens. */
+@media (max-width: 700px) {
+  .chat-drawer-launcher {
+    top: calc(var(--space-5) + var(--space-3));
+    right: calc(var(--space-5) + var(--space-4) + 40px + var(--space-2));
+    bottom: auto;
+    width: 40px;
+    height: 40px;
+  }
 }
 .chat-drawer-launcher-badge {
   position: absolute;
