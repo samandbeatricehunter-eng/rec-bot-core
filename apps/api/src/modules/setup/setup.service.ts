@@ -236,6 +236,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     fourth_down_rule_type_playoff: input.fourthDownRuleTypePlayoff ?? input.fourthDownRuleType,
     custom_fourth_down_rule_regular: input.customFourthDownRuleRegular ?? null,
     custom_fourth_down_rule_playoff: input.customFourthDownRulePlayoff ?? null,
+    custom_rules: input.customRules ?? [],
 
     position_change_policy: input.positionChangePolicy,
     position_change_policy_description:
@@ -503,6 +504,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     fourth_down_rule_type_playoff: input.fourthDownRuleTypePlayoff ?? input.fourthDownRuleType,
     custom_fourth_down_rule_regular: input.customFourthDownRuleRegular ?? null,
     custom_fourth_down_rule_playoff: input.customFourthDownRulePlayoff ?? null,
+    custom_rules: input.customRules ?? [],
     position_change_policy: input.positionChangePolicy,
     position_change_policy_description: input.positionChangePolicyDescription ?? "Position changes must remain realistic. Major body-type changes are prohibited unless approved by commissioners.",
     custom_coaches_required: input.customCoachesRequired ?? false,
@@ -640,6 +642,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     fourthDownRuleTypePlayoff: c.fourth_down_rule_type_playoff ?? c.fourth_down_rule_type ?? "standard_rec",
     customFourthDownRuleRegular: c.custom_fourth_down_rule_regular ?? c.custom_fourth_down_rule ?? "",
     customFourthDownRulePlayoff: c.custom_fourth_down_rule_playoff ?? "",
+    customRules: Array.isArray(c.custom_rules) ? c.custom_rules : [],
     positionChangePolicy: c.position_change_policy ?? "restricted",
     positionChangePolicyDescription: c.position_change_policy_description ?? "Position changes must remain realistic. Major body-type changes are prohibited unless approved by commissioners.",
     customCoachesRequired: c.custom_coaches_required ?? false,

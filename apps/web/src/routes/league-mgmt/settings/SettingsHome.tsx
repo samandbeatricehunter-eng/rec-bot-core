@@ -45,6 +45,9 @@ export function SettingsHome() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [newNonCoreCode, setNewNonCoreCode] = useState("");
+  const [newRuleCategory, setNewRuleCategory] = useState("");
+  const [newRuleTitle, setNewRuleTitle] = useState("");
+  const [newRuleText, setNewRuleText] = useState("");
 
   useEffect(() => {
     recApi
@@ -97,7 +100,8 @@ export function SettingsHome() {
 
   const game = String(draft.game ?? "");
   const category = SETTINGS_CATEGORIES.find((c) => c.key === activeCategory) ?? SETTINGS_CATEGORIES[0];
-  const visibleFields = category.fields.filter((f) => !f.gameFilter || f.gameFilter(game));
+  const playCallFields = SETTINGS_CATEGORIES.find((c) => c.key === "play_call")?.fields ?? [];
+  const visibleFields = [...category.fields, ...(category.key === "rules" ? playCallFields : [])].filter((f) => !f.gameFilter || f.gameFilter(game));
   const coreAttributes = Array.isArray(draft.coreAttributes) ? draft.coreAttributes.map(String) : [];
   const coreOverrides = draft.coreAttributeCapOverrides && typeof draft.coreAttributeCapOverrides === "object"
     ? draft.coreAttributeCapOverrides as Record<string, number>
@@ -108,6 +112,7 @@ export function SettingsHome() {
   const purchaseDeadlines = draft.purchaseDeadlines && typeof draft.purchaseDeadlines === "object" && !Array.isArray(draft.purchaseDeadlines)
     ? draft.purchaseDeadlines as Record<string, { stage?: string; week?: number }>
     : {};
+  const customRules = Array.isArray(draft.customRules) ? draft.customRules as Array<{ id:string; category:string; title:string; text:string }> : [];
 
   return (
     <div>
@@ -116,7 +121,7 @@ export function SettingsHome() {
       {error && <ErrorState message={error} />}
 
       <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
-        {SETTINGS_CATEGORIES.map((c) => (
+        {SETTINGS_CATEGORIES.filter((c) => c.key !== "play_call").map((c) => (
           <Button key={c.key} variant={c.key === activeCategory ? "primary" : "secondary"} onClick={() => setActiveCategory(c.key)}>
             {c.label}
           </Button>
@@ -190,6 +195,17 @@ export function SettingsHome() {
                 </div>
               );
             })}
+            {activeCategory === "rules" ? <div className="form-field">
+              <label className="form-label">Custom league rules</label>
+              <p className="form-hint">Add categories and individual rules. These appear in the read-only League Rules view and the REC Guide.</p>
+              {customRules.map((rule, index) => <div className="attribute-cap-row" key={rule.id}>
+                <input className="form-input" aria-label="Rule category" value={rule.category} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, category: event.target.value } : item))} />
+                <input className="form-input" aria-label="Rule title" value={rule.title} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item))} />
+                <textarea className="form-input" aria-label="Rule text" rows={2} value={rule.text} onChange={(event) => setField("customRules", customRules.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} />
+                <Button variant="danger" size="compact" onClick={() => setField("customRules", customRules.filter((_, itemIndex) => itemIndex !== index))}>Remove</Button>
+              </div>)}
+              <div className="attribute-cap-row"><input className="form-input" placeholder="Category" value={newRuleCategory} onChange={(event) => setNewRuleCategory(event.target.value)} /><input className="form-input" placeholder="Rule title" value={newRuleTitle} onChange={(event) => setNewRuleTitle(event.target.value)} /><textarea className="form-input" rows={2} placeholder="Rule details" value={newRuleText} onChange={(event) => setNewRuleText(event.target.value)} /><Button variant="secondary" size="compact" disabled={!newRuleCategory.trim() || !newRuleTitle.trim() || !newRuleText.trim()} onClick={() => { setField("customRules", [...customRules, { id: crypto.randomUUID(), category: newRuleCategory.trim(), title: newRuleTitle.trim(), text: newRuleText.trim() }]); setNewRuleCategory(""); setNewRuleTitle(""); setNewRuleText(""); }}>Add rule</Button></div>
+            </div> : null}
             {activeCategory === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
               <div className="form-field">
                 <label className="form-label">Purchase deadlines</label>
