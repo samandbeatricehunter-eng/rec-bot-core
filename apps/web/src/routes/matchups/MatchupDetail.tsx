@@ -22,6 +22,7 @@ import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { useReadyAuth } from "../../lib/auth-context.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { useSharedChatChannel } from "../../lib/chat-store.js";
 import { ConversationView } from "../../components/chat/ConversationView.js";
@@ -205,6 +206,8 @@ export function MatchupActions({
 export function MatchupDetailPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const { guildId, discordId } = useReadyAuth();
+  const { currentLeague } = useHubChrome();
+  const isCommissioner = currentLeague?.isCommissioner ?? false;
   const [detail, setDetail] = useState<HubMatchupDetail | null>(null);
   const [preview, setPreview] = useState<MatchupPreviewData | null>(null);
   const [previewWagerOptions, setPreviewWagerOptions] =
@@ -212,6 +215,8 @@ export function MatchupDetailPage() {
   const [seasonNumber, setSeasonNumber] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [voting, setVoting] = useState(false);
+  const [gotwActionBusy, setGotwActionBusy] = useState(false);
+  const [wagersActionBusy, setWagersActionBusy] = useState(false);
   const [gameChannelId, setGameChannelId] = useState<string | null>(null);
   const [chatMembers, setChatMembers] = useState<LeagueChatMember[]>([]);
   const [replyTarget, setReplyTarget] = useState<{ id: string; authorDisplayName: string | null; body: string } | null>(null);
@@ -368,6 +373,49 @@ export function MatchupDetailPage() {
       setError(cause instanceof Error ? cause.message : "Failed to record your vote.");
     } finally {
       setVoting(false);
+    }
+  }
+
+  async function closeGotwVoting() {
+    const gotw = detail?.gotw;
+    if (!gotw) return;
+    setGotwActionBusy(true);
+    try {
+      await recApi.closeGameOfWeekVoting({ guildId, pollId: gotw.pollId });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to close GOTW voting.");
+    } finally {
+      setGotwActionBusy(false);
+    }
+  }
+
+  async function cancelGotwVoting() {
+    const gotw = detail?.gotw;
+    if (!gotw) return;
+    if (!window.confirm("Cancel GOTW voting for this game? This voids the poll entirely — no correct-pick payouts will be issued.")) return;
+    setGotwActionBusy(true);
+    try {
+      await recApi.cancelGameOfWeekVoting({ guildId, pollId: gotw.pollId });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to cancel GOTW voting.");
+    } finally {
+      setGotwActionBusy(false);
+    }
+  }
+
+  async function closeWagers() {
+    if (!gameId) return;
+    if (!window.confirm("Close wagering on this game? Any open (unaccepted) offers will be refunded.")) return;
+    setWagersActionBusy(true);
+    try {
+      await recApi.closeGameWagering({ guildId, gameId });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to close wagering.");
+    } finally {
+      setWagersActionBusy(false);
     }
   }
 
@@ -696,6 +744,18 @@ export function MatchupDetailPage() {
                   {gotw.status === "open" ? "Cast your vote" : "Voting closed"}
                 </strong>
               </header>
+              {isCommissioner && (
+                <div className="matchup-gotw__admin-actions">
+                  {gotw.status === "open" && (
+                    <Button variant="ghost" size="compact" disabled={gotwActionBusy} onClick={() => void closeGotwVoting()}>
+                      Close Voting
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="compact" disabled={gotwActionBusy} onClick={() => void cancelGotwVoting()}>
+                    Cancel Voting
+                  </Button>
+                </div>
+              )}
               <div className="matchup-gotw__options">
                 <button
                   type="button"
@@ -786,6 +846,11 @@ export function MatchupDetailPage() {
         highlightUploading={false}
         onOpenRequestHelp={() => setRequestHelpOpen(true)}
       />
+      {isCommissioner && matchup.matchupType === "h2h" && matchup.wageringOpen && (
+        <Button variant="ghost" size="compact" disabled={wagersActionBusy} onClick={() => void closeWagers()}>
+          <Coins size={14} /> Close Wagers
+        </Button>
+      )}
       </div>
       <section className={`matchup-boxscore-status matchup-boxscore-status--${matchup.boxScoreStatus ?? "none"}`}>
         {matchup.boxScoreStatus === "pending" ? (

@@ -1784,3 +1784,21 @@ export async function closeGameOfWeekVoting(input: { guildId: string; pollId: st
   if (!closed.data) throw new ApiError(400, "GOTW voting is already closed or unavailable.");
   return { closed: true };
 }
+
+// Distinct from closeGameOfWeekVoting: cancelling voids the poll entirely (no settlement, no
+// payout, disappears from the matchup page) rather than just freezing the current tally — for
+// when the game itself won't be played as a real head-to-head (a Fair Sim or Force Win), so
+// nobody's pick was ever really "correct" or "wrong".
+export async function cancelGameOfWeekVoting(input: { guildId: string; pollId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const poll = await supabase.from("rec_game_of_week_polls").select("id,status").eq("id", input.pollId).eq("league_id", context.leagueId).maybeSingle();
+  if (poll.error) throw new ApiError(500, "Failed to load GOTW poll.", poll.error);
+  if (!poll.data) throw new ApiError(404, "GOTW poll not found.");
+  if (poll.data.status === "settled") throw new ApiError(400, "This GOTW poll has already been settled and can't be cancelled.");
+  if (poll.data.status !== "cancelled") {
+    const now = new Date().toISOString();
+    const cancelled = await supabase.from("rec_game_of_week_polls").update({ status: "cancelled", closed_at: now, updated_at: now }).eq("id", input.pollId);
+    if (cancelled.error) throw new ApiError(500, "Failed to cancel GOTW poll.", cancelled.error);
+  }
+  return { cancelled: true };
+}

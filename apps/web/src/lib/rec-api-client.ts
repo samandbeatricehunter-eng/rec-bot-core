@@ -209,6 +209,8 @@ export const recApi = {
     recApiFetch<{ voted: true }>("/v1/hub/gotw/vote", { method: "POST", body: JSON.stringify(input) }),
   closeGameOfWeekVoting: (input: { guildId: string; pollId: string }) =>
     recApiFetch<{ closed: true }>("/v1/hub/gotw/close", { method: "POST", body: JSON.stringify(input) }),
+  cancelGameOfWeekVoting: (input: { guildId: string; pollId: string }) =>
+    recApiFetch<{ cancelled: true }>("/v1/hub/gotw/cancel", { method: "POST", body: JSON.stringify(input) }),
   getWagerOptions: (input: { guildId: string; gameId: string }) =>
     recApiFetch<WagerOptionsResponse>("/v1/wagers/options", { method: "POST", body: JSON.stringify(input) }),
   getWeekWagerLines: (input: { guildId: string; weekNumber: number }) =>
