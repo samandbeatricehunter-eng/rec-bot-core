@@ -252,7 +252,15 @@ export async function listSiteAnnouncements() {
 }
 
 export async function refreshSpotlightReel() {
-  await pruneDeadHighlightsOnceDaily();
+  // Non-fatal: this is the daily cron's entry point into pruning, and pruning is a
+  // best-effort cleanup pass (a single flaky Supabase/Cloudflare lookup must never take
+  // down the actual reel refresh below it). Previously an unguarded throw here — from
+  // the initial highlights query, not just the per-row liveness checks, which already
+  // had their own try/catch — aborted the whole cron run every time it happened, so the
+  // Spotlight Reel silently stopped updating instead of just skipping that day's cleanup.
+  await pruneDeadHighlightsOnceDaily().catch((error) => {
+    console.error("[ERROR] pruneDeadHighlightsOnceDaily failed during spotlight refresh (non-fatal):", error);
+  });
   // Positive reaction score from league highlight reactions across active leagues
   // (leagues that currently have at least one active team assignment).
   const activeLeagueIdsResult = await supabase
@@ -365,12 +373,18 @@ export async function pruneDeadHighlightsOnceDaily(): Promise<{ removed: string[
     // timeout, or 12s for a playback HEAD request) — run them in parallel instead of one
     // at a time, or a handful of slow/unresponsive lookups can push total request time
     // well past the platform's HTTP timeout and fail the whole cron run even though every
-    // individual check is itself guarded against throwing.
+    // individual check is itself guarded against throwing. Parallelism alone isn't enough
+    // once the hub_visible backlog grows: 6-wide workers still need `rows/6 * ~20s` wall
+    // time, which keeps climbing as more highlights accumulate and eventually blows past
+    // the platform's request timeout every single morning. Cap the whole sweep to a fixed
+    // wall-clock budget instead — whatever doesn't get checked today is picked up on the
+    // next run, so nothing is lost, but the request always returns promptly.
+    const sweepDeadlineAt = Date.now() + 45_000;
     const sourceRows = rows.data ?? [];
     const results: Array<string | null> = new Array(sourceRows.length).fill(null);
     let nextIndex = 0;
-    const workers = Array.from({ length: Math.min(6, sourceRows.length) }, async () => {
-      while (nextIndex < sourceRows.length) {
+    const workers = Array.from({ length: Math.min(10, sourceRows.length) }, async () => {
+      while (nextIndex < sourceRows.length && Date.now() < sweepDeadlineAt) {
         const index = nextIndex++;
         const row = sourceRows[index]!;
         const uid = String(row.cloudflare_stream_uid ?? "").trim();

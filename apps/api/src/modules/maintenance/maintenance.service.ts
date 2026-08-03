@@ -1,6 +1,6 @@
 import { getPgPool } from "../../db/client.js";
 import { refreshAllPowerRankings } from "../rankings/rankings.service.js";
-import { pruneDeadHighlightsOnceDaily, refreshSpotlightReel } from "../site-home/site-home.service.js";
+import { refreshSpotlightReel } from "../site-home/site-home.service.js";
 
 type StageResult = { ok: true; result: unknown } | { ok: false; error: string };
 
@@ -23,8 +23,12 @@ export async function runDailyMaintenance() {
       [lockKey],
     );
     if (!lock.rows[0]?.locked) return { skipped: true, reason: "already_running" as const };
+    // pruneDeadHighlightsOnceDaily() runs internally as part of refreshSpotlightReel() and
+    // is already non-fatal there, so call spotlight refresh directly rather than duplicating
+    // the prune call here — a prior version awaited them as sibling properties of the same
+    // object literal, which meant a thrown prune error (before its own internal guard was
+    // added) skipped the reel refresh entirely for that run.
     const highlights = await stage(async () => ({
-      pruned: await pruneDeadHighlightsOnceDaily(),
       spotlight: await refreshSpotlightReel(),
     }));
     const rankings = await stage(() => refreshAllPowerRankings());
