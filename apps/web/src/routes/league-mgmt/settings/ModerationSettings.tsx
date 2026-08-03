@@ -14,17 +14,20 @@ type ModerationData = {
 export function ModerationSettings() {
   const { guildId } = useReadyAuth();
   const [data, setData] = useState<ModerationData | null>(null);
+  const [targets, setTargets] = useState<Array<{ value: string; label: string; registered: boolean }>>([]);
   const [target, setTarget] = useState("");
   const [reason, setReason] = useState("");
-  const [durationDays, setDurationDays] = useState("");
+  const [duration, setDuration] = useState<"week" | "season" | "permanent" | "custom">("week");
+  const [customDays, setCustomDays] = useState("7");
   const [scope, setScope] = useState<"league" | "owner_all_leagues">("league");
   const [restrictionType, setRestrictionType] = useState<"wagers" | "highlights">("wagers");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const reload = () => recApi.listModeration(guildId).then(setData).catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load moderation."));
-  useEffect(() => { void reload(); }, [guildId]);
-  const expiresAt = durationDays ? new Date(Date.now() + Number(durationDays) * 86_400_000).toISOString() : null;
+  useEffect(() => { void reload(); void recApi.listModerationTargets(guildId).then((result) => setTargets(result.targets ?? [])).catch(() => setTargets([])); }, [guildId]);
+  const durationDays = duration === "week" ? 7 : duration === "season" ? 120 : duration === "custom" ? Math.max(1, Number(customDays) || 1) : null;
+  const expiresAt = durationDays ? new Date(Date.now() + durationDays * 86_400_000).toISOString() : null;
 
   async function act(action: () => Promise<unknown>) {
     setBusy(true); setError(null);
@@ -38,10 +41,10 @@ export function ModerationSettings() {
     <Card>
       <h2>Ban or restrict a user</h2>
       <p className="form-hint">A league ban removes team access and membership. A league-scoped ban also bans the linked Discord account from this server. Owner-wide bans hide all of your leagues from that user.</p>
-      <div className="form-field"><label className="form-label">Username or Discord ID</label><input className="form-input" value={target} onChange={(event) => setTarget(event.target.value)} /></div>
+      <div className="form-field"><label className="form-label">Username or Discord user</label><select className="form-select" value={target} onChange={(event) => setTarget(event.target.value)}><option value="">Select a user</option>{targets.map((row) => <option key={`${row.value}:${row.label}`} value={row.value}>{row.label}</option>)}</select></div>
       <div className="form-field"><label className="form-label">Reason</label><textarea className="form-input" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} /></div>
-      <div className="form-field"><label className="form-label">Duration in days (blank = permanent)</label><input className="form-input" type="number" min={1} value={durationDays} onChange={(event) => setDurationDays(event.target.value)} /></div>
-      <div className="form-field"><label className="form-label">Ban scope</label><select className="form-select" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}><option value="league">This league + Discord server</option><option value="owner_all_leagues">All leagues I own</option></select></div>
+      <div className="form-field"><label className="form-label">Duration</label><select className="form-select" value={duration} onChange={(event) => setDuration(event.target.value as typeof duration)}><option value="week">1 Week</option><option value="season">1 Season</option><option value="permanent">Permanent</option><option value="custom">Custom (# of Days)</option></select>{duration === "custom" ? <input className="form-input" type="number" min={1} value={customDays} onChange={(event) => setCustomDays(event.target.value)} /> : null}</div>
+      <div className="form-field"><label className="form-label">Ban scope</label><select className="form-select" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}><option value="league">This league + linked Discord server</option><option value="owner_all_leagues">All leagues I own + all linked servers</option></select></div>
       <div className="form-actions">
         <Button variant="danger" disabled={busy || !target.trim() || reason.trim().length < 3} onClick={() => void act(() => recApi.createModerationBan({ guildId, target, reason, scope, expiresAt }))}>Ban user</Button>
       </div>

@@ -511,6 +511,8 @@ export const recApi = {
     recApiFetch<unknown>("/v1/setup/league/config/update", { method: "POST", body: JSON.stringify(draft) }),
   listModeration: (guildId: string) =>
     recApiFetch<any>("/v1/moderation/list", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listModerationTargets: (guildId: string) =>
+    recApiFetch<any>("/v1/moderation/targets", { method: "POST", body: JSON.stringify({ guildId }) }),
   createModerationBan: (input: { guildId: string; target: string; scope: "league" | "owner_all_leagues"; reason: string; expiresAt?: string | null }) =>
     recApiFetch<unknown>("/v1/moderation/ban", { method: "POST", body: JSON.stringify(input) }),
   liftModerationBan: (input: { guildId: string; banId: string }) =>

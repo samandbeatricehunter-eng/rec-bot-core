@@ -1,5 +1,5 @@
 import { ApiError } from "../../lib/errors.js";
-import { banDiscordGuildMember, unbanDiscordGuildMember } from "../../lib/discord-guild.js";
+import { banDiscordGuildMember, listGuildMembers, unbanDiscordGuildMember } from "../../lib/discord-guild.js";
 import { getPgPool } from "../../db/client.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
@@ -10,7 +10,7 @@ async function resolveActor(discordId: string | null): Promise<string> {
   return String(result.rows[0].user_id);
 }
 
-async function resolveTarget(query: string) {
+async function resolveTarget(query: string, guildId: string) {
   const normalized = query.trim().replace(/^@/, "");
   const result = await getPgPool().query(
     `select u.id,u.username,u.display_name,da.discord_id
@@ -21,8 +21,26 @@ async function resolveTarget(query: string) {
      limit 1`,
     [normalized],
   );
-  if (!result.rows[0]) throw new ApiError(404, "No linked REC user matched that username or Discord ID.");
-  return result.rows[0] as { id: string; username: string | null; display_name: string | null; discord_id: string | null };
+  if (result.rows[0]) return result.rows[0] as { id: string; username: string | null; display_name: string | null; discord_id: string | null };
+  const member = (await listGuildMembers(guildId)).find((row) => row.discordId === normalized || row.username.toLowerCase() === normalized.toLowerCase() || row.displayName.toLowerCase() === normalized.toLowerCase());
+  if (!member || member.isBot) throw new ApiError(404, "No REC or Discord user matched that selection.");
+  return { id: null, username: null, display_name: member.displayName, discord_id: member.discordId };
+}
+
+export async function listModerationTargets(guildId: string) {
+  const members = (await listGuildMembers(guildId)).filter((member) => !member.isBot);
+  const discordIds = members.map((member) => member.discordId);
+  const linked = discordIds.length ? await getPgPool().query(
+    `select da.discord_id,u.id user_id,u.username,u.display_name from rec_discord_accounts da join rec_users u on u.id=da.user_id where da.discord_id=any($1::text[])`,
+    [discordIds],
+  ) : { rows: [] as any[] };
+  const byDiscord = new Map(linked.rows.map((row) => [String(row.discord_id), row]));
+  return { targets: members.map((member) => {
+    const account = byDiscord.get(member.discordId);
+    return account
+      ? { value: account.username || account.user_id, label: `${account.username || account.display_name} (${member.displayName})`, registered: true, discordId: member.discordId }
+      : { value: member.discordId, label: `${member.displayName} (Discord Only)`, registered: false, discordId: member.discordId };
+  }).sort((a, b) => a.label.localeCompare(b.label)) };
 }
 
 export async function listLeagueModeration(guildId: string) {
@@ -31,7 +49,7 @@ export async function listLeagueModeration(guildId: string) {
     getPgPool().query(
       `select b.*,u.username,u.display_name,
               (b.active and (b.expires_at is null or b.expires_at>now())) as currently_active
-       from rec_league_bans b join rec_users u on u.id=b.banned_user_id
+       from rec_league_bans b left join rec_users u on u.id=b.banned_user_id
        where b.owner_user_id=$1 and (b.league_id=$2 or b.scope='owner_all_leagues')
        order by b.active desc,b.created_at desc`,
       [context.rec_leagues.owner_user_id, context.leagueId],
@@ -66,26 +84,26 @@ export async function createLeagueBan(input: {
   if (String(context.rec_leagues.owner_user_id) !== actorUserId) {
     throw new ApiError(403, "Only the league owner can ban users.");
   }
-  const target = await resolveTarget(input.target);
+  const target = await resolveTarget(input.target, input.guildId);
   if (target.id === actorUserId) throw new ApiError(400, "You cannot ban yourself.");
   const client = await getPgPool().connect();
   let committed = false;
   try {
     await client.query("begin");
     const inserted = await client.query(
-      `insert into rec_league_bans(owner_user_id,league_id,banned_user_id,scope,reason,appeal_instructions,expires_at,created_by_user_id)
-       values($1,$2,$3,$4,$5,$6,$7,$1) returning *`,
-      [actorUserId, input.scope === "league" ? context.leagueId : null, target.id, input.scope, input.reason.trim(), input.appealInstructions?.trim() || null, input.expiresAt ?? null],
+      `insert into rec_league_bans(owner_user_id,league_id,banned_user_id,target_discord_id,scope,reason,appeal_instructions,expires_at,created_by_user_id)
+       values($1,$2,$3,$4,$5,$6,$7,$8,$1) returning *`,
+      [actorUserId, input.scope === "league" ? context.leagueId : null, target.id, target.discord_id, input.scope, input.reason.trim(), input.appealInstructions?.trim() || null, input.expiresAt ?? null],
     );
     const affectedLeagueIds = input.scope === "league"
       ? [context.leagueId]
       : (await client.query(`select id from rec_leagues where owner_user_id=$1`, [actorUserId])).rows.map((row) => String(row.id));
-    await client.query(
+    if (target.id) await client.query(
       `update rec_team_assignments set assignment_status='unlinked',ended_at=now(),user_id=null,updated_at=now()
        where user_id=$1 and league_id=any($2::uuid[]) and assignment_status='active' and ended_at is null`,
       [target.id, affectedLeagueIds],
     );
-    await client.query(`delete from rec_league_memberships where user_id=$1 and league_id=any($2::uuid[])`, [target.id, affectedLeagueIds]);
+    if (target.id) await client.query(`delete from rec_league_memberships where user_id=$1 and league_id=any($2::uuid[])`, [target.id, affectedLeagueIds]);
     await client.query(
       `insert into rec_league_moderation_audit(league_id,actor_user_id,target_user_id,action,reason,metadata)
        values($1,$2,$3,'ban',$4,$5::jsonb)`,
@@ -135,8 +153,9 @@ export async function liftLeagueBan(input: { guildId: string; banId: string; act
     [input.banId, actorUserId],
   );
   if (!result.rows[0]) throw new ApiError(404, "Active ban not found.");
-  const target = await getPgPool().query(`select discord_id from rec_discord_accounts where user_id=$1 limit 1`, [result.rows[0].banned_user_id]);
-  if (target.rows[0]?.discord_id && result.rows[0].discord_ban_applied_at) {
+  const target = result.rows[0].banned_user_id ? await getPgPool().query(`select discord_id from rec_discord_accounts where user_id=$1 limit 1`, [result.rows[0].banned_user_id]) : { rows: [] as any[] };
+  const targetDiscordId = target.rows[0]?.discord_id ?? result.rows[0].target_discord_id;
+  if (targetDiscordId && result.rows[0].discord_ban_applied_at) {
     const guildIds = result.rows[0].scope === "owner_all_leagues"
       ? (await getPgPool().query(
           `select distinct ds.guild_id from rec_leagues l
@@ -146,7 +165,7 @@ export async function liftLeagueBan(input: { guildId: string; banId: string; act
           [actorUserId],
         )).rows.map((row) => String(row.guild_id))
       : [input.guildId];
-    await Promise.allSettled(guildIds.map((guildId) => unbanDiscordGuildMember(guildId, String(target.rows[0].discord_id), "REC league ban lifted")));
+    await Promise.allSettled(guildIds.map((guildId) => unbanDiscordGuildMember(guildId, String(targetDiscordId), "REC league ban lifted")));
   }
   await getPgPool().query(
     `insert into rec_league_moderation_audit(league_id,actor_user_id,target_user_id,action,metadata)
@@ -166,7 +185,8 @@ export async function setLeagueRestriction(input: {
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const actorUserId = await resolveActor(input.actorDiscordId);
-  const target = await resolveTarget(input.target);
+  const target = await resolveTarget(input.target, input.guildId);
+  if (!target.id) throw new ApiError(400, "Website restrictions require a registered REC user. Discord-only members can be kicked or banned instead.");
   const result = await getPgPool().query(
     `insert into rec_league_restrictions(league_id,user_id,restriction_type,reason,expires_at,created_by_user_id)
      values($1,$2,$3,$4,$5,$6) returning *`,
