@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import { PageHeader } from "../../../components/ui/PageHeader.js";
@@ -15,6 +15,33 @@ export function PublishingHome() {
   const [mediaBusy, setMediaBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [promptRange, setPromptRange] = useState({ weekFrom: 1, weekTo: 1 });
+  const [promptText, setPromptText] = useState<string | null>(null);
+  const [promptBusy, setPromptBusy] = useState(false);
+  const [promptCopied, setPromptCopied] = useState(false);
+
+  useEffect(() => {
+    recApi.getAdvanceWeekGames(guildId).then((data) => {
+      setPromptRange({ weekFrom: data.currentWeek, weekTo: data.currentWeek });
+    }).catch(() => undefined);
+  }, [guildId]);
+
+  async function generatePrompt() {
+    setPromptBusy(true); setError(null); setPromptCopied(false);
+    try {
+      const result = await recApi.getArticlePromptDigest({ guildId, ...promptRange });
+      setPromptText(result.prompt);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to build the article prompt."); }
+    finally { setPromptBusy(false); }
+  }
+
+  async function copyPrompt() {
+    if (!promptText) return;
+    try {
+      await navigator.clipboard.writeText(promptText);
+      setPromptCopied(true);
+    } catch { /* clipboard may be unavailable — the text is still selectable in the textarea */ }
+  }
 
   async function publishAnnouncement() {
     setBusy("announcement"); setError(null);
@@ -77,6 +104,34 @@ export function PublishingHome() {
         <div className="form-field"><label className="form-label">Article image</label><input className="form-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void uploadMediaImage(event.target.files?.[0] ?? null)} />{mediaArticle.imageUrl && <img className="media-image-preview" src={mediaArticle.imageUrl} alt="" />}</div>
         <label className="media-toggle"><input type="checkbox" checked={mediaArticle.immediatePost} onChange={(event) => setMediaArticle({ ...mediaArticle, immediatePost: event.target.checked })} /> Post immediately</label>
         <Button variant="tactical" disabled={mediaBusy || !mediaArticle.title.trim() || !mediaArticle.body.trim()} onClick={() => void publishMediaArticle()}>{mediaBusy ? "Saving..." : mediaArticle.immediatePost ? "Post Article" : "Schedule For Next Advance"}</Button>
+      </Card>
+      <Card>
+        <h2>Provide Prompt</h2>
+        <p className="form-hint">
+          Builds a copy/paste prompt — results and power rankings for the selected weeks, plus the REC Network roundtable
+          cast and each voice's writing assignment — for you to hand to an external AI tool. Paste the article it writes
+          back into Headline or Article above.
+        </p>
+        <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div className="form-field" style={{ maxWidth: 140 }}>
+            <label className="form-label">From week</label>
+            <input className="form-input" type="number" min={0} value={promptRange.weekFrom} onChange={(event) => setPromptRange({ ...promptRange, weekFrom: Number(event.target.value) })} />
+          </div>
+          <div className="form-field" style={{ maxWidth: 140 }}>
+            <label className="form-label">To week</label>
+            <input className="form-input" type="number" min={0} value={promptRange.weekTo} onChange={(event) => setPromptRange({ ...promptRange, weekTo: Number(event.target.value) })} />
+          </div>
+          <Button variant="secondary" disabled={promptBusy} onClick={() => void generatePrompt()}>{promptBusy ? "Building…" : "Provide Prompt"}</Button>
+        </div>
+        {promptText && (
+          <div style={{ marginTop: "var(--space-3)" }}>
+            <textarea className="form-input" rows={14} readOnly value={promptText} onFocus={(event) => event.currentTarget.select()} />
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
+              <Button variant="secondary" onClick={() => void copyPrompt()}>Copy to Clipboard</Button>
+              {promptCopied && <span className="form-hint" style={{ margin: 0 }}>Copied.</span>}
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   </div>;

@@ -6,6 +6,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { getTeamScheduleManualState } from "../schedule/team-schedule.service.js";
 import { getMatchupPreview } from "./matchup-preview.service.js";
+import { buildArticlePromptDigest } from "./article-prompt.service.js";
 import {
   addHubStoryComment,
   cancelGameOfWeekVoting,
@@ -161,6 +162,14 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "bot") throw new ApiError(400, "Use the announcement record endpoint for bot publishing.");
       return reply.send(await recordHubAnnouncement(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/publishing/article-prompt", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), weekFrom: z.number().int().min(0), weekTo: z.number().int().min(0) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await buildArticlePromptDigest(body));
     } catch (error) { return sendError(reply, error); }
   });
 
