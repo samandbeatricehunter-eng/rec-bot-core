@@ -59,6 +59,7 @@ import type {
   PeerWagerBoardResponse,
   MyWagersResponse,
   ChallengeableCoachesResponse,
+  OpenWagersForCommissionerResponse,
   OpenTeamsResponse,
   RoleMgmtMember,
   TeamLinkMatrix,
@@ -251,6 +252,10 @@ export const recApi = {
     recApiFetch<MyWagersResponse>("/v1/wagers/my-wagers", { method: "POST", body: JSON.stringify({ guildId }) }),
   listChallengeableCoaches: (guildId: string) =>
     recApiFetch<ChallengeableCoachesResponse>("/v1/wagers/challengeable-coaches", { method: "POST", body: JSON.stringify({ guildId }) }),
+  listOpenWagersForCommissioner: (guildId: string) =>
+    recApiFetch<OpenWagersForCommissionerResponse>("/v1/wagers/open", { method: "POST", body: JSON.stringify({ guildId }) }),
+  commissionerCancelWager: (input: { guildId: string; wagerId: string }) =>
+    recApiFetch<{ ok: true; refunded: number }>("/v1/wagers/commissioner-cancel", { method: "POST", body: JSON.stringify(input) }),
   toggleHubStoryReaction: (input: { guildId: string; storyId: string; reactionKey: "like" | "dislike" }) =>
     recApiFetch<{ ok: true }>("/v1/hub/stories/react", { method: "POST", body: JSON.stringify(input) }),
   toggleHubGameReaction: (input: {

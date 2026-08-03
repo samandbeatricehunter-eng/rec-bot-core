@@ -1417,6 +1417,97 @@ export async function cancelAllWagersForGame(input: { guildId: string; gameId: s
   return { cancelled: true, refundedCount: openWagers.data?.length ?? 0 };
 }
 
+// Commissioner-facing browse of every not-yet-settled wager league-wide (peer and
+// house, any week) so League Mgmt can cancel/refund a specific one on request —
+// distinct from listPeerWagerBoard (current-week peer only, player-facing).
+export async function listOpenWagersForCommissioner(guildId: string) {
+  const context = await getCurrentLeagueContext(guildId);
+  const leagueId = context.leagueId;
+
+  const { data, error } = await supabase
+    .from("rec_wagers")
+    .select(
+      "id,game_id,wager_kind,challenge_type,market,pick,line,odds,stake,potential_payout,status,season_number,week_number,placed_by_user_id,placed_by_discord_id,accepted_by_user_id,accepted_by_discord_id,created_at",
+    )
+    .eq("league_id", leagueId)
+    .in("status", ["awaiting_accept", "pending", "confirmed"])
+    .order("created_at", { ascending: false });
+  if (error) throw new ApiError(500, "Failed to load open wagers.", error);
+  const rows = data ?? [];
+
+  const gameIds = [...new Set(rows.map((w: any) => w.game_id).filter(Boolean))];
+  const games = gameIds.length
+    ? await supabase
+        .from("rec_games")
+        .select(
+          "id,home_team_id,away_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation,display_abbr),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation,display_abbr)",
+        )
+        .in("id", gameIds)
+    : { data: [] };
+  const gameById = new Map<string, any>((games.data ?? []).map((g: any) => [g.id, g]));
+  const gameLabelById = new Map(
+    (games.data ?? []).map((g: any) => [g.id, `${teamAbbr(g.away_team)} at ${teamAbbr(g.home_team)}`]),
+  );
+
+  const userIds = [
+    ...new Set(rows.flatMap((w: any) => [w.placed_by_user_id, w.accepted_by_user_id]).filter(Boolean)),
+  ];
+  const users = userIds.length
+    ? await supabase.from("rec_users").select("id,username,display_name").in("id", userIds)
+    : { data: [] };
+  const nameByUserId = new Map(
+    (users.data ?? []).map((u: any) => [u.id, u.display_name ?? u.username ?? "REC Member"]),
+  );
+
+  return {
+    wagers: rows.map((w: any) => ({
+      id: w.id,
+      gameId: w.game_id,
+      gameLabel: w.game_id ? (gameLabelById.get(w.game_id) ?? "Scheduled game") : "House line",
+      wagerKind: w.wager_kind,
+      challengeType: w.challenge_type,
+      market: w.market,
+      marketLabel: WAGER_MARKET_BY_KEY.get(w.market)?.label ?? w.market,
+      pick: w.pick,
+      pickLabel: pickLabelFor(w, gameById),
+      line: w.line,
+      odds: w.odds,
+      stake: Number(w.stake ?? 0),
+      potentialPayout: Number(w.potential_payout ?? 0),
+      status: w.status,
+      seasonNumber: w.season_number,
+      weekNumber: w.week_number,
+      placedByName: nameByUserId.get(w.placed_by_user_id) ?? "REC Member",
+      acceptedByName: w.accepted_by_user_id ? (nameByUserId.get(w.accepted_by_user_id) ?? "REC Member") : null,
+      createdAt: w.created_at,
+    })),
+  };
+}
+
+// Commissioner cancel/refund of a single open wager (peer or house), from League Mgmt.
+// Unlike cancelWager (bot-internal, deletes the row), this keeps the row for the
+// audit trail — same pattern as cancelAllWagersForGame.
+export async function commissionerCancelWager(input: { guildId: string; wagerId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const { data: wager, error } = await supabase
+    .from("rec_wagers")
+    .select("*")
+    .eq("id", input.wagerId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (error) throw new ApiError(500, "Failed to load wager.", error);
+  if (!wager) throw new ApiError(404, "Wager not found.");
+  if (!["pending", "confirmed", "awaiting_accept"].includes(wager.status)) {
+    throw new ApiError(409, "This wager is no longer open — it has already been settled or cancelled.");
+  }
+  await refundWagerStake(wager, "Wager cancelled by commissioner — refund");
+  await supabase
+    .from("rec_wagers")
+    .update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("id", wager.id);
+  return { ok: true, refunded: Number(wager.stake ?? 0) };
+}
+
 async function refundWagerStake(wager: any, description: string) {
   const refund = await supabase.rpc("add_to_wallet", {
     p_user_id: wager.placed_by_user_id,

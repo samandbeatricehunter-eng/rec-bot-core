@@ -687,6 +687,29 @@ export type MyWagersResponse = {
 export type ChallengeableCoachesResponse = {
   coaches: Array<{ userId: string; discordId: string | null; teamAbbr: string; conference: string }>;
 };
+export type OpenWagersForCommissionerResponse = {
+  wagers: Array<{
+    id: string;
+    gameId: string | null;
+    gameLabel: string;
+    wagerKind: string;
+    challengeType: string | null;
+    market: string;
+    marketLabel: string;
+    pick: string;
+    pickLabel: string;
+    line: number | null;
+    odds: number;
+    stake: number;
+    potentialPayout: number;
+    status: string;
+    seasonNumber: number;
+    weekNumber: number;
+    placedByName: string;
+    acceptedByName: string | null;
+    createdAt: string;
+  }>;
+};
 
 export type StorePurchaseContext = {
   seasonNumber: number;

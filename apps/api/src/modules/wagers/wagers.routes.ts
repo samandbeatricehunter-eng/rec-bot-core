@@ -14,6 +14,8 @@ import {
   cancelWager,
   cancelOwnWager,
   closeWageringForGame,
+  commissionerCancelWager,
+  listOpenWagersForCommissioner,
   reopenWageringForGame,
   declineCounter,
   declinePeerWager,
@@ -313,6 +315,22 @@ export async function wagerRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), gameId: z.string().uuid() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await cancelAllWagersForGame(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/wagers/open", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await listOpenWagersForCommissioner(body.guildId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/wagers/commissioner-cancel", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), wagerId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await commissionerCancelWager(body));
     } catch (error) { return sendError(reply, error); }
   });
 
