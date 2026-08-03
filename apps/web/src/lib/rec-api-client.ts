@@ -7,6 +7,7 @@ import type {
   BoxScoreJobStatus,
   BoxScoreSubmissionDetail,
   ChatAttachment,
+  CommissionerPoll,
   ChatMessage,
   ChatTopic,
   PublicPoll,
@@ -27,6 +28,7 @@ import type {
   EosBallotSessionInfo,
   GotwCandidate,
   GotwPollStatus,
+  MyEosPayoutProgress,
   PendingEosLedgers,
   RecPayoutTier,
   LeagueHeaderSummary,
@@ -179,6 +181,14 @@ export const recApi = {
     recApiFetch<{ recorded: true }>("/v1/hub/announcements/publish", { method: "POST", body: JSON.stringify(input) }),
   getArticlePromptDigest: (input: { guildId: string; weekFrom: number; weekTo: number }) =>
     recApiFetch<{ prompt: string; resultCount: number }>("/v1/hub/publishing/article-prompt", { method: "POST", body: JSON.stringify(input) }),
+  createCommissionerPoll: (input: { guildId: string; discordId: string; question: string; options: string[]; durationHours: number }) =>
+    recApiFetch<CommissionerPoll>("/v1/polls/create", { method: "POST", body: JSON.stringify(input) }),
+  listCommissionerPolls: (input: { guildId: string }) =>
+    recApiFetch<{ polls: CommissionerPoll[] }>("/v1/polls/list", { method: "POST", body: JSON.stringify(input) }),
+  closeCommissionerPoll: (input: { guildId: string; pollId: string }) =>
+    recApiFetch<CommissionerPoll>("/v1/polls/close", { method: "POST", body: JSON.stringify(input) }),
+  cancelCommissionerPoll: (input: { guildId: string; pollId: string }) =>
+    recApiFetch<CommissionerPoll>("/v1/polls/cancel", { method: "POST", body: JSON.stringify(input) }),
   publishHubStory: (input: { guildId: string; headline: string; body: string; storyType: "headline" | "article" }) =>
     recApiFetch<{ published: true; id: string }>("/v1/hub/stories/publish", { method: "POST", body: JSON.stringify(input) }),
   uploadHubMediaImage: (guildId: string, file: File) => {
@@ -315,6 +325,8 @@ export const recApi = {
     recApiFetch<{ teamId: string; nickname: string | null; needsName: boolean } | null>("/v1/league-week/defense-nickname/status", { method: "POST", body: JSON.stringify(input) }),
   setDefenseNickname: (input: { guildId: string; discordId: string; teamId: string; nickname: string }) =>
     recApiFetch<{ nickname: string }>("/v1/league-week/defense-nickname", { method: "POST", body: JSON.stringify(input) }),
+  getMyEosPayoutProgress: (input: { guildId: string; discordId: string }) =>
+    recApiFetch<MyEosPayoutProgress>("/v1/league-week/eos-payouts/my-progress", { method: "POST", body: JSON.stringify(input) }),
   getEosAwardVotingBlock: (input: { guildId: string; discordId: string }) =>
     recApiFetch<{ polls: EosAwardVotingPoll[]; hasVotedAll: boolean }>("/v1/league-week/eos-awards/voting-block", { method: "POST", body: JSON.stringify(input) }),
   castEosAwardVote: (input: { guildId: string; discordId: string; pollId: string; nomineeUserId: string }) =>

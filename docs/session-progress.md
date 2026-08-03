@@ -34,21 +34,18 @@ under "Newly reported" as they come in mid-turn.
   - Wager grace-period refunds: `resolveWagersOnAdvance` — runs on every advance (not season-end-only), refunds anything past its 1-week box-score grace period.
   No separate cron/scheduler exists for any of these — they are all synchronous steps inside the advance-week flow itself, so nothing fires unless a commissioner (or the automated advance timer) actually advances the league through that boundary.
 
+## Done this stretch (session 2 — different machine, 2026-08-03/04)
+- [x] Mobile chat launcher FAB was unreachable above the header after the #50 fix — moved back to bottom-right, lifted clear of the bottom nav + (when embedded in apps/site) the ticker via a derived `bottom` offset, z-index bumped to 90. `apps/web/src/styles/hub.css`.
+- [x] #45 Full repo audit (background agent). RLS: clean, every 2026-08-03 `create table` has its `enable row level security`. No new bugs/dead code in the session's own additions. Two pre-existing, already self-documented stubs found (not from this session): `apps/madden-connector/src/token-vault/index.ts` (in-memory only, TODO Supabase persistence — check if `madden-connector` is even wired into any app before investing further) and `apps/api/src/modules/schedule/schedule-prefill-parser.ts` (intentional no-op stub).
+- [x] #46 Audited the multi-player stat-split feature (background agent) and fixed what it found: **no duplicate-submission guard** on `assignBoxScoreStatAllocations` (`apps/api/src/modules/box-score/box-score-player-stats.service.ts`) — a modal reload/retry could double-count a player's passing/rushing stats since the "already assigned" flag only lived in local React state. Added a label-set-overlap check against existing `rec_game_performance_tags` rows before insert (409 on repeat). Also fixed `apps/api/src/db/schema.ts`'s `recGamePerformanceTags` missing the `roster_player_id` column (Drizzle schema had drifted from the live migration). Left as a non-urgent finding: the single-player assign path (`assignBoxScoreStatsToPlayer`, its route, and its client method) is dead code superseded by the multi-player version — not removed since it's low-risk to leave.
+- [x] #48 EOS payout progress bars on My Team page. New `computeTierProgress` helper in `packages/shared/src/economy.ts` (progress toward the next tier, anchored between the current tier's threshold — or a derived floor if no tier reached yet — and the next tier's threshold). New `getMyEosPayoutProgress` in `apps/api/src/modules/league-week/eos-payouts.service.ts` + member-gated route `POST /v1/league-week/eos-payouts/my-progress`. New "EOS Payout Progress" panel on Hub → My Team (`apps/web/src/routes/hub/HubHome.tsx`), always-on (not postseason-gated) so coaches can see what they need to hit before the ledger locks in.
+- [x] #47 Commissioner poll system on the Media page. New `rec_commissioner_polls` table (migration `20260804000000_commissioner_polls.sql`, applied to remote). New Discord REST helpers `getDiscordPollResults`/`expireDiscordPoll` in `apps/api/src/lib/discord-guild.ts` (native Discord polls, read straight off the message's embedded `poll.results.answer_counts` — no per-voter fetch needed). New `apps/api/src/modules/polls/commissioner-polls.service.ts` + `polls.routes.ts` (`/v1/polls/create|list|close|cancel`), commissioner-gated create/close/cancel, member-gated list. "Double-vote elimination" = Discord's own native single-select poll guarantee (`allow_multiselect: false`), not custom logic. New "Commissioner Polls" card on `apps/web/src/routes/league-mgmt/publishing/PublishingHome.tsx` — question + up to 10 options, posts to the league's voting-polls channel, live vote bars, close/cancel.
+
 ## In progress / pending (backlog from earlier messages)
-- [ ] #36 Fix NDSU + Sacramento State missing from REC OG `rec_teams` baseline (170 skipped players).
-- [ ] #37 Advance Readiness "Notify" buttons should tag users in Discord/site game chat: "SCHEDULE YOUR GAME ASAP".
-- [ ] #38 "Provide Prompt" button on Media page (stats/context digest + roundtable personalities/assignments).
-- [ ] #39 Playoff box score entry/upload in schedule editor (past + current week).
-- [ ] #40 `/claim-league` step-by-step instructions surfaced during league creation (Discord toggle).
 - [ ] #41 CFB roster-seed advisory + "roll every player forward one season" commissioner maintenance action.
 - [ ] #42 Non-seeded-league purchase fallback: free-text name + position group + rating/tier input.
 - [ ] #43 Research Madden 27 default roster + 2026-27 NFL schedule availability; seed if available.
 - [ ] #44 Madden trade block system (mirror in-game UI; move View Roster to More, add Trades nav item).
-- [ ] #45 Full repo audit: dead code, bugs, placeholders, unfinished pages.
-- [ ] #46 Audit externally-added multi-player stat-split feature (`assignBoxScoreStatAllocations`) for backend/frontend parity.
-- [ ] #47 Commissioner poll system (Media page) with Discord-native poll sync + double-vote elimination.
-- [ ] #48 EOS payout progress bars on My Team page.
-- [ ] #49 List all currently-wired EOS triggers/polls for user review.
 
 ## Newly reported (this message)
 - [ ] #50 Mobile: chat launcher FAB covers the "More" tab of the bottom nav bar — move it to top of screen, left of the bell icon, and only show it while inside a league.

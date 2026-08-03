@@ -1,4 +1,4 @@
-import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, type LeagueGame, type RecPayoutTier } from "@rec/shared";
+import { isPayoutEligibleForGame, REC_END_SEASON_PAYOUTS, evaluatePayoutTier, isEosPayoutEligibleStage, regularSeasonWeeks, formatCoins, computeTierProgress, type LeagueGame, type RecPayoutTier, type RecTierProgress } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { sendDiscordDirectMessage } from "../../lib/discord-guild.js";
@@ -344,6 +344,66 @@ export async function projectEosPayouts(input: { guildId: string }) {
     items: withDiscord,
     totalAmount,
   };
+}
+
+export type EosPayoutProgressCard = {
+  key: string;
+  label: string;
+  currentValue: number;
+  progress: RecTierProgress;
+};
+
+// Per-coach, always-on (not postseason-gated) view of where they currently stand against each
+// EOS payout category's tier ladder — powers the "My Team" progress bars so coaches can see what
+// they need to hit before the postseason locks the ledger in, not just after the fact.
+export async function getMyEosPayoutProgress(input: { guildId: string; discordId: string }): Promise<{ seasonNumber: number; teamStats: EosPayoutProgressCard[]; ranking: (EosPayoutProgressCard & { rank: number | null }) | null }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const game = context.rec_leagues.game;
+
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  if (account.error) throw new ApiError(500, "Failed to load your REC account.", account.error);
+  if (!account.data?.user_id) return { seasonNumber, teamStats: [], ranking: null };
+  const userId = account.data.user_id;
+
+  const statsRows = await supabase
+    .from("rec_team_game_stats")
+    .select("*")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("user_id", userId)
+    .lte("week_number", regularSeasonWeeks(game));
+  if (statsRows.error) throw new ApiError(500, "Failed to load your season stats.", statsRows.error);
+  const rows = statsRows.data ?? [];
+
+  const teamStats: EosPayoutProgressCard[] = TEAM_DEFINITIONS.filter((d) => isPayoutEligibleForGame(d, game)).map((definition) => {
+    const value = evalTeamStat(definition.statKey, rows);
+    return {
+      key: definition.key,
+      label: definition.label,
+      currentValue: Math.round(value * 100) / 100,
+      progress: computeTierProgress(value, definition.tiers, definition.direction),
+    };
+  });
+
+  let ranking: (EosPayoutProgressCard & { rank: number | null }) | null = null;
+  if (RANK_DEFINITION) {
+    const rankRows = await supabase.rpc("rec_eos_rank_payouts", { p_league_id: context.leagueId, p_season_number: seasonNumber });
+    if (rankRows.error) throw new ApiError(500, "Failed to calculate your power-ranking progress.", rankRows.error);
+    const mine = (rankRows.data ?? []).find((row: any) => row.user_id === userId);
+    if (mine) {
+      const rank = Number(mine.rank);
+      ranking = {
+        key: RANK_DEFINITION.key,
+        label: RANK_DEFINITION.label,
+        currentValue: rank,
+        progress: computeTierProgress(rank, RANK_DEFINITION.tiers, RANK_DEFINITION.direction),
+        rank,
+      };
+    }
+  }
+
+  return { seasonNumber, teamStats, ranking };
 }
 
 async function attachPayeeDiscordIds(items: any[]): Promise<any[]> {

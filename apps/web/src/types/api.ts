@@ -381,6 +381,41 @@ export type DivisionWinnerOption = { key: string; conference: string; division: 
 export type DivisionWinnerOptions = { league: { id: string; seasonNumber: number }; divisions: DivisionWinnerOption[] };
 
 export type RecPayoutTier = "S" | "A" | "B" | "C" | "D";
+export type RecTierProgress = {
+  currentTier: RecPayoutTier | null;
+  currentAmount: number;
+  nextTier: { tier: RecPayoutTier; amount: number; threshold: number; operator: string } | null;
+  percent: number;
+};
+export type EosPayoutProgressCard = {
+  key: string;
+  label: string;
+  currentValue: number;
+  progress: RecTierProgress;
+};
+export type CommissionerPollAnswerCount = { id: number; count: number; me_voted: boolean };
+export type CommissionerPollResults = { question: string; answers: Array<{ id: number; text: string }>; isFinalized: boolean; answerCounts: CommissionerPollAnswerCount[] } | null;
+export type CommissionerPoll = {
+  id: string;
+  league_id: string;
+  season_number: number;
+  question: string;
+  options: Array<{ id: number; text: string }>;
+  status: "open" | "closed" | "cancelled";
+  discord_channel_id: string | null;
+  discord_message_id: string | null;
+  results: CommissionerPollResults;
+  created_by_user_id: string | null;
+  closes_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type MyEosPayoutProgress = {
+  seasonNumber: number;
+  teamStats: EosPayoutProgressCard[];
+  ranking: (EosPayoutProgressCard & { rank: number | null }) | null;
+};
 export type EosLedgerLineItem = {
   id: string;
   payoutCategory: string;

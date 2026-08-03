@@ -44,12 +44,21 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
     scope: "ranking",
     direction: "lower_is_better",
     statKey: "power_rank",
+    // The REAL dollar amount always comes from the `rec_eos_rank_payouts` SQL function
+    // (supabase/migrations/202606130006_rec_eos_rank_payouts_rpc.sql) — it pays a distinct
+    // amount per exact rank (250/175/125/100/75/75/50/50, 0 for rank 9+), which is finer-
+    // grained than this 5-tier ladder can represent exactly. These tiers exist only for
+    // display (qualified_tier label, EOS progress bars) and for the commissioner's manual
+    // "adjust to a different tier" override — so each tier is anchored to the WORST-case
+    // (lowest) amount actually paid within its rank band, never the best case, so an
+    // adjustment can never pay out more than that rank could really earn. If the RPC's
+    // amount table changes, update this to match.
     tiers: [
-      { tier: "S", threshold: 1, amount: 1000, operator: "less_or_equal" },
-      { tier: "A", threshold: 2, amount: 750, operator: "less_or_equal" },
-      { tier: "B", threshold: 5, amount: 500, operator: "less_or_equal" },
-      { tier: "C", threshold: 10, amount: 250, operator: "less_or_equal" },
-      { tier: "D", threshold: 11, amount: 100, operator: "greater_or_equal" },
+      { tier: "S", threshold: 1, amount: 250, operator: "less_or_equal" },
+      { tier: "A", threshold: 2, amount: 175, operator: "less_or_equal" },
+      { tier: "B", threshold: 5, amount: 75, operator: "less_or_equal" },
+      { tier: "C", threshold: 8, amount: 50, operator: "less_or_equal" },
+      { tier: "D", threshold: 9, amount: 0, operator: "greater_or_equal" },
     ],
   },
   // Player-stat EOS payouts were removed: per-player stats are no longer stored
@@ -103,6 +112,38 @@ export function nextPayoutTier(value: number, tiers: RecPayoutTierRule[]): RecPa
   if (currentIdx === 0) return null; // already at the best tier
   if (currentIdx === -1) return tiers[tiers.length - 1] ?? null; // no tier yet → easiest target
   return tiers[currentIdx - 1] ?? null;
+}
+
+export type RecTierProgress = {
+  currentTier: RecPayoutTier | null;
+  currentAmount: number;
+  nextTier: RecPayoutTierRule | null;
+  /** 0-100. 100 only once the top (S) tier is reached; capped at 99 while still chasing `nextTier`. */
+  percent: number;
+};
+
+// Progress toward the next-better tier, anchored between a "floor" and `nextTier.threshold`.
+// The floor is the currently-qualified tier's own threshold when one is reached, or — when no
+// tier has been reached yet — the worst (D) tier's threshold pushed out by that same D/C gap, so
+// the bar still has a sensible starting reference derived from the definition's own spacing
+// rather than an arbitrary constant unrelated to the stat's scale.
+export function computeTierProgress(value: number, tiers: RecPayoutTierRule[], direction: "higher_is_better" | "lower_is_better"): RecTierProgress {
+  const currentRule = evaluatePayoutTier(value, tiers);
+  const next = nextPayoutTier(value, tiers);
+  if (!next) return { currentTier: currentRule?.tier ?? null, currentAmount: currentRule?.amount ?? 0, nextTier: null, percent: 100 };
+
+  const worst = tiers[tiers.length - 1];
+  const secondWorst = tiers[tiers.length - 2];
+  const gap = secondWorst ? Math.abs(secondWorst.threshold - worst.threshold) : Math.abs(worst.threshold) * 0.25 || 1;
+  const floor = currentRule
+    ? currentRule.threshold
+    : direction === "higher_is_better" ? worst.threshold - gap : worst.threshold + gap;
+
+  const span = direction === "higher_is_better" ? next.threshold - floor : floor - next.threshold;
+  const progressed = direction === "higher_is_better" ? value - floor : floor - value;
+  const percent = span > 0 ? Math.max(0, Math.min(99, (progressed / span) * 100)) : 0;
+
+  return { currentTier: currentRule?.tier ?? null, currentAmount: currentRule?.amount ?? 0, nextTier: next, percent };
 }
 
 export const REC_WEEKLY_CHALLENGE_PAYOUTS = { S: 50, A: 25, B: 10 } as const;

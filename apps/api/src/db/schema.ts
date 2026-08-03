@@ -1550,6 +1550,23 @@ export const recEosAwardPolls = pgTable("rec_eos_award_polls", {
   voteCounts: jsonb("vote_counts").$type<Record<string, unknown> | null>()
 });
 
+export const recCommissionerPolls = pgTable("rec_commissioner_polls", {
+  id: uuid("id").primaryKey(),
+  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
+  seasonNumber: integer("season_number").notNull(),
+  question: text("question").notNull(),
+  options: jsonb("options").$type<Array<{ id: number; text: string }>>().notNull().default([]),
+  status: text("status").notNull().default("open"),
+  discordChannelId: text("discord_channel_id"),
+  discordMessageId: text("discord_message_id"),
+  results: jsonb("results").$type<Record<string, unknown> | null>(),
+  createdByUserId: uuid("created_by_user_id").references(() => recUsers.id),
+  closesAt: timestamp("closes_at", { withTimezone: true, mode: "string" }),
+  closedAt: timestamp("closed_at", { withTimezone: true, mode: "string" }),
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
 export const recEosAwardVotes = pgTable("rec_eos_award_votes", {
   id: uuid("id").primaryKey(),
   pollId: uuid("poll_id").notNull().references(() => recEosAwardPolls.id),
@@ -2271,6 +2288,7 @@ export const recGamePerformanceTags = pgTable("rec_game_performance_tags", {
   teamId: uuid("team_id").notNull(),
   subjectType: text("subject_type").notNull(),
   watchedPlayerId: uuid("watched_player_id"),
+  rosterPlayerId: uuid("roster_player_id"),
   unit: text("unit"),
   statLines: jsonb("stat_lines").$type<Array<{ statKey: string; label: string; value: number }>>().notNull(),
   performanceGrade: text("performance_grade").notNull(),

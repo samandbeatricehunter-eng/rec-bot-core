@@ -804,6 +804,15 @@ button.poty:disabled {
 .hub-ledger-row .hub-muted { font-size: var(--text-xs); }
 .hub-defense-nickname-prompt { margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--gold); border-radius: var(--radius-md); background: color-mix(in srgb, var(--accent) 6%, transparent); }
 .hub-defense-nickname-prompt p { margin: 0 0 var(--space-2); }
+
+.hub-eos-progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
+.hub-eos-progress-card { display: flex; flex-direction: column; gap: 8px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.hub-eos-progress-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: var(--text-sm); }
+.hub-eos-progress-card-head strong { color: var(--text-primary); }
+.hub-eos-progress-card-head span { color: var(--text-secondary); font-weight: 700; }
+.hub-eos-progress-bar { position: relative; height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-secondary) 20%, transparent); overflow: hidden; }
+.hub-eos-progress-bar-fill { height: 100%; border-radius: 999px; background: var(--accent-gradient, var(--accent)); transition: width 0.3s ease; }
+.hub-eos-progress-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-xs); color: var(--text-muted); }
 .hub-defense-nickname-form { display: flex; gap: var(--space-2); }
 .hub-defense-nickname-form input { flex: 1; }
 
@@ -3310,18 +3319,24 @@ button.poty:disabled {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   cursor: pointer;
 }
-/* On mobile the bottom-right FAB position collides with the "More"/last tab of the
-   bottom nav bar. Move it up into the header row instead, just left of the notification
-   bell — offsets mirror the header's own padding tokens so it lines up without JS
-   measurement. AppShell only mounts this component while hub.scope.kind === "league",
-   so it's already league-only; this just repositions it on small screens. */
+/* On mobile, keep the FAB in the bottom-right corner but lift it clear of the fixed
+   bottom chrome (league bottom nav, plus the site ticker when embedded in apps/site)
+   so it never sits behind or under those bars. Standalone apps/web's bottom nav stack
+   reserves 118px (see .app-shell-container.has-hub-chrome); the apps/site embed adds
+   the 30px ticker on top of that (see site.css's own 148px content padding). z-index
+   is bumped above both fixed stacks (z-index 40/41) so it stays the top-most tappable
+   layer, short of modals/notif panels (z-index 299+). */
 @media (max-width: 700px) {
   .chat-drawer-launcher {
-    top: calc(var(--space-5) + var(--space-3));
-    right: calc(var(--space-5) + var(--space-4) + 40px + var(--space-2));
-    bottom: auto;
-    width: 40px;
-    height: 40px;
+    top: auto;
+    right: var(--space-4);
+    bottom: calc(118px + env(safe-area-inset-bottom, 0px) + var(--space-3));
+    width: 48px;
+    height: 48px;
+    z-index: 90;
+  }
+  .app-backdrop.is-hub-embed .chat-drawer-launcher {
+    bottom: calc(148px + env(safe-area-inset-bottom, 0px) + var(--space-3));
   }
 }
 .chat-drawer-launcher-badge {

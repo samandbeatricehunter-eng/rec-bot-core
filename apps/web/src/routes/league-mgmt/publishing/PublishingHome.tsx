@@ -5,6 +5,108 @@ import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
+import type { CommissionerPoll } from "../../../types/api.js";
+
+function CommissionerPollsCard() {
+  const { guildId, discordId } = useReadyAuth();
+  const [polls, setPolls] = useState<CommissionerPoll[] | null>(null);
+  const [question, setQuestion] = useState("");
+  const [options, setOptions] = useState(["", ""]);
+  const [durationHours, setDurationHours] = useState(24);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadPolls() {
+    try {
+      const result = await recApi.listCommissionerPolls({ guildId });
+      setPolls(result.polls);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to load polls."); }
+  }
+
+  useEffect(() => { void loadPolls(); }, [guildId]);
+
+  function setOption(index: number, value: string) {
+    setOptions((current) => current.map((option, i) => (i === index ? value : option)));
+  }
+
+  async function createPoll() {
+    setBusy("create"); setError(null);
+    try {
+      await recApi.createCommissionerPoll({ guildId, discordId, question, options: options.filter((o) => o.trim()), durationHours });
+      setQuestion(""); setOptions(["", ""]); setDurationHours(24);
+      await loadPolls();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to create poll."); }
+    finally { setBusy(null); }
+  }
+
+  async function closePoll(pollId: string) {
+    setBusy(pollId); setError(null);
+    try { await recApi.closeCommissionerPoll({ guildId, pollId }); await loadPolls(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to close poll."); }
+    finally { setBusy(null); }
+  }
+
+  async function cancelPoll(pollId: string) {
+    setBusy(pollId); setError(null);
+    try { await recApi.cancelCommissionerPoll({ guildId, pollId }); await loadPolls(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Failed to cancel poll."); }
+    finally { setBusy(null); }
+  }
+
+  const validOptionCount = options.filter((o) => o.trim()).length;
+
+  return <Card>
+    <h2>Commissioner Polls</h2>
+    <p className="form-hint">
+      Posts a native single-select Discord poll to the league's voting-polls channel — Discord itself blocks a member from
+      voting twice, so results always reflect one vote per person.
+    </p>
+    {error && <ErrorState message={error} />}
+    <div className="form-field"><label className="form-label">Question</label><input className="form-input" maxLength={300} value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="What should we vote on?" /></div>
+    {options.map((option, index) => (
+      <div className="form-field" key={index}>
+        <label className="form-label">Option {index + 1}</label>
+        <input className="form-input" maxLength={55} value={option} onChange={(event) => setOption(index, event.target.value)} />
+      </div>
+    ))}
+    <div style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-end", flexWrap: "wrap" }}>
+      {options.length < 10 && <Button variant="secondary" onClick={() => setOptions((current) => [...current, ""])}>Add Option</Button>}
+      {options.length > 2 && <Button variant="secondary" onClick={() => setOptions((current) => current.slice(0, -1))}>Remove Last Option</Button>}
+      <div className="form-field" style={{ maxWidth: 140 }}>
+        <label className="form-label">Duration (hours)</label>
+        <input className="form-input" type="number" min={1} max={720} value={durationHours} onChange={(event) => setDurationHours(Number(event.target.value))} />
+      </div>
+      <Button variant="tactical" disabled={busy !== null || !question.trim() || validOptionCount < 2} onClick={() => void createPoll()}>{busy === "create" ? "Posting…" : "Post Poll"}</Button>
+    </div>
+
+    {polls === null ? <p className="form-hint">Loading polls…</p> : polls.length === 0 ? <p className="form-hint">No polls yet.</p> : <div style={{ marginTop: "var(--space-4)", display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+      {polls.map((poll) => {
+        const counts = poll.results?.answerCounts ?? [];
+        const totalVotes = counts.reduce((sum, c) => sum + c.count, 0);
+        return <div key={poll.id} style={{ padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-2)", alignItems: "baseline" }}>
+            <strong>{poll.question}</strong>
+            <span className="form-hint" style={{ margin: 0 }}>{poll.status === "open" ? "Open" : poll.status === "closed" ? "Closed" : "Cancelled"}</span>
+          </div>
+          <div style={{ marginTop: "var(--space-2)", display: "flex", flexDirection: "column", gap: 6 }}>
+            {poll.options.map((option) => {
+              const count = counts.find((c) => c.id === option.id)?.count ?? 0;
+              const pct = totalVotes ? Math.round((count / totalVotes) * 100) : 0;
+              return <div key={option.id}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-sm)" }}><span>{option.text}</span><span>{count} vote{count === 1 ? "" : "s"} ({pct}%)</span></div>
+                <div style={{ height: 6, borderRadius: 999, background: "color-mix(in srgb, var(--text-secondary) 20%, transparent)", overflow: "hidden" }}><div style={{ height: "100%", width: `${pct}%`, borderRadius: 999, background: "var(--accent)" }} /></div>
+              </div>;
+            })}
+          </div>
+          {poll.status === "open" && <div style={{ marginTop: "var(--space-3)", display: "flex", gap: "var(--space-2)" }}>
+            <Button variant="secondary" disabled={busy !== null} onClick={() => void closePoll(poll.id)}>{busy === poll.id ? "Closing…" : "Close Poll"}</Button>
+            <Button variant="danger" disabled={busy !== null} onClick={() => void cancelPoll(poll.id)}>{busy === poll.id ? "Cancelling…" : "Cancel Poll"}</Button>
+          </div>}
+        </div>;
+      })}
+    </div>}
+  </Card>;
+}
 
 export function PublishingHome() {
   const { guildId } = useReadyAuth();
@@ -133,6 +235,7 @@ export function PublishingHome() {
           </div>
         )}
       </Card>
+      <CommissionerPollsCard />
     </div>
   </div>;
 }

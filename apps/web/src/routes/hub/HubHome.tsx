@@ -9,7 +9,7 @@ import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
+import type { HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, OpenTeam, PeerWagerBoardResponse, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
@@ -206,6 +206,33 @@ function DefenseNicknamePrompt() {
       <Button variant="primary" disabled={busy || !value.trim()} onClick={() => void save()}>{busy ? "Saving…" : "Name It"}</Button>
     </div>
     {error && <p className="hub-schedule-missing">{error}</p>}
+  </div>;
+}
+
+function EosPayoutProgressPanel() {
+  const { guildId, discordId } = useReadyAuth();
+  const [progress, setProgress] = useState<MyEosPayoutProgress | null>(null);
+
+  useEffect(() => {
+    recApi.getMyEosPayoutProgress({ guildId, discordId }).then(setProgress).catch(() => setProgress(null));
+  }, [guildId, discordId]);
+
+  const cards = [...(progress?.ranking ? [progress.ranking] : []), ...(progress?.teamStats ?? [])];
+  if (!progress || !cards.length) return <p className="hub-muted">No EOS payout categories are tracked for this league yet.</p>;
+
+  return <div className="hub-eos-progress-grid">
+    {cards.map((card) => {
+      const tierLabel = card.progress.currentTier ? `Tier ${card.progress.currentTier} · ${coinsNumber(card.progress.currentAmount)}` : "No tier yet";
+      const nextLabel = card.progress.nextTier ? `Next: Tier ${card.progress.nextTier.tier} (${coinsNumber(card.progress.nextTier.amount)})` : "Top tier reached";
+      return <article key={card.key} className="hub-eos-progress-card">
+        <div className="hub-eos-progress-card-head">
+          <strong>{card.label}</strong>
+          <span>{"rank" in card && card.rank != null ? `Rank ${card.rank}` : card.currentValue}</span>
+        </div>
+        <div className="hub-eos-progress-bar"><div className="hub-eos-progress-bar-fill" style={{ width: `${card.progress.percent}%` }} /></div>
+        <div className="hub-eos-progress-card-foot"><span>{tierLabel}</span><span>{nextLabel}</span></div>
+      </article>;
+    })}
   </div>;
 }
 
@@ -1152,6 +1179,7 @@ export function HubHome() {
     </div><div className="hub-profile-sections">
       <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><div className="hub-hero-funds-row"><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><span /><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article></div><p>Projected next-advance interest: <strong><CoinAmount amount={Number(my.projectedInterest ?? 0)} /></strong></p><p className="hub-muted">Savings interest continues to accrue when the league advances.</p><div className="hub-transfer-form"><select className="form-input" value={transferDirection} onChange={(event) => setTransferDirection(event.target.value as typeof transferDirection)}><option value="to_savings">Wallet to Savings</option><option value="from_savings">Savings to Wallet</option></select><input className="form-input" type="number" min="0.01" step="0.01" max={transferDirection === "to_savings" ? Number(my.wallet ?? 0) : Number(my.savings ?? 0)} placeholder="Amount" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} /><Button variant="primary" disabled={transferBusy || !transferAmount} onClick={() => void transferFunds()}>{transferBusy ? "Transferring…" : "Transfer Funds"}</Button></div>{transferStatus && <p className="hub-transfer-status">{transferStatus}</p>}</div></details>
       <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>Active streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? powerRankSos : "Pending"}</small></article></div></details>
+      <details><summary><TrendingUp size={18} /> EOS Payout Progress</summary><div className="hub-profile-panel"><EosPayoutProgressPanel /></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
       <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /><p className="hub-muted">League career only — global totals live on My Account.</p></div></details>
       <details><summary><Award size={18} /> Badges &amp; Awards</summary><div className="hub-profile-panel"><BadgeShelf title="League badges" badges={profile.badges ?? [...(profile.weeklyBadges ?? []), ...(profile.seasonBadges ?? [])]} />{(profile.leagueAwards ?? profile.globalAwards)?.length ? <div className="hub-badge-group"><h4>League awards</h4><div className="hub-badge-shelf">{(profile.leagueAwards ?? profile.globalAwards).map((award: any) => <article key={award.awardName} className="hub-badge-award"><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : <p className="hub-muted">No league awards yet.</p>}</div></details>

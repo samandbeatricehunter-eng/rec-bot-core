@@ -230,6 +230,28 @@ export async function assignBoxScoreStatAllocations(input: {
   const validIds = new Set((players.data ?? []).filter((row) => row.team_id === teamId).map((row) => row.id));
   if (playerIds.some((id) => !validIds.has(id))) throw new ApiError(404, "One or more players are not on your roster.");
 
+  // teamLines' labels ("Passing yards"/"Passing touchdowns" vs "Rushing yards"/"Rushing
+  // touchdowns", plus category-unique "Completions"/"Attempts"/"Carries") fully disambiguate
+  // category, so a label-set overlap against any previously-saved player tag for this game is
+  // enough to detect a resubmit and block it — without this, a reload or retry of the modal
+  // (whose "assigned" flag only lives in local React state) would silently double-count stats.
+  const categoryLabels = new Set(teamLines.map((line) => line.label));
+  const existingForGame = await supabase
+    .from("rec_game_performance_tags")
+    .select("stat_lines")
+    .eq("league_id", context.leagueId)
+    .eq("game_id", submission.game_id)
+    .eq("team_id", teamId)
+    .eq("subject_type", "player")
+    .not("roster_player_id", "is", null);
+  if (existingForGame.error) throw new ApiError(500, "Failed to validate existing stat allocations.", existingForGame.error);
+  const alreadyAssigned = (existingForGame.data ?? []).some((row) =>
+    ((row.stat_lines ?? []) as StatLine[]).some((line) => categoryLabels.has(line.label)),
+  );
+  if (alreadyAssigned) {
+    throw new ApiError(409, `${input.category === "passing" ? "Passing" : "Rushing"} stats for this game have already been assigned to a player.`);
+  }
+
   const now = new Date().toISOString();
   const rows = input.allocations.map((allocation) => ({
     id: randomUUID(), league_id: context.leagueId, game_id: submission.game_id,

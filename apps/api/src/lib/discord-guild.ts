@@ -194,12 +194,12 @@ export async function sendDiscordAdvanceAnnouncement(channelId: string, destinat
 // created message id. Chat-driven traffic is frequent enough to draw 429s that the old
 // low-volume embed posts never did, so this goes through the same retry/backoff as the guild
 // role lookups below.
-export async function postDiscordChannelMessage(channelId: string, payload: Record<string, unknown>): Promise<{ id: string } | null> {
+export async function postDiscordChannelMessage(channelId: string, payload: Record<string, unknown>): Promise<({ id: string } & Record<string, any>) | null> {
   const path = `/channels/${channelId}/messages`;
   const init: RequestInit = { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) };
   const sent = await retryAfterRateLimit(path, await discordBotFetch(path, init), init);
   if (!sent.ok) return null;
-  return (await sent.json()) as { id: string };
+  return (await sent.json()) as { id: string } & Record<string, any>;
 }
 
 export async function deleteDiscordMessage(channelId: string, messageId: string): Promise<void> {
@@ -242,6 +242,35 @@ export async function getDiscordMessage(channelId: string, messageId: string): P
   const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}`).catch(() => null);
   if (!res || !res.ok) return null;
   return res.json() as any;
+}
+
+export type DiscordPollAnswerCount = { id: number; count: number; me_voted: boolean };
+export type DiscordPollResult = { question: string; answers: Array<{ id: number; text: string }>; isFinalized: boolean; answerCounts: DiscordPollAnswerCount[] } | null;
+
+// Reads a native Discord poll's live tallies straight off the message object (Discord embeds
+// `results.answer_counts` on the poll even while it's still open, no separate per-voter fetch
+// needed — commissioner polls only need counts, unlike EOS award polls' DM-the-winner flow
+// which needs actual voter ids).
+export async function getDiscordPollResults(channelId: string, messageId: string): Promise<DiscordPollResult> {
+  const res = await discordBotFetch(`/channels/${channelId}/messages/${messageId}`).catch(() => null);
+  if (!res || !res.ok) return null;
+  const message = (await res.json()) as any;
+  const poll = message?.poll;
+  if (!poll) return null;
+  return {
+    question: String(poll.question?.text ?? ""),
+    answers: (poll.answers ?? []).map((a: any) => ({ id: a.answer_id, text: String(a.poll_media?.text ?? "") })),
+    isFinalized: Boolean(poll.results?.is_finalized),
+    answerCounts: (poll.results?.answer_counts ?? []).map((c: any) => ({ id: c.id, count: Number(c.count ?? 0), me_voted: Boolean(c.me_voted) })),
+  };
+}
+
+// Force-closes a still-open native poll early (commissioner "Close Poll" action) — Discord
+// finalizes the results and locks out further votes. A no-op (returns false, non-throwing) if
+// the poll already expired/finalized on its own, so callers can treat this as best-effort.
+export async function expireDiscordPoll(channelId: string, messageId: string): Promise<boolean> {
+  const res = await discordBotFetch(`/channels/${channelId}/polls/${messageId}/expire`, { method: "POST" }).catch(() => null);
+  return Boolean(res?.ok);
 }
 
 function staleCacheValue<T>(cache: Map<string, CacheEntry<T>>, key: string): T | undefined {
