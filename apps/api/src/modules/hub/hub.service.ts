@@ -1496,7 +1496,10 @@ export async function getHubMatchupDetail(input: { guildId: string; discordId: s
   const game = await supabase.from("rec_games").select("id,week_number,home_user_id,away_user_id").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
   if (game.error) throw new ApiError(500, "Failed to load matchup.", game.error);
   if (!game.data) throw new ApiError(404, "Matchup not found.");
-  if (!game.data.home_user_id || !game.data.away_user_id) throw new ApiError(400, "CPU matchups do not have game chat.");
+  // Only a true CPU-vs-CPU game (neither side human) has no detail page worth loading —
+  // human_cpu games have one human participant who still needs box score/highlight uploads,
+  // wager context, etc. from this same detail load; only game chat (below) stays CPU-gated.
+  if (!game.data.home_user_id && !game.data.away_user_id) throw new ApiError(400, "CPU-vs-CPU matchups do not have a matchup detail page.");
   const schedule = await getHubMatchupSchedule({ guildId: input.guildId, discordId: input.discordId, weekNumber: Number(game.data.week_number) });
   const matchup = schedule.games.find((item: any) => item.gameId === input.gameId);
   if (!matchup) throw new ApiError(404, "Matchup not found in this league week.");

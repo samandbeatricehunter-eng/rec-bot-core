@@ -158,5 +158,8 @@ export function MatchupCard({
     ? `/l/${leagueMatch[1]}/matchups/${game.gameId}`
     : `/matchups/${game.gameId}`;
 
-  return game.matchupType === "h2h" ? <Link className="rec-matchup-card-link" to={detailPath}>{card}</Link> : <div className="rec-matchup-card-link cpu">{card}</div>;
+  // Pure CPU-vs-CPU games have no human participant and nothing to do on the detail page.
+  // human_cpu games have one human side that still needs to reach box score/highlight
+  // uploads there, so they link through just like h2h.
+  return game.matchupType !== "cpu" ? <Link className="rec-matchup-card-link" to={detailPath}>{card}</Link> : <div className="rec-matchup-card-link cpu">{card}</div>;
 }

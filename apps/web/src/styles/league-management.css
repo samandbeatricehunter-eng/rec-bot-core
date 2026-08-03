@@ -722,6 +722,29 @@
   }
 }
 
+/* Manage League header actions (Back/Link Teams/Roles/Player Stats/CFP & Bowls/Recruits/
+   Repair Channels) — same wrap-safety issue as the readiness buttons above: on narrow
+   screens a plain flex-wrap row centers unevenly-sized buttons into a ragged, hard-to-scan
+   cluster. A grid with a minimum tile width wraps predictably instead. */
+.manage-league-header-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+.manage-league-header-actions .btn,
+.manage-league-header-actions button {
+  white-space: nowrap;
+}
+@media (min-width: 900px) {
+  .manage-league-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: auto;
+  }
+}
+
 /* Commissioner's Office tab strip — same wrap-safety issue as the readiness buttons above. */
 .commissioner-chat-tabs {
   display: flex;

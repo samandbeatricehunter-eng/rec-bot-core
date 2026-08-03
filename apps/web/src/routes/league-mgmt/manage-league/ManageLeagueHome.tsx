@@ -118,7 +118,7 @@ export function ManageLeagueHome() {
         title="Manage League"
         subtitle="Find a team, see its schedule and box-score health, and enter its games and scores."
         actions={
-          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+          <div className="manage-league-header-actions">
             <Button variant="ghost" onClick={() => navigate(-1)}>
               <ArrowLeft size={16} /> Back
             </Button>
