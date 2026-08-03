@@ -435,6 +435,19 @@ export function MatchupDetailPage() {
     }
   }
 
+  async function reopenWagers() {
+    if (!gameId) return;
+    setWagersActionBusy(true);
+    try {
+      await recApi.reopenGameWagering({ guildId, gameId });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to reopen wagering.");
+    } finally {
+      setWagersActionBusy(false);
+    }
+  }
+
   function patchMatchupReactions(
     updater: (game: HubMatchupGame) => HubMatchupGame,
   ) {
@@ -867,6 +880,11 @@ export function MatchupDetailPage() {
           {matchup.wageringOpen && (
             <Button variant="ghost" size="compact" disabled={wagersActionBusy} onClick={() => void closeWagers()}>
               <Coins size={14} /> Close Wagers
+            </Button>
+          )}
+          {!matchup.wageringOpen && (
+            <Button variant="ghost" size="compact" disabled={wagersActionBusy} onClick={() => void reopenWagers()}>
+              <Coins size={14} /> Reopen Wagers
             </Button>
           )}
           <Button variant="ghost" size="compact" disabled={wagersActionBusy} onClick={() => void cancelWagers()}>

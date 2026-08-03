@@ -1360,7 +1360,16 @@ export async function cancelOwnWager(input: { guildId: string; discordId: string
   const { data: wager, error } = await supabase.from("rec_wagers").select("*").eq("id", input.wagerId).eq("league_id", context.leagueId).maybeSingle();
   if (error) throw new ApiError(500, "Failed to load wager.", error);
   if (!wager || wager.placed_by_user_id !== userId) throw new ApiError(404, "Your open wager was not found.");
-  if (wager.status !== "awaiting_accept") throw new ApiError(409, "Accepted wagers cannot be deleted.");
+  if (!["awaiting_accept", "pending", "confirmed"].includes(wager.status)) {
+    throw new ApiError(409, "This wager is no longer eligible for cancellation.");
+  }
+  if (wager.game_id) {
+    const game = await supabase.from("rec_games").select("status").eq("id", wager.game_id).eq("league_id", context.leagueId).maybeSingle();
+    if (game.error) throw new ApiError(500, "Failed to verify the wager cancellation window.", game.error);
+    if (!game.data || game.data.status !== "scheduled") {
+      throw new ApiError(409, "The wager cancellation window closed when game activity was recorded.");
+    }
+  }
   return cancelWager({ wagerId: wager.id });
 }
 
@@ -1377,6 +1386,17 @@ export async function closeWageringForGame(input: { guildId: string; gameId: str
   if (offers.data?.length) await supabase.from("rec_wagers").update({ status: "refunded", settled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).in("id", offers.data.map((wager) => wager.id));
   if (game.data.status === "scheduled") await supabase.from("rec_games").update({ status: "in_progress", updated_at: new Date().toISOString() }).eq("id", input.gameId);
   return { closed: true, refundedCount: offers.data?.length ?? 0 };
+}
+
+export async function reopenWageringForGame(input: { guildId: string; gameId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const game = await supabase.from("rec_games").select("id,status").eq("id", input.gameId).eq("league_id", context.leagueId).maybeSingle();
+  if (game.error) throw new ApiError(500, "Failed to load game.", game.error);
+  if (!game.data) throw new ApiError(404, "Scheduled game not found.");
+  if (["completed", "final"].includes(String(game.data.status))) throw new ApiError(409, "Completed games cannot be reopened for wagering.");
+  const updated = await supabase.from("rec_games").update({ status: "scheduled", updated_at: new Date().toISOString() }).eq("id", input.gameId);
+  if (updated.error) throw new ApiError(500, "Failed to reopen wagering.", updated.error);
+  return { reopened: true };
 }
 
 // Full void, unlike closeWageringForGame: refunds and cancels every not-yet-settled wager on

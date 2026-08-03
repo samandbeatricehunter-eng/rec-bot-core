@@ -243,6 +243,8 @@ export const recApi = {
     recApiFetch<{ closed: true; refundedCount: number }>("/v1/wagers/close-game", { method: "POST", body: JSON.stringify(input) }),
   cancelGameWagering: (input: { guildId: string; gameId: string }) =>
     recApiFetch<{ cancelled: true; refundedCount: number }>("/v1/wagers/cancel-game", { method: "POST", body: JSON.stringify(input) }),
+  reopenGameWagering: (input: { guildId: string; gameId: string }) =>
+    recApiFetch<{ reopened: true }>("/v1/wagers/reopen-game", { method: "POST", body: JSON.stringify(input) }),
   getPeerWagerBoard: (guildId: string) =>
     recApiFetch<PeerWagerBoardResponse>("/v1/wagers/peer-board", { method: "POST", body: JSON.stringify({ guildId }) }),
   getMyWagers: (guildId: string) =>
