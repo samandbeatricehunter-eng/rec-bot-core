@@ -22,6 +22,18 @@ under "Newly reported" as they come in mid-turn.
 - [x] #54 Daily spotlight refresh cron fix landed via background agent (commit 8c05585) — root cause was an unguarded prune-highlights query inside `refreshSpotlightReel()` that could throw and abort the whole reel recompute; now `.catch()`-wrapped, plus a duplicate prune call removed and a 45s wall-clock budget added to the per-row liveness sweep. Caveat flagged by that agent: if the reel is still stale tomorrow, check whether `REC_INTERNAL_API_KEY` was only rotated on one side (site's `docs/SECURITY_AUDIT_2026-07-28.md` recommended a rotation right before the failure window).
 - [x] #35 Commissioner cancel/refund for individual open wagers (peer + house). New `listOpenWagersForCommissioner`/`commissionerCancelWager` in `apps/api/src/modules/wagers/wagers.service.ts`, routes `POST /v1/wagers/open` + `/v1/wagers/commissioner-cancel` (co_commissioner-gated), new `WagerMaintenance.tsx` panel wired into League Mgmt → Settings → Maintenance tab.
 
+- [x] #49 EOS trigger inventory — all currently wired end-of-season automations, fired from `completeAdvanceWeek` in `apps/api/src/modules/league-week/advance-results.service.ts`, keyed to two boundaries: "postseason ends" (advancing OUT of the terminal stage, e.g. Super Bowl/National Championship, INTO the first offseason stage) and "offseason voting window closes" (advancing OUT of that first offseason stage):
+  - GOTW (Game of the Week) polls: auto-assigned every week for bowl/CFP/H2H games (`autoAssignGotwForWeek`), commissioner-selected poll created if a GOTW game was picked (`createGotwPoll`), settled when that game's result posts (`settleGotwPollsForGame`) — this one is weekly, not season-end.
+  - EOS stat payouts: `autoPrepareEosPayouts` — postseason-end boundary, drafts the Pending Payouts ledger for commissioner review.
+  - EOS Awards: `autoPrepareEosAwards` — postseason-end boundary, auto-issues Best Passing/Rushing/Defense outright and opens 3 web voting polls (MVP, Best User Skills, Most Heart); `closeAndSettleEosAwardVoting` — closes those 3 polls and posts result headlines when the league leaves the first offseason stage.
+  - Season-total badges: `issueSeasonTotalBadges` — fires when the regular season ends (advancing into any playoff stage), not the postseason-end boundary.
+  - Defense Nickname retirement (CFB only): `retireStaleDefenseNicknames` — postseason-end boundary.
+  - Play of the Year: `settleSeasonHighlightAwards` — postseason-end boundary, tallies highlight reactions, drafts a pending payout per category winner.
+  - Game of the Year: `settleGameOfTheYear` — postseason-end boundary, tallies H2H game "like" reactions, drafts a pending review for ties.
+  - Season highlight cleanup: `cleanupSeasonHighlights` — postseason-end boundary, runs after Play of the Year settles; hard-deletes every non-winning highlight, keeps POTY winners.
+  - Wager grace-period refunds: `resolveWagersOnAdvance` — runs on every advance (not season-end-only), refunds anything past its 1-week box-score grace period.
+  No separate cron/scheduler exists for any of these — they are all synchronous steps inside the advance-week flow itself, so nothing fires unless a commissioner (or the automated advance timer) actually advances the league through that boundary.
+
 ## In progress / pending (backlog from earlier messages)
 - [ ] #36 Fix NDSU + Sacramento State missing from REC OG `rec_teams` baseline (170 skipped players).
 - [ ] #37 Advance Readiness "Notify" buttons should tag users in Discord/site game chat: "SCHEDULE YOUR GAME ASAP".
