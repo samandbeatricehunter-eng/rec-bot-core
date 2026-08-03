@@ -61,6 +61,55 @@ const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
 ];
 
+// The league owner's one-time Discord bot setup — invites the bot, then walks through the
+// server-owner-only /claim-league step that actually links the invited server to this
+// league (running /claim-league in the wrong server, or as someone other than that
+// server's owner, is the most common way this flow goes wrong, hence spelling it out).
+function ConnectDiscordCard({ league, onConnected }: { league: SiteLeagueSummary; onConnected: () => Promise<unknown> }) {
+  const [state, setState] = useState<{ inviteUrl: string; token: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function connect() {
+    setBusy(true);
+    setError(null);
+    try {
+      const [enabled, invite] = await Promise.all([siteApi.enableLeagueBot(league.id), siteApi.getBotInviteUrl()]);
+      setState({ inviteUrl: invite.inviteUrl, token: enabled.league.discord_bot_invite_token ?? "" });
+      await onConnected();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to enable the Discord bot.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!state) {
+    return (
+      <div className="site-league-card-discord" onClick={(e) => e.stopPropagation()}>
+        {error && <p className="site-auth-error">{error}</p>}
+        <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => void connect()}>
+          {busy ? "Enabling..." : "Connect a Discord Server"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="site-league-card-discord" onClick={(e) => e.stopPropagation()}>
+      <p className="site-muted">Finish linking this league to a Discord server:</p>
+      <ol className="site-muted">
+        <li>
+          <a href={state.inviteUrl} target="_blank" rel="noreferrer">Invite the REC bot to your Discord server</a> — you must be that server's owner.
+        </li>
+        <li>In that server, run <code>/claim-league</code> and paste this token when prompted:</li>
+      </ol>
+      <code className="site-league-card-token">{state.token}</code>
+      <p className="site-muted">Only the Discord server's owner can run /claim-league — anyone else running it will be rejected.</p>
+    </div>
+  );
+}
+
 function roleLabel(league: SiteLeagueSummary) {
   const role = league.commissionerRole ?? (league.isCommissioner ? "co" : "member");
   if (role === "head") return "Head Commish";
@@ -794,21 +843,25 @@ export function LeaguesPage() {
           ) : (
             <div className="site-league-list">
               {hub.leagues.map((league) => (
-                <button
-                  key={league.id}
-                  type="button"
-                  className="site-league-card"
-                  onClick={() => openLeague(league.id)}
-                >
-                  <strong>
-                    <MemberStar tier={memberTier} /> {league.name}
-                  </strong>
-                  <span>
-                    {league.gameLabel}
-                    {league.teamName ? ` · ${league.teamName}` : ""}
-                    {` · ${roleLabel(league)}`}
-                  </span>
-                </button>
+                <div key={league.id} className="site-league-card-wrap">
+                  <button
+                    type="button"
+                    className="site-league-card"
+                    onClick={() => openLeague(league.id)}
+                  >
+                    <strong>
+                      <MemberStar tier={memberTier} /> {league.name}
+                    </strong>
+                    <span>
+                      {league.gameLabel}
+                      {league.teamName ? ` · ${league.teamName}` : ""}
+                      {` · ${roleLabel(league)}`}
+                    </span>
+                  </button>
+                  {league.commissionerRole === "head" && !league.discordBotEnabled && (
+                    <ConnectDiscordCard league={league} onConnected={hub.refreshLeagues} />
+                  )}
+                </div>
               ))}
             </div>
           )}
